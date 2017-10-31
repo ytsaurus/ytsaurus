@@ -100,7 +100,7 @@ void TCompositeAutomatonPart::RegisterMethod(
         TRequest::default_instance().GetTypeName(),
         BIND([=] (TMutationContext* context) {
             TRequest request;
-            DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
+            DeserializeProtoWithEnvelope(&request, context->Request().Data);
 
             auto& mutationResponse = context->Response();
 
@@ -124,7 +124,7 @@ void TCompositeAutomatonPart::RegisterMethod(
         THandlerRequest::default_instance().GetTypeName(),
         BIND([=] (TMutationContext* context) {
             THandlerRequest request;
-            DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
+            DeserializeProtoWithEnvelope(&request, context->Request().Data);
 
             auto& mutationResponse = context->Response();
 

@@ -206,12 +206,16 @@ public:
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        PostMessage(mailbox, SerializeMessage(message), reliable);
+        TEncapsulatedMessage encapsulatedMessage;
+        SerializeMessage(message, &encapsulatedMessage);
+        PostMessage(mailbox, encapsulatedMessage, reliable);
     }
 
     void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        PostMessage(mailboxes, SerializeMessage(message), reliable);
+        TEncapsulatedMessage encapsulatedMessage;
+        SerializeMessage(message, &encapsulatedMessage);
+        PostMessage(mailboxes, encapsulatedMessage, reliable);
     }
 
 

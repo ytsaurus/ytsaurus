@@ -103,7 +103,7 @@ TSharedRefArray CreateResponseMessage(
     const ::google::protobuf::MessageLite& body,
     const std::vector<TSharedRef>& attachments)
 {
-    auto serializedBody = SerializeToProtoWithEnvelope(body, NCompression::ECodec::None, false);
+    auto serializedBody = SerializeProtoToRefWithEnvelope(body, NCompression::ECodec::None, false);
 
     return CreateResponseMessage(
         TResponseHeader(),

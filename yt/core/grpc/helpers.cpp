@@ -100,22 +100,22 @@ TSharedRef ByteBufferToEnvelopedMessage(grpc_byte_buffer* buffer)
     // Codec remains "none".
 
     TEnvelopeFixedHeader fixedHeader;
-    fixedHeader.HeaderSize = envelope.ByteSize();
+    fixedHeader.EnvelopeSize = envelope.ByteSize();
     fixedHeader.MessageSize = static_cast<ui32>(grpc_byte_buffer_length(buffer));
 
     size_t totalSize =
         sizeof (TEnvelopeFixedHeader) +
-        fixedHeader.HeaderSize +
+        fixedHeader.EnvelopeSize +
         fixedHeader.MessageSize;
 
     auto data = TSharedMutableRef::Allocate<TMessageTag>(totalSize, false);
 
     char* targetFixedHeader = data.Begin();
     char* targetHeader = targetFixedHeader + sizeof (TEnvelopeFixedHeader);
-    char* targetMessage = targetHeader + fixedHeader.HeaderSize;
+    char* targetMessage = targetHeader + fixedHeader.EnvelopeSize;
 
     memcpy(targetFixedHeader, &fixedHeader, sizeof (fixedHeader));
-    YCHECK(envelope.SerializeToArray(targetHeader, fixedHeader.HeaderSize));
+    YCHECK(envelope.SerializeToArray(targetHeader, fixedHeader.EnvelopeSize));
 
     grpc_byte_buffer_reader reader;
     YCHECK(grpc_byte_buffer_reader_init(&reader, buffer) == 1);
@@ -142,10 +142,10 @@ TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data)
     YCHECK(data.Size() >= sizeof (TEnvelopeFixedHeader));
     const auto* fixedHeader = reinterpret_cast<const TEnvelopeFixedHeader*>(data.Begin());
     const char* sourceHeader = data.Begin() + sizeof (TEnvelopeFixedHeader);
-    const char* sourceMessage = sourceHeader + fixedHeader->HeaderSize;
+    const char* sourceMessage = sourceHeader + fixedHeader->EnvelopeSize;
 
     NProto::TSerializedMessageEnvelope envelope;
-    YCHECK(envelope.ParseFromArray(sourceHeader, fixedHeader->HeaderSize));
+    YCHECK(envelope.ParseFromArray(sourceHeader, fixedHeader->EnvelopeSize));
 
     auto compressedMessage = data.Slice(sourceMessage, sourceMessage + fixedHeader->MessageSize);
 

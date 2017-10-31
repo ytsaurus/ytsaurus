@@ -9,8 +9,9 @@ namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHiveClient::NProto::TEncapsulatedMessage SerializeMessage(
-    const ::google::protobuf::MessageLite& message);
+void SerializeMessage(
+    const ::google::protobuf::MessageLite& protoMessage,
+    NHiveClient::NProto::TEncapsulatedMessage* encapsulatedMessage);
 
 ////////////////////////////////////////////////////////////////////////////////
 

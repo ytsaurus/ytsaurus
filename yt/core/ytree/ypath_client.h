@@ -92,9 +92,8 @@ public:
 protected:
     virtual TSharedRef SerializeBody() const override
     {
-        return SerializeToProtoWithEnvelope(*this);
+        return SerializeProtoToRefWithEnvelope(*this);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,9 +124,8 @@ class TTypedYPathResponse
 protected:
     virtual void DeserializeBody(const TRef& data) override
     {
-        DeserializeFromProtoWithEnvelope(this, data);
+        DeserializeProtoWithEnvelope(this, data);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
