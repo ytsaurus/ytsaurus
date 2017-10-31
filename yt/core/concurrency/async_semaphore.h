@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -19,15 +21,15 @@ public:
     explicit TAsyncSemaphore(i64 totalSlots);
 
     //! Releases a given number of slots.
-    void Release(i64 slots = 1);
+    virtual void Release(i64 slots = 1);
 
     //! Acquires a given number of slots.
     //! Cannot fail, may lead to an overcommit.
-    void Acquire(i64 slots = 1);
+    virtual void Acquire(i64 slots = 1);
 
     //! Tries to acquire a given number of slots.
     //! Returns |true| on success (the number of remaining slots is non-negative).
-    bool TryAcquire(i64 slots = 1);
+    virtual bool TryAcquire(i64 slots = 1);
 
     //! Runs #handler when a given number of slots becomes available.
     //! These slots are immediately captured by TAsyncSemaphoreGuard instance passed to #handler.
@@ -77,6 +79,30 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncSemaphore)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProfiledAsyncSemaphore
+    : public TAsyncSemaphore
+{
+public:
+    TProfiledAsyncSemaphore(
+        i64 totalSlots,
+        const NProfiling::TProfiler& profiler,
+        const NYPath::TYPath& path,
+        const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+
+    virtual void Release(i64 slots = 1) override;
+    virtual void Acquire(i64 slots = 1) override;
+    virtual bool TryAcquire(i64 slots = 1) override;
+
+private:
+    const NProfiling::TProfiler Profiler;
+    const NYPath::TYPath Path_;
+    const NProfiling::TTagIdList TagIds_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TProfiledAsyncSemaphore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
