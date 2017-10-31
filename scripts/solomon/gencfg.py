@@ -566,7 +566,7 @@ def update_tablet_nodes(token, cluster, yes):
     yt.config["proxy"]["url"] = cluster
     masks = CLUSTER_NODE_MASKS[cluster]
     cluster_solomon = "yt_%s_tablet_nodes" % cluster
-    resource = Resource("/projects/yt/clusters/%s" % cluster_solomon, token)
+    resource = Resource("/projects/yt/clusters", cluster_solomon, token)
     resource.load()
 
     logging.info("Getting tablet nodes from cluster %s", cluster)
