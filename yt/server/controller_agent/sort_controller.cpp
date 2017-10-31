@@ -377,7 +377,12 @@ protected:
             Persist(context, Controller);
             Persist(context, NodeIdToAdjustedDataWeight);
             Persist(context, AdjustedScheduledDataWeight);
-            Persist(context, MaxDataWeightPerJob);
+
+            // COMPAT(psushin).
+            if (context.IsLoad() && context.GetVersion() < 200926) {
+                i64 _;
+                Persist(context, _);
+            }
         }
 
         virtual bool SupportsInputPathYson() const override
@@ -397,9 +402,6 @@ protected:
         //! The sum of all sizes appearing in #NodeIdToDataWeight.
         //! This value is IO weight-adjusted.
         i64 AdjustedScheduledDataWeight = 0;
-        //! Max-aggregated each time a new job is scheduled.
-        //! This value is not IO weight-adjusted.
-        i64 MaxDataWeightPerJob = 0;
 
 
         void UpdateNodeDataWeight(const TJobNodeDescriptor& descriptor, i64 delta)
@@ -432,7 +434,9 @@ protected:
             ISchedulingContext* context,
             const TJobResources& /*jobLimits*/) override
         {
-            if (!Controller->Spec->EnablePartitionedDataBalancing) {
+            if (!Controller->Spec->EnablePartitionedDataBalancing ||
+                Controller->TotalEstimatedInputDataWeight < Controller->Spec->MinLocalityInputDataWeight)
+            {
                 return true;
             }
 
@@ -445,8 +449,9 @@ protected:
                 return true;
             }
 
-            // We don't have a job at hand here, let's make a (worst-case) guess.
-            auto adjustedJobDataWeight = MaxDataWeightPerJob / ioWeight;
+            // We don't have a job at hand here, let's make a guess.
+            auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics()[0];
+            auto adjustedJobDataWeight = approximateStatistics.DataWeight / ioWeight;
             auto nodeId = context->GetNodeDescriptor().Id;
             auto newAdjustedScheduledDataWeight = AdjustedScheduledDataWeight + adjustedJobDataWeight;
             auto newAvgAdjustedScheduledDataWeight = newAdjustedScheduledDataWeight / NodeIdToAdjustedDataWeight.size();
@@ -475,7 +480,6 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
             auto dataWeight = joblet->InputStripeList->TotalDataWeight;
-            MaxDataWeightPerJob = std::max(MaxDataWeightPerJob, dataWeight);
             UpdateNodeDataWeight(joblet->NodeDescriptor, +dataWeight);
 
             TTask::OnJobStarted(joblet);

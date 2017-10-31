@@ -279,6 +279,7 @@ public:
     NYTree::IMapNodePtr NightlyOptions;
 
     //! If total input data weight of operation is less, we disable locality timeouts.
+    //! Also disables partitioned data balancing for small operations.
     i64 MinLocalityInputDataWeight;
 
     TAutoMergeConfigPtr AutoMerge;
