@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.rpc;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -10,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
@@ -120,6 +122,12 @@ public class BalancingRpcClient implements RpcClient {
         for (DataCenter dc : dataCenters) {
             dc.close();
         }
+    }
+
+    public Map<String, List<BalancingDestination>> getAliveDestinations() {
+        Map<String, List<BalancingDestination>> aliveDestinations = new HashMap<>();
+        Stream.of(dataCenters).forEach(dc -> aliveDestinations.put(dc.getName(), dc.getAliveDestinations()));
+        return aliveDestinations;
     }
 
     public RpcClient getAliveClient() {
