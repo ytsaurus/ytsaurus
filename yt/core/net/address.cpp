@@ -481,10 +481,7 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
         // ':' or '::'
         if (beforeAbbrev && tokenizeAbbrev()) {
             beforeAbbrev = false;
-            if (wordIndex == 8) {
-                return false;
-            }
-            wordIndex++;
+            ++wordIndex;
 
             if (isEnd()) {
                 break;
