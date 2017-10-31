@@ -547,6 +547,9 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
     T& value)
 {
     auto parameter = New<TParameter<T>>(value);
+    if (UnrecognizedStrategy == EUnrecognizedStrategy::KeepRecursive) {
+        parameter->SetKeepUnrecognizedRecursively();
+    }
     YCHECK(Parameters.insert(std::make_pair(parameterName, parameter)).second);
     return *parameter;
 }
