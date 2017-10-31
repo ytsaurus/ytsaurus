@@ -504,7 +504,7 @@ def update_cluster_services(token, cluster, yes):
         if service in cluster_services:
             logging.info("Service %s is already configured for cluster %s, skipping", service, cluster)
             continue
-        shard_name = "_".join([solomon_cluster_type, service.replace("yt_", ""), tag])
+        shard_name = "_".join([solomon_cluster, service_description["solomon_name"].replace("yt_", ""), tag])
         data = {
             "projectId": "yt",
             "serviceId": service,
