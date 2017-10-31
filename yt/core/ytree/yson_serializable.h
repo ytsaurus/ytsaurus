@@ -137,7 +137,7 @@ private:
     yhash<TString, IParameterPtr> Parameters;
 
     NYTree::IMapNodePtr Unrecognized;
-    EUnrecognizedStrategy UnrecognizedStrategy;
+    EUnrecognizedStrategy UnrecognizedStrategy = EUnrecognizedStrategy::Drop;
 
     std::vector<TInitializer> Initializers;
     std::vector<TValidator> Validators;
