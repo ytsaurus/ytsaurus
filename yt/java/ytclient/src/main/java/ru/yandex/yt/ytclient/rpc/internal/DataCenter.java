@@ -7,6 +7,8 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.MetricRegistry;
@@ -90,6 +92,10 @@ public final class DataCenter {
 
         backends[i].setIndex(i);
         backends[j].setIndex(j);
+    }
+
+    public List<BalancingDestination> getAliveDestinations() {
+        return Stream.of(backends).collect(Collectors.toList());
     }
 
     public List<BalancingDestination> selectDestinations(final int maxSelect, Random rnd) {
