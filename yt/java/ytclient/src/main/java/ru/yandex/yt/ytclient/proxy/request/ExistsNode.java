@@ -25,7 +25,9 @@ public class ExistsNode extends GetLikeReq<ExistsNode> {
         if (suppressableAccessTrackingOptions != null) {
             builder.setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
         }
-        builder.mergeFrom(additionalData);
+        if (additionalData != null) {
+            builder.mergeFrom(additionalData);
+        }
 
         return builder;
     }
