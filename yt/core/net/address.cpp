@@ -19,6 +19,7 @@
 #include <yt/core/profiling/timing.h>
 
 #include <util/generic/singleton.h>
+#include <util/string/hex.h>
 
 #ifdef _win_
     #include <ws2ipdef.h>
@@ -392,19 +393,6 @@ namespace {
 
 bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
 {
-    auto hexToDigit = [] (char ch) -> int {
-        if (ch >= '0' && ch <= '9') {
-            return ch - '0';
-        }
-        if (ch >= 'a' && ch <= 'f') {
-            return ch - 'a' + 10;
-        }
-        if (ch >= 'A' && ch <= 'F') {
-            return ch - 'A' + 10;
-        }
-        return -1;
-    };
-
     auto tokenizeWord = [&] (ui16* word) -> bool {
         int partLen = 0;
         ui16 wordValue = 0;
@@ -414,15 +402,15 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
         }
 
         while (partLen < 4 && !str->empty()) {
-            int digit = hexToDigit((*str)[0]);
-            if (digit == -1 && partLen == 0) {
+            int digit = Char2DigitTable[static_cast<unsigned char>((*str)[0])];
+            if (digit == '\xff' && partLen == 0) {
                 return false;
             }
-            if (digit == -1) {
+            if (digit == '\xff') {
                 break;
             }
 
-            *str = str->substr(1);
+            str->Skip(1);
             wordValue <<= 4;
             wordValue += digit;
             ++partLen;
@@ -445,7 +433,7 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
 
     auto tokenizeAbbrev = [&] () {
         if (str->size() >= 2 && (*str)[0] == ':' && (*str)[1] == ':') {
-            *str = str->substr(2);
+            str->Skip(2);
             return true;
         }
         return false;
@@ -453,7 +441,7 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
 
     if (tokenizeAbbrev()) {
         beforeAbbrev = false;
-        wordIndex++;
+        ++wordIndex;
     }
 
     if (isEnd() && !beforeAbbrev) {
@@ -467,7 +455,7 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
                 return false;
             }
 
-            words[7-wordIndex] = newWord;
+            words[7 - wordIndex] = newWord;
             ++wordIndex;
         } else {
             ui16 newWord = 0;
@@ -499,10 +487,12 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
             wordIndex++;
 
             if (isEnd()) {
-                return true;
+                break;
             }
         } else if (!str->empty() && (*str)[0] == ':') {
-            *str = str->substr(1);
+            str->Skip(1);
+        } else {
+            return false;
         }
     }
     
@@ -678,7 +668,7 @@ const TIP6Address& TIP6Network::GetMask() const
     return Mask_;
 }
 
-bool TIP6Network::Contains(const TIP6Address& address)
+bool TIP6Network::Contains(const TIP6Address& address) const
 {
     TIP6Address masked = address;
     masked &= Mask_;
