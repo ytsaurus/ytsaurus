@@ -164,14 +164,10 @@ public:
         try {
             TSharedRef item;
 
-            auto state = PyEval_SaveThread();
-            try {
+            {
+                TReleaseAcquireGilGuard guard;
                 item = Lexer_.NextItem();
-            } catch (...) {
-                PyEval_RestoreThread(state);
-                throw;
             }
-            PyEval_RestoreThread(state);
 
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);
