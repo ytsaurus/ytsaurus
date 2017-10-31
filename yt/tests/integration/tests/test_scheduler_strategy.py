@@ -444,6 +444,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("map_node", "//sys/pools/research/subpool", attributes=attrs)
         create("map_node", "//sys/pools/research/subpool/other_subpool", attributes=attrs)
 
+        # give time to scheduler for pool reloading
+        time.sleep(0.2)
+
         ops = []
         for i in xrange(3):
             create("table", "//tmp/out_" + str(i))
