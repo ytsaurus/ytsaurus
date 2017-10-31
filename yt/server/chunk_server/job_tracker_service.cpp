@@ -212,7 +212,7 @@ private:
                     Y_UNREACHABLE();
             }
 
-            auto serializedJobSpec = SerializeToProtoWithEnvelope(jobSpec);
+            auto serializedJobSpec = SerializeProtoToRefWithEnvelope(jobSpec);
             response->Attachments().push_back(serializedJobSpec);
         }
 

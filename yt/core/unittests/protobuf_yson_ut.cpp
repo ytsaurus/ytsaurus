@@ -458,7 +458,7 @@ TEST(TProtobufToYsonTest, Success)
         proto->set_int32_field(654);
     }
 
-    auto serialized = SerializeToProto(message);
+    auto serialized = SerializeProtoToRef(message);
 
     ArrayInputStream inputStream(serialized.Begin(), serialized.Size());
     TString yson;

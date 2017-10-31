@@ -853,7 +853,7 @@ private:
         auto tempDataFileName = dataFileName + NFS::TempFileSuffix;
         auto tempMetaFileName = metaFileName + NFS::TempFileSuffix;
 
-        auto metaBlob = SerializeToProto(key);
+        auto metaBlob = SerializeProtoToRef(key);
         TArtifactMetaHeader metaHeader;
 
         std::unique_ptr<TFile> tempDataFile;
@@ -941,7 +941,7 @@ private:
 
             metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
             TArtifactKey key;
-            if (!TryDeserializeFromProto(&key, metaBlob)) {
+            if (!TryDeserializeProto(&key, metaBlob)) {
                 LOG_WARNING("Failed to parse artifact meta file %v",
                     metaFileName);
                 return Null;

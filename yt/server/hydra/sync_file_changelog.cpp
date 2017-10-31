@@ -266,7 +266,7 @@ public:
                 ReadPadded(*DataFile_, serializedMeta);
             });
 
-            DeserializeFromProto(&Meta_, serializedMeta);
+            DeserializeProto(&Meta_, serializedMeta);
             SerializedMeta_ = serializedMeta;
 
             TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
@@ -330,7 +330,7 @@ public:
 
         try {
             Meta_ = meta;
-            SerializedMeta_ = SerializeToProto(Meta_);
+            SerializedMeta_ = SerializeProtoToRef(Meta_);
             RecordCount_ = 0;
 
             CreateDataFile();

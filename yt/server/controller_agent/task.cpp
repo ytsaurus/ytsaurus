@@ -766,7 +766,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             TaskHost_->Spec()->MaxDataWeightPerJob));
     }
 
-    return SerializeToProtoWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
+    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const

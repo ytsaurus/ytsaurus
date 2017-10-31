@@ -654,7 +654,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         for (const auto& info : response->jobs_to_start()) {
             TJobSpec spec;
             const auto& attachment = response->Attachments()[attachmentIndex++];
-            DeserializeFromProtoWithEnvelope(&spec, attachment);
+            DeserializeProtoWithEnvelope(&spec, attachment);
 
             auto jobId = FromProto<TJobId>(info.job_id());
             auto operationId = FromProto<TJobId>(info.operation_id());
@@ -706,7 +706,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
             TJobSpec spec;
             const auto& attachment = jobSpecResponse->Attachments()[index];
-            DeserializeFromProtoWithEnvelope(&spec, attachment);
+            DeserializeProtoWithEnvelope(&spec, attachment);
 
             CreateJob(jobId, operationId, resourceLimits, std::move(spec));
         }
