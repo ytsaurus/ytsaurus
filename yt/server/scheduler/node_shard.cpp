@@ -704,7 +704,7 @@ void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
                 jobId,
                 nodeId,
                 execNode->GetDefaultAddress());
-            execNode->JobIdsToRemove().emplace_back(jobId);
+            RevivalState_->JobIdsToRemove()[nodeId].emplace_back(jobId);
         } else {
             LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
                 jobId,
@@ -970,16 +970,19 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     {
         // Add all completed jobs that are now safe to remove.
-        for (const auto& jobId : node->JobIdsToRemove()) {
-            LOG_DEBUG("Asking node to remove job and removing it from recently completed job ids "
-                "(JobId: %v, NodeId: %v, NodeAddress: %v)",
-                jobId,
-                nodeId,
-                nodeAddress);
-            YCHECK(RevivalState_->RecentlyCompletedJobIds().erase(jobId));
-            ToProto(response->add_jobs_to_remove(), jobId);
+        auto it = RevivalState_->JobIdsToRemove().find(nodeId);
+        if (it != RevivalState_->JobIdsToRemove().end()) {
+            for (const auto& jobId : it->second) {
+                LOG_DEBUG("Asking node to remove job and removing it from recently completed job ids "
+                    "(JobId: %v, NodeId: %v, NodeAddress: %v)",
+                    jobId,
+                    nodeId,
+                    nodeAddress);
+                YCHECK(RevivalState_->RecentlyCompletedJobIds().erase(jobId));
+                ToProto(response->add_jobs_to_remove(), jobId);
+            }
+            RevivalState_->JobIdsToRemove().erase(it);
         }
-        node->JobIdsToRemove().clear();
     }
 
     for (auto& jobStatus : *request->mutable_jobs()) {
@@ -1748,6 +1751,7 @@ void TNodeShard::TRevivalState::PrepareReviving()
     NodeIdsThatSentAllStoredJobs_.clear();
     NotConfirmedJobs_.clear();
     RecentlyCompletedJobIds_.clear();
+    JobIdsToRemove_.clear();
 }
 
 void TNodeShard::TRevivalState::StartReviving()
