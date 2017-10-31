@@ -48,12 +48,12 @@ Transaction commands:
 Job commands:
     get-job-stderr, run-job-shell, abort-job
 Other commands:
-    transform'''
+    transform, show-spec, show-default-config'''
 
 EPILOG = '''Examples:
 
-List content of root directory of Plato cluster and check access to system.
-$  yt list / --proxy plato.yt.yandex.net
+List content of root directory of Hume cluster and check access to system.
+$  yt list / --proxy hume.yt.yandex.net
 >> home
    kiwi
    userdata
@@ -61,8 +61,8 @@ $  yt list / --proxy plato.yt.yandex.net
    statbox
    tmp
 
-Set YT_PROXY = plato.yt.yandex.net to avoid usage --proxy option.
-$ export YT_PROXY=plato.yt.yandex.net
+Set YT_PROXY = hume.yt.yandex.net to avoid usage --proxy option.
+$ export YT_PROXY=hume.yt.yandex.net
 (Add this string to ~/.bashrc)
 
 $  yt create table //tmp/sepulki
@@ -1095,8 +1095,6 @@ def main():
     add_insert_rows_parser(add_parser)
     add_delete_rows_parser(add_parser)
 
-    add_show_spec_parser(add_parser)
-
     add_erase_parser(add_parser)
     add_merge_parser(add_parser)
     add_sort_parser(add_parser)
@@ -1135,6 +1133,7 @@ def main():
     add_job_tool_parser(add_parser)
 
     add_show_default_config_parser(add_parser)
+    add_show_spec_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,
