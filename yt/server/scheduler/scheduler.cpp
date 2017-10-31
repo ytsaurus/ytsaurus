@@ -1325,21 +1325,6 @@ private:
         LOG_INFO("Finished scheduler state cleanup");
     }
 
-    void LogOperationsFairShare() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        for (const auto& pair : IdToOperation_) {
-            const auto& operationId = pair.first;
-            const auto& operation = pair.second;
-            if (operation->GetState() == EOperationState::Running) {
-                LOG_DEBUG("%v (OperationId: %v)",
-                    Strategy_->GetOperationLoggingProgress(operationId),
-                    operationId);
-            }
-        }
-    }
-
     void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
     {
         LogEventFluently(logEventType)
