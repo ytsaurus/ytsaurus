@@ -157,7 +157,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     using NYT::Load;
     Load(context, ExternalCellTag_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < 623) {
+    if (context.GetVersion() < 700) {
         Load<bool>(context); // Drop AccountingEnabled_.
     }
     // COMPAT(babenko)
@@ -179,7 +179,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, Revision_);
     Load(context, Account_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < 623) {
+    if (context.GetVersion() < 700) {
         Load<NSecurityServer::TClusterResources>(context); // Drop CachedResourceUsage_.
     }
     Load(context, Acd_);

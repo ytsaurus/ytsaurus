@@ -587,7 +587,7 @@ public:
         // NB: Use just the local replication as this only makes sense for staged chunks.
         const auto& requisition = ChunkRequisitionRegistry_.GetRequisition(chunk->GetLocalRequisitionIndex());
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateTransactionResourceUsage(*chunk, requisition, delta);
+        securityManager->UpdateTransactionResourceUsage(chunk, requisition, delta);
     }
 
     // Adds #chunk to accounts' resource usage.
@@ -599,7 +599,7 @@ public:
             ? *forcedRequisition
             : chunk->ComputeRequisition(GetChunkRequisitionRegistry());
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateResourceUsage(*chunk, requisition, delta);
+        securityManager->UpdateResourceUsage(chunk, requisition, delta);
     }
 
     void SealChunk(TChunk* chunk, const TMiscExt& miscExt)
@@ -1605,14 +1605,12 @@ private:
         for (const auto& pair : request.chunk_requisition_dict()) {
             auto remoteIndex = pair.index();
 
-            // Can't use the usual FromProto<T>() here: deserializing TChunkRequisition requires security manager.
-            TChunkRequisition requisition;
-            FromProto(&requisition, pair.requisition(), Bootstrap_->GetSecurityManager());
+            auto requisition = FromProto<TChunkRequisition>(pair.requisition(), Bootstrap_->GetSecurityManager());
             auto localIndex = ChunkRequisitionRegistry_.GetIndex(requisition, Bootstrap_->GetObjectManager());
             YCHECK(remoteToLocalIndexMap.emplace(remoteIndex, localIndex).second);
         }
 
-        return [remoteToLocalIndexMap=std::move(remoteToLocalIndexMap)] (TChunkRequisitionIndex remoteIndex) {
+        return [remoteToLocalIndexMap = std::move(remoteToLocalIndexMap)] (TChunkRequisitionIndex remoteIndex) {
             auto it = remoteToLocalIndexMap.find(remoteIndex);
             // The remote side must provide a dictionary entry for every index it sends us.
             YCHECK(it != remoteToLocalIndexMap.end());
@@ -2013,7 +2011,7 @@ private:
         NeedResetDataWeight_ = context.GetVersion() < 612;
 
         // COMPAT(shakurov)
-        if (context.GetVersion() >= 623) {
+        if (context.GetVersion() >= 700) {
             Load(context, ChunkRequisitionRegistry_);
         }
     }

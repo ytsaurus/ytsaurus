@@ -131,6 +131,12 @@ inline void TObjectBase::SetLifeStage(EObjectLifeStage lifeStage)
     LifeStageVoteCount_ = 0;
 }
 
+inline void TObjectBase::AdvanceLifeStage()
+{
+    auto nextLifeStage = NextStage(LifeStage_);
+    SetLifeStage(nextLifeStage);
+}
+
 inline bool TObjectBase::IsAlive() const
 {
     return RefCounter_ > 0;

@@ -74,7 +74,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, State_);
     Load(context, Timeout_);
-    if (context.GetVersion() < 623) {
+    if (context.GetVersion() < 700) {
         Load<bool>(context); // drop AccountingEnabled_
     }
     Load(context, Title_);

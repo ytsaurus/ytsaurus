@@ -161,7 +161,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     // For staged chunks, however, it *is* possible to compute requisitions.
     if (context.GetVersion() < 400) {
         Load(context, replicationFactorBefore400);
-    } else if (context.GetVersion() < 623) {
+    } else if (context.GetVersion() < 700) {
         auto oldReplication = Load<TChunkReplication>(context);
         if (isStaged) {
             auto* bootstrap = context.GetBootstrap();
@@ -243,7 +243,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                 // Drop RF and vitality.
                 exportData.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
             }
-        } else if (context.GetVersion() < 623) {
+        } else if (context.GetVersion() < 700) {
             TChunkExportDataListBefore619 oldExportDataList = {};
             TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
             for (int i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {

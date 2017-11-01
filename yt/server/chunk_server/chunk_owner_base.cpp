@@ -65,7 +65,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
         PrimaryMediumIndex_ = Load<int>(context);
     }
     // COMPAT(shakurov)
-    if (context.GetVersion() < 623) {
+    if (context.GetVersion() < 700) {
         Load<bool>(context); // drop ChunkPropertiesUpdateNeeded_
     }
     Load(context, SnapshotStatistics_);
