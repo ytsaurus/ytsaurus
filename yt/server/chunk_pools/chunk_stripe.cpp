@@ -172,6 +172,7 @@ void TChunkStripeList::Persist(const TPersistenceContext& context)
     Persist(context, TotalRowCount);
     Persist(context, TotalChunkCount);
     Persist(context, LocalChunkCount);
+    Persist(context, IsSplittable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

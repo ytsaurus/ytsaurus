@@ -5,6 +5,7 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
@@ -58,18 +59,17 @@ static const NProfiling::TProfiler Profiler("/operations/remote_copy");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteCopyController
+class TLegacyRemoteCopyController
     : public TOperationControllerBase
 {
 public:
-    TRemoteCopyController(
-        TSchedulerConfigPtr config,
+    TLegacyRemoteCopyController(
         TRemoteCopyOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, config->RemoteCopyOperationOptions, host, operation)
+        : TOperationControllerBase(spec, host->GetControllerAgent()->GetConfig()->RemoteCopyOperationOptions, host, operation)
         , Spec_(spec)
-        , Options_(config->RemoteCopyOperationOptions)
+        , Options_(Config->RemoteCopyOperationOptions)
     {
         RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
     }
@@ -107,7 +107,7 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xbac5ad82);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController, 0xbac5ad82);
 
     TRemoteCopyOperationSpecPtr Spec_;
     TRemoteCopyOperationOptionsPtr Options_;
@@ -120,7 +120,7 @@ private:
         TRemoteCopyTask()
         { }
 
-        TRemoteCopyTask(TRemoteCopyController* controller, int index)
+        TRemoteCopyTask(TLegacyRemoteCopyController* controller, int index)
             : TTask(controller)
             , Controller_(controller)
             , ChunkPool_(CreateAtomicChunkPool())
@@ -186,7 +186,7 @@ private:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyTask, 0x83b0dfe3);
 
-        TRemoteCopyController* Controller_ = nullptr;
+        TLegacyRemoteCopyController* Controller_ = nullptr;
 
         std::unique_ptr<IChunkPool> ChunkPool_;
 
@@ -440,7 +440,7 @@ private:
         auto addTask = [this] (const std::vector<TChunkStripePtr>& stripes, int index) {
             auto task = New<TRemoteCopyTask>(this, index);
             task->AddInput(stripes);
-            task->FinishInput();
+            FinishTaskInput(task);
             RegisterTask(task);
         };
 
@@ -463,6 +463,11 @@ private:
         }
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
+
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     { }
 
@@ -478,7 +483,7 @@ private:
 
     virtual bool IsCompleted() const override
     {
-        return Tasks.size() == JobCounter.GetCompletedTotal();
+        return Tasks.size() == JobCounter->GetCompletedTotal();
     }
 
     // Progress reporting.
@@ -488,12 +493,12 @@ private:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, "
             "UnavailableInputChunks: %v",
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
             GetUnavailableInputChunkCount());
     }
 
@@ -535,7 +540,7 @@ private:
         if (Spec_->ClusterConnection) {
             return CreateNativeConnection(*Spec_->ClusterConnection);
         } else if (Spec_->ClusterName) {
-            auto connection = Host
+            auto connection = ControllerAgent
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectory()
@@ -563,18 +568,22 @@ private:
             THROW_ERROR_EXCEPTION("No remote cluster is specified");
         }
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController::TRemoteCopyTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController::TRemoteCopyTask);
 
-IOperationControllerPtr CreateRemoteCopyController(
-    TSchedulerConfigPtr config,
+IOperationControllerPtr CreateLegacyRemoteCopyController(
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
-    return New<TRemoteCopyController>(config, spec, host, operation);
+    return New<TLegacyRemoteCopyController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

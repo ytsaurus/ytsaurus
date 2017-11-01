@@ -14,7 +14,7 @@ class TBrotliCompress
     : public IOutputStream
 {
 public:
-    TBrotliCompress(IOutputStream* slave, int level);
+    TBrotliCompress(IOutputStream* underlying, int level);
 
 protected:
     virtual void DoWrite(const void* buffer, size_t length);
@@ -30,7 +30,7 @@ class TBrotliDecompress
     : public IInputStream
 {
 public:
-    explicit TBrotliDecompress(IInputStream* slave, size_t buflen = 8 * 1024);
+    explicit TBrotliDecompress(IInputStream* underlying, size_t buflen = 8 * 1024, bool trusted = false);
 
 private:
     virtual size_t DoRead(void* buffer, size_t length);

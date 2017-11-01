@@ -56,6 +56,8 @@ public:
     i64 GetPreliminaryRowCount() const;
     int GetPreliminarySliceCount() const;
 
+    void SetUnsplittable();
+
 private:
     TChunkStripeListPtr StripeList_ = New<TChunkStripeList>();
 
@@ -80,9 +82,9 @@ class TJobManager
 {
 public:
     // TODO(max42): Remove data size counter and row counter the hell outta here when YT-6673 is done.
-    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounter, DataWeightCounter);
-    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounter, RowCounter);
-    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounter, JobCounter);
+    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, DataWeightCounter, New<NControllerAgent::TProgressCounter>());
+    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, RowCounter, New<NControllerAgent::TProgressCounter>());
+    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, JobCounter, New<NControllerAgent::TProgressCounter>());
     DEFINE_BYVAL_RO_PROPERTY(int, SuspendedJobCount);
 
 public:

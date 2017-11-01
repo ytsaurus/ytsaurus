@@ -93,6 +93,12 @@ public:
         return TUnderlyingTask::GetId() + " + AutoMergeableOutputMixin";
     }
 
+    virtual bool CanLoseJobs() const override
+    {
+        // If user code is deterministic, it is safe to restart it arbitrarily.
+        return this->GetUserJobSpec()->Deterministic;
+    }
+
     void Persist(const TPersistenceContext& context)
     {
         TUnderlyingTask::Persist(context);

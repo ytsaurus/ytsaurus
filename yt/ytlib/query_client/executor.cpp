@@ -526,6 +526,17 @@ private:
             rowBuffer,
             Logger);
 
+        for (const auto& split : allSplits) {
+            if (split.first.KeyWidth == 0 && !query->IsOrdered()) {
+                if (!options.AllowFullScan) {
+                    THROW_ERROR_EXCEPTION("Primary table key is not used in the where clause (full scan); "
+                        "the query is inefficient, consider rewriting it");
+                } else {
+                    LOG_DEBUG("Executing query with full scan");
+                }
+            }
+        }
+
         LOG_DEBUG("Regrouping %v splits into groups",
             allSplits.size());
 

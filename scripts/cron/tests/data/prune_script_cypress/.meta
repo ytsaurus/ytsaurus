@@ -1,6 +1,0 @@
-{
-    "attributes" = {
-        "prune_empty_map_nodes" = %true;
-    };
-    "type" = "map_node";
-}

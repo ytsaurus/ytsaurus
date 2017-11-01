@@ -12,6 +12,7 @@
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/finally.h>
 
 #include <unordered_set>
 
@@ -23,7 +24,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int PlanFragmentDepthLimit = 50;
+static constexpr size_t MaxExpressionDepth = 50;
 
 struct TQueryPreparerBufferTag
 { };
@@ -52,6 +53,7 @@ void ExtractFunctionNames(
         ExtractFunctionNames(inExpr->Expr, functions);
     } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
         ExtractFunctionNames(transformExpr->Expr, functions);
+        ExtractFunctionNames(transformExpr->DefaultExpr, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
@@ -113,40 +115,6 @@ std::vector<TString> ExtractFunctionNames(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
-{
-    if (depth > PlanFragmentDepthLimit) {
-        THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
-    }
-
-    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>()) {
-        return;
-    } if (auto inExpr = op->As<TInExpression>()) {
-        for (const auto& argument : inExpr->Arguments) {
-            CheckExpressionDepth(argument, depth + 1);
-        }
-        return;
-    } if (auto transformExpr = op->As<TTransformExpression>()) {
-        for (const auto& argument : transformExpr->Arguments) {
-            CheckExpressionDepth(argument, depth + 1);
-        }
-        return;
-    } else if (auto functionExpr = op->As<TFunctionExpression>()) {
-        for (const auto& argument : functionExpr->Arguments) {
-            CheckExpressionDepth(argument, depth + 1);
-        }
-        return;
-    } else if (auto unaryOpExpr = op->As<TUnaryOpExpression>()) {
-        CheckExpressionDepth(unaryOpExpr->Operand, depth + 1);
-        return;
-    } else if (auto binaryOpExpr = op->As<TBinaryOpExpression>()) {
-        CheckExpressionDepth(binaryOpExpr->Lhs, depth + 1);
-        CheckExpressionDepth(binaryOpExpr->Rhs, depth + 1);
-        return;
-    }
-    Y_UNREACHABLE();
-};
 
 TValue CastValueWithCheck(TValue value, EValueType targetType)
 {
@@ -1116,6 +1084,7 @@ struct TTypedExpressionBuilder
     const TString& Source;
     const TConstTypeInferrerMapPtr& Functions;
     const NAst::TAliasMap& AliasMap;
+    mutable size_t Depth;
 
     TUntypedExpression DoBuildUntypedExpression(
         const NAst::TReference& reference,
@@ -1132,7 +1101,8 @@ struct TTypedExpressionBuilder
                     // try InferName(found, expand aliases = true)
 
                     if (usedAliases.count(columnName)) {
-                        THROW_ERROR_EXCEPTION("Recursive usage of alias %Qv", columnName);
+                        THROW_ERROR_EXCEPTION("Recursive usage of alias %Qv",
+                            columnName);
                     }
 
                     usedAliases.insert(columnName);
@@ -1162,6 +1132,16 @@ struct TTypedExpressionBuilder
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const
     {
+        ++Depth;
+        auto depthGuard = Finally([&] {
+            --Depth;
+        });
+
+        if (Depth > MaxExpressionDepth) {
+            THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
+                << TErrorAttribute("max_expression_depth", MaxExpressionDepth);
+        }
+
         if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
 
@@ -1434,7 +1414,8 @@ struct TTypedExpressionBuilder
                 argTypes.push_back(argType);
                 if (auto reference = typedArgument->As<TReferenceExpression>()) {
                     if (!columnNames.insert(reference->ColumnName).second) {
-                        THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv", reference->ColumnName)
+                        THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv",
+                            reference->ColumnName)
                             << TErrorAttribute("source", inExpr->GetSource(Source));
                     }
                 }
@@ -1466,7 +1447,7 @@ struct TTypedExpressionBuilder
                 if (auto reference = typedArgument->As<TReferenceExpression>()) {
                     if (!columnNames.insert(reference->ColumnName).second) {
                         THROW_ERROR_EXCEPTION("TRANSFORM operator has multiple references to column %Qv",
-                        reference->ColumnName)
+                            reference->ColumnName)
                             << TErrorAttribute("source", source);
                     }
                 }
@@ -1502,7 +1483,32 @@ struct TTypedExpressionBuilder
                 }
             }
 
-            auto resultType = GetFrontWithCheck(resultTypes, source);
+            const auto& defaultExpr = transformExpr->DefaultExpr;
+
+            TConstExpressionPtr defaultTypedExpr;
+
+            EValueType resultType;
+            if (defaultExpr) {
+                if (defaultExpr->size() != 1) {
+                    THROW_ERROR_EXCEPTION("Default expression must scalar")
+                        << TErrorAttribute("source", source);
+                }
+
+                auto untypedArgument = DoBuildUntypedExpression(defaultExpr->front().Get(), schema, usedAliases);
+
+                if (!Unify(&resultTypes, untypedArgument.FeasibleTypes)) {
+                    THROW_ERROR_EXCEPTION("Type mismatch in default expression: expected %Qlv, got %Qlv",
+                        resultTypes,
+                        untypedArgument.FeasibleTypes)
+                        << TErrorAttribute("source", source);
+                }
+
+                resultType = GetFrontWithCheck(resultTypes, source);
+
+                defaultTypedExpr = untypedArgument.Generator(resultType);
+            } else {
+                resultType = GetFrontWithCheck(resultTypes, source);
+            }
 
             auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
             TUnversionedRowBuilder rowBuilder;
@@ -1551,7 +1557,8 @@ struct TTypedExpressionBuilder
             auto result = New<TTransformExpression>(
                 resultType,
                 std::move(typedArguments),
-                std::move(capturedRows));
+                std::move(capturedRows),
+                std::move(defaultTypedExpr));
 
             TExpressionGenerator generator = [result] (EValueType type) mutable {
                 return result;
@@ -1668,8 +1675,7 @@ protected:
         const TString& /*subexprName*/,
         const TTypedExpressionBuilder& /*builder*/)
     {
-        THROW_ERROR_EXCEPTION(
-            "Misuse of aggregate function %Qv",
+        THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv",
             name);
     }
 
@@ -1710,7 +1716,7 @@ public:
                     size_t(SourceTableSchema_.GetColumnIndex(*column))});
             }
 
-            return TBaseColumn(formattedName, column->Type);
+            return TBaseColumn(formattedName, column->GetPhysicalType());
         } else {
             return Null;
         }
@@ -1719,7 +1725,7 @@ public:
     virtual void Finish() override
     {
         for (const auto& column : SourceTableSchema_.Columns()) {
-            GetColumnPtr(NAst::TReference(column.Name, TableName_));
+            GetColumnPtr(NAst::TReference(column.Name(), TableName_));
         }
     }
 
@@ -1880,8 +1886,6 @@ public:
             typedOperand = TExpressionSimplifier().Visit(typedOperand);
             typedOperand = TNotExpressionPropagator().Visit(typedOperand);
 
-            CheckExpressionDepth(typedOperand);
-
             AggregateItems_->emplace_back(
                 typedOperand,
                 name,
@@ -1913,8 +1917,6 @@ TConstExpressionPtr BuildPredicate(
 
     auto typedPredicate = builder.BuildTypedExpression(expressionAst.front().Get(), schemaProxy);
 
-    CheckExpressionDepth(typedPredicate);
-
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
@@ -1939,7 +1941,6 @@ TConstGroupClausePtr BuildGroupClause(
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
-        CheckExpressionDepth(typedExpr);
         groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
 
@@ -1963,8 +1964,6 @@ TConstExpressionPtr BuildHavingClause(
 
     auto typedPredicate = builder.BuildTypedExpression(expressionsAst.front().Get(), schemaProxy);
 
-    CheckExpressionDepth(typedPredicate);
-
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
@@ -1985,7 +1984,6 @@ TConstProjectClausePtr BuildProjectClause(
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
-        CheckExpressionDepth(typedExpr);
         projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
     }
 
@@ -2179,7 +2177,8 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     TTypedExpressionBuilder builder{
         parsedSource.Source,
         functions,
-        aliasMap};
+        aliasMap,
+        0};
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
 
@@ -2215,7 +2214,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             }
 
             if (selfColumn->Type != foreignColumn->Type) {
-                THROW_ERROR_EXCEPTION("Column %Qv type mismatch",
+                THROW_ERROR_EXCEPTION("Column %Qv type mismatch in join",
                     NAst::InferColumnName(referenceExpr->Reference))
                     << TErrorAttribute("self_type", selfColumn->Type)
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
@@ -2292,7 +2291,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 continue;
             }
 
-            const auto& foreignColumnExpression = foreignTableSchema.Columns()[keyPrefix].Expression;
+            const auto& foreignColumnExpression = foreignTableSchema.Columns()[keyPrefix].Expression();
 
             if (!foreignColumnExpression) {
                 break;
@@ -2321,7 +2320,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             keySelfEquations[keyPrefix] = std::make_pair(evaluatedColumnExpression, true);
 
             auto reference = NAst::TReference(
-                foreignTableSchema.Columns()[keyPrefix].Name,
+                foreignTableSchema.Columns()[keyPrefix].Name(),
                 join.Table.Alias);
 
             auto foreignColumn = foreignSourceProxy->GetColumnPtr(reference);
@@ -2337,7 +2336,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             if (keySelfEquations[index].second) {
                 const auto& evaluatedColumnExpression = keySelfEquations[index].first;
 
-                if (const auto& selfColumnExpression = tableSchema.Columns()[index].Expression) {
+                if (const auto& selfColumnExpression = tableSchema.Columns()[index].Expression()) {
                     auto evaluatedSelfColumnExpression = PrepareExpression(
                         selfColumnExpression.Get(),
                         tableSchema,
@@ -2423,7 +2422,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 continue;
             }
 
-            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression;
+            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression();
 
             if (!expression) {
                 break;
@@ -2523,7 +2522,8 @@ TQueryPtr PrepareJobQuery(
     TTypedExpressionBuilder builder{
         source,
         functions,
-        aliasMap};
+        aliasMap,
+        0};
 
     PrepareQuery(
         query,
@@ -2558,7 +2558,8 @@ TConstExpressionPtr PrepareExpression(
     TTypedExpressionBuilder builder{
         source,
         functions,
-        aliasMap};
+        aliasMap,
+        0};
 
     auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);
 

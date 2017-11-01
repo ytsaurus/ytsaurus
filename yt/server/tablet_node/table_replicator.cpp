@@ -37,13 +37,14 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NHiveClient;
-using namespace NYPath;
-using namespace NConcurrency;
-using namespace NTabletClient;
-using namespace NTableClient;
-using namespace NTransactionClient;
 using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHiveClient;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTransactionClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,6 +197,7 @@ private:
                 // Some log rows are prepared for replication, hence replication cannot proceed.
                 // Seeing this is unusual since we're waiting for the replication commit to complete (see below).
                 // However we may occasionally run into this check on epoch change.
+                replicaRuntimeData->Error.Store(TError());
                 return;
             }
 
@@ -218,6 +220,7 @@ private:
                 replicaRuntimeData->LastReplicationTimestamp.store(
                     Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
                     std::memory_order_relaxed);
+                replicaRuntimeData->Error.Store(TError());
                 return;
             }
 
@@ -320,7 +323,8 @@ private:
             MakeRowBound(rowIndex),
             MakeRowBound(rowIndex + 1),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication));
+            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
+            TReadSessionId());
 
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(1);
@@ -427,8 +431,10 @@ private:
         i64* newReplicationRowIndex,
         TTimestamp* newReplicationTimestamp)
     {
-        LOG_DEBUG("Started building replication batch (StartRowIndex: %v)",
-            startRowIndex);
+        auto sessionId = TReadSessionId::Create();
+        LOG_DEBUG("Started building replication batch (StartRowIndex: %v, ReadSessionId: %v)",
+            startRowIndex,
+            sessionId);
 
         auto reader = CreateSchemafulTabletReader(
             tabletSnapshot,
@@ -436,7 +442,8 @@ private:
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication));
+            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
+            sessionId);
 
         int timestampCount = 0;
         int rowCount = 0;

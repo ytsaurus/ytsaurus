@@ -6,6 +6,7 @@ set(CHARSET_SRCS
   ${CHARSET_BASE}/unidata.cpp
   ${CHARSET_BASE}/utf8.cpp
   ${CHARSET_BASE}/sse41/wide.cpp
+  ${CHARSET_BASE}/wide.cpp
 )
 
 set(STRING_BASE ${CMAKE_SOURCE_DIR}/util/string)
@@ -15,7 +16,6 @@ set(STRING_SRCS
   ${STRING_BASE}/cast.cc
   ${STRING_BASE}/cgiparam.cpp
   ${STRING_BASE}/cstriter.cpp
-  ${STRING_BASE}/delim_stroka_iter.cpp
   ${STRING_BASE}/escape.cpp
   ${STRING_BASE}/hex.cpp
   ${STRING_BASE}/iterator.cpp
@@ -179,7 +179,6 @@ set(SYSTEM_SRCS
   ${SYSTEM_BASE}/valgrind.cpp
   ${SYSTEM_BASE}/yassert.cpp
   ${SYSTEM_BASE}/yield.cpp
-  ${SYSTEM_BASE}/context_x86.asm
 )
 
 set(MEMORY_BASE ${CMAKE_SOURCE_DIR}/util/memory)
@@ -323,7 +322,22 @@ set(ROOT_SRCS
   ${ROOT_BASE}/ysaveload.cpp
 )
 
-add_library(deps-arcadia-util STATIC
+set(SRCS_ASM
+  ${SYSTEM_BASE}/context_x86.asm
+)
+
+set(CAN_USE_ASSEMBLER TRUE)
+enable_language(ASM_NASM)
+
+foreach(f ${SRCS_ASM})
+  set_property(SOURCE ${f} APPEND_STRING PROPERTY COMPILE_FLAGS " -D_x86_64_ ")
+  set_property(SOURCE ${f} APPEND_STRING PROPERTY COMPILE_FLAGS " -I${SYSTEM_BASE}/ ")
+  if(APPLE)
+    set_property(SOURCE ${f} APPEND_STRING PROPERTY COMPILE_FLAGS " -DDARWIN ")
+  endif()
+endforeach()
+
+set(SRCS
   ${CHARSET_SRCS}
   ${STRING_SRCS}
   ${GENERIC_SRCS}
@@ -338,6 +352,12 @@ add_library(deps-arcadia-util STATIC
   ${RANDOM_SRCS}
   ${DRAFT_SRCS}
   ${ROOT_SRCS}
+)
+
+
+add_library(deps-arcadia-util STATIC
+  ${SRCS}
+  ${SRCS_ASM}
 )
 
 target_link_libraries(deps-arcadia-util
@@ -355,9 +375,19 @@ endif()
 include_directories(${CMAKE_SOURCE_DIR})
 
 if(CMAKE_COMPILER_IS_GNUCXX)
-  set_target_properties(deps-arcadia-util PROPERTIES COMPILE_FLAGS "-fPIC")
+  foreach(f ${SRCS})
+    set_source_files_properties(${f} PROPERTIES COMPILE_FLAGS -fPIC)
+  endforeach()
 endif()
 
 if(APPLE)
-  set_target_properties(deps-arcadia-util PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE")
+  foreach(f ${SRCS})
+    set_source_files_properties(${f} PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE")
+  endforeach()
+endif()
+
+if (_is_clang)
+  foreach(f ${SRCS})
+    set_source_files_properties(${f} PROPERTIES COMPILE_FLAGS -Wno-unknown-attributes)
+  endforeach()
 endif()

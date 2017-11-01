@@ -79,6 +79,7 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
+    std::atomic<i64> DynamicMemoryPoolSize = {0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -138,6 +139,7 @@ struct TTabletSnapshot
 
     //! Profiler tags is empty iff EnableProfiling is false.
     NProfiling::TTagIdList ProfilerTags;
+    NProfiling::TTagIdList DiskProfilerTags;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -173,6 +175,7 @@ struct TTabletPerformanceCounters
     std::atomic<i64> DynamicRowReadCount = {0};
     std::atomic<i64> DynamicRowLookupCount = {0};
     std::atomic<i64> DynamicRowWriteCount = {0};
+    std::atomic<i64> DynamicRowWriteDataWeightCount = {0};
     std::atomic<i64> DynamicRowDeleteCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};
@@ -291,6 +294,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
     DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, ProfilerTags);
+    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, DiskProfilerTags);
+
+    DEFINE_BYREF_RO_PROPERTY(TTabletPerformanceCountersPtr, PerformanceCounters, New<TTabletPerformanceCounters>());
+    DEFINE_BYREF_RO_PROPERTY(TRuntimeTabletDataPtr, RuntimeData, New<TRuntimeTabletData>());
 
 public:
     TTablet(
@@ -329,8 +336,6 @@ public:
 
     const IStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(IStoreManagerPtr storeManager);
-
-    const TTabletPerformanceCountersPtr& GetPerformanceCounters() const;
 
     using TPartitionList = std::vector<std::unique_ptr<TPartition>>;
     const TPartitionList& PartitionList() const;
@@ -404,16 +409,12 @@ public:
     bool IsProfilingEnabled() const;
 
 private:
-    const TRuntimeTabletDataPtr RuntimeData_ = New<TRuntimeTabletData>();
-
     TTableMountConfigPtr Config_;
     TTabletChunkReaderConfigPtr ReaderConfig_;
     TTabletChunkWriterConfigPtr WriterConfig_;
     TTabletWriterOptionsPtr WriterOptions_;
 
     IStoreManagerPtr StoreManager_;
-
-    TTabletPerformanceCountersPtr PerformanceCounters_;
 
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
 

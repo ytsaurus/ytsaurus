@@ -16,7 +16,7 @@
 
 #include <yt/core/bus/config.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/yson_serializable.h>

@@ -270,6 +270,7 @@ private:
         explicit TRunningJob(const TChunkStripeListPtr& inputStripeList)
             : TotalRowCount_(inputStripeList->TotalRowCount)
             , TotalDataWeight_(inputStripeList->TotalDataWeight)
+            , IsSplittable_(inputStripeList->IsSplittable)
         { }
 
         void UpdateCompletionTime(TStatistics* statistics, const TJobSummary& summary)
@@ -302,7 +303,9 @@ private:
             auto minJobTime = std::max(
                 config->MinJobTime,
                 PrepareWithoutDownloadDuration_ * config->ExecToPrepareTimeRatio);
-            return ExecDuration_ > minJobTime &&
+            return IsSplittable_ &&
+                RowCount_ > 0 &&                     // don't split job that hasn't read anything;
+                ExecDuration_ > minJobTime &&
                 RemainingDuration_ > minJobTime &&
                 TotalDataWeight_ > config->MinTotalDataWeight;
         }
@@ -321,6 +324,7 @@ private:
         {
             BuildYsonMapFluently(consumer)
                 .Item("row_count").Value(RowCount_)
+                .Item("splittable").Value(IsSplittable_)
                 .Item("total_row_count").Value(TotalRowCount_)
                 .Item("seconds_per_row").Value(SecondsPerRow_)
                 .Item("remaining_duration").Value(CompletionTime_ - GetInstant());
@@ -338,6 +342,7 @@ private:
             Persist(context, CompletionTime_);
             Persist(context, RowCount_);
             Persist(context, SecondsPerRow_);
+            Persist(context, IsSplittable_);
         }
 
     private:
@@ -349,6 +354,7 @@ private:
         TInstant CompletionTime_;
         i64 RowCount_ = 0;
         double SecondsPerRow_ = 0;
+        bool IsSplittable_ = true;
     };
 
     TJobSplitterConfigPtr Config_;

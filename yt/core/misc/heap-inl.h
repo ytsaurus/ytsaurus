@@ -12,7 +12,7 @@ namespace NYT {
 namespace NDetail {
 
 template <class TIterator, class TComparer>
-void SiftDown(TIterator begin, TIterator end, TIterator current, const TComparer& comparer)
+void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer)
 {
     size_t size = std::distance(begin, end);
     size_t offset = std::distance(begin, current);
@@ -46,7 +46,7 @@ void SiftDown(TIterator begin, TIterator end, TIterator current, const TComparer
 }
 
 template <class TIterator, class TComparer>
-void SiftUp(TIterator begin, TIterator end, TIterator current, const TComparer& comparer)
+void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer)
 {
     auto value = *current;
     while (current != begin) {
@@ -65,7 +65,7 @@ void SiftUp(TIterator begin, TIterator end, TIterator current, const TComparer& 
 } // namespace NDetail
 
 template <class TIterator, class TComparer>
-void MakeHeap(TIterator begin, TIterator end, const TComparer& comparer)
+void MakeHeap(TIterator begin, TIterator end, TComparer comparer)
 {
     size_t size = std::distance(begin, end);
     if (size > 1) {
@@ -76,29 +76,53 @@ void MakeHeap(TIterator begin, TIterator end, const TComparer& comparer)
     }
 }
 
+template <class TIterator>
+void MakeHeap(TIterator begin, TIterator end)
+{
+    MakeHeap(std::move(begin), std::move(end), std::less<>());
+}
+
 template <class TIterator, class TComparer>
-void AdjustHeapFront(TIterator begin, TIterator end, const TComparer& comparer)
+void AdjustHeapFront(TIterator begin, TIterator end, TComparer comparer)
 {
     if (end - begin > 1) {
         NYT::NDetail::SiftDown(begin, end, begin, comparer);
     }
 }
 
+template <class TIterator>
+void AdjustHeapFront(TIterator begin, TIterator end)
+{
+    AdjustHeapFront(std::move(begin), std::move(end), std::less<>());
+}
+
 template <class TIterator, class TComparer>
-void AdjustHeapBack(TIterator begin, TIterator end, const TComparer& comparer)
+void AdjustHeapBack(TIterator begin, TIterator end, TComparer comparer)
 {
     if (end - begin > 1) {
         NYT::NDetail::SiftUp(begin, end, end - 1, comparer);
     }
 }
 
+template <class TIterator>
+void AdjustHeapBack(TIterator begin, TIterator end)
+{
+    AdjustHeapBack(std::move(begin), std::move(end), std::less<>());
+}
+
 template <class TIterator, class TComparer>
-void ExtractHeap(TIterator begin, TIterator end, const TComparer& comparer)
+void ExtractHeap(TIterator begin, TIterator end, TComparer comparer)
 {
     Y_ASSERT(begin != end);
     auto newEnd = end - 1;
     std::swap(*begin, *newEnd);
     NYT::NDetail::SiftDown(begin, newEnd, begin, comparer);
+}
+
+template <class TIterator>
+void ExtractHeap(TIterator begin, TIterator end)
+{
+    ExtractHeap(std::move(begin), std::move(end), std::less<>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

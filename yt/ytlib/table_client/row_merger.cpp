@@ -674,7 +674,7 @@ TSamplingRowMerger::TSamplingRowMerger(
     , IdMapping_(size_t(schema.GetColumnCount()), -1)
 {
     for (const auto& column : schema.Columns()) {
-        if (!column.Aggregate) {
+        if (!column.Aggregate()) {
             IdMapping_[schema.GetColumnIndex(column)] = SampledColumnCount_;
             ++SampledColumnCount_;
         }

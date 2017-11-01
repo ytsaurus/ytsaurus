@@ -200,14 +200,14 @@ TString ToString(TVersionedRow row)
         if (index > 0) {
             builder.AppendString(STRINGBUF(","));
         }
-        builder.AppendFormat("%v", row.BeginWriteTimestamps()[index]);
+        builder.AppendFormat("%llx", row.BeginWriteTimestamps()[index]);
     }
     builder.AppendChar('|');
     for (int index = 0; index < row.GetDeleteTimestampCount(); ++index) {
         if (index > 0) {
             builder.AppendString(STRINGBUF(","));
         }
-        builder.AppendFormat("%v", row.BeginDeleteTimestamps()[index]);
+        builder.AppendFormat("%llx", row.BeginDeleteTimestamps()[index]);
     }
     builder.AppendChar(']');
     return builder.Flush();
@@ -246,7 +246,7 @@ void ValidateClientDataRow(
     }
 
     for (int index = 0; index < keyCount; ++index) {
-        const auto& expectedName = schema.Columns()[index].Name;
+        const auto& expectedName = schema.Columns()[index].Name();
         auto actualName = nameTable->GetName(index);
         if (expectedName != actualName) {
             THROW_ERROR_EXCEPTION("Invalid key column %v in name table: expected %Qv, got %Qv",
@@ -301,21 +301,21 @@ void ValidateClientDataRow(
 
         if (mappedId < keyCount) {
             THROW_ERROR_EXCEPTION("Key component %Qv appears in value part",
-                schema.Columns()[mappedId].Name);
+                schema.Columns()[mappedId].Name());
         }
 
         const auto& column = schema.Columns()[mappedId];
-        ValidateValueType(value, schema, mappedId);
+        ValidateValueType(value, schema, mappedId, /*typeAnyAcceptsAllValues*/ false);
 
-        if (value.Aggregate && !column.Aggregate) {
+        if (value.Aggregate && !column.Aggregate()) {
             THROW_ERROR_EXCEPTION(
                 "\"aggregate\" flag is set for value in column %Qv which is not aggregating",
-                column.Name);
+                column.Name());
         }
 
         if (mappedId < schema.GetKeyColumnCount()) {
             THROW_ERROR_EXCEPTION("Key column %Qv in values",
-                column.Name);
+                column.Name());
         }
 
         ValidateDataValue(value);

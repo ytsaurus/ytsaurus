@@ -335,11 +335,11 @@ TMutableRow CaptureRowWithSentinel(TRowBuffer* buffer, TRow src, int size, TNull
 
 TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpressionPtr expr)
 {
-    auto name = columns[keyIndex].Name;
+    auto name = columns[keyIndex].Name();
 
     TUnversionedValue one;
     one.Id = 0;
-    one.Type = columns[keyIndex].Type;
+    one.Type = columns[keyIndex].GetPhysicalType();
     one.Data.Int64 = 1;
 
     if (auto referenceExpr = expr->As<TReferenceExpression>()) {
@@ -399,7 +399,7 @@ TNullable<TModuloRangeGenerator> GetModuloGeneratorForColumn(
     const TSchemaColumns& columns,
     int index)
 {
-    if (!columns[index].Expression) {
+    if (!columns[index].Expression()) {
         return Null;
     }
     auto expr = evaluator.GetExpression(index)->As<TBinaryOpExpression>();
@@ -467,7 +467,7 @@ void EnrichKeyRange(
         }
 
         // Is computed or Bottom.
-        if (!columns[shrinkSize].Expression) {
+        if (!columns[shrinkSize].Expression()) {
             // Is Bottom (undefined)
             break;
         }
@@ -698,7 +698,7 @@ ui64 GetRangeCountLimit(
 {
     ui64 moduloExpansion = 1;
     for (int index = 0; index < keySize; ++index) {
-        if (columns[index].Expression) {
+        if (columns[index].Expression()) {
             auto expr = evaluator.GetExpression(index)->As<TBinaryOpExpression>();
             if (expr && expr->Opcode == EBinaryOp::Modulo) {
                 if (auto literalExpr = expr->Rhs->As<TLiteralExpression>()) {

@@ -467,6 +467,7 @@ private:
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& chunkState,
+    const TReadSessionId& sessionId,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -513,6 +514,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 std::move(underlyingReader),
                 chunkState,
+                sessionId,
                 keys,
                 columnFilter,
                 timestamp,
@@ -637,6 +639,7 @@ private:
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& chunkState,
+    const TReadSessionId& sessionId,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -683,6 +686,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 std::move(underlyingReader),
                 chunkState,
+                sessionId,
                 std::move(ranges),
                 columnFilter,
                 timestamp,

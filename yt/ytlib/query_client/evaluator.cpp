@@ -13,6 +13,8 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/misc/finally.h>
+
 #include <llvm/ADT/FoldingSet.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
@@ -56,6 +58,10 @@ public:
         : TAsyncSlruCacheBase(config->CGCache)
     { }
 
+    explicit TImpl(TExecutorConfigPtr config, TString profilingPath)
+        : TAsyncSlruCacheBase(config->CGCache, NProfiling::TProfiler(profilingPath + "/cg_cache"))
+    { }
+
     TQueryStatistics Run(
         TConstBaseQueryPtr query,
         ISchemafulReaderPtr reader,
@@ -91,7 +97,8 @@ public:
                     functionProfilers,
                     aggregateProfilers,
                     statistics,
-                    options.EnableCodeCache);
+                    options.EnableCodeCache,
+                    options.UseMultijoin);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -111,10 +118,14 @@ public:
 
                 CallCGQueryPtr(
                     cgQuery,
+                    fragmentParams.GetLiteralvalues(),
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
 
-                fragmentParams.Clear();
+                auto finalizer = Finally([&] () {
+                    fragmentParams.Clear();
+                });
+
             } catch (const std::exception& ex) {
                 LOG_DEBUG("Query evaluation failed");
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
@@ -149,7 +160,8 @@ private:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         TQueryStatistics& statistics,
-        bool enableCodeCache)
+        bool enableCodeCache,
+        bool useMultijoin)
     {
         llvm::FoldingSetNodeID id;
 
@@ -158,6 +170,7 @@ private:
             &id,
             &variables,
             joinProfiler,
+            useMultijoin,
             functionProfilers,
             aggregateProfilers);
 
@@ -199,14 +212,16 @@ private:
 
     static void CallCGQuery(
         const TCGQueryCallback& cgQuery,
+        TValue* literals,
         void* const* opaqueValues,
         TExecutionContext* executionContext)
     {
-        cgQuery(opaqueValues, executionContext);
+        cgQuery(literals, opaqueValues, executionContext);
     }
 
     void(*volatile CallCGQueryPtr)(
         const TCGQueryCallback& cgQuery,
+        TValue* literals,
         void* const* opaqueValues,
         TExecutionContext* executionContext) = CallCGQuery;
 
@@ -216,6 +231,10 @@ private:
 
 TEvaluator::TEvaluator(TExecutorConfigPtr config)
     : Impl_(New<TImpl>(std::move(config)))
+{ }
+
+TEvaluator::TEvaluator(TExecutorConfigPtr config, const TString& profilingPath)
+    : Impl_(New<TImpl>(std::move(config), profilingPath))
 { }
 
 TEvaluator::~TEvaluator() = default;

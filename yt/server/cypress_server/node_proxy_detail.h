@@ -49,6 +49,8 @@ public:
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 
+    virtual void ValidateStorageParametersUpdate();
+
 protected:
     class TCustomAttributeDictionary
         : public NYTree::IAttributeDictionary
@@ -542,6 +544,7 @@ private:
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
 
+    void SetImplValue(const NYson::TYsonString& value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

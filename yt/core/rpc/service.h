@@ -35,7 +35,7 @@ struct IServiceContext
     /*!
      *  These ids are assigned by the client to distinguish between responses.
      *  The server should not rely on their uniqueness.
-     *  
+     *
      *  #NullRequestId is a possible value.
      */
     virtual TRequestId GetRequestId() const = 0;

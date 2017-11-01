@@ -78,7 +78,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "remount":
-        tables = get_mounted_tables(args.bundle)
+        tables = []
+        if args.tables is None:
+            tables = get_mounted_tables(args.bundle)
+        else:
+            with open(args.tables, "r") as f:
+                for table in f.readlines():
+                    tables.append(table.strip())
         remount(tables)
     elif args.command == "list":
         tables = get_mounted_tables(args.bundle)

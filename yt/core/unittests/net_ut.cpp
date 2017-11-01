@@ -63,6 +63,23 @@ TEST_F(TNetTest, TransferFourBytes)
     ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ping"));
 }
 
+TEST_F(TNetTest, TransferFourBytesUsingWriteV)
+{
+    IConnectionPtr a, b;
+    std::tie(a, b) = CreateConnectionPair(Poller);
+
+    a->WriteV(TSharedRefArray(std::vector<TSharedRef>{
+        TSharedRef::FromString("p"),
+        TSharedRef::FromString("i"),
+        TSharedRef::FromString("n"),
+        TSharedRef::FromString("g")
+    })).Get();
+
+    TSharedMutableRef buffer = TSharedMutableRef::Allocate(10);
+    ASSERT_EQ(4, b->Read(buffer).Get().ValueOrThrow());
+    ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ping"));
+}
+
 TEST_F(TNetTest, BigTransfer)
 {
     const int N = 1024, K = 256 * 1024;

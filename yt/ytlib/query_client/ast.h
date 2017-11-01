@@ -258,16 +258,19 @@ struct TTransformExpression
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
         const TLiteralValueTupleList& from,
-        const TLiteralValueTupleList& to)
+        const TLiteralValueTupleList& to,
+        TNullableExpressionList defaultExpr)
         : TExpression(sourceLocation)
         , Expr(std::move(expression))
         , From(from)
         , To(to)
+        , DefaultExpr(std::move(defaultExpr))
     { }
 
     TExpressionList Expr;
     TLiteralValueTupleList From;
     TLiteralValueTupleList To;
+    TNullableExpressionList DefaultExpr;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransformExpression)
@@ -382,6 +385,7 @@ TString FormatLiteralValue(const TLiteralValue& value);
 TString FormatReference(const TReference& ref);
 TString FormatExpression(const TExpression& expr);
 TString FormatExpression(const TExpressionList& exprs);
+TString FormatJoin(const TJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
 TString InferColumnName(const TReference& ref);

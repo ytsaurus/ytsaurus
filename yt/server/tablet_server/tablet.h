@@ -36,6 +36,7 @@ struct TTabletCellStatistics
     i64 UncompressedDataSize = 0;
     i64 CompressedDataSize = 0;
     i64 MemorySize = 0;
+    i64 DynamicMemoryPoolSize = 0;
     i64 DiskSpacePerMedium[NChunkClient::MaxMediumCount] = {};
     int ChunkCount = 0;
     int PartitionCount = 0;
@@ -129,6 +130,7 @@ struct TTabletPerformanceCounter
     XX(dynamic_row_read,                        DynamicRowRead) \
     XX(dynamic_row_lookup,                      DynamicRowLookup) \
     XX(dynamic_row_write,                       DynamicRowWrite) \
+    XX(dynamic_row_write_data_weight,           DynamicRowWriteDataWeightCount) \
     XX(dynamic_row_delete,                      DynamicRowDelete) \
     XX(static_chunk_row_read,                   StaticChunkRowRead) \
     XX(static_chunk_row_lookup,                 StaticChunkRowLookup) \

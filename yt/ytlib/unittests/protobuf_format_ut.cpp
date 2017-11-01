@@ -626,6 +626,60 @@ TEST(TProtobufFormat, TestParseZeroColumns)
     EXPECT_EQ(rowCollector.GetRow(1).GetCount(), 0);
 }
 
+TEST(TProtobufFormat, TestWriteEnumerationString)
+{
+    auto config = CreateAllFieldsSchemaConfig();
+
+    auto nameTable = New<TNameTable>();
+    auto enumId = nameTable->RegisterName("Enum");
+
+    TString result;
+    TStringOutput resultStream(result);
+    auto writer = CreateSchemalessWriterForProtobuf(
+        config->Attributes(),
+        nameTable,
+        CreateAsyncAdapter(&resultStream),
+        true,
+        New<TControlAttributesConfig>(),
+        0);
+
+    writer->Write({
+        MakeRow({
+            MakeUnversionedStringValue("MinusFortyTwo", enumId),
+        }).Get()
+    });
+    writer->Write({
+        MakeRow({
+            MakeUnversionedStringValue("Three", enumId),
+        }).Get()
+    });
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TStringInput si(result);
+    TLenvalParser parser(&si);
+    {
+        auto row = parser.Next();
+        ASSERT_TRUE(row);
+        NYT::NProtobufFormatTest::TMessage message;
+        ASSERT_TRUE(message.ParseFromString(row->RowData));
+        ASSERT_EQ(message.enum_field(), NYT::NProtobufFormatTest::EEnum::minus_forty_two);
+    }
+    {
+        auto row = parser.Next();
+        ASSERT_TRUE(row);
+        NYT::NProtobufFormatTest::TMessage message;
+        ASSERT_TRUE(message.ParseFromString(row->RowData));
+        ASSERT_EQ(message.enum_field(), NYT::NProtobufFormatTest::EEnum::three);
+    }
+    {
+        auto row = parser.Next();
+        ASSERT_FALSE(row);
+    }
+}
+
 TEST(TProtobufFormat, TestWriteZeroColumns)
 {
     auto config = BuildYsonNodeFluently()

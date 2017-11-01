@@ -70,6 +70,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
+                TReadSessionId(),
                 columnFilter,
                 TKeyColumns());
             return Reader_;

@@ -469,12 +469,6 @@ public:
         EObjectType type,
         const TCreateObjectOptions& options),
         (type, options))
-    DELEGATE_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options),
-        (path, nameTable, keys, options))
 
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (
@@ -668,13 +662,14 @@ private:
                             if (evaluator) {
                                 evaluator->EvaluateKeys(capturedRow, rowBuffer);
                             }
-                            tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
+                            tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
                         } else {
                             tabletInfo = GetOrderedTabletForRow(
                                 tableInfo,
                                 randomTabletInfo,
                                 TabletIndexColumnId_,
-                                TUnversionedRow(modification.Row));
+                                TUnversionedRow(modification.Row),
+                                true);
                         }
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
@@ -687,7 +682,7 @@ private:
                             TVersionedRow(modification.Row),
                             primarySchema,
                             primaryIdMapping);
-                        auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
+                        auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
                         session->SubmitRow(command, capturedRow);

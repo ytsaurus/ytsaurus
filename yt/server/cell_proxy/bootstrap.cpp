@@ -29,7 +29,8 @@
 
 #include <yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/lfalloc_helpers.h>
@@ -41,6 +42,8 @@
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/server.h>
+
+#include <yt/core/http/server.h>
 
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
@@ -112,10 +115,18 @@ void TBootstrap::DoRun()
 
     RpcServer_ = CreateBusServer(BusServer_);
 
-    HttpServer_.reset(new NHttp::TServer(
-        Config_->MonitoringPort,
-        Config_->BusServer->BindRetryCount,
-        Config_->BusServer->BindRetryBackoff));
+    if (!Config_->UseNewHttpServer) {
+        HttpServer_.reset(new NXHttp::TServer(
+            Config_->MonitoringPort,
+            Config_->BusServer->BindRetryCount,
+            Config_->BusServer->BindRetryBackoff));
+    } else {
+        Config_->MonitoringServer->Port = Config_->MonitoringPort;
+        Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
+        Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+        NewHttpServer_ = NHttp::CreateServer(
+            Config_->MonitoringServer);
+    }
 
     if (Config_->CoreDumper) {
         CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
@@ -151,12 +162,22 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateApiService(this));
     RpcServer_->RegisterService(CreateDiscoveryService(this));
 
-    HttpServer_->Register(
-        "/orchid",
-        NMonitoring::GetYPathHttpHandler(orchidRoot));
+    if (HttpServer_) {
+        HttpServer_->Register(
+            "/orchid",
+            NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+    } else {
+        NewHttpServer_->AddHandler(
+            "/orchid/",
+            NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+    }
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-    HttpServer_->Start();
+    if (HttpServer_) {
+        HttpServer_->Start();
+    } else {
+        NewHttpServer_->Start();
+    }
 
     LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);

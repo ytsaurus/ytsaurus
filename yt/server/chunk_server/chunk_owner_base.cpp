@@ -7,6 +7,7 @@
 #include <yt/server/security_server/cluster_resources.h>
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 namespace NYT {
 namespace NChunkServer {

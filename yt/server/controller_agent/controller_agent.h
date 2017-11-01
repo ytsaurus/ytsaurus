@@ -13,6 +13,10 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/event_log/public.h>
+
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/rpc/service_detail.h>
 
 #include <yt/core/ytree/public.h>
@@ -30,14 +34,34 @@ public:
         NScheduler::TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
 
-    void Connect(IInvokerPtr invoker);
+    void Connect();
     void Disconnect();
     void ValidateConnected() const;
 
+    TInstant GetConnectionTime() const;
+
+    const IInvokerPtr& GetInvoker();
+    const IInvokerPtr& GetCancelableInvoker();
+
+    const IInvokerPtr& GetControllerThreadPoolInvoker();
+    const IInvokerPtr& GetSnapshotIOInvoker();
+
     TMasterConnector* GetMasterConnector();
 
+    const TSchedulerConfigPtr& GetConfig() const;
+    const NApi::INativeClientPtr& GetMasterClient() const;
+
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
+
+    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
+
+    const TCoreDumperPtr& GetCoreDumper() const;
+    const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
+
+    NEventLog::TEventLogWriterPtr GetEventLogWriter() const;
+
     void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config);
-    
+
     void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller);
     void UnregisterOperation(const TOperationId& operationId);
 
@@ -48,7 +72,7 @@ public:
         const NChunkClient::TChunkId& chunkId,
         const TOperationId& operationId,
         const TJobId& jobId);
-    
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

@@ -36,13 +36,15 @@ TJobIOConfig::TJobIOConfig()
 TTestingOperationOptions::TTestingOperationOptions()
 {
     RegisterParameter("scheduling_delay", SchedulingDelay)
-        .Default(TDuration::Seconds(0));
+        .Default(Null);
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
+    RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
+        .Default(Null);
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
-        .Default(TDuration::Seconds(0));
+        .Default(Null);
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
-        .Default(EDelayInsideOperationCommitStage::Stage1);
+        .Default(Null);
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
 }
@@ -96,6 +98,8 @@ void TSupportsSchedulingTagsConfig::OnLoaded()
 
 TOperationSpecBase::TOperationSpecBase()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("intermediate_data_account", IntermediateDataAccount)
         .Default("intermediate");
     RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
@@ -154,7 +158,7 @@ TOperationSpecBase::TOperationSpecBase()
         .Default();
 
     RegisterParameter("testing", TestingOperationOptions)
-        .Default();
+        .DefaultNew();
 
     RegisterParameter("owners", Owners)
         .Default();
@@ -170,6 +174,10 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("nightly_options", NightlyOptions)
         .Default();
+
+    RegisterParameter("min_locality_input_data_weight", MinLocalityInputDataWeight)
+        .GreaterThanOrEqual(0)
+        .Default(1_GB);
 
     RegisterParameter("auto_merge", AutoMerge)
         .DefaultNew();
@@ -189,10 +197,6 @@ TOperationSpecBase::TOperationSpecBase()
             }
         }
     });
-
-    // XXX(ignat): it seems that GetOptions is not used for this config.
-    // Should we delete this line?
-    SetKeepOptions(true);
 }
 
 TUserJobSpec::TUserJobSpec()
@@ -256,6 +260,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(Null)
         .GreaterThanOrEqual(0);
     RegisterParameter("copy_files", CopyFiles)
+        .Default(false);
+    RegisterParameter("deterministic", Deterministic)
         .Default(false);
 
     RegisterValidator([&] () {
@@ -558,6 +564,8 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(true);
     RegisterParameter("partitioned_data_balancing_tolerance", PartitionedDataBalancingTolerance)
         .Default(3.0);
+    RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
+        .Default(true);
 
     RegisterParameter("sort_job_proxy_memory_digest", SortJobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
@@ -621,6 +629,9 @@ TSortOperationSpec::TSortOperationSpec()
 
         SortJobIO->TableReader->MaxBufferSize = 1_GB;
         SortJobIO->TableReader->RetryCount = 3;
+
+        // Output slices must be small enough to make reasonable jobs in sorted chunk pool.
+        SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
         MergeJobIO->TableReader->RetryCount = 3;
 
         MapSelectivityFactor = 1.0;
@@ -695,6 +706,8 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
         SortJobIO->TableReader->MaxBufferSize = 1_GB;
+        // Output slices must be small enough to make reasonable jobs in sorted chunk pool.
+        SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
 
         SortJobIO->TableReader->RetryCount = 3;
         MergeJobIO->TableReader->RetryCount = 3;

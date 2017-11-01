@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "node.h"
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
@@ -22,6 +23,12 @@ DEFINE_ENUM(EMergeStrategy,
     (Combine)
 );
 
+DEFINE_ENUM(EUnrecognizedStrategy,
+    (Drop)
+    (Keep)
+    (KeepRecursive)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonSerializableLite
@@ -40,6 +47,8 @@ public:
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
         virtual bool HasValue() const = 0;
         virtual const std::vector<TString>& GetAliases() const = 0;
+        virtual IMapNodePtr GetUnrecognizedRecursively() const = 0;
+        virtual void SetKeepUnrecognizedRecursively() = 0;
     };
 
     typedef TIntrusivePtr<IParameter> IParameterPtr;
@@ -60,9 +69,10 @@ public:
         virtual void Save(NYson::IYsonConsumer* consumer) const override;
         virtual bool HasValue() const override;
         virtual const std::vector<TString>& GetAliases() const override;
+        virtual IMapNodePtr GetUnrecognizedRecursively() const override;
+        virtual void SetKeepUnrecognizedRecursively() override;
 
     public:
-        TParameter& Describe(const char* description);
         TParameter& Optional();
         TParameter& Default(const T& defaultValue = T());
         TParameter& DefaultNew();
@@ -78,13 +88,14 @@ public:
 
     private:
         T& Parameter;
-        const char* Description;
         TNullable<T> DefaultValue;
         std::vector<TValidator> Validators;
         std::vector<TString> Aliases;
         EMergeStrategy MergeStrategy;
+        bool KeepUnrecognizedRecursively = false;
     };
 
+public:
     TYsonSerializableLite();
 
     void Load(
@@ -101,8 +112,10 @@ public:
         NYson::IYsonConsumer* consumer,
         bool stable = false) const;
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
-    NYTree::IMapNodePtr GetOptions() const;
+    IMapNodePtr GetUnrecognized() const;
+    IMapNodePtr GetUnrecognizedRecursively() const;
+
+    void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy);
 
     yhash_set<TString> GetRegisteredKeys() const;
 
@@ -123,11 +136,11 @@ private:
 
     yhash<TString, IParameterPtr> Parameters;
 
-    NYTree::IMapNodePtr Options;
+    NYTree::IMapNodePtr Unrecognized;
+    EUnrecognizedStrategy UnrecognizedStrategy = EUnrecognizedStrategy::Drop;
 
     std::vector<TInitializer> Initializers;
     std::vector<TValidator> Validators;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

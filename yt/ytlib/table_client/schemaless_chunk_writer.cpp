@@ -8,6 +8,7 @@
 #include "table_ypath_proxy.h"
 #include "helpers.h"
 #include "row_buffer.h"
+#include "skynet_column_evaluator.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -163,7 +164,7 @@ public:
         return BlockMetaExtSize_ + SamplesExtSize_ + ChunkNameTable_->GetByteSize();
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
         return EncodingChunkWriter_->GetDataStatistics().compressed_data_size();
     }
@@ -218,6 +219,11 @@ public:
         return Schema_;
     }
 
+    virtual i64 GetDataWeight() const override
+    {
+        return DataWeight_;
+    }
+
 protected:
     const NLogging::TLogger Logger;
 
@@ -231,6 +237,7 @@ protected:
 
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
+    i64 DataWeightSinceLastBlockFlush_ = 0;
 
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
     TOwningKey LastKey_;
@@ -292,6 +299,10 @@ protected:
             miscExt.set_max_timestamp(ChunkTimestamps_.MaxTimestamp);
         }
 
+        if (Options_->EnableSkynetSharing) {
+            miscExt.set_shared_to_skynet(true);
+        }
+
         auto& meta = EncodingChunkWriter_->Meta();
         FillCommonMeta(&meta);
 
@@ -330,15 +341,16 @@ protected:
         int keyColumnCount = IsSorted() ? Schema_.GetKeyColumnCount() : 0;
 
         for (int index = 0; index < keyColumnCount; ++index) {
-            weight += GetDataWeight(row[index]);
+            weight += NTableClient::GetDataWeight(row[index]);
         }
         ValidateKeyWeight(weight, Config_, Options_);
 
         for (int index = keyColumnCount; index < row.GetCount(); ++index) {
-            weight += GetDataWeight(row[index]);
+            weight += NTableClient::GetDataWeight(row[index]);
         }
         ValidateRowWeight(weight, Config_, Options_);
         DataWeight_ += weight;
+        DataWeightSinceLastBlockFlush_ += weight;
         return weight;
     }
 
@@ -392,7 +404,7 @@ private:
         for (auto it = row.Begin(); it != row.End(); ++it) {
             sampleValues.push_back(*it);
             auto& value = sampleValues.back();
-            weight += GetDataWeight(value);
+            weight += NTableClient::GetDataWeight(value);
 
             if (value.Type == EValueType::Any) {
                 // Composite types are non-comparable, so we don't store it inside samples.
@@ -433,9 +445,9 @@ public:
         BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
-        return TUnversionedChunkWriterBase::GetDataSize() +
+        return TUnversionedChunkWriterBase::GetCompressedDataSize() +
            (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
     }
 
@@ -446,7 +458,10 @@ public:
             ++RowCount_;
             BlockWriter_->WriteRow(row);
 
-            if (BlockWriter_->GetBlockSize() >= Config_->BlockSize) {
+            if (BlockWriter_->GetBlockSize() >= Config_->BlockSize ||
+                DataWeightSinceLastBlockFlush_ > Config_->MaxDataWeightBetweenBlocks)
+            {
+                DataWeightSinceLastBlockFlush_ = 0;
                 auto block = BlockWriter_->FlushBlock();
                 block.Meta.set_chunk_row_count(RowCount_);
                 RegisterBlock(block, row);
@@ -508,16 +523,16 @@ public:
         // Only scan-optimized version for now.
         yhash<TString, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
-            if (column.Group && groupBlockWriters.find(*column.Group) == groupBlockWriters.end()) {
+            if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
-                groupBlockWriters[*column.Group] = blockWriter.get();
+                groupBlockWriters[*column.Group()] = blockWriter.get();
                 BlockWriters_.emplace_back(std::move(blockWriter));
             }
         }
 
         auto getBlockWriter = [&] (const NTableClient::TColumnSchema& columnSchema) -> TDataBlockWriter* {
-            if (columnSchema.Group) {
-                return groupBlockWriters[*columnSchema.Group];
+            if (columnSchema.Group()) {
+                return groupBlockWriters[*columnSchema.Group()];
             } else {
                 BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>());
                 return BlockWriters_.back().get();
@@ -570,9 +585,9 @@ public:
         return EncodingChunkWriter_->IsReady();
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
-        i64 result = TUnversionedChunkWriterBase::GetDataSize();
+        i64 result = TUnversionedChunkWriterBase::GetCompressedDataSize();
         for (const auto& blockWriter : BlockWriters_) {
             result += blockWriter->GetCurrentSize();
         }
@@ -623,7 +638,10 @@ private:
 
             YCHECK(maxWriterIndex >= 0);
 
-            if (totalSize > Config_->MaxBufferSize || maxWriterSize > Config_->BlockSize) {
+            if (totalSize > Config_->MaxBufferSize ||
+                maxWriterSize > Config_->BlockSize ||
+                DataWeightSinceLastBlockFlush_ > Config_->MaxDataWeightBetweenBlocks)
+            {
                 FinishBlock(maxWriterIndex, lastRow);
             } else {
                 DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
@@ -636,6 +654,7 @@ private:
 
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
+        DataWeightSinceLastBlockFlush_ = 0;
         auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.blocks_size(), RowCount_);
         block.Meta.set_chunk_row_count(RowCount_);
         RegisterBlock(block, lastRow);
@@ -758,7 +777,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
         // Retrun uncompressed data size to make smaller chunks and better balance partition data
         // between HDDs. Also returning uncompressed data makes chunk switch deterministic,
@@ -848,6 +867,10 @@ public:
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
         }
+
+        if (Options_->EnableSkynetSharing) {
+            SkynetColumnEvaluator_ = New<TSkynetColumnEvaluator>(schema);
+        }
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -916,20 +939,6 @@ protected:
                 int id = IdMapping_[valueIt->Id];
                 if (id < Schema_.Columns().size()) {
                     // Validate schema column types.
-                    const auto& column = Schema_.Columns()[id];
-                    if (valueIt->Type != column.Type &&
-                        valueIt->Type != EValueType::Null &&
-                        column.Type != EValueType::Any)
-                    {
-                        THROW_ERROR_EXCEPTION(
-                            EErrorCode::SchemaViolation,
-                            "Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                            column.Name,
-                            column.Type,
-                            EValueType::Null,
-                            valueIt->Type);
-                    }
-
                     mutableRow[id] = *valueIt;
                     mutableRow[id].Id = id;
                 } else {
@@ -947,10 +956,18 @@ protected:
                 }
             }
 
+            // Now mutableRow contains all values that schema knows about.
+            // And we can check types and check that all required fields are set.
+            for (int i = 0; i < Schema_.Columns().size(); ++i) {
+                const auto& column = Schema_.Columns()[i];
+                ValidateValueType(mutableRow[i], column, /*typeAnyAcceptsAllValues*/ true);
+            }
+
             ValidateColumnCount(columnCount);
             mutableRow.SetCount(columnCount);
 
             EvaluateComputedColumns(mutableRow);
+            EvaluateSkynetColumns(mutableRow);
 
             result.push_back(mutableRow);
         }
@@ -966,6 +983,7 @@ private:
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
 
     TColumnEvaluatorPtr ColumnEvaluator_;
+    TSkynetColumnEvaluatorPtr SkynetColumnEvaluator_;
 
     // Maps global name table indexes into chunk name table indexes.
     std::vector<int> IdMapping_;
@@ -978,6 +996,13 @@ private:
     {
         if (ColumnEvaluator_) {
             ColumnEvaluator_->EvaluateKeys(row, RowBuffer_);
+        }
+    }
+
+    void EvaluateSkynetColumns(TMutableUnversionedRow row)
+    {
+        if (SkynetColumnEvaluator_) {
+            SkynetColumnEvaluator_->ValidateAndComputeHashes(row, RowBuffer_);
         }
     }
 
@@ -1218,7 +1243,7 @@ private:
 
     void WriteRow(TUnversionedRow row)
     {
-        i64 weight = GetDataWeight(row);
+        i64 weight = NTableClient::GetDataWeight(row);
         ValidateRowWeight(weight, Config_, Options_);
 
         auto partitionIndex = Partitioner_->GetPartitionIndex(row);
@@ -1575,7 +1600,8 @@ private:
                 "row_count",
                 "schema",
                 "schema_mode",
-                "vital"
+                "vital",
+                "enable_skynet_sharing"
             };
             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
@@ -1605,6 +1631,7 @@ private:
             Options_->ErasureCodec = TableUploadOptions_.ErasureCodec;
             Options_->Account = attributes.Get<TString>("account");
             Options_->ChunksVital = attributes.Get<bool>("vital");
+            Options_->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
             Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
             Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
             Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;

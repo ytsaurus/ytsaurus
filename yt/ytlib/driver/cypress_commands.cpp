@@ -31,7 +31,7 @@ TGetCommand::TGetCommand()
 
 void TGetCommand::DoExecute(ICommandContextPtr context)
 {
-    Options.Options = IAttributeDictionary::FromMap(GetOptions());
+    Options.Options = IAttributeDictionary::FromMap(GetUnrecognized());
 
     auto asyncResult = context->GetClient()->GetNode(
         Path.GetPath(),
@@ -235,6 +235,8 @@ TCopyCommand::TCopyCommand()
     RegisterParameter("preserve_account", Options.PreserveAccount)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
+    RegisterParameter("preserve_creation_time", Options.PreserveCreationTime)
         .Optional();
 }
 

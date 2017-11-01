@@ -365,6 +365,9 @@ struct TWriteRowsBufferTag
 struct TDeleteRowsBufferTag
 { };
 
+struct TGetInSyncReplicasTag
+{ };
+
 class TNativeClient
     : public INativeClient
 {
@@ -1786,6 +1789,16 @@ private:
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
 
+        for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
+            if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
+                const auto& ast = parsedQuery->AstHead.Ast.As<NAst::TQuery>();
+
+                THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
+                    "the query is inefficient, consider rewriting it")
+                    << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
+            }
+        }
+
         TQueryOptions queryOptions;
         queryOptions.Timestamp = options.Timestamp;
         queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
@@ -1795,6 +1808,8 @@ private:
         queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
         queryOptions.InputRowLimit = inputRowLimit;
         queryOptions.OutputRowLimit = outputRowLimit;
+        queryOptions.UseMultijoin = options.UseMultijoin;
+        queryOptions.AllowFullScan = options.AllowFullScan;
 
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -1849,7 +1864,7 @@ private:
     std::vector<TTableReplicaId> DoGetInSyncReplicas(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<TKey>& keys,
         const TGetInSyncReplicasOptions& options)
     {
         ValidateSyncTimestamp(options.Timestamp);
@@ -1862,6 +1877,14 @@ private:
         tableInfo->ValidateSorted();
         tableInfo->ValidateReplicated();
 
+        const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+        auto idMapping = BuildColumnIdMapping(schema, nameTable);
+
+        auto rowBuffer = New<TRowBuffer>(TGetInSyncReplicasTag());
+
+        auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+        auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
+
         std::vector<TTableReplicaId> replicas;
 
         if (keys.Empty()) {
@@ -1872,7 +1895,13 @@ private:
             yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
             yhash_set<TTabletId> tabletIds;
             for (auto key : keys) {
-                auto tabletInfo = tableInfo->GetTabletForRow(key);
+                ValidateClientKey(key, schema, idMapping, nameTable);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping);
+
+                if (evaluator) {
+                    evaluator->EvaluateKeys(capturedKey, rowBuffer);
+                }
+                auto tabletInfo = tableInfo->GetTabletForRow(capturedKey);
                 if (tabletIds.count(tabletInfo->TabletId) == 0) {
                     tabletIds.insert(tabletInfo->TabletId);
                     ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
@@ -2330,6 +2359,7 @@ private:
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_preserve_expiration_time(options.PreserveExpirationTime);
+        req->set_preserve_creation_time(options.PreserveCreationTime);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
         batchReq->AddRequest(req);
@@ -3661,9 +3691,13 @@ private:
                 itemsSortDirection,
                 1 + options.Limit);
 
+            TString poolColumnName = version < 15 ? "''" : "pool";
+
             TString queryForCounts = Format(
-                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY pool AS pool, authenticated_user AS user, state AS state, operation_type AS type",
-                GetOperationsArchivePathOrderedByStartTime(), JoinSeq(" AND ", countsConditions));
+                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
+                GetOperationsArchivePathOrderedByStartTime(),
+                JoinSeq(" AND ", countsConditions),
+                poolColumnName);
 
             TSelectRowsOptions selectRowsOptions;
             if (deadline) {

@@ -18,6 +18,107 @@
 namespace NYT {
 namespace NYTree {
 
+/*
+// WHAT IS THIS
+//
+// Fluent adapters encapsulate invocation of IYsonConsumer methods in a
+// convenient structured manner. Key advantage of fluent-like code is that
+// attempt of building syntactically incorrect YSON structure will result
+// in a compile-time error.
+//
+// Each fluent object is associated with a context that defines possible YSON
+// tokens that may appear next. For example, TFluentMap is a fluent object
+// that corresponds to a location within YSON map right before a key-value
+// pair or the end of the map.
+//
+// More precisely, each object that may be obtained by a sequence of fluent
+// method calls has the full history of its enclosing YSON composite types in
+// its single template argument hereinafter referred to as TParent. This allows
+// us not to forget the original context after opening and closing the embedded
+// composite structure.
+//
+// It is possible to invoke a separate YSON building procedure by calling
+// one of convenience Do* methods. There are two possibilities here: it is
+// possible to delegate invocation context either as a fluent object (like
+// TFluentMap, TFluentList, TFluentAttributes or TFluentAny) or as a raw
+// IYsonConsumer*. The latter is discouraged since it is impossible to check
+// if a given side-built YSON structure fits current fluent context.
+// For example it is possible to call Do() method inside YSON map passing
+// consumer to a procedure that will treat context like it is in a list.
+// Passing typed fluent builder saves you from such a misbehaviour.
+//
+// TFluentXxx corresponds to an internal class of TXxx
+// without any history hidden in template argument. It allows you to
+// write procedures of form:
+//
+//   void BuildSomeAttributesInYson(TFluentMap fluent) { ... }
+//
+// without thinking about the exact way how this procedure is nested in other
+// procedures.
+//
+// An important notation: we will refer to a function whose first argument
+// is either TFluentXxx or raw IYsonConsumer* as TFuncXxx.
+//
+//
+// BRIEF LIST OF AVAILABLE METHODS
+//
+// Only the most popular methods are covered here. Refer to the code for the
+// rest of them.
+//
+// TAny:
+// * Value(T value) -> TParent, serialize `value` using underlying consumer.
+//   T should be such that free function Serialize(IYsonConsumer*, const T&) is
+//   defined;
+// * BeginMap() -> TMap, open map;
+// * BeginList() -> TList, open list;
+// * BeginAttributes() -> TAttributes, open attributes;
+//
+// * Do(TFuncAny func) -> TAny, delegate invocation to a separate procedure.
+// * DoIf(bool condition, TFuncAny func) -> TAny, same as Do() but invoke
+//   `func` only if `condition` is true;
+// * DoFor(TCollection collection, TFuncAny func) -> TAny, same as Do()
+//   but iterate over `collection` and pass each of its elements as a second
+//   argument to `func`. Instead of passing a collection you may it is possible
+//   to pass two iterators as an argument;
+//
+// * DoMap(TFuncMap func) -> TAny, open a map, delegate invocation to a separate
+//   procedure and close map;
+// * DoMapFor(TCollection collection, TFuncMap func) -> TAny, open a map, iterate
+//   over `collection` and pass each of its elements as a second argument to `func`
+//   and close map;
+// * DoList(TFuncList func) -> TAny, same as DoMap();
+// * DoListFor(TCollection collection, TFuncList func) -> TAny; same as DoMapFor().
+//
+//
+// TMap:
+// * Item(TStringBuf key) -> TAny, open an element keyed with `key`;
+// * EndMap() -> TParent, close map;
+// * Do(TFuncMap func) -> TMap, same as Do() for TAny;
+// * DoIf(bool condition, TFuncMap func) -> TMap, same as DoIf() for TAny;
+// * DoFor(TCollection collection, TFuncMap func) -> TMap, same as DoFor() for TAny.
+//
+//
+// TList:
+// * Item() -> TAny, open an new list element;
+// * EndList() -> TParent, close list;
+// * Do(TFuncList func) -> TList, same as Do() for TAny;
+// * DoIf(bool condition, TFuncList func) -> TList, same as DoIf() for TAny;
+// * DoFor(TCollection collection, TListMap func) -> TList, same as DoFor() for TAny.
+//
+//
+// TAttributes:
+// * Item(TStringBuf key) -> TAny, open an element keyed with `key`.
+// * EndAttributes() -> TParentWithoutAttributes, close attributes. Note that
+//   this method leads to a context that is forces not to have attributes,
+//   preventing us from putting attributes twice before an object.
+// * Do(TFuncAttributes func) -> TAttributes, same as Do() for TAny;
+// * DoIf(bool condition, TFuncAttributes func) -> TAttributes, same as DoIf()
+//   for TAny;
+// * DoFor(TCollection collection, TListAttributes func) -> TAttributes, same as DoFor()
+//   for TAny.
+//
+ */
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -168,8 +269,8 @@ public:
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
-        template <class TFunc>
-        TUnwrappedParent Do(TFunc func)
+        template <class TFuncAny>
+        TUnwrappedParent Do(TFuncAny func)
         {
             InvokeFluentFunc<TShallowThis>(func, this->Consumer);
             return this->GetUnwrappedParent();
@@ -226,8 +327,8 @@ public:
             return TList<TParent>(this->Consumer, this->Parent);
         }
 
-        template <class TFunc>
-        TUnwrappedParent DoList(TFunc func)
+        template <class TFuncList>
+        TUnwrappedParent DoList(TFuncList func)
         {
             this->Consumer->OnBeginList();
             InvokeFluentFunc<TList<TFluentYsonVoid>>(func, this->Consumer);
@@ -235,8 +336,8 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        template <class TFunc, class TIterator>
-        TUnwrappedParent DoListFor(TIterator begin, TIterator end, TFunc func)
+        template <class TFuncList, class TIterator>
+        TUnwrappedParent DoListFor(TIterator begin, TIterator end, TFuncList func)
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
@@ -246,8 +347,8 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        template <class TFunc, class TCollection>
-        TUnwrappedParent DoListFor(const TCollection& collection, TFunc func)
+        template <class TFuncList, class TCollection>
+        TUnwrappedParent DoListFor(const TCollection& collection, TFuncList func)
         {
             this->Consumer->OnBeginList();
             for (const auto& item : collection) {
@@ -263,8 +364,8 @@ public:
             return TMap<TParent>(this->Consumer, this->Parent);
         }
 
-        template <class TFunc>
-        TUnwrappedParent DoMap(TFunc func)
+        template <class TFuncMap>
+        TUnwrappedParent DoMap(TFuncMap func)
         {
             this->Consumer->OnBeginMap();
             InvokeFluentFunc<TMap<TFluentYsonVoid>>(func, this->Consumer);
@@ -272,8 +373,8 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        template <class TFunc, class TIterator>
-        TUnwrappedParent DoMapFor(TIterator begin, TIterator end, TFunc func)
+        template <class TFuncMap, class TIterator>
+        TUnwrappedParent DoMapFor(TIterator begin, TIterator end, TFuncMap func)
         {
             this->Consumer->OnBeginMap();
             for (auto current = begin; current != end; ++current) {
@@ -283,8 +384,8 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        template <class TFunc, class TCollection>
-        TUnwrappedParent DoMapFor(const TCollection& collection, TFunc func)
+        template <class TFuncMap, class TCollection>
+        TUnwrappedParent DoMapFor(const TCollection& collection, TFuncMap func)
         {
             this->Consumer->OnBeginMap();
             for (const auto& item : collection) {
@@ -493,10 +594,11 @@ struct TFluentType<NYson::EYsonType::ListFragment>
 using TFluentList = TFluentYsonBuilder::TList<TFluentYsonVoid>;
 using TFluentMap = TFluentYsonBuilder::TMap<TFluentYsonVoid>;
 using TFluentAttributes = TFluentYsonBuilder::TAttributes<TFluentYsonVoid>;
+using TFluentAny = TFluentYsonBuilder::TAny<TFluentYsonVoid>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline TFluentYsonBuilder::TAny<TFluentYsonVoid> BuildYsonFluently(NYson::IYsonConsumer* consumer)
+static inline TFluentAny BuildYsonFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentYsonBuilder::TAny<TFluentYsonVoid>(consumer, TFluentYsonVoid());
 }

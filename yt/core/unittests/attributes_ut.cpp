@@ -84,7 +84,7 @@ TEST(TAttributesTest, SerializeToNode)
     EXPECT_EQ(*attributes, *convertedAttributes);
 }
 
-TEST(TAttributesTest, TrySerializeToProto)
+TEST(TAttributesTest, TrySerializeProtoToRef)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<TString>("name", "Petr");

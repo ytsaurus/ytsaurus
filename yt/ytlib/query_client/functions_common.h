@@ -12,9 +12,9 @@ using NTableClient::EValueType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef int TTypeArgument;
-typedef std::vector<EValueType> TUnionType;
-typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
+using TTypeArgument = int;
+using TUnionType = std::vector<EValueType>;
+using TType = TVariant<EValueType, TTypeArgument, TUnionType>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +28,8 @@ DEFINE_ENUM(ETypeCategory,
     ((UnionType)    (TType::TagOf<TUnionType>()))
     ((ConcreteType) (TType::TagOf<EValueType>()))
 );
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTypeSet
 {
@@ -96,6 +98,7 @@ private:
 
 };
 
+void FormatValue(TStringBuilder* builder, const TTypeSet& typeSet, const TStringBuf& spec);
 TString ToString(const TTypeSet& typeSet);
 
 ////////////////////////////////////////////////////////////////////////////////

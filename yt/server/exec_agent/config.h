@@ -34,9 +34,6 @@ public:
 
     TJobEnvironmentConfig()
     {
-        // Type-dependent configuration is stored as options.
-        SetKeepOptions(true);
-
         RegisterParameter("type", Type)
             .Default(EJobEnvironmentType::Simple);
 

@@ -475,7 +475,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             sudo_rmtree(sandbox_storage)
 
 @build_step
-def run_integration_tests(options, build_context):
+def run_yt_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Integration tests are skipped since all tests are disabled")
         return
@@ -484,15 +484,15 @@ def run_integration_tests(options, build_context):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "6"])
 
-    run_pytest(options, "integration", "{0}/tests/integration".format(options.checkout_directory),
+    run_pytest(options, "integration", "{0}/yt/tests/integration".format(options.checkout_directory),
                pytest_args=pytest_args)
 
 @build_step
-def run_cpp_integration_tests(options, build_context):
+def run_yt_cpp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("C++ integration tests are skipped since all tests are disabled")
         return
-    run_pytest(options, "cpp_integration", "{0}/tests/cpp".format(options.checkout_directory))
+    run_pytest(options, "cpp_integration", "{0}/yt/tests/cpp".format(options.checkout_directory))
 
 @build_step
 def run_yp_integration_tests(options, build_context):

@@ -16,7 +16,7 @@ class TResourceLimitsConfig
 {
 public:
     int UserSlots;
-    int Cpu;
+    double Cpu;
     int Network;
     i64 Memory;
     int ReplicationSlots;

@@ -7,6 +7,7 @@
 #include "schemaful_dsv_writer.h"
 #include "schemaful_writer.h"
 #include "schemaless_writer_adapter.h"
+#include "schemaless_web_json_writer.h"
 #include "versioned_writer.h"
 #include "yamr_parser.h"
 #include "yamr_writer.h"
@@ -39,6 +40,7 @@ using namespace NTableClient;
 
 TFormat::TFormat()
     : Type_(EFormatType::Null)
+    , Attributes_(CreateEphemeralAttributes())
 { }
 
 TFormat::TFormat(EFormatType type, const IAttributeDictionary* attributes)
@@ -328,6 +330,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 enableContextSaving,
                 controlAttributesConfig,
                 keyColumnCount);
+        case EFormatType::WebJson:
+            return CreateSchemalessWriterForWebJson(
+                format.Attributes(),
+                std::move(output),
+                nameTable);
         default:
             auto adapter = New<TSchemalessWriterAdapter>(
                 nameTable,

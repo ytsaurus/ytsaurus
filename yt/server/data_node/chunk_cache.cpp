@@ -348,7 +348,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto Logger = DataNodeLogger;
-        Logger.AddTag("Key: %v", key);
+        auto sessionId = TReadSessionId::Create();
+        Logger.AddTag("Key: %v, ReadSessionId: %v", key, sessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -389,6 +390,7 @@ public:
                 location,
                 chunkId,
                 nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
+                sessionId,
                 Passed(std::move(cookie))));
 
         } else {
@@ -577,13 +579,14 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId,
         TInsertCookie cookie)
     {
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
-        Logger.AddTag("ChunkId: %v", chunkId);
+        Logger.AddTag("ChunkId: %v, ReadSessionId: %v", chunkId, sessionId);
 
         try {
             TSessionCounterGuard sessionCounterGuard(location);
@@ -634,7 +637,8 @@ private:
                 asyncSemaphore,
                 chunkReader,
                 GetNullBlockCache(),
-                NCompression::ECodec::None);
+                NCompression::ECodec::None,
+                sessionId);
 
             for (int index = 0; index < blockCount; ++index) {
                 LOG_DEBUG("Downloading block (BlockIndex: %v)",
@@ -683,6 +687,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId,
         TInsertCookie cookie)
     {
         std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
@@ -697,6 +702,7 @@ private:
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
+            sessionId,
             chunkSpecs,
             Bootstrap_->GetArtifactCacheInThrottler());
 
@@ -736,6 +742,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId,
         TInsertCookie cookie)
     {
         static const TString CachedSourcePath = "<cached_data_source>";
@@ -792,6 +799,7 @@ private:
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
+            sessionId,
             TColumnFilter(),
             TKeyColumns(),
             Null,
@@ -845,7 +853,7 @@ private:
         auto tempDataFileName = dataFileName + NFS::TempFileSuffix;
         auto tempMetaFileName = metaFileName + NFS::TempFileSuffix;
 
-        auto metaBlob = SerializeToProto(key);
+        auto metaBlob = SerializeProtoToRef(key);
         TArtifactMetaHeader metaHeader;
 
         std::unique_ptr<TFile> tempDataFile;
@@ -933,7 +941,7 @@ private:
 
             metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
             TArtifactKey key;
-            if (!TryDeserializeFromProto(&key, metaBlob)) {
+            if (!TryDeserializeProto(&key, metaBlob)) {
                 LOG_WARNING("Failed to parse artifact meta file %v",
                     metaFileName);
                 return Null;

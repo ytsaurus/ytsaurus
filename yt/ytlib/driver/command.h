@@ -58,12 +58,12 @@ class TCommandBase
 protected:
     NLogging::TLogger Logger = DriverLogger;
 
+    virtual void DoExecute(ICommandContextPtr context) = 0;
+
     TCommandBase()
     {
-        SetKeepOptions(true);
+        SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::Keep);
     }
-
-    virtual void DoExecute(ICommandContextPtr context) = 0;
 
 public:
     virtual void Execute(ICommandContextPtr context) override

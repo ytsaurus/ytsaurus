@@ -20,6 +20,7 @@ REGISTER_TOOL(TMountTmpfsAsRootTool)
 REGISTER_TOOL(TUmountAsRootTool)
 REGISTER_TOOL(TSetThreadPriorityAsRootTool)
 REGISTER_TOOL(TFSQuotaTool)
+REGISTER_TOOL(TChownChmodTool)
 
 namespace NCGroup {
 REGISTER_TOOL(TKillProcessGroupTool)

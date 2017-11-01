@@ -1,8 +1,6 @@
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/descriptor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/response.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stream.cpp
@@ -11,6 +9,14 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/yson_lazy_map.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lazy_parser.cpp
 )
+
+if (_is_gcc)
+  set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/serialize.cpp PROPERTIES COMPILE_FLAGS -Wno-write-strings)
+  set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/yson_lazy_map.cpp PROPERTIES COMPILE_FLAGS -Wno-write-strings)
+  if (_is_clang)
+    set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/serialize.cpp PROPERTIES COMPILE_FLAGS "-Wno-parentheses-equality -Wno-writable-strings")
+  endif()
+endif()
 
 execute_process(COMMAND lsb_release --codename --short
                 OUTPUT_VARIABLE LSB_RELEASE)
@@ -59,16 +65,35 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
 
   add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
   target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
-  target_compile_definitions(${TARGET_NAME_PREFIX}pycxx PUBLIC -DPYCXX_PYTHON_2TO3 -DPYCXX_6_2_COMPATIBILITY)
+  target_compile_definitions(${TARGET_NAME_PREFIX}pycxx
+    PUBLIC
+      -DPYCXX_PYTHON_2TO3
+      -DPYCXX_6_2_COMPATIBILITY
+      -DPy_LIMITED_API=0x03040000)
 
   add_library(${TARGET_NAME_PREFIX}common STATIC ${YT_SRCS})
-  target_link_libraries(${TARGET_NAME_PREFIX}common yt-library-client ${TARGET_NAME_PREFIX}pycxx)
+  target_link_libraries(${TARGET_NAME_PREFIX}common yt-core ${TARGET_NAME_PREFIX}pycxx)
+
+  add_library(${TARGET_NAME_PREFIX}yson
+    MODULE
+    ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
+  )
+
+  target_link_libraries(${TARGET_NAME_PREFIX}yson ${TARGET_NAME_PREFIX}common)
+
+  add_library(${TARGET_NAME_PREFIX}driver
+    MODULE
+    ${CMAKE_CURRENT_LIST_DIR}/driver.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/descriptor.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/response.cpp
+  )
+
+  target_link_libraries(${TARGET_NAME_PREFIX}driver yt-library-client ${TARGET_NAME_PREFIX}common)
 
   foreach(COMPONENT "yson" "driver")
     set(TARGET_NAME "${TARGET_NAME_PREFIX}${COMPONENT}")
 
-    add_library(${TARGET_NAME} MODULE ${CMAKE_CURRENT_LIST_DIR}/${COMPONENT}.cpp)
-    target_link_libraries(${TARGET_NAME} ${TARGET_NAME_PREFIX}common)
+    target_compile_definitions(${TARGET_NAME} PUBLIC -DPy_LIMITED_API=0x03040000)
 
     set_target_properties(${TARGET_NAME}
       PROPERTIES
@@ -76,7 +101,7 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       LIBRARY_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}"
       PREFIX ""
       SUFFIX "${CMAKE_SHARED_MODULE_SUFFIX}"
-      LINK_FLAGS ${PYTHON_LINK_FLAGS}
+      LINK_FLAGS "${PYTHON_LINK_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}"
     )
 
     install(
@@ -102,4 +127,5 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       lib/pyshared-${PYTHON_KIND_DASHED}/yt_driver_bindings
       COMPONENT ${TARGET_NAME_PREFIX}driver
   )
+
 endforeach()

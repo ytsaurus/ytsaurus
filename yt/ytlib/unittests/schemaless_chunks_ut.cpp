@@ -323,6 +323,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         New<TChunkReaderOptions>(),
         MemoryReader_,
         readNameTable,
+        TReadSessionId(),
         TKeyColumns(),
         columnFilter,
         std::get<3>(GetParam()));
@@ -445,7 +446,7 @@ protected:
 
     TUnversionedValue CreateValue(int rowIndex, int id, const TColumnSchema& columnSchema)
     {
-        switch (columnSchema.Type) {
+        switch (columnSchema.GetPhysicalType()) {
             case EValueType::Int64:
                 return CreateInt64(rowIndex, id);
             case EValueType::Uint64:
@@ -468,7 +469,7 @@ protected:
         auto row = TMutableUnversionedRow::Allocate(&Pool_, schema.Columns().size());
         for (int index = 0; index < schema.Columns().size(); ++index) {
             const auto& column = schema.Columns()[index];
-            row[index] = CreateValue(rowIndex, nameTable->GetIdOrRegisterName(column.Name), column);
+            row[index] = CreateValue(rowIndex, nameTable->GetIdOrRegisterName(column.Name()), column);
         }
         return row;
     }
@@ -558,6 +559,7 @@ protected:
             options,
             MemoryReader_,
             WriteNameTable_,
+            TReadSessionId(),
             keyColumns,
             TColumnFilter(),
             keys);

@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/scheduler/fair_share_tree.h>
+#include <yt/server/scheduler/fair_share_tree_element.h>
 
 #include <yt/server/controller_agent/operation_controller.h>
 
@@ -18,7 +18,7 @@ struct TSchedulerStrategyHostMock
     , public ISchedulerStrategyHost
     , public TEventLogHostBase
 {
-    explicit TSchedulerStrategyHostMock(const std::vector<TJobResources>& nodeResourceLimitsList)
+    explicit TSchedulerStrategyHostMock(const std::vector<TJobResources>& nodeResourceLimitsList = {})
         : NodeResourceLimitsList(nodeResourceLimitsList)
     { }
 
@@ -42,6 +42,11 @@ struct TSchedulerStrategyHostMock
             return ZeroJobResources();
         }
         return GetMainNodesResourceLimits();
+    }
+
+    virtual TInstant GetConnectionTime() const override
+    {
+        return TInstant();
     }
 
     virtual void ActivateOperation(const TOperationId& operationId) override
@@ -178,6 +183,14 @@ public:
         return 0;
     }
 
+    virtual void SetSlotIndex(int /* slotIndex */)
+    { }
+
+    virtual TString GetAuthenticatedUser() const
+    {
+        return "root";
+    }
+
     virtual TOperationId GetId() const
     {
         return Id_;
@@ -217,19 +230,26 @@ TEST(FairShareTree, TestAttributes)
         host.Get(),
         config,
         // TODO(ignat): eliminate profiling from test.
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     auto poolA = New<TPool>(
         host.Get(),
         "A",
+        New<TPoolConfig>(),
+        true,
         config,
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
+        "default");
 
     auto poolB = New<TPool>(
         host.Get(),
         "B",
+        New<TPoolConfig>(),
+        true,
         config,
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", "B"));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", "B"),
+        "default");
 
     rootElement->AddChild(poolA);
     poolA->SetParent(rootElement.Get());
@@ -238,12 +258,16 @@ TEST(FairShareTree, TestAttributes)
     poolB->SetParent(rootElement.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResources>(10, jobResources));
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         config,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
+        operationControllerX,
+        config,
         host.Get(),
-        operationX.Get());
+        operationX.Get(),
+        "default");
 
     poolA->AddChild(operationElementX);
     operationElementX->SetParent(poolA.Get());
@@ -281,15 +305,20 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
         host.Get(),
         config,
         // TODO(ignat): eliminate profiling from test.
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResources>(10, jobResources));
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         config,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
+        operationControllerX,
+        config,
         host.Get(),
-        operationX.Get());
+        operationX.Get(),
+        "default");
 
     rootElement->AddChild(operationElementX);
     operationElementX->SetParent(rootElement.Get());
@@ -343,15 +372,20 @@ TEST(FairShareTree, TestBestAllocationRatio)
         host.Get(),
         config,
         // TODO(ignat): eliminate profiling from test.
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResources>(3, jobResources));
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         config,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
+        operationControllerX,
+        config,
         host.Get(),
-        operationX.Get());
+        operationX.Get(),
+        "default");
 
     rootElement->AddChild(operationElementX);
     operationElementX->SetParent(rootElement.Get());
@@ -362,6 +396,62 @@ TEST(FairShareTree, TestBestAllocationRatio)
     EXPECT_EQ(operationElementX->Attributes().DemandRatio, 1.125);
     EXPECT_EQ(operationElementX->Attributes().BestAllocationRatio, 0.375);
     EXPECT_EQ(operationElementX->Attributes().FairShareRatio, 0.375);
+}
+
+TEST(FairShareTree, TestOperationCountLimits)
+{
+    auto config = New<TFairShareStrategyConfig>();
+    auto host = New<TSchedulerStrategyHostMock>();
+    auto poolConfig = New<TPoolConfig>();
+
+    auto rootElement = New<TRootElement>(
+        host.Get(),
+        config,
+        // TODO(ignat): eliminate profiling from test.
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
+
+    TPoolPtr pools[3];
+    for (int i = 0; i < 3; ++i) {
+        pools[i] = New<TPool>(
+            host.Get(),
+            "pool" + ToString(i),
+            poolConfig,
+            true, /* defaultConfigured */
+            config,
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", "pool" + ToString(i)),
+            "default");
+    }
+
+    rootElement->AddChild(pools[0], /* enabled */ true);
+    rootElement->AddChild(pools[1], /* enabled */ true);
+    pools[0]->SetParent(rootElement.Get());
+    pools[1]->SetParent(rootElement.Get());
+
+    pools[1]->AddChild(pools[2], /* enabled */ true);
+    pools[2]->SetParent(pools[1].Get());
+
+    pools[2]->IncreaseOperationCount(1);
+    pools[2]->IncreaseRunningOperationCount(1);
+
+    EXPECT_EQ(rootElement->OperationCount(), 1);
+    EXPECT_EQ(rootElement->RunningOperationCount(), 1);
+
+    EXPECT_EQ(pools[1]->OperationCount(), 1);
+    EXPECT_EQ(pools[1]->RunningOperationCount(), 1);
+
+    pools[1]->IncreaseOperationCount(5);
+    EXPECT_EQ(rootElement->OperationCount(), 6);
+    for (int i = 0; i < 5; ++i) {
+        pools[1]->IncreaseOperationCount(-1);
+    }
+    EXPECT_EQ(rootElement->OperationCount(), 1);
+
+    pools[2]->IncreaseOperationCount(-1);
+    pools[2]->IncreaseRunningOperationCount(-1);
+
+    EXPECT_EQ(rootElement->OperationCount(), 0);
+    EXPECT_EQ(rootElement->RunningOperationCount(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

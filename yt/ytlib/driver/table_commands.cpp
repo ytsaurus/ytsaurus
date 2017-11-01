@@ -160,10 +160,6 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableReader,
         TableReader);
 
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
-
     Options.Config = config;
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(
@@ -219,14 +215,12 @@ void TLocateSkynetShareCommand::DoExecute(ICommandContextPtr context)
     auto skynetPartsLocations = WaitFor(asyncSkynetPartsLocations);
 
     auto format = context->GetOutputFormat();
-    auto syncOutputStream = CreateSyncAdapter(context->Request().OutputStream);
-
-    TBufferedOutput bufferedOutputStream(syncOutputStream.get());
+    auto syncOutputStream = CreateBufferedSyncAdapter(context->Request().OutputStream);
 
     auto consumer = CreateConsumerForFormat(
         format,
         EDataType::Structured,
-        &bufferedOutputStream);
+        syncOutputStream.get());
 
     Serialize(*skynetPartsLocations.ValueOrThrow(), consumer.get());
     consumer->Flush();
@@ -255,10 +249,6 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
-
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
 
     Options.Config = config;
 
@@ -436,6 +426,12 @@ TSelectRowsCommand::TSelectRowsCommand()
     RegisterParameter("max_subqueries", Options.MaxSubqueries)
         .Optional();
     RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
+        .Optional();
+    RegisterParameter("use_multijoin", Options.UseMultijoin)
+        .Optional();
+    RegisterParameter("allow_full_scan", Options.AllowFullScan)
+        .Optional();
+    RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)
         .Optional();
 }
 

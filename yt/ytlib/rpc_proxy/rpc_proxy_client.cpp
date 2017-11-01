@@ -3,7 +3,8 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/small_set.h>
 
 #include <yt/core/ytree/convert.h>
@@ -24,6 +25,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NApi;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYTree;
@@ -32,20 +34,19 @@ using namespace NYTree;
 
 TRpcProxyClient::TRpcProxyClient(
     TRpcProxyConnectionPtr connection,
-    NRpc::IChannelPtr channel)
+    const TClientOptions& options)
     : Connection_(std::move(connection))
-    , Channel_(std::move(channel))
+    , Channel_(CreateRpcProxyChannel(Connection_, options))
 { }
 
-TRpcProxyClient::~TRpcProxyClient()
-{ }
+TRpcProxyClient::~TRpcProxyClient() = default;
 
 TRpcProxyConnectionPtr TRpcProxyClient::GetRpcProxyConnection()
 {
     return Connection_;
 }
 
-NRpc::IChannelPtr TRpcProxyClient::GetChannel()
+IChannelPtr TRpcProxyClient::GetChannel()
 {
     return Channel_;
 }
@@ -259,6 +260,30 @@ TFuture<void> TRpcProxyClient::AlterTableReplica(
     }
 
     return req->Invoke().As<void>();
+}
+
+TFuture<std::vector<NTabletClient::TTableReplicaId>> TRpcProxyClient::GetInSyncReplicas(
+    const NYPath::TYPath& path,
+    NTableClient::TNameTablePtr nameTable,
+    const TSharedRange<NTableClient::TKey>& keys,
+    const NApi::TGetInSyncReplicasOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.GetInSyncReplicas();
+    req->SetTimeout(options.Timeout);
+
+    if (options.Timestamp) {
+        req->set_timestamp(options.Timestamp);
+    }
+
+    req->set_path(path);
+    req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetInSyncReplicasPtr>& rspOrError) -> std::vector<NTabletClient::TTableReplicaId> {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        return FromProto<std::vector<NTabletClient::TTableReplicaId>>(rsp->replica_ids());
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -157,6 +157,11 @@ public:
         return EncodingChunkWriter_->GetDataStatistics();
     }
 
+    virtual i64 GetDataWeight() const override
+    {
+        return DataWeight_;
+    }
+
 protected:
     const NLogging::TLogger Logger;
 
@@ -251,7 +256,7 @@ public:
         , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_))
     { }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
         return EncodingChunkWriter_->GetDataStatistics().compressed_data_size() +
                (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
@@ -314,7 +319,7 @@ private:
         const TUnversionedValue* endPreviousKey)
     {
         EmitSampleRandomly(row);
-        auto rowWeight = GetDataWeight(row);
+        auto rowWeight = NTableClient::GetDataWeight(row);
 
         ValidateRow(row, rowWeight, beginPreviousKey, endPreviousKey);
 
@@ -418,16 +423,16 @@ public:
         // Only scan-optimized version for now.
         yhash<TString, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
-            if (column.Group && groupBlockWriters.find(*column.Group) == groupBlockWriters.end()) {
+            if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
-                groupBlockWriters[*column.Group] = blockWriter.get();
+                groupBlockWriters[*column.Group()] = blockWriter.get();
                 BlockWriters_.emplace_back(std::move(blockWriter));
             }
         }
 
         auto getBlockWriter = [&] (const NTableClient::TColumnSchema& columnSchema) -> TDataBlockWriter* {
-            if (columnSchema.Group) {
-                return groupBlockWriters[*columnSchema.Group];
+            if (columnSchema.Group()) {
+                return groupBlockWriters[*columnSchema.Group()];
             } else {
                 BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>());
                 return BlockWriters_.back().get();
@@ -463,7 +468,7 @@ public:
         YCHECK(BlockWriters_.size() > 1);
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
         i64 result = EncodingChunkWriter_->GetDataStatistics().compressed_data_size();
         for (const auto& blockWriter : BlockWriters_) {
@@ -505,7 +510,7 @@ private:
             i64 weight = 0;
             int rowIndex = startRowIndex;
             for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
-                auto rowWeight = GetDataWeight(rows[rowIndex]);
+                auto rowWeight = NTableClient::GetDataWeight(rows[rowIndex]);
                 if (rowIndex == 0) {
                     ValidateRow(rows[rowIndex], rowWeight, LastKey_.Begin(), LastKey_.End());
                 } else {

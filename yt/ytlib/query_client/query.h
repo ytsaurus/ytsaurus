@@ -188,14 +188,17 @@ struct TTransformExpression
     TTransformExpression(
         EValueType type,
         std::vector<TConstExpressionPtr> arguments,
-        TSharedRange<TRow> values)
+        TSharedRange<TRow> values,
+        TConstExpressionPtr defaultExpression)
         : TExpression(type)
         , Arguments(std::move(arguments))
         , Values(std::move(values))
+        , DefaultExpression(std::move(defaultExpression))
     { }
 
     std::vector<TConstExpressionPtr> Arguments;
     TSharedRange<TRow> Values;
+    TConstExpressionPtr DefaultExpression;
 };
 
 void ThrowTypeMismatchError(
@@ -295,7 +298,7 @@ struct TJoinClause
     {
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].Type);
+            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].LogicalType());
         }
 
         return TTableSchema(result);
@@ -308,7 +311,7 @@ struct TJoinClause
         auto selfColumnNames = SelfJoinedColumns;
         std::sort(selfColumnNames.begin(), selfColumnNames.end());
         for (const auto& column : source.Columns()) {
-            if (std::binary_search(selfColumnNames.begin(), selfColumnNames.end(), column.Name)) {
+            if (std::binary_search(selfColumnNames.begin(), selfColumnNames.end(), column.Name())) {
                 result.push_back(column);
             }
         }
@@ -317,7 +320,7 @@ struct TJoinClause
         std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
         auto renamedSchema = GetRenamedSchema();
         for (const auto& column : renamedSchema.Columns()) {
-            if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name)) {
+            if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name())) {
                 result.push_back(column);
             }
         }
@@ -503,8 +506,8 @@ struct TQuery
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
             result.emplace_back(
-                OriginalSchema.Columns()[item.Index].Name,
-                OriginalSchema.Columns()[item.Index].Type);
+                OriginalSchema.Columns()[item.Index].Name(),
+                OriginalSchema.Columns()[item.Index].LogicalType());
         }
 
         return TTableSchema(result);
@@ -514,7 +517,7 @@ struct TQuery
     {
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].Type);
+            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].LogicalType());
         }
 
         return TTableSchema(result);
@@ -771,6 +774,12 @@ struct TRewriter
             newArguments.push_back(newArgument);
         }
 
+        TConstExpressionPtr newDefaultExpression;
+        if (const auto& defaultExpression = transformExpr->DefaultExpression) {
+            newDefaultExpression = Visit(defaultExpression);
+            allEqual = allEqual && newDefaultExpression == defaultExpression;
+        }
+
         if (allEqual) {
             return transformExpr;
         }
@@ -778,7 +787,8 @@ struct TRewriter
         return New<TTransformExpression>(
             transformExpr->Type,
             std::move(newArguments),
-            transformExpr->Values);
+            transformExpr->Values,
+            newDefaultExpression);
     }
 
 };
@@ -825,6 +835,14 @@ struct TAbstractExpressionPrinter
     void OnRhs(const TBinaryOpExpression* binaryExpr, TArgs... args)
     {
         Visit(binaryExpr->Rhs, args...);
+    }
+
+    void OnDefaultExpression(const TTransformExpression* transformExpr, TArgs... args)
+    {
+        if (const auto& defaultExpression = transformExpr->DefaultExpression) {
+            Builder->AppendString(", ");
+            Visit(defaultExpression, args...);
+        }
     }
 
     template <class T>
@@ -976,7 +994,11 @@ struct TAbstractExpressionPrinter
                 });
         }
 
-        Builder->AppendString("))");
+        Builder->AppendChar(')');
+
+        Derived()->OnDefaultExpression(transformExpr, args...);
+
+        Builder->AppendChar(')');
     }
 
 };

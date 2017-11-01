@@ -152,6 +152,11 @@ public:
         return Options_.PreserveExpirationTime;
     }
 
+    virtual bool ShouldPreserveCreationTime() const override
+    {
+        return Options_.PreserveCreationTime;
+    }
+
     virtual TAccount* GetNewNodeAccount() const override
     {
         return Account_;
@@ -2140,6 +2145,11 @@ private:
         auto expirationTime = sourceNode->GetTrunkNode()->GetExpirationTime();
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedNode, *expirationTime);
+        }
+        
+        // Copy creation time.
+        if (factory->ShouldPreserveCreationTime()) {
+            clonedNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());
         }
 
         return clonedNode;

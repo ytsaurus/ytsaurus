@@ -15,13 +15,37 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonSerializableLite::TYsonSerializableLite()
-    : KeepOptions_(false)
 { }
 
-IMapNodePtr TYsonSerializableLite::GetOptions() const
+IMapNodePtr TYsonSerializableLite::GetUnrecognized() const
 {
-    YCHECK(KeepOptions_);
-    return Options;
+    return Unrecognized;
+}
+
+IMapNodePtr TYsonSerializableLite::GetUnrecognizedRecursively() const
+{
+    // Take a copy of `Unrecognized` and add parameter->GetUnrecognizedRecursively()
+    // for all parameters that are TYsonSerializable's themselves.
+    auto result = Unrecognized ? ConvertTo<IMapNodePtr>(Unrecognized) : GetEphemeralNodeFactory()->CreateMap();
+    for (const auto& pair : Parameters) {
+        const auto& parameter = pair.second;
+        const auto& name = pair.first;
+        auto unrecognized = parameter->GetUnrecognizedRecursively();
+        if (unrecognized && unrecognized->AsMap()->GetChildCount() > 0) {
+            result->AddChild(unrecognized, name);
+        }
+    }
+    return result;
+}
+
+void TYsonSerializableLite::SetUnrecognizedStrategy(EUnrecognizedStrategy strategy)
+{
+    UnrecognizedStrategy = strategy;
+    if (strategy == EUnrecognizedStrategy::KeepRecursive) {
+        for (const auto& pair : Parameters) {
+            pair.second->SetKeepUnrecognizedRecursively();
+        }
+    }
 }
 
 yhash_set<TString> TYsonSerializableLite::GetRegisteredKeys() const
@@ -70,14 +94,14 @@ void TYsonSerializableLite::Load(
         parameter->Load(child, childPath);
     }
 
-    if (KeepOptions_) {
+    if (UnrecognizedStrategy != EUnrecognizedStrategy::Drop) {
         auto registeredKeys = GetRegisteredKeys();
-        Options = GetEphemeralNodeFactory()->CreateMap();
+        Unrecognized = GetEphemeralNodeFactory()->CreateMap();
         for (const auto& pair : mapNode->GetChildren()) {
             const auto& key = pair.first;
             auto child = pair.second;
             if (registeredKeys.find(key) == registeredKeys.end()) {
-                YCHECK(Options->AddChild(ConvertToNode(child), key));
+                YCHECK(Unrecognized->AddChild(ConvertToNode(child), key));
             }
         }
     }
@@ -118,8 +142,8 @@ void TYsonSerializableLite::Save(
         }
     }
 
-    if (Options) {
-        for (const auto& pair : Options->GetChildren()) {
+    if (Unrecognized) {
+        for (const auto& pair : Unrecognized->GetChildren()) {
             consumer->OnKeyedItem(pair.first);
             Serialize(pair.second, consumer);
         }
@@ -194,6 +218,9 @@ TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_REFCOUNTED_TYPE(TYsonSerializable);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

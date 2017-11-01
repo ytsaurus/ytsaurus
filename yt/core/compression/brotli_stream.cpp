@@ -1,6 +1,8 @@
 #include "brotli_stream.h"
 #include "public.h"
 
+#include <yt/core/misc/error.h>
+
 #include <util/memory/addstorage.h>
 
 #include <contrib/libs/brotli/enc/encode.h>
@@ -14,8 +16,8 @@ namespace NCompression {
 class TBrotliCompress::TImpl
 {
 public:
-    inline TImpl(IOutputStream* slave, int level)
-        : Slave_(slave)
+    inline TImpl(IOutputStream* underlying, int level)
+        : Underlying_(underlying)
         , Compressor_(MakeParams(level))
     { }
 
@@ -37,7 +39,7 @@ public:
                 &output));
 
             if (outSize) {
-                Slave_->Write(output, outSize);
+                Underlying_->Write(output, outSize);
             }
         }
     }
@@ -51,11 +53,11 @@ public:
             /* force_flush = */ true,
             &outSize,
             &output));
-        Slave_->Write(output, outSize);
+        Underlying_->Write(output, outSize);
     }
 
 private:
-    IOutputStream* Slave_;
+    IOutputStream* Underlying_;
     brotli::BrotliCompressor Compressor_;
 
     static brotli::BrotliParams MakeParams(int level)
@@ -66,8 +68,8 @@ private:
     }
 };
 
-TBrotliCompress::TBrotliCompress(IOutputStream* slave, int level)
-    : Impl_(new TImpl(slave, level))
+TBrotliCompress::TBrotliCompress(IOutputStream* underlying, int level)
+    : Impl_(new TImpl(underlying, level))
 { }
 
 void TBrotliCompress::DoWrite(const void* buffer, size_t length)
@@ -86,8 +88,9 @@ class TBrotliDecompress::TImpl
     : public TAdditionalStorage<TImpl>
 {
 public:
-    inline TImpl(IInputStream* slave)
-        : Slave_(slave)
+    inline TImpl(IInputStream* underlying, bool trusted)
+        : Underlying_(underlying)
+        , Trusted_(trusted)
     { }
 
     ~TImpl()
@@ -105,7 +108,7 @@ public:
         do {
             if (InputSize_ == 0 && !Exhausted_) {
                 InputBuffer_ = TmpBuf();
-                InputSize_ = Slave_->Read((void*)InputBuffer_, TmpBufLen());
+                InputSize_ = Underlying_->Read((void*)InputBuffer_, TmpBufLen());
 
                 if (InputSize_ == 0) {
                     Exhausted_ = true;
@@ -127,6 +130,11 @@ public:
                 &bytesWritten,
                 &State_);
 
+            if (!Trusted_ && result == BROTLI_RESULT_ERROR) {
+                BrotliStateCleanup(&State_);
+                THROW_ERROR_EXCEPTION("Brotli decompression failed");
+            }
+
             YCHECK(result != BROTLI_RESULT_ERROR);
             if (result == BROTLI_RESULT_SUCCESS) {
                 BrotliStateCleanup(&State_);
@@ -146,7 +154,8 @@ public:
     }
 
 private:
-    IInputStream* Slave_;
+    IInputStream* Underlying_;
+    bool Trusted_;
     BrotliState State_;
 
     bool Initialized_ = false;
@@ -166,8 +175,8 @@ private:
 
 };
 
-TBrotliDecompress::TBrotliDecompress(IInputStream* slave, size_t buflen)
-    : Impl_(new (buflen) TImpl(slave))
+TBrotliDecompress::TBrotliDecompress(IInputStream* underlying, size_t buflen, bool trusted)
+    : Impl_(new (buflen) TImpl(underlying, trusted))
 { }
 
 size_t TBrotliDecompress::DoRead(void* buffer, size_t length)

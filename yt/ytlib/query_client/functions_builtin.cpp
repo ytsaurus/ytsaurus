@@ -11,6 +11,7 @@
 #include "udf/is_prefix.h" // Y_IGNORE
 #include "udf/avg.h" // Y_IGNORE
 #include "udf/farm_hash.h" // Y_IGNORE
+#include "udf/make_map.h" // Y_IGNORE
 #include "udf/first.h" // Y_IGNORE
 #include "udf/hyperloglog.h" // Y_IGNORE
 #include "udf/is_substr.h" // Y_IGNORE
@@ -59,7 +60,7 @@ public:
         auto codegenIf = [&] (TCGExprContext& builder) {
             return CodegenIf<TCGExprContext, TCGValue>(
                 builder,
-                builder->CreateIsNotNull(condition.GetData(builder)),
+                condition.GetTypedData(builder),
                 [&] (TCGExprContext& builder) {
                     return CodegenFragment(builder, argIds[1]).Cast(builder, type);
                 },
@@ -72,7 +73,7 @@ public:
         if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
             return CodegenIf<TCGExprContext, TCGValue>(
                 builder,
-                condition.IsNull(builder),
+                condition.GetIsNull(builder),
                 [&] (TCGExprContext& builder) {
                     return TCGValue::CreateNull(builder, type);
                 },
@@ -183,18 +184,14 @@ public:
                     builder,
                     builder->getFalse(),
                     nullptr,
-                    builder->CreateZExtOrBitCast(
-                        argValue.IsNull(builder),
-                        TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                    argValue.GetIsNull(builder),
                     type);
             } else {
                 return TCGValue::CreateFromValue(
                     builder,
                     builder->getFalse(),
                     nullptr,
-                    builder->CreateZExtOrBitCast(
-                        builder->getFalse(),
-                        TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                    builder->getFalse(),
                     type);
             }
         };
@@ -231,12 +228,25 @@ public:
                 auto argValue = CodegenFragment(builder, argIds[0]);
                 auto constant = CodegenFragment(builder, argIds[1]);
 
+                Value* argIsNull = argValue.GetIsNull(builder);
+
+                Value* length = nullptr;
+
+                if (IsStringLikeType(argValue.GetStaticType())) {
+                    length = builder->CreateSelect(
+                        argIsNull,
+                        constant.GetLength(),
+                        argValue.GetLength());
+                }
+
                 return TCGValue::CreateFromValue(
                     builder,
+                    builder->CreateAnd(argIsNull, constant.GetIsNull(builder)),
+                    length,
                     builder->CreateSelect(
-                        argValue.IsNull(builder),
-                        constant.GetValue(builder, true),
-                        argValue.GetValue(builder, true)),
+                        argIsNull,
+                        constant.GetTypedData(builder),
+                        argValue.GetTypedData(builder)),
                     type);
             } else {
                 return CodegenFragment(builder, argIds[0]);
@@ -315,31 +325,21 @@ public:
             argumentType,
             stateType,
             name
-        ] (TCGBaseContext& builder, Value* buffer, Value* aggStatePtr, Value* newValuePtr)
+        ] (TCGBaseContext& builder, Value* buffer, TCGValue aggregateValue, TCGValue newValue)
         {
-            auto newValue = TCGValue::CreateFromLlvmValue(
+            return CodegenIf<TCGBaseContext, TCGValue>(
                 builder,
-                newValuePtr,
-                argumentType);
-
-            CodegenIf<TCGBaseContext>(
-                builder,
-                builder->CreateNot(newValue.IsNull(builder)),
+                builder->CreateNot(newValue.GetIsNull(builder)),
                 [&] (TCGBaseContext& builder) {
-                    auto aggregateValue = TCGValue::CreateFromLlvmValue(
-                        builder,
-                        aggStatePtr,
-                        stateType);
-
                     Value* valueLength = nullptr;
                     if (argumentType == EValueType::String) {
-                        valueLength = newValue.GetLength(builder);
+                        valueLength = newValue.GetLength();
                     }
-                    Value* newData = newValue.GetData(builder);
+                    Value* newData = newValue.GetTypedData(builder);
 
-                    CodegenIf<TCGBaseContext, TCGValue>(
+                    return CodegenIf<TCGBaseContext, TCGValue>(
                         builder,
-                        aggregateValue.IsNull(builder),
+                        aggregateValue.GetIsNull(builder),
                         [&] (TCGBaseContext& builder) {
                             if (argumentType == EValueType::String) {
                                 Value* permanentData = builder->CreateCall(
@@ -364,7 +364,7 @@ public:
                             }
                         },
                         [&] (TCGBaseContext& builder) {
-                            Value* aggregateData = aggregateValue.GetData(builder);
+                            Value* aggregateData = aggregateValue.GetTypedData(builder);
                             Value* resultData = nullptr;
                             Value* resultLength = nullptr;
 
@@ -402,7 +402,7 @@ public:
                                             newData,
                                             valueLength,
                                             aggregateData,
-                                            aggregateValue.GetLength(builder));
+                                            aggregateValue.GetLength());
 
                                         newData = CodegenIf<TCGBaseContext, Value*>(
                                             builder,
@@ -434,7 +434,7 @@ public:
                                     resultLength = builder->CreateSelect(
                                         compareResult,
                                         valueLength,
-                                        aggregateValue.GetLength(builder));
+                                        aggregateValue.GetLength());
                                 }
 
                                 resultData = builder->CreateSelect(
@@ -457,7 +457,7 @@ public:
                                         compareResult = CodegenLexicographicalCompare(
                                             builder,
                                             aggregateData,
-                                            aggregateValue.GetLength(builder),
+                                            aggregateValue.GetLength(),
                                             newData,
                                             valueLength);
 
@@ -491,7 +491,7 @@ public:
                                     resultLength = builder->CreateSelect(
                                         compareResult,
                                         valueLength,
-                                        aggregateValue.GetLength(builder));
+                                        aggregateValue.GetLength());
                                 }
 
                                 resultData = builder->CreateSelect(
@@ -508,11 +508,11 @@ public:
                                 resultLength,
                                 resultData,
                                 stateType);
-                        })
-                        .StoreToValue(builder, aggStatePtr);
+                        });
+                },
+                [&] (TCGBaseContext& builder) {
+                    return aggregateValue;
                 });
-
-            return TCGValue::CreateNull(builder, stateType);
         };
 
         TCodegenAggregate codegenAggregate;
@@ -532,11 +532,8 @@ public:
             stateType,
             resultType,
             name
-        ] (TCGBaseContext& builder, Value* buffer, Value* aggState) {
-            return TCGValue::CreateFromLlvmValue(
-                builder,
-                aggState,
-                stateType);
+        ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
+            return aggState;
         };
 
         return codegenAggregate;
@@ -587,19 +584,33 @@ void RegisterBuiltinFunctions(
         UDF_BC(sleep),
         ECallingConvention::Simple);
 
-    TUnionType hashTypes = TUnionType{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Boolean,
-        EValueType::String};
-
     builder.RegisterFunction(
         "farm_hash",
         std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
-        hashTypes,
+        TUnionType{
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Boolean,
+            EValueType::String
+        },
         EValueType::Uint64,
         UDF_BC(farm_hash));
+
+    builder.RegisterFunction(
+        "make_map",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{},
+        TUnionType{
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Boolean,
+            EValueType::Double,
+            EValueType::String,
+            EValueType::Any
+        },
+        EValueType::Any,
+        UDF_BC(make_map));
 
     if (typeInferrers) {
         typeInferrers->emplace("is_null", New<TFunctionTypeInferrer>(
