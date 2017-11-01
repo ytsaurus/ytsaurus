@@ -128,7 +128,7 @@ public:
 
     bool Contains(const TIP6Address& address) const;
 
-    const TIP6Address& GetNetwork() const;
+    const TIP6Address& GetAddress() const;
     const TIP6Address& GetMask() const;
     int GetMaskSize() const;
 

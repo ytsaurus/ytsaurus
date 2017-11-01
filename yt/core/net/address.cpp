@@ -677,7 +677,7 @@ TIP6Network::TIP6Network(const TIP6Address& network, const TIP6Address& mask)
     , Mask_(mask)
 { }
 
-const TIP6Address& TIP6Network::GetNetwork() const
+const TIP6Address& TIP6Network::GetAddress() const
 {
     return Network_;
 }
@@ -741,7 +741,7 @@ bool TIP6Network::FromString(const TStringBuf& str, TIP6Network* network)
 void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec)
 {
     builder->AppendFormat("%v/%v",
-        network.GetNetwork(),
+        network.GetAddress(),
         network.GetMaskSize());
 }
 
