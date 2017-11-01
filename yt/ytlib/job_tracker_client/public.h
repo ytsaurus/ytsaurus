@@ -62,7 +62,6 @@ DEFINE_ENUM(EJobType,
     ((ReplicatorLast)    (103)) // Sentinel.
 );
 
->>>>>>> Add sentinels to EJobType for replicator jobs. Plus cosmetics.
 // NB: Please keep the range of values small as this type
 // is used as a key of TEnumIndexedVector.
 DEFINE_ENUM(EJobState,
