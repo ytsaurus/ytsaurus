@@ -8,7 +8,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 
@@ -18,6 +19,7 @@ namespace NNodeTrackerClient {
 using namespace NChunkClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NNet;
 
 using NYT::FromProto;
 using NYT::ToProto;

@@ -12,6 +12,8 @@
 
 #include <yt/server/shell/config.h>
 
+#include <yt/ytlib/job_proxy/public.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/misc/finally.h>
@@ -696,8 +698,17 @@ void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
     for (const auto& jobId : jobIds) {
         // NB: While we kept job id in operation controller, its execution node
         // could have unregistered.
+        const auto& nodeId = NodeIdFromJobId(jobId);
         if (auto execNode = GetNodeByJob(jobId)) {
-            execNode->JobIdsToRemove().emplace_back(jobId);
+            LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v)",
+                jobId,
+                nodeId,
+                execNode->GetDefaultAddress());
+            RevivalState_->JobIdsToRemove()[nodeId].emplace_back(jobId);
+        } else {
+            LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
+                jobId,
+                nodeId);
         }
     }
 }
@@ -933,13 +944,16 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 
     const auto& nodeId = node->GetId();
+    const auto& nodeAddress = node->GetDefaultAddress();
 
     if (request->stored_jobs_included()) {
         RevivalState_->OnReceivedStoredJobs(nodeId);
     }
 
     if (RevivalState_->ShouldSendStoredJobs(nodeId)) {
-        LOG_DEBUG("Asking node to include all stored jobs in the next hearbeat (Node: %v)", nodeId);
+        LOG_DEBUG("Asking node to include all stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
+            nodeId,
+            nodeAddress);
         response->set_include_stored_jobs_in_next_heartbeat(true);
         // If it is a first time we get the heartbeat from a given node,
         // there will definitely be some jobs that are missing. No need to abort
@@ -956,10 +970,19 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     {
         // Add all completed jobs that are now safe to remove.
-        for (const auto& jobId : node->JobIdsToRemove()) {
-            ToProto(response->add_jobs_to_remove(), jobId);
+        auto it = RevivalState_->JobIdsToRemove().find(nodeId);
+        if (it != RevivalState_->JobIdsToRemove().end()) {
+            for (const auto& jobId : it->second) {
+                LOG_DEBUG("Asking node to remove job and removing it from recently completed job ids "
+                    "(JobId: %v, NodeId: %v, NodeAddress: %v)",
+                    jobId,
+                    nodeId,
+                    nodeAddress);
+                YCHECK(RevivalState_->RecentlyCompletedJobIds().erase(jobId));
+                ToProto(response->add_jobs_to_remove(), jobId);
+            }
+            RevivalState_->JobIdsToRemove().erase(it);
         }
-        node->JobIdsToRemove().clear();
     }
 
     for (auto& jobStatus : *request->mutable_jobs()) {
@@ -1040,7 +1063,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     if (!job) {
         // We should not abort or remove unknown jobs until revival is finished because
         // we can decide what to do with these jobs only when all TJob's are revived.
-        if (RevivalState_->ShouldSkipUnknownJobs()) {
+        // Also we should not remove the completed jobs that were not
+        // saved to the snapshot.
+        if (RevivalState_->ShouldSkipUnknownJobs() || RevivalState_->RecentlyCompletedJobIds().has(jobId)) {
             return nullptr;
         }
         switch (state) {
@@ -1111,6 +1136,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     switch (state) {
         case EJobState::Completed: {
             LOG_DEBUG("Job completed, storage scheduled");
+            YCHECK(RevivalState_->RecentlyCompletedJobIds().insert(jobId).second);
             OnJobCompleted(job, jobStatus);
             ToProto(response->add_jobs_to_store(), jobId);
             break;
@@ -1127,7 +1153,10 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         case EJobState::Aborted: {
             auto error = FromProto<TError>(jobStatus->result().error());
             LOG_DEBUG(error, "Job aborted, removal scheduled");
-            if (job->GetPreempted() && error.GetCode() == NExecAgent::EErrorCode::AbortByScheduler) {
+            if (job->GetPreempted() &&
+                (error.FindMatching(NExecAgent::EErrorCode::AbortByScheduler) ||
+                error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)))
+            {
                 auto error = TError("Job preempted")
                     << TErrorAttribute("abort_reason", EAbortReason::Preemption)
                     << TErrorAttribute("preemption_reason", job->GetPreemptionReason());
@@ -1368,7 +1397,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         if (status != nullptr) {
             const auto& result = status->result();
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            if (schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) {
+            if (schedulerResultExt.unread_chunk_specs_size() == 0) {
                 job->SetInterruptReason(EInterruptReason::None);
             } else if (job->GetRevived()) {
                 // NB: We lose the original interrupt reason during the revival,
@@ -1476,10 +1505,8 @@ void TNodeShard::SubmitUpdatedAndCompletedJobsToStrategy()
 {
     if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
         Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
-            UpdatedJobs_,
-            CompletedJobs_);
-        UpdatedJobs_.clear();
-        CompletedJobs_.clear();
+            &UpdatedJobs_,
+            &CompletedJobs_);
     }
 }
 
@@ -1514,9 +1541,10 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
     YCHECK(node->IdToJob().insert(std::make_pair(job->GetId(), job)).second);
     ++ActiveJobCount_;
 
-    LOG_DEBUG("Job registered (JobId: %v, JobType: %v, OperationId: %v)",
+    LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v)",
         job->GetId(),
         job->GetType(),
+        job->GetRevived(),
         job->GetOperationId());
 }
 
@@ -1722,6 +1750,8 @@ void TNodeShard::TRevivalState::PrepareReviving()
     ShouldSkipUnknownJobs_ = true;
     NodeIdsThatSentAllStoredJobs_.clear();
     NotConfirmedJobs_.clear();
+    RecentlyCompletedJobIds_.clear();
+    JobIdsToRemove_.clear();
 }
 
 void TNodeShard::TRevivalState::StartReviving()
@@ -1749,7 +1779,7 @@ void TNodeShard::TRevivalState::FinalizeReviving()
         Host_->Config_->JobRevivalAbortTimeout);
 
     // NB: DoUnregisterJob attempts to erase job from the revival state, so we need to
-    // eliminate set modification during its traversal my moving it to the local variable.
+    // eliminate set modification during its traversal by moving it to the local variable.
     auto notConfirmedJobs = std::move(NotConfirmedJobs_);
     for (const auto& job : notConfirmedJobs) {
         LOG_DEBUG("Aborting revived job that was not confirmed (JobId: %v)",
@@ -1758,8 +1788,6 @@ void TNodeShard::TRevivalState::FinalizeReviving()
             TError("Job not confirmed")
                 << TErrorAttribute("abort_reason", EAbortReason::RevivalConfirmationTimeout));
         Host_->OnJobAborted(job, &status);
-        auto execNode = Host_->GetNodeByJob(job->GetId());
-        execNode->JobIdsToRemove().emplace_back(job->GetId());
     }
 }
 

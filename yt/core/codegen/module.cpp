@@ -6,7 +6,7 @@
 
 #include <llvm/ADT/Triple.h>
 
-#if !(LLVM_TEST(3, 7) || LLVM_TEST(3, 9) || LLVM_TEST(4, 0))
+#if !LLVM_VERSION_GE(3, 7)
 #error "LLVM 3.7 or 3.9 or 4.0 is required."
 #endif
 
@@ -25,6 +25,13 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
+#define PRINT_PASSES_TIME
+#ifdef PRINT_PASSES_TIME
+#include <llvm/Support/Timer.h>
+#include <llvm/Transforms/Scalar.h>
+#endif
+
+
 #include <mutex>
 
 #ifdef _linux_
@@ -42,6 +49,12 @@ static const auto& Logger = CodegenLogger;
 static bool IsIRDumpEnabled()
 {
     static bool result = (getenv("DUMP_IR") != nullptr);
+    return result;
+}
+
+static bool IsPassesTimeDumpEnabled()
+{
+    static bool result = (getenv("DUMP_PASSES_TIME") != nullptr);
     return result;
 }
 
@@ -133,6 +146,9 @@ public:
         module->setTargetTriple(hostTriple);
         Module_ = module.get();
 
+        llvm::TargetOptions targetOptions;
+        targetOptions.EnableFastISel = true;
+
         // Create engine.
         std::string what;
         Engine_.reset(llvm::EngineBuilder(std::move(module))
@@ -141,6 +157,7 @@ public:
             .setMCJITMemoryManager(std::make_unique<TCGMemoryManager>(RoutineRegistry_))
             .setMCPU(hostCpu)
             .setErrorStr(&what)
+            .setTargetOptions(targetOptions)
             .create());
 
         if (!Engine_) {
@@ -148,7 +165,7 @@ public:
                 << TError(TString(what));
         }
 
-#if LLVM_TEST(3, 7)
+#if !LLVM_VERSION_GE(3, 9)
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
 #else
         Module_->setDataLayout(Engine_->getDataLayout().getStringRepresentation());
@@ -237,6 +254,12 @@ private:
         using PassManager = llvm::legacy::PassManager;
         using FunctionPassManager = llvm::legacy::FunctionPassManager;
 
+#ifdef PRINT_PASSES_TIME
+        if (IsPassesTimeDumpEnabled()) {
+            llvm::TimePassesIsEnabled = true;
+        }
+#endif
+
         LOG_DEBUG("Started compiling module");
 
         if (IsIRDumpEnabled()) {
@@ -255,7 +278,7 @@ private:
         LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", ExportedSymbols_);
 
         modulePassManager = std::make_unique<PassManager>();
-#if LLVM_TEST(3, 7)
+#if !LLVM_VERSION_GE(3, 9)
         std::vector<const char*> exportedNames;
         for (const auto& exportedSymbol : ExportedSymbols_) {
             exportedNames.emplace_back(exportedSymbol.c_str());
@@ -274,7 +297,7 @@ private:
         LOG_DEBUG("Optimizing IR");
 
         llvm::PassManagerBuilder passManagerBuilder;
-        passManagerBuilder.OptLevel = 2;
+        passManagerBuilder.OptLevel = 0;
         passManagerBuilder.SizeLevel = 0;
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
@@ -303,7 +326,11 @@ private:
         LOG_DEBUG("Finalizing module");
 
         Engine_->finalizeObject();
-
+#ifdef PRINT_PASSES_TIME
+        if (IsPassesTimeDumpEnabled()) {
+            llvm::TimerGroup::printAll(llvm::errs());
+        }
+#endif
         LOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
     }
@@ -329,7 +356,7 @@ private:
     static const char* DiagnosticKindToString(llvm::DiagnosticKind kind)
     {
         switch (kind) {
-#if !(LLVM_TEST(4, 0))
+#if !LLVM_VERSION_GE(3, 9)
             case llvm::DK_Bitcode:
                 return "DK_Bitcode";
 #endif

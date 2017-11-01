@@ -68,7 +68,8 @@ TStoreBase::TStoreBase(
     , ReaderConfig_(tablet->GetReaderConfig())
     , StoreId_(id)
     , Tablet_(tablet)
-    , PerformanceCounters_(Tablet_->GetPerformanceCounters())
+    , PerformanceCounters_(Tablet_->PerformanceCounters())
+    , RuntimeData_(Tablet_->RuntimeData())
     , TabletId_(Tablet_->GetId())
     , TablePath_(Tablet_->GetTablePath())
     , Schema_(Tablet_->PhysicalSchema())
@@ -89,6 +90,7 @@ TStoreBase::~TStoreBase()
     i64 delta = -MemoryUsage_;
     MemoryUsage_ = 0;
     MemoryUsageUpdated_.Fire(delta);
+    RuntimeData_->DynamicMemoryPoolSize += delta;
 }
 
 TStoreId TStoreBase::GetId() const
@@ -134,6 +136,7 @@ void TStoreBase::SetMemoryUsage(i64 value)
         i64 delta = value - MemoryUsage_;
         MemoryUsage_ = value;
         MemoryUsageUpdated_.Fire(delta);
+        RuntimeData_->DynamicMemoryPoolSize += delta;
     }
 }
 

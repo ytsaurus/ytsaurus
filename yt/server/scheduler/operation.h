@@ -47,6 +47,9 @@ struct IOperationStrategyHost
     virtual TInstant GetStartTime() const = 0;
 
     virtual int GetSlotIndex() const = 0;
+    virtual void SetSlotIndex(int index) = 0;
+
+    virtual TString GetAuthenticatedUser() const = 0;
 
     virtual TOperationId GetId() const = 0;
 
@@ -74,7 +77,7 @@ protected: \
     type name##_ { __VA_ARGS__ }; \
     \
 public: \
-    Y_FORCE_INLINE type& name() \
+    Y_FORCE_INLINE type& Mutable##name() \
     { \
         ShouldFlush_ = true; \
         return name##_; \
@@ -145,6 +148,9 @@ public:
 
     //! Mark that operation attributes should be flushed to cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
+
+    //! Scheduler incarnation that spawned this operation.
+    DEFINE_BYVAL_RW_PROPERTY(int, SchedulerIncarnation);
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();

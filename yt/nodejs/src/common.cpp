@@ -8,7 +8,7 @@
 
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/tracing/trace_manager.h>
 
@@ -38,6 +38,7 @@ namespace NNodeJS {
 COMMON_V8_USES
 
 using namespace NYTree;
+using namespace NNet;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +174,8 @@ Handle<Value> WipeOutCurrentProcess(const Arguments& args)
 
 void JemallocWriteCb(void*, const char* string)
 {
-    ::write(2, string, strlen(string));
+    ssize_t ignored __attribute__((unused));
+    ignored = ::write(2, string, strlen(string));
 }
 
 Handle<Value> JemallocStats(const Arguments& args)

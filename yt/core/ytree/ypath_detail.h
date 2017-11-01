@@ -492,18 +492,16 @@ void SetNodeFromProducer(
 
 NRpc::IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger = NLogging::TLogger(),
+    NLogging::TLogger logger = NLogging::TLogger(),
     NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
-    const TString& requestInfo = TString(),
-    const TString& responseInfo = TString());
+    TString loggingInfo = TString());
 
 NRpc::IServiceContextPtr CreateYPathContext(
     std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger = NLogging::TLogger(),
+    NLogging::TLogger logger = NLogging::TLogger(),
     NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
-    const TString& requestInfo = TString(),
-    const TString& responseInfo = TString());
+    TString loggingInfo = TString());
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 

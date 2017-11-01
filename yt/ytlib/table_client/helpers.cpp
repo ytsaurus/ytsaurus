@@ -476,7 +476,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
             return;
         }
 
-        switch (tableSchema.Columns()[id].Type) {
+        switch (tableSchema.Columns()[id].GetPhysicalType()) {
             case EValueType::Boolean:
                 rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
                 break;

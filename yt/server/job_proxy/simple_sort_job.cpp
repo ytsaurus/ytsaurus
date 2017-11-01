@@ -62,7 +62,8 @@ public:
             Host_->GetInputNodeDirectory(),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
-            nameTable);
+            nameTable,
+            TReadSessionId());
 
         Reader_ = CreateSchemalessSortingReader(reader, nameTable, keyColumns);
 

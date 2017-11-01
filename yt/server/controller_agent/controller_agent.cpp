@@ -3,7 +3,18 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
+#include <yt/server/scheduler/config.h>
+
+#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native_connection.h>
+
+#include <yt/ytlib/chunk_client/throttler_manager.h>
+
+#include <yt/ytlib/event_log/event_log.h>
+
+#include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -11,9 +22,12 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NScheduler;
+using namespace NCellScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
+using namespace NEventLog;
 
 static const auto& Logger = ControllerAgentLogger;
 
@@ -26,21 +40,36 @@ public:
     TImpl(TSchedulerConfigPtr config, NCellScheduler::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
+        , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
+        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
+            Config_->ChunkLocationThrottler,
+            ControllerAgentLogger))
+        , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
+        , EventLogWriter_(New<TEventLogWriter>(
+            Config_->EventLog,
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity)))
     { }
 
     void Disconnect()
     {
         Connected_.store(false);
 
+        CancelableContext_->Cancel();
+
         ControllerAgentMasterConnector_.Reset();
     }
 
-    void Connect(IInvokerPtr invoker)
+    void Connect()
     {
-        Invoker_ = invoker;
+        ConnectionTime_ = TInstant::Now();
+
+        CancelableContext_ = New<TCancelableContext>();
+        CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
         ControllerAgentMasterConnector_ = New<TMasterConnector>(
-            invoker,
+            CancelableInvoker_,
             Config_,
             Bootstrap_);
 
@@ -54,14 +83,76 @@ public:
         }
     }
 
+    TInstant GetConnectionTime() const
+    {
+        return ConnectionTime_;
+    }
+
+    const IInvokerPtr& GetInvoker()
+    {
+        return Bootstrap_->GetControllerAgentInvoker();
+    }
+
+    const IInvokerPtr& GetCancelableInvoker()
+    {
+        return CancelableInvoker_;
+    }
+
+    const IInvokerPtr& GetControllerThreadPoolInvoker()
+    {
+        return ControllerThreadPool_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetSnapshotIOInvoker()
+    {
+        return SnapshotIOQueue_->GetInvoker();
+    }
+
     TMasterConnector* GetMasterConnector()
     {
         return ControllerAgentMasterConnector_.Get();
     }
 
+    const TSchedulerConfigPtr& GetConfig() const
+    {
+        return Config_;
+    }
+
+    const NApi::INativeClientPtr& GetMasterClient() const
+    {
+        return Bootstrap_->GetMasterClient();
+    }
+
+    const TNodeDirectoryPtr& GetNodeDirectory()
+    {
+        return Bootstrap_->GetNodeDirectory();
+    }
+
+    const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const
+    {
+        return ChunkLocationThrottlerManager_;
+    }
+
+    const TCoreDumperPtr& GetCoreDumper() const
+    {
+        return Bootstrap_->GetCoreDumper();
+    }
+
+    const TAsyncSemaphorePtr& GetCoreSemaphore() const
+    {
+        return CoreSemaphore_;
+    }
+
+    TEventLogWriterPtr GetEventLogWriter() const
+    {
+        return EventLogWriter_;
+    }
+
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config_ = config;
+        ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
+        EventLogWriter_->UpdateConfig(Config_->EventLog);
         if (ControllerAgentMasterConnector_) {
             ControllerAgentMasterConnector_->UpdateConfig(config);
         }
@@ -136,9 +227,21 @@ public:
 private:
     TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* Bootstrap_;
-    IInvokerPtr Invoker_;
+
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableInvoker_;
+
+    const TThreadPoolPtr ControllerThreadPool_;
+    const TActionQueuePtr SnapshotIOQueue_;
+
+    const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
+
+    const TAsyncSemaphorePtr CoreSemaphore_;
+
+    TEventLogWriterPtr EventLogWriter_;
 
     std::atomic<bool> Connected_ = {false};
+    TInstant ConnectionTime_;
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
     TReaderWriterSpinLock ControllersLock_;
@@ -171,9 +274,9 @@ TControllerAgent::TControllerAgent(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-void TControllerAgent::Connect(IInvokerPtr invoker)
+void TControllerAgent::Connect()
 {
-    Impl_->Connect(invoker);
+    Impl_->Connect();
 }
 
 void TControllerAgent::Disconnect()
@@ -186,9 +289,69 @@ void TControllerAgent::ValidateConnected() const
     Impl_->ValidateConnected();
 }
 
+TInstant TControllerAgent::GetConnectionTime() const
+{
+    return Impl_->GetConnectionTime();
+}
+
+const IInvokerPtr& TControllerAgent::GetInvoker()
+{
+    return Impl_->GetInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
+{
+    return Impl_->GetCancelableInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
+{
+    return Impl_->GetControllerThreadPoolInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetSnapshotIOInvoker()
+{
+    return Impl_->GetSnapshotIOInvoker();
+}
+
 TMasterConnector* TControllerAgent::GetMasterConnector()
 {
     return Impl_->GetMasterConnector();
+}
+
+const TSchedulerConfigPtr& TControllerAgent::GetConfig() const
+{
+    return Impl_->GetConfig();
+}
+
+const NApi::INativeClientPtr& TControllerAgent::GetMasterClient() const
+{
+    return Impl_->GetMasterClient();
+}
+
+const TNodeDirectoryPtr& TControllerAgent::GetNodeDirectory()
+{
+    return Impl_->GetNodeDirectory();
+}
+
+const TThrottlerManagerPtr& TControllerAgent::GetChunkLocationThrottlerManager() const
+{
+    return Impl_->GetChunkLocationThrottlerManager();
+}
+
+const TCoreDumperPtr& TControllerAgent::GetCoreDumper() const
+{
+    return Impl_->GetCoreDumper();
+}
+
+const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
+{
+    return Impl_->GetCoreSemaphore();
+}
+
+TEventLogWriterPtr TControllerAgent::GetEventLogWriter() const
+{
+    return Impl_->GetEventLogWriter();
 }
 
 void TControllerAgent::UpdateConfig(const TSchedulerConfigPtr& config)

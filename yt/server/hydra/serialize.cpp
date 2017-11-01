@@ -66,7 +66,7 @@ void DeserializeMutationRecord(
 
     size_t headerStartOffset = sizeof (TFixedMutationHeader);
     size_t headerEndOffset = headerStartOffset + recordHeader->HeaderSize;
-    DeserializeFromProto(mutationHeader, recordData.Slice(headerStartOffset, headerEndOffset));
+    DeserializeProto(mutationHeader, recordData.Slice(headerStartOffset, headerEndOffset));
 
     size_t dataStartOffset = headerEndOffset;
     size_t dataEndOffset = dataStartOffset + recordHeader->DataSize;

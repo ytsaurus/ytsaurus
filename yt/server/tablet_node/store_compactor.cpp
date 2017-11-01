@@ -1,16 +1,17 @@
-#include "store_compactor.h"
-#include "private.h"
-#include "sorted_chunk_store.h"
+#include "chunk_writer_pool.h"
 #include "config.h"
 #include "in_memory_manager.h"
 #include "partition.h"
+#include "private.h"
 #include "slot_manager.h"
+#include "sorted_chunk_store.h"
+#include "store_compactor.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
+#include "tablet_profiling.h"
 #include "tablet_reader.h"
 #include "tablet_slot.h"
-#include "chunk_writer_pool.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -110,6 +111,8 @@ private:
     NProfiling::TSimpleCounter FeasibleCompactionsCounter_;
     NProfiling::TSimpleCounter ScheduledPartitioningsCounter_;
     NProfiling::TSimpleCounter ScheduledCompactionsCounter_;
+    const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
+    const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");
 
     struct TTask
     {
@@ -702,17 +705,19 @@ private:
                 ->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
+            auto sessionId = TReadSessionId();
 
             eden->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
+            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx, ReadSessionId: %v)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
-                currentTimestamp);
+                currentTimestamp,
+                sessionId);
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -721,7 +726,8 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning));
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
+                sessionId);
 
             INativeTransactionPtr transaction;
             {
@@ -790,6 +796,11 @@ private:
                     descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
+
+                ProfileDiskPressure(
+                    tabletSnapshot,
+                    writer->GetDataStatistics(),
+                    PartitioningTag_);
             }
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
@@ -1050,11 +1061,12 @@ private:
             auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
+            auto sessionId = TReadSessionId();
 
             partition->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
+                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, ReadSessionId: %v)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
@@ -1062,7 +1074,8 @@ private:
                 stores.size(),
                 currentTimestamp,
                 majorTimestamp,
-                retainedTimestamp);
+                retainedTimestamp,
+                sessionId);
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -1071,7 +1084,8 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 majorTimestamp,
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction));
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
+                sessionId);
 
             INativeTransactionPtr transaction;
             {
@@ -1138,7 +1152,13 @@ private:
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
+
             }
+
+            ProfileDiskPressure(
+                tabletSnapshot,
+                writer->GetDataStatistics(),
+                CompactionTag_);
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
                 rowCount,

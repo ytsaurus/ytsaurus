@@ -168,7 +168,8 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId)
 {
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
@@ -194,13 +195,14 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
 
     TIdMapping idMapping;
     for (const auto& readColumn : readSchema.Columns()) {
-        idMapping.push_back(querySchema.GetColumnIndex(readColumn.Name));
+        idMapping.push_back(querySchema.GetColumnIndex(readColumn.Name()));
     }
 
     auto underlyingReader = CreateSchemafulChunkReader(
         config,
         std::move(chunkReader),
         std::move(blockCache),
+        sessionId,
         readSchema,
         TKeyColumns(),
         GetChunkMeta(),

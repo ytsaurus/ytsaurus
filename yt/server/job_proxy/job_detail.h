@@ -60,7 +60,7 @@ public:
     virtual double GetProgress() const override;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
-    virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override;
+    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const override;
 
     virtual NJobTrackerClient::TStatistics GetStatistics() const override;
 

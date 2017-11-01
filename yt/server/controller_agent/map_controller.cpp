@@ -9,6 +9,7 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -52,7 +53,6 @@ class TUnorderedOperationControllerBase
     : public TOperationControllerBase
 {
 public:
-
     class TUnorderedTaskBase
         : public TTask
     {
@@ -79,7 +79,9 @@ public:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->LocalityTimeout;
+            return Controller->IsLocalityEnabled()
+                ? Controller->Spec->LocalityTimeout
+                : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
@@ -145,11 +147,6 @@ public:
             return result;
         }
 
-        virtual bool IsIntermediateOutput() const override
-        {
-            return false;
-        }
-
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
@@ -203,7 +200,10 @@ public:
             }
             stripes.emplace_back(std::move(chunkStripe));
             AddInput(stripes);
-            FinishInput();
+
+            GetChunkPoolInput()->Finish();
+            AddPendingHint();
+            CheckCompleted();
         }
     };
 
@@ -213,12 +213,11 @@ public:
     typedef TIntrusivePtr<TUnorderedTaskBase> TUnorderedTaskPtr;
 
     TUnorderedOperationControllerBase(
-        TSchedulerConfigPtr config,
         TUnorderedOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     { }
@@ -368,18 +367,24 @@ protected:
                             edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
                             edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
                             edgeDescriptors[index].RequiresRecoveryInfo = true;
+                            edgeDescriptors[index].IsFinalOutput = false;
                             requiresAutoMerge = true;
                         }
                     }
                 }
                 if (requiresAutoMerge) {
                     UnorderedTask = New<TAutoMergeableUnorderedTask>(this, std::move(edgeDescriptors));
-                    RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, Spec->JobProxyMemoryDigest);
                 } else {
                     UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
                 }
                 UnorderedTask->AddInput(stripes);
-                UnorderedTask->FinishInput();
+                FinishTaskInput(UnorderedTask);
+                for (int index = 0; index < AutoMergeTasks.size(); ++index) {
+                    if (AutoMergeTasks[index]) {
+                        AutoMergeTasks[index]->FinishInput(UnorderedTask->GetJobType());
+                    }
+                }
+
                 RegisterTask(UnorderedTask);
 
                 LOG_INFO("Inputs processed (JobCount: %v, IsExplicitJobCount: %v)",
@@ -411,14 +416,37 @@ protected:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
             "UnavailableInputChunks: %v",
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterruptedTotal(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
+            JobCounter->GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
+    }
+
+    virtual void OnChunksReleased(int chunkCount) override
+    {
+        TOperationControllerBase::OnChunksReleased(chunkCount);
+
+        if (const auto& autoMergeDirector = GetAutoMergeDirector()) {
+            autoMergeDirector->OnMergeJobFinished(chunkCount /* unregisteredIntermediateChunkCount */);
+        }
+    }
+
+    virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const override
+    {
+        auto mapperSpec = GetUserJobSpec();
+        // We could get here only if this is an unordered map and auto-merge is enabled.
+        YCHECK(mapperSpec);
+        YCHECK(Spec->AutoMerge->Mode != EAutoMergeMode::Disabled);
+
+        if (Spec->AutoMerge->Mode != EAutoMergeMode::Relaxed && mapperSpec->Deterministic) {
+            return EIntermediateChunkUnstageMode::OnJobCompleted;
+        } else {
+            return EIntermediateChunkUnstageMode::OnSnapshotCompleted;
+        }
     }
 
     // Unsorted helpers.
@@ -490,17 +518,19 @@ class TMapController
 {
 public:
     TMapController(
-        TSchedulerConfigPtr config,
         TMapOperationSpecPtr spec,
         TMapOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TUnorderedOperationControllerBase(config, spec, options, host, operation)
+        : TUnorderedOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::Map, spec->JobProxyMemoryDigest);
         RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
+        if (Spec->AutoMerge->Mode != EAutoMergeMode::Disabled) {
+            RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, Spec->JobProxyMemoryDigest);
+        }
     }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -661,9 +691,14 @@ private:
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return
             !IsExplicitJobCount &&
-            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options->MaxJobCount > JobCounter.GetTotal() &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options->MaxJobCount > JobCounter->GetTotal() &&
             TOperationControllerBase::IsJobInterruptible();
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
     }
 };
 
@@ -672,12 +707,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMapController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
+    return New<TMapController>(spec, host->GetControllerAgent()->GetConfig()->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -687,12 +721,11 @@ class TUnorderedMergeController
 {
 public:
     TUnorderedMergeController(
-        TSchedulerConfigPtr config,
         TUnorderedMergeOperationSpecPtr spec,
         TUnorderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TUnorderedOperationControllerBase(config, spec, options, host, operation)
+        : TUnorderedOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
@@ -713,7 +746,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x9a17a41f);
 
     TUnorderedMergeOperationSpecPtr Spec;
-
 
     // Custom bits of preparation pipeline.
     virtual EJobType GetJobType() const override
@@ -814,6 +846,11 @@ private:
                 Y_UNREACHABLE();
         }
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
@@ -821,12 +858,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateUnorderedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(operation->GetSpec());
-    return New<TUnorderedMergeController>(config, spec, config->UnorderedMergeOperationOptions, host, operation);
+    return New<TUnorderedMergeController>(spec, host->GetControllerAgent()->GetConfig()->UnorderedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
@@ -60,12 +61,11 @@ class TSortedControllerBase
 {
 public:
     TSortedControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -129,7 +129,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller_->Spec_->LocalityTimeout;
+            return Controller_->IsLocalityEnabled()
+                ? Controller_->Spec_->LocalityTimeout
+                : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
@@ -375,13 +377,13 @@ protected:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
                 "UnavailableInputChunks: %v",
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterruptedTotal(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
+            JobCounter->GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
     }
 
@@ -455,7 +457,7 @@ protected:
 
         ProcessInputs();
 
-        SortedTask_->FinishInput();
+        FinishTaskInput(SortedTask_);
 
         for (const auto& teleportChunk : SortedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
             // If teleport chunks were found, then teleport table index should be non-Null.
@@ -537,7 +539,7 @@ private:
             FetcherChunkScraper_ = CreateFetcherChunkScraper(
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
+                ControllerAgent->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,
                 InputNodeDirectory_,
                 Logger);
@@ -551,7 +553,7 @@ private:
             InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper_,
-            Host->GetMasterClient(),
+            ControllerAgent->GetMasterClient(),
             RowBuffer,
             Logger);
     }
@@ -567,11 +569,10 @@ class TSortedMergeController
 {
 public:
     TSortedMergeController(
-        TSchedulerConfigPtr config,
         TSortedMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedControllerBase(config, spec, config->SortedMergeOperationOptions, host, operation)
+        : TSortedControllerBase(spec, host->GetControllerAgent()->GetConfig()->SortedMergeOperationOptions, host, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
@@ -729,6 +730,11 @@ protected:
         return {EJobType::SortedMerge};
     }
 
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xf3b791ca);
 
@@ -738,12 +744,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
 
 IOperationControllerPtr CreateSortedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(operation->GetSpec());
-    return New<TSortedMergeController>(config, spec, host, operation);
+    return New<TSortedMergeController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -753,12 +758,11 @@ class TSortedReduceControllerBase
 {
 public:
     TSortedReduceControllerBase(
-        TSchedulerConfigPtr config,
         TReduceOperationSpecBasePtr spec,
         TReduceOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedControllerBase(config, spec, options, host, operation)
+        : TSortedControllerBase(spec, options, host, operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -890,8 +894,8 @@ public:
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return
-            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options_->MaxJobCount > JobCounter.GetTotal() &&
+            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
             TOperationControllerBase::IsJobInterruptible();
     }
 
@@ -937,6 +941,11 @@ public:
         return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+
 protected:
     std::vector<TString> SortKeyColumns_;
 
@@ -954,11 +963,10 @@ class TSortedReduceController
 {
 public:
     TSortedReduceController(
-        TSchedulerConfigPtr config,
         TReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
+        : TSortedReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->ReduceOperationOptions, host, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
@@ -1074,6 +1082,11 @@ protected:
         return {EJobType::SortedReduce};
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return Spec_->PivotKeys.empty() && TSortedControllerBase::IsJobInterruptible();
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController, 0x761aad8e);
 
@@ -1095,17 +1108,20 @@ private:
         return options;
     }
 
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController);
 
 IOperationControllerPtr CreateSortedReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TSortedReduceController>(config, spec, host, operation);
+    return New<TSortedReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1115,11 +1131,10 @@ class TJoinReduceController
 {
 public:
     TJoinReduceController(
-        TSchedulerConfigPtr config,
         TJoinReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
+        : TSortedReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->JoinReduceOperationOptions, host, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
@@ -1190,6 +1205,11 @@ public:
         return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
@@ -1210,12 +1230,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);
 
 IOperationControllerPtr CreateJoinReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TJoinReduceController>(config, spec, host, operation);
+    return New<TJoinReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

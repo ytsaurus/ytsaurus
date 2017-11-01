@@ -43,7 +43,8 @@ static const size_t RemoteWriteBufferSize = 1_MB;
 
 struct TBuildSnapshotJob
 {
-    TOperationPtr Operation;
+    TOperationId OperationId;
+    IOperationControllerPtr Controller;
     std::unique_ptr<TFile> OutputFile;
 };
 
@@ -51,73 +52,101 @@ struct TBuildSnapshotJob
 
 TSnapshotBuilder::TSnapshotBuilder(
     TSchedulerConfigPtr config,
-    TSchedulerPtr scheduler,
-    IClientPtr client)
+    TOperationIdToControllerMap controllers,
+    IClientPtr client,
+    IInvokerPtr IOInvoker)
     : Config_(config)
-    , Scheduler_(scheduler)
+    , Controllers_(std::move(controllers))
     , Client_(client)
+    , IOInvoker_(IOInvoker)
+    , ControlInvoker_(GetCurrentInvoker())
     , Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot")
 {
     YCHECK(Config_);
-    YCHECK(Scheduler_);
     YCHECK(Client_);
+    YCHECK(IOInvoker_);
 
     Logger = SchedulerLogger;
 }
 
 TFuture<void> TSnapshotBuilder::Run()
 {
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
     LOG_INFO("Snapshot builder started");
 
-    std::vector<TFuture<void>> operationSuspendFutures;
     std::vector<TOperationId> operationIds;
 
-    LOG_INFO("Suspending controllers");
+    LOG_INFO("Preparing controllers for suspension");
+    std::vector<TFuture<int>> onSnapshotStartedFutures;
 
     // Capture everything needed in Build.
-    for (auto operation : Scheduler_->GetOperations()) {
-        if (operation->GetState() != EOperationState::Running) {
+    for (const auto& pair : Controllers_) {
+        const auto& operationId = pair.first;
+        const auto& controller = pair.second;
+
+        if (!controller->IsRunning()) {
             continue;
         }
 
         auto job = New<TSnapshotJob>();
-        job->Operation = operation;
-        job->Controller = operation->GetController();
+        job->OperationId = operationId;
+        job->Controller = controller;
         auto pipe = TPipeFactory().Create();
         job->Reader = pipe.CreateAsyncReader();
         job->OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
         job->Suspended = false;
         Jobs_.push_back(job);
 
-        operationSuspendFutures.push_back(job
-            ->Controller
-            ->Suspend().Apply(
-                BIND([=, this_ = MakeStrong(this)] () {
-                    if (!ControllersSuspended_) {
-                        job->Suspended = true;
-                        LOG_DEBUG("Controller suspended (OperationId: %v)",
-                            operation->GetId());
-                        job->NumberOfJobsToRelease = job->Controller->GetRecentlyCompletedJobCount();
-                    } else {
-                        LOG_DEBUG("Controller suspended too late (OperationId: %v)",
-                            operation->GetId());
-                    }
-                })
-                .AsyncVia(GetCurrentInvoker())
-            ));
-        operationIds.push_back(operation->GetId());
+        onSnapshotStartedFutures.push_back(BIND(&IOperationController::OnSnapshotStarted, job->Controller)
+            .AsyncVia(job->Controller->GetInvoker())
+            .Run());
+        operationIds.push_back(operationId);
 
-        LOG_INFO("Snapshot job registered (OperationId: %v)",
-            operation->GetId());
+        LOG_INFO("Preparing controller for suspension (OperationId: %v)",
+            operationId);
+    }
+
+    // We need to filter those controllers who were not able to return snapshot index
+    // on OnSnapshotStarted call. This may normally happen when promise was abandoned
+    // because controller was disposed.
+    std::vector<TSnapshotJobPtr> preparedJobs;
+
+    PROFILE_TIMING("/controllers_prepare_time") {
+        auto result = WaitFor(CombineAll(onSnapshotStartedFutures));
+        YCHECK(result.IsOK() && "CombineAll failed");
+        const auto& snapshotIndices = result.Value();
+        YCHECK(snapshotIndices.size() == Jobs_.size());
+        for (int index = 0; index < Jobs_.size(); ++index) {
+            auto snapshotIndexOrError = snapshotIndices[index];
+            if (!snapshotIndexOrError.IsOK()) {
+                LOG_WARNING(snapshotIndexOrError, "Failed to get snapshot index from controller (OperationId: %v)",
+                    Jobs_[index]->OperationId);
+            } else {
+                Jobs_[index]->SnapshotIndex = snapshotIndexOrError.Value();
+                preparedJobs.emplace_back(Jobs_[index]);
+            }
+        }
+    }
+
+    Jobs_ = std::move(preparedJobs);
+
+    LOG_INFO("Suspending controllers (ControllerCount: %v)", Jobs_.size());
+
+    std::vector<TFuture<void>> operationSuspendFutures;
+
+    for (const auto& job : Jobs_) {
+        operationSuspendFutures.emplace_back(job->Controller->Suspend()
+            .Apply(BIND(&TSnapshotBuilder::OnControllerSuspended, MakeWeak(this), job)
+                .AsyncVia(ControlInvoker_)));
     }
 
     PROFILE_TIMING ("/controllers_suspend_time") {
-        auto result = WaitFor(
-            Combine(operationSuspendFutures)
-                .WithTimeout(Config_->OperationControllerSuspendTimeout));
+        auto result = WaitFor(Combine(operationSuspendFutures)
+            .WithTimeout(Config_->OperationControllerSuspendTimeout));
         if (!result.IsOK()) {
             if (result.GetCode() == NYT::EErrorCode::Timeout) {
-                LOG_WARNING("Suspend of some controllers timed out");
+                LOG_WARNING("Some of the controllers timed out");
             } else {
                 LOG_FATAL(result, "Failed to suspend controllers");
             }
@@ -155,6 +184,22 @@ TFuture<void> TSnapshotBuilder::Run()
     return Combine(std::vector<TFuture<void>>{forkFuture, uploadFuture});
 }
 
+void TSnapshotBuilder::OnControllerSuspended(const TSnapshotJobPtr& job)
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    if (!ControllersSuspended_) {
+        LOG_DEBUG("Controller suspended (OperationId: %v, SnapshotIndex: %v)",
+            job->OperationId,
+            job->SnapshotIndex);
+        job->Suspended = true;
+    } else {
+        LOG_DEBUG("Controller suspended too late (OperationId: %v, SnapshotIndex: %v)",
+            job->OperationId,
+            job->SnapshotIndex);
+    }
+}
+
 TDuration TSnapshotBuilder::GetTimeout() const
 {
     return Config_->SnapshotTimeout;
@@ -176,7 +221,7 @@ void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> Jobs_)
         auto bufferedOutput = CreateBufferedCheckpointableOutputStream(checkpointableOutput.get(), PipeWriteBufferSize);
 
         try {
-            job.Operation->GetController()->SaveSnapshot(bufferedOutput.get());
+            job.Controller->SaveSnapshot(bufferedOutput.get());
             bufferedOutput->Finish();
             job.OutputFile->Close();
         } catch (const TFileError& ex) {
@@ -199,11 +244,12 @@ void TSnapshotBuilder::RunChild()
         std::vector<TBuildSnapshotJob> jobs;
         for (int jobIndex = 0; jobIndex < Jobs_.size(); ++jobIndex) {
             auto& job = Jobs_[jobIndex];
-            if (!job->Suspended || job->Operation->GetState() != EOperationState::Running) {
+            if (!job->Suspended || !job->Controller->IsRunning()) {
                 continue;
             }
             TBuildSnapshotJob snapshotJob;
-            snapshotJob.Operation = std::move(job->Operation);
+            snapshotJob.OperationId = std::move(job->OperationId);
+            snapshotJob.Controller = std::move(job->Controller);
             snapshotJob.OutputFile = std::move(job->OutputFile);
             jobs.push_back(std::move(snapshotJob));
 
@@ -225,12 +271,10 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
 {
     std::vector<TFuture<void>> snapshotUploadFutures;
     for (auto& job : Jobs_) {
-        if (!job->Suspended || job->Operation->GetState() != EOperationState::Running) {
+        if (!job->Suspended || !job->Controller->IsRunning()) {
             continue;
         }
-        auto controller = job->Operation->GetController();
-        auto cancelableInvoker = controller->GetCancelableContext()->CreateInvoker(
-            Scheduler_->GetSnapshotIOInvoker());
+        auto cancelableInvoker = job->Controller->GetCancelableContext()->CreateInvoker(IOInvoker_);
         auto uploadFuture = BIND(
             &TSnapshotBuilder::UploadSnapshot,
             MakeStrong(this),
@@ -244,7 +288,7 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
 
 void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
 {
-    const auto& operationId = job->Operation->GetId();
+    const auto& operationId = job->OperationId;
 
     auto Logger = this->Logger;
     Logger.AddTag("OperationId: %v", operationId);
@@ -308,8 +352,10 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
 
+            i64 totalSize = 0;
             while (true) {
                 size_t bytesRead = checkpointableInput->Read(buffer.Begin(), buffer.Size());
+                totalSize += bytesRead;
                 if (bytesRead == 0) {
                     break;
                 }
@@ -321,16 +367,24 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Close())
                 .ThrowOnError();
 
-            LOG_INFO("Snapshot uploaded successfully");
+            LOG_INFO("Snapshot uploaded successfully (Size: %v)", totalSize);
         }
 
         // Commit outer transaction.
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        if (auto controller = job->Operation->GetController()) {
+        LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
+            job->SnapshotIndex);
+
+        auto controller = job->Controller;
+
+        if (controller->IsRunning()) {
             // Safely remove jobs that we do not need any more.
-            WaitFor(controller->ReleaseJobs(job->NumberOfJobsToRelease))
+            WaitFor(
+                BIND(&IOperationController::OnSnapshotCompleted, controller)
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run(job->SnapshotIndex))
                 .ThrowOnError();
         }
     } catch (const std::exception& ex) {

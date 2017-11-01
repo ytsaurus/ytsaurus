@@ -84,7 +84,7 @@ TFuture<void> TSlotLocation::CreateSandboxDirectories(int slotIndex)
 
              for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                  auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                 NFS::MakeDirRecursive(sandboxPath, 0777);
+                 NFS::MakeDirRecursive(sandboxPath, 0700);
              }
          } catch (const std::exception& ex) {
             // Job will be aborted.
@@ -207,7 +207,7 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
     .Run();
 }
 
-TFuture<void> TSlotLocation::SetQuota(
+TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
     int slotIndex,
     TNullable<i64> diskSpaceLimit,
     TNullable<i64> inodeLimit,
@@ -215,22 +215,58 @@ TFuture<void> TSlotLocation::SetQuota(
 {
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
-        auto slotPath = GetSlotPath(slotIndex);
-        auto config = New<TFSQuotaConfig>();
-        config->DiskSpaceLimit = diskSpaceLimit;
-        config->InodeLimit = inodeLimit;
-        config->UserId = userId;
-        config->SlotPath = slotPath;
 
-        try {
-            RunTool<TFSQuotaTool>(config);
-        } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
-                << TErrorAttribute("slot_path", slotPath)
-                << ex;
-            Disable(error);
-            THROW_ERROR error;
+        if (diskSpaceLimit || inodeLimit) {
+            auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
+            auto config = New<TFSQuotaConfig>();
+            config->DiskSpaceLimit = diskSpaceLimit;
+            config->InodeLimit = inodeLimit;
+            config->UserId = userId;
+            config->SlotPath = sandboxPath;
+            try {
+                RunTool<TFSQuotaTool>(config);
+            } catch (const std::exception& ex) {
+                auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
+                    << TErrorAttribute("sandbox_path", sandboxPath)
+                    << ex;
+                Disable(error);
+                THROW_ERROR error;
+            }
         }
+
+        auto chownChmod = [&] (ESandboxKind sandboxKind, int permissions) {
+            auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
+
+            try {
+                if (HasRootPermissions_) {
+                    auto config = New<TChownChmodConfig>();
+
+                    config->Permissions = permissions;
+                    config->Path = sandboxPath;
+                    config->UserId = static_cast<uid_t>(userId);
+                    RunTool<TChownChmodTool>(config);
+                } else {
+                    ChownChmodDirectoriesRecursively(sandboxPath, Null, permissions);
+                }
+            } catch (const std::exception& ex) {
+                auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set owner and permissions for a job sandbox")
+                    << TErrorAttribute("sandbox_path", sandboxPath)
+                    << ex;
+                Disable(error);
+                THROW_ERROR error;
+            }
+        };
+
+        // We need to give read access to sandbox directory to yt_node/yt_job_proxy effective user (usually yt:yt)
+        // and to job user (e.g. yt_slot_N). Since they can have different groups, we fallback to giving read
+        // access to everyone.
+        // job proxy requires read access e.g. for getting tmpfs size.
+        // Write access is for job user only, who becomes an owner.
+        chownChmod(ESandboxKind::User, 0755);
+
+        // Since we make slot user to be owner, but job proxy creates some files during job shell
+        // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
+        chownChmod(ESandboxKind::Home, 0777);
     })
     .AsyncVia(LocationQueue_->GetInvoker())
     .Run();
@@ -240,7 +276,6 @@ TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
     int slotIndex,
     ESandboxKind kind,
     i64 size,
-    int userId,
     const TString& path,
     bool enable,
     IMounterPtr mounter)
@@ -249,7 +284,6 @@ TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
         ValidateEnabled();
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
         auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, path));
-        auto isSandbox = tmpfsPath == sandboxPath;
 
         try {
             // This validations do not disable slot.
@@ -263,7 +297,7 @@ TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
                     << TErrorAttribute("tmpfs_path", tmpfsPath);
             }
 
-            if (!isSandbox) {
+            if (tmpfsPath != sandboxPath) {
                 // If we mount directory inside sandbox, it should not exist.
                 ValidateNotExists(tmpfsPath);
             }
@@ -283,19 +317,12 @@ TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
             auto config = New<TMountTmpfsConfig>();
             config->Path = tmpfsPath;
             config->Size = size;
-
-            // If we mount the whole sandbox, we use current process uid instead of slot one.
-            config->UserId = isSandbox ? ::geteuid() : userId;
+            config->UserId = ::geteuid();
 
             LOG_DEBUG("Mounting tmpfs (Config: %v)",
                 ConvertToYsonString(config, EYsonFormat::Text));
 
             mounter->Mount(config);
-            if (isSandbox) {
-                // We must give user full access to his sandbox.
-                NFS::Chmod(tmpfsPath, 0777);
-            }
-
             TmpfsPaths_.insert(tmpfsPath);
             return tmpfsPath;
         } catch (const std::exception& ex) {

@@ -35,8 +35,6 @@
 #include <yt/server/hydra/mutation.h>
 #include <yt/server/hydra/mutation_context.h>
 
-#include <yt/server/misc/memory_usage_tracker.h>
-
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 #include <yt/server/tablet_node/transaction_manager.h>
 
@@ -44,6 +42,8 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -255,6 +255,7 @@ public:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& sessionId,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -270,6 +271,7 @@ public:
                 timestamp,
                 user,
                 workloadDescriptor,
+                sessionId,
                 retentionConfig,
                 reader,
                 writer);
@@ -292,18 +294,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // NB: No yielding beyond this point.
-        // May access tablet and transaction.
-
-        auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
-
-        tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
-        ValidateTabletMounted(tablet);
-        ValidateTabletStoreLimit(tablet);
-        ValidateMemoryLimit();
-
-        const auto& tabletId = tablet->GetId();
-        const auto& storeManager = tablet->GetStoreManager();
+        TTablet* tablet = nullptr;
         const auto& transactionManager = Slot_->GetTransactionManager();
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
@@ -312,6 +303,21 @@ public:
         }
 
         while (!reader->IsFinished()) {
+            // NB: No yielding beyond this point.
+            // May access tablet and transaction.
+
+            if (!tablet) {
+                tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
+                tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
+                ValidateTabletMounted(tablet);
+            }
+
+            ValidateTabletStoreLimit(tablet);
+            ValidateMemoryLimit();
+
+            const auto& tabletId = tablet->GetId();
+            const auto& storeManager = tablet->GetStoreManager();
+
             TTransaction* transaction = nullptr;
             bool transactionIsFresh = false;
             if (atomicity == EAtomicity::Full) {
@@ -401,6 +407,7 @@ public:
                     context.BlockedRow,
                     context.BlockedLockMask,
                     context.BlockedTimestamp);
+                tablet = nullptr;
             }
 
             context.Error.ThrowOnError();
@@ -1264,7 +1271,7 @@ private:
 
         if (tablet->IsProfilingEnabled() && user) {
             auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(
-                GetUserProfilerTags(user, tablet->GetProfilerTags()));
+                AddUserTag(user, tablet->GetProfilerTags()));
             TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
             TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
         }
@@ -2141,7 +2148,7 @@ private:
                     }
 
                     auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
-                        GetUserProfilerTags(transaction->GetUser(), tablet->GetProfilerTags()));
+                        AddUserTag(transaction->GetUser(), tablet->GetProfilerTags()));
                     TabletNodeProfiler.Increment(counters.RowCount, record.RowCount);
                     TabletNodeProfiler.Increment(counters.DataWeight, record.DataWeight);
                 }
@@ -2336,7 +2343,7 @@ private:
         if (!store->IsDynamic()) {
             return;
         }
-        
+
         auto dynamicStore = store->AsDynamic();
         auto lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
@@ -2439,6 +2446,7 @@ private:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& sessionId,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -2451,6 +2459,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    sessionId,
                     reader,
                     writer);
                 break;
@@ -2461,6 +2470,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    sessionId,
                     std::move(retentionConfig),
                     reader,
                     writer);
@@ -2981,6 +2991,7 @@ private:
                     storeId,
                     tablet,
                     Bootstrap_->GetBlockCache(),
+                    Bootstrap_->GetMemoryUsageTracker(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetMasterClient(),
@@ -2993,7 +3004,8 @@ private:
                 return New<TSortedDynamicStore>(
                     Config_,
                     storeId,
-                    tablet);
+                    tablet,
+                    Bootstrap_->GetMemoryUsageTracker());
 
             case EStoreType::OrderedChunk: {
                 auto store = New<TOrderedChunkStore>(
@@ -3264,6 +3276,7 @@ void TTabletManager::Read(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -3273,6 +3286,7 @@ void TTabletManager::Read(
         timestamp,
         user,
         workloadDescriptor,
+        sessionId,
         std::move(retentionConfig),
         reader,
         writer);

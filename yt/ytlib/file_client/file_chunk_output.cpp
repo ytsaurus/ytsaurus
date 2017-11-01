@@ -21,7 +21,8 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -115,7 +116,7 @@ TChunkId TFileChunkOutput::GetChunkId() const
 
 i64 TFileChunkOutput::GetSize() const
 {
-    return FileChunkWriter_->GetDataSize();
+    return FileChunkWriter_->GetCompressedDataSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

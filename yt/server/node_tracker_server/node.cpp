@@ -17,7 +17,8 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/boolean_formula.h>
 #include <yt/core/misc/collection_helpers.h>
 
@@ -26,6 +27,7 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
+using namespace NNet;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NChunkClient;

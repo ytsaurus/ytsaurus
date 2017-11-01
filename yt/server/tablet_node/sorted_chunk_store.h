@@ -5,6 +5,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_row.h>
 
@@ -23,6 +25,7 @@ public:
         const TStoreId& id,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
         NApi::INativeClientPtr client = nullptr,
@@ -45,7 +48,8 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor) override;
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& sessionId) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -53,7 +57,8 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor) override;
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& sessionId) override;
 
     virtual TError CheckRowLocks(
         TUnversionedRow row,
@@ -66,6 +71,7 @@ private:
     TOwningKey MaxKey_;
 
     const NTableClient::TKeyComparer KeyComparer_;
+    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
 
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
@@ -74,15 +80,19 @@ private:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
+        const NChunkClient::TReadSessionId& sessionId,
         const TTableSchema& schema);
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
+        const NChunkClient::TReadSessionId& sessionId,
         const TTableSchema& schema);
 
-    NTableClient::TChunkStatePtr PrepareCachedChunkState(NChunkClient::IChunkReaderPtr chunkReader);
+    NTableClient::TChunkStatePtr PrepareCachedChunkState(
+        NChunkClient::IChunkReaderPtr chunkReader,
+        const TWorkloadDescriptor& workloadDescriptor);
 
     virtual void PrecacheProperties() override;
 

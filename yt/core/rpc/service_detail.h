@@ -117,7 +117,7 @@ public:
         Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context_ = UnderlyingContext_.Get();
 
-        if (!TryDeserializeFromProtoWithEnvelope(Request_.get(), UnderlyingContext_->GetRequestBody())) {
+        if (!TryDeserializeProtoWithEnvelope(Request_.get(), UnderlyingContext_->GetRequestBody())) {
             UnderlyingContext_->Reply(TError(
                 NRpc::EErrorCode::ProtocolError,
                 "Error deserializing request body"));
@@ -175,7 +175,7 @@ protected:
     void DoReply(const TError& error)
     {
         if (error.IsOK()) {
-            auto data = SerializeToProtoWithEnvelope(*Response_, this->Options_.ResponseCodec, false);
+            auto data = SerializeProtoToRefWithEnvelope(*Response_, this->Options_.ResponseCodec, false);
             this->UnderlyingContext_->SetResponseBody(std::move(data));
         }
         this->UnderlyingContext_->Reply(error);
@@ -479,7 +479,7 @@ protected:
     /*!
      *  \note
      *  Thread affinity: any
-     */ 
+     */
     virtual bool IsUp(TCtxDiscoverPtr context);
 
     //! Used by peer discovery.
@@ -487,7 +487,7 @@ protected:
     /*!
      *  \note
      *  Thread affinity: any
-     */ 
+     */
     virtual std::vector<TString> SuggestAddresses();
 
 protected:

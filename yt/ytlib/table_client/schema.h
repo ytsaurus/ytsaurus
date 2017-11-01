@@ -21,12 +21,27 @@ DEFINE_ENUM(ESortOrder,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TColumnSchema
+class TColumnSchema
 {
+public:
+    DEFINE_BYREF_RO_PROPERTY(TString, Name);
+    DEFINE_BYREF_RO_PROPERTY(ELogicalValueType, LogicalType, ELogicalValueType::Null);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<ESortOrder>, SortOrder);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Lock);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Expression);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Aggregate);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Group);
+    DEFINE_BYREF_RO_PROPERTY(bool, Required, false);
+
+public:
     TColumnSchema();
     TColumnSchema(
         const TString& name,
         EValueType type,
+        TNullable<ESortOrder> SortOrder = Null);
+    TColumnSchema(
+        const TString& name,
+        ELogicalValueType type,
         TNullable<ESortOrder> SortOrder = Null);
 
     TColumnSchema(const TColumnSchema&) = default;
@@ -35,19 +50,16 @@ struct TColumnSchema
     TColumnSchema& operator=(const TColumnSchema&) = default;
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
+    TColumnSchema& SetName(const TString& name);
+    TColumnSchema& SetLogicalType(ELogicalValueType valueType);
     TColumnSchema& SetSortOrder(const TNullable<ESortOrder>& value);
     TColumnSchema& SetLock(const TNullable<TString>& value);
     TColumnSchema& SetExpression(const TNullable<TString>& value);
     TColumnSchema& SetAggregate(const TNullable<TString>& value);
     TColumnSchema& SetGroup(const TNullable<TString>& value);
+    TColumnSchema& SetRequired(bool value);
 
-    TString Name;
-    EValueType Type;
-    TNullable<ESortOrder> SortOrder;
-    TNullable<TString> Lock;
-    TNullable<TString> Expression;
-    TNullable<TString> Aggregate;
-    TNullable<TString> Group;
+    EValueType GetPhysicalType() const;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
@@ -62,6 +74,7 @@ class TTableSchema
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
+    //! Strict schema forbids columns not specified in the schema.
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys);
 
@@ -131,10 +144,10 @@ public:
     //! Returns the schema with UniqueKeys set to |true|.
     TTableSchema ToUniqueKeys() const;
 
-    //! Returns the schema with all column attributes unset expect Name and Type.
+    //! Returns the schema with all column attributes unset expect Name, Type and Required.
     TTableSchema ToStrippedColumnAttributes() const;
 
-    //! Returns the schema with all column attributes unset expect Name, Type and SortOrder.
+    //! Returns the schema with all column attributes unset expect Name, Type, Required and SortOrder.
     TTableSchema ToSortedStrippedColumnAttributes() const;
 
     //! Returns (possibly reordered) schema sorted by column names.
@@ -175,6 +188,11 @@ bool operator == (const TTableSchema& lhs, const TTableSchema& rhs);
 bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Returns true if #lhs type is subtype of #rhs type.
+//! We say that #lhs type is subtype of #rhs type
+//! iff every value that belongs to #lhs type also belongs to #rhs type.
+bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs);
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);

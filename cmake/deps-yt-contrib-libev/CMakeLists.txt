@@ -24,3 +24,6 @@ elseif(STYPE STREQUAL "windows")
   set_target_properties(${NAME} PROPERTIES COMPILE_DEFINITIONS "_WIN32_WINNT=0x0501;HAVE_ERRNO_H")
 endif()
 
+if (_is_clang)
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -Wno-error)
+endif()

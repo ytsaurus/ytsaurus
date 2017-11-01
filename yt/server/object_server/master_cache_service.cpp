@@ -194,7 +194,7 @@ private:
                     req->Attachments().end(),
                     requestMessage.Begin(),
                     requestMessage.End());
-                
+
                 req->Invoke().Subscribe(BIND(
                     &TCache::OnResponse,
                     MakeStrong(this),

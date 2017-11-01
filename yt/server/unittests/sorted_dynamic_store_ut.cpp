@@ -5,6 +5,7 @@ namespace NTabletNode {
 namespace {
 
 using namespace NApi;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,7 +228,7 @@ private:
     {
         TUnversionedValue value{};
         value.Id = index;
-        value.Type = Tablet_->PhysicalSchema().Columns()[index].Type;
+        value.Type = Tablet_->PhysicalSchema().Columns()[index].GetPhysicalType();
         if (IsStringLikeType(value.Type)) {
             value.Length = data.String->Length;
             value.Data.String = data.String->Data;
@@ -340,7 +341,7 @@ private:
                     continue;
                 }
 
-                switch (columnIt->Type) {
+                switch (columnIt->GetPhysicalType()) {
                     case EValueType::Int64: {
                         i64 lhsData = lhsValue->Int64;
                         i64 rhsData = rhsValue->Int64;
@@ -421,7 +422,7 @@ private:
                  index < minLength;
                  ++index, nullKeyBit <<= 1, ++lhsValue, ++rhsValue, ++columnIt)
             {
-                auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType::Null : columnIt->Type;
+                auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType::Null : columnIt->GetPhysicalType();
                 if (lhsType < rhsValue->Type) {
                     return -1;
                 } else if (lhsType > rhsValue->Type) {
@@ -1107,7 +1108,8 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
         AsyncLastCommittedTimestamp,
         false,
         TColumnFilter(),
-        TWorkloadDescriptor());
+        TWorkloadDescriptor(),
+        TReadSessionId());
 
     EXPECT_TRUE(reader->Open().Get().IsOK());
 

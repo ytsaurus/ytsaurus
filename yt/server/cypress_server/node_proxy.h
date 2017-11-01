@@ -28,6 +28,7 @@ struct ICypressNodeFactory
 {
     virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
     virtual bool ShouldPreserveExpirationTime() const  = 0;
+    virtual bool ShouldPreserveCreationTime() const  = 0;
     virtual NSecurityServer::TAccount* GetNewNodeAccount() const = 0;
     virtual NSecurityServer::TAccount* GetClonedNodeAccount(TCypressNodeBase* sourceNode) const = 0;
 
@@ -62,7 +63,6 @@ struct ICypressNodeProxy
     virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
         const TNodeFactoryOptions& options) const = 0;
-
 
     static ICypressNodeProxy* FromNode(NYTree::INode* ptr);
     static TIntrusivePtr<ICypressNodeProxy> FromNode(const TIntrusivePtr<NYTree::INode>& ptr);

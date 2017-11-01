@@ -539,17 +539,6 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
     }
 }
 
-i64 CalculateDiskSpaceUsage(
-    int replicationFactor,
-    i64 regularDiskSpace,
-    i64 erasureDiskSpace)
-{
-    // NB: replicationFactor == 0 for unused media.
-    return replicationFactor > 0
-        ? regularDiskSpace * replicationFactor + erasureDiskSpace
-        : 0;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

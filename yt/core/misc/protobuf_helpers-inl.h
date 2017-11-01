@@ -104,7 +104,7 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
     for (const auto& extension : extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
-            DeserializeFromProto(&result, TRef::FromString(data));
+            DeserializeProto(&result, TRef::FromString(data));
             found = true;
             break;
         }
@@ -134,7 +134,7 @@ TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
         if (extension.tag() == tag) {
             const auto& data = extension.data();
             result.Assign(T());
-            DeserializeFromProto(&result.Get(), TRef::FromString(data));
+            DeserializeProto(&result.Get(), TRef::FromString(data));
             break;
         }
     }
@@ -344,17 +344,23 @@ void TRefCountedProto<TProto>::RegisterExtraSpace()
     Y_ASSERT(spaceUsed >= sizeof(TProto));
     Y_ASSERT(ExtraSpace_ == 0);
     ExtraSpace_ = TProto::SpaceUsed() - sizeof (TProto);
-    auto cookie = GetRefCountedTypeCookie<TRefCountedProtoTag<TProto>>();
+    auto cookie = GetRefCountedTypeCookie<TRefCountedProto<TProto>>();
     TRefCountedTrackerFacade::AllocateSpace(cookie, ExtraSpace_);
 }
 
 template <class TProto>
 void TRefCountedProto<TProto>::UnregisterExtraSpace()
 {
-	if (ExtraSpace_ != 0) {
-        auto cookie = GetRefCountedTypeCookie<TRefCountedProtoTag<TProto>>();
+    if (ExtraSpace_ != 0) {
+        auto cookie = GetRefCountedTypeCookie<TRefCountedProto<TProto>>();
         TRefCountedTrackerFacade::FreeSpace(cookie, ExtraSpace_);
     }
+}
+
+template <class TProto>
+i64 TRefCountedProto<TProto>::GetSize() const
+{
+    return sizeof(this) + ExtraSpace_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

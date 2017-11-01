@@ -21,7 +21,8 @@ public:
     TChunkReaderBase(
         NChunkClient::TBlockFetcherConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
-        NChunkClient::IBlockCachePtr blockCache);
+        NChunkClient::IBlockCachePtr blockCache,
+        const NChunkClient::TReadSessionId& sessionId);
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -35,6 +36,7 @@ protected:
     const NChunkClient::TBlockFetcherConfigPtr Config_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
+    const NChunkClient::TReadSessionId ReadSessionId_;
 
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
@@ -86,7 +88,7 @@ protected:
     virtual void InitNextBlock() = 0;
 
 private:
-    const NLogging::TLogger Logger;
+    NLogging::TLogger Logger;
 
     std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, int keyColumnCount) const;
 };

@@ -46,6 +46,17 @@ void AddStripeToList(
     }
 }
 
+std::vector<TChunkId> GetStripeListChunkIds(const TChunkStripeListPtr& stripeList)
+{
+    std::vector<TChunkId> chunkIds;
+    for (const auto& stripe : stripeList->Stripes) {
+        for (const auto& dataSlice : stripe->DataSlices) {
+            chunkIds.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
+        }
+    }
+    return chunkIds;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStripeListPtr ApplyChunkMappingToStripe(

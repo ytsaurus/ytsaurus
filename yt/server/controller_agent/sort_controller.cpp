@@ -8,6 +8,7 @@
 #include "map_controller.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -76,19 +77,17 @@ class TSortControllerBase
 {
 public:
     TSortControllerBase(
-        TSchedulerConfigPtr config,
         TSortOperationSpecBasePtr spec,
         TSortOperationOptionsBasePtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
-        , Config(config)
         , CompletedPartitionCount(0)
         // Cannot do similar for SortedMergeJobCounter and UnorderedMergeJobCounter since the number
         // of these jobs is hard to predict.
-        , SortDataWeightCounter(0)
+        , SortDataWeightCounter(New<TProgressCounter>(0))
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
         , TotalOutputRowCount(0)
@@ -140,16 +139,6 @@ public:
         Persist(context, MergeTaskGroup);
 
         Persist(context, PartitionTask);
-
-        // COMPAT(psushin).
-        auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        if (context.IsLoad() &&
-            GetSortedMergeJobType() == EJobType::SortedMerge &&
-            !partitionJobSpecExt->has_wire_partition_keys())
-        {
-            // To properly load from old snapshots.
-            InitTemplatePartitionKeys(partitionJobSpecExt);
-        }
     }
 
 private:
@@ -158,17 +147,15 @@ private:
 protected:
     TSortOperationOptionsBasePtr Options;
 
-    TSchedulerConfigPtr Config;
-
     // Counters.
     int CompletedPartitionCount;
-    mutable TProgressCounter SortedMergeJobCounter;
-    TProgressCounter UnorderedMergeJobCounter;
+    TProgressCounterPtr SortedMergeJobCounter = New<TProgressCounter>();
+    TProgressCounterPtr UnorderedMergeJobCounter = New<TProgressCounter>();
 
     // Sort job counters.
-    TProgressCounter IntermediateSortJobCounter;
-    TProgressCounter FinalSortJobCounter;
-    TProgressCounter SortDataWeightCounter;
+    TProgressCounterPtr IntermediateSortJobCounter = New<TProgressCounter>();
+    TProgressCounterPtr FinalSortJobCounter = New<TProgressCounter>();
+    TProgressCounterPtr SortDataWeightCounter = New<TProgressCounter>();
 
     // Start thresholds.
     bool SortStartThresholdReached;
@@ -226,7 +213,11 @@ protected:
             if (!controller->SimpleSort) {
                 UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
                 controller->RegisterTask(UnorderedMergeTask);
+                UnorderedMergeTask->SetInputVertex(controller->GetPartitionJobType());
             }
+
+            SortTask->SetInputVertex(controller->GetPartitionJobType());
+            SortedMergeTask->SetInputVertex(controller->GetIntermediateSortJobType());
         }
 
         //! Sequential index (zero based).
@@ -346,7 +337,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->PartitionLocalityTimeout;
+            return Controller->IsLocalityEnabled()
+                ? Controller->Spec->PartitionLocalityTimeout
+                : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
@@ -384,7 +377,12 @@ protected:
             Persist(context, Controller);
             Persist(context, NodeIdToAdjustedDataWeight);
             Persist(context, AdjustedScheduledDataWeight);
-            Persist(context, MaxDataWeightPerJob);
+
+            // COMPAT(psushin).
+            if (context.IsLoad() && context.GetVersion() < 200926) {
+                i64 _;
+                Persist(context, _);
+            }
         }
 
         virtual bool SupportsInputPathYson() const override
@@ -404,9 +402,6 @@ protected:
         //! The sum of all sizes appearing in #NodeIdToDataWeight.
         //! This value is IO weight-adjusted.
         i64 AdjustedScheduledDataWeight = 0;
-        //! Max-aggregated each time a new job is scheduled.
-        //! This value is not IO weight-adjusted.
-        i64 MaxDataWeightPerJob = 0;
 
 
         void UpdateNodeDataWeight(const TJobNodeDescriptor& descriptor, i64 delta)
@@ -430,12 +425,18 @@ protected:
             YCHECK((AdjustedScheduledDataWeight += adjustedDelta) >= 0);
         }
 
+        virtual bool CanLoseJobs() const override
+        {
+            return Controller->Spec->EnableIntermediateOutputRecalculation;
+        }
 
         virtual bool CanScheduleJob(
             ISchedulingContext* context,
             const TJobResources& /*jobLimits*/) override
         {
-            if (!Controller->Spec->EnablePartitionedDataBalancing) {
+            if (!Controller->Spec->EnablePartitionedDataBalancing ||
+                Controller->TotalEstimatedInputDataWeight < Controller->Spec->MinLocalityInputDataWeight)
+            {
                 return true;
             }
 
@@ -448,8 +449,9 @@ protected:
                 return true;
             }
 
-            // We don't have a job at hand here, let's make a (worst-case) guess.
-            auto adjustedJobDataWeight = MaxDataWeightPerJob / ioWeight;
+            // We don't have a job at hand here, let's make a guess.
+            auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics()[0];
+            auto adjustedJobDataWeight = approximateStatistics.DataWeight / ioWeight;
             auto nodeId = context->GetNodeDescriptor().Id;
             auto newAdjustedScheduledDataWeight = AdjustedScheduledDataWeight + adjustedJobDataWeight;
             auto newAvgAdjustedScheduledDataWeight = newAdjustedScheduledDataWeight / NodeIdToAdjustedDataWeight.size();
@@ -468,11 +470,6 @@ protected:
             return result;
         }
 
-        virtual bool IsIntermediateOutput() const override
-        {
-            return true;
-        }
-
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
@@ -483,7 +480,6 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
             auto dataWeight = joblet->InputStripeList->TotalDataWeight;
-            MaxDataWeightPerJob = std::max(MaxDataWeightPerJob, dataWeight);
             UpdateNodeDataWeight(joblet->NodeDescriptor, +dataWeight);
 
             TTask::OnJobStarted(joblet);
@@ -497,7 +493,7 @@ protected:
 
             // Kick-start sort and unordered merge tasks.
             // Compute sort data size delta.
-            i64 oldSortDataWeight = Controller->SortDataWeightCounter.GetTotal();
+            i64 oldSortDataWeight = Controller->SortDataWeightCounter->GetTotal();
             i64 newSortDataWeight = 0;
             for (auto partition : Controller->Partitions) {
                 if (partition->Maniac) {
@@ -510,7 +506,7 @@ protected:
             LOG_DEBUG("Sort data weight updated: %v -> %v",
                 oldSortDataWeight,
                 newSortDataWeight);
-            Controller->SortDataWeightCounter.Increment(newSortDataWeight - oldSortDataWeight);
+            Controller->SortDataWeightCounter->Increment(newSortDataWeight - oldSortDataWeight);
 
             // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
             // Kick-start sort and unordered merge tasks.
@@ -566,6 +562,13 @@ protected:
                     LOG_DEBUG("Partition[%v] = %v",
                         partition->Index,
                         dataWeight);
+
+                    if (partition->SortTask) {
+                        partition->SortTask->FinishInput();
+                    }
+                    if (partition->UnorderedMergeTask) {
+                        partition->UnorderedMergeTask->FinishInput();
+                    }
                 }
             }
 
@@ -732,11 +735,6 @@ protected:
             return result;
         }
 
-        virtual bool IsIntermediateOutput() const override
-        {
-            return Controller->IsSortedMergeNeeded(Partition);
-        }
-
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
@@ -770,12 +768,12 @@ protected:
 
             YCHECK(!Partition->Maniac);
 
-            Controller->SortDataWeightCounter.Start(joblet->InputStripeList->TotalDataWeight);
+            Controller->SortDataWeightCounter->Start(joblet->InputStripeList->TotalDataWeight);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                Controller->IntermediateSortJobCounter.Start(1);
+                Controller->IntermediateSortJobCounter->Start(1);
             } else {
-                Controller->FinalSortJobCounter.Start(1);
+                Controller->FinalSortJobCounter->Start(1);
             }
         }
 
@@ -783,11 +781,11 @@ protected:
         {
             TPartitionBoundTask::OnJobCompleted(joblet, jobSummary);
 
-            Controller->SortDataWeightCounter.Completed(joblet->InputStripeList->TotalDataWeight);
+            Controller->SortDataWeightCounter->Completed(joblet->InputStripeList->TotalDataWeight);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 int inputStreamIndex = CurrentInputStreamIndex_++;
-                Controller->IntermediateSortJobCounter.Completed(1);
+                Controller->IntermediateSortJobCounter->Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
@@ -804,7 +802,7 @@ protected:
                     EdgeDescriptors_[0],
                     joblet);
             } else {
-                Controller->FinalSortJobCounter.Completed(1);
+                Controller->FinalSortJobCounter->Completed(1);
 
                 Controller->AccountRows(jobSummary.Statistics);
 
@@ -822,12 +820,12 @@ protected:
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
-            Controller->SortDataWeightCounter.Failed(joblet->InputStripeList->TotalDataWeight);
+            Controller->SortDataWeightCounter->Failed(joblet->InputStripeList->TotalDataWeight);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                Controller->IntermediateSortJobCounter.Failed(1);
+                Controller->IntermediateSortJobCounter->Failed(1);
             } else {
-                Controller->FinalSortJobCounter.Failed(1);
+                Controller->FinalSortJobCounter->Failed(1);
             }
 
             TTask::OnJobFailed(joblet, jobSummary);
@@ -835,12 +833,12 @@ protected:
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            Controller->SortDataWeightCounter.Aborted(joblet->InputStripeList->TotalDataWeight);
+            Controller->SortDataWeightCounter->Aborted(joblet->InputStripeList->TotalDataWeight);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                Controller->IntermediateSortJobCounter.Aborted(1, jobSummary.AbortReason);
+                Controller->IntermediateSortJobCounter->Aborted(1, jobSummary.AbortReason);
             } else {
-                Controller->FinalSortJobCounter.Aborted(1, jobSummary.AbortReason);
+                Controller->FinalSortJobCounter->Aborted(1, jobSummary.AbortReason);
             }
 
             TTask::OnJobAborted(joblet, jobSummary);
@@ -848,9 +846,9 @@ protected:
 
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
-            Controller->IntermediateSortJobCounter.Lost(1);
+            Controller->IntermediateSortJobCounter->Lost(1);
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
-            Controller->SortDataWeightCounter.Lost(stripeList->TotalDataWeight);
+            Controller->SortDataWeightCounter->Lost(stripeList->TotalDataWeight);
 
             TTask::OnJobLost(completedJob);
 
@@ -895,6 +893,10 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
+            if (!Controller->IsLocalityEnabled()) {
+                return TDuration::Zero();
+            }
+
             return Partition->AssignedNodeId == InvalidNodeId
                 ? Controller->Spec->SortAssignmentTimeout
                 : Controller->Spec->SortLocalityTimeout;
@@ -919,6 +921,11 @@ protected:
 
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
+
+        virtual bool CanLoseJobs() const override
+        {
+            return Controller->Spec->EnableIntermediateOutputRecalculation;
+        }
 
         virtual bool IsActive() const override
         {
@@ -978,7 +985,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->SimpleSortLocalityTimeout;
+            return Controller->IsLocalityEnabled()
+                ? Controller->Spec->SimpleSortLocalityTimeout
+                : TDuration::Zero();
         }
 
     private:
@@ -1041,6 +1050,10 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
+            if (!Controller->IsLocalityEnabled()) {
+                return TDuration::Zero();
+            }
+
             return
                 Controller->SimpleSort
                 ? Controller->Spec->SimpleMergeLocalityTimeout
@@ -1128,7 +1141,6 @@ protected:
         struct TJobOutput
         {
             std::vector<NChunkClient::TChunkListId> ChunkListIds;
-            int PartitionIndex;
             TCompletedJobSummary JobSummary;
 
             void Persist(const TPersistenceContext& context)
@@ -1136,7 +1148,6 @@ protected:
                 using NYT::Persist;
 
                 Persist(context, ChunkListIds);
-                Persist(context, PartitionIndex);
                 Persist(context, JobSummary);
             }
         };
@@ -1204,7 +1215,7 @@ protected:
         {
             YCHECK(!Partition->Maniac);
 
-            Controller->SortedMergeJobCounter.Start(1);
+            Controller->SortedMergeJobCounter->Start(1);
 
             TMergeTask::OnJobStarted(joblet);
             YCHECK(ActiveJoblets_.insert(joblet).second);
@@ -1214,16 +1225,16 @@ protected:
         {
             TMergeTask::OnJobCompleted(joblet, jobSummary);
 
-            Controller->SortedMergeJobCounter.Completed(1);
+            Controller->SortedMergeJobCounter->Completed(1);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
             if (!InvalidatedJoblets_.has(joblet)) {
-                JobOutputs_.emplace_back(TJobOutput{joblet->ChunkListIds, Partition->Index, jobSummary});
+                JobOutputs_.emplace_back(TJobOutput{joblet->ChunkListIds, jobSummary});
             }
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
-            Controller->SortedMergeJobCounter.Failed(1);
+            Controller->SortedMergeJobCounter->Failed(1);
 
             TMergeTask::OnJobFailed(joblet, jobSummary);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
@@ -1231,7 +1242,7 @@ protected:
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            Controller->SortedMergeJobCounter.Aborted(1, jobSummary.AbortReason);
+            Controller->SortedMergeJobCounter->Aborted(1, jobSummary.AbortReason);
 
             TMergeTask::OnJobAborted(joblet, jobSummary);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
@@ -1341,14 +1352,14 @@ protected:
             YCHECK(Partition->Maniac);
             TMergeTask::OnJobStarted(joblet);
 
-            Controller->UnorderedMergeJobCounter.Start(1);
+            Controller->UnorderedMergeJobCounter->Start(1);
         }
 
         virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TMergeTask::OnJobCompleted(joblet, jobSummary);
 
-            Controller->UnorderedMergeJobCounter.Completed(1);
+            Controller->UnorderedMergeJobCounter->Completed(1);
 
             Controller->AccountRows(jobSummary.Statistics);
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
@@ -1358,14 +1369,14 @@ protected:
         {
             TMergeTask::OnJobFailed(joblet, jobSummary);
 
-            Controller->UnorderedMergeJobCounter.Failed(1);
+            Controller->UnorderedMergeJobCounter->Failed(1);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             TMergeTask::OnJobAborted(joblet, jobSummary);
 
-            Controller->UnorderedMergeJobCounter.Aborted(1, jobSummary.AbortReason);
+            Controller->UnorderedMergeJobCounter->Aborted(1, jobSummary.AbortReason);
         }
 
     };
@@ -1571,6 +1582,11 @@ protected:
         TOperationControllerBase::OnOperationCompleted(interrupted);
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
+
     void OnPartitionCompleted(TPartitionPtr partition)
     {
         YCHECK(!partition->Completed);
@@ -1666,7 +1682,7 @@ protected:
             if (!SimpleSort) {
                 if (!PartitionTask->IsCompleted())
                     return;
-                if (SortDataWeightCounter.GetCompletedTotal() < SortDataWeightCounter.GetTotal() * Spec->MergeStartThreshold)
+                if (SortDataWeightCounter->GetCompletedTotal() < SortDataWeightCounter->GetTotal() * Spec->MergeStartThreshold)
                     return;
             }
 
@@ -1871,7 +1887,7 @@ protected:
         return result;
     }
 
-    const TProgressCounter& GetPartitionJobCounter() const
+    const TProgressCounterPtr& GetPartitionJobCounter() const
     {
         if (PartitionPool) {
             return PartitionPool->GetJobCounter();
@@ -1950,7 +1966,7 @@ protected:
         auto user = AuthenticatedUser;
         auto account = Spec->IntermediateDataAccount;
 
-        const auto& client = Host->GetMasterClient();
+        const auto& client = ControllerAgent->GetMasterClient();
         auto asyncResult = client->CheckPermission(
             user,
             "//sys/accounts/" + account,
@@ -1967,7 +1983,7 @@ protected:
         for (const auto& table : InputTables) {
             for (const auto& name : Spec->SortBy) {
                 if (auto column = table.Schema.FindColumn(name)) {
-                    if (column->Aggregate) {
+                    if (column->Aggregate()) {
                         THROW_ERROR_EXCEPTION("Sort by aggreate column is not alowed")
                             << TErrorAttribute("table_path", table.Path.GetPath())
                             << TErrorAttribute("column_name", name);
@@ -2029,14 +2045,12 @@ class TSortController
 {
 public:
     TSortController(
-        TSchedulerConfigPtr config,
         TSortOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TSortControllerBase(
-            config,
             spec,
-            config->SortOperationOptions,
+            host->GetControllerAgent()->GetConfig()->SortOperationOptions,
             host,
             operation)
         , Spec(spec)
@@ -2144,7 +2158,7 @@ private:
                 FetcherChunkScraper = CreateFetcherChunkScraper(
                     Config->ChunkScraper,
                     GetCancelableInvoker(),
-                    Host->GetChunkLocationThrottlerManager(),
+                    ControllerAgent->GetChunkLocationThrottlerManager(),
                     AuthenticatedInputMasterClient,
                     InputNodeDirectory_,
                     Logger);
@@ -2164,7 +2178,7 @@ private:
                 GetCancelableInvoker(),
                 samplesRowBuffer,
                 FetcherChunkScraper,
-                Host->GetMasterClient(),
+                ControllerAgent->GetMasterClient(),
                 Logger);
 
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
@@ -2272,10 +2286,13 @@ private:
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
+        partition->SortTask->SetInputVertex(GetPartitionJobType());
+        partition->SortedMergeTask->SetInputVertex(GetIntermediateSortJobType());
+
         partition->SortTask->FinishInput();
 
         // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
-        SortDataWeightCounter.Set(SimpleSortPool->GetTotalDataWeight());
+        SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
 
         LOG_INFO("Sorting without partitioning (SortJobCount: %v, DataWeightPerJob: %v)",
             jobSizeConstraints->GetJobCount(),
@@ -2392,7 +2409,7 @@ private:
         PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
-        PartitionTask->FinishInput();
+        FinishTaskInput(PartitionTask);
         RegisterTask(PartitionTask);
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
@@ -2639,7 +2656,6 @@ private:
         return result;
     }
 
-
     // Progress reporting.
 
     virtual TString GetLoggingProgress() const override
@@ -2654,13 +2670,13 @@ private:
             "UnorderedMergeJobs = %v, "
             "UnavailableInputChunks: %v",
             // Jobs
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
-            JobCounter.GetLost(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
+            JobCounter->GetLost(),
             // Partitions
             Partitions.size(),
             CompletedPartitionCount,
@@ -2704,17 +2720,21 @@ private:
     {
         return Spec->SortBy.size();
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
 
 IOperationControllerPtr CreateSortController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
-    return New<TSortController>(config, spec, host, operation);
+    return New<TSortController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2724,14 +2744,12 @@ class TMapReduceController
 {
 public:
     TMapReduceController(
-        TSchedulerConfigPtr config,
         TMapReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TSortControllerBase(
-            config,
             spec,
-            config->MapReduceOperationOptions,
+            host->GetControllerAgent()->GetConfig()->MapReduceOperationOptions,
             host,
             operation)
         , Spec(spec)
@@ -2975,7 +2993,7 @@ private:
         PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
-        PartitionTask->FinishInput();
+        FinishTaskInput(PartitionTask);
         RegisterTask(PartitionTask);
 
         LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
@@ -3340,13 +3358,13 @@ private:
             "SortedReduceJobs = %v, "
             "UnavailableInputChunks: %v",
             // Jobs
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
-            JobCounter.GetLost(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
+            JobCounter->GetLost(),
             // Partitions
             Partitions.size(),
             CompletedPartitionCount,
@@ -3386,17 +3404,21 @@ private:
     {
         return Spec->ReduceBy.size();
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceController);
 
 IOperationControllerPtr CreateMapReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
-    return New<TMapReduceController>(config, spec, host, operation);
+    return New<TMapReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

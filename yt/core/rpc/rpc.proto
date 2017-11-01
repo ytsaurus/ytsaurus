@@ -1,6 +1,7 @@
 package NYT.NRpc.NProto;
 
 option java_package = "ru.yandex.yt.rpc";
+option java_multiple_files = true;
 
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";

@@ -5,7 +5,8 @@
 #include <yt/core/concurrency/async_stream.h>
 
 #include <yt/core/misc/ref_counted.h>
-#include <yt/core/misc/address.h>
+
+#include <yt/core/net/address.h>
 
 namespace NYT {
 namespace NNet {
@@ -16,6 +17,8 @@ struct IConnection
     : public NConcurrency::IAsyncOutputStream
     , public NConcurrency::IAsyncInputStream
 {
+    virtual TFuture<void> WriteV(const TSharedRefArray& data) = 0;
+
     virtual TFuture<void> CloseRead() = 0;
     virtual TFuture<void> CloseWrite() = 0;
 

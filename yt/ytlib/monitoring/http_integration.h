@@ -4,14 +4,18 @@
 #include "http_server.h"
 
 #include <yt/core/ytree/ypath_service.h>
+#include <yt/core/http/public.h>
 
 namespace NYT {
 namespace NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHttp::TServer::TAsyncHandler GetYPathHttpHandler(
+NXHttp::TServer::TAsyncHandler GetYPathHttpHandler(
     NYTree::IYPathServicePtr service);
+
+NHttp::IHttpHandlerPtr GetOrchidYPathHttpHandler(
+    const NYTree::IYPathServicePtr& service);
 
 ////////////////////////////////////////////////////////////////////////////////
 

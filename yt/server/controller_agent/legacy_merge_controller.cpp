@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -59,12 +60,11 @@ class TLegacyMergeControllerBase
 {
 public:
     TLegacyMergeControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
         , TotalChunkCount(0)
@@ -181,7 +181,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->LocalityTimeout;
+            return Controller->IsLocalityEnabled()
+                ? Controller->Spec->LocalityTimeout
+                : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
@@ -366,7 +368,7 @@ protected:
         }
 
         task->AddInput(taskStripes);
-        task->FinishInput();
+        FinishTaskInput(task);
 
         if (task->IsCompleted()) {
             // This task is useless, e.g. all input stripes are from foreign tables.
@@ -492,7 +494,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return Tasks.size() == JobCounter.GetCompletedTotal();
+        return Tasks.size() == JobCounter->GetCompletedTotal();
     }
 
     virtual void DoInitialize() override
@@ -597,13 +599,13 @@ protected:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
             "UnavailableInputChunks: %v",
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterruptedTotal(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
+            JobCounter->GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
     }
 
@@ -691,12 +693,11 @@ class TLegacyOrderedMergeControllerBase
 {
 public:
     TLegacyOrderedMergeControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyMergeControllerBase(spec, options, host, operation)
     { }
 
 private:
@@ -730,12 +731,11 @@ class TLegacyOrderedMapController
 {
 public:
     TLegacyOrderedMapController(
-        TSchedulerConfigPtr config,
         TMapOperationSpecPtr spec,
         TMapOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyOrderedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyOrderedMergeControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     {
@@ -869,7 +869,7 @@ private:
 
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         // return !IsExplicitJobCount &&
-        //    2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();;
+        //    2 * Options->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size();;
     }
 
     virtual TCpuResource GetCpuLimit() const override
@@ -937,6 +937,11 @@ private:
     {
         return EJobType::OrderedMap;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMapController);
@@ -944,12 +949,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMapController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateLegacyOrderedMapController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TLegacyOrderedMapController>(config, spec, config->MapOperationOptions, host, operation);
+    return New<TLegacyOrderedMapController>(spec, host->GetControllerAgent()->GetConfig()->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -959,12 +963,11 @@ class TLegacyOrderedMergeController
 {
 public:
     TLegacyOrderedMergeController(
-        TSchedulerConfigPtr config,
         TOrderedMergeOperationSpecPtr spec,
         TOrderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyOrderedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyOrderedMergeControllerBase(spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -1082,6 +1085,11 @@ private:
     {
         return EJobType::OrderedMerge;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMergeController);
@@ -1093,11 +1101,10 @@ class TLegacyEraseController
 {
 public:
     TLegacyEraseController(
-        TSchedulerConfigPtr config,
         TEraseOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyOrderedMergeControllerBase(config, spec, config->EraseOperationOptions, host, operation)
+        : TLegacyOrderedMergeControllerBase(spec, host->GetControllerAgent()->GetConfig()->EraseOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -1246,17 +1253,21 @@ private:
     {
         return EJobType::OrderedMerge;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyEraseController);
 
 IOperationControllerPtr CreateLegacyEraseController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
-    return New<TLegacyEraseController>(config, spec, host, operation);
+    return New<TLegacyEraseController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1272,12 +1283,11 @@ class TLegacySortedMergeControllerBase
 {
 public:
     TLegacySortedMergeControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyMergeControllerBase(spec, options, host, operation)
     { }
 
     // Persistence.
@@ -1409,7 +1419,7 @@ protected:
             FetcherChunkScraper = CreateFetcherChunkScraper(
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
+                ControllerAgent->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,
                 InputNodeDirectory_,
                 Logger);
@@ -1423,7 +1433,7 @@ protected:
             InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper,
-            Host->GetMasterClient(),
+            ControllerAgent->GetMasterClient(),
             RowBuffer,
             Logger);
 
@@ -1541,12 +1551,11 @@ class TLegacySortedMergeController
 {
 public:
     TLegacySortedMergeController(
-        TSchedulerConfigPtr config,
         TSortedMergeOperationSpecPtr spec,
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacySortedMergeControllerBase(spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
@@ -1937,6 +1946,11 @@ private:
     {
         return EJobType::SortedMerge;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController);
@@ -1944,21 +1958,19 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateLegacyOrderedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(operation->GetSpec());
-    return New<TLegacyOrderedMergeController>(config, spec, config->OrderedMergeOperationOptions, host, operation);
+    return New<TLegacyOrderedMergeController>(spec, host->GetControllerAgent()->GetConfig()->OrderedMergeOperationOptions, host, operation);
 }
 
 IOperationControllerPtr CreateLegacySortedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(operation->GetSpec());
-    return New<TLegacySortedMergeController>(config, spec, config->SortedMergeOperationOptions, host, operation);
+    return New<TLegacySortedMergeController>(spec, host->GetControllerAgent()->GetConfig()->SortedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1968,12 +1980,11 @@ class TLegacyReduceControllerBase
 {
 public:
     TLegacyReduceControllerBase(
-        TSchedulerConfigPtr config,
         TReduceOperationSpecBasePtr spec,
         TReduceOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacySortedMergeControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     { }
@@ -2213,7 +2224,7 @@ protected:
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return
             !IsExplicitJobCount &&
-            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
             TOperationControllerBase::IsJobInterruptible();
     }
 
@@ -2295,6 +2306,11 @@ protected:
     {
         return true;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2304,11 +2320,10 @@ class TLegacyReduceController
 {
 public:
     TLegacyReduceController(
-        TSchedulerConfigPtr config,
         TReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
+        : TLegacyReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->ReduceOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
@@ -2629,17 +2644,21 @@ private:
     {
         return EJobType::SortedReduce;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyReduceController);
 
 IOperationControllerPtr CreateLegacyReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TLegacyReduceController>(config, spec, host, operation);
+    return New<TLegacyReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2649,11 +2668,10 @@ class TLegacyJoinReduceController
 {
 public:
     TLegacyJoinReduceController(
-        TSchedulerConfigPtr config,
         TJoinReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
+        : TLegacyReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->JoinReduceOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
@@ -2789,17 +2807,21 @@ private:
     {
         return EJobType::JoinReduce;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyJoinReduceController);
 
 IOperationControllerPtr CreateLegacyJoinReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TLegacyJoinReduceController>(config, spec, host, operation);
+    return New<TLegacyJoinReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

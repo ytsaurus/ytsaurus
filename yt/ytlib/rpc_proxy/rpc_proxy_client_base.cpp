@@ -5,7 +5,8 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/small_set.h>
 
 #include <yt/ytlib/api/rowset.h>
@@ -67,6 +68,8 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     req->set_sticky(sticky);
     req->set_ping(options.Ping);
     req->set_ping_ancestors(options.PingAncestors);
+    req->set_atomicity(static_cast<NProto::EAtomicity>(options.Atomicity));
+    req->set_durability(static_cast<NProto::EDurability>(options.Durability));
 
     return req->Invoke().Apply(BIND(
         [connection = std::move(connection), channel = std::move(channel), sticky = sticky]
@@ -302,6 +305,7 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CopyNode(
     req->set_force(options.Force);
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
+    req->set_preserve_creation_time(options.PreserveCreationTime);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
@@ -483,30 +487,6 @@ TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
             rsp->rowset_descriptor(),
             MergeRefsToRef<TRpcProxyClientBaseBufferTag>(rsp->Attachments()));
         return result;
-    }));
-}
-
-TFuture<std::vector<NTabletClient::TTableReplicaId>> TRpcProxyClientBase::GetInSyncReplicas(
-    const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
-    const NApi::TGetInSyncReplicasOptions& options)
-{
-    TApiServiceProxy proxy(GetChannel());
-
-    auto req = proxy.GetInSyncReplicas();
-    req->SetTimeout(options.Timeout);
-
-    if (options.Timestamp) {
-        req->set_timestamp(options.Timestamp);
-    }
-
-    req->set_path(path);
-    req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
-
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetInSyncReplicasPtr>& rspOrError) -> std::vector<NTabletClient::TTableReplicaId> {
-        const auto& rsp = rspOrError.ValueOrThrow();
-        return FromProto<std::vector<NTabletClient::TTableReplicaId>>(rsp->replica_ids());
     }));
 }
 

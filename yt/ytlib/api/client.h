@@ -348,6 +348,12 @@ struct TSelectRowsOptions
     bool EnableCodeCache = true;
     //! Used to prioritize requests.
     TUserWorkloadDescriptor WorkloadDescriptor;
+    //! Combine independent joins in one.
+    bool UseMultijoin = true;
+    //! Allow queries without any condition on key columns.
+    bool AllowFullScan = true;
+    //! Allow queries with join condition which implies foreign query with IN operator.
+    bool AllowJoinWithoutIndex = false;
 };
 
 struct TGetNodeOptions
@@ -435,6 +441,7 @@ struct TCopyNodeOptions
     bool Force = false;
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
+    bool PreserveCreationTime = false;
 };
 
 struct TMoveNodeOptions
@@ -577,7 +584,7 @@ DEFINE_ENUM(EOperationSortDirection,
     ((Future) (2))
 );
 
-struct TListOperationsOptions 
+struct TListOperationsOptions
     : public TTimeoutOptions
 {
     TNullable<TInstant> FromTime;
@@ -616,7 +623,7 @@ struct TListJobsOptions
     TNullable<NJobTrackerClient::EJobState> JobState;
     TNullable<TString> Address;
     TNullable<bool> HasStderr;
-    
+
     EJobSortField SortField = EJobSortField::StartTime;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 
@@ -650,7 +657,7 @@ struct TAbortJobOptions
     TNullable<TDuration> InterruptTimeout;
 };
 
-struct TGetOperationOptions 
+struct TGetOperationOptions
     : public TTimeoutOptions
 { };
 
@@ -761,13 +768,6 @@ struct IClientBase
     virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = TTableWriterOptions()) = 0;
-
-    // TODO(sandello): Non-transactional!
-    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
 
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
@@ -924,6 +924,12 @@ struct IClient
         const NTabletClient::TTableReplicaId& replicaId,
         const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
 
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
+
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
@@ -967,7 +973,7 @@ struct IClient
     virtual TFuture<void> CompleteOperation(
         const NScheduler::TOperationId& operationId,
         const TCompleteOperationOptions& options = TCompleteOperationOptions()) = 0;
-    
+
     virtual TFuture<NYson::TYsonString> GetOperation(
         const NScheduler::TOperationId& operationId,
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;

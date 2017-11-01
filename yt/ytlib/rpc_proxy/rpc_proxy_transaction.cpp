@@ -95,8 +95,8 @@ TFuture<TTransactionCommitResult> TRpcProxyTransaction::Commit(const TTransactio
 
             return req->Invoke().Apply(
                 BIND([] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) -> TTransactionCommitResult {
-                    rspOrError.ValueOrThrow();
-                    return TTransactionCommitResult{};
+                    const auto& result = rspOrError.ValueOrThrow();
+                    return TTransactionCommitResult{FromProto<NHiveClient::TTimestampMap>(result->commit_timestamps())};
                 }));
         }));
 }
@@ -235,18 +235,6 @@ TFuture<ISchemalessWriterPtr> TRpcProxyTransaction::CreateTableWriter(
     auto optionsCopy = options;
     optionsCopy.TransactionId = GetId();
     return Client_->CreateTableWriter(path, optionsCopy);
-}
-
-TFuture<std::vector<TTableReplicaId>>
-TRpcProxyTransaction::GetInSyncReplicas(
-    const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
-    const TGetInSyncReplicasOptions& options)
-{
-    auto optionsCopy = options;
-    optionsCopy.Timestamp = GetStartTimestamp();
-    return Client_->GetInSyncReplicas(path, nameTable, keys, optionsCopy);
 }
 
 TFuture<NYson::TYsonString> TRpcProxyTransaction::GetNode(

@@ -31,6 +31,7 @@ option(YT_USE_SSE                         "Enable using sse4 optimization flags"
 option(YT_USE_ASAN                        "Enable Address Sanitizer" FALSE)
 option(YT_USE_TSAN                        "Enable Thread Sanitizer" FALSE)
 option(YT_USE_MSAN                        "Enable Memory Sanitizer" FALSE)
+option(YT_ASAN_USE_DSO_RUNTIME            "Use shared Address Sanitizer runtime" FALSE)
 
 ################################################################################
 # Include various CMake modules.
@@ -262,6 +263,7 @@ add_subdirectory(cmake/deps-yt-contrib-jerasure)
 add_subdirectory(cmake/deps-yt-contrib-libev)
 add_subdirectory(cmake/deps-yt-contrib-fastlz)
 add_subdirectory(cmake/deps-yt-contrib-quicklz)
+add_subdirectory(cmake/deps-yt-contrib-http-parser)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   add_subdirectory(cmake/deps-yt-contrib-portoapi)
 endif()
@@ -269,10 +271,8 @@ add_subdirectory(cmake/deps-yt-contrib-zstd-legacy)
 add_subdirectory(cmake/deps-contrib-benchmark)
 add_subdirectory(python)
 add_subdirectory(yt)
-add_subdirectory(yp)
-
-if (YT_BUILD_ENABLE_CPP_TESTS)
-  add_subdirectory(tests/cpp)
+if (YT_BUILD_HAVE_CYTHON)
+  add_subdirectory(yp)
 endif()
 
 if(YT_BUILD_ENABLE_PERL)
@@ -331,7 +331,7 @@ if(YT_CAN_BUILD_PACKAGE)
 
   install(
     DIRECTORY ${CMAKE_BINARY_DIR}/src
-    DESTINATION share/yandex-yt
+    DESTINATION share/yandex-yt/${YT_VERSION}
     COMPONENT sources
   )
 
@@ -410,8 +410,4 @@ add_custom_target(version
   COMMENT "Stamping YT..."
 )
 
-if(CMAKE_VERSION VERSION_GREATER "3.0")
-  file(LOCK ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py GUARD FILE)
-endif()
-file(WRITE ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"")
 

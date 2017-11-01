@@ -1,5 +1,4 @@
 #include "error.h"
-#include "address.h"
 #include "serialize.h"
 
 #include <yt/core/concurrency/scheduler.h>
@@ -7,7 +6,7 @@
 #include <yt/core/misc/error.pb.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/local_address.h>
+#include <yt/core/net/local_address.h>
 
 #include <yt/core/tracing/trace_context.h>
 
@@ -15,6 +14,8 @@
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
+
+#include <yt/core/net/address.h>
 
 #include <util/system/error.h>
 
@@ -224,7 +225,7 @@ void TErrorOr<void>::Load(TStreamLoadContext& context)
 
 void TError::CaptureOriginAttributes()
 {
-    Attributes().Set("host", ReadLocalHostName());
+    Attributes().Set("host", NNet::ReadLocalHostName());
     Attributes().Set("datetime", TInstant::Now());
     Attributes().Set("pid", ::getpid());
     Attributes().Set("tid", TThread::CurrentThreadId());
@@ -343,6 +344,14 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
 }
 
 } // namespace
+
+bool operator == (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
+{
+    return lhs.GetCode() == rhs.GetCode() &&
+        lhs.GetMessage() == rhs.GetMessage() &&
+        lhs.Attributes() == rhs.Attributes() &&
+        lhs.InnerErrors() == rhs.InnerErrors();
+}
 
 TString ToString(const TError& error)
 {

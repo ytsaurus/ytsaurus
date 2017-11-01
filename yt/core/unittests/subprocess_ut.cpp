@@ -39,6 +39,24 @@ TEST(TSubprocessTest, PipeOutput)
     EXPECT_TRUE(output == "hello\n") << output;
 }
 
+TEST(TSubprocessTest, PipeStdin)
+{
+    TActionQueuePtr queue = New<TActionQueue>();
+
+    BIND([] () {
+        TSubprocess subprocess("/bin/cat");
+        subprocess.AddArgument("-");
+
+        auto input = TString("TEST test TEST");
+        auto inputRef = TSharedRef::FromString(input);
+        auto result = subprocess.Execute(inputRef);
+        EXPECT_TRUE(result.Status.IsOK());
+
+        TString output(result.Output.Begin(), result.Output.End());
+        EXPECT_EQ(input, output);
+    }).AsyncVia(queue->GetInvoker()).Run().Get().ThrowOnError();
+}
+
 TEST(TSubprocessTest, PipeBigOutput)
 {
     TActionQueuePtr queue = New<TActionQueue>();

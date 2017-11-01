@@ -191,7 +191,7 @@ public:
 private:
     virtual TSharedRef SerializeBody() const override
     {
-        return SerializeToProtoWithEnvelope(*this, Codec_, false);
+        return SerializeProtoToRefWithEnvelope(*this, Codec_, false);
     }
 };
 
@@ -321,7 +321,7 @@ private:
 
     virtual void DeserializeBody(const TRef& data) override
     {
-        DeserializeFromProtoWithEnvelope(this, data);
+        DeserializeProtoWithEnvelope(this, data);
     }
 };
 

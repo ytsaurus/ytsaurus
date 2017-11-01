@@ -137,6 +137,10 @@ include_directories(
 
 add_library(${NAME} STATIC ${SRCS_PROTOBUF})
 
+if (_is_gcc)
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -Wno-error)
+endif()
+
 target_link_libraries(${NAME} deps-arcadia-util)
 
 add_library(${NAME}-protoc STATIC ${SRCS_PROTOC})

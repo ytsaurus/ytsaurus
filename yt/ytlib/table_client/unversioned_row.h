@@ -337,10 +337,21 @@ static_assert(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Checks that #value type is compatible with the schema column type.
+/*
+ * If #typeAnyAcceptsAllValues is false columns of type EValueType::ANY accept only values of same type.
+ * If #typeAnyAcceptsAllValues is true then columns of type EValueType::ANY accept all values.
+ *
+ * \note Function throws an error if column has `Any' type and value has `non-Any' type.
+ */
 void ValidateValueType(
     const TUnversionedValue& value,
     const TTableSchema& schema,
-    int schemaId);
+    int schemaId,
+    bool typeAnyAcceptsAllValues);
+void ValidateValueType(
+    const TUnversionedValue& value,
+    const TColumnSchema& columnSchema,
+    bool typeAnyAcceptsAllValues);
 
 //! Checks that #value is allowed to appear in static tables' data. Throws on failure.
 void ValidateStaticValue(const TUnversionedValue& value);
@@ -489,17 +500,19 @@ TOwningKey RowToKey(
 /*!
  *  The values contained in the rows are also captured.
  *  The underlying storage allocation has just the right size to contain the captured
- *  data and is marked with #tagCookie.
+ *  data and is marked with #tagCookie. The size of allocated space is returned via
+ *  second value.
  */
-TSharedRange<TUnversionedRow> CaptureRows(
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
     const TRange<TUnversionedRow>& rows,
     TRefCountedTypeCookie tagCookie);
-TSharedRange<TUnversionedRow> CaptureRows(
+
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
     const TRange<TUnversionedOwningRow>& rows,
     TRefCountedTypeCookie tagCookie);
 
 template <class TTag, class TRow>
-TSharedRange<TUnversionedRow> CaptureRows(const TRange<TRow>& rows)
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(const TRange<TRow>& rows)
 {
     return CaptureRows(rows, GetRefCountedTypeCookie<TTag>());
 }

@@ -93,7 +93,9 @@ public:
         TCellTag cellTag,
         bool reliable)
     {
-        DoPostMessage(BuildHiveMessage(message), TCellTagList{cellTag}, reliable);
+        TEncapsulatedMessage encapsulatedMessage;
+        BuildHiveMessage(message, &encapsulatedMessage);
+        DoPostMessage(encapsulatedMessage, TCellTagList{cellTag}, reliable);
     }
 
     void PostToMasters(
@@ -101,9 +103,13 @@ public:
         const TCellTagList& cellTags,
         bool reliable)
     {
-        if (!cellTags.empty()) {
-            DoPostMessage(BuildHiveMessage(message), cellTags, reliable);
+        if (cellTags.empty()) {
+            return;
         }
+
+        TEncapsulatedMessage encapsulatedMessage;
+        BuildHiveMessage(message, &encapsulatedMessage);
+        DoPostMessage(encapsulatedMessage, cellTags, reliable);
     }
 
     void PostToSecondaryMasters(
@@ -639,10 +645,13 @@ private:
     }
 
 
-    TEncapsulatedMessage BuildHiveMessage(const TCrossCellMessage& crossCellMessage)
+    void BuildHiveMessage(
+        const TCrossCellMessage& crossCellMessage,
+        TEncapsulatedMessage* encapsulatedMessage)
     {
         if (const auto* protoPtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TProtoMessage>()) {
-            return NHiveServer::SerializeMessage(*protoPtr->Message);
+            NHiveServer::SerializeMessage(*protoPtr->Message, encapsulatedMessage);
+            return;
         }
 
         NObjectServer::NProto::TReqExecute hydraRequest;
@@ -667,7 +676,7 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         hydraRequest.set_user_name(user->GetName());
 
-        return NHiveServer::SerializeMessage(hydraRequest);
+        NHiveServer::SerializeMessage(hydraRequest, encapsulatedMessage);
     }
 
     void DoPostMessage(

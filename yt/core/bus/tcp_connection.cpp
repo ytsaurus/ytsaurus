@@ -6,8 +6,8 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/string.h>
-#include <yt/core/misc/socket.h>
 
+#include <yt/core/net/socket.h>
 #include <yt/core/net/dialer.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -44,9 +44,6 @@ static constexpr size_t MaxFragmentsPerWrite = 256;
 static constexpr size_t MaxBatchWriteSize    = 64 * 1024;
 static constexpr size_t MaxWriteCoalesceSize = 4 * 1024;
 static constexpr auto WriteTimeWarningThreshold = TDuration::MilliSeconds(100);
-
-static constexpr auto MinRto = TDuration::MilliSeconds(100);
-static constexpr auto MaxRto = TDuration::Seconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1148,7 +1145,7 @@ void TTcpConnection::RearmPoller()
 
 int TTcpConnection::GetSocketError() const
 {
-    return ::NYT::GetSocketError(Socket_);
+    return NNet::GetSocketError(Socket_);
 }
 
 bool TTcpConnection::IsSocketError(ssize_t result)

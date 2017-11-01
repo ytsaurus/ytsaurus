@@ -79,10 +79,10 @@ private:
     std::vector<PyObjectPtr> OriginalKeyCache_;
 
     void AddObject(
-            PyObjectPtr obj,
-            const Py::Callable& type,
-            EPythonObjectType objType = EPythonObjectType::Other,
-            bool forceYsonTypeCreation = false);
+        PyObjectPtr obj,
+        const Py::Callable& type,
+        EPythonObjectType objType = EPythonObjectType::Other,
+        bool forceYsonTypeCreation = false);
 
     void Push(PyObjectPtr objPtr, EPythonObjectType objectType);
     PyObjectPtr Pop();

@@ -130,7 +130,7 @@ public:
 
         RegisterParameter("dynamic_store_overflow_threshold", DynamicStoreOverflowThreshold)
             .GreaterThan(0.0)
-            .Default(0.9)
+            .Default(0.7)
             .LessThanOrEqual(1.0);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)

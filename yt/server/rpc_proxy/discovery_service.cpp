@@ -22,7 +22,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+#include <yt/core/net/local_address.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/helpers.h>
@@ -43,6 +44,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NRpc;
+using namespace NNet;
 using namespace NCellProxy;
 using namespace NNodeTrackerClient;
 
@@ -80,11 +82,14 @@ public:
         , ProxyPath_(RpcProxyPath + "/" + BuildServiceAddress(
             GetLocalHostName(),
             Bootstrap_->GetConfig()->RpcPort))
-        , UpdateExecutor_(New<TPeriodicExecutor>(
+        , AliveUpdateExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
-            BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this)),
-            Config_->UpdatePeriod))
-        , BackoffDuration_(Config_->UpdatePeriod)
+            BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateLiveness),
+            Config_->LivenessUpdatePeriod))
+        , ProxyUpdateExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateProxies),
+            Config_->ProxyUpdatePeriod))
     {
         Initialize();
 
@@ -98,9 +103,9 @@ private:
     const IProxyCoordinatorPtr Coordinator_;
     const INativeClientPtr RootClient_;
     const TString ProxyPath_;
-    const TPeriodicExecutorPtr UpdateExecutor_;
+    const TPeriodicExecutorPtr AliveUpdateExecutor_;
+    const TPeriodicExecutorPtr ProxyUpdateExecutor_;
 
-    TDuration BackoffDuration_ = TDuration::Zero();
     TInstant LastSuccessTimestamp_ = Now();
 
     TSpinLock ProxySpinLock_;
@@ -110,7 +115,8 @@ private:
 
     void Initialize()
     {
-        UpdateExecutor_->Start();
+        AliveUpdateExecutor_->Start();
+        ProxyUpdateExecutor_->Start();
     }
 
     void CreateProxyNode()
@@ -140,7 +146,7 @@ private:
             batchReq->AddRequest(req);
         }
 
-        batchReq->SetTimeout(Config_->UpdatePeriod);
+        batchReq->SetTimeout(Config_->LivenessUpdatePeriod);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             GetCumulativeError(batchRspOrError),
@@ -155,34 +161,34 @@ private:
         return Now() - LastSuccessTimestamp_ < Config_->AvailabilityPeriod;
     }
 
-    void OnPeriodicEvent()
+    void OnPeriodicEvent(void (TDiscoveryService::*action)())
     {
-        try {
-            if (!IsInitialized_) {
-                CreateProxyNode();
-                IsInitialized_ = true;
+        TDuration backoffDuration;
+        while (true) {
+            try {
+                (this->*action)();
+                return;
+            } catch (const std::exception& ex) {
+                backoffDuration = Min(backoffDuration + RandomDuration(Max(backoffDuration, Config_->LivenessUpdatePeriod)),
+                    Config_->BackoffPeriod);
+                LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
+                if (!IsAvailable() && Coordinator_->SetAvailableState(false)) {
+                    IsInitialized_ = false;
+                    LOG_WARNING("Connectivity lost");
+                }
+                WaitFor(TDelayedExecutor::MakeDelayed(backoffDuration))
+                    .ThrowOnError();
             }
-            PeriodicAction();
-            BackoffDuration_ = TDuration::Zero();
-            LastSuccessTimestamp_ = Now();
-            if (Coordinator_->SetAvailableState(true)) {
-                LOG_INFO("Connectivity restored");
-            }
-        } catch (const TErrorException& ex) {
-            BackoffDuration_ = Min(BackoffDuration_ + RandomDuration(Max(BackoffDuration_, Config_->UpdatePeriod)),
-                Config_->BackoffPeriod);
-            LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", BackoffDuration_);
-            if (!IsAvailable() && Coordinator_->SetAvailableState(false)) {
-                IsInitialized_ = false;
-                LOG_WARNING("Connectivity lost");
-            }
-            WaitFor(TDelayedExecutor::MakeDelayed(BackoffDuration_))
-                .ThrowOnError();
         }
     }
 
-    void PeriodicAction()
+    void UpdateLiveness()
     {
+        if (!IsInitialized_) {
+            CreateProxyNode();
+            IsInitialized_ = true;
+        }
+
         auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
@@ -195,6 +201,22 @@ private:
             req->set_force(true);
             batchReq->AddRequest(req);
         }
+
+        batchReq->SetTimeout(Config_->LivenessUpdatePeriod);
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error updating proxy liveness");
+
+        LastSuccessTimestamp_ = Now();
+        if (Coordinator_->SetAvailableState(true)) {
+            LOG_INFO("Connectivity restored");
+        }
+    }
+
+    void UpdateProxies()
+    {
+        auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+        TObjectServiceProxy proxy(channel);
+        auto batchReq = proxy.ExecuteBatch();
         {
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
             ToProto(
@@ -210,9 +232,9 @@ private:
             batchReq->AddRequest(req, "get_proxies");
         }
 
-        batchReq->SetTimeout(Config_->UpdatePeriod);
+        batchReq->SetTimeout(Config_->ProxyUpdatePeriod);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting proxies state");
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting states of proxies");
         const auto& batchRsp = batchRspOrError.Value();
 
         {

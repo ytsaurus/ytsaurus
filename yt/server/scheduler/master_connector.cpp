@@ -251,6 +251,11 @@ public:
         GlobalWatcherHandlers.push_back(handler);
     }
 
+    void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+    {
+        CustomGlobalWatcherRecords.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
+    }
+
     void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
     {
         auto* list = GetOrCreateWatcherList(operation);
@@ -278,8 +283,6 @@ public:
         }
 
         ScheduleTestingDisconnection();
-
-        Bootstrap->GetControllerAgent()->UpdateConfig(config);
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
@@ -299,8 +302,18 @@ private:
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr AlertsExecutor;
 
+    struct TPeriodicExecutorRecord
+    {
+        TWatcherRequester Requester;
+        TWatcherHandler Handler;
+        TDuration Period;
+    };
+
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
+
+    std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords;
+    std::vector<TPeriodicExecutorPtr> CustomGlobalWatcherExecutors;
 
     TEnumIndexedVector<TError, ESchedulerAlertType> Alerts;
 
@@ -390,7 +403,7 @@ private:
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(CancelableControlInvoker));
 
-        Bootstrap->GetControllerAgent()->Connect(CancelableControlInvoker);
+        Bootstrap->GetControllerAgent()->Connect();
 
         StartPeriodicActivities();
 
@@ -735,12 +748,18 @@ private:
             for (auto requester : Owner->GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
+            for (const auto& record : Owner->CustomGlobalWatcherRecords) {
+                record.Requester.Run(batchReq);
+            }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             auto watcherResponses = batchRspOrError.ValueOrThrow();
 
             for (auto handler : Owner->GlobalWatcherHandlers) {
                 handler.Run(watcherResponses);
+            }
+            for (const auto& record : Owner->CustomGlobalWatcherRecords) {
+                record.Handler.Run(watcherResponses);
             }
         }
     };
@@ -908,6 +927,16 @@ private:
             Config->AlertsUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
         AlertsExecutor->Start();
+
+        for (const auto& record : CustomGlobalWatcherRecords) {
+            auto executor = New<TPeriodicExecutor>(
+                CancelableControlInvoker,
+                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
+                record.Period,
+                EPeriodicExecutorMode::Automatic);
+            executor->Start();
+            CustomGlobalWatcherExecutors.push_back(executor);
+        }
     }
 
     void StopPeriodicActivities()
@@ -921,6 +950,11 @@ private:
             AlertsExecutor->Stop();
             AlertsExecutor.Reset();
         }
+
+        for (const auto& executor : CustomGlobalWatcherExecutors) {
+            executor->Stop();
+        }
+        CustomGlobalWatcherExecutors.clear();
     }
 
     TWatcherList* GetOrCreateWatcherList(TOperationPtr operation)
@@ -1084,6 +1118,21 @@ private:
 
         LOG_INFO("Reviving operation node reset (OperationId: %v)",
             operationId);
+    }
+
+    void ExecuteCustomWatcherUpdate(const TWatcherRequester& requester, const TWatcherHandler& handler)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+        requester.Run(batchReq);
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        if (!batchRspOrError.IsOK()) {
+            LOG_ERROR(batchRspOrError, "Error updating custom watcher");
+            return;
+        }
+        handler.Run(batchRspOrError.Value());
     }
 
     void UpdateWatchers()
@@ -1274,6 +1323,11 @@ void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)
 void TMasterConnector::AddGlobalWatcherHandler(TWatcherHandler handler)
 {
     Impl->AddGlobalWatcherHandler(handler);
+}
+
+void TMasterConnector::AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+{
+    Impl->AddGlobalWatcher(std::move(requester), std::move(handler), period);
 }
 
 void TMasterConnector::AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)

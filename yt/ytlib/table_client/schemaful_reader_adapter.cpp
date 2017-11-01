@@ -69,13 +69,13 @@ public:
                     // if the schema has "any" type. For schemaful reader, this is not an expected behavior
                     // so we have to convert such values back into YSON.
                     // Cf. YT-5396
-                    if (ReaderSchema_.Columns()[valueIndex].Type == EValueType::Any &&
+                    if (ReaderSchema_.Columns()[valueIndex].GetPhysicalType() == EValueType::Any &&
                         value.Type != EValueType::Any &&
                         value.Type != EValueType::Null)
                     {
                         row[valueIndex] = MakeAnyFromScalar(value);
                     } else {
-                        ValidateValueType(value, ReaderSchema_, valueIndex);
+                        ValidateValueType(value, ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false);
                     }
                 }
                 rows_[i] = row;
@@ -156,7 +156,7 @@ ISchemafulReaderPtr CreateSchemafulReaderAdapter(
 {
     TKeyColumns keyColumns;
     for (const auto& columnSchema : schema.Columns()) {
-        keyColumns.push_back(columnSchema.Name);
+        keyColumns.push_back(columnSchema.Name());
     }
 
     auto nameTable = TNameTable::FromSchema(schema);

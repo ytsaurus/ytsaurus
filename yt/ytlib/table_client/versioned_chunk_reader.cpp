@@ -133,6 +133,7 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
+        const TReadSessionId& sessionId,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
@@ -177,6 +178,7 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     TCachedVersionedChunkMetaPtr chunkMeta,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
+    const TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp,
@@ -185,7 +187,8 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     : TChunkReaderBase(
         std::move(config),
         std::move(underlyingReader),
-        std::move(blockCache))
+        std::move(blockCache),
+        sessionId)
     , ChunkMeta_(std::move(chunkMeta))
     , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
@@ -212,6 +215,7 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
+        const TReadSessionId& sessionId,
         TSharedRange<TRowRange> ranges,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -222,6 +226,7 @@ public:
             std::move(chunkMeta),
             std::move(underlyingReader),
             std::move(blockCache),
+            sessionId,
             columnFilter,
             std::move(performanceCounters),
             timestamp,
@@ -399,6 +404,7 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
+        const TReadSessionId& sessionId,
         const TSharedRange<TKey>& keys,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -410,6 +416,7 @@ public:
             std::move(chunkMeta),
             std::move(underlyingReader),
             std::move(blockCache),
+            sessionId,
             columnFilter,
             std::move(performanceCounters),
             timestamp,
@@ -577,10 +584,11 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
+        const TReadSessionId& sessionId,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp)
-        : TBase(std::move(config), std::move(underlyingReader), std::move(blockCache))
+        : TBase(std::move(config), std::move(underlyingReader), std::move(blockCache), sessionId)
         , VersionedChunkMeta_(std::move(chunkMeta))
         , Timestamp_(timestamp)
         , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, VersionedChunkMeta_))
@@ -703,7 +711,7 @@ public:
         for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
             const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
             const auto& columnSchema = ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
-            if (columnSchema.Aggregate) {
+            if (columnSchema.Aggregate()) {
                 // Possibly multiple values per column for aggregate columns.
                 ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(columnValueCount));
             } else {
@@ -941,6 +949,7 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
+        const TReadSessionId& sessionId,
         TSharedRange<TRowRange> ranges,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -950,6 +959,7 @@ public:
             chunkMeta,
             std::move(underlyingReader),
             std::move(blockCache),
+            sessionId,
             columnFilter,
             std::move(performanceCounters),
             timestamp)
@@ -1078,6 +1088,7 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
+        const TReadSessionId& sessionId,
         const TSharedRange<TKey>& keys,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -1087,6 +1098,7 @@ public:
             std::move(chunkMeta),
             std::move(underlyingReader),
             std::move(blockCache),
+            sessionId,
             columnFilter,
             std::move(performanceCounters),
             timestamp)
@@ -1191,7 +1203,7 @@ private:
             const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
             const auto& columnSchema = VersionedChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
             ui32 columnValueCount = 1;
-            if (columnSchema.Aggregate) {
+            if (columnSchema.Aggregate()) {
                 // Possibly multiple values per column for aggregate columns.
                 ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
             }
@@ -1357,6 +1369,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const TReadSessionId& sessionId,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -1373,6 +1386,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 chunkMeta,
                 std::move(chunkReader),
                 blockCache,
+                sessionId,
                 std::move(ranges),
                 columnFilter,
                 performanceCounters,
@@ -1393,6 +1407,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkMeta,
                     std::move(chunkReader),
                     blockCache,
+                    sessionId,
                     MakeSharedRange(std::move(cappedBounds), ranges.GetHolder()),
                     columnFilter,
                     performanceCounters,
@@ -1403,6 +1418,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkMeta,
                     std::move(chunkReader),
                     blockCache,
+                    sessionId,
                     MakeSharedRange(std::move(cappedBounds), ranges.GetHolder()),
                     columnFilter,
                     performanceCounters,
@@ -1451,6 +1467,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     options,
                     chunkReader,
                     nameTable,
+                    sessionId,
                     chunkMeta->Schema().GetKeyColumns(),
                     columnFilter,
                     readRange);
@@ -1476,6 +1493,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const TReadSessionId& sessionId,
     TOwningKey lowerLimit,
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
@@ -1486,6 +1504,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         config,
         chunkReader,
         chunkState,
+        sessionId,
         MakeSingletonRowRange(lowerLimit, upperLimit),
         columnFilter,
         timestamp,
@@ -1498,6 +1517,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const TReadSessionId& sessionId,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -1515,6 +1535,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 chunkMeta,
                 std::move(chunkReader),
                 blockCache,
+                sessionId,
                 keys,
                 columnFilter,
                 performanceCounters,
@@ -1532,6 +1553,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 chunkMeta,
                 std::move(chunkReader),
                 blockCache,
+                sessionId,
                 keys,
                 columnFilter,
                 performanceCounters,
@@ -1573,6 +1595,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     options,
                     chunkReader,
                     nameTable,
+                    sessionId,
                     chunkMeta->Schema().GetKeyColumns(),
                     columnFilter,
                     keys);

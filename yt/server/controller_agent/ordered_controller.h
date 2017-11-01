@@ -8,17 +8,18 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateOrderedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);
 
 IOperationControllerPtr CreateOrderedMapController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);
 
 IOperationControllerPtr CreateEraseController(
-    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation);
+
+IOperationControllerPtr CreateRemoteCopyController(
     IOperationHost* host,
     TOperation* operation);
 

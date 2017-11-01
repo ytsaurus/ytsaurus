@@ -20,6 +20,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/http/public.h>
+
 namespace NYT {
 namespace NCellProxy {
 
@@ -51,7 +53,8 @@ private:
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
-    std::unique_ptr<NHttp::TServer> HttpServer_;
+    std::unique_ptr<NXHttp::TServer> HttpServer_;
+    NHttp::IServerPtr NewHttpServer_;
     TCoreDumperPtr CoreDumper_;
 
     NApi::INativeConnectionPtr NativeConnection_;

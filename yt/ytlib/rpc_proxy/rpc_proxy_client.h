@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rpc_proxy_client_base.h"
+#include "rpc_proxy_channel.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -18,7 +19,7 @@ class TRpcProxyClient
 public:
     TRpcProxyClient(
         TRpcProxyConnectionPtr connection,
-        NRpc::IChannelPtr channel);
+        const NApi::TClientOptions& options);
     ~TRpcProxyClient();
 
     virtual TFuture<void> Terminate() override
@@ -78,6 +79,12 @@ public:
     virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
         const NApi::TAlterTableReplicaOptions& options) override;
+
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const NApi::TGetInSyncReplicasOptions& options) override;
 
     // Security
     virtual TFuture<void> AddMember(

@@ -88,6 +88,7 @@ public:
         , Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->ExecAgent)
         , Invoker_(Bootstrap_->GetControlInvoker())
+        , StartTime_(TInstant::Now())
         , ResourceUsage_(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -231,6 +232,11 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         return JobState_;
+    }
+
+    virtual TInstant GetStartTime() const override
+    {
+        return StartTime_;
     }
 
     virtual TNullable<TDuration> GetPrepareDuration() const override
@@ -487,6 +493,7 @@ private:
 
     const TExecAgentConfigPtr Config_;
     const IInvokerPtr Invoker_;
+    const TInstant StartTime_;
 
     TJobSpec JobSpec_;
 
@@ -924,6 +931,7 @@ private:
         WaitFor(Slot_->CreateSandboxDirectories())
             .ThrowOnError();
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
@@ -940,12 +948,6 @@ private:
                 if (!enable) {
                     TmpfsPath_ = Null;
                 }
-            }
-            if (userJobSpec.has_disk_space_limit() || userJobSpec.has_inode_limit()) {
-                auto diskSpaceLimit = userJobSpec.disk_space_limit();
-                auto inodeLimit = userJobSpec.inode_limit();
-                WaitFor(Slot_->SetQuota(diskSpaceLimit, inodeLimit))
-                    .ThrowOnError();
             }
         }
     }
@@ -1021,6 +1023,11 @@ private:
         bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
 
         for (const auto& artifact : Artifacts_) {
+            // Artifact preparation is uncancelable, so we check for an early exit.
+            if (JobPhase_ != EJobPhase::PreparingArtifacts) {
+                return;
+            }
+
             YCHECK(artifact.Chunk);
 
             if (copyFiles) {
@@ -1052,6 +1059,19 @@ private:
             LOG_INFO("Artifact prepared successfully (FileName: %v, SandboxKind: %v)",
                 artifact.Name,
                 artifact.SandboxKind);
+        }
+
+        // When all artifacts are prepared we can finally change permission for sandbox which will
+        // take away write access from the current user (see slot_location.cpp for details).
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+
+            TNullable<i64> inodeLimit(userJobSpec.has_inode_limit(), userJobSpec.inode_limit());
+            TNullable<i64> diskSpaceLimit(userJobSpec.has_disk_space_limit(), userJobSpec.disk_space_limit());
+
+            LOG_INFO("Setting sandbox quota and permissions");
+            WaitFor(Slot_->FinalizePreparation(diskSpaceLimit, inodeLimit))
+                .ThrowOnError();
         }
     }
 
@@ -1102,7 +1122,9 @@ private:
             return EAbortReason::WaitingTimeout;
         }
 
-        if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
+        if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler) ||
+            resultError.FindMatching(NJobProxy::EErrorCode::JobNotPrepared))
+        {
             return EAbortReason::Scheduler;
         }
 
@@ -1116,7 +1138,6 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
-            resultError.FindMatching(NJobProxy::EErrorCode::JobNotPrepared) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
             return EAbortReason::Other;

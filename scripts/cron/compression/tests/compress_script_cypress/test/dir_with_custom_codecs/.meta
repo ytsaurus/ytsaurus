@@ -1,9 +1,0 @@
-{
-    "type" = "map_node";
-    "attributes" = {
-        "nightly_compression_settings" = {
-            "enabled" = %true;
-            "compression_codec" = "zlib_6"
-        }
-    }
-}

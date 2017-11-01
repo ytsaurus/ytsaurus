@@ -1,5 +1,7 @@
 #include "functions_common.h"
 
+#include <yt/core/misc/format.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -30,33 +32,39 @@ size_t TTypeSet::GetSize() const
     return result;
 }
 
-TTypeSet operator | (const TTypeSet& lhs, const TTypeSet& rhs) {
+TTypeSet operator | (const TTypeSet& lhs, const TTypeSet& rhs)
+{
     return TTypeSet(lhs.Value_ | rhs.Value_);
 }
 
-TTypeSet operator & (const TTypeSet& lhs, const TTypeSet& rhs) {
+TTypeSet operator & (const TTypeSet& lhs, const TTypeSet& rhs)
+{
     return TTypeSet(lhs.Value_ & rhs.Value_);
+}
+
+void FormatValue(TStringBuilder* builder, const TTypeSet& typeSet, const TStringBuf& spec)
+{
+    if (typeSet.GetSize() == 1) {
+        builder->AppendFormat("%lv", typeSet.GetFront());
+    } else {
+        builder->AppendString("one of {");
+        bool isFirst = true;
+        typeSet.ForEach([&] (EValueType type) {
+            if (!isFirst) {
+                builder->AppendString(", ");
+            } else {
+                isFirst = false;
+            }
+            builder->AppendFormat("%lv", type);
+
+        });
+        builder->AppendString("}");
+    }
 }
 
 TString ToString(const TTypeSet& typeSet)
 {
-    if (typeSet.GetSize() == 1) {
-        return ToString(typeSet.GetFront());
-    } else {
-        TString unionString = "one of { ";
-        bool isFirst = true;
-        typeSet.ForEach([&] (EValueType type) {
-            if (!isFirst) {
-                unionString += ", ";
-            } else {
-                isFirst = false;
-            }
-            unionString += ToString(type);
-
-        });
-
-        return unionString + " }";
-    }
+    return ToStringViaBuilder(typeSet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

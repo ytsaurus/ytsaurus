@@ -7,8 +7,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateRemoteCopyController(
-    TSchedulerConfigPtr config,
+IOperationControllerPtr CreateLegacyRemoteCopyController(
     IOperationHost* host,
     TOperation* operation);
 

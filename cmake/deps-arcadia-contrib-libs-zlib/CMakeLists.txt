@@ -1,5 +1,6 @@
 set(NAME deps-arcadia-contrib-libs-zlib)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/zlib)
+
 set(SRCS
   ${BASE}/adler32.c
   ${BASE}/compress.c
@@ -25,3 +26,7 @@ add_definitions(-DBUILD_ZLIB -DY_BUILD_AS_ORIGIN)
 include_directories(${CMAKE_SOURCE_DIR})
 
 add_library(${NAME} STATIC ${SRCS})
+
+if (_is_gcc)
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -Wno-error)
+endif()

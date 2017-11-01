@@ -157,23 +157,21 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
 
     // Shrink size to available data size if stream has finished.
     {
-        Py_BEGIN_ALLOW_THREADS
+        TReleaseAcquireGilGuard guard;
         size = Stream_->WaitDataToRead(size);
-        Py_END_ALLOW_THREADS
     }
 
 #if PY_MAJOR_VERSION >= 3
     auto* rawResult = PyBytes_FromStringAndSize(nullptr, size);
-    char* underlyingString = PyBytes_AS_STRING(rawResult);
+    char* underlyingString = PyBytes_AsString(rawResult);
 #else
     auto* rawResult = PyString_FromStringAndSize(nullptr, size);
-    char* underlyingString = PyString_AS_STRING(rawResult);
+    char* underlyingString = PyBytes_AsString(rawResult);
 #endif
 
     {
-        Py_BEGIN_ALLOW_THREADS
+        TReleaseAcquireGilGuard guard;
         Stream_->Read(size, underlyingString);
-        Py_END_ALLOW_THREADS
     }
 
     return Py::Object(rawResult, true);
@@ -185,9 +183,8 @@ Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict& kwargs)
 
     bool empty;
     {
-        Py_BEGIN_ALLOW_THREADS
+        TReleaseAcquireGilGuard guard;
         empty = Stream_->Empty();
-        Py_END_ALLOW_THREADS
     }
     return Py::Boolean(empty);
 }

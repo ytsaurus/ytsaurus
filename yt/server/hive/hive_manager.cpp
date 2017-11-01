@@ -21,7 +21,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/fls.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
 
 #include <yt/core/rpc/rpc.pb.h>
 #include <yt/core/rpc/server.h>
@@ -34,6 +34,7 @@
 namespace NYT {
 namespace NHiveServer {
 
+using namespace NNet;
 using namespace NRpc;
 using namespace NRpc::NProto;
 using namespace NHydra;
@@ -160,7 +161,7 @@ public:
             mailbox->GetCellId());
         return mailbox;
     }
-    
+
     TMailbox* GetOrCreateMailbox(const TCellId& cellId)
     {
         auto* mailbox = MailboxMap_.Find(cellId);
@@ -205,19 +206,23 @@ public:
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        PostMessage(mailbox, SerializeMessage(message), reliable);
+        TEncapsulatedMessage encapsulatedMessage;
+        SerializeMessage(message, &encapsulatedMessage);
+        PostMessage(mailbox, encapsulatedMessage, reliable);
     }
 
     void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        PostMessage(mailboxes, SerializeMessage(message), reliable);
+        TEncapsulatedMessage encapsulatedMessage;
+        SerializeMessage(message, &encapsulatedMessage);
+        PostMessage(mailboxes, encapsulatedMessage, reliable);
     }
 
 
     TFuture<void> SyncWith(const TCellId& cellId)
     {
         YCHECK(EpochAutomatonInvoker_);
-        
+
         auto proxy = FindHiveProxy(cellId);
         if (!proxy) {
             return MakeFuture(TError(
@@ -257,7 +262,7 @@ private:
 
     TEntityMap<TMailbox> MailboxMap_;
     yhash<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
-    
+
 
     // RPC handlers.
 
@@ -1095,7 +1100,7 @@ private:
         return true;
     }
 
-    
+
     void ApplyReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
     {
         for (int index = 0; index < req->messages_size(); ++index) {

@@ -55,6 +55,8 @@ extern const TChunkTreeId NullChunkTreeId;
 
 using TMediumId = NObjectClient::TObjectId;
 
+using TReadSessionId = NObjectClient::TObjectId;
+
 struct TSessionId;
 
 const int DefaultPartIndex = -1;
@@ -227,6 +229,8 @@ DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 using TPlacementId = TGuid;
 
 struct TDataSliceDescriptor;
+
+struct TInterruptDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 

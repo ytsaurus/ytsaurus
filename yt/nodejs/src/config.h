@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/driver/config.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -23,7 +23,7 @@ class THttpProxyConfig
 public:
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NYTree::INodePtr Driver;
-    TAddressResolverConfigPtr AddressResolver;
+    NNet::TAddressResolverConfigPtr AddressResolver;
     NLogging::TLogConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;
 
