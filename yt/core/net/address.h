@@ -130,11 +130,15 @@ public:
 
     const TIP6Address& GetNetwork() const;
     const TIP6Address& GetMask() const;
+    int GetMaskSize() const;
 
 private:
     TIP6Address Network_;
     TIP6Address Mask_;
 };
+
+void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec);
+TString ToString(const TIP6Network& network);
 
 ////////////////////////////////////////////////////////////////////////////////
 

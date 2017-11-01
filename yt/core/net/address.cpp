@@ -496,6 +496,28 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
     return true;
 }
 
+bool ParseMask(const TStringBuf& buf, int* maskSize)
+{
+    if (buf.size() < 2 || buf[0] != '/') {
+        return false;
+    }
+
+    *maskSize = 0;
+    for (int i = 1; i < 4; ++i) {
+        if (i == buf.size()) {
+            return true;
+        }
+
+        if (buf[i] < '0' || '9' < buf[i]) {
+            return false;
+        }
+
+        *maskSize = (*maskSize * 10) + (buf[i] - '0');
+    }
+
+    return buf.size() == 4 && *maskSize <= 128;
+}
+
 } // namespace
 
 const ui8* TIP6Address::GetRawBytes() const
@@ -665,6 +687,16 @@ const TIP6Address& TIP6Network::GetMask() const
     return Mask_;
 }
 
+int TIP6Network::GetMaskSize() const
+{
+    int size = 0;
+    const auto* parts = Mask_.GetRawDWords();
+    for (size_t partIndex = 0; partIndex < 4; ++partIndex) {
+        size += __builtin_popcount(parts[partIndex]);
+    }
+    return size;
+}
+
 bool TIP6Network::Contains(const TIP6Address& address) const
 {
     TIP6Address masked = address;
@@ -681,31 +713,9 @@ TIP6Network TIP6Network::FromString(const TStringBuf& str)
     return network;
 }
 
-bool ParseMask(const TStringBuf& buf, int* maskSize)
-{
-    if (buf.size() < 2 || buf[0] != '/') {
-        return false;
-    }
-
-    *maskSize = 0;
-    for (int i = 1; i < 4; ++i) {
-        if (i == buf.size()) {
-            return true;
-        }
-
-        if (buf[i] < '0' || '9' < buf[i]) {
-            return false;
-        }
-
-        *maskSize = (*maskSize * 10) + (buf[i] - '0');
-    }
-
-    return buf.size() == 4 && *maskSize <= 128;
-}
-
 bool TIP6Network::FromString(const TStringBuf& str, TIP6Network* network)
 {
-    TStringBuf buf = str;
+    auto buf = str;
     if (!ParseIP6Address(&buf, &network->Network_)) {
         return false;
     }
@@ -726,6 +736,18 @@ bool TIP6Network::FromString(const TStringBuf& str, TIP6Network* network)
     }
 
     return true;
+}
+
+void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec)
+{
+    builder->AppendFormat("%v/%v",
+        network.GetNetwork(),
+        network.GetMaskSize());
+}
+
+TString ToString(const TIP6Network& network)
+{
+    return ToStringViaBuilder(network);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
