@@ -573,7 +573,7 @@ class TestAccounts(YTEnvSetup):
         assert exists("//tmp/b/a")
 
         create("file", "//tmp/b/a/f3")
-        # Writing new data should fail,..
+        # Writing new data should fail...
         with pytest.raises(YtError): write_file("//tmp/b/a/f3", content)
         remove("//tmp/b/a/f3")
         # ...but copying existing data should be ok...

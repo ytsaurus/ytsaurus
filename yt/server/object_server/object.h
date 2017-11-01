@@ -34,8 +34,6 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
 
 EObjectLifeStage NextStage(EObjectLifeStage lifeStage);
 
-const char* ToSnakeCaseString(EObjectLifeStage lifeStage);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a base for all objects in YT master server.
@@ -148,11 +146,11 @@ public:
     //! Sets object's life stage and resets vote count to zero.
     void SetLifeStage(EObjectLifeStage lifeStage);
 
+    //! Advances object's life stage and resets vote count to zero.
+    void AdvanceLifeStage();
+
     //! Increases life stage vote count and returns the vote count.
     int IncrementLifeStageVoteCount();
-
-    //! Sets life stage vote count to zero.
-    void ResetLifeStageVoteCount();
 
     //! Returns |true| iff the reference counter is positive.
     bool IsAlive() const;
@@ -198,7 +196,7 @@ protected:
     TEpoch EphemeralLockEpoch_ = 0;
     int WeakRefCounter_ = 0;
     int ImportRefCounter_ = 0;
-    int LifeStageVoteCount_ = 0; // home many secondary cells have confirmed the life stage
+    ui16 LifeStageVoteCount_ = 0; // how many secondary cells have confirmed the life stage
     EObjectLifeStage LifeStage_ = EObjectLifeStage::CreationCommitted;
 
     struct {

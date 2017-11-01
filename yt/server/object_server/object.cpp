@@ -22,21 +22,6 @@ EObjectLifeStage NextStage(EObjectLifeStage lifeStage)
             return EObjectLifeStage::CreationPreCommitted;
         case EObjectLifeStage::CreationPreCommitted:
             return EObjectLifeStage::CreationCommitted;
-        case EObjectLifeStage::CreationCommitted:
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-const char* ToSnakeCaseString(EObjectLifeStage lifeStage)
-{
-    switch (lifeStage) {
-        case EObjectLifeStage::CreationStarted:
-            return "creation_started";
-        case EObjectLifeStage::CreationPreCommitted:
-            return "creation_precommitted";
-        case EObjectLifeStage::CreationCommitted:
-            return "creation_committed";
         default:
             Y_UNREACHABLE();
     }
@@ -104,12 +89,12 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, RefCounter_);
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 623) {
+    if (context.GetVersion() >= 700) {
         Load(context, WeakRefCounter_);
     }
     Load(context, ImportRefCounter_);
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 623) {
+    if (context.GetVersion() >= 700) {
         Load(context, LifeStageVoteCount_);
         Load(context, LifeStage_);
     }

@@ -391,11 +391,11 @@ public:
         return GetBuiltin(ChunkWiseAccountingMigrationAccount_);
     }
 
-    void UpdateResourceUsage(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta)
+    void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
     {
-        auto doCharge = [] (TClusterResources& usage, int mediumIndex, int chunkCount, i64 diskSpace) {
-            usage.DiskSpace[mediumIndex] += diskSpace;
-            usage.ChunkCount += chunkCount;
+        auto doCharge = [] (TClusterResources* usage, int mediumIndex, int chunkCount, i64 diskSpace) {
+            usage->DiskSpace[mediumIndex] += diskSpace;
+            usage->ChunkCount += chunkCount;
         };
 
         ComputeChunkResourceDelta(
@@ -403,31 +403,31 @@ public:
             requisition,
             delta,
             [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
-                doCharge(account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
-                doCharge(account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
+                doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
+                doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 if (committed) {
-                    doCharge(account->ClusterStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
-                    doCharge(account->LocalStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
+                    doCharge(&account->ClusterStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
+                    doCharge(&account->LocalStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
                 }
             });
     }
 
     void UpdateTransactionResourceUsage(
-        const TChunk& chunk,
+        const TChunk* chunk,
         const TChunkRequisition& requisition,
         i64 delta)
     {
-        Y_ASSERT(chunk.IsStaged());
-        Y_ASSERT(chunk.DiskSizeIsFinal());
+        Y_ASSERT(chunk->IsStaged());
+        Y_ASSERT(chunk->DiskSizeIsFinal());
 
-        auto* stagingTransaction = chunk.GetStagingTransaction();
-        auto* stagingAccount = chunk.GetStagingAccount();
+        auto* stagingTransaction = chunk->GetStagingTransaction();
+        auto* stagingAccount = chunk->GetStagingAccount();
 
         Y_ASSERT(requisition.GetEntryCount() == 1);
         Y_ASSERT(requisition.begin()->Account == stagingAccount);
 
-        auto diskSpace = chunk.ChunkInfo().disk_space();
-        auto erasureCodec = chunk.GetErasureCodec();
+        auto diskSpace = chunk->ChunkInfo().disk_space();
+        auto erasureCodec = chunk->GetErasureCodec();
         auto replication = requisition.ToReplication();
         auto resourceDelta = GetStagedResourceUsage(diskSpace, erasureCodec, replication) * delta;
         auto* transactionUsage = GetTransactionAccountUsage(stagingTransaction, stagingAccount);
@@ -1077,12 +1077,7 @@ public:
             return;
         }
 
-        if (account->GetLifeStage() == EObjectLifeStage::CreationStarted) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::ObjectNotReplicated,
-                "Account %Qv is not replicated to all cells yet",
-                account->GetName());
-        }
+        ValidateLifeStage(account);
 
         const auto& usage = account->ClusterStatistics().ResourceUsage;
         const auto& limits = account->ClusterResourceLimits();
@@ -1134,6 +1129,15 @@ public:
         }
     }
 
+    void ValidateLifeStage(TAccount* account)
+    {
+        if (account->GetLifeStage() == EObjectLifeStage::CreationStarted) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::ObjectNotReplicated,
+                "Account %Qv is not replicated to all cells yet",
+                account->GetName());
+        }
+    }
 
     void SetUserBanned(TUser* user, bool banned)
     {
@@ -1330,10 +1334,10 @@ private:
     }
 
     template <class T>
-    void ComputeChunkResourceDelta(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta, T doCharge)
+    void ComputeChunkResourceDelta(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta, T doCharge)
     {
-        auto chunkDiskSpace = chunk.ChunkInfo().disk_space();
-        auto erasureCodec = chunk.GetErasureCodec();
+        auto chunkDiskSpace = chunk->ChunkInfo().disk_space();
+        auto erasureCodec = chunk->GetErasureCodec();
 
         const TAccount* lastAccount = nullptr;
         auto lastMediumIndex = InvalidMediumIndex;
@@ -1580,8 +1584,8 @@ private:
         GroupMap_.LoadValues(context);
 
         // COMPAT(shakurov)
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 623;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 623;
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 700;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 700;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1704,10 +1708,10 @@ private:
             if (chunk->DiskSizeIsFinal()) {
                 if (chunk->IsStaged()) {
                     const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
-                    ComputeChunkResourceDelta(*chunk, requisition, +1, chargeStatMap);
+                    ComputeChunkResourceDelta(chunk, requisition, +1, chargeStatMap);
                 } else {
                     ComputeChunkResourceDelta(
-                        *chunk,
+                        chunk,
                         chunk->IsErasure() ? migrationErasureRequisition : migrationRequisition,
                         +1,
                         chargeStatMap);
@@ -2444,7 +2448,7 @@ TAccount* TSecurityManager::GetChunkWiseAccountingMigrationAccount()
     return Impl_->GetChunkWiseAccountingMigrationAccount();
 }
 
-void TSecurityManager::UpdateResourceUsage(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta)
+void TSecurityManager::UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
 {
     Impl_->UpdateResourceUsage(chunk, requisition, delta);
 }
@@ -2459,7 +2463,7 @@ void TSecurityManager::UpdateTabletResourceUsage(TCypressNodeBase* node, TAccoun
     Impl_->UpdateTabletResourceUsage(node, account, resourceUsageDelta);
 }
 
-void TSecurityManager::UpdateTransactionResourceUsage(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta)
+void TSecurityManager::UpdateTransactionResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
 {
     Impl_->UpdateTransactionResourceUsage(chunk, requisition, delta);
 }

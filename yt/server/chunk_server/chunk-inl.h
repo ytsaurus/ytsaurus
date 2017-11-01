@@ -109,8 +109,8 @@ inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) con
     // Don't check TChunk::ExportCounter_ or TChunkExportData::RefCounter here:
     // for those cells into which the chunk isn't exported, EmptyChunkRequisitionIndex is used.
     // And we should Ref() that, too.
-    for (auto cellIndex = 0; cellIndex < NObjectClient::MaxSecondaryMasterCells; ++cellIndex) {
-        registry->Ref(ExportDataList_[cellIndex].ChunkRequisitionIndex);
+    for (const auto& exportData : ExportDataList_) {
+        registry->Ref(exportData.ChunkRequisitionIndex);
     }
 }
 

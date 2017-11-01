@@ -241,7 +241,7 @@ private:
                 bool foreign =
                     CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
                     Bootstrap_->IsPrimaryMaster();
-                
+
                 bool suppressRedirect = false;
                 if (foreign && tokenizer.GetType() == NYPath::ETokenType::Ampersand) {
                     suppressRedirect = true;
@@ -412,6 +412,7 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::HydraRemoveForeignObject, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraUnrefExportedObjects, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraConfirmObjectLifeStage, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraAdvanceObjectLifeStage, Unretained(this)));
 
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetPrimaryCellTag());
 }
@@ -921,7 +922,7 @@ TObjectBase* TObjectManager::CreateObject(
         THROW_ERROR_EXCEPTION("Objects of type %Qlv cannot be created explicitly",
             type);
     }
-    
+
     bool replicate =
         Bootstrap_->IsPrimaryMaster() &&
         Any(flags & ETypeFlags::ReplicateCreate);
@@ -968,7 +969,7 @@ TObjectBase* TObjectManager::CreateObject(
         UnrefObject(object);
         throw;
     }
- 
+
     auto* acd = securityManager->FindAcd(object);
     if (acd) {
         acd->SetOwner(user);
@@ -1307,33 +1308,48 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
         request->entries_size());
 }
 
-void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* request) noexcept
+void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* confirmRequest) noexcept
 {
     YCHECK(Bootstrap_->IsPrimaryMaster());
 
-    const auto objectId = FromProto<TObjectId>(request->object_id());
+    const auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
         LOG_DEBUG_UNLESS(IsRecovery(), "A non-existing object creation confirmed by a secondary cell (ObjectId: %v)",
             objectId);
         return;
     }
-    const auto voteCount = object->IncrementLifeStageVoteCount();
 
+    const auto voteCount = object->IncrementLifeStageVoteCount();
     if (voteCount != Bootstrap_->GetSecondaryCellTags().size()) {
+        YCHECK(voteCount < Bootstrap_->GetSecondaryCellTags().size());
         return;
     }
 
-    auto lifeStage = object->GetLifeStage();
-    auto nextLifeStage = NextStage(lifeStage);
+    object->AdvanceLifeStage();
 
-    object->SetLifeStage(nextLifeStage);
-
-    auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@life_stage");
-    req->set_value(ConvertToYsonString(nextLifeStage).GetData());
-
+    NProto::TReqAdvanceObjectLifeStage advanceRequest;
+    ToProto(advanceRequest.mutable_object_id(), object->GetId());
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToSecondaryMasters(req);
+    multicellManager->PostToSecondaryMasters(advanceRequest);
+}
+
+void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept
+{
+    YCHECK(Bootstrap_->IsSecondaryMaster());
+
+    const auto objectId = FromProto<TObjectId>(request->object_id());
+    auto* object = FindObject(objectId);
+    if (!object) {
+        LOG_DEBUG_UNLESS(IsRecovery(),
+            "Life stage advancement for a non-existing object requested by the primary cell (ObjectId: %v)",
+            objectId);
+        return;
+    }
+
+    object->AdvanceLifeStage();
+
+    ConfirmObjectLifeStageToPrimaryMaster(object);
 }
 
 const TProfiler& TObjectManager::GetProfiler()

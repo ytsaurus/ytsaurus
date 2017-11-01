@@ -50,7 +50,16 @@ message TReqUnrefExportedObjects
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Confirms that an object has changed its life stage. Sent by secondary masters
+// to primary.
 message TReqConfirmObjectLifeStage
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+// Forces an object to move on to its next life stage. Sent by primary master to
+// secondary ones.
+message TReqAdvanceObjectLifeStage
 {
     required NYT.NProto.TGuid object_id = 1;
 }

@@ -303,6 +303,7 @@ private:
     void HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* request) noexcept;
     void HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept;
     void HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* request) noexcept;
+    void HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept;
 
     void OnProfiling();
 
