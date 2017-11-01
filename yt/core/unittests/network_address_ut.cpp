@@ -163,17 +163,19 @@ TEST(TIP6AddressTest, CanonicalText)
 
 TEST(TIP6AddressTest, NetworkMask)
 {
-    typedef std::pair<TString, std::array<ui16, 8>> TTestCase;
+    using TTestCase = std::tuple<const char*, std::array<ui16, 8>, int>;
     for (const auto& testCase : {
-        TTestCase{"::/1", {0, 0, 0, 0, 0, 0, 0, 0x8000}},
-        TTestCase{"::/0", {0, 0, 0, 0, 0, 0, 0, 0}},
-        TTestCase{"::/24", {0, 0, 0, 0, 0, 0, 0xff00, 0xffff}},
-        TTestCase{"::/32", {0, 0, 0, 0, 0, 0, 0xffff, 0xffff}},
-        TTestCase{"::/64", {0, 0, 0, 0, 0xffff, 0xffff, 0xffff, 0xffff}},
-        TTestCase{"::/128", {0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff}},
+        TTestCase{"::/1", {0, 0, 0, 0, 0, 0, 0, 0x8000}, 1},
+        TTestCase{"::/0", {0, 0, 0, 0, 0, 0, 0, 0}, 0},
+        TTestCase{"::/24", {0, 0, 0, 0, 0, 0, 0xff00, 0xffff}, 24},
+        TTestCase{"::/32", {0, 0, 0, 0, 0, 0, 0xffff, 0xffff}, 32},
+        TTestCase{"::/64", {0, 0, 0, 0, 0xffff, 0xffff, 0xffff, 0xffff}, 64},
+        TTestCase{"::/128", {0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff}, 128},
     }) {
-        auto network = TIP6Network::FromString(testCase.first);
-        EXPECT_EQ(AddressToWords(network.GetMask()), testCase.second);
+        auto network = TIP6Network::FromString(std::get<0>(testCase));
+        EXPECT_EQ(AddressToWords(network.GetMask()), std::get<1>(testCase));
+        EXPECT_EQ(network.GetMaskSize(), std::get<2>(testCase));
+        EXPECT_EQ(ToString(network), std::get<0>(testCase));
     }
 
     EXPECT_THROW(TIP6Network::FromString("::/129"), TErrorException);
@@ -191,7 +193,7 @@ TEST(TIP6AddressTest, InvalidInput)
         "::1::",
         "1",
         "1:1",
-        "11111::"
+        "11111::",
         "g::",
         "1:::1",
         "fff1:1:3:4:5:6:7:8:9",
