@@ -123,7 +123,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         .input_table_paths(source_table) \
         .output_table_path(destination_table) \
         .sort_by(sort_by) \
-        .job_io(job_io) \
         .partition_job_io(job_io) \
         .sort_job_io(job_io) \
         .merge_job_io(job_io) \
@@ -210,7 +209,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         .input_table_paths(source_table) \
         .output_table_paths(destination_table) \
         .stderr_table_path(stderr_table) \
-        .job_io(job_io) \
         .map_job_io(job_io) \
         .reduce_job_io(job_io) \
         .sort_job_io(job_io) \
