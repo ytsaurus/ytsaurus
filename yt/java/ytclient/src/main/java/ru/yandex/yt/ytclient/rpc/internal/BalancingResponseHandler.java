@@ -98,8 +98,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
 
         // schedule next step
         executorService.schedule(() ->
-                onTimeout()
-            , step * failoverTimeout, TimeUnit.MILLISECONDS);
+                onTimeout(), failoverTimeout, TimeUnit.MILLISECONDS);
 
         timeout -= failoverTimeout;
     }
