@@ -168,7 +168,7 @@ class JobIOSpecBuilder(object):
         if spec:
             self._spec = spec
 
-        self._spec_override = {}
+        self._spec_defaults = {}
         self.user_job_spec_builder = user_job_spec_builder
         self.io_name = io_name
 
@@ -204,12 +204,12 @@ class JobIOSpecBuilder(object):
         builder_func(self)
         return user_job_spec_builder
 
-    def _set_spec_override(self, spec):
-        self._spec_override = spec
+    def _set_spec_defaults(self, spec):
+        self._spec_defaults = spec
 
     def build(self):
-        spec = update(self._spec_override, deepcopy(self._spec))
-        self._spec_override = {}
+        spec = update(self._spec_defaults, deepcopy(self._spec))
+        self._spec_defaults = {}
         return spec
 
 class PartitionJobIOSpecBuilder(JobIOSpecBuilder):
@@ -252,13 +252,14 @@ class UserJobSpecBuilder(object):
         self._spec = {}
         if spec:
             self._spec = spec
-        self._spec_override = {}
+
+        self._spec_defaults = {}
 
         self._spec_builder = spec_builder
         self._operation_type = operation_type
         self._job_type = job_type
 
-    @spec_option("The string that will be completed by bash-c call")
+    @spec_option("Command that will be executed in job")
     def command(self, binary_or_python_obj):
         return _set_spec_value(self, "command", binary_or_python_obj)
 
@@ -499,14 +500,14 @@ class UserJobSpecBuilder(object):
                 spec["tmpfs_path"] = "tmpfs"
         return spec
 
-    def _set_spec_override(self, spec):
-        self._spec_override = spec
+    def _set_spec_defaults(self, spec):
+        self._spec_defaults = spec
 
     def build(self, input_table_count, output_table_count, operation_type, local_files_to_remove=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
-        spec = update(self._spec_override, self._deepcopy_spec())
-        self._spec_override = {}
+        spec = update(self._spec_defaults, self._deepcopy_spec())
+        self._spec_defaults = {}
 
         format_ = spec.pop("format", None)
         input_format, output_format = _prepare_formats(format_, spec.get("input_format"), spec.get("output_format"),
@@ -706,44 +707,33 @@ class SpecBuilder(object):
             spec[job_io_type]["table_writer"] = table_writer
         return spec
 
-    def _apply_spec_patches(self, spec, spec_patches):
+    def _apply_spec_defaults(self, spec, client):
+        spec_defaults = update(
+            deepcopy(get_config(client)["spec_defaults"]),
+            get_value(self._user_spec, {}))
+
         for user_job_script in self._user_job_scripts:
-            if user_job_script in spec_patches:
+            if user_job_script in spec_defaults:
                 spec.setdefault(user_job_script, UserJobSpecBuilder(job_type=user_job_script))
-
-                user_job_spec = None
-                if isinstance(spec_patches[user_job_script], UserJobSpecBuilder):
-                    user_job_spec = spec_patches[user_job_script]._spec
-                else:
-                    user_job_spec = spec_patches[user_job_script]
-
+                patch = spec_defaults[user_job_script]
                 if isinstance(spec[user_job_script], UserJobSpecBuilder):
-                    spec[user_job_script]._set_spec_override(user_job_spec)
+                    spec[user_job_script]._set_spec_defaults(patch)
                 else:
-                    spec[user_job_script] = update(user_job_spec, spec[user_job_script])
+                    spec[user_job_script] = update(patch, spec[user_job_script])
 
         for job_io_type in self._job_io_types:
-            if job_io_type in spec_patches:
+            if job_io_type in spec_defaults:
                 spec.setdefault(job_io_type, JobIOSpecBuilder())
-
-                job_io_spec = None
-                if isinstance(spec_patches[job_io_type], JobIOSpecBuilder):
-                    job_io_spec = spec_patches[job_io_type]._spec
-                else:
-                    job_io_spec = spec_patches[job_io_type]
-
+                patch = spec_defaults[job_io_type]
                 if isinstance(spec[job_io_type], JobIOSpecBuilder):
-                    spec[job_io_type]._set_spec_override(job_io_spec)
+                    spec[job_io_type]._set_spec_defaults(patch)
                 else:
-                    spec[job_io_type] = update(job_io_spec, spec[job_io_type])
+                    spec[job_io_type] = update(patch, spec[job_io_type])
 
-        return update(spec_patches, spec)
+        return update(spec_defaults, spec)
 
-    def _apply_spec_overrides(self, spec, client=None):
-        return self._apply_spec_patches(spec, deepcopy(get_config(client)["spec_overrides"]))
-
-    def _apply_user_spec(self, spec):
-        return self._apply_spec_patches(spec, get_value(self._user_spec, {}))
+    def _apply_spec_overrides(self, spec, client):
+        return update(spec, deepcopy(get_config(client)["spec_overrides"]))
 
     def _prepare_spec(self, spec, client=None):
         spec = self._prepare_stderr_table(spec, client=client)
@@ -752,7 +742,6 @@ class SpecBuilder(object):
             spec = self._build_job_io(spec, job_io_type=job_io_type, client=client)
 
         started_by = get_started_by()
-        spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
         spec = update({"started_by": started_by}, spec)
         if get_config(client)["pool"] is not None:
             spec = update({"pool": get_config(client)["pool"]}, spec)
@@ -784,7 +773,7 @@ class SpecBuilder(object):
         if self._prepared_spec is None:
             self.prepare(client)
 
-        return self._prepared_spec
+        return self._apply_spec_overrides(self._prepared_spec, client)
 
     def supports_user_job_spec(self):
         return False
@@ -856,8 +845,7 @@ class ReduceSpecBuilder(SpecBuilder):
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
-        spec = self._apply_spec_overrides(spec, client=client)
-        spec = self._apply_user_spec(spec)
+        spec = self._apply_spec_defaults(spec, client)
 
         self._prepare_tables(spec, client=client)
         if spec.get("sort_by") is None and spec.get("reduce_by") is not None:
@@ -887,7 +875,7 @@ class ReduceSpecBuilder(SpecBuilder):
                                              output_table_count=len(self.get_output_table_paths()),
                                              group_by=group_by,
                                              client=client)
-        return spec
+        return self._apply_spec_overrides(spec, client)
 
     def supports_user_job_spec(self):
         return True
@@ -941,8 +929,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
-        spec = self._apply_spec_overrides(spec, client=client)
-        spec = self._apply_user_spec(spec)
+        spec = self._apply_spec_defaults(spec, client)
 
         self._prepare_tables(spec, client=client)
         spec["join_by"] = _prepare_join_by(spec.get("join_by"))
@@ -961,7 +948,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
                                              output_table_count=len(self.get_output_table_paths()),
                                              group_by=spec.get("join_by"),
                                              client=client)
-        return spec
+        return self._apply_spec_overrides(spec, client)
 
     def supports_user_job_spec(self):
         return True
@@ -1011,8 +998,7 @@ class MapSpecBuilder(SpecBuilder):
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
-        spec = self._apply_spec_overrides(spec, client=client)
-        spec = self._apply_user_spec(spec)
+        spec = self._apply_spec_defaults(spec, client)
 
         self._prepare_tables(spec, client=client)
         if "ordered" in spec:
@@ -1032,7 +1018,7 @@ class MapSpecBuilder(SpecBuilder):
                                              input_table_count=len(self.get_input_table_paths()),
                                              output_table_count=len(self.get_output_table_paths()),
                                              client=client)
-        return spec
+        return self._apply_spec_overrides(spec, client)
 
     def supports_user_job_spec(self):
         return True
@@ -1159,8 +1145,7 @@ class MapReduceSpecBuilder(SpecBuilder):
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
-        spec = self._apply_spec_overrides(spec, client=client)
-        spec = self._apply_user_spec(spec)
+        spec = self._apply_spec_defaults(spec, client)
 
         self._prepare_tables(spec, client=client)
 
@@ -1199,7 +1184,7 @@ class MapReduceSpecBuilder(SpecBuilder):
                                              output_table_count=1,
                                              group_by=spec.get("reduce_by"),
                                              client=client)
-        return spec
+        return self._apply_spec_overrides(spec, client)
 
     def supports_user_job_spec(self):
         return True
@@ -1257,8 +1242,7 @@ class MergeSpecBuilder(SpecBuilder):
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
-        spec = self._apply_spec_overrides(spec, client=client)
-        spec = self._apply_user_spec(spec)
+        spec = self._apply_spec_defaults(spec, client)
 
         self._prepare_tables(spec, single_output_table=True, replace_unexisting_by_empty=False, client=client)
         mode = get_value(spec.get("mode"), "auto")
@@ -1383,8 +1367,7 @@ class SortSpecBuilder(SpecBuilder):
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
-        spec = self._apply_spec_overrides(spec, client=client)
-        spec = self._apply_user_spec(spec)
+        spec = self._apply_spec_defaults(spec, client)
 
         require("input_table_paths" in spec, lambda: YtError("You should specify input_table_paths"))
 
@@ -1439,8 +1422,7 @@ class RemoteCopySpecBuilder(SpecBuilder):
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
-        spec = self._apply_spec_overrides(spec, client=client)
-        spec = self._apply_user_spec(spec)
+        spec = self._apply_spec_defaults(spec, client)
 
         self._prepare_tables(spec, single_output_table=True, client=client)
         self._prepare_spec(spec, client=client)
@@ -1472,8 +1454,7 @@ class EraseSpecBuilder(SpecBuilder):
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
-        spec = self._apply_spec_overrides(spec, client=client)
-        spec = self._apply_user_spec(spec)
+        spec = self._apply_spec_defaults(spec, client)
         require("table_path" in spec, lambda: YtError("You should specify table_path"))
 
         table_path = _prepare_source_tables(spec["table_path"], client=client)
