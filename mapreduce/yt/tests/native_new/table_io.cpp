@@ -8,7 +8,6 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/io.h>
 
-#include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/abortable_http_response.h>
 
 #include <library/unittest/registar.h>

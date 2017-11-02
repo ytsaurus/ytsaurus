@@ -1,6 +1,6 @@
 #include "lib.h"
 
-#include <mapreduce/yt/http/error.h>
+#include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/util/wait_for_tablets_state.h>
 
 #include <library/unittest/registar.h>

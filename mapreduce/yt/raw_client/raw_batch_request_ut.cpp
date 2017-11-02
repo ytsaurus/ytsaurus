@@ -1,7 +1,7 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 
 #include <mapreduce/yt/interface/client_method_options.h>
-#include <mapreduce/yt/http/error.h>
+#include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/http/retry_request.h>
 
 #include <library/unittest/registar.h>

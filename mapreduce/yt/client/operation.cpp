@@ -23,7 +23,6 @@
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
-#include <mapreduce/yt/http/error.h>
 
 #include <mapreduce/yt/io/job_reader.h>
 #include <mapreduce/yt/io/job_writer.h>

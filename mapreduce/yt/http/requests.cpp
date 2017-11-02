@@ -1,6 +1,5 @@
 #include "requests.h"
 
-#include "error.h"
 #include "retry_request.h"
 
 #include <mapreduce/yt/client/transaction.h>

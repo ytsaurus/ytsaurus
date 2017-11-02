@@ -1,10 +1,9 @@
 #pragma once
 
-#include "error.h"
-
 #include <mapreduce/yt/interface/common.h>
-#include <mapreduce/yt/interface/node.h>
+#include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/io.h>
+#include <mapreduce/yt/interface/node.h>
 
 #include <library/http/io/stream.h>
 

@@ -9,7 +9,6 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
-#include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/retry_request.h>
 
