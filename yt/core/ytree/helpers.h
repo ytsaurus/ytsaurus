@@ -27,8 +27,8 @@ const IAttributeDictionary& EmptyAttributes();
 void Serialize(const IAttributeDictionary& attributes, NYson::IYsonConsumer* consumer);
 
 //! Protobuf conversion methods.
-void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
-std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
+void ToProto(NProto::TAttributeDictionary* protoAttributes, const IAttributeDictionary& attributes);
+std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributeDictionary& protoAttributes);
 
 //! By-value binary serializer.
 struct TAttributeDictionaryValueSerializer

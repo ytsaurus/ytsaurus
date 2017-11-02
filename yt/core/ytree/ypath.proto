@@ -41,7 +41,7 @@ message TReqGet
     optional TAttributeKeys attributes = 1;
     optional int64 limit = 2;
     optional bool ignore_opaque = 3;
-    optional NYT.NYTree.NProto.TAttributes options = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary options = 4;
 }
 
 message TRspGet
