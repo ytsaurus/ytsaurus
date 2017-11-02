@@ -17,7 +17,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/core/tracing/trace_context.h>
 

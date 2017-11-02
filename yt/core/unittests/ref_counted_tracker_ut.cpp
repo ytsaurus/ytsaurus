@@ -1,5 +1,6 @@
 #include <yt/core/test_framework/framework.h>
-#include <yt/core/unittests/ref_counted_tracker_ut.pb.h>
+
+#include <yt/core/unittests/proto/ref_counted_tracker_ut.pb.h>
 
 #define YT_ENABLE_REF_COUNTED_TRACKING
 

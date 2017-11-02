@@ -1,6 +1,6 @@
 #include "protobuf_interop.h"
 
-#include <yt/core/yson/protos/protobuf_interop.pb.h>
+#include <yt/core/yson/proto/protobuf_interop.pb.h>
 
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/writer.h>

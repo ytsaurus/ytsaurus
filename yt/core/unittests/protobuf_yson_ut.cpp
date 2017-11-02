@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/unittests/protobuf_yson_ut.pb.h>
+#include <yt/core/unittests/proto/protobuf_yson_ut.pb.h>
 
 #include <yt/core/yson/protobuf_interop.h>
 #include <yt/core/yson/null_consumer.h>

@@ -8,7 +8,7 @@
 #include "ypath_detail.h"
 #include "ypath_service.h"
 
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {

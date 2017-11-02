@@ -25,9 +25,9 @@
 #include <yt/core/misc/expiring_cache.h>
 #include <yt/core/misc/string.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 #include <util/datetime/base.h>
 
