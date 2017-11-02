@@ -672,11 +672,10 @@ private:
             BIND(&TJob::PrepareSandboxDirectories, MakeStrong(this))
                 .AsyncVia(Invoker_)
                 .Run()
-                .Subscribe(
-                    BIND(
-                        &TJob::OnDirectoriesPrepared,
-                        MakeWeak(this))
-                        .Via(Invoker_));
+                .Subscribe(BIND(
+                    &TJob::OnDirectoriesPrepared,
+                    MakeWeak(this))
+                .Via(Invoker_));
         });
     }
 
@@ -935,19 +934,11 @@ private:
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
-                bool enable = Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs;
                 TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
                     ESandboxKind::User,
                     userJobSpec.tmpfs_size(),
-                    userJobSpec.tmpfs_path(),
-                    enable))
+                    userJobSpec.tmpfs_path()))
                 .ValueOrThrow();
-
-                // Slot just creates directory in that case and job proxy
-                // should not consider this directory as tmpfs.
-                if (!enable) {
-                    TmpfsPath_ = Null;
-                }
             }
         }
     }

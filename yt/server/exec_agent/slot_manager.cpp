@@ -12,8 +12,6 @@
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/master_connector.h>
 
-#include <yt/core/concurrency/action_queue.h>
-
 namespace NYT {
 namespace NExecAgent {
 
@@ -47,21 +45,6 @@ void TSlotManager::Initialize()
         Config_->JobEnvironment,
         Bootstrap_);
 
-    int locationIndex = 0;
-    for (auto locationConfig : Config_->Locations) {
-        Locations_.push_back(New<TSlotLocation>(
-            std::move(locationConfig),
-            Bootstrap_,
-            Format("slots%v", locationIndex),
-            Config_->DetachedTmpfsUmount));
-
-        if (Locations_.back()->IsEnabled()) {
-            AliveLocations_.push_back(Locations_.back());
-        }
-
-        ++locationIndex;
-    }
-
     // First shutdown all possible processes.
     try {
         for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
@@ -76,14 +59,32 @@ void TSlotManager::Initialize()
         return;
     }
 
+    int locationIndex = 0;
+    for (auto locationConfig : Config_->Locations) {
+        try {
+            Locations_.push_back(New<TSlotLocation>(
+                std::move(locationConfig),
+                Bootstrap_,
+                Format("slots%v", locationIndex),
+                JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path),
+                Config_->EnableTmpfs));
+
+            if (Locations_.back()->IsEnabled()) {
+                AliveLocations_.push_back(Locations_.back());
+            }
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Failed to initialize slot location (Path: %v)", locationConfig->Path);
+        }
+
+        ++locationIndex;
+    }
+
     // Then clean all the sandboxes.
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     for (auto& location : AliveLocations_) {
         try {
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                WaitFor(location->CleanSandboxes(
-                    slotIndex,
-                    JobEnvironment_->CreateMounter(slotIndex)))
+                WaitFor(location->CleanSandboxes(slotIndex))
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {

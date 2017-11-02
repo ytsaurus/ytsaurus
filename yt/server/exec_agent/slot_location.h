@@ -26,9 +26,12 @@ public:
         const TSlotLocationConfigPtr& config,
         const NCellNode::TBootstrap* bootstrap,
         const TString& id,
-        bool detachedTmpfsUmount);
+        const IJobDirectoryManagerPtr& jobDirectoryManager,
+        bool enableTmpfs);
 
-    TFuture<void> CreateSandboxDirectories(int slotIndex);
+    //! Make ./sandbox, ./home/, ./udf and other directories.
+    TFuture<void> CreateSandboxDirectories(
+        int slotIndex);
 
     TFuture<void> MakeSandboxCopy(
         int slotIndex,
@@ -44,13 +47,11 @@ public:
         const TString& linkName,
         bool executable);
 
-    TFuture<TString> MakeSandboxTmpfs(
+    TFuture<TNullable<TString>> MakeSandboxTmpfs(
         int slotIndex,
         ESandboxKind kind,
         i64 size,
-        const TString& path,
-        bool enable,
-        IMounterPtr mounter);
+        const TString& path);
 
     // Set quota, permissions, etc. Must be called when all files are prepared.
     TFuture<void> FinalizeSanboxPreparation(
@@ -59,9 +60,10 @@ public:
         TNullable<i64> inodeLimit,
         int userId);
 
+    //! Finishes sandbox preparation.
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
-    TFuture<void> CleanSandboxes(int slotIndex, IMounterPtr mounter);
+    TFuture<void> CleanSandboxes(int slotIndex);
 
     TString GetSlotPath(int slotIndex) const;
 
@@ -72,13 +74,14 @@ private:
     const TSlotLocationConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
 
+    const IJobDirectoryManagerPtr JobDirectoryManager_;
+
     NConcurrency::TActionQueuePtr LocationQueue_;
 
-    const bool DetachedTmpfsUmount_;
+    const bool EnableTmpfs_;
+    const bool HasRootPermissions_;
 
-    bool HasRootPermissions_;
-
-    yhash_set<TString> TmpfsPaths_;
+    std::set<TString> TmpfsPaths_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

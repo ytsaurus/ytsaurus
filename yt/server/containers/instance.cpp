@@ -246,41 +246,6 @@ public:
         return Executor_->AsyncPoll(Name_);
     }
 
-    virtual void MountTmpfs(const TString& path, const size_t size, const TString& user) override
-    {
-        std::map<TString, TString> config;
-        config["backend"] = "tmpfs";
-        config["user"] = user;
-        config["space_limit"] = ToString(size);
-        auto mountId = WaitFor(Executor_->CreateVolume(path, config))
-            .ValueOrThrow();
-
-        std::vector<TFuture<void>> mountActions;
-        mountActions.push_back(Executor_->LinkVolume(mountId.Path, Name_));
-        mountActions.push_back(Executor_->UnlinkVolume(mountId.Path, ""));
-        WaitFor(Combine(mountActions)).ThrowOnError();
-    }
-
-    virtual void Umount(const TString& path) override
-    {
-        WaitFor(Executor_->UnlinkVolume(path, Name_)).ThrowOnError();
-    }
-
-    virtual std::vector<NFS::TMountPoint> ListVolumes() const override
-    {
-        std::vector<NFS::TMountPoint> result;
-        auto volumes = WaitFor(Executor_->ListVolumes()).ValueOrThrow();
-        // O(n^2) but only if all mountpoints is mounted to each container and namespace is disabled.
-        for (const auto& volume : volumes) {
-            for (auto container : volume.Containers) {
-                if (container == Name_) {
-                    result.push_back({TString(), volume.Path});
-                }
-            }
-        }
-        return result;
-    }
-
 private:
     const TString Name_;
     mutable IPortoExecutorPtr Executor_;
