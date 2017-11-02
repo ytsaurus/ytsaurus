@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/protos/discovery_service.pb.h>
+#include <yt/ytlib/api/proto/discovery_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

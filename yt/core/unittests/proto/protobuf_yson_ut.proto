@@ -1,6 +1,6 @@
 package NYT.NProto;
 
-import "yt/core/yson/protos/protobuf_interop.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
 
 enum EColor
 {

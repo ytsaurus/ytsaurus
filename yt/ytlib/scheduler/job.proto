@@ -1,6 +1,6 @@
 package NYT.NScheduler.NProto;
 
-import "yt/core/misc/guid.proto";
+import "yt/core/misc/proto/guid.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/data_slice_descriptor.proto";
 import "yt/ytlib/chunk_client/data_source.proto";

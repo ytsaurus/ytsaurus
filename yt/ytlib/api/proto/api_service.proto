@@ -4,8 +4,8 @@ option java_package = "ru.yandex.yt.rpcproxy";
 option java_outer_classname = "ApiProtos";
 option java_multiple_files = true;
 
-import "yt/core/rpc/rpc.proto";
-import "yt/core/misc/guid.proto";
+import "yt/core/rpc/proto/rpc.proto";
+import "yt/core/misc/proto/guid.proto";
 import "yt/ytlib/hive/timestamp_map.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +35,7 @@ Durations and serialized as int64, in microseconds.
 
 Instants are serialized as int64, in microseconds since unix epoch.
 
-Guids are serialized as a pair of fixed64 (see yt/core/misc/guid.proto).
+Guids are serialized as a pair of fixed64 (see yt/core/misc/proto/guid.proto).
 */
 
 enum ETransactionType

@@ -3,9 +3,10 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/error.pb.h>
+#include <yt/core/misc/proto/error.pb.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/proc.h>
+
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/tracing/trace_context.h>
