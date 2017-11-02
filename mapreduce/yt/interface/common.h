@@ -99,14 +99,27 @@ struct TKeyBase
     }
 
     template <class U, class... TArgs>
-    void Add(U&& part, TArgs&&... args)
+    TKeyBase& Add(U&& part, TArgs&&... args) &
     {
         Parts_.push_back(std::forward<U>(part));
-        Add(std::forward<TArgs>(args)...);
+        return Add(std::forward<TArgs>(args)...);
     }
 
-    void Add()
-    { }
+    template <class... TArgs>
+    TKeyBase Add(TArgs&&... args) &&
+    {
+        return std::move(Add(std::forward<TArgs>(args)...));
+    }
+
+    TKeyBase& Add() &
+    {
+        return *this;
+    }
+
+    TKeyBase Add() &&
+    {
+        return std::move(*this);
+    }
 
     yvector<T> Parts_;
 };
