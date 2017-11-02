@@ -85,9 +85,6 @@ public:
      */
     TExecNodeDescriptor BuildExecDescriptor() const;
 
-    //! Returns the node's IO weight, as reported by node to master.
-    double GetIOWeight() const;
-
     //! Set the node's IO weight.
     void SetIOWeights(const yhash<TString, double>& mediumToWeight);
 
