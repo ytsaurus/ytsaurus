@@ -219,6 +219,7 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::AddInput(const TRichYPath& path)
 {
+    static_assert(!std::is_same<T, Message>::value, "input type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
     TOperationIOSpecBase::AddInput<T>(path);
     return *static_cast<TDerived*>(this);
 }
@@ -227,6 +228,7 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::SetInput(size_t tableIndex, const TRichYPath& path)
 {
+    static_assert(!std::is_same<T, Message>::value, "input type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
     TOperationIOSpecBase::SetInput<T>(tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
@@ -236,6 +238,7 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::AddOutput(const TRichYPath& path)
 {
+    static_assert(!std::is_same<T, Message>::value, "output type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
     TOperationIOSpecBase::AddOutput<T>(path);
     return *static_cast<TDerived*>(this);
 }
@@ -244,9 +247,46 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYPath& path)
 {
+    static_assert(!std::is_same<T, Message>::value, "output type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
     TOperationIOSpecBase::SetOutput<T>(tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TDerived>
+TDerived& TOperationIOSpec<TDerived>::AddProtobufInput_VerySlow_Deprecated(const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<Message>::Add(InputDesc_);
+    Inputs_.push_back(path);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+TDerived& TOperationIOSpec<TDerived>::SetProtobufInput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<Message>::Set(tableIndex, InputDesc_);
+    Assign(Inputs_, tableIndex, path);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+TDerived& TOperationIOSpec<TDerived>::AddProtobufOutput_VerySlow_Deprecated(const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<Message>::Add(OutputDesc_);
+    Outputs_.push_back(path);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+TDerived& TOperationIOSpec<TDerived>::SetProtobufOutput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<Message>::Set(tableIndex, OutputDesc_);
+    Assign(Outputs_, tableIndex, path);
+    return *static_cast<TDerived*>(this);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
 template <class TRow>

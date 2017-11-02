@@ -83,6 +83,17 @@ struct TOperationIOSpec
     template <class T>
     TDerived& SetOutput(size_t tableIndex, const TRichYPath& path);
 
+
+    // DON'T USE THESE METHODS! They are left solely for backward compatibility.
+    // These methods are the only way to do equivalent of (Add/Set)(Input/Output)<Message>
+    // but please consider using (Add/Set)(Input/Output)<TConcreteMessage>
+    // (where TConcreteMessage is some descendant of Message)
+    // because they are faster and better (see https://st.yandex-team.ru/YT-6967)
+    TDerived& AddProtobufInput_VerySlow_Deprecated(const TRichYPath& path);
+    TDerived& SetProtobufInput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path);
+    TDerived& AddProtobufOutput_VerySlow_Deprecated(const TRichYPath& path);
+    TDerived& SetProtobufOutput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path);
+
     // Ensure output tables exist before starting operation.
     // If set to false, it is caller's responsibility to ensure output tables exist.
     FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
