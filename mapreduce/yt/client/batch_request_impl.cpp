@@ -10,7 +10,6 @@
 
 #include <mapreduce/yt/interface/node.h>
 
-#include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/retry_request.h>
 
 #include <mapreduce/yt/raw_client/raw_requests.h>

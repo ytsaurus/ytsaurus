@@ -1,7 +1,6 @@
 #include "http.h"
 
 #include "abortable_http_response.h"
-#include "error.h"
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>

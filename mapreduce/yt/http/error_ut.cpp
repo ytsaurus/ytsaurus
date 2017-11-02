@@ -2,8 +2,10 @@
 
 #include <library/json/json_reader.h>
 
-#include <mapreduce/yt/http/error.h>
+#include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/common/helpers.h>
+
+// TODO: move to mapreduce/interface
 
 using namespace NYT;
 
@@ -43,7 +45,7 @@ SIMPLE_UNIT_TEST_SUITE(ErrorSuite)
         NJson::TJsonValue jsonValue;
         ReadJsonFastTree(jsonText, &jsonValue, /*throwOnError=*/ true);
 
-        TError error(jsonValue);
+        TYtError error(jsonValue);
         UNIT_ASSERT_VALUES_EQUAL(error.GetCode(), 500);
         UNIT_ASSERT_VALUES_EQUAL(error.GetMessage(), R"""(Error resolving path //home/user/link)""");
         UNIT_ASSERT_VALUES_EQUAL(error.InnerErrors().size(), 1);
@@ -67,10 +69,10 @@ SIMPLE_UNIT_TEST_SUITE(ErrorSuite)
                     R"""("attributes":{},)"""
                     R"""("inner_errors":[])"""
                 R"""(}]})""";
-        TError error;
+        TYtError error;
         error.ParseFrom(jsonText);
         TString ysonText = error.GetYsonText();
-        TError error2(NodeFromYsonString(ysonText));
+        TYtError error2(NodeFromYsonString(ysonText));
         UNIT_ASSERT_EQUAL(
             ysonText,
             R"""({"code"=500;"message"="outer error";"attributes"={"method"="Create";"pid"=414529};"inner_errors"=[{"code"=1;"message"="inner error"}]})""");

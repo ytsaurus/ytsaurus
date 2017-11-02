@@ -1,7 +1,6 @@
 #include "lib.h"
 
 #include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/http/error.h>
 
 #include <library/unittest/registar.h>
 

@@ -444,7 +444,7 @@ void TRawBatchRequest::ParseResponse(
                     BatchItemList_[i].ResponseParser->SetResponse(Nothing());
                 } else {
                     TErrorResponse error(400, requestId);
-                    error.SetError(TError(errorIt->second));
+                    error.SetError(TYtError(errorIt->second));
                     if (auto curInterval = retryPolicy.GetRetryInterval(error)) {
                         LOG_INFO(
                             "Batch subrequest (%s) failed, will retry, error: %s",

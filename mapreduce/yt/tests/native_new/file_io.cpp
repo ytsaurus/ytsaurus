@@ -3,7 +3,6 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/common/config.h>
 
-#include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/abortable_http_response.h>
 
 #include <library/unittest/registar.h>
