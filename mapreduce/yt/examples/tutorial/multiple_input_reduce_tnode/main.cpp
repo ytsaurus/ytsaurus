@@ -5,7 +5,7 @@
 
 using namespace NYT;
 
-class TFilterOutRobotsReduce
+class TFilterRobotsReduce
     : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
@@ -34,7 +34,7 @@ public:
         }
     }
 };
-REGISTER_REDUCER(TFilterOutRobotsReduce)
+REGISTER_REDUCER(TFilterRobotsReduce)
 
 int main(int argc, const char** argv) {
     NYT::Initialize(argc, argv);
@@ -63,7 +63,7 @@ int main(int argc, const char** argv) {
             .AddInput<TNode>(sortedLoginTable) // Таблицу с логинами мы добавляем первой, поэтому её TableIndex == 0
             .AddInput<TNode>(sortedIsRobotTable) // Таблицу про роботов мы добавляем второй, поэтому её TableIndex == 1
             .AddOutput<TNode>(outputTable),
-        new TFilterOutRobotsReduce);
+        new TFilterRobotsReduce);
 
     Cout << "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << outputTable << Endl;
     return 0;
