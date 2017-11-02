@@ -797,6 +797,8 @@ private:
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
 
+                tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount += writer->GetDataStatistics().data_weight();
+
                 ProfileDiskPressure(
                     tabletSnapshot,
                     writer->GetDataStatistics(),
@@ -1154,6 +1156,8 @@ private:
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
 
             }
+
+            tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += writer->GetDataStatistics().data_weight();
 
             ProfileDiskPressure(
                 tabletSnapshot,
