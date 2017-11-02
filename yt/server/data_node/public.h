@@ -72,6 +72,9 @@ DECLARE_REFCOUNTED_CLASS(TRepairReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TSealReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
+DECLARE_REFCOUNTED_CLASS(TLayerLocationConfig)
+DECLARE_REFCOUNTED_CLASS(TVolumeManagerConfig)
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

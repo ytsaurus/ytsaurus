@@ -1,9 +1,10 @@
 #include "job_environment.h"
 #include "config.h"
-#include "mounter.h"
+#include "job_directory_manager.h"
 #include "private.h"
 
 #include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
 #include <yt/server/data_node/master_connector.h>
 
@@ -109,15 +110,6 @@ public:
         return Enabled_;
     }
 
-    virtual IMounterPtr CreateMounter(int /*slotIndex*/) override
-    {
-        //Same mounter for all slots.
-        if (!Mounter_) {
-            Mounter_ = CreateSimpleMounter(ActionQueue_->GetInvoker());
-        }
-        return Mounter_;
-    }
-
 protected:
     struct TJobProxyProcess
     {
@@ -179,8 +171,6 @@ protected:
     { }
 
 private:
-    IMounterPtr Mounter_;
-
     virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/)
     {
         return New<TSimpleProcess>(JobProxyProgramName);
@@ -251,8 +241,17 @@ public:
         return Config_->StartUid + slotIndex;
     }
 
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
+    {
+        return CreateSimpleJobDirectoryManager(
+            MounterThread_->GetInvoker(),
+            path,
+            Bootstrap_->GetConfig()->ExecAgent->SlotManager->DetachedTmpfsUmount);
+    }
+
 private:
     const TCGroupJobEnvironmentConfigPtr Config_;
+    const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
     virtual void AddArguments(TProcessBasePtr process, int slotIndex) override
     {
@@ -321,9 +320,18 @@ public:
             : ::getuid();
     }
 
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
+    {
+        return CreateSimpleJobDirectoryManager(
+            MounterThread_->GetInvoker(),
+            path,
+            Bootstrap_->GetConfig()->ExecAgent->SlotManager->DetachedTmpfsUmount);
+    }
+
 private:
     const TSimpleJobEnvironmentConfigPtr Config_;
     const bool HasRootPermissions_ = HasRootPermissions();
+    const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,14 +393,9 @@ public:
         return Config_->StartUid + slotIndex;
     }
 
-    virtual IMounterPtr CreateMounter(int slotIndex) override
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& /* path */)
     {
-        auto instanceProvider = BIND([=, this_ = MakeStrong(this)]() {
-            InitPortoInstance(slotIndex);
-            return PortoInstances_.at(slotIndex);
-        });
-
-        return CreatePortoMounter(instanceProvider);
+        return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager);
     }
 
 private:
