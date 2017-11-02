@@ -11,7 +11,7 @@ import "yt/ytlib/chunk_client/medium_directory.proto";
 message TReqCreateObject
 {
     required int32 type = 1;
-    optional NYT.NYTree.NProto.TAttributes object_attributes = 2;
+    optional NYT.NYTree.NProto.TAttributeDictionary object_attributes = 2;
 }
 
 message TRspCreateObject

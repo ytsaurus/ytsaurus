@@ -11,7 +11,7 @@ message TAttribute
     required bytes value = 2;
 }
 
-message TAttributes
+message TAttributeDictionary
 {
     repeated TAttribute attributes = 1;
 }
