@@ -46,6 +46,8 @@ message TTabletPerformanceCounters
     required int64 static_chunk_row_lookup_false_positive_count = 10;
     required int64 unmerged_row_read_count = 7;
     required int64 merged_row_read_count = 8;
+    optional int64 compaction_data_weight_count = 12 [default = 0];
+    optional int64 partitioning_data_weight_count = 13 [default = 0];
 }
 
 message TTableReplicaInfo

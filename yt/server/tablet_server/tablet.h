@@ -137,7 +137,9 @@ struct TTabletPerformanceCounter
     XX(static_chunk_row_lookup_true_negative,   StaticChunkRowLookupTrueNegative) \
     XX(static_chunk_row_lookup_false_positive,  StaticChunkRowLookupFalsePositive) \
     XX(unmerged_row_read,                       UnmergedRowRead) \
-    XX(merged_row_read,                         MergedRowRead)
+    XX(merged_row_read,                         MergedRowRead) \
+    XX(compaction_data_weight,                  CompactionDataWeightCount) \
+    XX(partitioning_data_weight,                PartitioningDataWeightCount)
 
 struct TTabletPerformanceCounters
 {
