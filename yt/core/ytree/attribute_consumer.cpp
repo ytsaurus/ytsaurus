@@ -22,12 +22,12 @@ IAttributeDictionary* TAttributeConsumer::GetAttributes() const
 void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
 {
     Writer.reset(new TBufferedBinaryYsonWriter(&Output));
-    Forward(Writer.get(), BIND([this, key = TString(key)] () {
+    Forward(Writer.get(), [this, key = TString(key)] {
         Writer->Flush();
         Writer.reset();
         Attributes->SetYson(key, TYsonString(Output.Str()));
         Output.clear();
-    }));
+    });
 }
 
 void TAttributeConsumer::OnMyBeginMap()

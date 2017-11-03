@@ -1043,16 +1043,15 @@ private:
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
-        TString keyString(key);
         AttributeWriter_.reset(new TBufferedBinaryYsonWriter(&AttributeStream_));
         Forward(
             AttributeWriter_.get(),
-            BIND ([=] () {
+            [this, key = TString(key)] {
                 AttributeWriter_->Flush();
                 AttributeWriter_.reset();
-                Attributes_->SetYson(keyString, TYsonString(AttributeStream_.Str()));
+                Attributes_->SetYson(key, TYsonString(AttributeStream_.Str()));
                 AttributeStream_.clear();
-            }));
+            });
     }
 };
 
@@ -1116,7 +1115,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     AttributesSetter_.reset(new TAttributesSetter(Node_->MutableAttributes()));
-    Forward(AttributesSetter_.get(), TClosure(), EYsonType::MapFragment);
+    Forward(AttributesSetter_.get(), nullptr, EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
