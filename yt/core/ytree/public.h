@@ -11,6 +11,7 @@ namespace NYTree {
 
 namespace NProto {
 
+class TAttributeDictionary;
 class TAttributeKeys;
 
 } // namespace NProto
