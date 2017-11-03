@@ -64,7 +64,6 @@ public:
         , Profiler("/tablet_server/tablet_balancer")
         , MemoryMoveCounter_("/in_memory_moves")
         , MergeCounter_("/tablet_merges")
-        , SplitCounter_("/tablet_splits")
         , QueueSizeCounter_("/queue_size")
     { }
 
@@ -134,11 +133,9 @@ private:
     const NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter MemoryMoveCounter_;
     NProfiling::TSimpleCounter MergeCounter_;
-    NProfiling::TSimpleCounter SplitCounter_;
     NProfiling::TSimpleCounter QueueSizeCounter_;
 
     int MergeCount_ = 0;
-    int SplitCount_ = 0;
 
     bool BalanceCells_ = false;
 
@@ -336,9 +333,7 @@ private:
 
         Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
         Profiler.Update(MergeCounter_, MergeCount_);
-        Profiler.Update(SplitCounter_, SplitCount_);
         MergeCount_ = 0;
-        SplitCount_ = 0;
     }
 
     void DoBalanceTablets()
@@ -447,35 +442,6 @@ private:
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
         ++MergeCount_;
-    }
-
-    void SplitTablet(TTablet* tablet, std::pair<i64, i64> bounds)
-    {
-        i64 desiredSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? Config_->DesiredTabletSize
-            : Config_->DesiredInMemoryTabletSize;
-
-        int newTabletCount = DivCeil(GetTabletSize(tablet), desiredSize);
-
-        if (newTabletCount < 2) {
-            return;
-        }
-
-        LOG_DEBUG("Tablet balancer would like to reshard tablet (TabletId: %v, NewTabletCount: %v)",
-            tablet->GetId(),
-            newTabletCount);
-
-        TouchedTablets_.insert(tablet);
-
-        TReqCreateTabletAction request;
-        request.set_kind(static_cast<int>(ETabletActionKind::Reshard));
-        ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
-        request.set_tablet_count(newTabletCount);
-
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
-        ++SplitCount_;
     }
 
     TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)
