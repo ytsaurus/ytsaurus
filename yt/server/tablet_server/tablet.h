@@ -124,6 +124,8 @@ struct TTabletPerformanceCounter
 {
     i64 Count = 0;
     double Rate = 0.0;
+    double Rate10 = 0.0;
+    double Rate60 = 0.0;
 };
 
 #define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
