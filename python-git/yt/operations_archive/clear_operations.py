@@ -186,6 +186,10 @@ class OperationArchiver(object):
 
         return rows
 
+    def do_insert_rows(self, path, rows):
+        atomicity = "none" if self.version >= 16 else "full"
+        self.yt.insert_rows(path, rows, update=True, atomicity=atomicity)
+
     def do_archive_jobs(self, op_ids):
         responses = self.yt.execute_batch(requests=[{
                 "command": "get",
@@ -209,7 +213,7 @@ class OperationArchiver(object):
         logger.info("Inserting %d jobs", len(rows))
 
         try:
-            self.yt.insert_rows(JOBS_PATH, rows, update=True)
+            self.do_insert_rows(JOBS_PATH, rows)
         except:
             failed_count += len(rows)
             raise

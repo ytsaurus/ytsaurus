@@ -559,6 +559,21 @@ TRANSFORMS[15] = [
             in_memory=True))
 ]
 
+def reduce_table_atomicity(table):
+    def action(client):
+        path = "{0}/{1}".format(BASE_PATH, table)
+        logging.info("Reducing table atomicity %s", path)
+        client.set(table + "/@atomicity", "none")
+        client.unmount_table(path)
+        client.mount_table(path)
+
+    return action
+
+ACTIONS[16] = [
+    reduce_table_atomicity("jobs"),
+    reduce_table_atomicity("job_specs"),
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
