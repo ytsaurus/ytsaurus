@@ -1,6 +1,7 @@
 package NYT.NProto;
 
 import "yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/ytree/proto/attributes.proto";
 
 enum EColor
 {
@@ -37,6 +38,7 @@ message TMessage
     optional TNestedMessage nested_message2 = 16;
     repeated int32 repeated_int32_field = 17;
     repeated TNestedMessage repeated_nested_message = 18;
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 19;
 }
 
 message TNestedMessageWithRequriedFields
