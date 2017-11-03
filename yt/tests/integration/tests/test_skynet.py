@@ -14,6 +14,7 @@ class TestSkynet(YTEnvSetup):
     NUM_NODES = 5
 
     DELTA_NODE_CONFIG = {
+        "use_new_http_server": True,
         "data_node": {
             "enable_experimental_skynet_http_api": True
         }
@@ -112,7 +113,7 @@ class TestSkynet(YTEnvSetup):
         else:
             raise KeyError(node_id)
 
-        url = "http://{}/read_skynet_part/?{}".format(
+        url = "http://{}/read_skynet_part?{}".format(
             http_address,
             "&".join("{}={}".format(k, v) for k, v in kwargs.items()))
         return urllib2.urlopen(url).read()

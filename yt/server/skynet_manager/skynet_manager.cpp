@@ -334,7 +334,7 @@ TString MakeFileUrl(
     ui64 partIndex)
 {
     return Format(
-        "http://%v/read_skynet_part/?chunk_id=%v&lower_row_index=%v&upper_row_index=%v&start_part_index=%v",
+        "http://%v/read_skynet_part?chunk_id=%v&lower_row_index=%v&upper_row_index=%v&start_part_index=%v",
         node,
         chunkId,
         lowerRowIndex,
