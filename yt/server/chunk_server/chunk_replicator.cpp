@@ -2024,7 +2024,7 @@ void TChunkReplicator::OnRequisitionUpdate()
         auto asyncResult = chunkManager
             ->CreateUpdateChunkRequisitionMutation(request)
             ->CommitAndLog(Logger);
-        WaitFor(asyncResult);
+        Y_UNUSED(WaitFor(asyncResult));
     }
 }
 

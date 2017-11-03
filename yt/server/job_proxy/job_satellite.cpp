@@ -406,7 +406,8 @@ void TJobSatelliteWorker::Fail()
 void TJobSatelliteWorker::GracefulShutdown(const TError &error)
 {
     if (JobProbe_) {
-        WaitFor(JobProbe_->AsyncGracefulShutdown(error));
+        WaitFor(JobProbe_->AsyncGracefulShutdown(error))
+            .ThrowOnError();
     }
 }
 

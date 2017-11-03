@@ -1225,7 +1225,9 @@ private:
               bytesReceived,
               rsp->peer_descriptors_size());
 
-        WaitFor(reader->Throttler_->Throttle(bytesReceived));
+        auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+        YCHECK(throttleResult.IsOK());
+
         RequestBlocks();
     }
 
@@ -1432,7 +1434,8 @@ private:
             FirstBlockIndex_ + blocksReceived - 1,
             bytesReceived);
 
-        WaitFor(reader->Throttler_->Throttle(bytesReceived));
+        auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+        YCHECK(throttleResult.IsOK());
 
         if (blocksReceived > 0) {
             OnSessionSucceeded();

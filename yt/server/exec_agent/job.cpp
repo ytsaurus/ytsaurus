@@ -906,7 +906,7 @@ private:
             LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
                 *unresolvedNodeId,
                 attempt);
-            WaitFor(TDelayedExecutor::MakeDelayed(Config_->NodeDirectoryPrepareBackoffTime));
+            TDelayedExecutor::WaitForDuration(Config_->NodeDirectoryPrepareBackoffTime);
         }
 
         LOG_INFO("Node directory is constructed locally");

@@ -2940,6 +2940,10 @@ private:
                 auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
                 counter->Rate = (std::max(curValue, prevValue) - prevValue) / timeDelta;
                 counter->Count = curValue;
+                auto exp10 = std::exp(-timeDelta / (60 * 10 / 2));
+                counter->Rate10 = curValue * (1 - exp10) + counter->Rate10 * exp10;
+                auto exp60 = std::exp(-timeDelta / (60 * 60 / 2));
+                counter->Rate60 = curValue * (1 - exp60) + counter->Rate60 * exp60;
             };
 
             #define XX(name, Name) updatePerformanceCounter( \

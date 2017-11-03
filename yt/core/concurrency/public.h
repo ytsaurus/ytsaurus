@@ -13,6 +13,7 @@ DECLARE_REFCOUNTED_CLASS(TThreadPool)
 DECLARE_REFCOUNTED_CLASS(TPeriodicExecutor)
 DECLARE_REFCOUNTED_CLASS(TFiber)
 DECLARE_REFCOUNTED_CLASS(TAsyncSemaphore)
+DECLARE_REFCOUNTED_CLASS(TProfiledAsyncSemaphore)
 
 DECLARE_REFCOUNTED_STRUCT(TDelayedExecutorEntry)
 typedef TDelayedExecutorEntryPtr TDelayedExecutorCookie;

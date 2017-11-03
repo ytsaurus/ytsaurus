@@ -406,12 +406,14 @@ protected:
 
         void UpdateNodeDataWeight(const TJobNodeDescriptor& descriptor, i64 delta)
         {
-            if (!Controller->Spec->EnablePartitionedDataBalancing) {
+            if (!Controller->Spec->EnablePartitionedDataBalancing ||
+                Controller->TotalEstimatedInputDataWeight < Controller->Spec->MinLocalityInputDataWeight)
+            {
                 return;
             }
 
             auto ioWeight = descriptor.IOWeight;
-            Y_ASSERT(ioWeight > 0);
+            YCHECK(ioWeight > 0);
             auto adjustedDelta = static_cast<i64>(delta / ioWeight);
 
             auto nodeId = descriptor.Id;

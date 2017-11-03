@@ -339,7 +339,8 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
         node->Descriptor.GetDefaultAddress(),
         Size_);
 
-    WaitFor(writer->Throttler_->Throttle(Size_));
+    auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
+    YCHECK(throttleResult.IsOK());
 
     LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
         FirstBlockIndex_,

@@ -767,6 +767,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoPerformanceCounters->set_static_chunk_row_lookup_false_positive_count(performanceCounters->StaticChunkRowLookupFalsePositiveCount);
             protoPerformanceCounters->set_unmerged_row_read_count(performanceCounters->UnmergedRowReadCount);
             protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
+            protoPerformanceCounters->set_compaction_data_weight_count(performanceCounters->CompactionDataWeightCount);
+            protoPerformanceCounters->set_partitioning_data_weight_count(performanceCounters->PartitioningDataWeightCount);
         }
     }
 
