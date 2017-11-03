@@ -391,7 +391,7 @@ private:
     {
         ItemKey_ = key;
         TreeBuilder_->BeginTree();
-        Forward(TreeBuilder_, BIND(&TNodeSetter::OnForwardingFinished, this));
+        Forward(TreeBuilder_, std::bind(&TNodeSetter::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -435,12 +435,9 @@ private:
     virtual void OnMyListItem() override
     {
         TreeBuilder_->BeginTree();
-        Forward(TreeBuilder_, BIND(&TNodeSetter::OnForwardingFinished, this));
-    }
-
-    void OnForwardingFinished()
-    {
-        List_->AddChild(TreeBuilder_->EndTree());
+        Forward(TreeBuilder_, [this] {
+            List_->AddChild(TreeBuilder_->EndTree());
+        });
     }
 
     virtual void OnMyEndList() override

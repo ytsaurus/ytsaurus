@@ -646,7 +646,7 @@ private:
     {
         AttributeKey_ = key;
         AttributeValue_.clear();
-        Forward(&AttributeValueWriter_, BIND([=] {
+        Forward(&AttributeValueWriter_, [this] {
             AttributeValueWriter_.Flush();
 
             BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(1 /*attribute*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
@@ -665,7 +665,7 @@ private:
             BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(2 /*value*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
             BodyCodedStream_.WriteVarint64(AttributeValue_.length());
             BodyCodedStream_.WriteRaw(AttributeValue_.data(), AttributeValue_.length());
-        }));
+        });
     }
 
     virtual void OnMyEndMap() override
