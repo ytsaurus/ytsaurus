@@ -1373,18 +1373,41 @@ class TestCypress(YTEnvSetup):
         revision2 = get("//tmp/d1/@revision")
         assert revision2 > revision1
 
-        set("//tmp/d1/@value", {"f": {"g": ["h", "i", "j"]}})
+        set("//tmp/d1/@value", {"f": {"g": ["h"], "i": "j"}})
         revision3 = get("//tmp/d1/@revision")
         assert revision3 > revision2
 
-        set("//tmp/d1/@value/f/g", ["k", "l", "m"])
+        set("//tmp/d1/f/g", ["k", "l", "m"])
         revision4 = get("//tmp/d1/@revision")
         assert revision4 > revision3
 
-        remove("//tmp/d1/@value/f/g")
+        set("//tmp/d1/@value/f/g", ["n", "o", "p"])
         revision5 = get("//tmp/d1/@revision")
         assert revision5 > revision4
 
+        remove("//tmp/d1/f/g")
+        revision6 = get("//tmp/d1/@revision")
+        assert revision6 > revision5
+
+        remove("//tmp/d1/@value/f/i")
+        revision7 = get("//tmp/d1/@revision")
+        assert revision7 > revision6
+
+        with pytest.raises(YtError): remove("//tmp/d1/f/i")
+        revision8 = get("//tmp/d1/@revision")
+        assert revision8 == revision7
+
+        with pytest.raises(YtError): remove("//tmp/d1/@value/f/i")
+        revision9 = get("//tmp/d1/@revision")
+        assert revision9 == revision7
+
+        with pytest.raises(YtError): set("//tmp/d1/f/g/h", ["q", "r", "s"])
+        revision10 = get("//tmp/d1/@revision")
+        assert revision10 == revision7
+
+        with pytest.raises(YtError): set("//tmp/d1/@value/f/g/h", ["q", "r", "s"])
+        revision11 = get("//tmp/d1/@revision")
+        assert revision11 == revision7
 
 ##################################################################
 

@@ -2013,7 +2013,7 @@ IYPathService::TResolveResult TDocumentNodeProxy::ResolveRecursive(
 namespace {
 
 template <class TServerRequest, class TServerResponse, class TContext>
-void DelegateInvocation(
+bool DelegateInvocation(
     IYPathServicePtr service,
     TServerRequest* serverRequest,
     TServerResponse* serverResponse,
@@ -2034,8 +2034,10 @@ void DelegateInvocation(
         const auto& clientResponse = clientResponseOrError.Value();
         serverResponse->MergeFrom(*clientResponse);
         context->Reply();
+        return true;
     } else {
         context->Reply(clientResponseOrError);
+        return false;
     }
 }
 
@@ -2080,7 +2082,9 @@ void TDocumentNodeProxy::SetRecursive(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
-    DelegateInvocation(impl->GetValue(), request, response, context);
+    if (DelegateInvocation(impl->GetValue(), request, response, context)) {
+        SetModified();
+    }
 }
 
 void TDocumentNodeProxy::ListSelf(
@@ -2112,7 +2116,9 @@ void TDocumentNodeProxy::RemoveRecursive(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
-    DelegateInvocation(impl->GetValue(), request, response, context);
+    if (DelegateInvocation(impl->GetValue(), request, response, context)) {
+        SetModified();
+    }
 }
 
 void TDocumentNodeProxy::ExistsRecursive(
