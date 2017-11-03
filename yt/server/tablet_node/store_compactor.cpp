@@ -76,14 +76,14 @@ class TStoreCompactor
 {
 public:
     TStoreCompactor(
-        TTabletNodeConfigPtr config,
+       TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
-        , PartitioningSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentPartitionings))
-        , CompactionSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentCompactions))
         , Profiler("/tablet_node/store_compactor")
+        , PartitioningSemaphore_(New<TProfiledAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentPartitionings, Profiler, "/running_partitionings"))
+        , CompactionSemaphore_(New<TProfiledAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentCompactions, Profiler, "/running_compactions"))
         , FeasiblePartitioningsCounter_("/feasible_partitionings")
         , FeasibleCompactionsCounter_("/feasible_compactions")
         , ScheduledPartitioningsCounter_("/scheduled_partitionings")
@@ -103,10 +103,10 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
-    TAsyncSemaphorePtr PartitioningSemaphore_;
-    TAsyncSemaphorePtr CompactionSemaphore_;
 
     const NProfiling::TProfiler Profiler;
+    TAsyncSemaphorePtr PartitioningSemaphore_;
+    TAsyncSemaphorePtr CompactionSemaphore_;
     NProfiling::TSimpleCounter FeasiblePartitioningsCounter_;
     NProfiling::TSimpleCounter FeasibleCompactionsCounter_;
     NProfiling::TSimpleCounter ScheduledPartitioningsCounter_;
@@ -797,6 +797,8 @@ private:
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
 
+                tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount += writer->GetDataStatistics().data_weight();
+
                 ProfileDiskPressure(
                     tabletSnapshot,
                     writer->GetDataStatistics(),
@@ -1154,6 +1156,8 @@ private:
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
 
             }
+
+            tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += writer->GetDataStatistics().data_weight();
 
             ProfileDiskPressure(
                 tabletSnapshot,

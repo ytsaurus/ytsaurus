@@ -46,11 +46,6 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
     };
 }
 
-double TExecNode::GetIOWeight() const
-{
-    return IOWeight_;
-}
-
 void TExecNode::SetIOWeights(const yhash<TString, double>& mediumToWeight)
 {
     TWriterGuard guard(SpinLock_);

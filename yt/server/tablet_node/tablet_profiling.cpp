@@ -77,9 +77,11 @@ struct TDiskBytesWrittenCounters
 {
     TDiskBytesWrittenCounters(const TTagIdList& list)
         : DiskBytesWritten("/disk_bytes_written", list)
+        , DiskDataWeightWritten("/disk_data_weight_written", list)
     { }
 
     TSimpleCounter DiskBytesWritten;
+    TSimpleCounter DiskDataWeightWritten;
 };
 
 using TDiskBytesWrittenProfilerTrait = TListProfilerTrait<TDiskBytesWrittenCounters>;
@@ -97,6 +99,7 @@ void ProfileDiskPressure(
     tags.push_back(methodTag);
     auto& counters = GetLocallyGloballyCachedValue<TDiskBytesWrittenProfilerTrait>(tags);
     TabletNodeProfiler.Increment(counters.DiskBytesWritten, diskSpace);
+    TabletNodeProfiler.Increment(counters.DiskDataWeightWritten, dataStatistics.data_weight());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

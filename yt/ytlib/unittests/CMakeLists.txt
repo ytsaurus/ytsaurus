@@ -28,6 +28,8 @@ udf_bc_header(${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_fc.cpp
 
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
+set_source_files_properties(${YT_SRCS_RESOLVED} PROPERTIES COMPILE_FLAGS -Wno-unused-result)
+
 add_executable(unittester-ytlib
   ${YT_SRCS_RESOLVED}
 )
