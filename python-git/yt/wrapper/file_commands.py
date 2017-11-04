@@ -15,7 +15,6 @@ from yt.yson import to_yson_type
 from yt.packages.six import text_type, binary_type, PY3
 
 import os
-import copy
 import hashlib
 
 try:
@@ -327,7 +326,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         else:
             if placement_strategy in ["hash", "random"]:
                 raise YtError("Destination should not be specified if strategy is hash or random")
-            mkdir(ypath_dirname(destination), recursive=True, client=client)
+            mkdir(ypath_dirname(FilePath(destination, client=client)), recursive=True, client=client)
             if yt_filename is None:
                 yt_filename = os.path.basename(destination)
 
