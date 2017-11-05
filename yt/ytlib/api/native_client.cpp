@@ -4056,7 +4056,7 @@ private:
             auto result = WaitFor(SelectRows(query, selectRowsOptions))
                 .ValueOrThrow();
 
-            const auto& rows = result.Rowset->GetRows();
+            auto rows = result.Rowset->GetRows();
 
             auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name) {
                 if (value.Type == EValueType::Null) {
