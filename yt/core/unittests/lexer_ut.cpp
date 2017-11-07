@@ -162,8 +162,8 @@ TEST_F(TStatelessLexerTest, IncorrectChars)
     TestIncorrectInput("1a"); // Alpha after numeric
     TestIncorrectInput("1.1e-1a"); // Alpha after numeric
 
-    TestIncorrectInput("-nan"); // nan literal without %
-    TestIncorrectInput("+inf"); // inf literal without %
+    TestIncorrectInput("-nan"); // nan literal without % (plus would be OK for parser)
+    TestIncorrectInput("-inf"); // inf literal without %
 
     // Unknown symbols
     TestIncorrectInput(".");
