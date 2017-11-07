@@ -77,13 +77,20 @@ TEST(TChunkRequisitionTest, Combine)
     ASSERT_EQ(requisition1.GetEntryCount(), 7);
 
     auto it = requisition1.begin();
-    ASSERT_EQ(*it++, TRequisitionEntry(account1.get(), 0, TReplicationPolicy(3, false), true));
-    ASSERT_EQ(*it++, TRequisitionEntry(account1.get(), 2, TReplicationPolicy(3, false), true));
-    ASSERT_EQ(*it++, TRequisitionEntry(account2.get(), 1, TReplicationPolicy(2, true), false));
-    ASSERT_EQ(*it++, TRequisitionEntry(account3.get(), 4, TReplicationPolicy(2, false), false));
-    ASSERT_EQ(*it++, TRequisitionEntry(account3.get(), 5, TReplicationPolicy(4, false), true));
-    ASSERT_EQ(*it++, TRequisitionEntry(account3.get(), 5, TReplicationPolicy(4, false), false));
-    ASSERT_EQ(*it++, TRequisitionEntry(account4.get(), 3, TReplicationPolicy(1, true), true));
+    ASSERT_EQ(*it, TRequisitionEntry(account1.get(), 0, TReplicationPolicy(3, false), true));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account1.get(), 2, TReplicationPolicy(3, false), true));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account2.get(), 1, TReplicationPolicy(2, true), false));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account3.get(), 4, TReplicationPolicy(2, false), false));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account3.get(), 5, TReplicationPolicy(4, false), true));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account3.get(), 5, TReplicationPolicy(4, false), false));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account4.get(), 3, TReplicationPolicy(1, true), true));
+    ++it;
     ASSERT_EQ(it, requisition1.end());
 
     requisition2 |= requisition1;
@@ -134,10 +141,14 @@ TEST(TChunkRequisitionTest, CombineWithReplication)
     ASSERT_FALSE(requisition.GetVital());
     ASSERT_EQ(requisition.GetEntryCount(), 4);
     auto it = requisition.begin();
-    ASSERT_EQ(*it++, TRequisitionEntry(account1.get(), 5, TReplicationPolicy(4, false), false));
-    ASSERT_EQ(*it++, TRequisitionEntry(account2.get(), 4, TReplicationPolicy(8, false), true));
-    ASSERT_EQ(*it++, TRequisitionEntry(account2.get(), 6, TReplicationPolicy(7, true), true));
-    ASSERT_EQ(*it++, TRequisitionEntry(account4.get(), 0, TReplicationPolicy(3, false), true));
+    ASSERT_EQ(*it, TRequisitionEntry(account1.get(), 5, TReplicationPolicy(4, false), false));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account2.get(), 4, TReplicationPolicy(8, false), true));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account2.get(), 6, TReplicationPolicy(7, true), true));
+    ++it;
+    ASSERT_EQ(*it, TRequisitionEntry(account4.get(), 0, TReplicationPolicy(3, false), true));
+    ++it;
     ASSERT_EQ(it, requisition.end());
 }
 
