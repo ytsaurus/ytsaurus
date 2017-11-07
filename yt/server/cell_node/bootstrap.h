@@ -36,12 +36,15 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/ytree/public.h>
 
 #include <yt/core/misc/public.h>
+#include <yt/core/misc/lazy_ptr.h>
+
 
 namespace NYT {
 namespace NCellNode {
@@ -57,7 +60,7 @@ public:
 
     const TCellNodeConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
-    const IInvokerPtr& GetQueryPoolInvoker() const;
+    IInvokerPtr GetQueryPoolInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const;
     const IInvokerPtr& GetLookupPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
@@ -111,7 +114,7 @@ private:
     const NYTree::INodePtr ConfigNode;
 
     NConcurrency::TActionQueuePtr ControlQueue;
-    NConcurrency::TThreadPoolPtr QueryThreadPool;
+    TLazyIntrusivePtr<NConcurrency::IFairShareThreadPool> QueryThreadPool;
     NConcurrency::TThreadPoolPtr LookupThreadPool;
     NConcurrency::TThreadPoolPtr TableReplicatorThreadPool;
     NConcurrency::TActionQueuePtr TransactionTrackerQueue;

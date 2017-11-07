@@ -10,6 +10,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/invoker_util.h>
@@ -376,7 +377,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker1)
 
 TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
 {
-    // NB! This may be confusing, but serialized invoker is expected to start 
+    // NB! This may be confusing, but serialized invoker is expected to start
     // executing next action if current action is blocked on WaitFor.
 
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
@@ -869,6 +870,61 @@ TEST_F(TSuspendableInvokerTest, VerifySerializedActionsOrder)
     EXPECT_EQ(actionIndex, totalActionCount);
     EXPECT_EQ(reorderingCount, 0);
 }
+
+
+class TFairShareSchedulerTest
+    : public TSchedulerTest
+    , public ::testing::WithParamInterface<std::tuple<int, int, TDuration>>
+{ };
+
+TEST_P(TFairShareSchedulerTest, Test)
+{
+    size_t numThreads = std::get<0>(GetParam());
+    size_t numWorkers = std::get<1>(GetParam());
+    auto work = std::get<2>(GetParam());
+
+    YCHECK(numWorkers > 0);
+    YCHECK(numThreads > 0);
+    YCHECK(numThreads <= numWorkers);
+
+    auto threadPool = CreateFairShareThreadPool(numThreads, "MyFairSharePool");
+    std::vector<TDuration> progresses(numWorkers);
+    std::vector<TFuture<void>> futures;
+
+    for (size_t id = 0; id < numWorkers; ++id) {
+        auto invoker = threadPool->GetInvoker(Format("worker%v", id));
+        auto worker = [&, id] () {
+            double factor = (id + 1);
+
+            while (progresses[id] < work) {
+                if (numThreads == 1) {
+                    auto min = *std::min_element(progresses.begin(), progresses.end());
+                    EXPECT_EQ(progresses[id].MilliSeconds(), min.MilliSeconds());
+                }
+
+                progresses[id] += SleepQuantum * factor;
+                Sleep(SleepQuantum * factor);
+                WaitFor(VoidFuture);
+            }
+        };
+
+        auto result = BIND(worker)
+            .AsyncVia(invoker)
+            .Run();
+
+        futures.push_back(result);
+    }
+
+    WaitFor(Combine(futures))
+        .ThrowOnError();
+}
+
+INSTANTIATE_TEST_CASE_P(
+    Test,
+    TFairShareSchedulerTest,
+    ::testing::Values(
+        std::make_tuple(1, 3, TDuration::Seconds(3)),
+        std::make_tuple(5, 7, TDuration::Seconds(3))));
 
 ////////////////////////////////////////////////////////////////////////////////
 

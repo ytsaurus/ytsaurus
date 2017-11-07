@@ -57,7 +57,7 @@ public:
         TQueryAgentConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetQueryPoolInvoker(),
+            bootstrap->GetQueryPoolInvoker({}),
             TQueryServiceProxy::GetDescriptor(),
             QueryAgentLogger)
         , Config_(config)

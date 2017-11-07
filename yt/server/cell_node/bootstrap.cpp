@@ -152,6 +152,9 @@ TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
     : TBootstrapBase(CellNodeLogger, config)
     , Config(std::move(config))
     , ConfigNode(std::move(configNode))
+    , QueryThreadPool(BIND([this] () {
+        return CreateFairShareThreadPool(Config->QueryAgent->ThreadPoolSize, "Query");
+    }))
 { }
 
 TBootstrap::~TBootstrap() = default;
@@ -217,10 +220,6 @@ void TBootstrap::DoRun()
         MasterConnection,
         NodeDirectory);
     NodeDirectorySynchronizer->Start();
-
-    QueryThreadPool = New<TThreadPool>(
-        Config->QueryAgent->ThreadPoolSize,
-        "Query");
 
     LookupThreadPool = New<TThreadPool>(
         Config->QueryAgent->LookupThreadPoolSize,
@@ -590,9 +589,9 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue->GetInvoker();
 }
 
-const IInvokerPtr& TBootstrap::GetQueryPoolInvoker() const
+IInvokerPtr TBootstrap::GetQueryPoolInvoker(const TFairShareThreadPoolTag& tag) const
 {
-    return QueryThreadPool->GetInvoker();
+    return QueryThreadPool->GetInvoker(tag);
 }
 
 const IInvokerPtr& TBootstrap::GetLookupPoolInvoker() const
