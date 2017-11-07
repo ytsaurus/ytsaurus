@@ -80,7 +80,7 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node);
  *  This includes the 'vital' flag, because even though it doesn't affect
  *  replication, it's nevertheless related.
  *
- *  In contrast to TChunkRequisition, this class doesn't concern itself with
+ *  In contrast to #TChunkRequisition, this class doesn't concern itself with
  *  accounts: it's only interested in *how much* this chunk should be
  *  replicated, not who ordered such replication.
  */
