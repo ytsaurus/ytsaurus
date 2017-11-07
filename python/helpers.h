@@ -56,6 +56,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReleaseAcquireGilGuard
+    : private TNonCopyable
+{
+public:
+    TReleaseAcquireGilGuard();
+    ~TReleaseAcquireGilGuard();
+
+private:
+    PyThreadState* State_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPythonClassObject
 {
 public:

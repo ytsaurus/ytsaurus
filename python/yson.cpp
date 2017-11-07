@@ -164,9 +164,10 @@ public:
         try {
             TSharedRef item;
 
-            Py_BEGIN_ALLOW_THREADS
-            item = Lexer_.NextItem();
-            Py_END_ALLOW_THREADS
+            {
+                TReleaseAcquireGilGuard guard;
+                item = Lexer_.NextItem();
+            }
 
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);
@@ -680,9 +681,9 @@ private:
         ::google::protobuf::io::ArrayInputStream inputStream(serializedStringBuf.begin(), serializedStringBuf.size());
 
         TString result;
-		TStringOutput outputStream(result);
-		TYsonWriter writer(&outputStream);
-		ParseProtobuf(&writer, &inputStream, messageType);
+        TStringOutput outputStream(result);
+        TYsonWriter writer(&outputStream);
+        ParseProtobuf(&writer, &inputStream, messageType);
 
         return Py::ConvertToPythonString(result);
     }
