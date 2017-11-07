@@ -288,7 +288,7 @@ public:
         MaybeUser_ = securityManager->GetAuthenticatedUser();
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
+            .AsyncVia(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
             .Run(
                 std::move(externalCGInfo),
                 std::move(dataSources),
@@ -541,7 +541,7 @@ private:
                 auto pipe = New<TSchemafulPipe>();
 
                 auto asyncStatistics = BIND(&TEvaluator::Run, Evaluator_)
-                    .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
+                    .AsyncVia(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
                     .Run(
                         subquery,
                         mergingReader,
