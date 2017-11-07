@@ -459,10 +459,11 @@ def check_solomon_services(token, yes):
 @cli.command()
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
+@click.option("--type", multiple=True)
 @click.option("--yes", is_flag=True)
-def update_cluster_nodes(token, cluster, yes):
+def update_cluster_nodes(token, cluster, type, yes):
     solomon_cluster = normalize_cluster_id(cluster)
-    types = get_cluster_types()
+    types = get_cluster_types() if not type else type
 
     for type in types:
         conductor_groups = get_conductor_groups(solomon_cluster, type)
@@ -483,10 +484,12 @@ def update_cluster_nodes(token, cluster, yes):
 @cli.command()
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
+@click.option("--type", multiple=True)
 @click.option("--yes", is_flag=True)
-def update_cluster_services(token, cluster, yes):
+def update_cluster_services(token, cluster, type, yes):
     solomon_cluster = normalize_cluster_id(cluster)
-    types = get_cluster_types()
+    types = get_cluster_types() if not type else type
+    type_set = set(types)
 
     cluster_services = {}
     for type in types:
@@ -499,6 +502,8 @@ def update_cluster_services(token, cluster, yes):
     tag = "".join(random.choice("0123456789abcdef") for _ in range(8))
     for service_description in SERVICES:
         type = service_description["type"]
+        if type not in type_set:
+            continue
         solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type)
         service = service_description["solomon_id"]
         if service in cluster_services:
