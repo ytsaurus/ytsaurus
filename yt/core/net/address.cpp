@@ -38,6 +38,8 @@ namespace NYT {
 namespace NNet {
 
 using namespace NConcurrency;
+using namespace NYson;
+using namespace NYTree;
 
 using ::ToString;
 
@@ -182,6 +184,25 @@ ui16 TNetworkAddress::GetPort() const
         default:
             THROW_ERROR_EXCEPTION("Address has no port");
     }
+}
+
+bool TNetworkAddress::IsUnix() const
+{
+    return Storage.ss_family == AF_UNIX;
+}
+
+bool TNetworkAddress::IsIP6() const
+{
+    return Storage.ss_family == AF_INET6;
+}
+
+TIP6Address TNetworkAddress::ToIP6Address() const
+{
+    if (Storage.ss_family != AF_INET6) {
+        THROW_ERROR_EXCEPTION("Address is not an IPv6 address");
+    }
+
+    return TIP6Address::FromRawBytes(reinterpret_cast<const sockaddr_in6*>(&Storage)->sin6_addr.s6_addr);
 }
 
 socklen_t TNetworkAddress::GetLength() const
@@ -670,6 +691,16 @@ TIP6Address& operator&=(TIP6Address& lhs, const TIP6Address& rhs)
     return lhs;
 }
 
+void Deserialize(TIP6Address& value, INodePtr node)
+{
+    value = TIP6Address::FromString(node->AsString()->GetValue());
+}
+
+void Serialize(const TIP6Address& value, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(ToString(value));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TIP6Network::TIP6Network(const TIP6Address& network, const TIP6Address& mask)
@@ -748,6 +779,16 @@ void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStr
 TString ToString(const TIP6Network& network)
 {
     return ToStringViaBuilder(network);
+}
+
+void Deserialize(TIP6Network& value, INodePtr node)
+{
+    value = TIP6Network::FromString(node->AsString()->GetValue());
+}
+
+void Serialize(const TIP6Network& value, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(ToString(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

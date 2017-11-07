@@ -6,6 +6,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/bus/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/packet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_connection.cpp

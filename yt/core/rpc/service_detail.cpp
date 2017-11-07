@@ -108,6 +108,11 @@ public:
         Finalize();
     }
 
+    virtual TTcpDispatcherStatistics GetBusStatistics() const override
+    {
+        return ReplyBus_->GetStatistics();
+    }
+
     const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
     {
         return RuntimeInfo_;
