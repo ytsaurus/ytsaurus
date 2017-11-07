@@ -66,6 +66,12 @@ public:
         return Connection_->GetEndpointAttributes();
     }
 
+    virtual TTcpDispatcherStatistics GetStatistics() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->GetStatistics();
+    }
+
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -141,7 +147,7 @@ public:
         auto connection = New<TTcpConnection>(
             Config_,
             EConnectionType::Client,
-            Null,
+            DefaultNetworkName,
             id,
             INVALID_SOCKET,
             EndpointDescription_,

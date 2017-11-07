@@ -32,11 +32,6 @@ void TTcpDispatcher::Shutdown()
     Impl_->Shutdown();
 }
 
-TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfaceType)
-{
-    return Impl_->GetStatistics(interfaceType);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_SHUTDOWN_CALLBACK(6, TTcpDispatcher::StaticShutdown);

@@ -224,6 +224,11 @@ private:
             Y_UNREACHABLE();
         }
 
+        virtual TTcpDispatcherStatistics GetStatistics() const override
+        {
+            return {};
+        }
+
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
             auto guard = Guard(SpinLock_);

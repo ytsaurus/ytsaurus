@@ -3,6 +3,8 @@
 #include "config.h"
 #include "message.h"
 
+#include <yt/core/bus/bus.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
@@ -308,6 +310,11 @@ TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingCont
 const NProto::TRequestHeader& TServiceContextWrapper::GetRequestHeader() const
 {
     return UnderlyingContext_->GetRequestHeader();
+}
+
+TTcpDispatcherStatistics TServiceContextWrapper::GetBusStatistics() const
+{
+    return UnderlyingContext_->GetBusStatistics();
 }
 
 TSharedRefArray TServiceContextWrapper::GetRequestMessage() const
