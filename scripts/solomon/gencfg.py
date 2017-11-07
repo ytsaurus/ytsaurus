@@ -528,7 +528,7 @@ def update_cluster_services(token, cluster, type, yes):
 @cli.command()
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
-@click.option("--type", multiple=True)
+@click.option("--type", multiple=True)  # type can be empty to cleanup old scheme
 @click.option("--yes", is_flag=True)
 def unlink_cluster(token, cluster, type, yes):
     solomon_cluster = normalize_cluster_id(cluster)
@@ -536,7 +536,7 @@ def unlink_cluster(token, cluster, type, yes):
     types = get_cluster_types() if not type else type
 
     for type in types:
-        solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type)
+        solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type) if type else solomon_cluster
         resource = Resource("/projects/yt/clusters/%s" % solomon_cluster_type, "services", token)
         resource.load()
 
