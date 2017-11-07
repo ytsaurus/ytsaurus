@@ -360,6 +360,15 @@ def _create_operation_failed_error(operation, state):
         stderrs=stderrs,
         url=operation.url)
 
+def get_operation_url(operation, client=None):
+    proxy_url = get_proxy_url(required=False, client=client)
+    if not proxy_url:
+        return None
+
+    return get_config(client)["proxy"]["operation_link_pattern"].format(
+        proxy=get_proxy_url(client=client),
+        id=operation)
+
 class Operation(object):
     """Holds information about started operation."""
     def __init__(self, type, id, finalization_actions=None, abort_exceptions=(KeyboardInterrupt,), client=None):
@@ -369,14 +378,7 @@ class Operation(object):
         self.finalization_actions = finalization_actions
         self.client = client
         self.printer = PrintOperationInfo(id, client=client)
-
-        proxy_url = get_proxy_url(required=False, client=self.client)
-        if proxy_url:
-            self.url = \
-                get_config(self.client)["proxy"]["operation_link_pattern"]\
-                    .format(proxy=get_proxy_url(client=self.client), id=self.id)
-        else:
-            self.url = None
+        self.url = get_operation_url(id, client=client)
 
     def suspend(self):
         """Suspends operation."""

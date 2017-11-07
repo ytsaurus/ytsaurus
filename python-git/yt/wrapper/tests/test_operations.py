@@ -1104,9 +1104,6 @@ if __name__ == "__main__":
         old_level = logger.LOGGER.level
         logger.LOGGER.setLevel(logging.INFO)
         try:
-            with pytest.raises(yt.YtError):
-                tracker.add_by_id("123")
-
             table = TEST_DIR + "/table"
             yt.write_table(table, [{"x": 1, "y": 1}])
 
