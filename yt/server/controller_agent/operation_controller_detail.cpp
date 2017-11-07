@@ -5453,7 +5453,9 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             InputDataSizeHistogram_->BuildHistogramView();
             fluent
                 .Item("input_data_size_histogram").Value(*InputDataSizeHistogram_);
-        });
+        })
+        .Item("snapshot_index").Value(SnapshotIndex_)
+        .Item("recent_snapshot_index").Value(RecentSnapshotIndex_);
 }
 
 void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
