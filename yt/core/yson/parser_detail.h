@@ -211,7 +211,12 @@ private:
                     Consumer->OnStringScalar(value);
                 } else if (ch == '%') {
                     TBase::Advance(1);
-                    Consumer->OnBooleanScalar(TBase::template ReadBoolean<AllowFinish>());
+                    ch = TBase::template GetChar<AllowFinish>();
+                    if (ch == 't' || ch == 'f') {
+                        Consumer->OnBooleanScalar(TBase::template ReadBoolean<AllowFinish>());
+                    } else {
+                        Consumer->OnDoubleScalar(TBase::template ReadNanOrInf<AllowFinish>());
+                    }
                 } else if (ch == EndSymbol) {
                     THROW_ERROR_EXCEPTION("Unexpected end of stream while parsing node")
                         << *this;
