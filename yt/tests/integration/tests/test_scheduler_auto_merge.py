@@ -347,3 +347,54 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out/@chunk_count") >= 5
+
+    @pytest.mark.timeout(30)
+    def test_sorted_output_disables_auto_merge(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        schema_out = make_schema([
+            {
+                "name": "a",
+                "type": "string",
+                "sort_order": "ascending",
+            },
+        ], unique_keys=False, strict=True)
+        create("table", "//tmp/t_out_with_schema", attributes={"schema": schema_out})
+
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["<sorted_by=[a]>//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 4,
+                    "max_intermediate_chunk_count" : 100
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out/@chunk_count") >= 5
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out_with_schema"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 4,
+                    "max_intermediate_chunk_count" : 100
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out_with_schema/@chunk_count") >= 5
