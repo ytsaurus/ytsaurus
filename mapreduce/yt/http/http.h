@@ -2,6 +2,7 @@
 
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/format.h>
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/interface/node.h>
 
@@ -41,11 +42,10 @@ public:
 
     void SetToken(const TString& token);
 
-    void SetDataStreamFormat(EDataStreamFormat format);
-    EDataStreamFormat GetDataStreamFormat() const;
+    void SetInputFormat(const TMaybe<TFormat>& format);
 
-    void SetInputFormat(const TString& format);
-    void SetOutputFormat(const TString& format);
+    void SetOutputFormat(const TMaybe<TFormat>& format);
+    TMaybe<TFormat> GetOutputFormat() const;
 
     void SetParameters(const TString& parameters);
     void SetParameters(const TNode& parameters);
@@ -69,10 +69,10 @@ private:
 
     TNode Attributes;
 
-    EDataStreamFormat DataStreamFormat = DSF_YSON_TEXT;
 
-    TString InputFormat;
-    TString OutputFormat;
+private:
+    TMaybe<TFormat> InputFormat = TFormat::YsonText();
+    TMaybe<TFormat> OutputFormat = TFormat::YsonText();
     TString Parameters;
 
     TString RequestCompression = "identity";

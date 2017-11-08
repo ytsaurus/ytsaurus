@@ -708,8 +708,8 @@ void BuildUserJobFluently(
             if (inputDesc.ProtoDescriptors.empty()) {
                 ythrow TApiUsageError() << "messages for input_format are unknown (empty ProtoDescriptors)";
             }
-            auto config = MakeProtoFormatConfig(inputDesc.ProtoDescriptors);
-            fluentMap.Item("input_format").Value(config);
+            TFormat format(inputDesc.ProtoDescriptors);
+            fluentMap.Item("input_format").Value(format.Config);
         }
     })
     .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluentMap)
@@ -740,8 +740,8 @@ void BuildUserJobFluently(
             if (outputDesc.ProtoDescriptors.empty()) {
                 ythrow TApiUsageError() << "messages for output_format are unknown (empty ProtoDescriptors)";
             }
-            auto config = MakeProtoFormatConfig(outputDesc.ProtoDescriptors);
-            fluentMap.Item("output_format").Value(config);
+            TFormat format(outputDesc.ProtoDescriptors);
+            fluentMap.Item("output_format").Value(format.Config);
         }
     })
     .Item("command").Value(preparer.GetCommand())

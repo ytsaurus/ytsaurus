@@ -21,8 +21,7 @@ public:
         const TRichYPath& path,
         const TAuth& auth,
         const TTransactionId& transactionId,
-        EDataStreamFormat format,
-        const TString& formatConfig,
+        const TMaybe<TFormat>& format,
         const TTableReaderOptions& options);
 
     bool Retry(
@@ -38,8 +37,7 @@ private:
     TRichYPath Path_;
     TAuth Auth_;
     TTransactionId ParentTransactionId_;
-    EDataStreamFormat Format_;
-    TString FormatConfig_;
+    TMaybe<TFormat> Format_;
     TTableReaderOptions Options_;
 
     THolder<TPingableTransaction> ReadTransaction_;

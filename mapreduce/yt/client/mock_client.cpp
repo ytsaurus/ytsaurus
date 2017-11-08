@@ -271,11 +271,11 @@ IFileWriterPtr TMockClient::CreateFileWriter(const TRichYPath&, const TFileWrite
     return new TMockFileWriter();
 }
 
-TRawTableReaderPtr TMockClient::CreateRawReader(const TRichYPath&, EDataStreamFormat, const TTableReaderOptions&, const TString&) {
+TRawTableReaderPtr TMockClient::CreateRawReader(const TRichYPath&, const TMaybe<TFormat>&, const TTableReaderOptions&) {
     return new TMockRawTableReader();
 }
 
-TRawTableWriterPtr TMockClient::CreateRawWriter(const TRichYPath&, EDataStreamFormat, const TTableWriterOptions&, const TString&) {
+TRawTableWriterPtr TMockClient::CreateRawWriter(const TRichYPath&, const TMaybe<TFormat>&, const TTableWriterOptions&) {
     return new TMockRawTableWriter();
 }
 

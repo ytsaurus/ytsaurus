@@ -4,6 +4,7 @@
 
 #include "client_method_options.h"
 #include "common.h"
+#include "format.h"
 #include "node.h"
 #include "mpl.h"
 
@@ -15,17 +16,6 @@
 #include <util/generic/maybe.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-enum EDataStreamFormat
-{
-    DSF_YSON_TEXT,
-    DSF_YSON_BINARY,
-    DSF_YAMR_LENVAL,
-    DSF_BYTES,
-    DSF_PROTO
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,15 +155,13 @@ public:
 
     virtual TRawTableReaderPtr CreateRawReader(
         const TRichYPath& path,
-        EDataStreamFormat format,
-        const TTableReaderOptions& options,
-        const TString& formatConfig = TString()) = 0;
+        const TMaybe<TFormat>& format,
+        const TTableReaderOptions& options) = 0;
 
     virtual TRawTableWriterPtr CreateRawWriter(
         const TRichYPath& path,
-        EDataStreamFormat format,
-        const TTableWriterOptions& options,
-        const TString& formatConfig = TString()) = 0;
+        const TMaybe<TFormat>& format,
+        const TTableWriterOptions& options) = 0;
 
 private:
     virtual ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
