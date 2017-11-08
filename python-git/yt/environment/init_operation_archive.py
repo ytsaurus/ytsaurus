@@ -27,7 +27,7 @@ def mount_table(client, path):
     mount_table_new(client, path)
 
 class TableInfo(object):
-    def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None):
+    def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None, attributes={}):
         def make_column(name, type_name, expression=None):
             return {
                 "name": name,
@@ -46,9 +46,11 @@ class TableInfo(object):
         self.user_columns = [column["name"] for column in self.schema if "expression" not in column]
         self.get_pivot_keys = get_pivot_keys
         self.in_memory = in_memory
+        self.attributes = attributes
 
     def create_table(self, client, path):
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes.update(self.attributes)
         attributes["dynamic"] = False
         attributes["external"] = False
 
@@ -57,12 +59,14 @@ class TableInfo(object):
 
     def create_dynamic_table(self, client, path):
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes.update(self.attributes)
 
         logging.info("Creating dynamic table %s with attributes %s", path, attributes)
         client.create("table", path, recursive=True, attributes=attributes)
 
     def to_dynamic_table(self, client, path):
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes.update(self.attributes)
 
         # add unique_keys to schema
         attributes["schema"] = yson.to_yson_type(attributes["schema"], attributes={"unique_keys": True})
@@ -79,6 +83,7 @@ class TableInfo(object):
         logging.info("Altering table %s", path)
         unmount_table(client, path)
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes.update(self.attributes)
 
         logging.info("Alter table %s with attributes %s", path, attributes)
         client.alter_table(path, schema=attributes['schema'])
@@ -559,19 +564,42 @@ TRANSFORMS[15] = [
             in_memory=True))
 ]
 
-def reduce_table_atomicity(table):
-    def action(client):
-        path = "{0}/{1}".format(BASE_PATH, table)
-        logging.info("Reducing table atomicity %s", path)
-        client.set(table + "/@atomicity", "none")
-        client.unmount_table(path)
-        client.mount_table(path)
-
-    return action
-
-ACTIONS[16] = [
-    reduce_table_atomicity("jobs"),
-    reduce_table_atomicity("job_specs"),
+TRANSFORMS[16] = [
+    Convert(
+        "job_specs",
+        table_info=TableInfo([
+                ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+            ], [
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("type", "string"),
+            ],
+            attributes={"atomicity": "none"})),
+    Convert(
+        "jobs",
+        table_info=TableInfo([
+            ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+            ("operation_id_hi", "uint64"),
+            ("operation_id_lo", "uint64"),
+            ("job_id_hi", "uint64"),
+            ("job_id_lo", "uint64")
+        ], [
+            ("type", "string"),
+            ("state", "string"),
+            ("start_time", "int64"),
+            ("finish_time", "int64"),
+            ("address", "string"),
+            ("error", "any"),
+            ("statistics", "any"),
+            ("stderr_size", "uint64"),
+            ("spec", "string"),
+            ("spec_version", "int64"),
+            ("events", "any"),
+            ("transient_state", "string"),
+        ],
+        attributes={"atomicity": "none"}))
 ]
 
 def swap_table(client, target, source, version):
