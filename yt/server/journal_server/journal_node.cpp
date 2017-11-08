@@ -99,19 +99,21 @@ void TJournalNode::SetSealed(bool value)
 
 TClusterResources TJournalNode::GetDeltaResourceUsage() const
 {
-    if (IsTrunk()) {
+    auto* trunkNode = GetTrunkNode();
+    if (trunkNode == this) {
         return TBase::GetDeltaResourceUsage();
     } else {
-        return GetTrunkNode()->GetDeltaResourceUsage(); // Recurse once.
+        return trunkNode->GetDeltaResourceUsage(); // Recurse once.
     }
 }
 
 TClusterResources TJournalNode::GetTotalResourceUsage() const
 {
-    if (IsTrunk()) {
+    auto* trunkNode = GetTrunkNode();
+    if (trunkNode == this) {
         return TBase::GetTotalResourceUsage();
     } else {
-        return GetTrunkNode()->GetTotalResourceUsage(); // Recurse once.
+        return trunkNode->GetTotalResourceUsage(); // Recurse once.
     }
 }
 
