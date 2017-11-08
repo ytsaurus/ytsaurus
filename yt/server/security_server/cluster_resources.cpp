@@ -88,6 +88,10 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     // COMPAT(shakurov)
     if (context.GetVersion() < 400) {
         DiskSpace[DefaultStoreMediumIndex] = Load<i64>(context);
+    } else if (context.GetVersion() < 700) {
+        i64 oldDiskSpace[MaxMediumCount] = {};
+        Load(context, oldDiskSpace);
+        std::copy(oldDiskSpace, oldDiskSpace + MaxMediumCount, DiskSpace.begin());
     } else {
         Load(context, DiskSpace);
     }
