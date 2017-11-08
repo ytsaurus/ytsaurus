@@ -206,7 +206,9 @@ public:
 
     TTableReplicaInfo* FindReplicaInfo(const TTableReplica* replica);
     TTableReplicaInfo* GetReplicaInfo(const TTableReplica* replica);
-    TDuration ComputeReplicationLagTime(const TTableReplicaInfo& replicaInfo) const;
+    TDuration ComputeReplicationLagTime(
+        NTransactionClient::TTimestamp latestTimestamp,
+        const TTableReplicaInfo& replicaInfo) const;
 
     bool IsActive() const;
 

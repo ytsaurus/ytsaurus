@@ -995,6 +995,7 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
 bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     const auto* table = GetThisImpl<TReplicatedTableNode>();
+    const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
 
     if (key == "replicas") {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1008,7 +1009,8 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonCon
                         .Item("replica_path").Value(replica->GetReplicaPath())
                         .Item("state").Value(replica->GetState())
                         .Item("mode").Value(replica->GetMode())
-                        .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime())
+                        .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime(
+                            timestampProvider->GetLatestTimestamp()))
                         .Item("errors").Value(replica->GetErrors())
                     .EndMap();
             });

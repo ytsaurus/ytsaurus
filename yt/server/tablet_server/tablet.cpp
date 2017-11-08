@@ -380,17 +380,17 @@ TTableReplicaInfo* TTablet::GetReplicaInfo(const TTableReplica* replica)
     return replicaInfo;
 }
 
-TDuration TTablet::ComputeReplicationLagTime(const TTableReplicaInfo& replicaInfo) const
+TDuration TTablet::ComputeReplicationLagTime(TTimestamp latestTimestamp, const TTableReplicaInfo& replicaInfo) const
 {
     auto lastWriteTimestamp = NodeStatistics_.last_write_timestamp();
     if (lastWriteTimestamp == NullTimestamp) {
         return TDuration::Zero();
     }
     auto replicationTimestamp = replicaInfo.GetCurrentReplicationTimestamp();
-    if (replicationTimestamp >= lastWriteTimestamp) {
+    if (replicationTimestamp >= lastWriteTimestamp || replicationTimestamp >= latestTimestamp) {
         return TDuration::Zero();
     }
-    return TimestampToInstant(lastWriteTimestamp).second - TimestampToInstant(replicationTimestamp).first;
+    return TimestampToInstant(latestTimestamp).second - TimestampToInstant(replicationTimestamp).first;
 }
 
 bool TTablet::IsActive() const

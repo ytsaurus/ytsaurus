@@ -39,7 +39,7 @@ public:
 
     void ThrowInvalidState();
 
-    TDuration ComputeReplicationLagTime() const;
+    TDuration ComputeReplicationLagTime(NTransactionClient::TTimestamp latestTimestamp) const;
     std::vector<TError> GetErrors() const;
 };
 
