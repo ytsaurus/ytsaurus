@@ -7,7 +7,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateMapController(
+IOperationControllerPtr CreateUnorderedMapController(
     IOperationHost* host,
     NScheduler::TOperation* operation);
 
