@@ -153,6 +153,7 @@ class YtTestEnvironment(object):
 
         self.config = update(get_default_config(), config)
         self.config["enable_request_logging"] = True
+        self.config["enable_passing_request_id_to_driver"] = True
         self.config["operation_tracker"]["poll_period"] = 100
         if has_proxy:
             self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
