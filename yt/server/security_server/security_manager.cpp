@@ -1646,14 +1646,15 @@ private:
         // multiple times here, which renders chunk count and disk space numbers useless.
         // Node counts, tablet counts and tablet static memory usage are probably
         // correct, but we'll recompute them anyway.
-        for (const auto& pair : AccountMap_) {
-            auto* account = pair.second;
-
-            account->LocalStatistics().ResourceUsage = TClusterResources();
-            account->LocalStatistics().CommittedResourceUsage = TClusterResources();
-            if (Bootstrap_->IsPrimaryMaster()) {
-                account->ClusterStatistics().ResourceUsage = TClusterResources();
-                account->ClusterStatistics().CommittedResourceUsage = TClusterResources();
+        if (RecomputeAccountResourceUsage_) {
+            for (const auto& pair : AccountMap_) {
+                auto* account = pair.second;
+                account->LocalStatistics().ResourceUsage = TClusterResources();
+                account->LocalStatistics().CommittedResourceUsage = TClusterResources();
+                if (Bootstrap_->IsPrimaryMaster()) {
+                    account->ClusterStatistics().ResourceUsage = TClusterResources();
+                    account->ClusterStatistics().CommittedResourceUsage = TClusterResources();
+                }
             }
         }
 
@@ -1951,6 +1952,12 @@ private:
                 RootUser_,
                 EPermission::Use));
         }
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+        requisitionRegistry->EnsureBuiltinRequisitionsInitialized(
+            GetChunkWiseAccountingMigrationAccount(),
+            Bootstrap_->GetObjectManager());
     }
 
     bool EnsureBuiltinGroupInitialized(TGroup*& group, const TGroupId& id, const TString& name)
