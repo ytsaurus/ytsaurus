@@ -86,15 +86,13 @@ public:
 
     TRawTableReaderPtr CreateRawReader(
         const TRichYPath& path,
-        EDataStreamFormat format,
-        const TTableReaderOptions& options,
-        const TString& formatConfig) override;
+        const TMaybe<TFormat>& format,
+        const TTableReaderOptions& options) override;
 
     TRawTableWriterPtr CreateRawWriter(
         const TRichYPath& path,
-        EDataStreamFormat format,
-        const TTableWriterOptions& options,
-        const TString& formatConfig) override;
+        const TMaybe<TFormat>& format,
+        const TTableWriterOptions& options) override;
 
     // operations
 
@@ -160,15 +158,13 @@ protected:
 private:
     ::TIntrusivePtr<TClientReader> CreateClientReader(
         const TRichYPath& path,
-        EDataStreamFormat format,
-        const TTableReaderOptions& options,
-        const TString& formatConfig = TString());
+        const TMaybe<TFormat>& format,
+        const TTableReaderOptions& options);
 
     THolder<TClientWriter> CreateClientWriter(
         const TRichYPath& path,
-        EDataStreamFormat format,
-        const TTableWriterOptions& options,
-        const TString& formatConfig = TString());
+        const TMaybe<TFormat>& format,
+        const TTableWriterOptions& options);
 
     ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
         const TRichYPath& path, const TTableReaderOptions& options) override;

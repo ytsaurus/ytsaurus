@@ -30,15 +30,13 @@ public:
         const TAuth& auth,
         const TTransactionId& parentId,
         const TString& command,
-        EDataStreamFormat format,
-        const TString& formatConfig,
+        const TMaybe<TFormat>& format,
         const TRichYPath& path,
         size_t bufferSize,
         const TWriterOptions& options)
         : Auth_(auth)
         , Command_(command)
         , Format_(format)
-        , FormatConfig_(formatConfig)
         , BufferSize_(bufferSize)
         , ParentTransactionId_(parentId)
         , WriteTransaction_()
@@ -75,8 +73,7 @@ protected:
 private:
     TAuth Auth_;
     TString Command_;
-    EDataStreamFormat Format_;
-    TString FormatConfig_;
+    TMaybe<TFormat> Format_;
     const size_t BufferSize_;
 
     TString Parameters_;

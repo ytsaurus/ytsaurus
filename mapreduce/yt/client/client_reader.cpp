@@ -34,14 +34,12 @@ TClientReader::TClientReader(
     const TRichYPath& path,
     const TAuth& auth,
     const TTransactionId& transactionId,
-    EDataStreamFormat format,
-    const TString& formatConfig,
+    const TMaybe<TFormat>& format,
     const TTableReaderOptions& options)
     : Path_(path)
     , Auth_(auth)
     , ParentTransactionId_(transactionId)
     , Format_(format)
-    , FormatConfig_(formatConfig)
     , Options_(options)
     , ReadTransaction_(nullptr)
     , RetriesLeft_(TConfig::Get()->RetryCount)
@@ -64,6 +62,15 @@ TClientReader::TClientReader(
             break;
         }
     }
+
+    if (Format_ && Format_->Type == EFormatType::YaMRLenval) {
+        auto transactionId = ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_;
+        auto newFormat = GetTableFormat(Auth_, transactionId, Path_);
+        if (newFormat) {
+            Format_->Config = *newFormat;
+        }
+    }
+
     TransformYPath();
     CreateRequest();
 }
@@ -126,18 +133,9 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             header.AddTransactionId(transactionId);
             header.AddParam("control_attributes[enable_row_index]", true);
             header.AddParam("control_attributes[enable_range_index]", true);
-            header.SetDataStreamFormat(Format_);
+            header.SetOutputFormat(Format_);
 
             header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
-
-            if (Format_ == DSF_YAMR_LENVAL) {
-                auto format = GetTableFormat(Auth_, ParentTransactionId_, Path_);
-                if (format) {
-                    header.SetOutputFormat(NodeToYsonString(format.GetRef()));
-                }
-            } else if (Format_ == DSF_PROTO) {
-                header.SetOutputFormat(FormatConfig_);
-            }
 
             if (rowIndex.Defined()) {
                 auto& ranges = Path_.Ranges_;

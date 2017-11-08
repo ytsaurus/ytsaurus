@@ -199,25 +199,22 @@ IFileWriterPtr TClientBase::CreateFileWriter(
 
 TRawTableReaderPtr TClientBase::CreateRawReader(
     const TRichYPath& path,
-    EDataStreamFormat format,
-    const TTableReaderOptions& options,
-    const TString& formatConfig)
+    const TMaybe<TFormat>& format,
+    const TTableReaderOptions& options)
 {
-    return CreateClientReader(path, format, options, formatConfig).Get();
+    return CreateClientReader(path, format, options).Get();
 }
 
 TRawTableWriterPtr TClientBase::CreateRawWriter(
     const TRichYPath& path,
-    EDataStreamFormat format,
-    const TTableWriterOptions& options,
-    const TString& formatConfig)
+    const TMaybe<TFormat>& format,
+    const TTableWriterOptions& options)
 {
     return ::MakeIntrusive<TBlockWriter>(
         Auth_,
         TransactionId_,
         GetWriteTableCommand(),
         format,
-        formatConfig,
         CanonizePath(Auth_, path),
         BUFFER_SIZE,
         options).Get();
@@ -354,24 +351,21 @@ void TClientBase::AlterTable(
 
 ::TIntrusivePtr<TClientReader> TClientBase::CreateClientReader(
     const TRichYPath& path,
-    EDataStreamFormat format,
-    const TTableReaderOptions& options,
-    const TString& formatConfig)
+    const TMaybe<TFormat>& format,
+    const TTableReaderOptions& options)
 {
     return ::MakeIntrusive<TClientReader>(
         CanonizePath(Auth_, path),
         Auth_,
         TransactionId_,
         format,
-        formatConfig,
         options);
 }
 
 THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TRichYPath& path,
-    EDataStreamFormat format,
-    const TTableWriterOptions& options,
-    const TString& formatConfig)
+    const TMaybe<TFormat>& format,
+    const TTableWriterOptions& options)
 {
     auto realPath = CanonizePath(Auth_, path);
     if (!NYT::NDetail::Exists(Auth_, TransactionId_, realPath.Path_)) {
@@ -379,21 +373,21 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
             TCreateOptions().IgnoreExisting(true));
     }
     return MakeHolder<TClientWriter>(
-        realPath, Auth_, TransactionId_, format, formatConfig, options);
+        realPath, Auth_, TransactionId_, format, options);
 }
 
 ::TIntrusivePtr<INodeReaderImpl> TClientBase::CreateNodeReader(
     const TRichYPath& path, const TTableReaderOptions& options)
 {
     return new TNodeTableReader(
-        CreateClientReader(path, DSF_YSON_BINARY, options), options.SizeLimit_);
+        CreateClientReader(path, TFormat::YsonBinary(), options), options.SizeLimit_);
 }
 
 ::TIntrusivePtr<IYaMRReaderImpl> TClientBase::CreateYaMRReader(
     const TRichYPath& path, const TTableReaderOptions& options)
 {
     return new TYaMRTableReader(
-        CreateClientReader(path, DSF_YAMR_LENVAL, options));
+        CreateClientReader(path, TFormat::YaMRLenval(), options));
 }
 
 ::TIntrusivePtr<IProtoReaderImpl> TClientBase::CreateProtoReader(
@@ -406,12 +400,12 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 
     if (TConfig::Get()->UseClientProtobuf) {
         return new TProtoTableReader(
-            CreateClientReader(path, DSF_YSON_BINARY, options),
+            CreateClientReader(path, TFormat::YsonBinary(), options),
             std::move(descriptors));
     } else {
-        auto formatConfig = NodeToYsonString(MakeProtoFormatConfig(prototype));
+        TFormat format({prototype->GetDescriptor()});
         return new TLenvalProtoTableReader(
-            CreateClientReader(path, DSF_PROTO, options, formatConfig),
+            CreateClientReader(path, format, options),
             std::move(descriptors));
     }
 }
@@ -420,14 +414,14 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TRichYPath& path, const TTableWriterOptions& options)
 {
     return new TNodeTableWriter(
-        CreateClientWriter(path, DSF_YSON_BINARY, options));
+        CreateClientWriter(path, TFormat::YsonBinary(), options));
 }
 
 ::TIntrusivePtr<IYaMRWriterImpl> TClientBase::CreateYaMRWriter(
     const TRichYPath& path, const TTableWriterOptions& options)
 {
     return new TYaMRTableWriter(
-        CreateClientWriter(path, DSF_YAMR_LENVAL, options));
+        CreateClientWriter(path, TFormat::YaMRLenval(), options));
 }
 
 ::TIntrusivePtr<IProtoWriterImpl> TClientBase::CreateProtoWriter(
@@ -440,12 +434,12 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 
     if (TConfig::Get()->UseClientProtobuf) {
         return new TProtoTableWriter(
-            CreateClientWriter(path, DSF_YSON_BINARY, options),
+            CreateClientWriter(path, TFormat::YsonBinary(), options),
             std::move(descriptors));
     } else {
-        auto formatConfig = NodeToYsonString(MakeProtoFormatConfig(prototype));
+        TFormat format({prototype->GetDescriptor()});
         return new TLenvalProtoTableWriter(
-            CreateClientWriter(path, DSF_PROTO, options, formatConfig),
+            CreateClientWriter(path, format, options),
             std::move(descriptors));
     }
 }
@@ -620,7 +614,7 @@ void TClient::InsertRows(
     const TInsertRowsOptions& options)
 {
     THttpHeader header("PUT", "insert_rows");
-    header.SetDataStreamFormat(DSF_YSON_BINARY);
+    header.SetInputFormat(TFormat::YsonBinary());
     header.SetParameters(NDetail::SerializeParametersForInsertRows(path, options));
 
     auto body = NodeListToYsonString(rows);
@@ -633,7 +627,7 @@ void TClient::DeleteRows(
     const TDeleteRowsOptions& options)
 {
     THttpHeader header("PUT", "delete_rows");
-    header.SetDataStreamFormat(DSF_YSON_BINARY);
+    header.SetInputFormat(TFormat::YsonBinary());
     header.SetParameters(NDetail::SerializeParametersForDeleteRows(path, options));
 
     auto body = NodeListToYsonString(keys);
@@ -648,7 +642,8 @@ TNode::TList TClient::LookupRows(
     Y_UNUSED(options);
     THttpHeader header("PUT", "lookup_rows");
     header.AddPath(AddPathPrefix(path));
-    header.SetDataStreamFormat(DSF_YSON_BINARY);
+    header.SetInputFormat(TFormat::YsonBinary());
+    header.SetOutputFormat(TFormat::YsonBinary());
 
     header.SetParameters(BuildYsonStringFluently().BeginMap()
         .DoIf(options.Timeout_.Defined(), [&] (TFluentMap fluent) {
@@ -670,7 +665,8 @@ TNode::TList TClient::SelectRows(
     const TSelectRowsOptions& options)
 {
     THttpHeader header("GET", "select_rows");
-    header.SetDataStreamFormat(DSF_YSON_BINARY);
+    header.SetInputFormat(TFormat::YsonBinary());
+    header.SetOutputFormat(TFormat::YsonBinary());
 
     header.SetParameters(BuildYsonStringFluently().BeginMap()
         .Item("query").Value(query)

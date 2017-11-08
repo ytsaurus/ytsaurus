@@ -161,6 +161,10 @@ namespace NYT {
     // io.h
     ////////////////////////////////////////////////////////////////////////////////
 
+    enum class EFormatType : int;
+
+    struct TFormat;
+
     class IFileReader;
 
     using IFileReaderPtr = ::TIntrusivePtr<IFileReader>;

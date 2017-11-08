@@ -55,7 +55,7 @@ void TFileReader::CreateRequest()
     THttpHeader header("GET", GetReadFileCommand());
     header.SetToken(Auth_.Token);
     header.AddTransactionId(ReadTransaction_->GetId());
-    header.SetDataStreamFormat(DSF_BYTES);
+    header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
 
     if (EndOffset_) {
         Y_VERIFY(*EndOffset_ >= CurrentOffset_);

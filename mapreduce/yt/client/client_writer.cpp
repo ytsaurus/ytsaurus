@@ -13,15 +13,13 @@ TClientWriter::TClientWriter(
     const TRichYPath& path,
     const TAuth& auth,
     const TTransactionId& transactionId,
-    EDataStreamFormat format,
-    const TString& formatConfig,
+    const TMaybe<TFormat>& format,
     const TTableWriterOptions& options)
     : BlockWriter_(new TBlockWriter(
         auth,
         transactionId,
         GetWriteTableCommand(),
         format,
-        formatConfig,
         path,
         BUFFER_SIZE,
         options))

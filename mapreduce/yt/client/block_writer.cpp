@@ -102,12 +102,8 @@ void TBlockWriter::FlushBuffer(bool lastBlock)
 void TBlockWriter::Send(const TBuffer& buffer)
 {
     THttpHeader header("PUT", Command_);
-    header.SetDataStreamFormat(Format_);
+    header.SetInputFormat(Format_);
     header.SetParameters(Parameters_);
-
-    if (Format_ == DSF_PROTO) {
-        header.SetInputFormat(FormatConfig_);
-    }
 
     auto streamMaker = [&buffer] () {
         return new TBufferInput(buffer);

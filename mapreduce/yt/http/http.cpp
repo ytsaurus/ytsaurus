@@ -101,24 +101,19 @@ void THttpHeader::SetToken(const TString& token)
     Token = token;
 }
 
-void THttpHeader::SetDataStreamFormat(EDataStreamFormat format)
-{
-    DataStreamFormat = format;
-}
-
-EDataStreamFormat THttpHeader::GetDataStreamFormat() const
-{
-    return DataStreamFormat;
-}
-
-void THttpHeader::SetInputFormat(const TString& format)
+void THttpHeader::SetInputFormat(const TMaybe<TFormat>& format)
 {
     InputFormat = format;
 }
 
-void THttpHeader::SetOutputFormat(const TString& format)
+void THttpHeader::SetOutputFormat(const TMaybe<TFormat>& format)
 {
     OutputFormat = format;
+}
+
+TMaybe<TFormat> THttpHeader::GetOutputFormat() const
+{
+    return OutputFormat;
 }
 
 void THttpHeader::SetParameters(const TString& parameters)
@@ -198,26 +193,6 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
     header << "Content-Encoding: " << RequestCompression << "\r\n";
     header << "Accept-Encoding: " << ResponseCompression << "\r\n";
 
-    switch (DataStreamFormat) {
-        case DSF_YSON_BINARY:
-            header << "Accept: application/x-yt-yson-binary\r\n";
-            header << "Content-Type: application/x-yt-yson-binary\r\n";
-            break;
-        case DSF_YSON_TEXT:
-            header << "Accept: application/x-yt-yson-text\r\n";
-            header << "Content-Type: application/x-yt-yson-text\r\n";
-            break;
-        case DSF_YAMR_LENVAL:
-            header << "Accept: application/x-yamr-subkey-lenval\r\n";
-            header << "Content-Type: application/x-yamr-subkey-lenval\r\n";
-            break;
-        case DSF_BYTES:
-            header << "Accept: application/octet-stream\r\n";
-            header << "Content-Type: application/octet-stream\r\n";
-        default:
-            break;
-    }
-
     auto printYTHeader = [&header] (const char* headerName, const TString& value) {
         static const size_t maxHttpHeaderSize = 64 << 10;
         if (!value) {
@@ -241,8 +216,12 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
         } while (ptr != finish);
     };
 
-    printYTHeader("X-YT-Input-Format", InputFormat);
-    printYTHeader("X-YT-Output-Format", OutputFormat);
+    if (InputFormat) {
+        printYTHeader("X-YT-Input-Format", NodeToYsonString(InputFormat->Config));
+    }
+    if (OutputFormat) {
+        printYTHeader("X-YT-Output-Format", NodeToYsonString(OutputFormat->Config));
+    }
     printYTHeader("X-YT-Parameters", Parameters);
 
     header << "\r\n";
@@ -672,8 +651,8 @@ THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
             ~parameters);
     }
 
-    auto dataStreamFormat = header.GetDataStreamFormat();
-    if (dataStreamFormat == DSF_YSON_TEXT) {
+    auto outputFormat = header.GetOutputFormat();
+    if (outputFormat && outputFormat->Type == EFormatType::YsonText) {
         LogResponse = true;
     }
 

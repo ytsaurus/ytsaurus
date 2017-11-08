@@ -20,8 +20,7 @@ public:
         const TRichYPath& path,
         const TAuth& auth,
         const TTransactionId& transactionId,
-        EDataStreamFormat format,
-        const TString& formatConfig,
+        const TMaybe<TFormat>& format,
         const TTableWriterOptions& options);
 
     size_t GetStreamCount() const override;

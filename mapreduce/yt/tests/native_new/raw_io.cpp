@@ -73,7 +73,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
         TTestRawReaderFixture testFixture(10);
 
         auto client = testFixture.GetClient();
-        auto reader = client->CreateRawReader("//testing/table", DSF_YSON_BINARY, TTableReaderOptions());
+        auto reader = client->CreateRawReader("//testing/table", TFormat::YsonBinary(), TTableReaderOptions());
         auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
 
         TMaybe<ui32> rangeIndex;
@@ -90,7 +90,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
         TTestRawReaderFixture testFixture(10);
 
         auto client = testFixture.GetClient();
-        auto reader = client->CreateRawReader("//testing/table", DSF_YSON_BINARY, TTableReaderOptions());
+        auto reader = client->CreateRawReader("//testing/table", TFormat::YsonBinary(), TTableReaderOptions());
         {
             reader->Retry(Nothing(), Nothing());
             auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
@@ -135,7 +135,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
         TTestRawReaderFixture testFixture(10);
 
         auto client = testFixture.GetClient();
-        auto reader = client->CreateRawReader("//testing/table", DSF_YSON_BINARY, TTableReaderOptions());
+        auto reader = client->CreateRawReader("//testing/table", TFormat::YsonBinary(), TTableReaderOptions());
         reader->ReadAll();
         reader->Retry(Nothing(), 9ull);
         auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
@@ -161,7 +161,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
             .LowerLimit(TReadLimit().RowIndex(1))
             .UpperLimit(TReadLimit().RowIndex(5)));
 
-        auto reader = client->CreateRawReader(path, DSF_YSON_BINARY, TTableReaderOptions());
+        auto reader = client->CreateRawReader(path, TFormat::YsonBinary(), TTableReaderOptions());
         auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
 
         TMaybe<ui32> rangeIndex;
@@ -188,7 +188,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
             .LowerLimit(TReadLimit().RowIndex(10))
             .UpperLimit(TReadLimit().RowIndex(14)));
 
-        auto reader = client->CreateRawReader(path, DSF_YSON_BINARY, TTableReaderOptions());
+        auto reader = client->CreateRawReader(path, TFormat::YsonBinary(), TTableReaderOptions());
         reader->ReadAll();
 
         {
