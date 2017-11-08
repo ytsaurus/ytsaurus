@@ -7,6 +7,7 @@
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
 #include "helpers.h"
+#include "chunk_reader_allowing_repair.h"
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -104,7 +105,7 @@ struct TPeerQueueEntry
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader
-    : public IChunkReader
+    : public IChunkReaderAllowingRepair
 {
 public:
     TReplicationReader(
@@ -188,6 +189,20 @@ public:
         IsFailed_ = true;
     }
 
+    virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
+    {
+        SlownessChecker_ = slownessChecker;
+    }
+
+    TError CheckReaderIsSlow(TInstant startTimestamp, i64 bytesReceived)
+    {
+        if (!SlownessChecker_) {
+            return TError();
+        }
+        auto timePassed = TInstant::Now() - startTimestamp;
+        return SlownessChecker_(bytesReceived, timePassed);
+    }
+
 private:
     class TSessionBase;
     class TReadBlockSetSession;
@@ -220,6 +235,8 @@ private:
     yhash<TString, int> PeerBanCountMap_;
 
     std::atomic<bool> IsFailed_;
+
+    TCallback<TError(i64, TDuration)> SlownessChecker_;
 
     TFuture<TChunkReplicaList> AsyncGetSeeds()
     {
@@ -434,6 +451,10 @@ protected:
     //! Fixed priority invoker build upon CompressionPool.
     IInvokerPtr SessionInvoker_;
 
+    TInstant StartTimestamp_;
+
+    i64 TotalBytesReceived_;
+
 
     TSessionBase(
         TReplicationReader* reader,
@@ -627,6 +648,10 @@ protected:
             return;
         }
 
+        if (ShouldStop()) {
+            return;
+        }
+
         YCHECK(!SeedsFuture_);
 
         LOG_DEBUG("Retry started: %v of %v",
@@ -659,7 +684,7 @@ protected:
 
         ++RetryIndex_;
         if (RetryIndex_ >= retryCount) {
-            OnSessionFailed();
+            OnSessionFailed(/* fatal */ true);
             return;
         }
 
@@ -699,7 +724,7 @@ protected:
                     "Cannot find any of %v addresses for seed %v",
                     Networks_,
                     descriptor->GetDefaultAddress()));
-                OnSessionFailed();
+                OnSessionFailed(/* fatal */ true);
                 return false;
             } else {
                 AddPeer(*address, *descriptor, EPeerType::Seed);
@@ -711,7 +736,7 @@ protected:
             if (reader->Options_->AllowFetchingSeedsFromMaster) {
                 OnRetryFailed();
             } else {
-                OnSessionFailed();
+                OnSessionFailed(/* fatal */ true);
             }
             return false;
         }
@@ -724,6 +749,10 @@ protected:
         auto reader = Reader_.Lock();
         if (!reader)
             return;
+
+        if (ShouldStop()) {
+            return;
+        }
 
         int passCount = reader->Config_->PassCount;
         LOG_DEBUG("Pass completed: %v of %v",
@@ -766,7 +795,7 @@ protected:
 
     virtual void NextPass() = 0;
 
-    virtual void OnSessionFailed() = 0;
+    virtual void OnSessionFailed(bool fatal) = 0;
 
 private:
     //! Errors collected by the session.
@@ -849,7 +878,7 @@ private:
                 NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Error requesting seeds from master")
                 << result);
-            OnSessionFailed();
+            OnSessionFailed(/* fatal */ true);
             return;
         }
 
@@ -861,6 +890,25 @@ private:
         }
 
         NextPass();
+    }
+
+    bool ShouldStop()
+    {
+        auto reader = Reader_.Lock();
+        if (!reader) {
+            return true;
+        }
+
+        auto error = reader->CheckReaderIsSlow(StartTimestamp_, TotalBytesReceived_);
+        if (error.IsOK()) {
+            return false;
+        }
+
+        RegisterError(TError("Read session of chunk %v is stopped since it is slow and we can continue with repair", reader->GetChunkId())
+            << error);
+        OnSessionFailed(/* fatal */ false);
+
+        return true;
     }
 };
 
@@ -887,6 +935,9 @@ public:
 
     TFuture<std::vector<TBlock>> Run()
     {
+        // TODO: maybe it's better to set in reader
+        StartTimestamp_ = TInstant::Now();
+        TotalBytesReceived_ = 0;
         NextRetry();
         return Promise_;
     }
@@ -1217,6 +1268,7 @@ private:
 
             YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
             bytesReceived += block.Size();
+            TotalBytesReceived_ += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
 
@@ -1254,13 +1306,15 @@ private:
         Promise_.TrySet(std::vector<TBlock>(blocks));
     }
 
-    virtual void OnSessionFailed() override
+    virtual void OnSessionFailed(bool fatal) override
     {
         auto reader = Reader_.Lock();
         if (!reader)
             return;
 
-        reader->SetFailed();
+        if (fatal) {
+            reader->SetFailed();
+        }
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
@@ -1304,6 +1358,8 @@ public:
             return MakeFuture(std::vector<TBlock>());
         }
 
+        StartTimestamp_ = TInstant::Now();
+        TotalBytesReceived_ = 0;
         NextRetry();
         return Promise_;
     }
@@ -1408,6 +1464,7 @@ private:
 
             blocksReceived += 1;
             bytesReceived += block.Size();
+            TotalBytesReceived_ += block.Size();
 
             try {
                 block.ValidateChecksum();
@@ -1462,19 +1519,20 @@ private:
         Promise_.TrySet(std::vector<TBlock>(FetchedBlocks_));
     }
 
-    virtual void OnSessionFailed() override
+    virtual void OnSessionFailed(bool fatal) override
     {
         auto reader = Reader_.Lock();
         if (!reader)
             return;
 
-        reader->SetFailed();
+        if (fatal) {
+            reader->SetFailed();
+        }
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
         Promise_.TrySet(error);
     }
-
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
@@ -1511,6 +1569,8 @@ public:
 
     TFuture<NProto::TChunkMeta> Run()
     {
+        StartTimestamp_ = TInstant::Now();
+        TotalBytesReceived_ = 0;
         NextRetry();
         return Promise_;
     }
@@ -1605,6 +1665,7 @@ private:
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
             RequestMeta();
         } else {
+            TotalBytesReceived_ += rspOrError.Value()->ByteSize();
             OnSessionSucceeded(rspOrError.Value()->chunk_meta());
         }
     }
@@ -1615,13 +1676,15 @@ private:
         Promise_.TrySet(chunkMeta);
     }
 
-    virtual void OnSessionFailed() override
+    virtual void OnSessionFailed(bool fatal) override
     {
         auto reader = Reader_.Lock();
         if (!reader)
             return;
 
-        reader->SetFailed();
+        if (fatal) {
+            reader->SetFailed();
+        }
         auto error = BuildCombinedError(TError(
             "Error fetching meta for chunk %v",
             reader->ChunkId_));
@@ -1642,7 +1705,7 @@ TFuture<NProto::TChunkMeta> TReplicationReader::GetMeta(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkReaderPtr CreateReplicationReader(
+IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     INativeClientPtr client,
