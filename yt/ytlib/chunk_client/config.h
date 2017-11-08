@@ -143,11 +143,20 @@ class TErasureReaderConfig
 {
 public:
     bool EnableAutoRepair;
+    double ReplicationReaderSpeedLimitPerSec;
+    TDuration SlowReaderExpirationTimeout;
+    TDuration ReplicationReaderTimeout;
 
     TErasureReaderConfig()
     {
         RegisterParameter("enable_auto_repair", EnableAutoRepair)
             .Default(true);
+        RegisterParameter("replication_reader_speed_limit_per_sec", ReplicationReaderSpeedLimitPerSec)
+            .Default(5_MB);
+        RegisterParameter("slow_reader_expiration_timeout", SlowReaderExpirationTimeout)
+            .Default(TDuration::Minutes(2));
+        RegisterParameter("replication_reader_timeout", ReplicationReaderTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 
