@@ -1003,7 +1003,10 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
-        if (autoMergeEnabled && outputTable.Path.GetAutoMerge()) {
+        if (autoMergeEnabled &&
+            outputTable.Path.GetAutoMerge() &&
+            !outputTable.TableUploadOptions.TableSchema.IsSorted())
+        {
             auto edgeDescriptor = standardEdgeDescriptors[index];
             // Auto-merge jobs produce single output, so we override the table
             // index in writer options with 0.
