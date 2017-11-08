@@ -712,6 +712,7 @@ protected:
             EdgeDescriptors_[0].TableWriterOptions = Controller->GetIntermediateTableWriterOptions();
             EdgeDescriptors_[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Controller->Spec->SortBy);
             EdgeDescriptors_[0].RequiresRecoveryInfo = true;
+            EdgeDescriptors_[0].IsFinalOutput = false;
         }
 
     protected:
