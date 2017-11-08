@@ -163,6 +163,15 @@ public:
             batchReq->AddRequest(req);
         }
 
+        {
+            auto req = TCypressYPathProxy::Create(GetNewOperationPath(operationId));
+            req->set_type(static_cast<int>(EObjectType::MapNode));
+            req->set_recursive(true);
+            req->set_force(true);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+
         if (operation->GetSecureVault()) {
             // Create secure vault.
             auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
@@ -582,9 +591,14 @@ private:
                     operationsList->GetChildCount());
                 OperationIds.clear();
                 for (auto operationNode : operationsList->GetChildren()) {
+                    auto state = operationNode->Attributes().Find<EOperationState>("state");
+                    // Ignore map nodes with nested operation nodes.
+                    if (!state) {
+                        continue;
+                    }
+
                     auto id = TOperationId::FromString(operationNode->GetValue<TString>());
-                    auto state = operationNode->Attributes().Get<EOperationState>("state");
-                    if (IsOperationInProgress(state)) {
+                    if (IsOperationInProgress(*state)) {
                         OperationIds.push_back(id);
                     }
                 }
@@ -624,6 +638,14 @@ private:
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                         batchReq->AddRequest(req, "get_op_attr");
                     }
+                    {
+                        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+                        std::vector<TString> attributeKeys{
+                            "completion_transaction_id",
+                        };
+                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                        batchReq->AddRequest(req, "get_op_attr_new");
+                    }
                     // Retrieve secure vault.
                     {
                         auto req = TYPathProxy::Get(GetSecureVaultPath(operationId));
@@ -640,13 +662,21 @@ private:
                 auto attributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr");
                 YCHECK(attributesRsps.size() == OperationIds.size());
 
+                auto attributesNewRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr_new");
+                YCHECK(attributesRsps.size() == OperationIds.size());
+
                 auto secureVaultRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_secure_vault");
                 YCHECK(secureVaultRsps.size() == OperationIds.size());
 
                 for (int index = 0; index < static_cast<int>(OperationIds.size()); ++index) {
                     const auto& operationId = OperationIds[index];
                     auto attributesRsp = attributesRsps[index].Value();
+                    auto attributesNewRsp = attributesNewRsps[index];
                     auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                    if (attributesNewRsp.IsOK()) {
+                        auto attributesNodeNew = ConvertToAttributes(TYsonString(attributesNewRsp.Value()->value()));
+                        attributesNode->MergeFrom(*attributesNodeNew);
+                    }
                     auto secureVaultRspOrError = secureVaultRsps[index];
                     IMapNodePtr secureVault;
                     if (secureVaultRspOrError.IsOK()) {
@@ -699,13 +729,24 @@ private:
                         report.ControllerTransactions->Output->GetId(),
                         NullTransactionId})
                     {
-                        auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "committed"
-                        };
-                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        SetTransactionId(req, transactionId);
-                        batchReq->AddRequest(req, getBatchKey(report));
+                        {
+                            auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
+                            std::vector<TString> attributeKeys{
+                                "committed"
+                            };
+                            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                            SetTransactionId(req, transactionId);
+                            batchReq->AddRequest(req, getBatchKey(report));
+                        }
+                        {
+                            auto req = TYPathProxy::Get(GetNewOperationPath(report.Operation->GetId()) + "/@");
+                            std::vector<TString> attributeKeys{
+                                "committed"
+                            };
+                            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                            SetTransactionId(req, transactionId);
+                            batchReq->AddRequest(req, getBatchKey(report) + "_new");
+                        }
                     }
                 }
             }
@@ -718,20 +759,38 @@ private:
                 for (int index = 0; index < static_cast<int>(operationsWithOutputTransaction.size()); ++index) {
                     auto* report = operationsWithOutputTransaction[index];
                     auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report));
+                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report) + "_new");
 
-                    size_t rspIndex = 0;
-                    for (auto rsp : rsps) {
-                        ++rspIndex;
-                        if (!rsp.IsOK()) {
-                            // Output transaction may be aborted or expired.
+                    YCHECK(rsps.size() == 2);
+                    YCHECK(rspsNew.size() == 2);
+
+                    for (size_t rspIndex = 0; rspIndex < 2; ++rspIndex) {
+                        std::unique_ptr<IAttributeDictionary> attributes;
+                        auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& response) {
+                            if (!response.IsOK()) {
+                                return;
+                            }
+
+                            auto responseAttributes = ConvertToAttributes(TYsonString(response.Value()->value()));
+
+                            if (attributes) {
+                                attributes->MergeFrom(*responseAttributes);
+                            } else {
+                                attributes = std::move(responseAttributes);
+                            }
+                        };
+
+                        updateAttributes(rsps[rspIndex]);
+                        updateAttributes(rspsNew[rspIndex]);
+
+                        // Commit transaction may be missing or aborted.
+                        if (!attributes) {
                             continue;
                         }
 
-                        auto attributesRsp = rsp.Value();
-                        auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
                         if (attributes->Get<bool>("committed", false)) {
                             report->IsCommitted = true;
-                            if (rspIndex == 1) {
+                            if (rspIndex == 0) {
                                 report->ShouldCommitOutputTransaction = true;
                             }
                             break;
