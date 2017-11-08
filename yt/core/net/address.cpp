@@ -202,7 +202,9 @@ TIP6Address TNetworkAddress::ToIP6Address() const
         THROW_ERROR_EXCEPTION("Address is not an IPv6 address");
     }
 
-    return TIP6Address::FromRawBytes(reinterpret_cast<const sockaddr_in6*>(&Storage)->sin6_addr.s6_addr);
+    auto addr = reinterpret_cast<const sockaddr_in6*>(&Storage)->sin6_addr;
+    std::reverse(addr.s6_addr, addr.s6_addr + sizeof(addr));
+    return TIP6Address::FromRawBytes(addr.s6_addr);
 }
 
 socklen_t TNetworkAddress::GetLength() const

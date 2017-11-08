@@ -39,6 +39,14 @@ TEST(TNetworkAddressTest, ParseGoodIpv6)
     EXPECT_EQ("tcp://[2001:db8:8714:3a90::12]", ToString(address, false));
 }
 
+TEST(TNetworkAddressTest, IP6Conversion)
+{
+    TNetworkAddress address = TNetworkAddress::Parse("[2001:db8:8714:3a90::12]");
+    auto ip6Address = address.ToIP6Address();
+
+    EXPECT_EQ("2001:db8:8714:3a90::12", ToString(ip6Address));
+}
+
 TEST(TNetworkAddressTest, ParseGoodIpv6WithPort)
 {
     TNetworkAddress address = TNetworkAddress::Parse("[2001:db8:8714:3a90::12]:1000");
