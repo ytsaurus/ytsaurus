@@ -23,9 +23,6 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
         },
         "map_reduce_operation_options" : {
           "min_uncompressed_block_size" : 1,
-          "spec_template" : {
-            "use_legacy_controller" : False,
-          }
         },
         "enable_partition_map_job_size_adjustment" : True
       }

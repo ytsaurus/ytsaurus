@@ -10,7 +10,6 @@
 #include "task.h"
 #include "controller_agent.h"
 
-#include <yt/server/chunk_pools/atomic_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/shuffle_chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
@@ -1998,25 +1997,21 @@ protected:
 
     std::unique_ptr<IChunkPool> CreateSortedMergeChunkPool()
     {
-        if (Spec->UseLegacyController) {
-            return CreateAtomicChunkPool();
-        } else {
-            TSortedChunkPoolOptions chunkPoolOptions;
-            TSortedJobOptions jobOptions;
-            jobOptions.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
-            jobOptions.PrimaryPrefixLength = GetSortedMergeKeyColumnCount();
-            jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
-            // NB: otherwise we could easily be persisted during preparing the jobs. Sorted chunk pool
-            // can't handle this.
-            jobOptions.EnablePeriodicYielder = false;
-            chunkPoolOptions.OperationId = OperationId;
-            chunkPoolOptions.SortedJobOptions = jobOptions;
-            chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
-                Spec,
-                Options,
-                GetOutputTablePaths().size());
-            return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
-        }
+        TSortedChunkPoolOptions chunkPoolOptions;
+        TSortedJobOptions jobOptions;
+        jobOptions.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
+        jobOptions.PrimaryPrefixLength = GetSortedMergeKeyColumnCount();
+        jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        // NB: otherwise we could easily be persisted during preparing the jobs. Sorted chunk pool
+        // can't handle this.
+        jobOptions.EnablePeriodicYielder = false;
+        chunkPoolOptions.OperationId = OperationId;
+        chunkPoolOptions.SortedJobOptions = jobOptions;
+        chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
+            Spec,
+            Options,
+            GetOutputTablePaths().size());
+        return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
     }
 
     void AccountRows(const TNullable<NJobTrackerClient::TStatistics>& statistics)

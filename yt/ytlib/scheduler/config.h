@@ -383,20 +383,6 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(max42): remove this when YT-6547 is closed and legacy controllers are finally deprecated.
-class TOperationWithLegacyControllerSpec
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    bool UseLegacyController;
-
-    TOperationWithLegacyControllerSpec();
-};
-
-DEFINE_REFCOUNTED_TYPE(TOperationWithLegacyControllerSpec)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
@@ -536,7 +522,6 @@ DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec);
 
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
-    , public TOperationWithLegacyControllerSpec
 {
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec, 0x213a54d6);
@@ -571,7 +556,6 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 class TReduceOperationSpecBase
     : public TSimpleOperationSpecBase
     , public TOperationWithUserJobSpec
-    , public TOperationWithLegacyControllerSpec
 {
 public:
     TUserJobSpecPtr Reducer;
@@ -633,7 +617,6 @@ DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec);
 
 class TSortOperationSpecBase
     : public TOperationSpecBase
-    , public TOperationWithLegacyControllerSpec
 {
 public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
@@ -775,7 +758,6 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec);
 
 class TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
-    , public TOperationWithLegacyControllerSpec
 {
 public:
     TNullable<TString> ClusterName;
