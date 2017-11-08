@@ -12,6 +12,8 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/ytlib/tablet_client/table_replica_ypath.pb.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -24,6 +26,7 @@ using namespace NYson;
 using namespace NTabletClient;
 using namespace NObjectServer;
 using namespace NCypressServer;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +72,7 @@ private:
     {
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();
+        const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
 
         if (key == "cluster_name") {
             BuildYsonFluently(consumer)
@@ -119,7 +123,8 @@ private:
                             .Item("state").Value(replicaInfo->GetState())
                             .Item("current_replication_row_index").Value(replicaInfo->GetCurrentReplicationRowIndex())
                             .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
-                            .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(*replicaInfo))
+                            .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(
+                                timestampProvider->GetLatestTimestamp(), *replicaInfo))
                             .DoIf(!replicaInfo->Error().IsOK(), [&] (TFluentMap fluent) {
                                 fluent.Item("replication_error").Value(replicaInfo->Error());
                             })
@@ -132,7 +137,7 @@ private:
 
         if (key == "replication_lag_time") {
             BuildYsonFluently(consumer)
-                .Value(replica->ComputeReplicationLagTime());
+                .Value(replica->ComputeReplicationLagTime(timestampProvider->GetLatestTimestamp()));
             return true;
         }
 
