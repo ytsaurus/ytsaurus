@@ -61,6 +61,12 @@ def id_to_parts_new(id):
 def id_to_parts(id, version):
     return (id_to_parts_new if version >= 6 else id_to_parts_old)(id)
 
+def get_op_path(op_id):
+    return "//sys/operations/{}".format(op_id)
+
+def get_op_new_path(op_id):
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
 class NullMetrics(object):
     def add(self, *args):
         pass
@@ -318,22 +324,67 @@ class OperationCleaner(object):
         for op_id in op_ids:
             logger.info("Removing operation %s", op_id)
 
-        responses = self.yt.execute_batch(requests=[{
-                "command": "remove",
-                "parameters": {
-                    "path": "//sys/operations/{}".format(op_id),
-                    "recursive": True
-                }
-            } for op_id in op_ids])
+        requests = []
+        for op_id in op_ids:
+            for path in (get_op_path(op_id), get_op_new_path(op_id)):
+                requests.append(
+                    {
+                        "command": "remove",
+                        "parameters": {
+                            "path": path,
+                            "recursive": True
+                        }
+                    })
+
+        responses = self.yt.execute_batch(requests)
 
         errors = []
         for rsp in responses:
-            if "error" in rsp:
-                errors.append(yt.YtResponseError(rsp["error"]))
-                raise yt.YtResponseError(rsp["error"])
+            if "error" not in rsp:
+                continue
+
+            error = yt.YtResponseError(rsp["error"])
+            if error.is_resolve_error():
+                continue
+
+            errors.append(error)
 
         if errors:
-            raise yt.YtError("Failed to remove operations", inner_errors=[errors])
+            raise yt.YtError("Failed to remove operations", inner_errors=errors)
+
+class OperationNewCleaner(object):
+    def __init__(self, client):
+        self.yt = client
+
+    def __call__(self, op_paths):
+        for op_path in op_paths:
+            logger.info("Removing node %s", op_path)
+
+        requests = []
+        for op_path in op_paths:
+            requests.append(
+                {
+                    "command": "remove",
+                    "parameters": {
+                        "path": op_path,
+                    }
+                })
+
+        responses = self.yt.execute_batch(requests)
+
+        errors = []
+        for rsp in responses:
+            if "error" not in rsp:
+                continue
+
+            error = yt.YtResponseError(rsp["error"])
+            if error.is_resolve_error():
+                continue
+
+            errors.append(error)
+
+        if errors:
+            raise yt.YtError("Failed to remove operation new nodes", inner_errors=errors)
 
 # Push metrics
 
@@ -397,17 +448,32 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         "removing_operations"]}
 
     with timers["getting_operations_list"]:
+        prefixes = set(["%02x" % prefix for prefix in xrange(256)])
+
         operations = client.list(
             "//sys/operations",
             max_size=100000,
             attributes=["state", "start_time", "finish_time", "authenticated_user"])
-    operations = [Operation(
-        maybe_parse_time(op.attributes.get("start_time", None)),
-        maybe_parse_time(op.attributes.get("finish_time", None)),
-        str(op),
-        op.attributes["authenticated_user"],
-        op.attributes["state"]) for op in operations]
-    operations.sort(key=lambda op: op.start_time, reverse=True)
+        operations = [Operation(
+            maybe_parse_time(op.attributes.get("start_time", None)),
+            maybe_parse_time(op.attributes.get("finish_time", None)),
+            str(op),
+            op.attributes["authenticated_user"],
+            op.attributes["state"])
+            for op in operations if str(op) not in prefixes]
+        operations.sort(key=lambda op: op.start_time, reverse=True)
+
+        operation_ids = set(op.id for op in operations)
+        remove_new_queue = []
+        for prefix in prefixes:
+            try:
+                for op in client.list("//sys/operations/" + prefix, max_size=100000):
+                    if op not in operation_ids:
+                        remove_new_queue.append(prefix + "/" + op)
+            except yt.YtError as err:
+                if not err.is_resolve_error():
+                    raise
+        remove_new_queue = NonBlockingQueue(remove_new_queue)
 
     metrics["initial_count"] = len(operations)
 
@@ -514,6 +580,9 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
     with timers["removing_operations"]:
         run_batching_queue_workers(remove_queue, OperationCleaner, thread_count, args=(client,), batch_size=8, failed_items=failed_to_remove)
         failed_to_remove.extend(wait_for_queue(remove_queue, "remove_operations", end_time_limit))
+
+        run_batching_queue_workers(remove_new_queue, OperationNewCleaner, thread_count, args=(client,), batch_size=8, failed_items=failed_to_remove)
+        failed_to_remove.extend(wait_for_queue(remove_new_queue, "remove_operations_new", end_time_limit))
 
     now_after_clean = datetime.utcnow()
 
