@@ -25,6 +25,16 @@ TYPath GetOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
+TYPath GetNewOperationPath(const TOperationId& operationId)
+{
+    int hashByte = operationId.Parts32[0] & 0xff;
+    return
+        "//sys/operations/" +
+        Format("%02x", hashByte) +
+        "/" +
+        ToYPathLiteral(ToString(operationId));
+}
+
 TYPath GetOperationAttributesPath(const TOperationId& operationId)
 {
     return
