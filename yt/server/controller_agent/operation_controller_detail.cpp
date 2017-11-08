@@ -1106,7 +1106,7 @@ void TOperationControllerBase::StartCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetOperationPath(OperationId) + "/@completion_transaction_id";
+        auto path = GetNewOperationPath(OperationId) + "/@completion_transaction_id";
         auto req = TYPathProxy::Set(path);
         req->set_value(ConvertToYsonString(CompletionTransaction->GetId()).GetData());
         WaitFor(proxy.Execute(req))
@@ -1122,7 +1122,7 @@ void TOperationControllerBase::CommitCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetOperationPath(OperationId) + "/@committed";
+        auto path = GetNewOperationPath(OperationId) + "/@committed";
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, CompletionTransaction->GetId());
         req->set_value(ConvertToYsonString(true).GetData());
