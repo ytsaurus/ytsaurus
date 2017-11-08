@@ -1,10 +1,10 @@
 #include "operation_controller.h"
 
 #include "helpers.h"
-#include "map_controller.h"
 #include "ordered_controller.h"
 #include "sort_controller.h"
 #include "sorted_controller.h"
+#include "unordered_controller.h"
 
 #include <yt/server/scheduler/operation.h>
 
@@ -348,7 +348,7 @@ IOperationControllerPtr CreateControllerForOperation(
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
             controller = baseSpec->Ordered
                 ? CreateOrderedMapController(host, operation)
-                : CreateMapController(host, operation);
+                : CreateUnorderedMapController(host, operation);
             break;
         }
         case EOperationType::Merge: {

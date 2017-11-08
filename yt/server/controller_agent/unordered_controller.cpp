@@ -1,4 +1,4 @@
-#include "map_controller.h"
+#include "unordered_controller.h"
 
 #include "auto_merge_task.h"
 #include "chunk_list_pool.h"
@@ -48,7 +48,7 @@ static const NProfiling::TProfiler Profiler("/operations/unordered");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedOperationControllerBase
+class TUnorderedControllerBase
     : public TOperationControllerBase
 {
 public:
@@ -61,7 +61,7 @@ public:
             : Controller(nullptr)
         { }
 
-        TUnorderedTaskBase(TUnorderedOperationControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
+        TUnorderedTaskBase(TUnorderedControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
             : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
         { }
@@ -136,7 +136,7 @@ public:
         }
 
     private:
-        TUnorderedOperationControllerBase* Controller;
+        TUnorderedControllerBase* Controller;
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
@@ -211,7 +211,7 @@ public:
 
     typedef TIntrusivePtr<TUnorderedTaskBase> TUnorderedTaskPtr;
 
-    TUnorderedOperationControllerBase(
+    TUnorderedControllerBase(
         TUnorderedOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
@@ -507,13 +507,13 @@ protected:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TUnorderedTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TAutoMergeableUnorderedTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedControllerBase::TUnorderedTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedControllerBase::TAutoMergeableUnorderedTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapController
-    : public TUnorderedOperationControllerBase
+    : public TUnorderedControllerBase
 {
 public:
     TMapController(
@@ -521,7 +521,7 @@ public:
         TMapOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TUnorderedOperationControllerBase(spec, options, host, operation)
+        : TUnorderedControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     {
@@ -534,7 +534,7 @@ public:
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
-        TUnorderedOperationControllerBase::BuildBriefSpec(consumer);
+        TUnorderedControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
             .Item("mapper").BeginMap()
                 .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
@@ -544,7 +544,7 @@ public:
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TUnorderedOperationControllerBase::Persist(context);
+        TUnorderedControllerBase::Persist(context);
 
         using NYT::Persist;
         Persist(context, StartRowIndex);
@@ -631,7 +631,7 @@ private:
 
     virtual void DoInitialize() override
     {
-        TUnorderedOperationControllerBase::DoInitialize();
+        TUnorderedControllerBase::DoInitialize();
 
         ValidateUserFileCount(Spec->Mapper, "mapper");
     }
@@ -654,7 +654,7 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
-        TUnorderedOperationControllerBase::InitJobSpecTemplate();
+        TUnorderedControllerBase::InitJobSpecTemplate();
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
@@ -705,7 +705,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateMapController(
+IOperationControllerPtr CreateUnorderedMapController(
     IOperationHost* host,
     TOperation* operation)
 {
@@ -716,7 +716,7 @@ IOperationControllerPtr CreateMapController(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedMergeController
-    : public TUnorderedOperationControllerBase
+    : public TUnorderedControllerBase
 {
 public:
     TUnorderedMergeController(
@@ -724,7 +724,7 @@ public:
         TUnorderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TUnorderedOperationControllerBase(spec, options, host, operation)
+        : TUnorderedControllerBase(spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
