@@ -105,8 +105,8 @@ class TestYamrMode(object):
         assert not yt.exists(embedded_path)
 
     @pytest.mark.timeout(1200)
-    def test_mapreduce_binary(self):
-        env = get_environment_for_binary_test()
+    def test_mapreduce_binary(self, yt_env_for_yamr):
+        env = get_environment_for_binary_test(yt_env_for_yamr)
         env["FALSE"] = "false"
         env["TRUE"] = "true"
 

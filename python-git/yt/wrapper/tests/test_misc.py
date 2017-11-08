@@ -103,8 +103,8 @@ def test_ypath_dirname():
 @pytest.mark.timeout(1200)
 @pytest.mark.usefixtures("yt_env")
 class TestYtBinary(object):
-    def test_yt_binary(self):
-        env = get_environment_for_binary_test()
+    def test_yt_binary(self, yt_env):
+        env = get_environment_for_binary_test(yt_env)
         env["FALSE"] = "%false"
         env["TRUE"] = "%true"
 
