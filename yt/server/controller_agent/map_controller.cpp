@@ -1,7 +1,6 @@
 #include "map_controller.h"
 
 #include "auto_merge_task.h"
-#include "legacy_merge_controller.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_info.h"

@@ -1,10 +1,8 @@
 #include "operation_controller.h"
 
 #include "helpers.h"
-#include "legacy_merge_controller.h"
 #include "map_controller.h"
 #include "ordered_controller.h"
-#include "remote_copy_controller.h"
 #include "sort_controller.h"
 #include "sorted_controller.h"
 
@@ -348,70 +346,51 @@ IOperationControllerPtr CreateControllerForOperation(
     switch (operation->GetType()) {
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-            if (baseSpec->Ordered) {
-                auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-                controller = legacySpec->UseLegacyController
-                    ? CreateLegacyOrderedMapController(host, operation)
-                    : CreateOrderedMapController(host, operation);
-            } else {
-                controller = CreateMapController(host, operation);
-            }
+            controller = baseSpec->Ordered
+                ? CreateOrderedMapController(host, operation)
+                : CreateMapController(host, operation);
             break;
         }
         case EOperationType::Merge: {
             auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
             switch (baseSpec->Mode) {
                 case EMergeMode::Ordered: {
-                    auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-                    controller = legacySpec->UseLegacyController
-                        ? CreateLegacyOrderedMergeController(host, operation)
-                        : CreateOrderedMergeController(host, operation);
+                    controller = CreateOrderedMergeController(host, operation);
                     break;
                 }
                 case EMergeMode::Sorted: {
-                    auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-                    controller = legacySpec->UseLegacyController
-                        ? CreateLegacySortedMergeController(host, operation)
-                        : CreateSortedMergeController(host, operation);
+                    controller = CreateSortedMergeController(host, operation);
                     break;
                 }
-                case EMergeMode::Unordered:
+                case EMergeMode::Unordered: {
                     controller = CreateUnorderedMergeController(host, operation);
+                    break;
+                }
             }
             break;
         }
         case EOperationType::Erase: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            controller = legacySpec->UseLegacyController
-                ? CreateLegacyEraseController(host, operation)
-                : CreateEraseController(host, operation);
+            controller = CreateEraseController(host, operation);
             break;
         }
-        case EOperationType::Sort:
+        case EOperationType::Sort: {
             controller = CreateSortController(host, operation);
             break;
+        }
         case EOperationType::Reduce: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            controller = legacySpec->UseLegacyController
-                ? CreateLegacyReduceController(host, operation)
-                : CreateSortedReduceController(host, operation);
+            controller = CreateSortedReduceController(host, operation);
             break;
         }
         case EOperationType::JoinReduce: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            controller = legacySpec->UseLegacyController
-                ? CreateLegacyJoinReduceController(host, operation)
-                : CreateJoinReduceController(host, operation);
+            controller = CreateJoinReduceController(host, operation);
             break;
         }
-        case EOperationType::MapReduce:
+        case EOperationType::MapReduce: {
             controller = CreateMapReduceController(host, operation);
             break;
+        }
         case EOperationType::RemoteCopy: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            controller = legacySpec->UseLegacyController
-                ? CreateLegacyRemoteCopyController(host, operation)
-                : CreateRemoteCopyController(host, operation);
+            controller = CreateRemoteCopyController(host, operation);
             break;
         }
         default:

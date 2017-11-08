@@ -33,7 +33,6 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/cell_proxy/bootstrap.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/atomic_chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_stripe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_stripe_key.cpp
@@ -93,14 +92,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_size_adjuster.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_splitter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_spec_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/legacy_merge_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation_controller_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/ordered_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/progress_counter.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/remote_copy_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/snapshot_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/snapshot_downloader.cpp
