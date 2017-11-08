@@ -82,6 +82,7 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 TReplicaCounters::TReplicaCounters(const TTagIdList& list)
     : LagRowCount("/replica/lag_row_count", list)
     , LagTime("/replica/lag_time", list)
+    , Tags(list)
 { }
 
 // Uses tablet_id and replica_id as the key.
@@ -269,6 +270,15 @@ void TTableReplicaInfo::PopulateStatistics(TTableReplicaStatistics* statistics) 
 void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& statistics)
 {
     RuntimeData_->MergeFrom(statistics);
+}
+
+TProfiler TTableReplicaInfo::GetReplicatorProfiler() const
+{
+    return GetCounters()
+        ? TProfiler(
+            TabletNodeProfiler.GetPathPrefix() + "/replicator",
+            GetCounters()->Tags)
+        : TProfiler();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
