@@ -1036,7 +1036,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_read_from_chunks(self, optimize_for):
+    def test_lookup_from_chunks(self, optimize_for):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
 
