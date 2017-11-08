@@ -24,6 +24,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/concurrency/config.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -98,6 +100,7 @@ public:
     int MaxTimestampsPerReplicationCommit;
     int MaxRowsPerReplicationCommit;
     i64 MaxDataWeightPerReplicationCommit;
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationThrottler;
     bool EnableReplicationLogging;
 
     bool EnableProfiling;
@@ -217,6 +220,8 @@ public:
             .Default(90000);
         RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
             .Default(128_MB);
+        RegisterParameter("replication_throttler", ReplicationThrottler)
+            .DefaultNew();
         RegisterParameter("enable_replication_logging", EnableReplicationLogging)
             .Default(false);
 

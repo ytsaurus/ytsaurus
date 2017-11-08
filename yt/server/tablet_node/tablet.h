@@ -53,6 +53,8 @@ struct TReplicaCounters
 
     NProfiling::TSimpleCounter LagRowCount;
     NProfiling::TSimpleCounter LagTime;
+
+    const NProfiling::TTagIdList Tags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,6 +244,8 @@ public:
 
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
+
+    NProfiling::TProfiler GetReplicatorProfiler() const;
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
