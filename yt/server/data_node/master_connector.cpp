@@ -431,8 +431,6 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
 {
-    auto chunkStore = Bootstrap_->GetChunkStore();
-
     i64 totalAvailableSpace = 0;
     i64 totalLowWatermarkSpace = 0;
     i64 totalUsedSpace = 0;
@@ -440,7 +438,8 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     int totalSessionCount = 0;
     bool full = true;
 
-    for (auto location : chunkStore->Locations()) {
+    auto chunkStore = Bootstrap_->GetChunkStore();
+    for (const auto& location : chunkStore->Locations()) {
         if (location->IsEnabled()) {
             totalAvailableSpace += location->GetAvailableSpace();
             totalLowWatermarkSpace += location->GetLowWatermarkSpace();
