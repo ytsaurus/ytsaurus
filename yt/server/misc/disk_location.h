@@ -30,8 +30,6 @@ protected:
 
     i64 GetTotalSpace() const;
 
-    void ValidateEnabled() const;
-
 private:
     const TDiskLocationConfigPtr Config_;
 };
