@@ -509,7 +509,8 @@ class ConfigsProvider_18(ConfigsProvider):
 
             store_location_config = {
                 "low_watermark": 0,
-                "high_watermark": 0
+                "high_watermark": 0,
+                "disable_writes_watermark": 0
             }
 
             if provision["node"]["chunk_store_quota"] is not None:
