@@ -991,7 +991,7 @@ private:
 
     TFuture<std::vector<NDataNode::IChunkPtr>> DownloadArtifacts()
     {
-        auto chunkCache = Bootstrap_->GetChunkCache();
+        const auto& chunkCache = Bootstrap_->GetChunkCache();
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
         for (const auto& artifact : Artifacts_) {
