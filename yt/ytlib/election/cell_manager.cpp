@@ -6,7 +6,7 @@
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/tcp_client.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/profiling/profile_manager.h>
 

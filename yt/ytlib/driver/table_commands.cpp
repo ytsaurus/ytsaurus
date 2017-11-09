@@ -160,10 +160,6 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableReader,
         TableReader);
 
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
-
     Options.Config = config;
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(
@@ -253,10 +249,6 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
-
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
 
     Options.Config = config;
 
@@ -436,6 +428,10 @@ TSelectRowsCommand::TSelectRowsCommand()
     RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
         .Optional();
     RegisterParameter("use_multijoin", Options.UseMultijoin)
+        .Optional();
+    RegisterParameter("allow_full_scan", Options.AllowFullScan)
+        .Optional();
+    RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)
         .Optional();
 }
 

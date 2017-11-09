@@ -86,7 +86,7 @@ public:
     IPrioritizedInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IInvokerPtr GetWritePoolInvoker();
+    IPrioritizedInvokerPtr GetWritePoolInvoker();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     /*!
@@ -191,7 +191,7 @@ private:
     const IPrioritizedInvokerPtr MetaReadInvoker_;
 
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
-    const IInvokerPtr WritePoolInvoker_;
+    const IPrioritizedInvokerPtr WritePoolInvoker_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

@@ -9,7 +9,8 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/ring_queue.h>
 
@@ -44,7 +45,7 @@ public:
     TTcpConnection(
         TTcpBusConfigPtr config,
         EConnectionType connectionType,
-        TNullable<ETcpInterfaceType> interfaceType,
+        const TString& networkName,
         const TConnectionId& id,
         int socket,
         const TString& endpointDescription,
@@ -69,6 +70,7 @@ public:
     // IBus implementation.
     virtual const TString& GetEndpointDescription() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    virtual TTcpDispatcherStatistics GetStatistics() const override;
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
     virtual void Terminate(const TError& error) override;
 
@@ -145,7 +147,7 @@ private:
     const NLogging::TLogger Logger;
     const TString LoggingId_;
 
-    TNullable<ETcpInterfaceType> InterfaceType_;
+    TString NetworkName_;
     TTcpDispatcherCountersPtr Counters_;
     bool GenerateChecksums_ = true;
     bool ConnectionCounterIncremented_ = false;
@@ -203,13 +205,13 @@ private:
 
     int GetSocketPort();
 
-    void ConnectSocket(const TNetworkAddress& address);
+    void ConnectSocket(const NNet::TNetworkAddress& address);
     void OnDialerFinished(SOCKET socket, TError error);
     void CloseSocket();
 
-    void OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& result);
-    void OnAddressResolved(const TNetworkAddress& address, ETcpInterfaceType interfaceType);
-    void SetupInterfaceType(ETcpInterfaceType interfaceType);
+    void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);
+    void OnAddressResolved(const NNet::TNetworkAddress& address);
+    void SetupNetwork(const TString& networkName);
 
     int GetSocketError() const;
     bool IsSocketError(ssize_t result);

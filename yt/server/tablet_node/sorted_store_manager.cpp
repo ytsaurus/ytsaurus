@@ -12,6 +12,7 @@
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/confirming_writer.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -449,7 +450,17 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         ProfileDiskPressure(
             tabletSnapshot,
             tableWriter->GetDataStatistics(),
-            tabletSnapshot->RuntimeData->StoreFlushDiskPressureCounter);
+            StoreFlushTag_);
+
+        auto dataStatistics = tableWriter->GetDataStatistics();
+        auto diskSpace = CalculateDiskSpaceUsage(
+            tabletSnapshot->WriterOptions->ReplicationFactor,
+            dataStatistics.regular_disk_space(),
+            dataStatistics.erasure_disk_space());
+        LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v DiskSpace: %v)",
+            store->GetId(),
+            chunkWriter->GetChunkId(),
+            diskSpace);
 
         TAddStoreDescriptor descriptor;
         descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));
@@ -641,7 +652,7 @@ void TSortedStoreManager::OnRowBlocked(
     TSortedDynamicRow row,
     int lockIndex)
 {
-    WaitFor(
+    Y_UNUSED(WaitFor(
         BIND(
             &TSortedStoreManager::WaitOnBlockedRow,
             MakeStrong(this),
@@ -649,7 +660,7 @@ void TSortedStoreManager::OnRowBlocked(
             row,
             lockIndex)
         .AsyncVia(invoker)
-        .Run());
+        .Run()));
 }
 
 void TSortedStoreManager::WaitOnBlockedRow(
@@ -668,7 +679,7 @@ void TSortedStoreManager::WaitOnBlockedRow(
         lockIndex,
         transaction->GetId());
 
-    WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
+    Y_UNUSED(WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum)));
 }
 
 bool TSortedStoreManager::IsOverflowRotationNeeded() const

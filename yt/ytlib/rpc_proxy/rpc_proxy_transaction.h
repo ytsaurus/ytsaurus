@@ -148,12 +148,6 @@ public:
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
 
-    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const NApi::TGetInSyncReplicasOptions& options) override;
-
     virtual TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const NApi::TGetNodeOptions& options) override;

@@ -233,8 +233,6 @@ private:
 
     void OnForwardingFinished()
     {
-        ResultWriter_->Flush();
-        throw TCompleteParsingWithResultException<TString>(ResultStream_.Str());
     }
 
     void NextToken()
@@ -251,7 +249,10 @@ private:
                     }
 
                     if (IsAny_) {
-                        Forward(ResultWriter_.get(), BIND(&TYPathResolver::OnForwardingFinished, this));
+                        Forward(ResultWriter_.get(), [this] {
+                            ResultWriter_->Flush();
+                            throw TCompleteParsingWithResultException<TString>(ResultStream_.Str());
+                        });
                     } else {
                         Expected_ = EExpectedItem::Value;
                     }

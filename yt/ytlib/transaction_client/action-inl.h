@@ -15,7 +15,7 @@ TTransactionActionData MakeTransactionActionData(const TProto& message)
 {
     return TTransactionActionData{
         message.GetTypeName(),
-        ToString(SerializeToProto(message))
+        SerializeProtoToString(message)
     };
 }
 

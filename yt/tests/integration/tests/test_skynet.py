@@ -14,6 +14,7 @@ class TestSkynet(YTEnvSetup):
     NUM_NODES = 5
 
     DELTA_NODE_CONFIG = {
+        "use_new_http_server": True,
         "data_node": {
             "enable_experimental_skynet_http_api": True
         }
@@ -42,6 +43,7 @@ class TestSkynet(YTEnvSetup):
         assert 1 == len(chunk_specs)
         assert chunk_specs[0]["chunk_id"] == chunk
         assert chunk_specs[0]["row_index"] == 0
+        assert chunk_specs[0]["row_count"] == 1
 
     def test_locate_multiple_parts(self):
         create("table", "//tmp/table")
@@ -59,9 +61,9 @@ class TestSkynet(YTEnvSetup):
         for spec in chunk_specs:
             spec.pop("replicas")
 
-        assert chunk_specs[0] == {'chunk_id': chunks[0], 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 0}
-        assert chunk_specs[1] == {'chunk_id': chunks[1], 'row_index': 2, 'range_index': 0}
-        assert chunk_specs[2] == {'chunk_id': chunks[2], 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 4, 'range_index': 0}
+        assert chunk_specs[0] == {'chunk_id': chunks[0], 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 0, 'row_count': 1}
+        assert chunk_specs[1] == {'chunk_id': chunks[1], 'row_index': 2, 'range_index': 0, 'row_count': 2}
+        assert chunk_specs[2] == {'chunk_id': chunks[2], 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 4, 'range_index': 0, 'row_count': 1}
 
     def test_multiple_ranges(self):
         create("table", "//tmp/table")
@@ -76,8 +78,8 @@ class TestSkynet(YTEnvSetup):
             spec.pop("replicas")
 
         assert len(chunk_specs) == 2
-        assert chunk_specs[0] == {'chunk_id': chunk, 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 0, 'range_index': 0}
-        assert chunk_specs[1] == {'chunk_id': chunk, 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 1}
+        assert chunk_specs[0] == {'chunk_id': chunk, 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 0, 'range_index': 0, 'row_count': 1}
+        assert chunk_specs[1] == {'chunk_id': chunk, 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 1, 'row_count': 1}
 
     def test_node_locations(self):
         create("table", "//tmp/table", attributes={
@@ -112,7 +114,7 @@ class TestSkynet(YTEnvSetup):
         else:
             raise KeyError(node_id)
 
-        url = "http://{}/read_skynet_part/?{}".format(
+        url = "http://{}/read_skynet_part?{}".format(
             http_address,
             "&".join("{}={}".format(k, v) for k, v in kwargs.items()))
         return urllib2.urlopen(url).read()

@@ -2,7 +2,7 @@
 #include "blob.h"
 #include "error.h"
 
-#include <yt/core/protos/bloom_filter.pb.h>
+#include <yt/core/misc/proto/bloom_filter.pb.h>
 
 #include <cmath>
 

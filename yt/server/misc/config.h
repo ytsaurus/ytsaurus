@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/misc/config.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/rpc/config.h>
 
@@ -15,6 +15,8 @@
 #include <yt/core/tracing/config.h>
 
 #include <yt/core/logging/config.h>
+
+#include <yt/core/http/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -28,7 +30,7 @@ class TServerConfig
 public:
     // Singletons.
     yhash<TString, int> FiberStackPoolSizes;
-    TAddressResolverConfigPtr AddressResolver;
+    NNet::TAddressResolverConfigPtr AddressResolver;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NLogging::TLogConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;
@@ -42,6 +44,8 @@ public:
 
     //! HTTP monitoring interface port number.
     int MonitoringPort;
+    NHttp::TServerConfigPtr MonitoringServer;
+    bool UseNewHttpServer;
 
     TServerConfig()
     {
@@ -72,6 +76,10 @@ public:
             .Default(0)
             .GreaterThanOrEqual(0)
             .LessThan(65536);
+        RegisterParameter("monitoring_server", MonitoringServer)
+            .DefaultNew();
+        RegisterParameter("use_new_http_server", UseNewHttpServer)
+            .Default(false);
     }
 
     virtual void OnLoaded() override

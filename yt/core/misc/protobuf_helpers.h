@@ -11,8 +11,8 @@
 
 #include <yt/core/compression/public.h>
 
-#include <yt/core/protos/guid.pb.h>
-#include <yt/core/protos/protobuf_helpers.pb.h>
+#include <yt/core/misc/proto/guid.pb.h>
+#include <yt/core/misc/proto/protobuf_helpers.pb.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>
@@ -110,7 +110,7 @@ TOriginal FromProto(const TSerialized& serialized, TArgs&&... args);
 
 struct TEnvelopeFixedHeader
 {
-    ui32 HeaderSize;
+    ui32 EnvelopeSize;
     ui32 MessageSize;
 };
 
@@ -119,58 +119,53 @@ struct TEnvelopeFixedHeader
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Serializes a protobuf message.
-//! Returns |true| iff everything went well.
-bool TrySerializeToProto(
+//! Fails on error.
+TSharedRef SerializeProtoToRef(
     const google::protobuf::MessageLite& message,
-    TSharedMutableRef* data,
     bool partial = true);
 
-//! Serializes a protobuf message.
-//! Fails on error.
-TSharedRef SerializeToProto(
+//! \see SerializeProtoToString
+TString SerializeProtoToString(
     const google::protobuf::MessageLite& message,
     bool partial = true);
 
 //! Deserializes a chunk of memory into a protobuf message.
 //! Returns |true| iff everything went well.
-bool TryDeserializeFromProto(
+bool TryDeserializeProto(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
 //! Deserializes a chunk of memory into a protobuf message.
 //! Fails on error.
-void DeserializeFromProto(
+void DeserializeProto(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
 //! Serializes a given protobuf message and wraps it with envelope.
 //! Optionally compresses the serialized message.
-//! Returns |true| iff everything went well.
-bool TrySerializeToProtoWithEnvelope(
-    const google::protobuf::MessageLite& message,
-    TSharedMutableRef* data,
-    NCompression::ECodec codecId = NCompression::ECodec::None,
-    bool partial = true);
-
-//! Serializes a given protobuf message and wraps it with envelope.
-//! Optionally compresses the serialized message.
 //! Fails on error.
-TSharedRef SerializeToProtoWithEnvelope(
+TSharedRef SerializeProtoToRefWithEnvelope(
     const google::protobuf::MessageLite& message,
     NCompression::ECodec codecId = NCompression::ECodec::None,
     bool partial = true);
 
-//! Unwraps a chunk of memory obtained from #TrySerializeToProtoWithEnvelope
+//! \see SerializeProtoToRefWithEnvelope
+TString SerializeProtoToStringWithEnvelope(
+    const google::protobuf::MessageLite& message,
+    NCompression::ECodec codecId = NCompression::ECodec::None,
+    bool partial = true);
+
+//! Unwraps a chunk of memory obtained from #TrySerializeProtoToRefWithEnvelope
 //! and deserializes it into a protobuf message.
 //! Returns |true| iff everything went well.
-bool TryDeserializeFromProtoWithEnvelope(
+bool TryDeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
-//! Unwraps a chunk of memory obtained from #TrySerializeToProtoWithEnvelope
+//! Unwraps a chunk of memory obtained from #TrySerializeProtoToRefWithEnvelope
 //! and deserializes it into a protobuf message.
 //! Fails on error.
-void DeserializeFromProtoWithEnvelope(
+void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data);
 

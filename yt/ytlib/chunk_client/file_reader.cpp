@@ -234,7 +234,7 @@ TChunkMeta TFileReader::DoGetMeta(
     }
 
     TChunkMeta meta;
-    if (!TryDeserializeFromProtoWithEnvelope(&meta, metaBlob)) {
+    if (!TryDeserializeProtoWithEnvelope(&meta, metaBlob)) {
         THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
             metaFileName);
     }

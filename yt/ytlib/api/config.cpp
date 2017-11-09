@@ -116,11 +116,9 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .DefaultNew();
 
     RegisterParameter("thread_pool_size", ThreadPoolSize)
-        .Describe("Number of threads handling requests")
         .Default(4);
 
     RegisterParameter("max_concurrent_requests", MaxConcurrentRequests)
-        .Describe("Maximum concurrent requests in client")
         .GreaterThan(0)
         .Default(1000);
 

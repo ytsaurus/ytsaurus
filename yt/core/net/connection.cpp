@@ -4,7 +4,7 @@
 #include <yt/core/concurrency/poller.h>
 
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/socket.h>
+#include <yt/core/net/socket.h>
 #include <yt/core/misc/finally.h>
 
 #include <errno.h>

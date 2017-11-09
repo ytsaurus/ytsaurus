@@ -104,7 +104,7 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
     for (const auto& extension : extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
-            DeserializeFromProto(&result, TRef::FromString(data));
+            DeserializeProto(&result, TRef::FromString(data));
             found = true;
             break;
         }
@@ -134,7 +134,7 @@ TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
         if (extension.tag() == tag) {
             const auto& data = extension.data();
             result.Assign(T());
-            DeserializeFromProto(&result.Get(), TRef::FromString(data));
+            DeserializeProto(&result.Get(), TRef::FromString(data));
             break;
         }
     }

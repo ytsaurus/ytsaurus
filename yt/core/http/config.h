@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -19,19 +21,10 @@ public:
     int ReadBufferSize;
     int WriteBufferSize;
 
-    TServerConfig() {
-        RegisterParameter("port", Port)
-            .Default(80);
+    int BindRetryCount;
+    TDuration BindRetryBackoff;
 
-        RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
-            .Default(50000);
-
-        RegisterParameter("read_buffer_size", ReadBufferSize)
-            .Default(128_KB);
-
-        RegisterParameter("write_buffer_size", WriteBufferSize)
-            .Default(128_KB);
-    }
+    TServerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig);

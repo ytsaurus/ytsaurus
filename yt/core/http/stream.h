@@ -125,7 +125,7 @@ private:
     void FinishHeaders();
     void EnsureHeadersReceived();
 
-    TCallback<TFuture<TSharedRef>()> ReadClosure_;
+    IInvokerPtr ReadInvoker_;
 
     TSharedRef DoRead();
 };

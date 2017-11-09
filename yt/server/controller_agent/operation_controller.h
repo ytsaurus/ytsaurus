@@ -10,6 +10,10 @@
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
 
+#include <yt/server/table_server/public.h>
+
+#include <yt/server/misc/release_queue.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/hive/public.h>
@@ -22,6 +26,10 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/object_client/public.h>
+
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/future.h>
 
@@ -32,12 +40,6 @@
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
-
-#include <yt/ytlib/chunk_client/public.h>
-
-#include <yt/ytlib/object_client/public.h>
-
-#include <yt/server/table_server/public.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -72,49 +74,10 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual const TSchedulerConfigPtr& GetConfig() const = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const NApi::INativeClientPtr& GetMasterClient() const = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual TMasterConnector* GetControllerAgentMasterConnector() = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
-
-    //! Returns the control invoker of the scheduler.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual IInvokerPtr GetControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const = 0;
-
-    //! Returns invoker for statistics analyzer.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const IInvokerPtr& GetStatisticsAnalyzerInvoker() const = 0;
-
-    //! Returns invoker for operation controller.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual IInvokerPtr CreateOperationControllerInvoker() = 0;
-
-    //! Returns the manager of the throttlers to limit #LocateChunk requests from chunk scraper.
-    virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const = 0;
+    virtual TControllerAgent* GetControllerAgent() = 0;
 
     //! Returns the total number of online exec nodes.
     virtual int GetExecNodeCount() const = 0;
-
-    //! Returns last time the scheduler got connected to the cluster.
-    virtual TInstant GetConnectionTime() const = 0;
 
     //! Returns the descriptors of online exec nodes that can handle operations
     //! marked with a given #tag.
@@ -169,24 +132,6 @@ struct IOperationHost
     virtual void OnUserTransactionAborted(
         const TOperationId& operationId) = 0;
 
-    //! Creates new value consumer that can be used for logging.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual std::unique_ptr<NTableClient::IValueConsumer> CreateLogConsumer() = 0;
-
-    //! Returns a TCoreDumper for current process.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const TCoreDumperPtr& GetCoreDumper() const = 0;
-
-    //! Returns an AsyncSemaphore limiting concurrency for core dumps being written by failed safe assertions.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const = 0;
-
     //! Sets operation alert.
     /*!
      *  \note Thread affinity: any
@@ -207,7 +152,10 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual TFuture<void> ReleaseJobs(const std::vector<NJobTrackerClient::TJobId>& jobIds) = 0;
+    virtual void ReleaseJobs(
+        const TOperationId& operationId,
+        std::vector<TJobId> jobIds,
+        int controllerSchedulerIncarnation) = 0;
 
     virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const NScheduler::TJobMetrics& jobMetrics) = 0;
 };
@@ -370,6 +318,9 @@ struct IOperationController
     //! Returns whether controller was forgotten or not.
     virtual bool IsForgotten() const = 0;
 
+    //! Returns whether controller is running or not.
+    virtual bool IsRunning() const = 0;
+
     //! Returns whether controller was revived from snapshot.
     virtual bool IsRevivedFromSnapshot() const = 0;
 
@@ -473,27 +424,37 @@ struct IOperationController
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
 
-    /*!
-     *  \note Invoker affinity: scheduler control thread when controller is suspended (NB!).
-     */
-    //! Return the number of jobs that were completed up to this moment.
-    virtual int GetCompletedJobCount() const = 0;
-
-    /*!
-     *  \note Invoker affinity: Controller invoker (non-cancellable when called from controller destroy pipeline).
-     */
-    //! Remove oldest jobs from the list of recent jobs waiting their removal inside controller
-    //! and submit them to the scheduler for the removal.
-    //!
-    //!                    `completedJobIndexLimit` v         v current moment of time
-    //! completed jobs .. .. . | x  x xxx xx xx xxx | ** * ** |    <- all these guys are stored in `recentCompletedJobs`
-    //!                        |                    |                 inside the controller.
-    //!                        ^ snapshot           ^ newly created snapshot
-    virtual void ReleaseJobs(int completedJobIndexLimit) = 0;
-
     //! Build scheduler jobs from the joblets. Used during revival pipeline.
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;
 
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    //! Return a map node containing all unrecognized spec options.
+    virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const = 0;
+
+    /*!
+     *  \note Invoker affinity: controller invoker.
+     */
+    //! Method that is called right before the controller is suspended and snapshot builder forks.
+    //! Return value is an index of snapshot upload attempt starting from zero.
+    //! This method should not throw.
+    virtual int OnSnapshotStarted() = 0;
+
+    /*!
+     *  \note Invoker affinity: cancellable controller invoker.
+     */
+    //! Method that is called right after each snapshot is uploaded.
+    //! `snapshotIndex` should be equal to a last `OnSnapshotStarted()` return value,
+    //! otherwise controller crashes.
+    virtual void OnSnapshotCompleted(int snapshotIndex) = 0;
+
+    /*!
+     *  \note Invoker affinity: controller invoker.
+     */
+    //! Method that is called after operation results are commited and before
+    //! controller is disposed.
+    virtual void OnBeforeDisposal() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -346,7 +346,7 @@ void TSimpleProcess::DoSpawn()
             error.InnerErrors() = innerErrors;
             error.ThrowOnError();
         } else {
-            WaitFor(TDelayedExecutor::MakeDelayed(ResolveRetryTimeout));
+            TDelayedExecutor::WaitForDuration(ResolveRetryTimeout);
         }
     }
 

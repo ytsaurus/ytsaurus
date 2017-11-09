@@ -73,16 +73,17 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
 
     def test_ordered_tablet_node_profiling(self):
+        path = "//tmp/x"
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", enable_profiling=True)
-        self.sync_mount_table("//tmp/t")
+        self._create_simple_table(path, enable_profiling=True)
+        self.sync_mount_table(path)
 
-        tablet_profiling = self._get_tablet_profiling("//tmp/t")
-        select_profiling = self._get_profiling("//tmp/t")
+        tablet_profiling = self._get_tablet_profiling(path)
+        select_profiling = self._get_profiling(path)
 
         def get_all_counters(count_name):
             return (
-                select_profiling.get_counter("select/" + count_name),
+                tablet_profiling.get_counter("select/" + count_name),
                 tablet_profiling.get_counter("write/" + count_name),
                 tablet_profiling.get_counter("commit/" + count_name))
 
@@ -91,12 +92,12 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert select_profiling.get_counter("select/cpu_time") == 0
 
         rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(9)]
-        insert_rows("//tmp/t", rows)
+        insert_rows(path, rows)
 
         sleep(2)  # sleep is needed to ensure that the profiling counters are updated properly
 
         rows = [{"a": 100, "b": 0.5, "c": "data"}]
-        insert_rows("//tmp/t", rows)
+        insert_rows(path, rows)
 
         sleep(2)
 
@@ -104,12 +105,12 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert get_all_counters("data_weight") == (0, 246, 246)
         assert select_profiling.get_counter("select/cpu_time") == 0
 
-        select_rows("* from [//tmp/t]")
+        select_rows("* from [{}]".format(path))
 
         sleep(2)
 
-        assert get_all_counters("row_count") == (20, 10, 10)
-        assert get_all_counters("data_weight") == (892, 246, 246)
+        assert get_all_counters("row_count") == (10, 10, 10)
+        assert get_all_counters("data_weight") == (406, 246, 246)
         assert select_profiling.get_counter("select/cpu_time") > 0
 
     def test_insert(self):

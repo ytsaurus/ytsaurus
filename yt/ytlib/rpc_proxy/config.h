@@ -17,6 +17,8 @@ class TRpcProxyConnectionConfig
 public:
     std::vector<TString> Addresses;
     TDuration PingPeriod;
+    TDuration UpdatePeriod;
+    int UpdateAttempts;
     TDuration TimestampProviderRpcTimeout;
     TDuration TimestampProviderUpdatePeriod;
     NBus::TTcpBusConfigPtr BusClient;
@@ -27,6 +29,10 @@ public:
             .NonEmpty();
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("update_period", UpdatePeriod)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("update_attempts", UpdateAttempts)
+            .Default(7);
         RegisterParameter("timestamp_provider_rpc_timeout", TimestampProviderRpcTimeout)
             .Default(TDuration::Seconds(5));
         RegisterParameter("timestamp_provider_update_period", TimestampProviderUpdatePeriod)

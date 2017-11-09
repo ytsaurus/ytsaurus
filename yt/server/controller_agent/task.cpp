@@ -170,7 +170,7 @@ void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 
 void TTask::FinishInput()
 {
-    LOG_DEBUG("Task input finished");
+    LOG_DEBUG("Task input finished" );
 
     GetChunkPoolInput()->Finish();
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
@@ -179,6 +179,13 @@ void TTask::FinishInput()
     }
     AddPendingHint();
     CheckCompleted();
+}
+
+void TTask::FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex)
+{
+    SetInputVertex(inputVertex);
+
+    FinishInput();
 }
 
 void TTask::CheckCompleted()
@@ -381,12 +388,6 @@ i64 TTask::GetInputDataSliceCount() const
 void TTask::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-
-    // COMPAT(babenko)
-    if (context.IsLoad() && context.GetVersion() < 200009) {
-        Load<TNullable<TInstant>>(context.LoadContext());
-    }
-
     Persist(context, TaskHost_);
 
     Persist(context, CachedPendingJobCount_);
@@ -406,6 +407,7 @@ void TTask::Persist(const TPersistenceContext& context)
     >(context, LostJobCookieMap);
 
     Persist(context, EdgeDescriptors_);
+    Persist(context, InputVertex_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -413,6 +415,11 @@ void TTask::PrepareJoblet(TJobletPtr /* joblet */)
 
 void TTask::OnJobStarted(TJobletPtr joblet)
 { }
+
+bool TTask::CanLoseJobs() const
+{
+    return false;
+}
 
 void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
@@ -429,7 +436,7 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
-                this->TaskHost_->UnstageChunkTreesNonRecursively({joblet->ChunkListIds[index]});
+                this->TaskHost_->ReleaseChunkLists({joblet->ChunkListIds[index]}, true /* unstageNonRecursively */);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }
@@ -444,6 +451,21 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 outputStatistics.row_count(),
                 GetId());
             YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
+        }
+
+        YCHECK(InputVertex_ > TDataFlowGraph::TVertexDescriptor::SchedulerFirst);
+        YCHECK(InputVertex_ < TDataFlowGraph::TVertexDescriptor::SchedulerLast);
+
+        auto vertex = GetJobType();
+        TaskHost_->DataFlowGraph().RegisterFlow(InputVertex_, vertex, inputStatistics);
+        // TODO(max42): rewrite this properly one day.
+        for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
+            if (EdgeDescriptors_[index].IsFinalOutput) {
+                TaskHost_->DataFlowGraph().RegisterFlow(
+                    vertex,
+                    TDataFlowGraph::TVertexDescriptor::Sink,
+                    outputStatisticsMap[index]);
+            }
         }
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
@@ -707,6 +729,11 @@ void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& sta
     }
 }
 
+void TTask::FinishTaskInput(const TTaskPtr& task)
+{
+    task->FinishInput(GetJobType() /* inputVertex */);
+}
+
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 {
     NJobTrackerClient::NProto::TJobSpec jobSpec;
@@ -739,7 +766,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             TaskHost_->Spec()->MaxDataWeightPerJob));
     }
 
-    return SerializeToProtoWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
+    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
@@ -819,15 +846,15 @@ void TTask::RegisterStripe(
         }
 
         // Store recovery info.
-        auto completedJob = New<TCompletedJob>(
-            joblet->JobId,
-            joblet->JobType,
-            this,
-            joblet->OutputCookie,
-            joblet->InputStripeList->TotalDataWeight,
-            destinationPool,
-            inputCookie,
-            joblet->NodeDescriptor);
+        auto completedJob = New<TCompletedJob>();
+        completedJob->JobId = joblet->JobId;
+        completedJob->SourceTask = this;
+        completedJob->OutputCookie = joblet->OutputCookie;
+        completedJob->DataWeight = joblet->InputStripeList->TotalDataWeight;
+        completedJob->DestinationPool = destinationPool;
+        completedJob->InputCookie = inputCookie;
+        completedJob->InputStripe = CanLoseJobs() ? nullptr : stripe;
+        completedJob->NodeDescriptor = joblet->NodeDescriptor;
 
         TaskHost_->RegisterRecoveryInfo(
             completedJob,

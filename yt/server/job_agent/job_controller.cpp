@@ -654,7 +654,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         for (const auto& info : response->jobs_to_start()) {
             TJobSpec spec;
             const auto& attachment = response->Attachments()[attachmentIndex++];
-            DeserializeFromProtoWithEnvelope(&spec, attachment);
+            DeserializeProtoWithEnvelope(&spec, attachment);
 
             auto jobId = FromProto<TJobId>(info.job_id());
             auto operationId = FromProto<TJobId>(info.operation_id());
@@ -706,7 +706,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
             TJobSpec spec;
             const auto& attachment = jobSpecResponse->Attachments()[index];
-            DeserializeFromProtoWithEnvelope(&spec, attachment);
+            DeserializeProtoWithEnvelope(&spec, attachment);
 
             CreateJob(jobId, operationId, resourceLimits, std::move(spec));
         }
@@ -753,6 +753,17 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                 .BeginMap()
                                     .Item("job_state").Value(job->GetState())
                                     .Item("job_phase").Value(job->GetPhase())
+                                    .Item("job_type").Value(job->GetType())
+                                    .Item("start_time").Value(job->GetStartTime())
+                                    .Item("duration").Value(TInstant::Now() - job->GetStartTime())
+                                    .DoIf(static_cast<bool>(job->GetStatistics()), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("statistics").Value(job->GetStatistics());
+                                    })
+                                    .DoIf(static_cast<bool>(job->GetOperationId()), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("operation_id").Value(job->GetOperationId());
+                                    })
                                 .EndMap();
                         });
                 })

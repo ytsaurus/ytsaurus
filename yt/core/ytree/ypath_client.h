@@ -8,7 +8,7 @@
 
 #include <yt/core/rpc/client.h>
 
-#include <yt/core/protos/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {
@@ -92,9 +92,8 @@ public:
 protected:
     virtual TSharedRef SerializeBody() const override
     {
-        return SerializeToProtoWithEnvelope(*this);
+        return SerializeProtoToRefWithEnvelope(*this);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,9 +124,8 @@ class TTypedYPathResponse
 protected:
     virtual void DeserializeBody(const TRef& data) override
     {
-        DeserializeFromProtoWithEnvelope(this, data);
+        DeserializeProtoWithEnvelope(this, data);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,15 +27,28 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TAggregateCounter PreemptableListUpdateTimeCounter("/preemptable_list_update_time");
-static TAggregateCounter PreemptableListUpdateMoveCountCounter("/preemptable_list_update_move_count");
-
-////////////////////////////////////////////////////////////////////////////////
-
 static const double RatioComputationPrecision = std::numeric_limits<double>::epsilon();
 static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TAggregateCounter& GetCounter(const TString& treeId, const TString& name)
+{
+    using TCounterKey = std::pair<TString, TString>;
+    using TCounterValue = std::unique_ptr<TAggregateCounter>;
+
+    static yhash<TCounterKey, TCounterValue> counters;
+
+    TCounterKey key = std::make_pair(treeId, name);
+    auto it = counters.find(key);
+    if (it == counters.end()) {
+        auto tag = TProfileManager::Get()->RegisterTag("tree", treeId);
+        auto ptr = std::make_unique<TAggregateCounter>(name, TTagIdList{tag});
+        it = counters.emplace(key, std::move(ptr)).first;
+    }
+
+    return *it->second;
+}
 
 TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
 {
@@ -91,13 +104,15 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerE
 
 TSchedulerElementFixedState::TSchedulerElementFixedState(
     ISchedulerStrategyHost* host,
-    const TFairShareStrategyTreeConfigPtr& treeConfig)
+    const TFairShareStrategyTreeConfigPtr& treeConfig,
+    const TString& treeId)
     : ResourceDemand_(ZeroJobResources())
     , ResourceLimits_(InfiniteJobResources())
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
     , TreeConfig_(treeConfig)
     , TotalResourceLimits_(host->GetMainNodesResourceLimits())
+    , TreeId_(treeId)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -296,7 +311,10 @@ TJobResources TSchedulerElement::GetResourceUsage() const
 {
     auto resourceUsage = SharedState_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
-        LOG_WARNING("Found usage of schedulable element %Qv with non-zero user slots and zero memory", GetId());
+        LOG_WARNING("Found usage of schedulable element %Qv with non-zero "
+            "user slots and zero memory (TreeId: %v)",
+            GetId(),
+            GetTreeId());
     }
     return resourceUsage;
 }
@@ -318,6 +336,11 @@ double TSchedulerElement::GetResourceUsageRatio() const
         Attributes_.DominantLimit);
 }
 
+TString TSchedulerElement::GetTreeId() const
+{
+    return TreeId_;
+}
+
 void TSchedulerElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
     SharedState_->IncreaseResourceUsage(delta);
@@ -336,8 +359,9 @@ void TSchedulerElement::ApplyJobMetricsDeltaLocal(const TJobMetrics& delta)
 
 TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
-    const TFairShareStrategyTreeConfigPtr& treeConfig)
-    : TSchedulerElementFixedState(host, treeConfig)
+    const TFairShareStrategyTreeConfigPtr& treeConfig,
+    const TString& treeId)
+    : TSchedulerElementFixedState(host, treeConfig, treeId)
     , SharedState_(New<TSchedulerElementSharedState>())
 { }
 
@@ -450,8 +474,9 @@ void TSchedulerElement::SetOperationAlert(
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     ISchedulerStrategyHost* host,
     TFairShareStrategyTreeConfigPtr treeConfig,
-    NProfiling::TTagId profilingTag)
-    : TSchedulerElement(host, treeConfig)
+    NProfiling::TTagId profilingTag,
+    const TString& treeId)
+    : TSchedulerElement(host, treeConfig, treeId)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -1168,8 +1193,9 @@ TPool::TPool(
     TPoolConfigPtr config,
     bool defaultConfigured,
     TFairShareStrategyTreeConfigPtr treeConfig,
-    NProfiling::TTagId profilingTag)
-    : TCompositeSchedulerElement(host, treeConfig, profilingTag)
+    NProfiling::TTagId profilingTag,
+    const TString& treeId)
+    : TCompositeSchedulerElement(host, treeConfig, profilingTag, treeId)
     , TPoolFixedState(id)
 {
     DoSetConfig(config);
@@ -1301,12 +1327,14 @@ void TPool::SetStarving(bool starving)
 
     if (starving && !GetStarving()) {
         TSchedulerElement::SetStarving(true);
-        LOG_INFO("Pool is now starving (PoolId: %v, Status: %v)",
+        LOG_INFO("Pool is now starving (TreeId: %v, PoolId: %v, Status: %v)",
+            GetTreeId(),
             GetId(),
             GetStatus());
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
-        LOG_INFO("Pool is no longer starving (PoolId: %v)",
+        LOG_INFO("Pool is no longer starving (TreeId: %v, PoolId: %v)",
+            GetTreeId(),
             GetId());
     }
 }
@@ -1682,8 +1710,9 @@ TOperationElement::TOperationElement(
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* host,
-    IOperationStrategyHost* operation)
-    : TSchedulerElement(host, treeConfig)
+    IOperationStrategyHost* operation,
+    const TString& treeId)
+    : TSchedulerElement(host, treeConfig, treeId)
     , TOperationElementFixedState(operation, controllerConfig)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
@@ -1868,7 +1897,8 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     if (!HasJobsSatisfyingResourceLimits(context)) {
         LOG_TRACE(
             "No pending jobs can satisfy available resources on node "
-            "(OperationId: %v, FreeResources: %v, DiscountResources: %v)",
+            "(TreeId: %v, OperationId: %v, FreeResources: %v, DiscountResources: %v)",
+            GetTreeId(),
             OperationId_,
             FormatResources(context.SchedulingContext->GetFreeResources()),
             FormatResources(context.SchedulingContext->ResourceUsageDiscount()));
@@ -1902,7 +1932,8 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
 
         bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
         if (enableBackoff) {
-            LOG_DEBUG("Failed to schedule job, backing off (OperationId: %v, Reasons: %v)",
+            LOG_DEBUG("Failed to schedule job, backing off (TreeId: %v, OperationId: %v, Reasons: %v)",
+                GetTreeId(),
                 OperationId_,
                 scheduleJobResult->Failed);
         }
@@ -1978,12 +2009,14 @@ void TOperationElement::SetStarving(bool starving)
 
     if (starving && !GetStarving()) {
         TSchedulerElement::SetStarving(true);
-        LOG_INFO("Operation is now starving (OperationId: %v, Status: %v)",
+        LOG_INFO("Operation is now starving (TreeId: %v, OperationId: %v, Status: %v)",
+            GetTreeId(),
             GetId(),
             GetStatus());
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
-        LOG_INFO("Operation is no longer starving (OperationId: %v)",
+        LOG_INFO("Operation is no longer starving (TreeId: %v, OperationId: %v)",
+            GetTreeId(),
             GetId());
     }
 }
@@ -2239,14 +2272,15 @@ void TOperationElement::UpdatePreemptableJobsList()
 
     auto elapsed = timer.GetElapsedTime();
 
-    Profiler.Update(PreemptableListUpdateTimeCounter, DurationToValue(elapsed));
-    Profiler.Update(PreemptableListUpdateMoveCountCounter, moveCount);
+    Profiler.Update(GetCounter(GetTreeId(), "/preemptable_list_update_time"), DurationToValue(elapsed));
+    Profiler.Update(GetCounter(GetTreeId(), "/preemptable_list_update_move_count"), moveCount);
 
     if (elapsed > TreeConfig_->UpdatePreemptableListDurationLoggingThreshold) {
-        LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v)",
+        LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v, TreeId: %v)",
             elapsed.MilliSeconds(),
             moveCount,
-            OperationId_);
+            OperationId_,
+            GetTreeId());
     }
 }
 
@@ -2255,11 +2289,13 @@ void TOperationElement::UpdatePreemptableJobsList()
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
     TFairShareStrategyTreeConfigPtr treeConfig,
-    NProfiling::TTagId profilingTag)
+    NProfiling::TTagId profilingTag,
+    const TString& treeId)
     : TCompositeSchedulerElement(
         host,
         treeConfig,
-        profilingTag)
+        profilingTag,
+        treeId)
 {
     SetFairShareRatio(1.0);
     Attributes_.GuaranteedResourcesRatio = 1.0;

@@ -294,18 +294,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // NB: No yielding beyond this point.
-        // May access tablet and transaction.
-
-        auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
-
-        tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
-        ValidateTabletMounted(tablet);
-        ValidateTabletStoreLimit(tablet);
-        ValidateMemoryLimit();
-
-        const auto& tabletId = tablet->GetId();
-        const auto& storeManager = tablet->GetStoreManager();
+        TTablet* tablet = nullptr;
         const auto& transactionManager = Slot_->GetTransactionManager();
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
@@ -314,6 +303,21 @@ public:
         }
 
         while (!reader->IsFinished()) {
+            // NB: No yielding beyond this point.
+            // May access tablet and transaction.
+
+            if (!tablet) {
+                tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
+                tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
+                ValidateTabletMounted(tablet);
+            }
+
+            ValidateTabletStoreLimit(tablet);
+            ValidateMemoryLimit();
+
+            const auto& tabletId = tablet->GetId();
+            const auto& storeManager = tablet->GetStoreManager();
+
             TTransaction* transaction = nullptr;
             bool transactionIsFresh = false;
             if (atomicity == EAtomicity::Full) {
@@ -403,6 +407,7 @@ public:
                     context.BlockedRow,
                     context.BlockedLockMask,
                     context.BlockedTimestamp);
+                tablet = nullptr;
             }
 
             context.Error.ThrowOnError();

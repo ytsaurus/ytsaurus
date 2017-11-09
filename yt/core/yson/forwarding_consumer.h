@@ -2,8 +2,6 @@
 
 #include "string.h"
 
-#include <yt/core/actions/callback.h>
-
 #include <yt/core/yson/consumer.h>
 
 namespace NYT {
@@ -39,7 +37,7 @@ public:
 protected:
     void Forward(
         IYsonConsumer* consumer,
-        const TClosure& onFinished = TClosure(),
+        std::function<void()> onFinished = nullptr,
         EYsonType type = EYsonType::Node);
 
     virtual void OnMyStringScalar(const TStringBuf& value);
@@ -66,12 +64,11 @@ private:
     IYsonConsumer* ForwardingConsumer_ = nullptr;
     int ForwardingDepth_ = 0;
     EYsonType ForwardingType_;
-    TClosure OnFinished_;
+    std::function<void()> OnFinished_;
 
     bool CheckForwarding(int depthDelta = 0);
     void UpdateDepth(int depthDelta, bool checkFinish = true);
     void FinishForwarding();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

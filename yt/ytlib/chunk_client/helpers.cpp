@@ -29,7 +29,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
 
 #include <array>
 
@@ -44,6 +44,7 @@ using namespace NErasure;
 using namespace NNodeTrackerClient;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NNet;
 using namespace NCypressClient;
 
 using NYT::FromProto;

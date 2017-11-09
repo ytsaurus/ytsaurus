@@ -39,6 +39,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/http/public.h>
+
 #include <yt/core/misc/public.h>
 
 namespace NYT {
@@ -116,6 +118,8 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     std::unique_ptr<NXHttp::TServer> HttpServer_;
+    NHttp::IServerPtr NewHttpServer_;
+    NHttp::IHttpHandlerPtr OrchidHttpHandler_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;

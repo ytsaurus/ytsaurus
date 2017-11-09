@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/net/config.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -56,6 +57,8 @@ public:
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
 
+    yhash<TString, std::vector<NNet::TIP6Network>> Networks;
+
     TTcpBusServerConfig()
     {
         RegisterParameter("port", Port)
@@ -66,6 +69,8 @@ public:
             .Default(8192);
         RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
             .Default(50000);
+        RegisterParameter("networks", Networks)
+            .Default({});
     }
 
     static TTcpBusServerConfigPtr CreateTcp(int port);

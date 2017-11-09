@@ -17,6 +17,8 @@
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/name_table.h>
 
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
+
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_transaction.h>
@@ -31,6 +33,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/misc/finally.h>
 
@@ -45,6 +48,10 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
+<<<<<<< HEAD
+=======
+using namespace NApi;
+>>>>>>> 0dcc88d
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,6 +92,11 @@ public:
             .AddTag("TabletId: %v, ReplicaId: %v",
                 TabletId_,
                 ReplicaId_))
+        , Throttler_(
+            CreateReconfigurableThroughputThrottler(
+                tablet->GetConfig()->ReplicationThrottler,
+                Logger,
+                replicaInfo->GetReplicatorProfiler()))
     {
         MountConfigUpdateExecutor_->Start();
     }
@@ -126,8 +138,9 @@ private:
     const TPeriodicExecutorPtr MountConfigUpdateExecutor_;
     const NLogging::TLogger Logger;
 
-    TFuture<void> FiberFuture_;
+    IReconfigurableThroughputThrottlerPtr Throttler_;
 
+    TFuture<void> FiberFuture_;
 
     TSpinLock MountConfigLock_;
     TTableMountConfigPtr MountConfig_;
@@ -141,6 +154,7 @@ private:
 
     void SetMountConfig(TTableMountConfigPtr config)
     {
+        Throttler_->Reconfigure(config->ReplicationThrottler);
         auto guard = Guard(MountConfigLock_);
         MountConfig_ = std::move(config);
     }
@@ -156,9 +170,21 @@ private:
     void FiberMain()
     {
         while (true) {
-            WaitFor(TDelayedExecutor::MakeDelayed(ReplicationTickPeriod));
+            TDelayedExecutor::WaitForDuration(ReplicationTickPeriod);
             FiberIteration();
         }
+    }
+
+    bool KeepDataProcessing(i64 dataWeight)
+    {
+        Throttler_->Acquire(dataWeight);
+        if (Throttler_->IsOverdraft()) {
+            LOG_DEBUG("Bandwidth limit is reached (TotalCount: %v, DataWeight: %v)",
+                Throttler_->GetQueueTotalCount(),
+                dataWeight);
+            return false;
+        }
+        return true;
     }
 
     void FiberIteration()
@@ -186,6 +212,12 @@ private:
             if (!foreignConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
                     << HardErrorAttribute;
+            }
+
+            if (Throttler_->IsOverdraft()) {
+                LOG_DEBUG("Bandwidth limit is reached, skipping iteration (TotalCount: %v)",
+                    Throttler_->GetQueueTotalCount());
+                return;
             }
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
@@ -288,7 +320,7 @@ private:
             {
                 TTransactionCommitOptions commitOptions;
                 commitOptions.CoordinatorCellId = Slot_->GetCellId();
-                commitOptions.Force2PC = true;                
+                commitOptions.Force2PC = true;
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
             }
@@ -477,6 +509,7 @@ private:
                 currentRowIndex,
                 readerRows.size());
 
+            i64 lastDataWeight = dataWeight;
             for (auto row : readerRows) {
                 TVersionedRow replicationRow;
                 i64 rowIndex;
@@ -511,6 +544,7 @@ private:
                         dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
                         timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
                     {
+                        KeepDataProcessing(dataWeight - lastDataWeight);
                         tooMuch = true;
                         break;
                     }
@@ -523,6 +557,9 @@ private:
                 dataWeight += GetDataWeight(row);
                 replicationRows->push_back(replicationRow);
                 prevTimestamp = timestamp;
+            }
+            if (!KeepDataProcessing(dataWeight - lastDataWeight)) {
+                break;
             }
         }
 
@@ -544,13 +581,13 @@ private:
     void DoSoftBackoff(const TError& error)
     {
         LOG_INFO(error, "Doing soft backoff");
-        WaitFor(TDelayedExecutor::MakeDelayed(Config_->ReplicatorSoftBackoffTime));
+        TDelayedExecutor::WaitForDuration(Config_->ReplicatorSoftBackoffTime);
     }
 
     void DoHardBackoff(const TError& error)
     {
         LOG_INFO(error, "Doing hard backoff");
-        WaitFor(TDelayedExecutor::MakeDelayed(Config_->ReplicatorHardBackoffTime));
+        TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }
 
 

@@ -237,7 +237,9 @@ void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer*
 {
     #define XX(name, Name) \
         .Item(#name "_count").Value(counters.Name.Count) \
-        .Item(#name "_rate").Value(counters.Name.Rate)
+        .Item(#name "_rate").Value(counters.Name.Rate) \
+        .Item(#name "_10m_rate").Value(counters.Name.Rate10) \
+        .Item(#name "_1h_rate").Value(counters.Name.Rate60)
     BuildYsonFluently(consumer)
         .BeginMap()
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)

@@ -31,7 +31,7 @@ TGetCommand::TGetCommand()
 
 void TGetCommand::DoExecute(ICommandContextPtr context)
 {
-    Options.Options = IAttributeDictionary::FromMap(GetOptions());
+    Options.Options = IAttributeDictionary::FromMap(GetUnrecognized());
 
     auto asyncResult = context->GetClient()->GetNode(
         Path.GetPath(),

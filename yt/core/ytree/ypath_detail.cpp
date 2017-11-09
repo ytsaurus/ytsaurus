@@ -12,9 +12,13 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
-#include <yt/core/protos/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 #include <yt/core/rpc/server_detail.h>
 #include <yt/core/rpc/message.h>
+
+#include <yt/core/bus/bus.h>
+
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NYTree {
@@ -1041,16 +1045,15 @@ private:
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
-        TString keyString(key);
         AttributeWriter_.reset(new TBufferedBinaryYsonWriter(&AttributeStream_));
         Forward(
             AttributeWriter_.get(),
-            BIND ([=] () {
+            [this, key = TString(key)] {
                 AttributeWriter_->Flush();
                 AttributeWriter_.reset();
-                Attributes_->SetYson(keyString, TYsonString(AttributeStream_.Str()));
+                Attributes_->SetYson(key, TYsonString(AttributeStream_.Str()));
                 AttributeStream_.clear();
-            }));
+            });
     }
 };
 
@@ -1114,7 +1117,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     AttributesSetter_.reset(new TAttributesSetter(Node_->MutableAttributes()));
-    Forward(AttributesSetter_.get(), TClosure(), EYsonType::MapFragment);
+    Forward(AttributesSetter_.get(), nullptr, EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
@@ -1135,37 +1138,39 @@ class TYPathServiceContext
 public:
     TYPathServiceContext(
         TSharedRefArray requestMessage,
-        const NLogging::TLogger& logger,
+        NLogging::TLogger logger,
         NLogging::ELogLevel logLevel,
-        const TString& requestInfo,
-        const TString& responseInfo)
+        TString loggingInfo)
         : TServiceContextBase(
             std::move(requestMessage),
-            logger,
+            std::move(logger),
             logLevel)
-        , ExternalRequestInfo_(requestInfo)
-        , ExternalResponseInfo_(responseInfo)
+        , LoggingInfo_(std::move(loggingInfo))
     { }
 
     TYPathServiceContext(
         std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
-        const NLogging::TLogger& logger,
+        NLogging::TLogger logger,
         NLogging::ELogLevel logLevel,
-        const TString& requestInfo,
-        const TString& responseInfo)
+        TString loggingInfo)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage),
-            logger,
+            std::move(logger),
             logLevel)
-        , ExternalRequestInfo_(requestInfo)
-        , ExternalResponseInfo_(responseInfo)
+        , LoggingInfo_(std::move(loggingInfo))
     { }
 
+    virtual TTcpDispatcherStatistics GetBusStatistics() const override
+    {
+        return {};
+    }
+
 protected:
-    const TString ExternalRequestInfo_;
-    const TString ExternalResponseInfo_;
+    const TString LoggingInfo_;
+
+    TNullable<NProfiling::TWallTimer> Timer_;
 
 
     virtual void DoReply() override
@@ -1174,86 +1179,89 @@ protected:
     virtual void LogRequest() override
     {
         TStringBuilder builder;
+        builder.AppendFormat("%v:%v %v <- ",
+            GetService(),
+            GetMethod(),
+            GetRequestYPath(*RequestHeader_));
 
-        if (!ExternalRequestInfo_.empty()) {
-            AppendInfo(&builder, ExternalRequestInfo_);
+        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+        if (LoggingInfo_) {
+            delimitedBuilder->AppendString(LoggingInfo_);
         }
 
         auto mutationId = GetMutationId();
         if (mutationId) {
-            AppendInfo(&builder, "MutationId: %v", mutationId);
+            delimitedBuilder->AppendFormat("MutationId: %v", mutationId);
         }
 
-        AppendInfo(&builder, "Retry: %v", IsRetry());
+        delimitedBuilder->AppendFormat("Retry: %v", IsRetry());
 
-        if (!RequestInfo_.empty()) {
-            AppendInfo(&builder, RequestInfo_);
+        if (RequestInfo_) {
+            delimitedBuilder->AppendString(RequestInfo_);
         }
 
-        LOG_DEBUG("%v:%v %v <- %v",
-            GetService(),
-            GetMethod(),
-            GetRequestYPath(*RequestHeader_),
-            builder.Flush());
+        LOG_DEBUG(builder.Flush());
+
+        Timer_.Emplace();
     }
 
     virtual void LogResponse() override
     {
         TStringBuilder builder;
-
-        if (!ExternalResponseInfo_.empty()) {
-            AppendInfo(&builder, ExternalResponseInfo_);
-        }
-
-        if (!ResponseInfo_.empty()) {
-            AppendInfo(&builder, ResponseInfo_);
-        }
-
-        AppendInfo(&builder, "Error: %v", Error_);
-
-        LOG_DEBUG("%v:%v %v -> %v",
+        builder.AppendFormat("%v:%v %v -> ",
             GetService(),
             GetMethod(),
-            GetRequestYPath(*RequestHeader_),
-            builder.Flush());
-    }
+            GetRequestYPath(*RequestHeader_));
 
+        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+        if (LoggingInfo_) {
+            delimitedBuilder->AppendString(LoggingInfo_);
+        }
+
+        if (ResponseInfo_) {
+            delimitedBuilder->AppendString(ResponseInfo_);
+        }
+
+        if (Timer_) {
+            delimitedBuilder->AppendFormat("WallTime: %v", Timer_->GetElapsedTime().MilliSeconds());
+        }
+
+        delimitedBuilder->AppendFormat("Error: %v", Error_);
+
+        LOG_DEBUG(builder.Flush());
+    }
 };
 
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger,
+    NLogging::TLogger logger,
     NLogging::ELogLevel logLevel,
-    const TString& requestInfo,
-    const TString& responseInfo)
+    TString loggingInfo)
 {
     Y_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
-        logger,
+        std::move(logger),
         logLevel,
-        requestInfo,
-        responseInfo);
+        std::move(loggingInfo));
 }
 
 IServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger,
+    NLogging::TLogger logger,
     NLogging::ELogLevel logLevel,
-    const TString& requestInfo,
-    const TString& responseInfo)
+    TString loggingInfo)
 {
     Y_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestHeader),
         std::move(requestMessage),
-        logger,
+        std::move(logger),
         logLevel,
-        requestInfo,
-        responseInfo);
+        std::move(loggingInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1263,7 +1271,7 @@ class TRootService
 {
 public:
     explicit TRootService(IYPathServicePtr underlyingService)
-        : UnderlyingService_(underlyingService)
+        : UnderlyingService_(std::move(underlyingService))
     { }
 
     virtual void Invoke(const IServiceContextPtr& /*context*/) override
@@ -1303,7 +1311,7 @@ private:
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService)
 {
-    return New<TRootService>(underlyingService);
+    return New<TRootService>(std::move(underlyingService));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

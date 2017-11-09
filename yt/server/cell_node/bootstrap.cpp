@@ -88,10 +88,13 @@
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
 
+#include <yt/core/http/server.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
@@ -234,10 +237,18 @@ void TBootstrap::DoRun()
 
     RpcServer = CreateBusServer(BusServer);
 
-    HttpServer.reset(new NXHttp::TServer(
-        Config->MonitoringPort,
-        Config->BusServer->BindRetryCount,
-        Config->BusServer->BindRetryBackoff));
+    if (!Config->UseNewHttpServer) {
+        HttpServer.reset(new NXHttp::TServer(
+            Config->MonitoringPort,
+            Config->BusServer->BindRetryCount,
+            Config->BusServer->BindRetryBackoff));
+    } else {
+        Config->MonitoringServer->Port = Config->MonitoringPort;
+        Config->MonitoringServer->BindRetryCount = Config->BusServer->BindRetryCount;
+        Config->MonitoringServer->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
+        NewHttpServer = NHttp::CreateServer(
+            Config->MonitoringServer);
+    }
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
@@ -501,14 +512,20 @@ void TBootstrap::DoRun()
             ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
-    HttpServer->Register(
-        "/orchid",
-        NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
-
-    if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
+    if (HttpServer) {
         HttpServer->Register(
-            "/read_skynet_part",
-            MakeSkynetHttpHandler(this));
+            "/orchid",
+            NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
+    } else {
+        NewHttpServer->AddHandler(
+            "/orchid/",
+            NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
+
+        if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
+            NewHttpServer->AddHandler(
+                "/read_skynet_part",
+                MakeSkynetHttpHandler(this));
+        }
     }
 
     RpcServer->RegisterService(CreateOrchidService(
@@ -537,7 +554,11 @@ void TBootstrap::DoRun()
     StartPartitionBalancer(Config->TabletNode, this);
 
     RpcServer->Start();
-    HttpServer->Start();
+    if (HttpServer) {
+        HttpServer->Start();
+    } else {
+        NewHttpServer->Start();
+    }
 }
 
 const TCellNodeConfigPtr& TBootstrap::GetConfig() const

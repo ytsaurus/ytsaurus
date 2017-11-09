@@ -210,7 +210,7 @@ private:
                     delay.Seconds(),
                     GetPendingCount());
             }
-            WaitFor(TDelayedExecutor::MakeDelayed(RandomDuration(delay)));
+            TDelayedExecutor::WaitForDuration(RandomDuration(delay));
             delay *= 2;
             if (delay > Config_->MaxRepeatDelay) {
                 delay = Config_->MaxRepeatDelay;

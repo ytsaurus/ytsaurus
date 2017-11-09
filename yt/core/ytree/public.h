@@ -11,6 +11,7 @@ namespace NYTree {
 
 namespace NProto {
 
+class TAttributeDictionary;
 class TAttributeKeys;
 
 } // namespace NProto
@@ -63,6 +64,8 @@ const i64 DefaultVirtualChildLimit = 1000;
 //! e.g., by cyclic symlinks in Cypress).
 //! NB: Changing this value will invalidate all changelogs!
 static const int MaxYPathResolveIterations = 256;
+
+DECLARE_REFCOUNTED_CLASS(TYsonSerializable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

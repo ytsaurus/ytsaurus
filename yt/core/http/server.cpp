@@ -8,16 +8,47 @@
 #include <yt/core/net/connection.h>
 
 #include <yt/core/concurrency/poller.h>
+#include <yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NHttp {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NNet;
 
 static const auto& Logger = HttpLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCallbackHandler
+    : public IHttpHandler
+{
+public:
+    TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
+        : Handler_(handler)
+    { }
+
+    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    {
+        Handler_(req, rsp);
+    }
+
+private:
+    TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> Handler_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void IServer::AddHandler(
+    const TString& pattern,
+    TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
+{
+    AddHandler(pattern, New<TCallbackHandler>(handler));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,15 +79,18 @@ public:
 
             while (true) {
                 auto client = WaitFor(Listener_->Accept()).ValueOrThrow();
+                HttpProfiler.Increment(ConnectionsAccepted_);
                 if (++ActiveClients_ >= Config_->MaxSimultaneousConnections) {
+                    HttpProfiler.Increment(ConnectionsDropped_);
                     --ActiveClients_;
                     LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
                         client->RemoteAddress());
                     continue;
                 }
 
+                LOG_DEBUG("Accepted client (RemoteAddress: %v)", client->RemoteAddress());
                 BIND(&TServer::HandleClient, MakeStrong(this), std::move(client))
-                    .Via(Poller_->GetInvoker())
+                    .AsyncVia(Poller_->GetInvoker())
                     .Run();
             }
         })
@@ -73,6 +107,9 @@ private:
 
     std::atomic<bool> Started_ = {false};
     TRequestPathMatcher Handlers_;
+
+    TSimpleCounter ConnectionsAccepted_{"/connections_accepted"};
+    TSimpleCounter ConnectionsDropped_{"/connections_dropped"};
 
     void HandleClient(const IConnectionPtr& connection)
     {
@@ -94,6 +131,10 @@ private:
         response->WriteHeaders(EStatusCode::InternalServerError);
 
         try {
+            LOG_INFO("Received HTTP request (Method: %v, Path: %v)",
+                request->GetMethod(),
+                request->GetUrl().Path);
+
             auto handler = Handlers_.Match(request->GetUrl().Path);
             if (!handler) {
                 response->WriteHeaders(EStatusCode::NotFound);
@@ -112,6 +153,8 @@ private:
         }
 
         WaitFor(connection->Close()).ThrowOnError();
+        LOG_DEBUG("Client connection closed (RemoteAddress: %v)",
+            connection->RemoteAddress());
     }
 };
 
@@ -126,14 +169,31 @@ IServerPtr CreateServer(
 IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller)
 {
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
-    auto listener = CreateListener(address, poller);
-    return New<TServer>(config, listener, poller);
+    for (int i = 0;; ++i) {
+        try {
+            auto listener = CreateListener(address, poller);
+            return New<TServer>(config, listener, poller);
+        } catch (const std::exception& ex) {
+            if (i + 1 == config->BindRetryCount) {
+                throw;
+            } else {
+                LOG_ERROR(ex, "HTTP server bind failed");
+                Sleep(config->BindRetryBackoff);
+            }
+        }
+    }
 }
 
 IServerPtr CreateServer(int port, const IPollerPtr& poller)
 {
     auto config = New<TServerConfig>();
     config->Port = port;
+    return CreateServer(config, poller);
+}
+
+IServerPtr CreateServer(const TServerConfigPtr& config)
+{
+    auto poller = CreateThreadPoolPoller(1, "Http");
     return CreateServer(config, poller);
 }
 

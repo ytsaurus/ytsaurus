@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/ytlib/event_log/config.h>
+
 #include <yt/ytlib/table_client/config.h>
 
 #include <yt/ytlib/hive/config.h>
@@ -75,7 +77,6 @@ public:
 
     //! Default parent pool for operations with unknown pool.
     TString DefaultParentPool;
-
     //! Forbid immediate operations in root.
     bool ForbidImmediateOperationsInRoot;
 
@@ -141,19 +142,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TEventLogConfig
-    : public NTableClient::TBufferedTableWriterConfig
-{
-public:
-    NYPath::TYPath Path;
-
-    TEventLogConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -442,9 +430,6 @@ public:
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
-    //! Number of threads for retrieving important fields from job statistics.
-    int StatisticsAnalyzerThreadCount;
-
     //! Number of parallel operation snapshot builders.
     int ParallelSnapshotBuilderCount;
 
@@ -491,8 +476,6 @@ public:
     TDuration OperationLogFairSharePeriod;
 
     TDuration ClusterInfoLoggingPeriod;
-
-    TDuration PendingEventLogRowsFlushPeriod;
 
     TDuration UpdateExecNodeDescriptorsPeriod;
 
@@ -631,6 +614,9 @@ public:
     //! If |true|, jobs are revived from snapshot.
     bool EnableJobRevival;
 
+    //! If |false|, all locality timeouts are considered 0.
+    bool EnableLocality;
+
     //! Allow failing a controller by passing testing option `controller_failure`
     //! in operation spec. Used only for testing purposes.
     bool EnableControllerFailureSpecOption;
@@ -641,7 +627,7 @@ public:
 
     NChunkClient::TFetcherConfigPtr Fetcher;
 
-    TEventLogConfigPtr EventLog;
+    NEventLog::TEventLogConfigPtr EventLog;
 
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;

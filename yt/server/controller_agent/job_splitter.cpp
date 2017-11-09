@@ -342,11 +342,7 @@ private:
             Persist(context, CompletionTime_);
             Persist(context, RowCount_);
             Persist(context, SecondsPerRow_);
-
-            // COMPAT(psushin).
-            if (!context.IsLoad() || context.GetVersion() >= 200840) {
-                Persist(context, IsSplittable_);
-            }
+            Persist(context, IsSplittable_);
         }
 
     private:

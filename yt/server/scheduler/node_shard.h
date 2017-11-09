@@ -40,8 +40,6 @@ struct INodeShardHost
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
-    virtual const IInvokerPtr& GetStatisticsAnalyzerInvoker() const = 0;
-
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 
     virtual void ValidateOperationPermission(
@@ -174,6 +172,13 @@ public:
     {
     public:
         DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobId>, RecentlyCompletedJobIds);
+
+        // Macro below does not allow types that contain commas :(
+        using TNodeIdToJobIdsMapping = yhash<NNodeTrackerClient::TNodeId, std::vector<TJobId>>;
+
+        //! List of all jobs that should be added to jobs_to_remove
+        //! in the next hearbeat response for each node defined by its id.
+        DEFINE_BYREF_RW_PROPERTY(TNodeIdToJobIdsMapping, JobIdsToRemove);
 
     public:
         explicit TRevivalState(TNodeShard* host);
