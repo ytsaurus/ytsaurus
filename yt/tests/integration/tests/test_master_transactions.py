@@ -152,6 +152,7 @@ class TestMasterTransactions(YTEnvSetup):
         sleep(1.5)
         assert exists("//sys/transactions/" + tx)
 
+    @flaky(max_runs=5)
     def test_expire_outer(self):
         tx_outer = start_transaction(timeout=2000)
         tx_inner = start_transaction(tx = tx_outer)
