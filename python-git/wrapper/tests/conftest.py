@@ -1,4 +1,5 @@
-from .helpers import get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL, sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path
+from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
+                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path)
 
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
@@ -146,7 +147,7 @@ class YtTestEnvironment(object):
         if tmpfs_path is not None:
             tmpfs_path = os.path.join(tmpfs_path, uniq_dir_name)
             if not os.path.exists(tmpfs_path):
-                os.mkdir(tmpfs_path)
+                os.makedirs(tmpfs_path)
 
         self.env = YTInstance(dir,
                               master_count=1,
