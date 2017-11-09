@@ -85,6 +85,7 @@ public:
     //! Returns statistics for a given cell tag.
     TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
 
+    void RecomputeClusterStatistics();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

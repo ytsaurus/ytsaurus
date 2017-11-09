@@ -143,6 +143,14 @@ TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
     return &it->second;
 }
 
+void TAccount::RecomputeClusterStatistics()
+{
+    ClusterStatistics_ = TAccountStatistics();
+    for (const auto& pair : MulticellStatistics_) {
+        ClusterStatistics_ += pair.second;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer

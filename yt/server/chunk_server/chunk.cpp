@@ -145,12 +145,6 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
 
-    auto* account = GetStagingAccount();
-    auto isStaged = IsStaged();
-    Y_ASSERT(isStaged == !!account);
-
-    i8 replicationFactorBefore400 = 0;
-
     // COMPAT(shakurov)
     // Previously, chunks didn't store info on which account requested which RF
     // - just the maximum of those RFs. Chunk requisition can't be computed from
@@ -158,19 +152,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     // the local cell and empty requisition for other cells. This will be
     // corrected by the next requisition update - which will happen soon since
     // it's requested on each leader change.
-    // For staged chunks, however, it *is* possible to compute requisitions.
     if (context.GetVersion() < 400) {
-        Load(context, replicationFactorBefore400);
+        Load<i8>(context); // drop replication factor
     } else if (context.GetVersion() < 700) {
-        auto oldReplication = Load<TChunkReplication>(context);
-        if (isStaged) {
-            auto* bootstrap = context.GetBootstrap();
-            auto* chunkRequisitionRegistry = bootstrap->GetChunkManager()->GetChunkRequisitionRegistry();
-
-            TChunkRequisition requisition;
-            requisition.CombineWith(oldReplication, account, false /* committed */);
-            LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition, bootstrap->GetObjectManager());
-        } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
+        // Discard replication and leave LocalRequisitionIndex_ defaulted to the migration index.
+        Load<TChunkReplication>(context);
     } else {
         LocalRequisitionIndex_ = Load<TChunkRequisitionIndex>(context);
     }
@@ -181,19 +167,8 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetMovable(Load<bool>(context));
     // COMPAT(shakurov)
     if (context.GetVersion() < 400) {
-        auto oldVital = Load<bool>(context);
-        if (isStaged) {
-            auto* bootstrap = context.GetBootstrap();
-            auto* chunkRequisitionRegistry = bootstrap->GetChunkManager()->GetChunkRequisitionRegistry();
-
-            TChunkReplication oldReplication;
-            oldReplication.SetVital(oldVital);
-            oldReplication[DefaultStoreMediumIndex].SetReplicationFactor(replicationFactorBefore400);
-
-            TChunkRequisition requisition;
-            requisition.CombineWith(oldReplication, account, false /* committed */);
-            LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition, bootstrap->GetObjectManager());
-        } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
+        // Discard vitality and leave LocalRequisitionIndex_ defaulted to the migration index.
+        Load<bool>(context);
     }
 
     Load(context, Parents_);

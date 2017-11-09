@@ -1374,15 +1374,9 @@ private:
 
             doCharge(account, mediumIndex, chunkCount, diskSpace, entry.Committed);
 
-            if (entry.Committed) {
-                lastAccount = account;
-                lastMediumIndex = mediumIndex;
-                lastDiskSpace = diskSpace;
-            } else {
-                lastAccount = nullptr;
-                lastMediumIndex = InvalidMediumIndex;
-                lastDiskSpace = 0;
-            }
+            lastAccount = account;
+            lastMediumIndex = mediumIndex;
+            lastDiskSpace = diskSpace;
         }
     }
 
@@ -1630,11 +1624,66 @@ private:
         RecomputeAccountResourceUsage();
     }
 
+    // COMPAT(shakurov)
+    #ifdef DUMP_ACCOUNT_RESOURCE_USAGE
+    void DumpAccountResourceUsage(bool afterRecomputing)
+    {
+        auto localCellTag = Bootstrap_->GetCellTag();
+        auto dumpResourceUsageInCellImpl = [&] (const TCellTag& cellTag, bool committed) {
+            Cerr << "On " << (Bootstrap_->IsPrimaryMaster() ? "primary" : "secondary") << ", "
+                 << cellTag << (cellTag == localCellTag ? "(local)" : "") << ", "
+                 << (committed ? "committed" : "total") << "\n";
+
+            for (const auto& pair : AccountMap_) {
+                auto* account = pair.second;
+                const auto* cellStatistics = account->GetCellStatistics(cellTag);
+                const auto& resourceUsage = committed ? cellStatistics->CommittedResourceUsage : cellStatistics->ResourceUsage;
+                Cerr << account->GetName() << ";"
+                     << resourceUsage.DiskSpace[DefaultStoreMediumIndex] << ";"
+                     << resourceUsage.NodeCount << ";"
+                     << resourceUsage.ChunkCount << ";"
+                     << resourceUsage.TabletCount << ";"
+                     << resourceUsage.TabletStaticMemory << "\n";
+            }
+        };
+
+        auto dumpResourceUsageInCell = [&] (const TCellTag& cellTag) {
+            dumpResourceUsageInCellImpl(cellTag, true);
+            dumpResourceUsageInCellImpl(cellTag, false);
+        };
+
+        if (!afterRecomputing) {
+            Cerr << "Account;DiskSpace_DefaultMedium;NodeCount;ChunkCount;TabletCount;TabletStaticMemory\n";
+        }
+        Cerr << "ACCOUNT RESOURCE USAGE " << (afterRecomputing ? "AFTER" : "BEFORE") << " RECOMPUTING\n";
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto primaryCellTag = Bootstrap_->GetPrimaryCellTag();
+            const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
+
+            dumpResourceUsageInCell(primaryCellTag);
+            for (const auto& cellTag : secondaryCellTags) {
+                dumpResourceUsageInCell(cellTag);
+            }
+        } else {
+            dumpResourceUsageInCell(localCellTag);
+        }
+
+        Cerr << Endl;
+
+    }
+    #else
+    void DumpAccountResourceUsage(bool)
+    { }
+    #endif
+
     void RecomputeAccountResourceUsage()
     {
         if (!ValidateAccountResourceUsage_ && !RecomputeAccountResourceUsage_) {
             return;
         }
+
+        DumpAccountResourceUsage(false);
 
         // NB: transaction resource usage isn't recomputed.
 
@@ -1696,8 +1745,6 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-        const auto& migrationRequisition = requisitionRegistry->GetRequisition(MigrationChunkRequisitionIndex);
-        const auto& migrationErasureRequisition = requisitionRegistry->GetRequisition(MigrationErasureChunkRequisitionIndex);
 
         for (const auto& pair : chunkManager->Chunks()) {
             auto* chunk = pair.second;
@@ -1706,17 +1753,13 @@ private:
                 continue;
             }
 
+            if (chunk->IsForeign()) {
+                continue;
+            }
+
             if (chunk->DiskSizeIsFinal()) {
-                if (chunk->IsStaged()) {
-                    const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
-                    ComputeChunkResourceDelta(chunk, requisition, +1, chargeStatMap);
-                } else {
-                    ComputeChunkResourceDelta(
-                        chunk,
-                        chunk->IsErasure() ? migrationErasureRequisition : migrationRequisition,
-                        +1,
-                        chargeStatMap);
-                }
+                const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
+                ComputeChunkResourceDelta(chunk, requisition, +1, chargeStatMap);
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }
 
@@ -1756,23 +1799,12 @@ private:
                 account->LocalStatistics().ResourceUsage = expectedUsage;
                 account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
                 if (Bootstrap_->IsPrimaryMaster()) {
-                    account->ClusterStatistics() = TAccountStatistics();
-                    for (const auto& pair : account->MulticellStatistics()) {
-                        account->ClusterStatistics() += pair.second;
-                    }
+                    account->RecomputeClusterStatistics();
                 }
             }
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-                account->ClusterStatistics() = TAccountStatistics();
-                for (const auto& pair : account->MulticellStatistics()) {
-                    account->ClusterStatistics() += pair.second;
-                }
-            }
-        }
+        DumpAccountResourceUsage(true);
     }
 
     virtual void Clear() override
@@ -2122,10 +2154,7 @@ private:
             auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
             if (Bootstrap_->IsPrimaryMaster()) {
                 *account->GetCellStatistics(cellTag) = newStatistics;
-                account->ClusterStatistics() = TAccountStatistics();
-                for (const auto& pair : account->MulticellStatistics()) {
-                    account->ClusterStatistics() += pair.second;
-                }
+                account->RecomputeClusterStatistics();
             } else {
                 account->ClusterStatistics() = newStatistics;
             }
@@ -2231,10 +2260,7 @@ private:
             auto newStatistics = FromProto<TUserStatistics>(entry.statistics());
             if (Bootstrap_->IsPrimaryMaster()) {
                 user->CellStatistics(cellTag) = newStatistics;
-                user->ClusterStatistics() = TUserStatistics();
-                for (const auto& pair : user->MulticellStatistics()) {
-                    user->ClusterStatistics() += pair.second;
-                }
+                user->RecomputeClusterStatistics();
             } else {
                 user->ClusterStatistics() = newStatistics;
             }

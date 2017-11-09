@@ -119,6 +119,14 @@ TUserStatistics& TUser::LocalStatistics()
     return *LocalStatisticsPtr_;
 }
 
+void TUser::RecomputeClusterStatistics()
+{
+    ClusterStatistics_ = TUserStatistics();
+    for (const auto& pair : MulticellStatistics_) {
+        ClusterStatistics_ += pair.second;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer
