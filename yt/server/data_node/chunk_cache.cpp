@@ -79,14 +79,14 @@ class TSessionCounterGuard
 {
 public:
     explicit TSessionCounterGuard(TLocationPtr location)
-        : Location_(location)
+        : Location_(std::move(location))
     {
-        Location_->UpdateSessionCount(+1);
+        Location_->UpdateSessionCount(ESessionType::User, +1);
     }
 
     ~TSessionCounterGuard()
     {
-        Location_->UpdateSessionCount(-1);
+        Location_->UpdateSessionCount(ESessionType::User, -1);
     }
 
 private:
@@ -622,7 +622,6 @@ private:
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = blocksExt.blocks_size();
             std::vector<TBlockFetcher::TBlockInfo> blocks;
-            TAsyncSemaphorePtr asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
                 blocks.push_back(TBlockFetcher::TBlockInfo(
@@ -630,6 +629,8 @@ private:
                     blocksExt.blocks(index).size(),
                     index /* priority */));
             }
+
+            auto asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
 
             auto blockFetcher = New<TBlockFetcher>(
                 Config_->ArtifactCacheReader,

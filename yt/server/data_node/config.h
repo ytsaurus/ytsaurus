@@ -62,11 +62,15 @@ class TStoreLocationConfig
     : public TStoreLocationConfigBase
 {
 public:
-    //! The location is considered to be full when available space becomes less than #LowWatermark.
+    //! A currently full location is considered to be non-full again when available space grows
+    //! above this limit.
     i64 LowWatermark;
 
-    //! All uploads to the location are aborted when available space becomes less than #HighWatermark.
+    //! A location is considered to be full when available space becomes less than #HighWatermark.
     i64 HighWatermark;
+
+    //! All writes to the location are aborted when available space becomes less than #DisableWritesWatermark.
+    i64 DisableWritesWatermark;
 
     //! Maximum amount of time files of a deleted chunk could rest in trash directory before
     //! being permanently removed.
@@ -86,8 +90,11 @@ public:
     {
         RegisterParameter("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
-            .Default(20_GB);
+            .Default(50_GB);
         RegisterParameter("high_watermark", HighWatermark)
+            .GreaterThanOrEqual(0)
+            .Default(20_GB);
+        RegisterParameter("disable_writes_watermark", DisableWritesWatermark)
             .GreaterThanOrEqual(0)
             .Default(10_GB);
         RegisterParameter("max_trash_ttl", MaxTrashTtl)
@@ -106,10 +113,13 @@ public:
 
         RegisterValidator([&] () {
             if (HighWatermark > LowWatermark) {
-                THROW_ERROR_EXCEPTION("\"high_watermark\" must be less than or equal to \"low_watermark\"");
+                THROW_ERROR_EXCEPTION("\"high_full_watermark\" must be less than or equal to \"low_watermark\"");
             }
-            if (LowWatermark > TrashCleanupWatermark) {
-                THROW_ERROR_EXCEPTION("\"low_watermark\" must be less than or equal to \"trash_cleanup_watermark\"");
+            if (DisableWritesWatermark > HighWatermark) {
+                THROW_ERROR_EXCEPTION("\"write_disable_watermark\" must be less than or equal to \"high_watermark\"");
+            }
+            if (DisableWritesWatermark > TrashCleanupWatermark) {
+                THROW_ERROR_EXCEPTION("\"disable_writes_watermark\" must be less than or equal to \"trash_cleanup_watermark\"");
             }
         });
     }

@@ -49,12 +49,12 @@ TSessionBase::TSessionBase(
         Location_->GetId(),
         SessionId_);
 
-    Location_->UpdateSessionCount(+1);
+    Location_->UpdateSessionCount(GetType(), +1);
 }
 
 TSessionBase::~TSessionBase()
 {
-    Location_->UpdateSessionCount(-1);
+    Location_->UpdateSessionCount(GetType(), -1);
 }
 
 const TChunkId& TSessionBase::GetChunkId() const&
