@@ -881,12 +881,12 @@ public:
         ValidateUserFileCount(Spec_->Reducer, "reducer");
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TSortedControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TSortedControllerBase::BuildBriefSpec(fluent);
+        fluent
             .Item("reducer").BeginMap()
-            .Item("command").Value(TrimCommandForBriefSpec(Spec_->Reducer->Command))
+                .Item("command").Value(TrimCommandForBriefSpec(Spec_->Reducer->Command))
             .EndMap();
     }
 

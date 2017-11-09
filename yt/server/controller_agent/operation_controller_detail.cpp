@@ -1818,11 +1818,11 @@ void TOperationControllerBase::BuildJobAttributes(
     const TJobInfoPtr& job,
     EJobState state,
     bool outputStatistics,
-    NYson::IYsonConsumer* consumer) const
+    TFluentMap fluent) const
 {
     static const auto EmptyMapYson = TYsonString("{}");
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("job_type").Value(FormatEnum(job->JobType))
         .Item("state").Value(state)
         .Item("address").Value(job->NodeDescriptor.Address)
@@ -1841,12 +1841,12 @@ void TOperationControllerBase::BuildJobAttributes(
 void TOperationControllerBase::BuildFinishedJobAttributes(
     const TFinishedJobInfoPtr& job,
     bool outputStatistics,
-    NYson::IYsonConsumer* consumer) const
+    TFluentMap fluent) const
 {
-    BuildJobAttributes(job, job->Summary.State, outputStatistics, consumer);
+    BuildJobAttributes(job, job->Summary.State, outputStatistics, fluent);
 
     const auto& summary = job->Summary;
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("finish_time").Value(job->FinishTime)
         .DoIf(summary.State == EJobState::Failed, [&] (TFluentMap fluent) {
             auto error = FromProto<TError>(summary.Result.error());
@@ -3399,8 +3399,8 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
 
     auto attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do([&] (IYsonConsumer* consumer) {
-            BuildFinishedJobAttributes(finishedJob, /* outputStatistics */ true, consumer);
+        .Do([&] (TFluentMap fluent) {
+            BuildFinishedJobAttributes(finishedJob, /* outputStatistics */ true, fluent);
         })
         .Finish();
 
@@ -5391,18 +5391,18 @@ bool TOperationControllerBase::HasJobSplitterInfo() const
     return IsPrepared() && JobSplitter_;
 }
 
-void TOperationControllerBase::BuildSpec(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildSpec(TFluentAnyWithoutAttributes fluent) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    Serialize(Spec_, consumer);
+    fluent.Value(Spec_);
 }
 
-void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildOperationAttributes(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
@@ -5421,9 +5421,9 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
         });
 }
 
-void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("build_time").Value(TInstant::Now())
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
@@ -5461,10 +5461,9 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
         .Item("snapshot_index").Value(SnapshotIndex_)
         .Item("recent_snapshot_index").Value(RecentSnapshotIndex_);
 }
-
-void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("jobs").Value(JobCounter);
 }
 
@@ -5472,11 +5471,11 @@ void TOperationControllerBase::BuildAndSaveProgress()
 {
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
-            .Do(BIND([=] (IYsonConsumer* consumer) {
-                auto asyncResult = WaitFor(
-                    BIND(&IOperationController::BuildProgress, MakeStrong(this))
-                        .AsyncVia(GetInvoker())
-                        .Run(consumer));
+        .Do(BIND([=] (TFluentMap fluent) {
+            auto asyncResult = WaitFor(
+                BIND(&IOperationController::BuildProgress, MakeStrong(this))
+                    .AsyncVia(GetInvoker())
+                    .Run(fluent));
                 asyncResult
                     .ThrowOnError();
             }))
@@ -5484,11 +5483,11 @@ void TOperationControllerBase::BuildAndSaveProgress()
 
     auto briefProgressString = BuildYsonStringFluently()
         .BeginMap()
-            .Do(BIND([=] (IYsonConsumer* consumer) {
+            .Do(BIND([=] (TFluentMap fluent) {
                 auto asyncResult = WaitFor(
                     BIND(&IOperationController::BuildBriefProgress, MakeStrong(this))
                         .AsyncVia(GetInvoker())
-                        .Run(consumer));
+                        .Run(fluent));
                 asyncResult
                     .ThrowOnError();
             }))
@@ -5520,7 +5519,7 @@ TYsonString TOperationControllerBase::GetBriefProgress() const
 
 TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool outputStatistics) const
 {
-    TCallback<void(IYsonConsumer*)> attributesBuilder;
+    TCallback<void(TFluentMap)> attributesBuilder;
 
     // Case of running job.
     {
@@ -5533,7 +5532,7 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
                 EJobState::Running,
                 outputStatistics);
         } else {
-            attributesBuilder = BIND([] (IYsonConsumer*) {});
+            attributesBuilder = BIND([] (TFluentMap) {});
         }
     }
 
@@ -5564,8 +5563,8 @@ TYsonString TOperationControllerBase::BuildJobsYson() const
             const auto& joblet = pair.second;
             if (joblet->StartTime) {
                 fluent.Item(ToString(jobId)).BeginMap()
-                    .Do([&] (IYsonConsumer* consumer) {
-                        BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, consumer);
+                    .Do([&] (TFluentMap fluent) {
+                        BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, fluent);
                     })
                 .EndMap();
             }
@@ -5693,11 +5692,11 @@ void TOperationControllerBase::LogProgress(bool force)
     }
 }
 
-void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .DoIf(Spec_->Title.HasValue(), [&] (TFluentMap fluent) {
             fluent
                 .Item("title").Value(*Spec_->Title);
@@ -5721,12 +5720,12 @@ TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joble
         joblet->JobType);
 }
 
-void TOperationControllerBase::BuildJobSplitterInfo(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildJobSplitterInfo(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(SuspendableInvoker);
     YCHECK(JobSplitter_);
 
-    JobSplitter_->BuildJobSplitterInfo(consumer);
+    JobSplitter_->BuildJobSplitterInfo(fluent);
 }
 
 ui64 TOperationControllerBase::NextJobIndex()
@@ -6176,26 +6175,26 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     return false;
 }
 
-void TOperationControllerBase::BuildMemoryDigestStatistics(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildMemoryDigestStatistics(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("job_proxy_memory_digest")
         .DoMapFor(JobProxyMemoryDigests_, [&] (
-                TFluentMap fluent,
-                const TMemoryDigestMap::value_type& item)
+            TFluentMap fluent,
+            const TMemoryDigestMap::value_type& item)
         {
-            BuildYsonMapFluently(fluent)
+            fluent
                 .Item(ToString(item.first)).Value(
                     item.second->GetQuantile(Config->JobProxyMemoryReserveQuantile));
         })
         .Item("user_job_memory_digest")
         .DoMapFor(JobProxyMemoryDigests_, [&] (
-                TFluentMap fluent,
-                const TMemoryDigestMap::value_type& item)
+            TFluentMap fluent,
+            const TMemoryDigestMap::value_type& item)
         {
-            BuildYsonMapFluently(fluent)
+            fluent
                 .Item(ToString(item.first)).Value(
                     item.second->GetQuantile(Config->UserJobMemoryReserveQuantile));
         });

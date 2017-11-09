@@ -688,12 +688,12 @@ void TNodeShard::FailJob(const TJobId& jobId)
     job->SetFailRequested(true);
 }
 
-void TNodeShard::BuildNodesYson(IYsonConsumer* consumer)
+void TNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     for (auto& node : IdToNode_) {
-        BuildNodeYson(node.second, consumer);
+        BuildNodeYson(node.second, fluent);
     }
 }
 
@@ -1702,9 +1702,9 @@ TNodeShard::TOperationState& TNodeShard::GetOperationState(const TOperationId& o
     return it->second;
 }
 
-void TNodeShard::BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
+void TNodeShard::BuildNodeYson(TExecNodePtr node, TFluentMap fluent)
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item(node->GetDefaultAddress()).BeginMap()
             .Do([=] (TFluentMap fluent) {
                 BuildExecNodeAttributes(node, fluent);

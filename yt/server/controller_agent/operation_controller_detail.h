@@ -243,12 +243,12 @@ public:
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
 
-    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const override;
+    virtual void BuildOperationAttributes(NYTree::TFluentMap fluent) const override;
+    virtual void BuildProgress(NYTree::TFluentMap fluent) const override;
+    virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const override;
+    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap fluent) const override;
+    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const override;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -868,7 +868,7 @@ protected:
     void ValidateOutputSchemaOrdered() const;
     void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
 
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
+    virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
 
     virtual NScheduler::TJobSplitterConfigPtr GetJobSplitterConfig() const;
 
@@ -1082,12 +1082,12 @@ private:
         const TJobInfoPtr& job,
         EJobState state,
         bool outputStatistics,
-        NYson::IYsonConsumer* consumer) const;
+        NYTree::TFluentMap fluent) const;
 
     void BuildFinishedJobAttributes(
         const TFinishedJobInfoPtr& job,
         bool outputStatistics,
-        NYson::IYsonConsumer* consumer) const;
+        NYTree::TFluentMap fluent) const;
 
     void AnalyzeBriefStatistics(
         const TJobletPtr& job,

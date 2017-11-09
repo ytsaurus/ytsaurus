@@ -40,6 +40,7 @@
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -345,13 +346,13 @@ struct IOperationController
     virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
 
     //! Called to construct a YSON representing the controller part of operation attributes.
-    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildOperationAttributes(NYTree::TFluentMap fluent) const = 0;
 
     /*!
      *  \note Invoker affinity: any;
      */
     //! Called to construct a YSON representing the current progress.
-    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const = 0;
 
     /*!
      *  \note Invoker affinity: any.
@@ -375,13 +376,13 @@ struct IOperationController
      *  \note Invoker affinity: Controller invoker
      */
     //! Called to construct a YSON representing the current progress.
-    virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildProgress(NYTree::TFluentMap fluent) const = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
      */
     //! Similar to #BuildProgress but constructs a reduced version to be used by UI.
-    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
@@ -390,7 +391,7 @@ struct IOperationController
     virtual TString GetLoggingProgress() const = 0;
 
     //! Called to construct a YSON representing the current state of memory digests for jobs of each type.
-    virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap consumer) const = 0;
 
     //! Called to get a cached YSON string representing the current progress.
     virtual NYson::TYsonString GetProgress() const = 0;
@@ -402,7 +403,7 @@ struct IOperationController
     virtual bool HasJobSplitterInfo() const = 0;
 
     //! Called to construct a YSON representing job splitter state.
-    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const = 0;
 
     //! Called to get a YSON string representing current job(s) state.
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;

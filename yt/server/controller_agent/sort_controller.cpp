@@ -1918,24 +1918,21 @@ protected:
         return histogram;
     }
 
-    void BuildPartitionsProgressYson(IYsonConsumer* consumer) const
+    void BuildPartitionsProgressYson(TFluentMap fluent) const
     {
-        BuildYsonMapFluently(consumer)
+        auto progress = ComputePartitionProgress();
+        auto sizeHistogram = ComputePartitionSizeHistogram();
+
+        fluent
             .Item("partitions").BeginMap()
                 .Item("total").Value(Partitions.size())
                 .Item("completed").Value(CompletedPartitionCount)
-            .EndMap();
-
-        auto progress = ComputePartitionProgress();
-        BuildYsonMapFluently(consumer)
+            .EndMap()
             .Item("partition_sizes").BeginMap()
                 .Item("total").Value(progress.Total)
                 .Item("running").Value(progress.Runnning)
                 .Item("completed").Value(progress.Completed)
-            .EndMap();
-
-        auto sizeHistogram = ComputePartitionSizeHistogram();
-        BuildYsonMapFluently(consumer)
+            .EndMap()
             .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
@@ -2697,10 +2694,10 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    virtual void BuildProgress(IYsonConsumer* consumer) const override
+    virtual void BuildProgress(TFluentMap fluent) const override
     {
-        TSortControllerBase::BuildProgress(consumer);
-        BuildYsonMapFluently(consumer)
+        TSortControllerBase::BuildProgress(fluent);
+        fluent
             .Do(BIND(&TSortController::BuildPartitionsProgressYson, Unretained(this)))
             .Item(JobTypeAsKey(EJobType::Partition)).Value(GetPartitionJobCounter())
             .Item(JobTypeAsKey(EJobType::IntermediateSort)).Value(IntermediateSortJobCounter)
@@ -2781,23 +2778,23 @@ public:
         RegisterUserJobMemoryDigest(EJobType::PartitionReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TSortControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
-            .DoIf(Spec->Mapper.operator bool(), [&] (TFluentMap fluent) {
+        TSortControllerBase::BuildBriefSpec(fluent);
+        fluent
+            .DoIf(Spec->Mapper.Get(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
                     .EndMap();
             })
-            .DoIf(Spec->Reducer.operator bool(), [&] (TFluentMap fluent) {
+            .DoIf(Spec->Reducer.Get(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("reducer").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
                     .EndMap();
             })
-            .DoIf(Spec->ReduceCombiner.operator bool(), [&] (TFluentMap fluent) {
+            .DoIf(Spec->ReduceCombiner.Get(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("reduce_combiner").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->ReduceCombiner->Command))
@@ -3383,10 +3380,10 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    virtual void BuildProgress(IYsonConsumer* consumer) const override
+    virtual void BuildProgress(TFluentMap fluent) const override
     {
-        TSortControllerBase::BuildProgress(consumer);
-        BuildYsonMapFluently(consumer)
+        TSortControllerBase::BuildProgress(fluent);
+        fluent
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
             .Item(JobTypeAsKey(GetPartitionJobType())).Value(GetPartitionJobCounter())
             .Item(JobTypeAsKey(GetIntermediateSortJobType())).Value(IntermediateSortJobCounter)
