@@ -707,7 +707,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         for i in xrange(10):
             sleep(1.0)
-            assert shift + i * 1000 <= get_lag_time() <= shift + (i + 2) * 1000
+            assert shift + i * 1000 <= get_lag_time() <= shift + (i + 4) * 1000
 
         self.sync_enable_table_replica(replica_id)
         sleep(1.0)
