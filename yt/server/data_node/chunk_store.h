@@ -125,6 +125,7 @@ public:
 private:
     const TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
+    const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     struct TChunkEntry
     {
@@ -173,6 +174,8 @@ private:
 
     TPlacementInfo* GetOrCreatePlacementInfo(const NChunkClient::TPlacementId& placementId);
     void ExpirePlacementInfos();
+
+    void OnProfiling();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

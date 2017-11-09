@@ -7,9 +7,8 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/thread_affinity.h>
-
-#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -49,7 +48,7 @@ public:
     //! matching chunk ID are returned.
     TSessionPtrList FindSessions(const TSessionId& sessionId);
 
-    //! Finds session by session ID. Throws if no sessions were found (never
+    //! Finds sessions by session ID. Throws if no sessions were found (never
     //! returns empty vector).
     //! If session ID specifies AllMediaIndex as medium index, all sessions
     //! matching chunk ID are returned.
@@ -58,23 +57,19 @@ public:
     //! Returns the number of currently active sessions of a given type.
     int GetSessionCount(ESessionType type);
 
-    //! Returns the list of all registered sessions.
-    std::vector<ISessionPtr> GetSessions();
-
 private:
     const TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
     yhash<TSessionId, ISessionPtr> SessionMap_;
-    TEnumIndexedVector<NProfiling::TSimpleCounter, ESessionType> PerTypeSessionCounters_;
 
     ISessionPtr CreateSession(const TSessionId& sessionId, const TSessionOptions& options);
 
     void OnSessionLeaseExpired(const TSessionId& sessionId);
-    void OnSessionFinished(ISession* session, const TError& error);
+    void OnSessionFinished(const TWeakPtr<ISession>& session, const TError& error);
 
-    void RegisterSession(ISessionPtr session);
-    void UnregisterSession(ISessionPtr session);
+    void RegisterSession(const ISessionPtr& session);
+    void UnregisterSession(const ISessionPtr& session);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
