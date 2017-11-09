@@ -41,7 +41,7 @@ def get_tests_sandbox():
     path = os.environ.get("TESTS_SANDBOX")
     if path is None:
         if yatest_common is not None:
-            path = os.path.join(yatest_common.work_path(), "sandbox")
+            path = os.path.join(yatest_common.output_path(), "sandbox")
         else:
             path = TESTS_SANDBOX
     if not os.path.exists(path):
