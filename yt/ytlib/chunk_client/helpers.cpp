@@ -2,7 +2,6 @@
 #include "private.h"
 #include "config.h"
 #include "input_chunk_slice.h"
-#include "erasure_reader.h"
 #include "replication_reader.h"
 #include "repairing_reader.h"
 
