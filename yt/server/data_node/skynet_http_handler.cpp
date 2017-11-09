@@ -72,78 +72,6 @@ void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TReadRange* readRange,
 class TSkynetHttpHandler
     : public IHttpHandler
 {
-<<<<<<< HEAD
-    TChunkId chunkId;
-    TReadRange readRange;
-    i64 startPartIndex;
-    ParseRequest(request, &chunkId, &readRange, &startPartIndex);
-
-    auto chunkPtr = bootstrap->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
-    auto chunkGuard = TChunkReadGuard::AcquireOrThrow(chunkPtr);
-    auto sessionId = TReadSessionId::Create();
-
-    TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
-    skynetWorkload.Annotations = {"skynet"};
-    auto throttler = bootstrap->GetOutThrottler(skynetWorkload);
-
-    static std::vector<int> miscExtension = {
-        TProtoExtensionTag<TMiscExt>::Value
-    };
-    auto asyncChunkMeta = chunkPtr->ReadMeta(
-        skynetWorkload,
-        miscExtension);
-    auto chunkMeta = WaitFor(asyncChunkMeta).ValueOrThrow();
-
-    auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
-    if (!miscExt.shared_to_skynet()) {
-        THROW_ERROR_EXCEPTION("Chunk access not allowed")
-            << TErrorAttribute("chunk_id", chunkId);
-    }
-
-    auto readerConfig = New<TReplicationReaderConfig>();
-    auto chunkReader = CreateLocalChunkReader(
-        readerConfig,
-        chunkPtr,
-        bootstrap->GetChunkBlockManager(),
-        bootstrap->GetBlockCache());
-
-    auto chunkState = New<TChunkState>(
-        bootstrap->GetBlockCache(),
-        NChunkClient::NProto::TChunkSpec(),
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr);
-
-    auto schemalessReaderConfig = New<TChunkReaderConfig>();
-    schemalessReaderConfig->WorkloadDescriptor = skynetWorkload;
-
-    auto schemalessReader = CreateSchemalessChunkReader(
-        chunkState,
-        schemalessReaderConfig,
-        New<TChunkReaderOptions>(),
-        chunkReader,
-        New<TNameTable>(),
-        sessionId,
-        TKeyColumns(),
-        TColumnFilter(),
-        readRange);
-
-    auto stream = CreateBlobTableReader(
-        schemalessReader,
-        TString("part_index"),
-        TString("data"),
-        startPartIndex);
-
-    TString response;
-    TStringOutput buffer(response);
-    PipeInputToOutput(CreateCopyingAdapter(stream), &buffer, 1024);
-    
-    return FormatOKResponse(response);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-=======
 public:
     TSkynetHttpHandler(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
@@ -233,7 +161,6 @@ public:
 private:
     TBootstrap* Bootstrap_;
 };
->>>>>>> 0dcc88d
 
 IHttpHandlerPtr MakeSkynetHttpHandler(TBootstrap* bootstrap)
 {
