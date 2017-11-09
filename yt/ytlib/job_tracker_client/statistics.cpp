@@ -518,13 +518,13 @@ TStatisticsConsumer::TStatisticsConsumer(TSampleHandler sampleHandler)
 void TStatisticsConsumer::OnMyListItem()
 {
     TreeBuilder_->BeginTree();
-    Forward(TreeBuilder_.get(), BIND(&TStatisticsConsumer::ProcessSample, this), NYson::EYsonType::Node);
-}
-
-void TStatisticsConsumer::ProcessSample()
-{
-    auto node = TreeBuilder_->EndTree();
-    SampleHandler_.Run(node);
+    Forward(
+        TreeBuilder_.get(),
+        [this] {
+            auto node = TreeBuilder_->EndTree();
+            SampleHandler_.Run(node);
+        },
+        NYson::EYsonType::Node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

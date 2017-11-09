@@ -5,6 +5,7 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
@@ -59,12 +60,11 @@ class TOrderedControllerBase
 {
 public:
     TOrderedControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -156,7 +156,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller_->Spec_->LocalityTimeout;
+            return Controller_->IsLocalityEnabled()
+                ? Controller_->Spec_->LocalityTimeout
+                : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
@@ -423,7 +425,7 @@ protected:
 
         ProcessInputs();
 
-        OrderedTask_->FinishInput();
+        FinishTaskInput(OrderedTask_);
 
         for (const auto& teleportChunk : OrderedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
             if (OrderedOutputRequired_) {
@@ -465,11 +467,10 @@ class TOrderedMergeController
 {
 public:
     TOrderedMergeController(
-        TSchedulerConfigPtr config,
         TOrderedMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedControllerBase(config, spec, config->OrderedMergeOperationOptions, host, operation)
+        : TOrderedControllerBase(spec, host->GetControllerAgent()->GetConfig()->OrderedMergeOperationOptions, host, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -601,17 +602,21 @@ private:
     {
         return {EJobType::OrderedMerge};
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
 
 IOperationControllerPtr CreateOrderedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(operation->GetSpec());
-    return New<TOrderedMergeController>(config, spec, host, operation);
+    return New<TOrderedMergeController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,13 +626,13 @@ class TOrderedMapController
 {
 public:
     TOrderedMapController(
-        TSchedulerConfigPtr config,
         TMapOperationSpecPtr spec,
+        TMapOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedControllerBase(config, spec, config->MapOperationOptions, host, operation)
+        : TOrderedControllerBase(spec, options, host, operation)
         , Spec_(spec)
-        , Options_(config->MapOperationOptions)
+        , Options_(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
         RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
@@ -814,17 +819,21 @@ private:
 
         ValidateUserFileCount(Spec_->Mapper, "mapper");
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
 
 IOperationControllerPtr CreateOrderedMapController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TOrderedMapController>(config, spec, host, operation);
+    return New<TOrderedMapController>(spec, host->GetControllerAgent()->GetConfig()->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -834,11 +843,10 @@ class TEraseController
 {
 public:
     TEraseController(
-        TSchedulerConfigPtr config,
         TEraseOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedControllerBase(config, spec, config->EraseOperationOptions, host, operation)
+        : TOrderedControllerBase(spec, host->GetControllerAgent()->GetConfig()->EraseOperationOptions, host, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -1001,17 +1009,21 @@ private:
     {
         return EJobType::OrderedMerge;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
 
 IOperationControllerPtr CreateEraseController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
-    return New<TEraseController>(config, spec, host, operation);
+    return New<TEraseController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1021,13 +1033,12 @@ class TRemoteCopyController
 {
 public:
     TRemoteCopyController(
-        TSchedulerConfigPtr config,
         TRemoteCopyOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedControllerBase(config, spec, config->RemoteCopyOperationOptions, host, operation)
+        : TOrderedControllerBase(spec, host->GetControllerAgent()->GetConfig()->RemoteCopyOperationOptions, host, operation)
         , Spec_(spec)
-        , Options_(config->RemoteCopyOperationOptions)
+        , Options_(Config->RemoteCopyOperationOptions)
     {
         RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
     }
@@ -1235,7 +1246,7 @@ private:
         if (Spec_->ClusterConnection) {
             return CreateNativeConnection(*Spec_->ClusterConnection);
         } else if (Spec_->ClusterName) {
-            auto connection = Host
+            auto connection = ControllerAgent
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectory()
@@ -1283,17 +1294,21 @@ private:
     {
         return std::numeric_limits<i64>::max();
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
 
 IOperationControllerPtr CreateRemoteCopyController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
-    return New<TRemoteCopyController>(config, spec, host, operation);
+    return New<TRemoteCopyController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

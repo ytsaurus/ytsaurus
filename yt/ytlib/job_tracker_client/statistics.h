@@ -108,8 +108,6 @@ private:
     const TSampleHandler SampleHandler_;
 
     virtual void OnMyListItem() override;
-
-    void ProcessSample();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

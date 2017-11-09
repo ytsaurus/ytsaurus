@@ -21,6 +21,14 @@ public:
      */
     static TFuture<void> MakeDelayed(TDuration delay);
 
+    //! Constructs a future that gets set when a given #duration elapses and
+    //! immediately waits for it.
+    /*!
+     *  This is barely equivalent to MakeDelayed and WaitFor combination.
+     *  The result of waiting is ignored.
+     */
+    static void WaitForDuration(TDuration duration);
+
     //! Submits #callback for execution after a given #delay.
     /*!
      *  #callback is guaranteed to be invoked exactly once unless the cookie was cancelled (cf. #Cancel).

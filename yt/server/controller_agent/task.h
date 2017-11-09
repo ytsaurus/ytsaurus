@@ -27,6 +27,7 @@ class TTask
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+    DEFINE_BYVAL_RW_PROPERTY(TDataFlowGraph::TVertexDescriptor, InputVertex, TDataFlowGraph::TVertexDescriptor());
 
 public:
     //! For persistence only.
@@ -66,6 +67,9 @@ public:
 
     void AddInput(NChunkPools::TChunkStripePtr stripe);
     void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
+
+    // NB: This works well until there is no more than one input data flow vertex for any task.
+    void FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex);
     void FinishInput();
 
     void CheckCompleted();
@@ -144,6 +148,9 @@ protected:
 
     virtual void OnJobStarted(TJobletPtr joblet);
 
+    //! True if task supports lost jobs.
+    virtual bool CanLoseJobs() const;
+
     void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
 
     std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
@@ -199,6 +206,10 @@ protected:
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         TJobletPtr joblet,
         const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey());
+
+    //! A convenience method for calling task->Finish() and
+    //! task->SetInputVertex(this->GetJobType());
+    void FinishTaskInput(const TTaskPtr& task);
 
 protected:
     //! Outgoing edges in data flow graph.

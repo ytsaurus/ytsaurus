@@ -164,9 +164,10 @@ public:
         try {
             TSharedRef item;
 
-            Py_BEGIN_ALLOW_THREADS
-            item = Lexer_.NextItem();
-            Py_END_ALLOW_THREADS
+            {
+                TReleaseAcquireGilGuard guard;
+                item = Lexer_.NextItem();
+            }
 
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);

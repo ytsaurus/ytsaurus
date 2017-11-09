@@ -162,12 +162,79 @@ llvm::AllocaInst* TCGIRBuilder::CreateAlignedAlloca(
     Value* arraySize,
     const llvm::Twine& name)
 {
-#if LLVM_TEST(5, 0)
+#if LLVM_VERSION_GE(5, 0)
     const llvm::DataLayout &DL = BB->getParent()->getParent()->getDataLayout();
     return Insert(new llvm::AllocaInst(type, DL.getAllocaAddrSpace(), arraySize, align), name);
 #else
     return Insert(new llvm::AllocaInst(type, arraySize, align), name);
 #endif
+}
+
+llvm::Value* TCGIRBuilder::CreateOr(llvm::Value* lhs, llvm::Value* rhs, const llvm::Twine& name)
+{
+    if (llvm::Constant* lc = llvm::dyn_cast<llvm::Constant>(lhs)) {
+        if (lc->isNullValue()) {
+            return rhs;
+        }
+
+        if (lc->isAllOnesValue()) {
+            return lhs;
+        }
+    }
+
+    if (llvm::Constant *rc = llvm::dyn_cast<llvm::Constant>(rhs)) {
+        if (rc->isNullValue()) {
+            return lhs;
+        }
+
+        if (rc->isAllOnesValue()) {
+            return rhs;
+        }
+    }
+    return TBase::CreateOr(lhs, rhs, name);
+}
+
+llvm::Value* TCGIRBuilder::CreateAnd(llvm::Value* lhs, llvm::Value* rhs, const llvm::Twine& name)
+{
+    if (llvm::Constant* lc = llvm::dyn_cast<llvm::Constant>(lhs)) {
+        if (lc->isNullValue()) {
+            return lhs;
+        }
+
+        if (lc->isAllOnesValue()) {
+            return rhs;
+        }
+    }
+
+    if (llvm::Constant *rc = llvm::dyn_cast<llvm::Constant>(rhs)) {
+        if (rc->isNullValue()) {
+            return rhs;
+        }
+
+        if (rc->isAllOnesValue()) {
+            return lhs;
+        }
+    }
+    return TBase::CreateAnd(lhs, rhs, name);
+}
+
+llvm::Value* TCGIRBuilder::CreateSelect(
+    llvm::Value* condition,
+    llvm::Value* trueValue,
+    llvm::Value* falseValue,
+    const llvm::Twine& name)
+{
+    if (llvm::Constant* constantCondition = llvm::dyn_cast<llvm::Constant>(condition)) {
+        if (constantCondition->isNullValue()) {
+            return falseValue;
+        }
+
+        if (constantCondition->isAllOnesValue()) {
+            return trueValue;
+        }
+    }
+
+    return TBase::CreateSelect(condition, trueValue, falseValue, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

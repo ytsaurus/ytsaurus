@@ -32,6 +32,11 @@ i64 GetProcessRss(int pid = -1);
 
 int GetCurrentThreadId();
 
+void ChownChmodDirectoriesRecursively(
+    const TString& path,
+    const TNullable<uid_t>& userId,
+    const TNullable<int>& permissions);
+
 void SetThreadPriority(int tid, int priority);
 
 TString GetProcessName(int pid);
@@ -196,9 +201,11 @@ public:
     TFSQuotaConfig()
     {
         RegisterParameter("disk_space_limit", DiskSpaceLimit)
-            .GreaterThanOrEqual(0);
+            .GreaterThanOrEqual(0)
+            .Default(Null);
         RegisterParameter("inode_limit", InodeLimit)
-            .GreaterThanOrEqual(0);
+            .GreaterThanOrEqual(0)
+            .Default(Null);
         RegisterParameter("user_id", UserId)
             .GreaterThanOrEqual(0);
         RegisterParameter("slot_path", SlotPath);
@@ -210,6 +217,34 @@ DEFINE_REFCOUNTED_TYPE(TFSQuotaConfig)
 struct TFSQuotaTool
 {
     void operator()(TFSQuotaConfigPtr config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChownChmodConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Path;
+    TNullable<uid_t> UserId;
+    TNullable<int> Permissions;
+
+    TChownChmodConfig()
+    {
+        RegisterParameter("path", Path)
+            .NonEmpty();
+        RegisterParameter("user_id", UserId)
+            .Default(Null);
+        RegisterParameter("permissions", Permissions)
+            .Default(Null);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChownChmodConfig)
+
+struct TChownChmodTool
+{
+    void operator()(TChownChmodConfigPtr config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

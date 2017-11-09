@@ -19,9 +19,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             "operations_update_period" : 10,
             "running_jobs_update_period" : 10,
             "join_reduce_operation_options" : {
-                "spec_template" : {
-                    "use_legacy_controller" : False
-                },
                 "job_splitter" : {
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
@@ -783,7 +780,6 @@ echo {v = 2} >&7
                 },
                 "max_failed_job_count": 1,
                 "job_count": 10,
-                "use_legacy_controller": False,
                 "nightly_options" : {
                     "use_new_endpoint_keys": True
                 },

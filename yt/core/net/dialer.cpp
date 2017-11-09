@@ -5,7 +5,7 @@
 #include <yt/core/concurrency/poller.h>
 
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/socket.h>
+#include <yt/core/net/socket.h>
 
 #include <util/random/random.h>
 
@@ -249,7 +249,7 @@ private:
                 SetSocketKeepAlive(Socket_);
             }
 
-            if (::NYT::ConnectSocket(Socket_, Address_) == 0) {
+            if (ConnectSocket(Socket_, Address_) == 0) {
                 Finished_ = true;
                 return;
             }

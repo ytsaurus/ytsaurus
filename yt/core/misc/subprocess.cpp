@@ -102,7 +102,7 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
         try {
             Process_->Kill(SIGKILL);
         } catch (...) { }
-        WaitFor(finished);
+        Y_UNUSED(WaitFor(finished));
         throw;
     }
 #else

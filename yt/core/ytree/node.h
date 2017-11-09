@@ -5,6 +5,7 @@
 #include "ypath_service.h"
 
 #include <yt/core/misc/mpl.h>
+#include <yt/core/misc/serialize.h>
 
 #include <yt/core/yson/public.h>
 

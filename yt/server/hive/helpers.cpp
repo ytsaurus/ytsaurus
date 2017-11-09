@@ -7,15 +7,12 @@ namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHiveClient::NProto::TEncapsulatedMessage SerializeMessage(const ::google::protobuf::MessageLite& message)
+void SerializeMessage(
+    const ::google::protobuf::MessageLite& protoMessage,
+    NHiveClient::NProto::TEncapsulatedMessage* encapsulatedMessage)
 {
-    NHiveClient::NProto::TEncapsulatedMessage encapsulatedMessage;
-    encapsulatedMessage.set_type(message.GetTypeName());
-
-    auto serializedMessage = SerializeToProtoWithEnvelope(message);
-    encapsulatedMessage.set_data(ToString(serializedMessage));
-
-    return encapsulatedMessage;
+    encapsulatedMessage->set_type(protoMessage.GetTypeName());
+    encapsulatedMessage->set_data(SerializeProtoToStringWithEnvelope(protoMessage));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,9 +21,9 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/fls.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
 
-#include <yt/core/protos/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
 
@@ -34,6 +34,7 @@
 namespace NYT {
 namespace NHiveServer {
 
+using namespace NNet;
 using namespace NRpc;
 using namespace NRpc::NProto;
 using namespace NHydra;
@@ -205,12 +206,16 @@ public:
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        PostMessage(mailbox, SerializeMessage(message), reliable);
+        TEncapsulatedMessage encapsulatedMessage;
+        SerializeMessage(message, &encapsulatedMessage);
+        PostMessage(mailbox, encapsulatedMessage, reliable);
     }
 
     void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        PostMessage(mailboxes, SerializeMessage(message), reliable);
+        TEncapsulatedMessage encapsulatedMessage;
+        SerializeMessage(message, &encapsulatedMessage);
+        PostMessage(mailboxes, encapsulatedMessage, reliable);
     }
 
 

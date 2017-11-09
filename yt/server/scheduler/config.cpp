@@ -105,7 +105,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .Default(0.5);
 
     RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(60));
 
     RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
@@ -137,14 +137,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
         .Default(TDuration::Seconds(3));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEventLogConfig::TEventLogConfig()
-{
-    RegisterParameter("path", Path)
-        .Default("//sys/scheduler/event_log");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -360,9 +352,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_thread_count", ControllerThreadCount)
         .Default(4)
         .GreaterThan(0);
-    RegisterParameter("statistics_analyzer_thread_count", StatisticsAnalyzerThreadCount)
-        .Default(2)
-        .GreaterThan(0);
     RegisterParameter("parallel_snapshot_builder_count", ParallelSnapshotBuilderCount)
         .Default(4)
         .GreaterThan(0);
@@ -411,9 +400,6 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(3));
 
     RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
-        .Default(TDuration::Seconds(1));
-
-    RegisterParameter("pending_event_log_rows_flush_period", PendingEventLogRowsFlushPeriod)
         .Default(TDuration::Seconds(1));
 
     RegisterParameter("update_exec_node_descriptors_period", UpdateExecNodeDescriptorsPeriod)
@@ -572,6 +558,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("enable_job_revival", EnableJobRevival)
         .Default(true);
 
+    RegisterParameter("enable_locality", EnableLocality)
+        .Default(true);
+
     RegisterParameter("fetcher", Fetcher)
         .DefaultNew();
     RegisterParameter("event_log", EventLog)
@@ -687,6 +676,10 @@ TSchedulerConfig::TSchedulerConfig()
         ChunkLocationThrottler->Limit = 10000;
 
         EventLog->MaxRowWeight = 128_MB;
+
+        if (!EventLog->Path) {
+            EventLog->Path = "//sys/scheduler/event_log";
+        }
 
         // Value in options is an upper bound hint on uncompressed data size for merge jobs.
         OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;

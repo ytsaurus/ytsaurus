@@ -25,7 +25,10 @@ struct ISkynetApi
 
 DEFINE_REFCOUNTED_TYPE(ISkynetApi)
 
-ISkynetApiPtr CreateShellSkynetApi(const IInvokerPtr& invoker);
+ISkynetApiPtr CreateShellSkynetApi(
+    const IInvokerPtr& invoker,
+    const TString& pythonInterpreterPath,
+    const TString& mdsToolPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

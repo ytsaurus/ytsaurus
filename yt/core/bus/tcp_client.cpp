@@ -7,7 +7,8 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/error.h>
 
 #include <yt/core/rpc/public.h>
@@ -63,6 +64,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointAttributes();
+    }
+
+    virtual TTcpDispatcherStatistics GetStatistics() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->GetStatistics();
     }
 
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override
@@ -140,7 +147,7 @@ public:
         auto connection = New<TTcpConnection>(
             Config_,
             EConnectionType::Client,
-            Null,
+            DefaultNetworkName,
             id,
             INVALID_SOCKET,
             EndpointDescription_,

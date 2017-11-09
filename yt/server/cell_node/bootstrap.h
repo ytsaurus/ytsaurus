@@ -32,6 +32,8 @@
 
 #include <yt/core/bus/public.h>
 
+#include <yt/core/http/public.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -122,6 +124,7 @@ private:
     NRpc::IServerPtr RpcServer;
     NRpc::IServicePtr MasterCacheService;
     std::unique_ptr<NXHttp::TServer> HttpServer;
+    NHttp::IServerPtr NewHttpServer;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
     NJobAgent::TStatisticsReporterPtr StatisticsReporter;

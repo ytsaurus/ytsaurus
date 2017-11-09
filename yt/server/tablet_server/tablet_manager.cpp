@@ -64,7 +64,6 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/address.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/string.h>
 
@@ -759,6 +758,13 @@ public:
         int lastTabletIndex,
         int newTabletCount)
     {
+
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
+
+        if (newTabletCount <= 0) {
+            THROW_ERROR_EXCEPTION("Tablet count must be positive");
+        }
+
         struct TEntry
         {
             TOwningKey MinKey;
@@ -904,7 +910,7 @@ public:
     void ChangeTabletActionState(TTabletAction* action, ETabletActionState state, bool recursive = true)
     {
         action->SetState(state);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v)",
             action->GetId(),
             state);
         if (recursive) {
@@ -1062,33 +1068,24 @@ public:
                         int firstTabletIndex = action->Tablets().front()->GetIndex();
                         int lastTabletIndex = action->Tablets().back()->GetIndex();
 
-                        std::vector<TOwningKey> pivotKeys;
-                        int newTabletCount;
-
-                        if (table->IsPhysicallySorted()) {
-                            if (auto tabletCount = action->GetTabletCount()) {
-                                pivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, *tabletCount);
-                            } else {
-                                pivotKeys = action->PivotKeys();
-                            }
-                            newTabletCount = pivotKeys.size();
-                        } else {
-                            newTabletCount = *action->GetTabletCount();
-                        }
-
                         std::vector<TTablet*> oldTablets;
                         oldTablets.swap(action->Tablets());
                         for (auto* tablet : oldTablets) {
                             tablet->SetAction(nullptr);
                         }
 
+                        int newTabletCount = action->GetTabletCount()
+                            ? *action->GetTabletCount()
+                            : action->PivotKeys().size();
+
                         try {
-                            ReshardTable(
+                            newTabletCount = ReshardTable(
                                 table,
                                 firstTabletIndex,
                                 lastTabletIndex,
                                 newTabletCount,
-                                pivotKeys);
+                                action->PivotKeys(),
+                                false);
                         } catch (const std::exception& ex) {
                             for (auto* tablet : oldTablets) {
                                 YCHECK(IsObjectAlive(tablet));
@@ -1100,7 +1097,7 @@ public:
 
                         action->Tablets() = std::vector<TTablet*>(
                             table->Tablets().begin() + firstTabletIndex,
-                            table->Tablets().begin() + firstTabletIndex + pivotKeys.size());
+                            table->Tablets().begin() + firstTabletIndex + newTabletCount);
                         for (auto* tablet : action->Tablets()) {
                             tablet->SetAction(action);
                         }
@@ -1788,7 +1785,40 @@ public:
         }
     }
 
-    void ReshardTable(
+    int ReshardTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        int newTabletCount,
+        const std::vector<TOwningKey>& pivotKeys,
+        bool strictNewTabletCount = true)
+    {
+        if (!pivotKeys.empty() || !table->IsSorted()) {
+            DoReshardTable(
+                table,
+                firstTabletIndex,
+                lastTabletIndex,
+                newTabletCount,
+                pivotKeys);
+            return newTabletCount;
+        }
+
+        auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
+        if (strictNewTabletCount && newPivotKeys.size() != newTabletCount) {
+            THROW_ERROR_EXCEPTION("Unable to calculate pivot keys");
+        }
+
+        newTabletCount = newPivotKeys.size();
+        DoReshardTable(
+            table,
+            firstTabletIndex,
+            lastTabletIndex,
+            newTabletCount,
+            newPivotKeys);
+        return newTabletCount;
+    }
+
+    void DoReshardTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -1871,7 +1901,7 @@ public:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Reshard table (TableId: %v, FirstTabletInded: %v, LastTabletIndex: %v, TabletCount %v, PivotKeys: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Reshard table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount %v, PivotKeys: %v)",
             table->GetId(),
             firstTabletIndex,
             lastTabletIndex,
@@ -2895,6 +2925,10 @@ private:
                 auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
                 counter->Rate = (std::max(curValue, prevValue) - prevValue) / timeDelta;
                 counter->Count = curValue;
+                auto exp10 = std::exp(-timeDelta / (60 * 10 / 2));
+                counter->Rate10 = curValue * (1 - exp10) + counter->Rate10 * exp10;
+                auto exp60 = std::exp(-timeDelta / (60 * 60 / 2));
+                counter->Rate60 = curValue * (1 - exp60) + counter->Rate60 * exp60;
             };
 
             #define XX(name, Name) updatePerformanceCounter( \
@@ -3717,6 +3751,8 @@ private:
         TTabletCell* hintCell,
         std::vector<TTablet*> tabletsToMount)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (hintCell) {
             std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
             for (auto* tablet : tabletsToMount) {
@@ -3742,25 +3778,26 @@ private:
             }
         };
 
+        auto mutationContext = GetCurrentMutationContext();
+
         auto getCellSize = [&] (const TTabletCell* cell) -> i64 {
             i64 result = 0;
             i64 tabletCount;
             switch (mountConfig->InMemoryMode) {
                 case EInMemoryMode::None:
-                    result += cell->TotalStatistics().UncompressedDataSize;
-                    tabletCount = cell->Tablets().size();
+                    result = mutationContext->RandomGenerator().Generate<i64>();
                     break;
                 case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed: {
                     result += cell->TotalStatistics().MemorySize;
                     tabletCount = cell->TotalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Uncompressed] +
                         cell->TotalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Compressed];
+                    result += tabletCount * Config_->TabletDataSizeFootprint;
                     break;
                 }
                 default:
                     Y_UNREACHABLE();
             }
-            result += tabletCount * Config_->TabletDataSizeFootprint;
             return result;
         };
 

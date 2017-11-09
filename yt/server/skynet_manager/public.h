@@ -10,6 +10,13 @@ namespace NSkynetManager {
 
 constexpr size_t SkynetPieceSize = 4_MB;
 
+DECLARE_REFCOUNTED_STRUCT(TBootstrap)
+
+DECLARE_REFCOUNTED_CLASS(TClusterConnectionConfig)
+DECLARE_REFCOUNTED_CLASS(TSkynetManagerConfig)
+
+DECLARE_REFCOUNTED_CLASS(TSkynetManager)
+
 DECLARE_REFCOUNTED_STRUCT(ISkynetApi)
 
 ////////////////////////////////////////////////////////////////////////////////

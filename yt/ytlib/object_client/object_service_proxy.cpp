@@ -114,7 +114,7 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
             req.add_part_counts(0);
         }
     }
-    return SerializeToProtoWithEnvelope(req);
+    return SerializeProtoToRefWithEnvelope(req);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +151,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
     NProto::TRspExecute body;
-    DeserializeFromProtoWithEnvelope(&body, data);
+    DeserializeProtoWithEnvelope(&body, data);
 
     int currentIndex = 0;
     PartRanges_.reserve(body.part_counts_size());

@@ -39,6 +39,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(Null);
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
+    RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
+        .Default(Null);
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
         .Default(Null);
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
@@ -96,6 +98,8 @@ void TSupportsSchedulingTagsConfig::OnLoaded()
 
 TOperationSpecBase::TOperationSpecBase()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("intermediate_data_account", IntermediateDataAccount)
         .Default("intermediate");
     RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
@@ -171,6 +175,10 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("nightly_options", NightlyOptions)
         .Default();
 
+    RegisterParameter("min_locality_input_data_weight", MinLocalityInputDataWeight)
+        .GreaterThanOrEqual(0)
+        .Default(1_GB);
+
     RegisterParameter("auto_merge", AutoMerge)
         .DefaultNew();
 
@@ -189,10 +197,6 @@ TOperationSpecBase::TOperationSpecBase()
             }
         }
     });
-
-    // XXX(ignat): it seems that GetOptions is not used for this config.
-    // Should we delete this line?
-    SetKeepOptions(true);
 }
 
 TUserJobSpec::TUserJobSpec()
@@ -256,6 +260,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(Null)
         .GreaterThanOrEqual(0);
     RegisterParameter("copy_files", CopyFiles)
+        .Default(false);
+    RegisterParameter("deterministic", Deterministic)
         .Default(false);
 
     RegisterValidator([&] () {
@@ -328,12 +334,6 @@ void TOperationWithUserJobSpec::OnLoaded()
     if (CoreTablePath) {
         *CoreTablePath = CoreTablePath->Normalize();
     }
-}
-
-TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
-{
-    RegisterParameter("use_legacy_controller", UseLegacyController)
-        .Default(false);
 }
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
@@ -558,6 +558,8 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(true);
     RegisterParameter("partitioned_data_balancing_tolerance", PartitionedDataBalancingTolerance)
         .Default(3.0);
+    RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
+        .Default(true);
 
     RegisterParameter("sort_job_proxy_memory_digest", SortJobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));

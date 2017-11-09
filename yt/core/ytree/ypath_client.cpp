@@ -6,8 +6,10 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <yt/core/bus/bus.h>
+
 #include <yt/core/rpc/message.h>
-#include <yt/core/protos/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 #include <yt/core/rpc/server_detail.h>
 
 #include <yt/core/ypath/token.h>
@@ -16,7 +18,7 @@
 #include <yt/core/yson/format.h>
 #include <yt/core/yson/tokenizer.h>
 
-#include <yt/core/protos/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 #include <cmath>
 
@@ -301,6 +303,11 @@ void ExecuteVerb(
                 underlyingContext->GetLogLevel())
             , UnderlyingContext_(std::move(underlyingContext))
         { }
+
+        virtual TTcpDispatcherStatistics GetBusStatistics() const override
+        {
+            return UnderlyingContext_->GetBusStatistics();
+        }
 
         virtual void SetRawRequestInfo(const TString& info) override
         {

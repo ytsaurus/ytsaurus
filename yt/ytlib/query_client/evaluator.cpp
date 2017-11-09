@@ -13,6 +13,8 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/misc/finally.h>
+
 #include <llvm/ADT/FoldingSet.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
@@ -56,6 +58,10 @@ public:
         : TAsyncSlruCacheBase(config->CGCache)
     { }
 
+    explicit TImpl(TExecutorConfigPtr config, TString profilingPath)
+        : TAsyncSlruCacheBase(config->CGCache, NProfiling::TProfiler(profilingPath + "/cg_cache"))
+    { }
+
     TQueryStatistics Run(
         TConstBaseQueryPtr query,
         ISchemafulReaderPtr reader,
@@ -94,6 +100,10 @@ public:
                     options.EnableCodeCache,
                     options.UseMultijoin);
 
+                auto finalizer = Finally([&] () {
+                    fragmentParams.Clear();
+                });
+
                 LOG_DEBUG("Evaluating plan fragment");
 
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
@@ -112,10 +122,10 @@ public:
 
                 CallCGQueryPtr(
                     cgQuery,
+                    fragmentParams.GetLiteralvalues(),
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
 
-                fragmentParams.Clear();
             } catch (const std::exception& ex) {
                 LOG_DEBUG("Query evaluation failed");
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
@@ -202,14 +212,16 @@ private:
 
     static void CallCGQuery(
         const TCGQueryCallback& cgQuery,
+        TValue* literals,
         void* const* opaqueValues,
         TExecutionContext* executionContext)
     {
-        cgQuery(opaqueValues, executionContext);
+        cgQuery(literals, opaqueValues, executionContext);
     }
 
     void(*volatile CallCGQueryPtr)(
         const TCGQueryCallback& cgQuery,
+        TValue* literals,
         void* const* opaqueValues,
         TExecutionContext* executionContext) = CallCGQuery;
 
@@ -219,6 +231,10 @@ private:
 
 TEvaluator::TEvaluator(TExecutorConfigPtr config)
     : Impl_(New<TImpl>(std::move(config)))
+{ }
+
+TEvaluator::TEvaluator(TExecutorConfigPtr config, const TString& profilingPath)
+    : Impl_(New<TImpl>(std::move(config), profilingPath))
 { }
 
 TEvaluator::~TEvaluator() = default;

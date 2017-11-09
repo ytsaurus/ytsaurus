@@ -18,7 +18,7 @@ class TInputStreamWrap
 {
 public:
     explicit TInputStreamWrap(const Py::Object& inputStream);
-    virtual ~TInputStreamWrap() throw();
+    virtual ~TInputStreamWrap() noexcept;
 
     virtual size_t DoRead(void* buf, size_t len);
 
@@ -30,7 +30,7 @@ private:
 class TOutputStreamWrap: public IOutputStream {
 public:
     explicit TOutputStreamWrap(const Py::Object& outputStream);
-    virtual ~TOutputStreamWrap() throw();
+    virtual ~TOutputStreamWrap() noexcept;
 
     virtual void DoWrite(const void* buf, size_t len);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "http.h"
 
 #include <yt/core/net/public.h>
 
@@ -27,6 +28,10 @@ struct IServer
         const TString& pattern,
         const IHttpHandlerPtr& handler) = 0;
 
+    virtual void AddHandler(
+        const TString& pattern,
+        TCallback<void(const IRequestPtr& req, const IResponseWriterPtr& rsp)> handler);
+
     virtual TFuture<void> Start() = 0;
 };
 
@@ -38,6 +43,7 @@ IServerPtr CreateServer(
     const NConcurrency::IPollerPtr& poller);
 IServerPtr CreateServer(const TServerConfigPtr& config, const NConcurrency::IPollerPtr& poller);
 IServerPtr CreateServer(int port, const NConcurrency::IPollerPtr& poller);
+IServerPtr CreateServer(const TServerConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

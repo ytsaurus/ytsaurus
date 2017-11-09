@@ -145,7 +145,7 @@ TTaskGroupPtr TAutoMergeTask::GetGroup() const
 
 TDuration TAutoMergeTask::GetLocalityTimeout() const
 {
-    return TDuration();
+    return TDuration::Zero();
 }
 
 TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const
@@ -227,18 +227,13 @@ void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& job
 {
     TTask::OnJobCompleted(joblet, jobSummary);
 
-    for (const auto& stripe : joblet->InputStripeList->Stripes) {
-        std::vector<NChunkClient::TChunkId> chunkIds;
-        for (const auto& dataSlice : stripe->DataSlices) {
-            chunkIds.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
-        }
-        TaskHost_->UnstageChunkTreesNonRecursively(std::move(chunkIds));
-    }
+    // Deciding what to do with these chunks is up to controller.
+    // It may do nothing with these chunks, release them immediately
+    // or release after next snapshot built but it should eventually
+    // discount them in auto merge director.
+    TaskHost_->ReleaseStripeList(joblet->InputStripeList);
 
     RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
-
-    TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(
-        joblet->InputStripeList->TotalChunkCount /* unregisteredIntermediateChunkCount*/);
 }
 
 void TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)

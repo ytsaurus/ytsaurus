@@ -401,6 +401,35 @@ void FormatExpressions(TStringBuilder* builder, const TExpressionList& exprs, bo
         });
 }
 
+void FormatJoin(TStringBuilder* builder, const TJoin& join)
+{
+    if (join.IsLeft) {
+        builder->AppendString(" LEFT");
+    }
+    builder->AppendString(" JOIN ");
+    FormatTableDescriptor(builder, join.Table);
+    if (join.Fields.empty()) {
+        builder->AppendString(" ON (");
+        FormatExpressions(builder, join.Lhs, true);
+        builder->AppendString(") = (");
+        FormatExpressions(builder, join.Rhs, true);
+        builder->AppendChar(')');
+    } else {
+        builder->AppendString(" USING ");
+        JoinToString(
+            builder,
+            join.Fields.begin(),
+            join.Fields.end(),
+            [] (TStringBuilder* builder, const TReferenceExpressionPtr& referenceExpr) {
+                 FormatReference(builder, referenceExpr->Reference);
+            });
+    }
+    if (join.Predicate) {
+        builder->AppendString(" AND ");
+        FormatExpression(builder, *join.Predicate, true);
+    }
+}
+
 void FormatQuery(TStringBuilder* builder, const TQuery& query)
 {
     if (query.SelectExprs) {
@@ -419,31 +448,7 @@ void FormatQuery(TStringBuilder* builder, const TQuery& query)
     FormatTableDescriptor(builder, query.Table);
 
     for (const auto& join : query.Joins) {
-        if (join.IsLeft) {
-            builder->AppendString(" LEFT");
-        }
-        builder->AppendString(" JOIN ");
-        FormatTableDescriptor(builder, join.Table);
-        if (join.Fields.empty()) {
-            builder->AppendString(" ON (");
-            FormatExpressions(builder, join.Lhs, true);
-            builder->AppendString(") = (");
-            FormatExpressions(builder, join.Rhs, true);
-            builder->AppendChar(')');
-        } else {
-            builder->AppendString(" USING ");
-            JoinToString(
-                builder,
-                join.Fields.begin(),
-                join.Fields.end(),
-                [] (TStringBuilder* builder, const TReferenceExpressionPtr& referenceExpr) {
-                     FormatReference(builder, referenceExpr->Reference);
-                });
-        }
-        if (join.Predicate) {
-            builder->AppendString(" AND ");
-            FormatExpression(builder, *join.Predicate, true);
-        }
+        FormatJoin(builder, join);
     }
 
     if (query.WherePredicate) {
@@ -519,6 +524,13 @@ TString FormatExpression(const TExpressionList& exprs)
 {
     YCHECK(exprs.size() == 1);
     return FormatExpression(*exprs[0]);
+}
+
+TString FormatJoin(const TJoin& join)
+{
+    TStringBuilder builder;
+    FormatJoin(&builder, join);
+    return builder.Flush();
 }
 
 TString FormatQuery(const TQuery& query)

@@ -6,6 +6,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/format.h>
 
 #include <yt/ytlib/table_client/chunk_meta.pb.h>
 

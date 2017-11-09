@@ -91,7 +91,8 @@ struct TEnumTraits<T, true>
     ENUM__CLASS(name, underlyingType, seq) \
     ENUM__BEGIN_TRAITS(name, underlyingType, true, seq) \
     ENUM__DECOMPOSE(name, seq) \
-    ENUM__END_TRAITS(name)
+    ENUM__END_TRAITS(name) \
+    ENUM__BITWISE_OPS(name)
 
 //! Defines a smart enumeration with the default |unsigned| underlying type.
 /*!
@@ -137,12 +138,7 @@ private:
     // TODO(babenko): change this to std::array after migrating to GCC 4.9
     // Cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=59659
     std::vector<T> Items_;
-
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,6 +153,8 @@ typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
 None(E value);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
 
 #define ENUM_INL_H_
 #include "enum-inl.h"

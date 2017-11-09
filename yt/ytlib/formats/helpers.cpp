@@ -3,6 +3,8 @@
 #include "escape.h"
 #include "format.h"
 
+#include <yt/core/misc/format.h>
+
 namespace NYT {
 namespace NFormats {
 

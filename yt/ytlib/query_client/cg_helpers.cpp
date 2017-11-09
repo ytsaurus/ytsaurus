@@ -18,6 +18,22 @@ StringRef ToStringRef(const TSharedRef& sharedRef)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
+{
+    return TDataTypeBuilder::get(context, staticType);
+}
+
+Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
+{
+    if (staticType == EValueType::Boolean) {
+        return TypeBuilder<llvm::types::i<1>, false>::get(context);
+    }
+
+    return GetABIType(context, staticType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Value* TCGExprContext::GetFragmentResult(size_t index) const
 {
     return Builder_->CreateInBoundsGEP(
@@ -36,8 +52,9 @@ Value* TCGExprContext::GetFragmentFlag(size_t index) const
         ExpressionClosurePtr,
         {
             Builder_->getInt32(0),
-            Builder_->getInt32(TClosureTypeBuilder::Fields::FragmentFlags),
-            Builder_->getInt32(ExpressionFragments.Items[index].Index)
+            Builder_->getInt32(TClosureTypeBuilder::Fields::FragmentResults),
+            Builder_->getInt32(ExpressionFragments.Items[index].Index),
+            Builder_->getInt32(TTypeBuilder::Type)
         },
         Twine("flag#") + Twine(index));
 }
@@ -45,28 +62,26 @@ Value* TCGExprContext::GetFragmentFlag(size_t index) const
 TCGExprContext TCGExprContext::Make(
     const TCGBaseContext& builder,
     const TCodegenFragmentInfos& fragmentInfos,
-    Value* expressionClosurePtr)
+    Value* expressionClosurePtr,
+    Value* literals,
+    Value* rowValues)
 {
     Value* opaqueValues = builder->CreateLoad(builder->CreateStructGEP(
         nullptr,
         expressionClosurePtr,
-        TClosureTypeBuilder::Fields::OpaqueValues,
-        "opaqueValues"));
+        TClosureTypeBuilder::Fields::OpaqueValues),
+        "opaqueValues");
 
     return TCGExprContext(
-        TCGOpaqueValuesContext(builder, opaqueValues),
+        TCGOpaqueValuesContext(builder, literals, opaqueValues),
         TCGExprData(
             fragmentInfos,
             builder->CreateLoad(builder->CreateStructGEP(
                 nullptr,
                 expressionClosurePtr,
-                TClosureTypeBuilder::Fields::Buffer,
-                "buffer")),
-            builder->CreateLoad(builder->CreateStructGEP(
-                nullptr,
-                expressionClosurePtr,
-                TClosureTypeBuilder::Fields::RowValues,
-                "rowValues")),
+                TClosureTypeBuilder::Fields::Buffer),
+                "buffer"),
+            rowValues,
             expressionClosurePtr
         ));
 }
@@ -74,50 +89,44 @@ TCGExprContext TCGExprContext::Make(
 TCGExprContext TCGExprContext::Make(
     const TCGOpaqueValuesContext& builder,
     const TCodegenFragmentInfos& fragmentInfos,
-    Value* row,
-    Value* buffer)
+    Value* rowValues,
+    Value* buffer,
+    Value* expressionClosurePtr)
 {
-    Value* rowValues = CodegenValuesPtrFromRow(builder, row);
+    if (!expressionClosurePtr) {
+        expressionClosurePtr = builder->CreateAlloca(
+            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos.Functions.size()),
+            nullptr,
+            "expressionClosurePtr");
+    }
 
-    llvm::StructType* type = TClosureTypeBuilder::get(builder->getContext(), fragmentInfos.Functions.size());
-
-    Value* expressionClosure = llvm::ConstantStruct::get(
-        type,
-        {
-            llvm::UndefValue::get(TypeBuilder<TValue*, false>::get(builder->getContext())),
-            llvm::UndefValue::get(TypeBuilder<void* const*, false>::get(builder->getContext())),
-            llvm::UndefValue::get(TypeBuilder<TRowBuffer*, false>::get(builder->getContext())),
-            llvm::ConstantAggregateZero::get(
-                llvm::ArrayType::get(TypeBuilder<char, false>::get(
-                    builder->getContext()),
-                    fragmentInfos.Functions.size())),
-            llvm::UndefValue::get(
-                llvm::ArrayType::get(TypeBuilder<TValue, false>::get(
-                    builder->getContext()),
-                    fragmentInfos.Functions.size()))
-        });
-
-    expressionClosure = builder->CreateInsertValue(
-        expressionClosure,
-        rowValues,
-        TClosureTypeBuilder::Fields::RowValues);
-
-    expressionClosure = builder->CreateInsertValue(
-        expressionClosure,
+    builder->CreateStore(
         builder.GetOpaqueValues(),
-        TClosureTypeBuilder::Fields::OpaqueValues);
+        builder->CreateConstInBoundsGEP2_32(
+            nullptr,
+            expressionClosurePtr,
+            0,
+            TClosureTypeBuilder::Fields::OpaqueValues));
 
-    expressionClosure = builder->CreateInsertValue(
-        expressionClosure,
+    builder->CreateStore(
         buffer,
-        TClosureTypeBuilder::Fields::Buffer);
+        builder->CreateConstInBoundsGEP2_32(
+            nullptr,
+            expressionClosurePtr,
+            0,
+            TClosureTypeBuilder::Fields::Buffer));
 
-    Value* expressionClosurePtr = builder->CreateAlloca(
-        type,
-        nullptr,
-        "expressionClosurePtr");
-
-    builder->CreateStore(expressionClosure, expressionClosurePtr);
+    builder->CreateMemSet(
+        builder->CreatePointerCast(
+            builder->CreateConstInBoundsGEP2_32(
+                nullptr,
+                expressionClosurePtr,
+                0,
+                TClosureTypeBuilder::Fields::FragmentResults),
+            builder->getInt8PtrTy()),
+        builder->getInt8(static_cast<int>(EValueType::TheBottom)),
+        sizeof(TValue) * fragmentInfos.Functions.size(),
+        8);
 
     return TCGExprContext(
         builder,
@@ -145,27 +154,6 @@ TCodegenConsumer& TCGOperatorContext::operator[] (size_t index) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Row manipulation helpers
-//
-
-Value* CodegenValuesPtrFromRow(const TCGIRBuilderPtr& builder, Value* row)
-{
-    auto name = row->getName();
-
-    auto headerPtr = builder->CreateExtractValue(
-        row,
-        TypeBuilder<TRow, false>::Fields::Header,
-        Twine(name).concat(".headerPtr"));
-
-    auto valuesPtr = builder->CreatePointerCast(
-        builder->CreateConstInBoundsGEP1_32(nullptr, headerPtr, 1, "valuesPtrUncasted"),
-        TypeBuilder<TValue*, false>::get(builder->getContext()),
-        Twine(name).concat(".valuesPtr"));
-
-    return valuesPtr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 TCGValue MakePhi(
     TCGIRBuilderPtr& builder,
@@ -179,35 +167,52 @@ TCGValue MakePhi(
     YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
     EValueType type = thenValue.GetStaticType();
 
-    if (thenValue.GetValue(builder, false) || elseValue.GetValue(builder, false)) {
-        builder->SetInsertPoint(thenBB);
-        Value* thenLllvmValue = thenValue.GetValue(builder, true);
-
-        builder->SetInsertPoint(elseBB);
-        Value* elseLllvmValue = elseValue.GetValue(builder, true);
-
-        builder->SetInsertPoint(endBB);
-
-        PHINode* phiValue = builder->CreatePHI(thenLllvmValue->getType(), 2, name + ".phiValue");
-        phiValue->addIncoming(thenLllvmValue, thenBB);
-        phiValue->addIncoming(elseLllvmValue, elseBB);
-
-        return TCGValue::CreateFromValue(builder, phiValue, type, name);
-    }
-
     builder->SetInsertPoint(thenBB);
-    Value* thenNull = thenValue.IsNull(builder);
-    Value* thenData = thenValue.GetData(builder);
+    Value* thenNull = thenValue.IsNull();
+    Value* thenData = thenValue.GetData();
 
     builder->SetInsertPoint(elseBB);
-    Value* elseNull = elseValue.IsNull(builder);
-    Value* elseData = elseValue.GetData(builder);
+    Value* elseNull = elseValue.IsNull();
+    Value* elseData = elseValue.GetData();
 
     builder->SetInsertPoint(endBB);
 
-    PHINode* phiNull = builder->CreatePHI(builder->getInt1Ty(), 2, name + ".phiNull");
-    phiNull->addIncoming(thenNull, thenBB);
-    phiNull->addIncoming(elseNull, elseBB);
+    Value* phiNull = [&] () -> Value* {
+        if (llvm::Constant* constantThenNull = llvm::dyn_cast<llvm::Constant>(thenNull)) {
+            if (llvm::Constant* constantElseNull = llvm::dyn_cast<llvm::Constant>(elseNull)) {
+                if (constantThenNull->isNullValue() && constantElseNull->isNullValue()) {
+                    return builder->getFalse();
+                }
+            }
+        }
+
+        if (thenNull->getType() != elseNull->getType()) {
+            builder->SetInsertPoint(thenBB);
+            thenNull = thenValue.GetIsNull(builder);
+
+            builder->SetInsertPoint(elseBB);
+            elseNull = elseValue.GetIsNull(builder);
+
+            builder->SetInsertPoint(endBB);
+        }
+
+        Type* targetType = thenNull->getType();
+
+        PHINode* phiNull = builder->CreatePHI(targetType, 2, name + ".phiNull");
+        phiNull->addIncoming(thenNull, thenBB);
+        phiNull->addIncoming(elseNull, elseBB);
+        return phiNull;
+    }();
+
+    if (thenData->getType() != elseData->getType()) {
+        builder->SetInsertPoint(thenBB);
+        thenData = thenValue.GetTypedData(builder);
+
+        builder->SetInsertPoint(elseBB);
+        elseData = elseValue.GetTypedData(builder);
+
+        builder->SetInsertPoint(endBB);
+    }
 
     YCHECK(thenData->getType() == elseData->getType());
 
@@ -218,9 +223,9 @@ TCGValue MakePhi(
     PHINode* phiLength = nullptr;
     if (IsStringLikeType(type)) {
         builder->SetInsertPoint(thenBB);
-        Value* thenLength = thenValue.GetLength(builder);
+        Value* thenLength = thenValue.GetLength();
         builder->SetInsertPoint(elseBB);
-        Value* elseLength = elseValue.GetLength(builder);
+        Value* elseLength = elseValue.GetLength();
 
         builder->SetInsertPoint(endBB);
 

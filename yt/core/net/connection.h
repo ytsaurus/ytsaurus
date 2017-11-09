@@ -5,7 +5,8 @@
 #include <yt/core/concurrency/async_stream.h>
 
 #include <yt/core/misc/ref_counted.h>
-#include <yt/core/misc/address.h>
+
+#include <yt/core/net/address.h>
 
 namespace NYT {
 namespace NNet {

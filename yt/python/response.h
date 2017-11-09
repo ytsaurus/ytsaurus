@@ -20,6 +20,7 @@ class TDriverResponseHolder
 {
 public:
     TDriverResponseHolder();
+    virtual ~TDriverResponseHolder();
 
     NYson::IYsonConsumer* GetResponseParametersConsumer();
     NYTree::TPythonObjectBuilder* GetPythonObjectBuilder();

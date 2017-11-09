@@ -112,7 +112,8 @@ public:
 protected:
     explicit TSchedulerElementFixedState(
         ISchedulerStrategyHost* host,
-        const TFairShareStrategyTreeConfigPtr& treeConfig);
+        const TFairShareStrategyTreeConfigPtr& treeConfig,
+        const TString& treeId);
 
     ISchedulerStrategyHost* const Host_;
 
@@ -131,6 +132,8 @@ protected:
     int TreeIndex_ = UnassignedTreeIndex;
 
     bool Cloned_ = false;
+
+    const TString TreeId_;
 };
 
 class TSchedulerElementSharedState
@@ -240,6 +243,8 @@ public:
     TJobMetrics GetJobMetrics() const;
     double GetResourceUsageRatio() const;
 
+    virtual TString GetTreeId() const;
+
     void IncreaseLocalResourceUsage(const TJobResources& delta);
     void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
     void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
@@ -257,7 +262,8 @@ private:
 protected:
     TSchedulerElement(
         ISchedulerStrategyHost* host,
-        const TFairShareStrategyTreeConfigPtr& treeConfig);
+        const TFairShareStrategyTreeConfigPtr& treeConfig,
+        const TString& treeId);
     TSchedulerElement(
         const TSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -310,7 +316,8 @@ public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag);
+        NProfiling::TTagId profilingTag,
+        const TString& treeId);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -423,7 +430,8 @@ public:
         TPoolConfigPtr config,
         bool defaultConfigured,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag);
+        NProfiling::TTagId profilingTag,
+        const TString& treeId);
     TPool(
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
@@ -662,7 +670,8 @@ public:
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
-        IOperationStrategyHost* operation);
+        IOperationStrategyHost* operation,
+        const TString& treeId);
     TOperationElement(
         const TOperationElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -783,7 +792,8 @@ public:
     TRootElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag);
+        NProfiling::TTagId profilingTag,
+        const TString& treeId);
     TRootElement(const TRootElement& other);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList) override;

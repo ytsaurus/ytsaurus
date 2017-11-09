@@ -7,8 +7,9 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/address.h>
-#include <yt/core/misc/socket.h>
+#include <yt/core/net/address.h>
+
+#include <yt/core/net/socket.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/convert.h>
@@ -24,6 +25,7 @@ namespace NBus {
 
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,12 +44,10 @@ public:
     TTcpBusServerBase(
         TTcpBusServerConfigPtr config,
         IPollerPtr poller,
-        IMessageHandlerPtr handler,
-        ETcpInterfaceType interfaceType)
+        IMessageHandlerPtr handler)
         : Config_(std::move(config))
         , Poller_(std::move(poller))
         , Handler_(std::move(handler))
-        , InterfaceType_(interfaceType)
         , CheckExecutor_(New<TPeriodicExecutor>(
             GetSyncInvoker(),
             BIND(&TTcpBusServerBase::OnCheck, MakeWeak(this)),
@@ -63,7 +63,12 @@ public:
         if (Config_->UnixDomainName) {
             Logger.AddTag("UnixDomainName: %v", *Config_->UnixDomainName);
         }
-        Logger.AddTag("InterfaceType: %v", InterfaceType_);
+
+        for (const auto& network : Config_->Networks) {
+            for (const auto& prefix : network.second) {
+                Networks_.emplace_back(prefix, network.first);
+            }
+        }
 
         CheckExecutor_->Start();
     }
@@ -117,7 +122,6 @@ protected:
     const TTcpBusServerConfigPtr Config_;
     const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
-    const ETcpInterfaceType InterfaceType_;
 
     const TPeriodicExecutorPtr CheckExecutor_;
 
@@ -129,6 +133,7 @@ protected:
 
     NLogging::TLogger Logger = BusLogger;
 
+    std::vector<std::pair<TIP6Network, TString>> Networks_;
 
     virtual void CreateServerSocket() = 0;
 
@@ -193,9 +198,11 @@ protected:
                 }
             }
 
+            auto clientNetwork = GetNetworkNameForAddress(clientAddress);
+
             auto connectionId = TConnectionId::Create();
 
-            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetCounters(InterfaceType_)->ServerConnections.load();
+            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetCounters(clientNetwork)->ServerConnections.load();
             auto connectionLimit = Config_->MaxSimultaneousConnections;
             if (connectionCount >= connectionLimit) {
                 LOG_DEBUG("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
@@ -205,9 +212,10 @@ protected:
                 close(clientSocket);
                 continue;
             } else {
-                LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, Network: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     connectionId,
                     ToString(clientAddress, false),
+                    clientNetwork,
                     connectionCount,
                     connectionLimit);
             }
@@ -219,12 +227,13 @@ protected:
             auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
                 .BeginMap()
                     .Item("address").Value(address)
+                    .Item("network").Value(clientNetwork)
                 .EndMap());
 
             auto connection = New<TTcpConnection>(
                 Config_,
                 EConnectionType::Server,
-                InterfaceType_,
+                clientNetwork,
                 connectionId,
                 clientSocket,
                 endpointDescription,
@@ -252,7 +261,7 @@ protected:
     {
         for (int attempt = 1; attempt <= Config_->BindRetryCount; ++attempt) {
             try {
-                ::NYT::BindSocket(ServerSocket_, address);
+                NNet::BindSocket(ServerSocket_, address);
                 return;
             } catch (const TErrorException& ex) {
                 if (attempt == Config_->BindRetryCount) {
@@ -293,6 +302,26 @@ protected:
             connection->Check();
         }
     }
+
+    const TString& GetNetworkNameForAddress(const TNetworkAddress& address)
+    {
+        if (address.IsUnix()) {
+            return LocalNetworkName;
+        }
+
+        if (!address.IsIP6()) {
+            return DefaultNetworkName;
+        }
+
+        auto ip6Address = address.ToIP6Address();
+        for (const auto& network : Networks_) {
+            if (network.first.Contains(ip6Address)) {
+                return network.second;
+            }
+        }
+
+        return DefaultNetworkName;
+    }
 };
 
 class TRemoteTcpBusServer
@@ -306,8 +335,7 @@ public:
         : TTcpBusServerBase(
             std::move(config),
             std::move(poller),
-            std::move(handler),
-            ETcpInterfaceType::Remote)
+            std::move(handler))
     { }
 
 private:
@@ -338,8 +366,7 @@ public:
         : TTcpBusServerBase(
             std::move(config),
             std::move(poller),
-            std::move(handler),
-            ETcpInterfaceType::Local)
+            std::move(handler))
     { }
 
 private:

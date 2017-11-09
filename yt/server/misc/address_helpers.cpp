@@ -1,10 +1,12 @@
 #include "address_helpers.h"
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
+#include <yt/core/net/address.h>
 
 namespace NYT {
 
 using namespace NNodeTrackerClient;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 

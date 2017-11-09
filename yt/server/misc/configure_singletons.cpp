@@ -12,7 +12,12 @@
 
 #include <yt/core/misc/lfalloc_helpers.h>
 
+#include <yt/core/net/local_address.h>
+#include <yt/core/net/address.h>
+
 namespace NYT {
+
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 

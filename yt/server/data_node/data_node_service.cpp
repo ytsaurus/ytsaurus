@@ -35,7 +35,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
 
-#include <yt/core/bus/tcp_dispatcher.h>
+#include <yt/core/bus/bus.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -371,7 +371,7 @@ private:
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
-        i64 netOutQueueSize = GetNetOutQueueSize();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
 
         response->set_net_queue_size(netQueueSize);
@@ -491,7 +491,7 @@ private:
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
-        i64 netOutQueueSize = GetNetOutQueueSize();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
 
         response->set_net_queue_size(netQueueSize);
@@ -561,7 +561,7 @@ private:
 
         ValidateConnected();
 
-        if (request->enable_throttling() && GetNetOutQueueSize() > Config_->NetOutThrottlingLimit) {
+        if (request->enable_throttling() && context->GetBusStatistics().PendingOutBytes > Config_->NetOutThrottlingLimit) {
             response->set_net_throttling(true);
             context->Reply();
             return;
@@ -1048,12 +1048,6 @@ private:
                 "Chunk %v already exists",
                 sessionId);
         }
-    }
-
-
-    i64 GetNetOutQueueSize()
-    {
-        return NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutBytes;
     }
 
     i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)

@@ -41,6 +41,12 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         {"name": "value2", "type": "int64"}
     ]
 
+    PERTURBED_SCHEMA = [
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value2", "type": "int64"},
+        {"name": "value1", "type": "string"}
+    ]
+
     AGGREGATE_SCHEMA = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value1", "type": "string"},
@@ -316,6 +322,26 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2) == [replica_id]
         assert get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id]
 
+    def test_in_sync_relicas_expression(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id, schema=self.EXPRESSION_SCHEMA)
+
+        self.sync_enable_table_replica(replica_id)
+
+        timestamp0 = generate_timestamp()
+        assert get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id]
+
+        rows = [{"key": 1, "value": 2}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+        timestamp1 = generate_timestamp()
+        sleep(1.0)  # wait for replica update
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 1, "key": 1, "value": 2}]
+        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
+        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id]
+
     def test_in_sync_relicas_disabled(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
@@ -370,6 +396,52 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         sleep(1.0)
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
+
+    def test_async_replication_bandwidth_limit(self):
+        class Inserter:
+            def __init__(self, replica_driver):
+                self.counter = 0
+                self.replica_driver = replica_driver
+                self.str100 = "1" * 35  # for total bytes 100
+
+            def insert(self):
+                self.counter += 1
+                insert_rows(
+                    "//tmp/t", [{"key": 1, "value1": self.str100, "value2": self.counter}],
+                    require_sync_replica=False)
+
+            def get_inserted_counter(self):
+                rows = select_rows("* from [//tmp/r]", driver=self.replica_driver)
+                if len(rows) == 0:
+                    return 0
+                assert len(rows) == 1
+                return rows[0]["value2"]
+
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", attributes={
+            "replication_throttler": {
+                "limit": 500
+            },
+            "max_data_weight_per_replication_commit": 500
+        })
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id)
+
+        inserter = Inserter(self.replica_driver)
+        for _ in xrange(50):
+            inserter.insert()
+
+        self.sync_enable_table_replica(replica_id)
+
+        counter_start = inserter.get_inserted_counter()
+        assert counter_start <= 6
+        for i in xrange(20):
+            sleep(1.0)
+            inserted = inserter.get_inserted_counter()
+            counter = (inserted - counter_start) / 5
+            assert counter - 3 <= i <= counter + 3
+            if inserted == inserter.counter:
+                break
 
     def test_sync_replication(self):
         self._create_cells()
@@ -778,6 +850,23 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         assert_items_equal(select_rows("key, value1 from [//tmp/t]", driver=self.primary_driver), rows)
         assert_items_equal(select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver), rows)
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_inverted_schema(self, mode):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.PERTURBED_SCHEMA)
+        self.sync_enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 10}], require_sync_replica=False)
+        sleep(1.0)
+        get("//tmp/t/@replicas")
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}]
+
+        delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
 
 ##################################################################
 

@@ -6,6 +6,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/bus/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/packet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_connection.cpp
@@ -74,14 +75,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/logging/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging/writer.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/misc/address.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/assert.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/async_stream_state.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/bitmap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/blob.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/blob_output.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/bloom_filter.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/protos/bloom_filter.proto
   ${CMAKE_CURRENT_LIST_DIR}/misc/boolean_formula.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/checkpointable_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/checksum.cpp
@@ -94,18 +93,14 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/digest.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/dnf.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/dns_resolver.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/protos/error.proto
   ${CMAKE_CURRENT_LIST_DIR}/misc/fs.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/guid.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/protos/guid.proto
   ${CMAKE_CURRENT_LIST_DIR}/misc/histogram.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/hr_timer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/id_generator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/lfalloc_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/linear_probe.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/local_address.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/mpsc_queue.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/parser_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/pattern_formatter.cpp
@@ -113,7 +108,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/proc.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/process.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/protobuf_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/protos/protobuf_helpers.proto
   ${CMAKE_CURRENT_LIST_DIR}/misc/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/random.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref.cpp
@@ -123,22 +117,32 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/small_vector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/source_location.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/socket.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/stack_trace.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/stracer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/string.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/subprocess.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/signaler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/shutdown.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/topological_ordering.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/url.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proto/error.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proto/bloom_filter.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proto/guid.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proto/protobuf_helpers.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/net/address.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/connection.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/dialer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/listener.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/socket.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/dns_resolver.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/local_address.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/http/client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/http/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/http/http.cpp
   ${CMAKE_CURRENT_LIST_DIR}/http/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/http/server.cpp
@@ -175,7 +179,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc/response_keeper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/retrying_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/roaming_channel.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/protos/rpc.proto
   ${CMAKE_CURRENT_LIST_DIR}/rpc/serialized_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/server_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/service.cpp
@@ -184,6 +187,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc/throttling_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/latency_taming_channel.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/proto/rpc.proto
+
   ${CMAKE_CURRENT_LIST_DIR}/tools/registry.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools/tools.cpp
 
@@ -191,7 +196,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tracing/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_context.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_manager.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_service.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/tracing/proto/trace_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/utilex/random.cpp
 
@@ -213,12 +219,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/yson/token.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson/tokenizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson/writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/yson/protos/protobuf_interop.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/yson/proto/protobuf_interop.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/ytree/attribute_consumer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/attributes.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/protos/attributes.proto
   ${CMAKE_CURRENT_LIST_DIR}/ytree/convert.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ephemeral_attribute_owner.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ephemeral_node_factory.cpp
@@ -232,10 +238,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree/tree_visitor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/virtual.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/service_combiner.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/protos/ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_resolver.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/yson_serializable.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/proto/ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/proto/attributes.proto
 )

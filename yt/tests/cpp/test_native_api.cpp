@@ -205,7 +205,7 @@ public:
     {
         TDynamicTablesTestBase::SetUpTestCase();
 
-        Table_ = TYPath("//tmp/t");
+        Table_ = TYPath("//tmp/lookup_test");
         auto attributes = ConvertToNode(TYsonString(
             "{dynamic=%true;schema=["
             "{name=k0;type=int64;sort_order=ascending};"
@@ -629,6 +629,176 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         "<id=0;ts=2> 21;"));
     EXPECT_EQ(actual, expected);
 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedWriteTest
+    : public TDynamicTablesTestBase
+{
+public:
+    static void SetUpTestCase()
+    {
+        TDynamicTablesTestBase::SetUpTestCase();
+
+        TClientOptions clientOptions;
+        clientOptions.User = "replicator";
+        Client_ = Connection_->CreateNativeClient(clientOptions);
+
+        Table_ = TYPath("//tmp/write_test");
+        auto attributes = ConvertToNode(TYsonString(
+            "{dynamic=%true;schema=["
+            "{name=k0;type=int64;sort_order=ascending};"
+            "{name=k1;type=int64;sort_order=ascending};"
+            "{name=k2;type=int64;sort_order=ascending};"
+            "{name=v3;type=int64};"
+            "{name=v4;type=int64};"
+            "{name=v5;type=int64}]}"));
+
+        TCreateNodeOptions options;
+        options.Attributes = ConvertToAttributes(attributes);
+
+        WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options))
+            .ThrowOnError();
+
+        SyncMountTable(Table_);
+    }
+
+    static void TearDownTestCase()
+    {
+        SyncUnmountTable(Table_);
+        Client_.Reset();
+        TDynamicTablesTestBase::TearDownTestCase();
+    }
+
+protected:
+    static INativeClientPtr Client_;
+    static TYPath Table_;
+    TRowBufferPtr Buffer_ = New<TRowBuffer>();
+
+    static void WriteVersionedRow(
+        std::vector<TString> names,
+        const TString& keyYson,
+        const TString& valueYson)
+    {
+        auto preparedRow = PrepareVersionedRow(names, keyYson, valueYson);
+        WriteRows(
+            std::get<1>(preparedRow),
+            std::get<0>(preparedRow));
+    }
+
+    static void WriteRows(
+        TNameTablePtr nameTable,
+        TSharedRange<TVersionedRow> rows)
+    {
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        transaction->WriteRows(
+            Table_,
+            nameTable,
+            rows);
+
+        auto commitResult = WaitFor(transaction->Commit())
+            .ValueOrThrow();
+    }
+
+    static std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> PrepareVersionedRow(
+        const std::vector<TString>& names,
+        const TString& keyYson,
+        const TString& valueYson)
+    {
+        auto nameTable = New<TNameTable>();
+        for (const auto& name : names) {
+            nameTable->GetIdOrRegisterName(name);
+        }
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto row = YsonToVersionedRow(rowBuffer, keyYson, valueYson);
+        std::vector<TVersionedRow> rows{row};
+        return std::make_tuple(MakeSharedRange(rows, std::move(rowBuffer)), std::move(nameTable));
+    }
+
+    static std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> PrepareUnversionedRow(
+        const std::vector<TString>& names,
+        const TString& rowString)
+    {
+        auto nameTable = New<TNameTable>();
+        for (const auto& name : names) {
+            nameTable->GetIdOrRegisterName(name);
+        }
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto owningRow = YsonToSchemalessRow(rowString);
+        std::vector<TUnversionedRow> rows{rowBuffer->Capture(owningRow.Get())};
+        return std::make_tuple(MakeSharedRange(rows, std::move(rowBuffer)), std::move(nameTable));
+    }
+
+    TVersionedRow BuildVersionedRow(
+        const TString& keyYson,
+        const TString& valueYson)
+    {
+        return YsonToVersionedRow(Buffer_, keyYson, valueYson);
+    }
+};
+
+INativeClientPtr TVersionedWriteTest::Client_;
+TYPath TVersionedWriteTest::Table_;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TVersionedWriteTest, TestWriteRemapping)
+{
+    WriteVersionedRow(
+        {"k0", "k1", "k2", "v5", "v3", "v4"},
+        "<id=0> 30; <id=1> 30; <id=2> 30;",
+        "<id=3;ts=1> 15; <id=4;ts=1> 13; <id=5;ts=1> 14;");
+    WriteVersionedRow(
+        {"k0", "k1", "k2", "v4", "v5", "v3"},
+        "<id=0> 30; <id=1> 30; <id=2> 30;",
+        "<id=3;ts=2> 24; <id=4;ts=2> 25; <id=5;ts=2> 23;");
+
+    auto preparedKey = PrepareUnversionedRow(
+        {"k0", "k1", "k2", "v3", "v4", "v5"},
+        "<id=0> 30; <id=1> 30; <id=2> 30");
+
+    auto res = WaitFor(Client_->VersionedLookupRows(
+        Table_,
+        std::get<1>(preparedKey),
+        std::get<0>(preparedKey)))
+        .ValueOrThrow();
+
+    ASSERT_EQ(res->GetRows().Size(), 1);
+
+    auto actual = ToString(res->GetRows()[0]);
+    auto expected = ToString(BuildVersionedRow(
+        "<id=0> 30; <id=1> 30; <id=2> 30",
+        "<id=3;ts=2> 23; <id=3;ts=1> 13; <id=4;ts=2> 24; <id=4;ts=1> 14; <id=5;ts=2> 25; <id=5;ts=1> 15;"));
+    EXPECT_EQ(actual, expected);
+
+    EXPECT_THROW(
+        WriteVersionedRow(
+            {"k0", "k2", "k1", "v3"},
+            "<id=0> 30; <id=1> 30; <id=2> 30;",
+            "<id=3;ts=3> 100;"),
+        TErrorException);
+
+    EXPECT_THROW(
+        WriteVersionedRow(
+            {"k0", "k1", "v3", "k2"},
+            "<id=0> 30; <id=1> 30; <id=3> 30;",
+            "<id=2;ts=3> 100;"),
+        TErrorException);
+}
+
+TEST_F(TVersionedWriteTest, TestWriteTypeChecking)
+{
+    EXPECT_THROW(
+        WriteVersionedRow(
+            {"k0", "k1", "k2", "v3"},
+            "<id=0> 30; <id=1> 30; <id=2> 30;",
+            "<id=2;ts=3> %true;"),
+        TErrorException);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

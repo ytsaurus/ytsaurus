@@ -698,8 +698,17 @@ void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
     for (const auto& jobId : jobIds) {
         // NB: While we kept job id in operation controller, its execution node
         // could have unregistered.
+        const auto& nodeId = NodeIdFromJobId(jobId);
         if (auto execNode = GetNodeByJob(jobId)) {
-            execNode->JobIdsToRemove().emplace_back(jobId);
+            LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v)",
+                jobId,
+                nodeId,
+                execNode->GetDefaultAddress());
+            RevivalState_->JobIdsToRemove()[nodeId].emplace_back(jobId);
+        } else {
+            LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
+                jobId,
+                nodeId);
         }
     }
 }
@@ -935,13 +944,16 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 
     const auto& nodeId = node->GetId();
+    const auto& nodeAddress = node->GetDefaultAddress();
 
     if (request->stored_jobs_included()) {
         RevivalState_->OnReceivedStoredJobs(nodeId);
     }
 
     if (RevivalState_->ShouldSendStoredJobs(nodeId)) {
-        LOG_DEBUG("Asking node to include all stored jobs in the next hearbeat (Node: %v)", nodeId);
+        LOG_DEBUG("Asking node to include all stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
+            nodeId,
+            nodeAddress);
         response->set_include_stored_jobs_in_next_heartbeat(true);
         // If it is a first time we get the heartbeat from a given node,
         // there will definitely be some jobs that are missing. No need to abort
@@ -958,11 +970,19 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     {
         // Add all completed jobs that are now safe to remove.
-        for (const auto& jobId : node->JobIdsToRemove()) {
-            YCHECK(RevivalState_->RecentlyCompletedJobIds().erase(jobId));
-            ToProto(response->add_jobs_to_remove(), jobId);
+        auto it = RevivalState_->JobIdsToRemove().find(nodeId);
+        if (it != RevivalState_->JobIdsToRemove().end()) {
+            for (const auto& jobId : it->second) {
+                LOG_DEBUG("Asking node to remove job and removing it from recently completed job ids "
+                    "(JobId: %v, NodeId: %v, NodeAddress: %v)",
+                    jobId,
+                    nodeId,
+                    nodeAddress);
+                YCHECK(RevivalState_->RecentlyCompletedJobIds().erase(jobId));
+                ToProto(response->add_jobs_to_remove(), jobId);
+            }
+            RevivalState_->JobIdsToRemove().erase(it);
         }
-        node->JobIdsToRemove().clear();
     }
 
     for (auto& jobStatus : *request->mutable_jobs()) {
@@ -1521,9 +1541,10 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
     YCHECK(node->IdToJob().insert(std::make_pair(job->GetId(), job)).second);
     ++ActiveJobCount_;
 
-    LOG_DEBUG("Job registered (JobId: %v, JobType: %v, OperationId: %v)",
+    LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v)",
         job->GetId(),
         job->GetType(),
+        job->GetRevived(),
         job->GetOperationId());
 }
 
@@ -1730,6 +1751,7 @@ void TNodeShard::TRevivalState::PrepareReviving()
     NodeIdsThatSentAllStoredJobs_.clear();
     NotConfirmedJobs_.clear();
     RecentlyCompletedJobIds_.clear();
+    JobIdsToRemove_.clear();
 }
 
 void TNodeShard::TRevivalState::StartReviving()

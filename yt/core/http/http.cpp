@@ -5,6 +5,9 @@
 namespace NYT {
 namespace NHttp {
 
+using namespace NYTree;
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUrlRef ParseUrl(TStringBuf url)
@@ -12,7 +15,7 @@ TUrlRef ParseUrl(TStringBuf url)
     TUrlRef urlRef;
 
     http_parser_url parsed;
-    if (0 != http_parser_parse_url(url.data(), url.size(), false, &parsed)) {
+    if (0 != yt_http_parser_parse_url(url.data(), url.size(), false, &parsed)) {
         THROW_ERROR_EXCEPTION("Invalid URL")
             << TErrorAttribute("url", url);
     }

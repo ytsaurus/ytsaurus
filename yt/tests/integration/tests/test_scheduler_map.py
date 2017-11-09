@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
@@ -278,7 +278,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
             spec={"job_count": 6})
         assert read_table("//tmp/t2") == [{"hello": "world"} for _ in xrange(6)]
 
+    # We skip this one in porto because it requires a lot of interaction with porto
+    # (since there are a lot of operations with large number of jobs).
+    # There is completely nothing porto-specific here.
     @unix_only
+    @skip_if_porto
     def test_job_per_row(self):
         create("table", "//tmp/input")
 
@@ -592,6 +596,39 @@ print row + table_index
 
         op.track()
         assert len(read_table("//tmp/output")) == 3
+
+
+    @unix_only
+    def test_job_controller_orchid(self):
+        create("table", "//tmp/input")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
+
+        create("table", "//tmp/output")
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command="cat",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        for n in get("//sys/nodes"):
+            job_controller = get("//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
+            for job_id, values in job_controller.items():
+                assert "start_time" in values
+                assert "operation_id" in values
+                assert "statistics" in values
+                assert "job_type" in values
+                assert "duration" in values
+
+        op.abort()
 
     @unix_only
     def test_map_row_count_limit_second_output(self):

@@ -53,6 +53,8 @@ struct TReplicaCounters
 
     NProfiling::TSimpleCounter LagRowCount;
     NProfiling::TSimpleCounter LagTime;
+
+    const NProfiling::TTagIdList Tags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,10 +82,6 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
     std::atomic<i64> DynamicMemoryPoolSize = {0};
-
-    NProfiling::TSimpleCounter StoreFlushDiskPressureCounter;
-    NProfiling::TSimpleCounter CompactionDiskPressureCounter;
-    NProfiling::TSimpleCounter PartitioningDiskPressureCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -143,6 +141,7 @@ struct TTabletSnapshot
 
     //! Profiler tags is empty iff EnableProfiling is false.
     NProfiling::TTagIdList ProfilerTags;
+    NProfiling::TTagIdList DiskProfilerTags;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -182,6 +181,8 @@ struct TTabletPerformanceCounters
     std::atomic<i64> DynamicRowDeleteCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};
+    std::atomic<i64> CompactionDataWeightCount = {0};
+    std::atomic<i64> PartitioningDataWeightCount = {0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
@@ -244,6 +245,8 @@ public:
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
 
+    NProfiling::TProfiler GetReplicatorProfiler() const;
+
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
 
@@ -297,6 +300,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
     DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, ProfilerTags);
+    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, DiskProfilerTags);
 
     DEFINE_BYREF_RO_PROPERTY(TTabletPerformanceCountersPtr, PerformanceCounters, New<TTabletPerformanceCounters>());
     DEFINE_BYREF_RO_PROPERTY(TRuntimeTabletDataPtr, RuntimeData, New<TRuntimeTabletData>());

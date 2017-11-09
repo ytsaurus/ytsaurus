@@ -25,9 +25,9 @@
 #include <yt/core/misc/expiring_cache.h>
 #include <yt/core/misc/string.h>
 
-#include <yt/core/protos/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/protos/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 #include <util/datetime/base.h>
 
@@ -275,6 +275,14 @@ public:
                     }
                     auto tabletInfo = FindTablet(*tabletId);
                     if (tabletInfo) {
+                        LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, Owners:%v)",
+                            tabletInfo->TabletId,
+                            MakeFormattableRange(tabletInfo->Owners, [] (TStringBuilder* builder, const TWeakPtr<TTableMountInfo>& weakOwner) {
+                                if (auto owner = weakOwner.Lock()) {
+                                    FormatValue(builder, owner->Path, TStringBuf());
+                                }
+                            }));
+
                         LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
                         InvalidateTablet(tabletInfo);
                     }

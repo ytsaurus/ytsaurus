@@ -149,6 +149,9 @@ public:
     //! Mark that operation attributes should be flushed to cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
+    //! Scheduler incarnation that spawned this operation.
+    DEFINE_BYVAL_RW_PROPERTY(int, SchedulerIncarnation);
+
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
 

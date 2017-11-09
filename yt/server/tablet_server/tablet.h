@@ -124,6 +124,8 @@ struct TTabletPerformanceCounter
 {
     i64 Count = 0;
     double Rate = 0.0;
+    double Rate10 = 0.0;
+    double Rate60 = 0.0;
 };
 
 #define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
@@ -137,7 +139,9 @@ struct TTabletPerformanceCounter
     XX(static_chunk_row_lookup_true_negative,   StaticChunkRowLookupTrueNegative) \
     XX(static_chunk_row_lookup_false_positive,  StaticChunkRowLookupFalsePositive) \
     XX(unmerged_row_read,                       UnmergedRowRead) \
-    XX(merged_row_read,                         MergedRowRead)
+    XX(merged_row_read,                         MergedRowRead) \
+    XX(compaction_data_weight,                  CompactionDataWeightCount) \
+    XX(partitioning_data_weight,                PartitioningDataWeightCount)
 
 struct TTabletPerformanceCounters
 {

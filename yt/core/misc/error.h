@@ -120,6 +120,8 @@ private:
 
 };
 
+bool operator == (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs);
+
 void ToProto(NProto::TError* protoError, const TError& error);
 void FromProto(TError* error, const NProto::TError& protoError);
 

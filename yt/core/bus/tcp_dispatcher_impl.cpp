@@ -14,6 +14,7 @@ namespace NBus {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,11 +78,6 @@ TTcpDispatcher::TImpl::TImpl()
         BIND(&TImpl::OnProfiling, MakeWeak(this)),
         ProfilingPeriod))
 {
-    auto* profileManager = TProfileManager::Get();
-    for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
-        InterfaceTypeMap_[interfaceType].Tag = profileManager->RegisterTag("interface", interfaceType);
-    }
-
     ProfilingExecutor_->Start();
 }
 
@@ -97,14 +93,17 @@ void TTcpDispatcher::TImpl::Shutdown()
     ShutdownPoller(&XferPoller_);
 }
 
-const TTcpDispatcherCountersPtr& TTcpDispatcher::TImpl::GetCounters(ETcpInterfaceType interfaceType)
+const TTcpDispatcherCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TString& networkName)
 {
-    return InterfaceTypeMap_[interfaceType].Counters;
-}
+    TWriterGuard guard(StatisticsLock_);
+    auto it = NetworkStatistics_.find(networkName);
+    if (it != NetworkStatistics_.end()) {
+        return it->second.Counters;
+    }
 
-TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType)
-{
-    return GetCounters(interfaceType)->ToStatistics();
+    auto& statistics = NetworkStatistics_[networkName];
+    statistics.Tag = TProfileManager::Get()->RegisterTag("network", networkName);
+    return statistics.Counters;
 }
 
 IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
@@ -164,12 +163,13 @@ IPollerPtr TTcpDispatcher::TImpl::GetXferPoller()
 
 void TTcpDispatcher::TImpl::OnProfiling()
 {
-    for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
+    TReaderGuard guard(StatisticsLock_);
+    for (const auto& network : NetworkStatistics_) {
         TTagIdList tagIds{
-            InterfaceTypeMap_[interfaceType].Tag
+            network.second.Tag
         };
 
-        auto statistics = GetStatistics(interfaceType);
+        auto statistics = network.second.Counters->ToStatistics();
 
         Profiler.Enqueue("/in_bytes", statistics.InBytes, EMetricType::Counter, tagIds);
         Profiler.Enqueue("/in_packets", statistics.InPackets, EMetricType::Counter, tagIds);

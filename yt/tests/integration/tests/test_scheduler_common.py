@@ -1952,7 +1952,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
                 command="cat",
                 in_="//tmp/in",
                 out="//tmp/out2",
-                spec={"data_size_per_job": 1, "testing": {"scheduling_delay": 15000}})
+                spec={"data_size_per_job": 1, "testing": {"delay_inside_suspend": 15000}})
 
             time.sleep(2)
 
@@ -1978,8 +1978,8 @@ class TestSchedulerSnapshots(YTEnvSetup):
         assert exists(snapshot_path1)
         assert not exists(snapshot_path2)
 
-        op1.abort()
-        op2.abort()
+        op1.track()
+        op2.track()
 
 ##################################################################
 
