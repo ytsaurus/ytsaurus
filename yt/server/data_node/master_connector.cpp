@@ -461,7 +461,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
         full = false;
     }
 
-    auto chunkCache = Bootstrap_->GetChunkCache();
+    const auto& chunkCache = Bootstrap_->GetChunkCache();
     int totalCachedChunkCount = chunkCache->GetChunkCount();
 
     result->set_total_available_space(totalAvailableSpace);
