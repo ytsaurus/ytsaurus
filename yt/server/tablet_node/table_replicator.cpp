@@ -48,10 +48,6 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
-<<<<<<< HEAD
-=======
-using namespace NApi;
->>>>>>> 0dcc88d
 
 ////////////////////////////////////////////////////////////////////////////////
 

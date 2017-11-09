@@ -1141,13 +1141,10 @@ private:
                 Options_.Timestamp,
                 Options_.WorkloadDescriptor,
                 Options_.ReadSessionId);
-<<<<<<< HEAD
-=======
         }
 
         if (MaybeUser_) {
             profilerTags = AddUserTag(*MaybeUser_, profilerTags);
->>>>>>> 0dcc88d
         }
 
         return New<TProfilingReaderWrapper>(reader, profilerTags);
@@ -1169,15 +1166,12 @@ private:
             Options_.Timestamp,
             Options_.WorkloadDescriptor,
             Options_.ReadSessionId);
-<<<<<<< HEAD
-=======
 
         if (MaybeUser_) {
             profilerTags = AddUserTag(*MaybeUser_, profilerTags);
         }
 
         return New<TProfilingReaderWrapper>(reader, profilerTags);
->>>>>>> 0dcc88d
     }
 
 };
