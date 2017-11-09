@@ -21,7 +21,8 @@
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/timing.h>
+
+#include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -37,7 +38,6 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-static const auto& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,13 +50,6 @@ TSessionManager::TSessionManager(
     YCHECK(config);
     YCHECK(bootstrap);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
-
-    auto* profilingManager = NProfiling::TProfileManager::Get();
-    for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
-        PerTypeSessionCounters_[type] = NProfiling::TSimpleCounter(
-            "/session_count",
-            {profilingManager->RegisterTag("type", type)});
-    }
 }
 
 ISessionPtr TSessionManager::FindSession(const TSessionId& sessionId)
@@ -94,7 +87,6 @@ TSessionManager::TSessionPtrList TSessionManager::FindSessions(const TSessionId&
         }
     } else {
         const auto& chunkId = sessionId.ChunkId;
-
         for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
             auto session = FindSession(TSessionId(chunkId, mediumIndex));
             if (session) {
@@ -134,7 +126,7 @@ ISessionPtr TSessionManager::StartSession(
     auto session = CreateSession(sessionId, options);
 
     session->SubscribeFinished(
-        BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), Unretained(session.Get()))
+        BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), MakeWeak(session))
             .Via(Bootstrap_->GetControlInvoker()));
 
     RegisterSession(session);
@@ -192,8 +184,9 @@ void TSessionManager::OnSessionLeaseExpired(const TSessionId& sessionId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto session = FindSession(sessionId);
-    if (!session)
+    if (!session) {
         return;
+    }
 
     LOG_INFO("Session lease expired (ChunkId: %v)",
         sessionId);
@@ -201,45 +194,45 @@ void TSessionManager::OnSessionLeaseExpired(const TSessionId& sessionId)
     session->Cancel(TError("Session lease expired"));
 }
 
-void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error*/)
+void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& session, const TError& /*error*/)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Session finished (ChunkId: %v)",
-        session->GetId());
+    auto session_ = session.Lock();
+    if (!session_) {
+        return;
+    }
 
-    UnregisterSession(session);
+    LOG_INFO("Session finished (ChunkId: %v)",
+        session_->GetId());
+
+    UnregisterSession(session_);
 }
 
 int TSessionManager::GetSessionCount(ESessionType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return PerTypeSessionCounters_[type].GetCurrent();
+    int result = 0;
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    for (const auto& location : chunkStore->Locations()) {
+        result += location->GetSessionCount(type);
+    }
+    return result;
 }
 
-void TSessionManager::RegisterSession(ISessionPtr session)
-{
-    Profiler.Increment(PerTypeSessionCounters_[session->GetType()], +1);
-    YCHECK(SessionMap_.insert(std::make_pair(session->GetId(), session)).second);
-}
-
-void TSessionManager::UnregisterSession(ISessionPtr session)
-{
-    Profiler.Increment(PerTypeSessionCounters_[session->GetType()], -1);
-    YCHECK(SessionMap_.erase(session->GetId()) == 1);
-}
-
-std::vector<ISessionPtr> TSessionManager::GetSessions()
+void TSessionManager::RegisterSession(const ISessionPtr& session)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    std::vector<ISessionPtr> result;
-    for (const auto& pair : SessionMap_) {
-        result.push_back(pair.second);
-    }
+    YCHECK(SessionMap_.emplace(session->GetId(), session).second);
+}
 
-    return result;
+void TSessionManager::UnregisterSession(const ISessionPtr& session)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    YCHECK(SessionMap_.erase(session->GetId()) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
