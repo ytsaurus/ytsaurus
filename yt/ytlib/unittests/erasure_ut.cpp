@@ -1,7 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/erasure_reader.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/repairing_reader.h>
@@ -271,7 +270,9 @@ public:
 
     static IChunkReaderPtr CreateErasureReader(ICodec* codec)
     {
-        return CreateNonRepairingErasureReader(codec, GetFileReaders(codec->GetDataPartCount()));
+        auto config = CreateErasureConfig();
+        config->EnableAutoRepair = false;
+        return CreateRepairingReader(codec, config, GetFileReaders(codec->GetDataPartCount()));
     }
 
     static TErasureReaderConfigPtr CreateErasureConfig()
@@ -281,7 +282,7 @@ public:
 
     static IChunkReaderPtr CreateOkRepairingReader(ICodec *codec)
     {
-        return NYT::NChunkClient::CreateRepairingReader(codec, CreateErasureConfig(), GetFileReaders(codec->GetTotalPartCount()));
+        return CreateRepairingReader(codec, CreateErasureConfig(), GetFileReaders(codec->GetTotalPartCount()));
     }
 
     static void CheckRepairReader(
