@@ -67,6 +67,7 @@ public:
     TUserStatistics& CellStatistics(NObjectClient::TCellTag cellTag);
     TUserStatistics& LocalStatistics();
 
+    void RecomputeClusterStatistics();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
