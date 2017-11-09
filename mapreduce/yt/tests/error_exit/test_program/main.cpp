@@ -1,4 +1,5 @@
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/common/config.h>
 
 #include <util/system/env.h>
 
@@ -30,6 +31,7 @@ REGISTER_MAPPER(TFailingMapper);
 int main(int argc, const char** argv) {
     Initialize(argc, argv);
 
+    TConfig::Get()->LogLevel = "debug";
     const TString ytProxy = GetEnv("YT_PROXY");
     auto sleepSeconds = FromString<int>(GetEnv("SLEEP_SECONDS"));
     auto transactionTitle = GetEnv("TRANSACTION_TITLE");

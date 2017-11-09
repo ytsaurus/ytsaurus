@@ -74,6 +74,7 @@ class TAbnormalTerminator
      {
          auto result = NThreading::Async([&] {
                  NDetail::TAbortableRegistry::Get()->AbortAllAndBlockForever();
+                 exitFunction();
              },
              *Instance().HandlerThread_);
          Sleep(timeout);
