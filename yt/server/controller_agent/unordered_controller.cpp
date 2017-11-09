@@ -532,10 +532,10 @@ public:
         }
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TUnorderedControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TUnorderedControllerBase::BuildBriefSpec(fluent);
+        fluent
             .Item("mapper").BeginMap()
                 .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
             .EndMap();

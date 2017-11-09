@@ -27,6 +27,7 @@ using namespace NScheduler;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,24 +241,24 @@ public:
         return Underlying_->HasJobSplitterInfo();
     }
 
-    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const override
+    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const override
     {
-        Underlying_->BuildSpec(consumer);
+        Underlying_->BuildSpec(fluent);
     }
 
-    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override
+    virtual void BuildOperationAttributes(TFluentMap fluent) const override
     {
-        Underlying_->BuildOperationAttributes(consumer);
+        Underlying_->BuildOperationAttributes(fluent);
     }
 
-    virtual void BuildProgress(IYsonConsumer* consumer) const override
+    virtual void BuildProgress(TFluentMap fluent) const override
     {
-        Underlying_->BuildProgress(consumer);
+        Underlying_->BuildProgress(fluent);
     }
 
-    virtual void BuildBriefProgress(IYsonConsumer* consumer) const override
+    virtual void BuildBriefProgress(TFluentMap fluent) const override
     {
-        Underlying_->BuildBriefProgress(consumer);
+        Underlying_->BuildBriefProgress(fluent);
     }
 
     virtual TString GetLoggingProgress() const override
@@ -265,14 +266,14 @@ public:
         return Underlying_->GetLoggingProgress();
     }
 
-    virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override
+    virtual void BuildMemoryDigestStatistics(TFluentMap fluent) const override
     {
-        Underlying_->BuildMemoryDigestStatistics(consumer);
+        Underlying_->BuildMemoryDigestStatistics(fluent);
     }
 
-    virtual void BuildJobSplitterInfo(IYsonConsumer* consumer) const override
+    virtual void BuildJobSplitterInfo(TFluentMap fluent) const override
     {
-        Underlying_->BuildJobSplitterInfo(consumer);
+        Underlying_->BuildJobSplitterInfo(fluent);
     }
 
     virtual TYsonString GetProgress() const override

@@ -2708,12 +2708,12 @@ private:
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())
                         .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
-                        .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
+                        .Item("eden").DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
                         .Item("partitions").DoListFor(
                             tablet->PartitionList(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
                                 fluent
                                     .Item()
-                                    .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                                    .DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
                             });
                 })
                 .DoIf(!tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
@@ -2732,32 +2732,30 @@ private:
             .EndMap();
     }
 
-    void BuildPartitionOrchidYson(TPartition* partition, IYsonConsumer* consumer)
+    void BuildPartitionOrchidYson(TPartition* partition, TFluentMap fluent)
     {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("id").Value(partition->GetId())
-                .Item("state").Value(partition->GetState())
-                .Item("pivot_key").Value(partition->GetPivotKey())
-                .Item("next_pivot_key").Value(partition->GetNextPivotKey())
-                .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.Size())
-                .Item("sampling_time").Value(partition->GetSamplingTime())
-                .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
-                .Item("compaction_time").Value(partition->GetCompactionTime())
-                .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
-                .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
-                .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
-                .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
-                    fluent
-                        .Item(ToString(store->GetId()))
-                        .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
-                })
-            .EndMap();
+        fluent
+            .Item("id").Value(partition->GetId())
+            .Item("state").Value(partition->GetState())
+            .Item("pivot_key").Value(partition->GetPivotKey())
+            .Item("next_pivot_key").Value(partition->GetNextPivotKey())
+            .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.Size())
+            .Item("sampling_time").Value(partition->GetSamplingTime())
+            .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
+            .Item("compaction_time").Value(partition->GetCompactionTime())
+            .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
+            .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
+            .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
+            .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
+                fluent
+                    .Item(ToString(store->GetId()))
+                    .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+            });
     }
 
-    void BuildStoreOrchidYson(IStorePtr store, IYsonConsumer* consumer)
+    void BuildStoreOrchidYson(IStorePtr store, TFluentAny fluent)
     {
-        BuildYsonFluently(consumer)
+        fluent
             .BeginAttributes()
                 .Item("opaque").Value(true)
             .EndAttributes()

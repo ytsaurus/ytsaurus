@@ -138,7 +138,7 @@ public:
 
     void FailJob(const TJobId& jobId);
 
-    void BuildNodesYson(NYson::IYsonConsumer* consumer);
+    void BuildNodesYson(NYTree::TFluentMap fluent);
 
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
@@ -347,7 +347,7 @@ private:
 
     TOperationState& GetOperationState(const TOperationId& operationId);
 
-    void BuildNodeYson(TExecNodePtr node, NYson::IYsonConsumer* consumer);
+    void BuildNodeYson(TExecNodePtr node, NYTree::TFluentMap consumer);
 
 };
 

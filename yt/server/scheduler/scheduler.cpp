@@ -1976,14 +1976,14 @@ private:
             operation->GetId());
     }
 
-    void BuildOperationInfoForEventLog(TOperationPtr operation, IYsonConsumer* consumer)
+    void BuildOperationInfoForEventLog(TOperationPtr operation, TFluentMap fluent)
     {
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
-        Strategy_->BuildOperationInfoForEventLog(operation, consumer);
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation));
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -2449,7 +2449,7 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
-                    .Do([=] (IYsonConsumer* consumer) {
+                    .Do([=] (TFluentMap fluent) {
                         std::vector<TFuture<TYsonString>> asyncResults;
                         for (const auto& pair : IdToOperation_) {
                             const auto& operation = pair.second;
@@ -2463,16 +2463,20 @@ private:
                         auto results = WaitFor(Combine(asyncResults))
                             .ValueOrThrow();
 
+                        // Suspicious jobs are received as a bunch of YSON strings defining map fragments
+                        // that should be simply concatenated, so we have to work with a bare consumer here.
+                        auto* consumer = fluent.GetConsumer();
+
                         for (const auto& ysonString : results) {
                             consumer->OnRaw(ysonString);
                         }
                     })
                 .EndMap()
                 .Item("nodes").BeginMap()
-                    .Do([=] (IYsonConsumer* consumer) {
+                    .Do([=] (TFluentMap fluent) {
                         for (auto nodeShard : NodeShards_) {
                             auto asyncResult = WaitFor(
-                                BIND(&TNodeShard::BuildNodesYson, nodeShard, consumer)
+                                BIND(&TNodeShard::BuildNodesYson, nodeShard, fluent)
                                     .AsyncVia(nodeShard->GetInvoker())
                                     .Run());
                             asyncResult.ThrowOnError();
@@ -2497,22 +2501,22 @@ private:
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
                             // TODO(ignat): maybe use cached version here?
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
-                                .Run(consumer));
+                                .Run(fluent));
                         asyncResult.ThrowOnError();
                     }))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
                             BIND(&IOperationController::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
-                                .Run(consumer));
+                                .Run(fluent));
                         asyncResult.ThrowOnError();
                     }))
                     .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
@@ -2521,12 +2525,14 @@ private:
                     .Item("opaque").Value("true")
                 .EndAttributes()
                 .BeginMap()
-                    .Do([=] (IYsonConsumer* consumer) {
+                    .Do([=] (TFluentMap fluent) {
                         auto future = BIND(&IOperationController::BuildJobsYson, controller)
                             .AsyncVia(controller->GetCancelableInvoker())
                             .Run();
                         auto jobsYson = WaitFor(future)
                             .ValueOrThrow();
+
+                        auto consumer = fluent.GetConsumer();
                         consumer->OnRaw(jobsYson);
                     })
                 .EndMap()
@@ -2534,19 +2540,19 @@ private:
                     .Item("opaque").Value("true")
                 .EndAttributes()
                 .BeginMap()
-                    .DoIf(hasControllerJobSplitterInfo, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerJobSplitterInfo, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
                             BIND(&IOperationController::BuildJobSplitterInfo, controller)
                                 .AsyncVia(controller->GetInvoker())
-                                .Run(consumer));
+                                .Run(fluent));
                         asyncResult.ThrowOnError();
                     }))
                 .EndMap()
-                .Do([=] (IYsonConsumer* consumer) {
+                .Do([=] (TFluentMap fluent) {
                     auto asyncResult = WaitFor(
                         BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
                             .AsyncVia(controller->GetInvoker())
-                            .Run(consumer));
+                            .Run(fluent));
                     asyncResult.ThrowOnError();
                 })
             .EndMap();

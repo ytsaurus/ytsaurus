@@ -47,11 +47,11 @@ private:
 
 template <class TParent>
 class TFluentLogEventImpl
-    : public NYTree::TFluentYsonBuilder::TFluentFragmentBase<TFluentLogEventImpl, TParent>
+    : public NYTree::TFluentYsonBuilder::TFluentFragmentBase<TFluentLogEventImpl, TParent, NYTree::TFluentMap>
 {
 public:
     typedef TFluentLogEventImpl TThis;
-    typedef NYTree::TFluentYsonBuilder::TFluentFragmentBase<NEventLog::TFluentLogEventImpl, TParent> TBase;
+    typedef NYTree::TFluentYsonBuilder::TFluentFragmentBase<NEventLog::TFluentLogEventImpl, TParent, NYTree::TFluentMap> TBase;
 
     explicit TFluentLogEventImpl(TFluentEventLogger* logger);
     explicit TFluentLogEventImpl(NYson::IYsonConsumer* consumer);
