@@ -28,30 +28,23 @@ TSessionBase::TSessionBase(
     const TSessionOptions& options,
     TStoreLocationPtr location,
     TLease lease)
-    : Config_(config)
+    : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , SessionId_(sessionId)
     , Options_(options)
     , Location_(location)
-    , Lease_(lease)
+    , Lease_(std::move(lease))
     , WriteInvoker_(CreateSerializedInvoker(Location_->GetWritePoolInvoker()))
-    , Logger(DataNodeLogger)
+    , Logger(NLogging::TLogger(DataNodeLogger)
+        .AddTag("LocationId: %v, ChunkId: %v",
+            Location_->GetId(),
+            SessionId_))
     , Profiler(location->GetProfiler())
 {
-    YCHECK(bootstrap);
-    YCHECK(location);
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
-
-    Logger.AddTag("LocationId: %v, ChunkId: %v",
-        Location_->GetId(),
-        SessionId_);
-
-    Location_->UpdateSessionCount(GetType(), +1);
-}
-
-TSessionBase::~TSessionBase()
-{
-    Location_->UpdateSessionCount(GetType(), -1);
+    YCHECK(Bootstrap_);
+    YCHECK(Location_);
+    YCHECK(Lease_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 }
 
 const TChunkId& TSessionBase::GetChunkId() const&
@@ -116,15 +109,16 @@ void TSessionBase::Cancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!Active_)
+    if (!Active_) {
         return;
+    }
 
-    LOG_INFO(error, "Canceling session");
+    LOG_DEBUG(error, "Canceling session");
 
     TLeaseManager::CloseLease(Lease_);
     Active_ = false;
 
-    DoCancel();
+    DoCancel(error);
 }
 
 TFuture<IChunkPtr> TSessionBase::Finish(const TChunkMeta* chunkMeta, const TNullable<int>& blockCount)
