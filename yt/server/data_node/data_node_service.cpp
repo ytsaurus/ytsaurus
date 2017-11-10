@@ -188,23 +188,19 @@ private:
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto sessions = sessionManager->GetSessions(sessionId);
-
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
         const TChunkMeta* meta = request->has_chunk_meta() ? &request->chunk_meta() : nullptr;
-
-        for (const auto& session : sessions) {
-            session->Finish(meta, blockCount)
-                .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
-                    if (chunkOrError.IsOK()) {
-                        auto chunk = chunkOrError.Value();
-                        const auto& chunkInfo = session->GetChunkInfo();
-                        *response->mutable_chunk_info() = chunkInfo;
-                        context->Reply();
-                    } else {
-                        context->Reply(chunkOrError);
-                    }
-                }));
-        }
+        session->Finish(meta, blockCount)
+            .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
+                if (chunkOrError.IsOK()) {
+                    auto chunk = chunkOrError.Value();
+                    const auto& chunkInfo = session->GetChunkInfo();
+                    *response->mutable_chunk_info() = chunkInfo;
+                    context->Reply();
+                } else {
+                    context->Reply(chunkOrError);
+                }
+            }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
@@ -215,10 +211,8 @@ private:
             sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto sessions = sessionManager->GetSessions(sessionId);
-        for (const auto& session : sessions) {
-            session->Cancel(TError("Canceled by client request"));
-        }
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        session->Cancel(TError("Canceled by client request"));
 
         context->Reply();
     }
@@ -233,7 +227,7 @@ private:
             sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(sessionId);
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->Ping();
 
         context->Reply();
@@ -261,14 +255,14 @@ private:
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(sessionId);
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
 
         auto location = session->GetStoreLocation();
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
-        // NB: block checksums are validated before disk write
+        // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /* validateChecksum */ false),
@@ -303,7 +297,7 @@ private:
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(sessionId);
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
             .Subscribe(BIND([=] (const TError& error) {
                 if (error.IsOK()) {
@@ -332,7 +326,7 @@ private:
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(sessionId);
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
         auto result = session->FlushBlocks(blockIndex);
         context->ReplyFrom(result);
     }

@@ -62,7 +62,7 @@ ISessionPtr TSessionManager::FindSession(const TSessionId& sessionId)
     return it == SessionMap_.end() ? nullptr : it->second;
 }
 
-ISessionPtr TSessionManager::GetSession(const TSessionId& sessionId)
+ISessionPtr TSessionManager::GetSessionOrThrow(const TSessionId& sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -95,18 +95,6 @@ TSessionManager::TSessionPtrList TSessionManager::FindSessions(const TSessionId&
         }
     }
 
-    return result;
-}
-
-TSessionManager::TSessionPtrList TSessionManager::GetSessions(const TSessionId& sessionId)
-{
-    auto result = FindSessions(sessionId);
-    if (result.empty()) {
-       THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::NoSuchSession,
-            "Session %v is invalid or expired",
-            sessionId);
-    }
     return result;
 }
 
