@@ -28,8 +28,6 @@ public:
         TStoreLocationPtr location,
         NConcurrency::TLease lease);
 
-    ~TSessionBase();
-
     virtual const TChunkId& GetChunkId() const& override;
     virtual const TSessionId& GetId() const& override;
     virtual ESessionType GetType() const override;
@@ -68,16 +66,16 @@ protected:
     const TStoreLocationPtr Location_;
     const NConcurrency::TLease Lease_;
 
-    IInvokerPtr WriteInvoker_;
+    const IInvokerPtr WriteInvoker_;
+
+    const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler;
 
     bool Active_ = false;
 
-    NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler;
-
 
     virtual TFuture<void> DoStart() = 0;
-    virtual void DoCancel() = 0;
+    virtual void DoCancel(const TError& error) = 0;
     virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
         const TNullable<int>& blockCount) = 0;

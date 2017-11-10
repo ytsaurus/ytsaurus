@@ -214,6 +214,7 @@ void TSessionManager::RegisterSession(const ISessionPtr& session)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     YCHECK(SessionMap_.emplace(session->GetId(), session).second);
+    session->GetStoreLocation()->UpdateSessionCount(session->GetType(), +1);
 }
 
 void TSessionManager::UnregisterSession(const ISessionPtr& session)
@@ -221,6 +222,7 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     YCHECK(SessionMap_.erase(session->GetId()) == 1);
+    session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

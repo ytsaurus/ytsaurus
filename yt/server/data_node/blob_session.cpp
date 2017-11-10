@@ -79,9 +79,17 @@ TFuture<IChunkPtr> TBlobSession::DoFinish(
         }
     }
 
-    return CloseWriter(*chunkMeta).Apply(
+    auto asyncResult = CloseWriter(*chunkMeta).Apply(
         BIND(&TBlobSession::OnWriterClosed, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker()));
+
+    auto promise = NewPromise<IChunkPtr>();
+    promise.SetFrom(asyncResult);
+    promise.OnCanceled(
+        BIND(&TBlobSession::OnFinishCanceled, MakeWeak(this))
+            .Via(Bootstrap_->GetControlInvoker()));
+
+    return promise.ToFuture();
 }
 
 TChunkInfo TBlobSession::GetChunkInfo() const
@@ -366,9 +374,13 @@ void TBlobSession::OnBlockFlushed(int blockIndex, const TError& error)
     THROW_ERROR_EXCEPTION_IF_FAILED(error);
 }
 
-void TBlobSession::DoCancel()
+void TBlobSession::DoCancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    for (auto& slot : Window_) {
+        slot.WrittenPromise.TrySet(error);
+    }
 
     AbortWriter()
         .Apply(BIND(&TBlobSession::OnWriterAborted, MakeStrong(this))
@@ -379,7 +391,7 @@ void TBlobSession::DoOpenWriter()
 {
     // Thread affinity: WriterThread
 
-    LOG_TRACE("Started opening blob chunk writer");
+    LOG_DEBUG("Started opening blob chunk writer");
 
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
@@ -400,7 +412,7 @@ void TBlobSession::DoOpenWriter()
         }
     }
 
-    LOG_TRACE("Finished opening blob chunk writer");
+    LOG_DEBUG("Finished opening blob chunk writer");
 }
 
 TFuture<void> TBlobSession::AbortWriter()
@@ -560,10 +572,14 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
     YCHECK(IsInWindow(blockIndex));
 
     while (Window_.size() <= blockIndex) {
-        // NB: do not use resize here!
-        // Newly added slots must get a fresh copy of WrittenPromise promise.
-        // Using resize would cause all of these slots to share a single promise.
         Window_.emplace_back();
+        auto& slot = Window_.back();
+        slot.WrittenPromise.OnCanceled(
+            BIND(
+                &TBlobSession::OnSlotCanceled,
+                MakeWeak(this),
+                WindowStartBlockIndex_ + static_cast<int>(Window_.size()) - 1)
+            .Via(Bootstrap_->GetControlInvoker()));
     }
 
     return Window_[blockIndex];
@@ -614,8 +630,9 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
 {
     // Thread affinity: WriterThread
 
-    if (!Error_.IsOK())
+    if (!Error_.IsOK()) {
         return;
+    }
 
     Error_ = TError("Session failed") << error;
 
@@ -626,6 +643,22 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
         Location_->Disable(Error_);
         Y_UNREACHABLE(); // Disable() exits the process.
     }
+}
+
+void TBlobSession::OnSlotCanceled(int blockIndex)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    Cancel(TError("Session canceled at block %v:%v",
+        GetChunkId(),
+        blockIndex));
+}
+
+void TBlobSession::OnFinishCanceled()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    Cancel(TError("Session canceled during finish"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

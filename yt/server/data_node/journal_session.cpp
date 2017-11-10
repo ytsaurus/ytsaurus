@@ -50,15 +50,9 @@ TFuture<void> TJournalSession::DoStart()
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
-void TJournalSession::DoCancel()
+void TJournalSession::DoCancel(const TError& /*error*/)
 {
-    Chunk_->DetachChangelog();
-    Chunk_->SetActive(false);
-    
-    auto chunkStore = Bootstrap_->GetChunkStore();
-    chunkStore->UpdateExistingChunk(Chunk_);
-
-    Finished_.Fire(TError());
+    OnFinished();
 }
 
 TFuture<IChunkPtr> TJournalSession::DoFinish(
@@ -80,7 +74,7 @@ TFuture<IChunkPtr> TJournalSession::DoFinish(
     }
 
     return result.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) -> IChunkPtr {
-        DoCancel();
+        OnFinished();
         error.ThrowOnError();
         return IChunkPtr(Chunk_);
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
@@ -144,6 +138,17 @@ TFuture<void> TJournalSession::DoFlushBlocks(int blockIndex)
     }
 
     return LastAppendResult_;
+}
+
+void TJournalSession::OnFinished()
+{
+    Chunk_->DetachChangelog();
+    Chunk_->SetActive(false);
+
+    auto chunkStore = Bootstrap_->GetChunkStore();
+    chunkStore->UpdateExistingChunk(Chunk_);
+
+    Finished_.Fire(TError());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
