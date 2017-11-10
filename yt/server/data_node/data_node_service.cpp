@@ -404,7 +404,8 @@ private:
                 blockIndexes,
                 options);
 
-            auto blocks = WaitFor(asyncBlocks).ValueOrThrow();
+            auto blocks = WaitFor(asyncBlocks)
+                .ValueOrThrow();
             SetRpcAttachedBlocks(response, blocks);
         }
 
@@ -508,10 +509,12 @@ private:
                 blockCount,
                 options);
 
-            SetRpcAttachedBlocks(response, WaitFor(asyncBlocks).ValueOrThrow());
+            auto blocks = WaitFor(asyncBlocks)
+                .ValueOrThrow();
+            SetRpcAttachedBlocks(response, blocks);
         }
 
-        int blocksWithData = response->Attachments().size();
+        int blocksWithData = static_cast<int>(response->Attachments().size());
         i64 blocksSize = GetByteSize(response->Attachments());
 
         context->SetResponseInfo(
@@ -530,9 +533,12 @@ private:
         // NB: We throttle only heavy responses that contain a non-empty attachment
         // as we want responses containing the information about disk/net throttling
         // to be delivered immediately.
-        auto replyFuture = blocksSize > 0 ? throttler->Throttle(blocksSize) : VoidFuture;
-        context->SetComplete();
-        context->ReplyFrom(replyFuture);
+        if (blocksSize > 0) {
+            context->SetComplete();
+            context->ReplyFrom(throttler->Throttle(blocksSize));
+        } else {
+            context->Reply();
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
