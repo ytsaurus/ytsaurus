@@ -1223,7 +1223,7 @@ private:
             ChunkSealer_->OnChunkDestroyed(chunk);
         }
 
-        if (chunk->DiskSizeIsFinal()) {
+        if (!chunkHolder->IsForeign() && chunk->DiskSizeIsFinal()) {
             UpdateAccountResourceUsage(chunk, -1);
         }
 
