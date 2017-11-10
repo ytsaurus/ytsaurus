@@ -1006,7 +1006,7 @@ private:
         }
 
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
-        auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->writer_config()), tabletId);
+        auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->reader_config()), tabletId);
         auto writerConfig = DeserializeTabletChunkWriterConfig(TYsonString(request->writer_config()), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
 
