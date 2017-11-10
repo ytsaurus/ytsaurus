@@ -145,6 +145,24 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
 
+    auto setLocalRequisitionIndexFromRF = [&](int replicationFactor) {
+        if (replicationFactor < 3 && !IsErasure()) {
+            switch (replicationFactor) {
+                case 1:
+                    LocalRequisitionIndex_ = MigrationErasureChunkRequisitionIndex;
+                    break;
+                case 2:
+                    LocalRequisitionIndex_ = MigrationRF2ChunkRequisitionIndex;
+                    break;
+                default:
+                    Y_ASSERT(LocalRequisitionIndex_ == MigrationChunkRequisitionIndex);
+            }
+        } else {
+            // Leave LocalRequisitionIndex_ defaulted to the migration index.
+            Y_ASSERT(LocalRequisitionIndex_ == (IsErasure() ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex));
+        }
+    };
+
     // COMPAT(shakurov)
     // Previously, chunks didn't store info on which account requested which RF
     // - just the maximum of those RFs. Chunk requisition can't be computed from
@@ -153,10 +171,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     // corrected by the next requisition update - which will happen soon since
     // it's requested on each leader change.
     if (context.GetVersion() < 400) {
-        Load<i8>(context); // drop replication factor
+        auto replicationFactor = Load<i8>(context);
+        setLocalRequisitionIndexFromRF(replicationFactor);
     } else if (context.GetVersion() < 700) {
         // Discard replication and leave LocalRequisitionIndex_ defaulted to the migration index.
-        Load<TChunkReplication>(context);
+        auto replication = Load<TChunkReplication>(context);
+        setLocalRequisitionIndexFromRF(replication[DefaultStoreMediumIndex].GetReplicationFactor());
     } else {
         LocalRequisitionIndex_ = Load<TChunkRequisitionIndex>(context);
     }

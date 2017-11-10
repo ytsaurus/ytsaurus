@@ -113,6 +113,8 @@ bool TCypressNodeBase::IsExternal() const
 
 TClusterResources TCypressNodeBase::GetDeltaResourceUsage() const
 {
+    YCHECK(!IsExternal());
+
     NSecurityServer::TClusterResources result;
     result.NodeCount = 1;
     return result;

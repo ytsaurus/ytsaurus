@@ -592,6 +592,7 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
 {
     if (IndexToItem_.has(EmptyChunkRequisitionIndex)) {
         YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
+        YCHECK(IndexToItem_.has(MigrationRF2ChunkRequisitionIndex));
         YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
 
         return;
@@ -609,6 +610,14 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
         true /* committed */);
     YCHECK(Insert(defaultRequisition, objectManager) == MigrationChunkRequisitionIndex);
     Ref(MigrationChunkRequisitionIndex); // Fake reference - always keep the migration requisition.
+
+    TChunkRequisition rf2Requisition(
+        chunkWiseAccountingMigrationAccount,
+        DefaultStoreMediumIndex,
+        TReplicationPolicy(2 /*replicationFactor*/, false /* dataPartsOnly */),
+        true /* committed */);
+    YCHECK(Insert(rf2Requisition, objectManager) == MigrationRF2ChunkRequisitionIndex);
+    Ref(MigrationRF2ChunkRequisitionIndex);
 
     TChunkRequisition defaultErasureRequisition(
         chunkWiseAccountingMigrationAccount,
@@ -653,6 +662,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
 
     YCHECK(IndexToItem_.has(EmptyChunkRequisitionIndex));
     YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
+    YCHECK(IndexToItem_.has(MigrationRF2ChunkRequisitionIndex));
     YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
 
     Load(context, NextIndex_);

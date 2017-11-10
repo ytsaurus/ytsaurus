@@ -175,11 +175,17 @@ constexpr TChunkRequisitionIndex EmptyChunkRequisitionIndex = 0;
 // index will be removed.
 constexpr TChunkRequisitionIndex MigrationChunkRequisitionIndex = EmptyChunkRequisitionIndex + 1;
 
+//! Refers to a requisition specifying RF of 2 on default medium under the
+//! special migration account.
+// NB: After we've migrated to chunk-wise accounting, that account and this
+// index will be removed.
+constexpr TChunkRequisitionIndex MigrationRF2ChunkRequisitionIndex = MigrationChunkRequisitionIndex + 1;
+
 //! Refers to a requisition specifying RF of 1 on default medium under the special
 //! migration account. Such requisition is suitable for erasure-coded chunks.
 // NB: After we've migrated to chunk-wise accounting, that account and this
 // index will be removed.
-constexpr TChunkRequisitionIndex MigrationErasureChunkRequisitionIndex = MigrationChunkRequisitionIndex + 1;
+constexpr TChunkRequisitionIndex MigrationErasureChunkRequisitionIndex = MigrationRF2ChunkRequisitionIndex + 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
