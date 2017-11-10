@@ -95,6 +95,12 @@ b"""
         idle_post_period = 1000;
         rpc_timeout = 1000;
     };
+
+    tablet_manager = {
+        tablet_balancer = {
+            enable_tablet_balancer = %false;
+        };
+    };
 }
 """)
 
