@@ -94,7 +94,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     for group in groups:
         create("group", group, client)
 
-    add_member("cron", "superusers", client)
+    for cron_user in ("cron", "cron_merge", "cron_compression"):
+        add_member(cron_user, "superusers", client)
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
 
