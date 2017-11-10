@@ -470,7 +470,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     result->set_total_cached_chunk_count(totalCachedChunkCount);
     result->set_full(full);
 
-    auto sessionManager = Bootstrap_->GetSessionManager();
+    const auto& sessionManager = Bootstrap_->GetSessionManager();
     result->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
     result->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
     result->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
