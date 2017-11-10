@@ -159,6 +159,7 @@ class YtTestEnvironment(object):
                               modify_configs_func=modify_configs,
                               kill_child_processes=True,
                               tmpfs_path=tmpfs_path,
+                              allow_chunk_storage_in_tmpfs=True,
                               **env_options)
         self.env.start(start_secondary_master_cells=True)
 
