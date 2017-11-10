@@ -393,6 +393,8 @@ public:
 
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
     {
+        YCHECK(!chunk->IsForeign());
+
         auto doCharge = [] (TClusterResources* usage, int mediumIndex, int chunkCount, i64 diskSpace) {
             usage->DiskSpace[mediumIndex] += diskSpace;
             usage->ChunkCount += chunkCount;
@@ -1657,20 +1659,19 @@ private:
         }
         Cerr << "ACCOUNT RESOURCE USAGE " << (afterRecomputing ? "AFTER" : "BEFORE") << " RECOMPUTING\n";
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            auto primaryCellTag = Bootstrap_->GetPrimaryCellTag();
-            const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
+        dumpResourceUsageInCell(localCellTag);
 
-            dumpResourceUsageInCell(primaryCellTag);
+        // Also dump usage for secondary cells - but only before recomputing (we
+        // can't recompute usage for secondary cells, so there's no point in
+        // dumping same stats twice).
+        if (Bootstrap_->IsPrimaryMaster() && !afterRecomputing) {
+            const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
             for (const auto& cellTag : secondaryCellTags) {
                 dumpResourceUsageInCell(cellTag);
             }
-        } else {
-            dumpResourceUsageInCell(localCellTag);
         }
 
         Cerr << Endl;
-
     }
     #else
     void DumpAccountResourceUsage(bool)
@@ -1720,8 +1721,12 @@ private:
         // Recompute everything except chunk count and disk space.
         for (const auto& pair : cypressManager->Nodes()) {
             const auto* node = pair.second;
-            auto* account = node->GetAccount();
 
+            if (node->IsExternal()) {
+                continue;
+            }
+
+            auto* account = node->GetAccount();
             auto usage = node->GetDeltaResourceUsage();
             usage.ChunkCount = 0;
             usage.DiskSpace.fill(0);
