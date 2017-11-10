@@ -151,38 +151,35 @@ void Deserialize(TKeyBase<T>& key, const TNode& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(EValueType type)
-{
-    switch (type) {
-        case VT_INT64: return "int64";
-        case VT_UINT64: return "uint64";
-        case VT_DOUBLE: return "double";
-        case VT_BOOLEAN: return "boolean";
-        case VT_STRING: return "string";
-        case VT_ANY: return "any";
-        default:
-            ythrow yexception() << "Invalid value type " << static_cast<int>(type);
-    }
-}
-
 void Deserialize(EValueType& valueType, const TNode& node)
 {
     const auto& nodeStr = node.AsString();
-    if (nodeStr == "int64") {
-        valueType = VT_INT64;
-    } else if (nodeStr == "uint64") {
-        valueType = VT_UINT64;
-    } else if (nodeStr == "double") {
-        valueType = VT_DOUBLE;
-    } else if (nodeStr == "boolean") {
-        valueType = VT_BOOLEAN;
-    } else if (nodeStr == "string") {
-        valueType = VT_STRING;
-    } else if (nodeStr == "any") {
-        valueType = VT_ANY;
-    } else {
+    static const yhash<TString, EValueType> str2ValueType = {
+        {"int8",  VT_INT8},
+        {"int16", VT_INT16},
+        {"int32", VT_INT32},
+        {"int64", VT_INT64},
+
+        {"uint8",   VT_UINT8},
+        {"uint16",  VT_UINT16},
+        {"uint32",  VT_UINT32},
+        {"uint64",  VT_UINT64},
+
+        {"boolean", VT_BOOLEAN},
+        {"double",  VT_DOUBLE},
+
+        {"string", VT_STRING},
+        {"utf8",   VT_UTF8},
+
+        {"any", VT_ANY},
+    };
+
+    auto it = str2ValueType.find(nodeStr);
+    if (it == str2ValueType.end()) {
         ythrow yexception() << "Invalid value type '" << nodeStr << "'";
     }
+
+    valueType = it->second;
 }
 
 void Deserialize(ESortOrder& sortOrder, const TNode& node)
@@ -204,7 +201,8 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("name").Value(columnSchema.Name_)
-        .Item("type").Value(NYT::ToString(columnSchema.Type_))
+        .Item("type").Value(NYT::NDetail::ToString(columnSchema.Type_))
+        .Item("required").Value(columnSchema.Required_)
         .DoIf(columnSchema.SortOrder_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("sort_order").Value(::ToString(*columnSchema.SortOrder_));
         })
@@ -228,6 +226,7 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
     const auto& nodeMap = node.AsMap();
     DESERIALIZE_ITEM("name", columnSchema.Name_);
     DESERIALIZE_ITEM("type", columnSchema.Type_);
+    DESERIALIZE_ITEM("required", columnSchema.Required_);
     DESERIALIZE_ITEM("sort_order", columnSchema.SortOrder_);
     DESERIALIZE_ITEM("lock", columnSchema.Lock_);
     DESERIALIZE_ITEM("expression", columnSchema.Expression_);

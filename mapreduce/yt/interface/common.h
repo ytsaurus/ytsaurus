@@ -129,11 +129,25 @@ struct TKeyBase
 enum EValueType : int
 {
     VT_INT64,
+
     VT_UINT64,
+
     VT_DOUBLE,
     VT_BOOLEAN,
+
     VT_STRING,
-    VT_ANY
+
+    VT_ANY,
+
+    VT_INT8,
+    VT_INT16,
+    VT_INT32,
+
+    VT_UINT8,
+    VT_UINT16,
+    VT_UINT32,
+
+    VT_UTF8,
 };
 
 enum ESortOrder : int
@@ -160,7 +174,13 @@ struct TColumnSchema
     using TSelf = TColumnSchema;
 
     FLUENT_FIELD(TString, Name);
-    FLUENT_FIELD(EValueType, Type);
+    FLUENT_FIELD_DEFAULT(EValueType, Type, VT_INT64);
+
+    // If Required is set to true "null" values are not allowed in this column.
+    // Column of type "any" cannot have required=true attribute.
+    // Dynamic tables cannot have columns with required=true attribute.
+    FLUENT_FIELD_DEFAULT(bool, Required, false);
+
     FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
     FLUENT_FIELD_OPTION(TString, Lock);
     FLUENT_FIELD_OPTION(TString, Expression);
@@ -270,6 +290,16 @@ struct TAttributeFilter
 
     FLUENT_VECTOR_FIELD(TString, Attribute);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+// MUST NOT BE USED BY CLIENTS
+// TODO: we should use default GENERATE_ENUM_SERIALIZATION
+TString ToString(EValueType type);
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
