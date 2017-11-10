@@ -170,7 +170,7 @@ private:
         ValidateNoSession(sessionId);
         ValidateNoChunk(sessionId);
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
         auto result = session->Start();
         context->ReplyFrom(result);
@@ -187,7 +187,7 @@ private:
 
         ValidateConnected();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         const TChunkMeta* meta = request->has_chunk_meta() ? &request->chunk_meta() : nullptr;
         session->Finish(meta, blockCount)
@@ -210,7 +210,7 @@ private:
         context->SetRequestInfo("ChunkId: %v",
             sessionId);
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->Cancel(TError("Canceled by client request"));
 
@@ -226,7 +226,7 @@ private:
         context->SetRequestInfo("ChunkId: %v",
             sessionId);
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->Ping();
 
@@ -254,7 +254,7 @@ private:
 
         ValidateConnected();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
 
         auto location = session->GetStoreLocation();
@@ -296,7 +296,7 @@ private:
 
         ValidateConnected();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
             .Subscribe(BIND([=] (const TError& error) {
@@ -325,7 +325,7 @@ private:
 
         ValidateConnected();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         auto result = session->FlushBlocks(blockIndex);
         context->ReplyFrom(result);
