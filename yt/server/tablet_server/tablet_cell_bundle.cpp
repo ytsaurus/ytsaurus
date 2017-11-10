@@ -1,3 +1,4 @@
+#include "config.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell.h"
 
@@ -18,6 +19,7 @@ TTabletCellBundle::TTabletCellBundle(const TTabletCellBundleId& id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
+    , TabletBalancerConfig_(New<TTabletBalancerConfig>())
 { }
 
 void TTabletCellBundle::Save(TSaveContext& context) const
@@ -30,7 +32,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, *Options_);
     Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
-    Save(context, EnableTabletBalancer_);
+    Save(context, *TabletBalancerConfig_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -59,8 +61,14 @@ void TTabletCellBundle::Load(TLoadContext& context)
     if (context.GetVersion() >= 400) {
         Load(context, TabletCells_);
     }
-    if (context.GetVersion() >= 614) {
-        Load(context, EnableTabletBalancer_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 624) {
+        Load(context, *TabletBalancerConfig_);
+    } else if (context.GetVersion() >= 614) {
+        bool enableTabletBalancer;
+        Load(context, enableTabletBalancer);
+        TabletBalancerConfig_->EnableInMemoryBalancer = false;
+        TabletBalancerConfig_->EnableTabletSizeBalancer = false;
     }
 
     //COMPAT(savrus)

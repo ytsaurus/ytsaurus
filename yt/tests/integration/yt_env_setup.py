@@ -611,6 +611,9 @@ class YTEnvSetup(object):
         for bundle in bundles:
             if not bundle.attributes["builtin"]:
                 yt_commands.remove_tablet_cell_bundle(str(bundle), driver=driver)
+            else:
+                yt_commands.set("//sys/tablet_cell_bundles/{0}/@options".format(bundle), {})
+                yt_commands.set("//sys/tablet_cell_bundles/{0}/@tablet_balancer_config".format(bundle), {})
 
     def _remove_racks(self, driver=None):
         racks = yt_commands.get_racks(driver=driver)
