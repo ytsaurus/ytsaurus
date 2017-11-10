@@ -383,8 +383,8 @@ private:
             if (storeCount >= config->MinPartitioningStoreCount &&
                 storeCount <= config->MaxPartitioningStoreCount &&
                 dataSizeSum >= config->MinPartitioningDataSize &&
-                // Ignore max_partitioning_data_size limit for a single store.
-                (dataSizeSum <= config->MaxPartitioningDataSize || storeCount == 1))
+                // Ignore max_partitioning_data_size limit for a minimal set of stores.
+                (dataSizeSum <= config->MaxPartitioningDataSize || storeCount == config->MinPartitioningStoreCount))
             {
                 // Prefer to partition more data.
                 bestStoreCount = storeCount;
