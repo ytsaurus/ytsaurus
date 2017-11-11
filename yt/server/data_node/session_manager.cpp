@@ -76,28 +76,6 @@ ISessionPtr TSessionManager::GetSessionOrThrow(const TSessionId& sessionId)
     return session;
 }
 
-TSessionManager::TSessionPtrList TSessionManager::FindSessions(const TSessionId& sessionId)
-{
-    TSessionPtrList result;
-
-    if (sessionId.MediumIndex != AllMediaIndex) {
-        auto session = FindSession(sessionId);
-        if (session) {
-            result.emplace_back(std::move(session));
-        }
-    } else {
-        const auto& chunkId = sessionId.ChunkId;
-        for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-            auto session = FindSession(TSessionId(chunkId, mediumIndex));
-            if (session) {
-                result.emplace_back(std::move(session));
-            }
-        }
-    }
-
-    return result;
-}
-
 ISessionPtr TSessionManager::StartSession(
     const TSessionId& sessionId,
     const TSessionOptions& options)
