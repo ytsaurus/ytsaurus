@@ -1472,14 +1472,24 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
         if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error updating operation runtime parameters");
+            LOG_ERROR(rspOrError, "Error updating operation runtime parameters (OperationId: %v)",
+                operation->GetId());
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         auto attributesNode = ConvertToNode(TYsonString(rsp->value()));
 
-        Strategy_->UpdateOperationRuntimeParams(operation, attributesNode);
+        try {
+            auto runtimeParams = ConvertTo<TOperationRuntimeParamsPtr>(attributesNode);
+            if (operation->GetOwners() != runtimeParams->Owners) {
+                operation->SetOwners(runtimeParams->Owners);
+            }
+            Strategy_->UpdateOperationRuntimeParams(operation, runtimeParams);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing operation runtime parameters (OperationId: %v)",
+                operation->GetId());
+        }
     }
 
     void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)

@@ -123,7 +123,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
     DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
-    DEFINE_BYVAL_RO_PROPERTY(std::vector<TString>, Owners);
+    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::vector<TString>, Owners);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(TNullable<TInstant>, FinishTime);

@@ -113,6 +113,23 @@ public:
         return CancelableControlInvoker;
     }
 
+    void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
+    {
+        auto owners = operation->GetOwners();
+        owners.push_back(operation->GetAuthenticatedUser());
+
+        fluent
+            .BeginList()
+                .Item().BeginMap()
+                    .Item("action").Value(ESecurityAction::Allow)
+                    .Item("subjects").Value(owners)
+                    .Item("permissions").BeginList()
+                        .Item().Value(EPermission::Write)
+                    .EndList()
+                .EndMap()
+            .EndList();
+    }
+
     TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -125,9 +142,6 @@ public:
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
-
-        auto owners = operation->GetOwners();
-        owners.push_back(operation->GetAuthenticatedUser());
 
         {
             auto req = TYPathProxy::Set(GetOperationPath(operationId));
@@ -142,15 +156,8 @@ public:
                     .Item("progress").BeginMap().EndMap()
                     .Item("brief_progress").BeginMap().EndMap()
                     .Item("opaque").Value("true")
-                    .Item("acl").BeginList()
-                        .Item().BeginMap()
-                            .Item("action").Value(ESecurityAction::Allow)
-                            .Item("subjects").Value(owners)
-                            .Item("permissions").BeginList()
-                                .Item().Value(EPermission::Write)
-                            .EndList()
-                        .EndMap()
-                    .EndList()
+                        .Item("acl").Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
+                    .Item("owners").Value(operation->GetOwners())
                 .EndAttributes()
                 .BeginMap()
                     .Item("jobs").BeginAttributes()
@@ -181,15 +188,7 @@ public:
             attributes->Set("inherit_acl", false);
             attributes->Set("value", operation->GetSecureVault());
             attributes->Set("acl", BuildYsonStringFluently()
-                .BeginList()
-                    .Item().BeginMap()
-                        .Item("action").Value(ESecurityAction::Allow)
-                        .Item("subjects").Value(owners)
-                        .Item("permissions").BeginList()
-                            .Item().Value(EPermission::Read)
-                        .EndList()
-                    .EndMap()
-                .EndList());
+                .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation)));
             ToProto(req->mutable_node_attributes(), *attributes);
             GenerateMutationId(req);
             batchReq->AddRequest(req);
@@ -628,6 +627,7 @@ private:
                             "completion_transaction_id",
                             "debug_output_transaction_id",
                             "spec",
+                            "owners",
                             "authenticated_user",
                             "start_time",
                             "state",
@@ -934,14 +934,6 @@ private:
             "debug output transaction");
 
         auto spec = attributes.Get<INodePtr>("spec")->AsMap();
-        TOperationSpecBasePtr operationSpec;
-        try {
-            operationSpec = ConvertTo<TOperationSpecBasePtr>(spec);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
-                operationId);
-            return TOperationReport();
-        }
 
         result.Operation = New<TOperation>(
             operationId,
@@ -950,7 +942,7 @@ private:
             userTransactionId,
             spec,
             attributes.Get<TString>("authenticated_user"),
-            operationSpec->Owners,
+            attributes.Get<std::vector<TString>>("owners"),
             attributes.Get<TInstant>("start_time"),
             Bootstrap->GetControlInvoker(),
             attributes.Get<EOperationState>("state"),
@@ -1112,6 +1104,15 @@ private:
                             fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
                         }
                     })
+                .GetData());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
+        // Set operation acl.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@acl");
+            req->set_value(BuildYsonStringFluently()
+                .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
                 .GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
