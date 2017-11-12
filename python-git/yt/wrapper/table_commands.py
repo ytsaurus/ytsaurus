@@ -1,5 +1,5 @@
 from .common import (flatten, require, update, parse_bool, get_value, set_param, datetime_to_string,
-                     MB, chunk_iter_stream)
+                     MB, chunk_iter_stream, deprecated)
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
@@ -62,6 +62,7 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
 
     return formats[0]
 
+@deprecated()
 def create_table(path, recursive=None, ignore_existing=False,
                  attributes=None, client=None):
     """Creates empty table. Shortcut for `create("table", ...)`.
