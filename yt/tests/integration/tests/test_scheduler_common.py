@@ -2445,3 +2445,24 @@ class TestPoolMetrics(YTEnvSetup):
 
         assert completed_metrics["parent"] == completed_metrics["child"]
         assert aborted_metrics["parent"] == aborted_metrics["child"]
+
+    def test_runtime_parameters(self):
+        create_user("u")
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        op = map(
+            command="sleep 100",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            dont_track=True)
+
+        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
+
+        set("//sys/operations/{0}/@owners/end".format(op.id), "u")
+        time.sleep(0.5)
+
+        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"

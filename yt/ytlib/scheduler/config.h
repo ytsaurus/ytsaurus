@@ -799,6 +799,8 @@ public:
 
     TResourceLimitsConfigPtr ResourceLimits;
 
+    std::vector<TString> Owners;
+
     TOperationRuntimeParams();
 };
 

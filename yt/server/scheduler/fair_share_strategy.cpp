@@ -483,26 +483,16 @@ public:
         }
     }
 
-    void UpdateOperationRuntimeParams(const TOperationPtr& operation, const INodePtr& update)
+    void UpdateOperationRuntimeParams(const TOperationPtr& operation, const TOperationRuntimeParamsPtr& runtimeParams)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operation->GetId());
-        if (!element)
+        if (!element) {
             return;
-
-        NLogging::TLogger Logger(SchedulerLogger);
-        Logger.AddTag("OperationId: %v", operation->GetId());
-
-        try {
-            auto newRuntimeParams = CloneYsonSerializable(element->GetRuntimeParams());
-            if (ReconfigureYsonSerializable(newRuntimeParams, update)) {
-                element->SetRuntimeParams(newRuntimeParams);
-                LOG_INFO("Operation runtime parameters updated");
-            }
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing operation runtime parameters");
         }
+
+        element->SetRuntimeParams(runtimeParams);
     }
 
     void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
@@ -843,7 +833,7 @@ private:
     TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationId> WaitingOperationQueue;
-    
+
     TReaderWriterSpinLock RegisteredOperationsSetLock;
     yhash_set<TOperationId> RegisteredOperationsSet;
 
@@ -2080,11 +2070,11 @@ public:
 
     virtual void UpdateOperationRuntimeParams(
         const TOperationPtr& operation,
-        const INodePtr& update) override
+        const TOperationRuntimeParamsPtr& runtimeParams) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        FairShareTree_->UpdateOperationRuntimeParams(operation, update);
+        FairShareTree_->UpdateOperationRuntimeParams(operation, runtimeParams);
     }
 
     virtual TString GetOperationLoggingProgress(const TOperationId& operationId) override
