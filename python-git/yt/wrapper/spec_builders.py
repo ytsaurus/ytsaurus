@@ -3,7 +3,7 @@ from .batch_response import apply_function_to_result
 from .config import get_config
 from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
                      get_value, unlist, get_started_by, bool_to_string,
-                     parse_bool, is_prefix, require, YtError, update)
+                     parse_bool, is_prefix, require, YtError, update, deprecated)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile
@@ -266,8 +266,8 @@ class UserJobSpecBuilder(object):
     def file_paths(self, paths):
         return _set_spec_value(self, "file_paths", paths)
 
+    @deprecated()
     def local_files(self, files):
-        """Deprecated!"""
         return _set_spec_value(self, "local_files", files)
 
     @spec_option("The format of tabular data")
