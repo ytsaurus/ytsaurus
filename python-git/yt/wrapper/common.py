@@ -16,23 +16,41 @@ import random
 import socket
 import sys
 import threading
+import warnings
 
 from multiprocessing.pool import ThreadPool
 from multiprocessing.dummy import (Process as DummyProcess,
                                    current_process as dummy_current_process)
 from collections import Mapping
 from itertools import chain
-from functools import reduce
+from functools import reduce, wraps
 
 EMPTY_GENERATOR = (i for i in [])
 
 MB = 1024 * 1024
 GB = 1024 * MB
 
+DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release"
+
 def compose(*args):
     def compose_two(f, g):
         return lambda x: f(g(x))
     return reduce(compose_two, args)
+
+def declare_deprecated(functional_name, condition=None, message=None):
+    if condition or condition is None:
+        message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name))
+        warnings.warn(message, DeprecationWarning)
+
+def deprecated(message=None):
+    def function_decorator(func):
+        warn_message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(func.__name__))
+        @wraps(func)
+        def deprecated_function(*args, **kwargs):
+            warnings.warn(warn_message, DeprecationWarning)
+            return func(*args, **kwargs)
+        return deprecated_function
+    return function_decorator
 
 def parse_bool(word):
     """Converts "true" and "false" and something like this to Python bool

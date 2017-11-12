@@ -5,7 +5,7 @@ parameters, and then by kwargs options.
 """
 
 from .config import get_config
-from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool
+from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool, declare_deprecated
 from .mappings import FrozenDict
 from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
@@ -1118,11 +1118,9 @@ def create_format(yson_name, attributes=None, **kwargs):
     :param yson_name: YSON string like ``'<lenval=false;has_subkey=false>yamr'``.
     :param attributes: Deprecated! Don't use it! It will be removed!
     """
-    if attributes is not None:
-        logger.warning("Usage deprecated parameter 'attributes' of create_format. "
-                       "It will be removed!")
-    else:
-        attributes = {}
+
+    declare_deprecated('option "attributes"', attributes is not None)
+    attributes = get_value(attributes, {})
 
     yson_string = yson._loads_from_native_str(yson_name)
     attributes.update(yson_string.attributes)
