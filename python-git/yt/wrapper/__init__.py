@@ -41,3 +41,6 @@ from .http_helpers import (_cleanup_http_session,
 # For PyCharm checks
 from . import config
 from .config import update_config
+
+import warnings
+warnings.simplefilter("default", category=DeprecationWarning)
