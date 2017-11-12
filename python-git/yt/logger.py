@@ -7,7 +7,10 @@ logging.getLogger("yt.packages.requests.packages.urllib3").setLevel(logging.WARN
 LOGGER = logging.getLogger("Yt")
 LOGGER.propagate = False
 LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL.upper()])
-LOGGER.addHandler(logging.StreamHandler())
+if logger_config.LOG_PATH is None:
+    LOGGER.addHandler(logging.StreamHandler())
+else:
+    LOGGER.addHandler(logging.FileHandler(logger_config.LOG_PATH))
 
 BASIC_FORMATTER = logging.Formatter(logger_config.LOG_PATTERN)
 
