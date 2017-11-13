@@ -1,4 +1,4 @@
-#include "user_job_io_detail.h"
+#include "user_job_io.h"
 #include "config.h"
 #include "job.h"
 
@@ -39,15 +39,15 @@ using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobIOBase::TUserJobIOBase(IJobHostPtr host)
+TUserJobIO::TUserJobIO(IJobHostPtr host)
     : Host_(host)
     , Logger(host->GetLogger())
 { }
 
-TUserJobIOBase::~TUserJobIOBase()
+TUserJobIO::~TUserJobIO()
 { }
 
-void TUserJobIOBase::Init()
+void TUserJobIO::Init()
 {
     LOG_INFO("Opening writers");
 
@@ -114,7 +114,7 @@ void TUserJobIOBase::Init()
     }
 }
 
-std::vector<ISchemalessMultiChunkWriterPtr> TUserJobIOBase::GetWriters() const
+std::vector<ISchemalessMultiChunkWriterPtr> TUserJobIO::GetWriters() const
 {
     if (Initialized_) {
         return Writers_;
@@ -123,7 +123,7 @@ std::vector<ISchemalessMultiChunkWriterPtr> TUserJobIOBase::GetWriters() const
     }
 }
 
-IOutputStream* TUserJobIOBase::GetStderrTableWriter() const
+IOutputStream* TUserJobIO::GetStderrTableWriter() const
 {
     if (Initialized_) {
         return StderrTableWriter_.get();
@@ -132,11 +132,17 @@ IOutputStream* TUserJobIOBase::GetStderrTableWriter() const
     }
 }
 
-void TUserJobIOBase::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
+void TUserJobIO::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
 {
     std::vector<NChunkClient::NProto::TChunkSpec> writtenChunkSpecs;
-    for (const auto& writer : Writers_) {
-        *schedulerJobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(writer);
+    const auto& outputTableSpecs = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_table_specs();
+    for (int index = 0; index < Writers_.size(); ++index) {
+        const auto& writer = Writers_[index];
+        const auto& outputTableSpec = outputTableSpecs.Get(index);
+        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputTableSpec.table_writer_options()));
+        if (options->ReturnBoundaryKeys) {
+            *schedulerJobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(writer);
+        }
         auto writtenChunks = writer->GetWrittenChunksMasterMeta();
         for (auto& chunkSpec : writtenChunks) {
             writtenChunkSpecs.emplace_back(std::move(chunkSpec));
@@ -145,7 +151,7 @@ void TUserJobIOBase::PopulateResult(TSchedulerJobResultExt* schedulerJobResultEx
     ToProto(schedulerJobResultExt->mutable_output_chunk_specs(), writtenChunkSpecs);
 }
 
-void TUserJobIOBase::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt)
+void TUserJobIO::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt)
 {
     if (StderrTableWriter_) {
         *schedulerJobResultExt->mutable_stderr_table_boundary_keys() = StderrTableWriter_->GetOutputResult();

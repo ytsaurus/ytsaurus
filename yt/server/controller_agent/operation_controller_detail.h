@@ -846,7 +846,6 @@ protected:
         const NChunkPools::TChunkStripeStatisticsVector& stripeStatistics) const;
 
     void InitIntermediateOutputConfig(NScheduler::TJobIOConfigPtr config);
-    void InitFinalOutputConfig(NScheduler::TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(NScheduler::TJobIOConfigPtr ioConfig);
 
@@ -874,7 +873,7 @@ protected:
 
     void CheckFailedJobsStatusReceived();
 
-    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() override;
+    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() const override;
 
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
     TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;

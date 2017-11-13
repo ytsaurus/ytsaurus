@@ -743,6 +743,10 @@ public:
 
     bool ForceReduceCombiners;
 
+    // First `MapperOutputTableCount` tables will be constructed from
+    // mapper's output to file handlers #4, #7, ...
+    int MapperOutputTableCount;
+
     TMapReduceOperationSpec();
 
     virtual void OnLoaded() override;

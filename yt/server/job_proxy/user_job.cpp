@@ -160,7 +160,7 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
-        std::unique_ptr<IUserJobIO> userJobIO,
+        std::unique_ptr<TUserJobIO> userJobIO,
         IResourceControllerPtr resourceController)
         : TJob(host)
         , Logger(Host_->GetLogger())
@@ -377,7 +377,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    const std::unique_ptr<IUserJobIO> JobIO_;
+    const std::unique_ptr<TUserJobIO> JobIO_;
     TUserJobReadControllerPtr UserJobReadController_;
 
     const TUserJobSpec& UserJobSpec_;
@@ -1326,7 +1326,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     const TJobId& jobId,
-    std::unique_ptr<IUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO)
 {
     auto subcontroller = host->GetResourceController()
         ? host->GetResourceController()->CreateSubcontroller(CGroupPrefix + ToString(jobId))
@@ -1345,7 +1345,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
     const TJobId& jobId,
-    std::unique_ptr<IUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Unix");
 }

@@ -3314,7 +3314,7 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
-const std::vector<TEdgeDescriptor>& TOperationControllerBase::GetStandardEdgeDescriptors()
+const std::vector<TEdgeDescriptor>& TOperationControllerBase::GetStandardEdgeDescriptors() const
 {
     return StandardEdgeDescriptors_;
 }
@@ -6084,9 +6084,6 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     // Don't sync intermediate chunks.
     config->TableWriter->SyncOnClose = false;
 }
-
-void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
-{ }
 
 NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReaderOptions(TJobIOConfigPtr ioConfig)
 {
