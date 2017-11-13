@@ -908,7 +908,7 @@ public:
     }
 
     TFuture<void> RemoveChangelog(
-        TJournalChunkPtr chunk,
+        const TJournalChunkPtr& chunk,
         bool enableMultiplexing)
     {
         auto remover = Location_->DisableOnError(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk))
@@ -947,7 +947,7 @@ public:
             .Run();
     }
 
-    TFuture<void> SealChangelog(TJournalChunkPtr chunk)
+    TFuture<void> SealChangelog(const TJournalChunkPtr& chunk)
     {
         return Location_->DisableOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
@@ -1010,7 +1010,7 @@ private:
         return changelog;
     }
 
-    void DoRemoveChangelog(TJournalChunkPtr chunk)
+    void DoRemoveChangelog(const TJournalChunkPtr& chunk)
     {
         const auto& Profiler = Location_->GetProfiler();
         PROFILE_TIMING("/journal_chunk_remove_time") {
@@ -1023,7 +1023,7 @@ private:
         return NFS::Exists(GetSealedFlagFileName(chunkId));
     }
 
-    void DoSealChangelog(TJournalChunkPtr chunk)
+    void DoSealChangelog(const TJournalChunkPtr& chunk)
     {
         TFile file(GetSealedFlagFileName(chunk->GetId()), CreateNew);
     }
@@ -1181,7 +1181,7 @@ TFuture<IChangelogPtr> TJournalManager::CreateChangelog(
 }
 
 TFuture<void> TJournalManager::RemoveChangelog(
-    TJournalChunkPtr chunk,
+    const TJournalChunkPtr& chunk,
     bool enableMultiplexing)
 {
     return Impl_->RemoveChangelog(chunk, enableMultiplexing);
@@ -1205,7 +1205,7 @@ TFuture<bool> TJournalManager::IsChangelogSealed(const TChunkId& chunkId)
     return Impl_->IsChangelogSealed(chunkId);
 }
 
-TFuture<void> TJournalManager::SealChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalManager::SealChangelog(const TJournalChunkPtr& chunk)
 {
     return Impl_->SealChangelog(chunk);
 }
