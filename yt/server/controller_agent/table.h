@@ -28,8 +28,8 @@ DEFINE_ENUM(EOutputTableType,
 
 struct TLivePreviewTableBase
 {
-    // Live preview table id.
-    NCypressClient::TNodeId LivePreviewTableId;
+    // Live preview table ids.
+    std::vector<NCypressClient::TNodeId> LivePreviewTableIds;
 
     void Persist(const TPersistenceContext& context);
 };

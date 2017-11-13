@@ -20,9 +20,7 @@ TYPath GetOperationsPath()
 
 TYPath GetOperationPath(const TOperationId& operationId)
 {
-    return
-        "//sys/operations/" +
-        ToYPathLiteral(ToString(operationId));
+    return "//sys/operations/" + ToYPathLiteral(ToString(operationId));
 }
 
 TYPath GetNewOperationPath(const TOperationId& operationId)
@@ -35,13 +33,7 @@ TYPath GetNewOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetOperationAttributesPath(const TOperationId& operationId)
-{
-    return
-        GetOperationPath(operationId) + "/@";
-}
-
-TYPath GetOperationsProgressFromScheduler(const TOperationId& operationId)
+TYPath GetOperationProgressFromOrchid(const TOperationId& operationId)
 {
     return
         "//sys/scheduler/orchid/scheduler/operations/" +
@@ -56,6 +48,13 @@ TYPath GetJobsPath(const TOperationId& operationId)
         "/jobs";
 }
 
+TYPath GetNewJobsPath(const TOperationId& operationId)
+{
+    return
+        GetNewOperationPath(operationId) +
+        "/jobs";
+}
+
 TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
@@ -63,10 +62,24 @@ TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
         ToYPathLiteral(ToString(jobId));
 }
 
+TYPath GetNewJobPath(const TOperationId& operationId, const TJobId& jobId)
+{
+    return
+        GetNewJobsPath(operationId) + "/" +
+        ToYPathLiteral(ToString(jobId));
+}
+
 TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
         GetJobPath(operationId, jobId)
+        + "/stderr";
+}
+
+TYPath GetNewStderrPath(const TOperationId& operationId, const TJobId& jobId)
+{
+    return
+        GetNewJobPath(operationId, jobId)
         + "/stderr";
 }
 
@@ -84,10 +97,24 @@ TYPath GetSnapshotPath(const TOperationId& operationId)
         + "/snapshot";
 }
 
+TYPath GetNewSnapshotPath(const TOperationId& operationId)
+{
+    return
+        GetNewOperationPath(operationId)
+        + "/snapshot";
+}
+
 TYPath GetSecureVaultPath(const TOperationId& operationId)
 {
     return
         GetOperationPath(operationId)
+        + "/secure_vault";
+}
+
+TYPath GetNewSecureVaultPath(const TOperationId& operationId)
+{
+    return
+        GetNewOperationPath(operationId)
         + "/secure_vault";
 }
 
@@ -110,6 +137,51 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
     return
         GetOperationPath(operationId)
         + "/intermediate";
+}
+
+std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    EOperationCypressStorageMode mode,
+    const TString& resourceName)
+{
+    TString suffix;
+    if (!resourceName.empty()) {
+        suffix = "/" + resourceName;
+    }
+
+    switch (mode) {
+        case EOperationCypressStorageMode::Compatible:
+            return {GetJobPath(operationId, jobId) + suffix, GetNewJobPath(operationId, jobId) + suffix};
+        case EOperationCypressStorageMode::SimpleHashBuckets:
+            return {GetJobPath(operationId, jobId) + suffix};
+        case EOperationCypressStorageMode::HashBuckets:
+            return {GetNewJobPath(operationId, jobId) + suffix};
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
+    const TOperationId& operationId,
+    EOperationCypressStorageMode mode,
+    const TString& resourceName)
+{
+    TString suffix;
+    if (!resourceName.empty()) {
+        suffix = "/" + resourceName;
+    }
+
+    switch (mode) {
+        case EOperationCypressStorageMode::Compatible:
+            return {GetOperationPath(operationId) + suffix, GetNewOperationPath(operationId) + suffix};
+        case EOperationCypressStorageMode::SimpleHashBuckets:
+            return {GetOperationPath(operationId) + suffix};
+        case EOperationCypressStorageMode::HashBuckets:
+            return {GetNewOperationPath(operationId) + suffix};
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 const TYPath& GetPoolsPath()

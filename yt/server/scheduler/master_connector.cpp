@@ -144,33 +144,6 @@ public:
         auto batchReq = StartObjectBatchRequest();
 
         {
-            auto req = TYPathProxy::Set(GetOperationPath(operationId));
-            req->set_value(BuildYsonStringFluently()
-                .BeginAttributes()
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
-                    .Do(BIND(&BuildInitializingOperationAttributes, operation))
-                    .Item("brief_spec").BeginMap()
-                        .Items(initializeResult.BriefSpec)
-                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
-                    .EndMap()
-                    .Item("progress").BeginMap().EndMap()
-                    .Item("brief_progress").BeginMap().EndMap()
-                    .Item("opaque").Value("true")
-                        .Item("acl").Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
-                    .Item("owners").Value(operation->GetOwners())
-                .EndAttributes()
-                .BeginMap()
-                    .Item("jobs").BeginAttributes()
-                        .Item("opaque").Value("true")
-                    .EndAttributes()
-                    .BeginMap().EndMap()
-                .EndMap()
-                .GetData());
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
-        }
-
-        {
             auto req = TCypressYPathProxy::Create(GetNewOperationPath(operationId));
             req->set_type(static_cast<int>(EObjectType::MapNode));
             req->set_recursive(true);
@@ -179,19 +152,53 @@ public:
             batchReq->AddRequest(req);
         }
 
+        auto operationYson = BuildYsonStringFluently()
+            .BeginAttributes()
+                .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
+                .Do(BIND(&BuildInitializingOperationAttributes, operation))
+                .Item("brief_spec").BeginMap()
+                    .Items(initializeResult.BriefSpec)
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
+                .EndMap()
+                .Item("progress").BeginMap().EndMap()
+                .Item("brief_progress").BeginMap().EndMap()
+                .Item("opaque").Value("true")
+                    .Item("acl").Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
+                .Item("owners").Value(operation->GetOwners())
+            .EndAttributes()
+            .BeginMap()
+                .Item("jobs").BeginAttributes()
+                    .Item("opaque").Value("true")
+                .EndAttributes()
+                .BeginMap().EndMap()
+            .EndMap()
+            .GetData();
+
+        auto paths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode());
+        auto secureVaultPaths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode(), "secure_vault");
+
+        for (const auto& path : paths) {
+            auto req = TYPathProxy::Set(path);
+            req->set_value(operationYson);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+
         if (operation->GetSecureVault()) {
             // Create secure vault.
-            auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
-            req->set_type(static_cast<int>(EObjectType::Document));
-
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("inherit_acl", false);
             attributes->Set("value", operation->GetSecureVault());
             attributes->Set("acl", BuildYsonStringFluently()
                 .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation)));
-            ToProto(req->mutable_node_attributes(), *attributes);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
+
+            for (const auto& path : secureVaultPaths) {
+                auto req = TCypressYPathProxy::Create(path);
+                req->set_type(static_cast<int>(EObjectType::Document));
+                ToProto(req->mutable_node_attributes(), *attributes);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
         }
 
         return batchReq->Invoke().Apply(
@@ -218,11 +225,15 @@ public:
                 .Item("brief_progress").BeginMap().EndMap()
             .EndMap());
 
+        auto paths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode());
+
         for (const auto& key : attributes->List()) {
-            auto req = TYPathProxy::Set(GetOperationPath(operationId) + "/@" + ToYPathLiteral(key));
-            req->set_value(attributes->GetYson(key).GetData());
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
+            for (const auto& path : paths) {
+                auto req = TYPathProxy::Set(path + "/@" + ToYPathLiteral(key));
+                req->set_value(attributes->GetYson(key).GetData());
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
         }
 
         return batchReq->Invoke().Apply(
@@ -463,7 +474,14 @@ private:
         const TIntrusivePtr<TImpl> Owner;
 
         const TAddressMap ServiceAddresses;
-        std::vector<TOperationId> OperationIds;
+
+        struct TReviveOperationInfo
+        {
+            TOperationId Id;
+            EOperationCypressStorageMode StorageMode;
+        };
+
+        std::vector<TReviveOperationInfo> RunningOperations;
         TMasterHandshakeResult Result;
 
         // - Register scheduler instance.
@@ -568,116 +586,203 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
+            static const std::vector<TString> attributeKeys = {"state"};
+
             auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 auto req = TYPathProxy::List("//sys/operations");
-                std::vector<TString> attributeKeys{
-                    "state"
-                };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "list_operations");
             }
 
+            for (int hash = 0x0; hash <= 0xFF; ++hash) {
+                auto hashStr = Format("%02x", hash);
+                auto req = TYPathProxy::List("//sys/operations/" + hashStr);
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                batchReq->AddRequest(req, "list_operations_" + hashStr);
+            }
+
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
             const auto& batchRsp = batchRspOrError.Value();
 
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations").Value();
-                auto operationsListNode = ConvertToNode(TYsonString(rsp->value()));
-                auto operationsList = operationsListNode->AsList();
-                LOG_INFO("Operations list received, %v operations total",
-                    operationsList->GetChildCount());
-                OperationIds.clear();
-                for (auto operationNode : operationsList->GetChildren()) {
+            std::vector<std::pair<EOperationState, TReviveOperationInfo>> operations;
+            yhash<TOperationId, EOperationState> operationIdToState;
+
+            auto listOperationsRsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations")
+                .ValueOrThrow();
+
+            auto operationsListNode = ConvertToNode(TYsonString(listOperationsRsp->value()));
+            auto operationsList = operationsListNode->AsList();
+
+            for (const auto& operationNode : operationsList->GetChildren()) {
+                auto operationNodeKey = operationNode->GetValue<TString>();
+                // NOTE: This is hash bucket, just skip it.
+                if (operationNodeKey.length() == 2) {
+                    continue;
+                }
+
+                auto id = TOperationId::FromString(operationNodeKey);
+                operationIdToState[id] = operationNode->Attributes().Get<EOperationState>("state");
+            }
+
+            for (int hash = 0x0; hash <= 0xFF; ++hash) {
+                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(
+                    "list_operations_" + Format("%02x", hash));
+
+                if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    continue;
+                }
+
+                auto hashBucketRsp = rspOrError.ValueOrThrow();
+                auto hashBucketListNode = ConvertToNode(TYsonString(hashBucketRsp->value()));
+                auto hashBucketList = hashBucketListNode->AsList();
+
+                for (const auto& operationNode : hashBucketList->GetChildren()) {
+                    auto id = TOperationId::FromString(operationNode->GetValue<TString>());
+                    YCHECK((id.Parts32[0] & 0xff) == hash);
+
                     auto state = operationNode->Attributes().Find<EOperationState>("state");
-                    // Ignore map nodes with nested operation nodes.
-                    if (!state) {
-                        continue;
+
+                    auto stateIt = operationIdToState.find(id);
+
+                    // Neither //sys/operations/<id> node nor //sys/operations/<hash>/<id> has
+                    // "state" attribute.
+                    if (!state && stateIt == operationIdToState.end()) {
+                        THROW_ERROR_EXCEPTION("Operation %v does not have \"state\" attribute",
+                            id);
                     }
 
-                    auto id = TOperationId::FromString(operationNode->GetValue<TString>());
-                    if (IsOperationInProgress(*state)) {
-                        OperationIds.push_back(id);
+                    if (!state) {
+                        operations.emplace_back(
+                            stateIt->second,
+                            TReviveOperationInfo{id, EOperationCypressStorageMode::SimpleHashBuckets});
+                        operationIdToState.erase(stateIt);
+                        continue;
+                    } else if (stateIt == operationIdToState.end()) {
+                        operations.emplace_back(*state, TReviveOperationInfo{id, EOperationCypressStorageMode::HashBuckets});
+                        operationIdToState.erase(stateIt);
+                    } else {
+                        if (stateIt->second != *state) {
+                            LOG_WARNING("Operation has two operation nodes with different states "
+                                "(OperationId: %v, State: %Qv, HashBucketState: %Qv)",
+                                id,
+                                stateIt->second,
+                                *state);
+                        }
+
+                        operations.emplace_back(
+                            stateIt->second,
+                            TReviveOperationInfo{id, EOperationCypressStorageMode::Compatible});
+
+                        operationIdToState.erase(stateIt);
                     }
                 }
             }
+
+            YCHECK(operationIdToState.empty() &&
+                   "Operations node contains operations with undefined storage schema");
+
+            for (const auto& operationInfo : operations) {
+                if (IsOperationInProgress(operationInfo.first)) {
+                    RunningOperations.push_back(operationInfo.second);
+                }
+            }
+
+            LOG_INFO("Operations list received (RunningOperationCount: %v)", RunningOperations.size());
         }
 
         // - Request attributes for unfinished operations.
         // - Recreate operation instance from fetched data.
         void RequestOperationAttributes()
         {
+            static const std::vector<TString> attributeKeys = {
+                "operation_type",
+                "mutation_id",
+                "user_transaction_id",
+                "async_scheduler_transaction_id",
+                "input_transaction_id",
+                "output_transaction_id",
+                "completion_transaction_id",
+                "debug_output_transaction_id",
+                "spec",
+                "owners",
+                "authenticated_user",
+                "start_time",
+                "state",
+                "suspended",
+                "events",
+                "slot_index_per_pool_tree"
+            };
+
             auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
-                LOG_INFO("Fetching attributes and secure vaults for %v unfinished operations",
-                    OperationIds.size());
-                for (const auto& operationId : OperationIds) {
+                LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
+                    RunningOperations.size());
+
+                for (const auto& operationInfo : RunningOperations) {
                     // Keep stuff below in sync with CreateOperationFromAttributes.
+
+                    const auto& operationId = operationInfo.Id;
+
+                    NYTree::TYPath operationAttributesPath;
+                    NYTree::TYPath secureVaultPath;
+
+                    if (operationInfo.StorageMode == EOperationCypressStorageMode::Compatible ||
+                        operationInfo.StorageMode == EOperationCypressStorageMode::SimpleHashBuckets)
+                    {
+                        operationAttributesPath = GetOperationPath(operationId) + "/@";
+                        secureVaultPath = GetSecureVaultPath(operationId);
+                    } else {
+                        operationAttributesPath = GetNewOperationPath(operationId) + "/@";
+                        secureVaultPath = GetNewSecureVaultPath(operationId);
+                    }
+
                     // Retrieve operation attributes.
                     {
-                        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "operation_type",
-                            "mutation_id",
-                            "user_transaction_id",
-                            "async_scheduler_transaction_id",
-                            "input_transaction_id",
-                            "output_transaction_id",
-                            "completion_transaction_id",
-                            "debug_output_transaction_id",
-                            "spec",
-                            "owners",
-                            "authenticated_user",
-                            "start_time",
-                            "state",
-                            "suspended",
-                            "events",
-                            "slot_index_per_pool_tree"
-                        };
+                        auto req = TYPathProxy::Get(operationAttributesPath);
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_attr");
+                        batchReq->AddRequest(req, "get_op_attr_" + ToString(operationInfo.Id));
                     }
+                    // Retrieve operation completion transaction id.
                     {
                         auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
                         std::vector<TString> attributeKeys{
                             "completion_transaction_id",
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_attr_new");
+                        batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationInfo.Id));
                     }
+
                     // Retrieve secure vault.
                     {
-                        auto req = TYPathProxy::Get(GetSecureVaultPath(operationId));
-                        batchReq->AddRequest(req, "get_op_secure_vault");
+                        auto req = TYPathProxy::Get(secureVaultPath);
+                        batchReq->AddRequest(req, "get_op_secure_vault_" + ToString(operationInfo.Id));
                     }
                 }
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError, "get_op_attr"));
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
             const auto& batchRsp = batchRspOrError.Value();
 
             {
-                auto attributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr");
-                YCHECK(attributesRsps.size() == OperationIds.size());
+                for (const auto& operationInfo : RunningOperations) {
+                    auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                        "get_op_attr_" + ToString(operationInfo.Id))
+                        .ValueOrThrow();
 
-                auto attributesNewRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr_new");
-                YCHECK(attributesRsps.size() == OperationIds.size());
+                    auto completionTxIdRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                        "get_op_completion_tx_id_" + ToString(operationInfo.Id))
+                        .ValueOrThrow();
 
-                auto secureVaultRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_secure_vault");
-                YCHECK(secureVaultRsps.size() == OperationIds.size());
+                    auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                        "get_op_secure_vault_" + ToString(operationInfo.Id));
 
-                for (int index = 0; index < static_cast<int>(OperationIds.size()); ++index) {
-                    const auto& operationId = OperationIds[index];
-                    auto attributesRsp = attributesRsps[index].Value();
-                    auto attributesNewRsp = attributesNewRsps[index];
                     auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
-                    if (attributesNewRsp.IsOK()) {
-                        auto attributesNodeNew = ConvertToAttributes(TYsonString(attributesNewRsp.Value()->value()));
-                        attributesNode->MergeFrom(*attributesNodeNew);
-                    }
-                    auto secureVaultRspOrError = secureVaultRsps[index];
+                    auto completionTxIdAttribute = ConvertToAttributes(TYsonString(completionTxIdRsp->value()));
+                    attributesNode->MergeFrom(*completionTxIdAttribute);
+
                     IMapNodePtr secureVault;
                     if (secureVaultRspOrError.IsOK()) {
                         const auto& secureVaultRsp = secureVaultRspOrError.Value();
@@ -688,16 +793,23 @@ private:
                             secureVault = secureVaultNode->AsMap();
                         } else {
                             LOG_ERROR("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
-                                operationId,
+                                operationInfo.Id,
                                 secureVaultNode->GetType(),
                                 ENodeType::Map);
                             // TODO(max42): (YT-5651) Do not just ignore such a situation!
                         }
                     } else if (secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
-                        THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation %v", operationId)
+                        THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation (OperationId: %v)",
+                            operationInfo.Id)
                             << secureVaultRspOrError;
                     }
-                    auto operationReport = Owner->CreateOperationFromAttributes(operationId, *attributesNode, std::move(secureVault));
+
+                    auto operationReport = Owner->CreateOperationFromAttributes(
+                        operationInfo.Id,
+                        *attributesNode,
+                        std::move(secureVault),
+                        operationInfo.StorageMode);
+
                     if (operationReport.Operation) {
                         Result.OperationReports.push_back(operationReport);
                     }
@@ -871,7 +983,8 @@ private:
     TOperationReport CreateOperationFromAttributes(
         const TOperationId& operationId,
         const IAttributeDictionary& attributes,
-        IMapNodePtr secureVault)
+        IMapNodePtr secureVault,
+        EOperationCypressStorageMode storageMode)
     {
         auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
             if (!transactionId) {
@@ -955,6 +1068,7 @@ private:
             attributes.Get<std::vector<TString>>("owners", operationSpec->Owners),
             attributes.Get<TInstant>("start_time"),
             Bootstrap->GetControlInvoker(),
+            storageMode,
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"),
             attributes.Get<std::vector<TOperationEvent>>("events", {}));
@@ -1065,72 +1179,73 @@ private:
         operation->SetShouldFlush(false);
 
         auto batchReq = StartObjectBatchRequest();
-        auto operationPath = GetOperationPath(operation->GetId());
-
         GenerateMutationId(batchReq);
 
-        // Set suspended flag.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@suspended");
-            req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
+        auto paths = GetCompatibilityOperationPaths(operation->GetId(), operation->GetStorageMode());
+        for (const auto& operationPath : paths) {
+            // Set suspended flag.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@suspended");
+                req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
 
-        // Set events.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@events");
-            req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
+            // Set events.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@events");
+                req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
 
-        // Set result.
-        if (operation->IsFinishedState()) {
-            auto req = TYPathProxy::Set(operationPath + "/@result");
-            auto error = FromProto<TError>(operation->Result().error());
-            auto errorString = BuildYsonStringFluently()
-                .BeginMap()
-                    .Item("error").Value(error)
-                .EndMap();
-            req->set_value(errorString.GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
+            // Set result.
+            if (operation->IsFinishedState()) {
+                auto req = TYPathProxy::Set(operationPath + "/@result");
+                auto error = FromProto<TError>(operation->Result().error());
+                auto errorString = BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("error").Value(error)
+                    .EndMap();
+                req->set_value(errorString.GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
 
-        // Set end time, if given.
-        if (operation->GetFinishTime()) {
-            auto req = TYPathProxy::Set(operationPath + "/@finish_time");
-            req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
+            // Set end time, if given.
+            if (operation->GetFinishTime()) {
+                auto req = TYPathProxy::Set(operationPath + "/@finish_time");
+                req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
 
-        // Set state.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@state");
-            req->set_value(ConvertToYsonString(operation->GetState()).GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
+            // Set state.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@state");
+                req->set_value(ConvertToYsonString(operation->GetState()).GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
 
-        // Set alerts.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@alerts");
-            const auto& alerts = operation->Alerts();
-            req->set_value(BuildYsonStringFluently()
-                .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
-                    [&] (TFluentMap fluent, EOperationAlertType alertType) {
-                        if (!alerts[alertType].IsOK()) {
-                            fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
-                        }
-                    })
-                .GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
+            // Set alerts.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@alerts");
+                const auto& alerts = operation->Alerts();
+                req->set_value(BuildYsonStringFluently()
+                    .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
+                        [&] (TFluentMap fluent, EOperationAlertType alertType) {
+                            if (!alerts[alertType].IsOK()) {
+                                fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
+                            }
+                        })
+                    .GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
 
-        // Set operation acl.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@acl");
-            req->set_value(BuildYsonStringFluently()
-                .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
-                .GetData());
-            batchReq->AddRequest(req, "update_op_node");
+            // Set operation acl.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@acl");
+                req->set_value(BuildYsonStringFluently()
+                    .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
+                    .GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());

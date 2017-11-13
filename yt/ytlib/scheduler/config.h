@@ -215,6 +215,8 @@ public:
 
     bool FailGetJobSpec;
 
+    EOperationCypressStorageMode CypressStorageMode;
+
     TTestingOperationOptions();
 };
 

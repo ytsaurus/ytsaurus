@@ -556,7 +556,7 @@ public:
             user,
             ToString(operationId));
 
-        auto path = GetOperationPath(operationId);
+        auto path = GetNewOperationPath(operationId);
 
         const auto& client = GetMasterClient();
         auto asyncResult = client->CheckPermission(user, path, permission);
@@ -623,7 +623,8 @@ public:
             user,
             operationSpec->Owners,
             TInstant::Now(),
-            GetControlInvoker(EControlQueue::Operation));
+            GetControlInvoker(EControlQueue::Operation),
+            operationSpec->TestingOperationOptions->CypressStorageMode);
         operation->SetState(EOperationState::Initializing);
         operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
@@ -686,7 +687,11 @@ public:
                 operation->GetState()));
         }
 
-        DoSuspendOperation(operation->GetId(), TError("Suspend operation by user request"), abortRunningJobs, /* setAlert */ false);
+        DoSuspendOperation(
+            operation->GetId(),
+            TError("Suspend operation by user request"),
+            abortRunningJobs,
+            /* setAlert */ false);
 
         return MasterConnector_->FlushOperationNode(operation);
     }
@@ -1572,9 +1577,18 @@ private:
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         static auto runtimeParamsTemplate = New<TOperationRuntimeParams>();
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), runtimeParamsTemplate->GetRegisteredKeys());
-        batchReq->AddRequest(req, "get_runtime_params");
+
+        {
+            auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), runtimeParamsTemplate->GetRegisteredKeys());
+            batchReq->AddRequest(req, "get_runtime_params");
+        }
+
+        {
+            auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), runtimeParamsTemplate->GetRegisteredKeys());
+            batchReq->AddRequest(req, "get_runtime_params_new");
+        }
     }
 
     void HandleOperationRuntimeParams(
@@ -1582,18 +1596,25 @@ private:
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
-        if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error updating operation runtime parameters (OperationId: %v)",
-                operation->GetId());
-            return;
+        auto rspOrErrorNew = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params_new");
+
+        auto storageMode = operation->GetStorageMode();
+
+        auto* rspOrErrorPtr = storageMode == EOperationCypressStorageMode::HashBuckets
+            ? &rspOrErrorNew
+            : &rspOrError;
+
+        if (!rspOrErrorPtr->IsOK()) {
+            LOG_WARNING(*rspOrErrorPtr, "Error updating operation runtime parameters (OperationId: %v)",
+                        operation->GetId());
         }
 
-        const auto& rsp = rspOrError.Value();
-        auto attributesNode = ConvertToNode(TYsonString(rsp->value()));
+        const auto& rsp = rspOrErrorPtr->Value();
+        auto runtimeParamsNode = ConvertToNode(TYsonString(rsp->value()));
 
         try {
             auto newRuntimeParams = CloneYsonSerializable(operation->GetRuntimeParams());
-            if (ReconfigureYsonSerializable(newRuntimeParams, attributesNode)) {
+            if (ReconfigureYsonSerializable(newRuntimeParams, runtimeParamsNode)) {
                 if (operation->GetOwners() != newRuntimeParams->Owners) {
                     operation->SetOwners(newRuntimeParams->Owners);
                 }

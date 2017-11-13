@@ -3171,8 +3171,14 @@ private:
             optionsToCypress.Timeout = *deadline - Now();
         }
 
-        auto asyncAttrResult = GetNode(GetOperationAttributesPath(operationId), optionsToCypress);
+        auto asyncAttrResult = GetNode(GetNewOperationPath(operationId) + "/@", optionsToCypress);
         auto attrNodeOrError = WaitFor(asyncAttrResult);
+
+        // COMPAT
+        if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            auto asyncAttrResultOld = GetNode(GetOperationPath(operationId) + "/@", optionsToCypress);
+            attrNodeOrError = WaitFor(asyncAttrResultOld);
+        }
 
         if (attrNodeOrError.GetCode() == NYT::EErrorCode::OK) {
             auto attrNodeValue = attrNodeOrError.Value();
@@ -3182,7 +3188,7 @@ private:
                 optionsToScheduler.Timeout = *deadline - Now();
             }
 
-            auto asyncSchedulerProgressValue = GetNode(GetOperationsProgressFromScheduler(operationId), optionsToScheduler);
+            auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), optionsToScheduler);
             auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
 
             if (schedulerProgressValueOrError.GetCode() == NYT::EErrorCode::OK) {
@@ -3411,13 +3417,20 @@ private:
         const TOperationId& operationId,
         const TJobId& jobId)
     {
+        auto createFileReader = [&] (const NYPath::TYPath& path) {
+            return WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path));
+        };
+
         try {
-            auto path = NScheduler::GetStderrPath(operationId, jobId);
+            auto fileReaderOrError = createFileReader(NScheduler::GetNewStderrPath(operationId, jobId));
+            // COMPAT
+            if (fileReaderOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                fileReaderOrError = createFileReader(NScheduler::GetStderrPath(operationId, jobId));
+            }
+
+            auto fileReader = fileReaderOrError.ValueOrThrow();
 
             std::vector<TSharedRef> blocks;
-            auto fileReader = WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path))
-                .ValueOrThrow();
-
             while (true) {
                 auto block = WaitFor(fileReader->Read())
                     .ValueOrThrow();
@@ -4312,7 +4325,6 @@ private:
     {
         TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
-        auto getReq = TYPathProxy::Get(GetJobsPath(operationId));
         auto attributeFilter = std::vector<TString>{
             "job_type",
             "state",
@@ -4326,13 +4338,42 @@ private:
             "uncompressed_data_size"
         };
 
-        ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto getReq = TYPathProxy::Get(GetJobsPath(operationId));
+            ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
+            batchReq->AddRequest(getReq, "get_jobs");
+        }
+
+        {
+            auto getReqNew = TYPathProxy::Get(GetNewJobsPath(operationId));
+            ToProto(getReqNew->mutable_attributes()->mutable_keys(), attributeFilter);
+            batchReq->AddRequest(getReqNew, "get_jobs_new");
+        }
 
         if (deadline) {
             proxy.SetDefaultTimeout(*deadline - Now());
         }
 
-        return proxy.Execute(getReq).Apply(BIND([operationId, options] (const TYPathProxy::TRspGetPtr& rsp) {
+        auto batchRequestFuture = batchReq->Invoke();
+
+        return batchRequestFuture.Apply(BIND([operationId, options] (
+            const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
+        {
+            const auto& batchRsp = batchRspOrError.ValueOrThrow();
+
+            auto getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs_new");
+            if (!getReqRsp.IsOK()) {
+                if (getReqRsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
+                } else {
+                    THROW_ERROR getReqRsp;
+                }
+            }
+
+            const auto& rsp = getReqRsp.ValueOrThrow();
+
             std::pair<std::vector<TJob>, int> result;
             auto& jobs = result.first;
 
