@@ -873,7 +873,7 @@ TNullable<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& c
     bool hasIndex = NFS::Exists(indexFileName);
 
     if (hasData) {
-        auto dispatcher = Bootstrap_->GetJournalDispatcher();
+        const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
         // NB: This also creates the index file, if missing.
         auto changelog = dispatcher->OpenChangelog(this, chunkId)
             .Get()
