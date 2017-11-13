@@ -174,7 +174,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                 "suspend_operation_if_account_limit_exceeded": True
             })
 
-        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)), iter=20)
+        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)), iter=30)
 
         time.sleep(0.5)
 
