@@ -1,5 +1,4 @@
-#include "block_writer.h"
-
+#include "retryful_writer.h"
 
 #include "retry_heavy_write_request.h"
 
@@ -15,12 +14,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockWriter::~TBlockWriter()
+TRetryfulWriter::~TRetryfulWriter()
 {
-    NDetail::FinishOrDie(this, "TBlockWriter");
+    NDetail::FinishOrDie(this, "TRetryfulWriter");
 }
 
-void TBlockWriter::CheckWriterState()
+void TRetryfulWriter::CheckWriterState()
 {
     switch (WriterState_) {
         case Ok:
@@ -32,7 +31,7 @@ void TBlockWriter::CheckWriterState()
     }
 }
 
-void TBlockWriter::NotifyRowEnd()
+void TRetryfulWriter::NotifyRowEnd()
 {
     CheckWriterState();
     if (Buffer_.Size() >= BufferSize_) {
@@ -40,7 +39,7 @@ void TBlockWriter::NotifyRowEnd()
     }
 }
 
-void TBlockWriter::DoWrite(const void* buf, size_t len)
+void TRetryfulWriter::DoWrite(const void* buf, size_t len)
 {
     CheckWriterState();
     while (Buffer_.Size() + len > Buffer_.Capacity()) {
@@ -49,7 +48,7 @@ void TBlockWriter::DoWrite(const void* buf, size_t len)
     BufferOutput_.Write(buf, len);
 }
 
-void TBlockWriter::DoFinish()
+void TRetryfulWriter::DoFinish()
 {
     if (WriterState_ != Ok) {
         return;
@@ -70,7 +69,7 @@ void TBlockWriter::DoFinish()
     }
 }
 
-void TBlockWriter::FlushBuffer(bool lastBlock)
+void TRetryfulWriter::FlushBuffer(bool lastBlock)
 {
     if (!Started_) {
         if (lastBlock) {
@@ -99,7 +98,7 @@ void TBlockWriter::FlushBuffer(bool lastBlock)
     HasData_.Signal();
 }
 
-void TBlockWriter::Send(const TBuffer& buffer)
+void TRetryfulWriter::Send(const TBuffer& buffer)
 {
     THttpHeader header("PUT", Command_);
     header.SetInputFormat(Format_);
@@ -115,7 +114,7 @@ void TBlockWriter::Send(const TBuffer& buffer)
     Parameters_ = SecondaryParameters_; // all blocks except the first one are appended
 }
 
-void TBlockWriter::SendThread()
+void TRetryfulWriter::SendThread()
 {
     while (!Stopped_) {
         try {
@@ -131,9 +130,9 @@ void TBlockWriter::SendThread()
     }
 }
 
-void* TBlockWriter::SendThread(void* opaque)
+void* TRetryfulWriter::SendThread(void* opaque)
 {
-    static_cast<TBlockWriter*>(opaque)->SendThread();
+    static_cast<TRetryfulWriter*>(opaque)->SendThread();
     return nullptr;
 }
 

@@ -1,6 +1,6 @@
 #include "client_writer.h"
 
-#include "block_writer.h"
+#include "retryful_writer.h"
 
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -15,7 +15,7 @@ TClientWriter::TClientWriter(
     const TTransactionId& transactionId,
     const TMaybe<TFormat>& format,
     const TTableWriterOptions& options)
-    : BlockWriter_(new TBlockWriter(
+    : BlockWriter_(new TRetryfulWriter(
         auth,
         transactionId,
         GetWriteTableCommand(),

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "block_writer.h"
+#include "retryful_writer.h"
 
 #include <mapreduce/yt/interface/io.h>
 
@@ -25,7 +25,7 @@ protected:
     void DoFinish() override;
 
 private:
-    TBlockWriter BlockWriter_;
+    TRetryfulWriter BlockWriter_;
 
     static const size_t BUFFER_SIZE = 64 << 20;
 };
