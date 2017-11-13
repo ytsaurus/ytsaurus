@@ -167,11 +167,28 @@ public:
     }
 
 private:
+    // NB: TBatch cannot outlive its owner.
+    TLeaderCommitter* const Owner_;
+    const TVersion StartVersion_;
+
+    const NLogging::TLogger Logger;
+
+    // Counting with the local flush.
+    int FlushCount_ = 0;
+
+    TFuture<void> LocalFlushResult_;
+    TPromise<void> QuorumFlushResult_ = NewPromise<void>();
+    std::vector<TSharedRef> BatchedRecordsData_;
+    TVersion CommittedVersion_;
+
+    TTimer Timer_;
+
+
     void OnRemoteFlush(TPeerId followerId, const THydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        Profiler.TimingCheckpoint(
+        auto time = Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerTags(followerId));
 
@@ -185,16 +202,18 @@ private:
 
         const auto& rsp = rspOrError.Value();
         if (rsp->logged()) {
-            LOG_DEBUG("Mutations are logged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
+            LOG_DEBUG("Mutations are logged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
                 GetStartVersion(),
-                GetMutationCount());
+                GetMutationCount(),
+                time.MilliSeconds());
             OnSuccessfulFlush();
         } else {
-            LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
+            LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
                 GetStartVersion(),
-                GetMutationCount());
+                GetMutationCount(),
+                time.MilliSeconds());
         }
     }
 
@@ -210,13 +229,14 @@ private:
             return;
         }
 
-        Profiler.TimingCheckpoint(
+        auto time = Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfPeerId()));
 
-        LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v)",
+        LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
-            GetMutationCount());
+            GetMutationCount(),
+            time.MilliSeconds());
 
         OnSuccessfulFlush();
     }
@@ -245,14 +265,18 @@ private:
 
     void SetSucceeded()
     {
-        if (QuorumFlushResult_.IsSet())
+        if (QuorumFlushResult_.IsSet()) {
             return;
+        }
 
-        LOG_DEBUG("Mutations are flushed by quorum");
-
-        Profiler.TimingCheckpoint(
+        auto time = Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerQuorumTags());
+
+        LOG_DEBUG("Mutations are flushed by quorum (StartVersion: %v, MutationCount: %v, WallTime: %v)",
+            GetStartVersion(),
+            GetMutationCount(),
+            time.MilliSeconds());
 
         QuorumFlushResult_.Set(TError());
     }
@@ -273,24 +297,6 @@ private:
             MakeStrong(Owner_),
             error));
     }
-
-
-    // NB: TBatch cannot outlive its owner.
-    TLeaderCommitter* const Owner_;
-    const TVersion StartVersion_;
-
-    // Counting with the local flush.
-    int FlushCount_ = 0;
-
-    TFuture<void> LocalFlushResult_;
-    TPromise<void> QuorumFlushResult_ = NewPromise<void>();
-    std::vector<TSharedRef> BatchedRecordsData_;
-    TVersion CommittedVersion_;
-
-    TTimer Timer_;
-
-    const NLogging::TLogger Logger;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
