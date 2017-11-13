@@ -65,20 +65,20 @@ public:
     { }
 
     TFuture<IChangelogPtr> OpenChangelog(
-        TStoreLocationPtr location,
+        const TStoreLocationPtr& location,
         const TChunkId& chunkId);
 
     TFuture<IChangelogPtr> CreateChangelog(
-        TStoreLocationPtr location,
+        const TStoreLocationPtr& location,
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
     TFuture<void> RemoveChangelog(
-        TJournalChunkPtr chunk,
+        const TJournalChunkPtr& chunk,
         bool enableMultiplexing);
 
     TFuture<bool> IsChangelogSealed(
-        TStoreLocationPtr location,
+        const TStoreLocationPtr& location,
         const TChunkId& chunkId);
 
     TFuture<void> SealChangelog(TJournalChunkPtr chunk);
@@ -196,7 +196,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
-    TStoreLocationPtr location,
+    const TStoreLocationPtr& location,
     const TChunkId& chunkId)
 {
     auto cookie = BeginInsert({location, chunkId});
@@ -237,7 +237,7 @@ IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
 }
 
 TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
-    TStoreLocationPtr location,
+    const TStoreLocationPtr& location,
     const TChunkId& chunkId,
     bool enableMultiplexing)
 {
@@ -262,7 +262,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
 }
 
 TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
-    TJournalChunkPtr chunk,
+    const TJournalChunkPtr& chunk,
     bool enableMultiplexing)
 {
     auto location = chunk->GetStoreLocation();
@@ -274,7 +274,7 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
 }
 
 TFuture<bool> TJournalDispatcher::TImpl::IsChangelogSealed(
-    TStoreLocationPtr location,
+    const TStoreLocationPtr& location,
     const TChunkId& chunkId)
 {
     const auto& journalManager = location->GetJournalManager();
@@ -321,14 +321,14 @@ TJournalDispatcher::TJournalDispatcher(TDataNodeConfigPtr config)
 TJournalDispatcher::~TJournalDispatcher() = default;
 
 TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
-    TStoreLocationPtr location,
+    const TStoreLocationPtr& location,
     const TChunkId& chunkId)
 {
     return Impl_->OpenChangelog(location, chunkId);
 }
 
 TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
-    TStoreLocationPtr location,
+    const TStoreLocationPtr& location,
     const TChunkId& chunkId,
     bool enableMultiplexing)
 {
@@ -336,14 +336,14 @@ TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
 }
 
 TFuture<void> TJournalDispatcher::RemoveChangelog(
-    TJournalChunkPtr chunk,
+    const TJournalChunkPtr& chunk,
     bool enableMultiplexing)
 {
     return Impl_->RemoveChangelog(chunk, enableMultiplexing);
 }
 
 TFuture<bool> TJournalDispatcher::IsChangelogSealed(
-    TStoreLocationPtr location,
+    const TStoreLocationPtr& location,
     const TChunkId& chunkId)
 {
     return Impl_->IsChangelogSealed(location, chunkId);

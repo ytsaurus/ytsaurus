@@ -36,7 +36,7 @@ public:
         bool enableMultiplexing);
 
     TFuture<void> RemoveChangelog(
-        TJournalChunkPtr chunk,
+        const TJournalChunkPtr& chunk,
         bool enableMultiplexing);
 
     TFuture<void> AppendMultiplexedRecord(
@@ -47,7 +47,7 @@ public:
 
     TFuture<bool> IsChangelogSealed(const TChunkId& chunkId);
 
-    TFuture<void> SealChangelog(TJournalChunkPtr chunk);
+    TFuture<void> SealChangelog(const TJournalChunkPtr& chunk);
 
 private:
     class TImpl;
