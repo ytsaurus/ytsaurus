@@ -1071,7 +1071,7 @@ private:
                 TChunkDescriptor(chunkId));
             chunkStore->RegisterNewChunk(chunk);
 
-            auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
             auto changelog = dispatcher->CreateChangelog(chunk->GetStoreLocation(), chunkId, false)
                 .Get()
                 .ValueOrThrow();
@@ -1091,7 +1091,7 @@ private:
 
             auto journalChunk = chunk->AsJournalChunk();
 
-            auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
             auto changelog = dispatcher->OpenChangelog(journalChunk->GetStoreLocation(), chunkId)
                 .Get()
                 .ValueOrThrow();
@@ -1129,7 +1129,7 @@ private:
             auto journalChunk = chunk->AsJournalChunk();
             chunkStore->UnregisterChunk(chunk);
 
-            auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
             dispatcher->RemoveChangelog(journalChunk, false)
                 .Get()
                 .ThrowOnError();

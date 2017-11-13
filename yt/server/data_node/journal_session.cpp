@@ -39,7 +39,7 @@ TFuture<void> TJournalSession::DoStart()
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
 
-    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     auto asyncChangelog = dispatcher->CreateChangelog(Location_, GetChunkId(), Options_.EnableMultiplexing);
     return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
         if (Chunk_->IsRemoveScheduled()) {
