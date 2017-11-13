@@ -57,6 +57,8 @@ public:
     //! Changes execution period.
     void SetPeriod(TDuration period);
 
+    TFuture<void> GetExecutedEvent();
+
 private:
     const IInvokerPtr Invoker_;
     const TClosure Callback_;
@@ -70,7 +72,12 @@ private:
     bool OutOfBandRequested_ = false;
     TDelayedExecutorCookie Cookie_;
     TPromise<void> IdlePromise_;
+    TPromise<void> ExecutedPromise_;
 
+    void DoStop();
+
+    void InitIdlePromise();
+    void InitExecutedPromise();
 
     void PostDelayedCallback(TDuration delay);
     void PostCallback();
