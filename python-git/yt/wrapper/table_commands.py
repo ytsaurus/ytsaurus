@@ -245,7 +245,7 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
 
     if part_size is None:
         try:
-            part_size = get_attribute(table, "part_size")
+            part_size = get_attribute(table, "part_size", client=client)
         except YtResponseError as err:
             if err.is_resolve_error():
                 raise YtError("You should specify part_size")
