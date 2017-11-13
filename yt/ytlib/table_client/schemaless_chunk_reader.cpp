@@ -739,8 +739,6 @@ private:
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
 
-    bool DoRead(std::vector<TUnversionedRow>* rows);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessLookupChunkReader)
@@ -826,75 +824,80 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 
 bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* rows)
 {
-    bool result = DoRead(rows);
-    if (PerformanceCounters_) {
-        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
-    }
-    return result;
-}
-
-bool THorizontalSchemalessLookupChunkReader::DoRead(std::vector<TUnversionedRow>* rows)
-{
     YCHECK(rows->capacity() > 0);
 
     MemoryPool_.Clear();
     rows->clear();
 
-    if (!BeginRead()) {
-        // Not ready yet.
-        return true;
-    }
+    i64 dataWeight = 0;
 
-    if (!BlockReader_) {
-        // Nothing to read from chunk.
-        if (RowCount_ == Keys_.Size()) {
-            return false;
-        }
-
-        while (rows->size() < rows->capacity() && RowCount_ < Keys_.Size()) {
-            rows->push_back(TUnversionedRow());
-            ++RowCount_;
-        }
-        return true;
-    }
-
-    if (BlockEnded_) {
-        BlockReader_.reset();
-        OnBlockEnded();
-        return true;
-    }
-
-    while (rows->size() < rows->capacity()) {
-        if (RowCount_ == Keys_.Size()) {
-            BlockEnded_ = true;
+    auto doRead = [&] {
+        if (!BeginRead()) {
+            // Not ready yet.
             return true;
         }
 
-        if (!KeyFilterTest_[RowCount_]) {
-            rows->push_back(TUnversionedRow());
-        } else {
-            const auto& key = Keys_[RowCount_];
-            if (!BlockReader_->SkipToKey(key)) {
+        if (!BlockReader_) {
+            // Nothing to read from chunk.
+            if (RowCount_ == Keys_.Size()) {
+                return false;
+            }
+
+            while (rows->size() < rows->capacity() && RowCount_ < Keys_.Size()) {
+                rows->push_back(TUnversionedRow());
+                ++RowCount_;
+            }
+            return true;
+        }
+
+        if (BlockEnded_) {
+            BlockReader_.reset();
+            OnBlockEnded();
+            return true;
+        }
+
+        while (rows->size() < rows->capacity()) {
+            if (RowCount_ == Keys_.Size()) {
                 BlockEnded_ = true;
                 return true;
             }
 
-            if (key == BlockReader_->GetKey()) {
-                auto row = BlockReader_->GetRow(&MemoryPool_);
-                rows->push_back(row);
-                DataWeight_ += GetDataWeight(row);
-
-                int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-                const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
-                RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
-            } else {
+            if (!KeyFilterTest_[RowCount_]) {
                 rows->push_back(TUnversionedRow());
+            } else {
+                const auto& key = Keys_[RowCount_];
+                if (!BlockReader_->SkipToKey(key)) {
+                    BlockEnded_ = true;
+                    return true;
+                }
+
+                if (key == BlockReader_->GetKey()) {
+                    auto row = BlockReader_->GetRow(&MemoryPool_);
+                    rows->push_back(row);
+                    dataWeight += GetDataWeight(row);
+
+                    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+                    const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+                    RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
+                } else {
+                    rows->push_back(TUnversionedRow());
+                }
             }
+
+            ++RowCount_;
         }
-        ++RowCount_;
+
+        return true;
+    };
+
+    bool result = doRead();
+
+    if (PerformanceCounters_) {
+        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
     }
 
-    return true;
+    return result;
 }
 
 void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
@@ -1460,11 +1463,14 @@ public:
             }
         }
 
+        i64 rowCount = rows->size();
+
         if (PerformanceCounters_) {
-            PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+            PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
+            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
         }
 
-        RowCount_ += rows->size();
+        RowCount_ += rowCount;
         DataWeight_ += dataWeight;
 
         return true;
