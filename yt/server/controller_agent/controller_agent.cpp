@@ -234,6 +234,13 @@ public:
         return results;
     }
 
+    TFuture<void> GetHeartbeatSentFuture()
+    {
+        // In the a bit more far future this function will become unnecessary
+        // because of changes in processing operation statuses.
+        return HeartbeatExecutor_->GetExecutedEvent();
+    }
+
     void AttachJobContext(
         const TYPath& path,
         const TChunkId& chunkId,
@@ -283,8 +290,9 @@ private:
     TInstant ConnectionTime_;
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
+    using TControllersMap = yhash<TOperationId, IOperationControllerPtr>;
     TReaderWriterSpinLock ControllersLock_;
-    yhash<TOperationId, IOperationControllerPtr> Controllers_;
+    TControllersMap Controllers_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
@@ -310,12 +318,26 @@ private:
         return it->second;
     }
 
+    TControllersMap GetControllers()
+    {
+        TReaderGuard guard(ControllersLock_);
+        return Controllers_;
+    }
+
     void SendHeartbeat()
     {
         auto proxy = TControllerAgentServiceProxy(Bootstrap_->GetLocalRpcChannel());
         proxy.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
 
         auto req = proxy.Heartbeat();
+
+        auto controllers = GetControllers();
+        for (const auto& pair : controllers) {
+            const auto& controller = pair.second;
+            auto jobMetricsDelta = controller->ExtractJobMetricsDelta();
+            ToProto(req->add_job_metrics(), jobMetricsDelta);
+        }
+
         auto rspOrError = WaitFor(req->Invoke());
 
         if (!rspOrError.IsOK()) {
@@ -465,6 +487,11 @@ void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
 std::vector<TErrorOr<TSharedRef>> TControllerAgent::GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
 {
     return Impl_->GetJobSpecs(jobSpecRequests);
+}
+
+TFuture<void> TControllerAgent::GetHeartbeatSentFuture()
+{
+    return Impl_->GetHeartbeatSentFuture();
 }
 
 int TControllerAgent::GetExecNodeCount() const

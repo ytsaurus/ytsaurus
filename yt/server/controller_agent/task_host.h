@@ -42,7 +42,6 @@ struct ITaskHost
     virtual void AddTaskPendingHint(const TTaskPtr& task) = 0;
 
     virtual ui64 NextJobIndex() = 0;
-    virtual std::unique_ptr<TJobMetricsUpdater> CreateJobMetricsUpdater() const = 0;
 
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) = 0;

@@ -147,8 +147,6 @@ struct IOperationHost
         const TOperationId& operationId,
         std::vector<TJobId> jobIds,
         int controllerSchedulerIncarnation) = 0;
-
-    virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const NScheduler::TJobMetrics& jobMetrics) = 0;
 };
 
 struct IOperationControllerStrategyHost
@@ -446,6 +444,12 @@ struct IOperationController
     //! Method that is called after operation results are commited and before
     //! controller is disposed.
     virtual void OnBeforeDisposal() = 0;
+
+    /*!
+     * \note Invoker affinity: any.
+     */
+    //! Returns metrics delta since last call.
+    virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -285,7 +285,6 @@ public:
     virtual void AddTaskPendingHint(const TTaskPtr& task) override;
 
     virtual ui64 NextJobIndex() override;
-    virtual std::unique_ptr<TJobMetricsUpdater> CreateJobMetricsUpdater() const override;
 
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override;
@@ -351,6 +350,8 @@ public:
     virtual int OnSnapshotStarted() override;
 
     virtual void OnBeforeDisposal() override;
+
+    virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() override;
 
 protected:
     IOperationHost* Host;
@@ -927,6 +928,10 @@ private:
     //! Aggregates job statistics.
     NJobTrackerClient::TStatistics JobStatistics;
 
+    TSpinLock JobMetricsDeltaLock_;
+    //! Delta of job metrics that was not reported to scheduler.
+    NScheduler::TJobMetrics JobMetricsDelta_;
+
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
 
@@ -1033,6 +1038,7 @@ private:
     int GetExecNodeCount();
 
     void UpdateJobStatistics(const TJobletPtr& joblet, const NScheduler::TJobSummary& jobSummary);
+    void UpdateJobMetrics(const TJobletPtr& joblet, const NScheduler::TJobSummary& jobSummary);
 
     void LogProgress(bool force = false);
 
@@ -1099,6 +1105,8 @@ private:
 
     void DoAbort();
     void AbortAllJoblets();
+
+    void WaitForHeartbeat();
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

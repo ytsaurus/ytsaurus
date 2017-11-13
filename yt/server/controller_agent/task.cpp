@@ -4,7 +4,6 @@
 #include "job_info.h"
 #include "job_splitter.h"
 #include "job_memory.h"
-#include "job_metrics_updater.h"
 #include "helpers.h"
 #include "task_host.h"
 
@@ -222,7 +221,7 @@ void TTask::ScheduleJob(
     }
 
     int jobIndex = TaskHost_->NextJobIndex();
-    auto joblet = New<TJoblet>(TaskHost_->CreateJobMetricsUpdater(), this, jobIndex);
+    auto joblet = New<TJoblet>(this, jobIndex);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;

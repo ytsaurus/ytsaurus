@@ -333,15 +333,15 @@ public:
         *completedJobs = remainingCompletedJobs;
     }
 
-    void ApplyJobMetricsDelta(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta)
+    void ApplyJobMetricsDelta(const TOperationJobMetrics& jobMetrics)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TRootElementSnapshotPtr rootElementSnapshot = GetRootSnapshot();
 
-        auto* operationElement = rootElementSnapshot->FindOperationElement(operationId);
+        auto* operationElement = rootElementSnapshot->FindOperationElement(jobMetrics.OperationId);
         if (operationElement) {
-            operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
+            operationElement->ApplyJobMetricsDelta(jobMetrics.JobMetrics);
         }
     }
 
@@ -2083,13 +2083,11 @@ public:
         FairShareTree_->BuildOrchid(fluent);
     }
 
-    virtual void ApplyJobMetricsDelta(
-        const TOperationId& operationId,
-        const TJobMetrics& jobMetricsDelta) override
+    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& jobMetrics) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        FairShareTree_->ApplyJobMetricsDelta(operationId, jobMetricsDelta);
+        FairShareTree_->ApplyJobMetricsDelta(jobMetrics);
     }
 
     virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) override

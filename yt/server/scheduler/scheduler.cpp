@@ -506,11 +506,6 @@ public:
                 controllerSchedulerIncarnation));
     }
 
-    virtual void SendJobMetricsToStrategy(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) override
-    {
-        GetStrategy()->ApplyJobMetricsDelta(operationId, jobMetricsDelta);
-    }
-
     virtual void ValidatePoolPermission(
         const TYPath& path,
         const TString& user,
@@ -828,6 +823,11 @@ public:
         NScheduler::NProto::TRspHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        for (const auto& jobMetricsProto : request->job_metrics()) {
+            auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
+            GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
+        }
 
         TExecNodeDescriptorListPtr execNodes;
         {

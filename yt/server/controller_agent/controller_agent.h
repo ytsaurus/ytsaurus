@@ -69,6 +69,8 @@ public:
 
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests);
 
+    TFuture<void> GetHeartbeatSentFuture();
+
     //! Returns the total number of online exec nodes.
     /*!
      *  \note Thread affinity: any
