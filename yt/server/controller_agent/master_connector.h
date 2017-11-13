@@ -46,6 +46,7 @@ public:
 
     void RegisterOperation(
         const TOperationId& operationId,
+        NScheduler::EOperationCypressStorageMode storageMode,
         const IOperationControllerPtr& controller);
     
     void UnregisterOperation(const TOperationId& operationId);
@@ -57,7 +58,7 @@ public:
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
         const NObjectClient::TTransactionId& transactionId,
-        const NCypressClient::TNodeId& tableId,
+        const std::vector<NCypressClient::TNodeId>& tableIds,
         const std::vector<NChunkClient::TChunkTreeId>& childIds);
 
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId);

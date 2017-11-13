@@ -301,7 +301,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
     try {
         LOG_INFO("Started uploading snapshot");
 
-        auto snapshotPath = GetSnapshotPath(operationId);
+        auto snapshotPath = GetNewSnapshotPath(operationId);
 
         // Start outer transaction.
         ITransactionPtr transaction;
@@ -381,6 +381,19 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             LOG_WARNING("Empty snapshot found, skipping it");
             transaction->Abort();
         } else {
+            // Copy snapshot to old operation node if such node exists.
+            {
+                TCopyNodeOptions options;
+                options.Recursive = false;
+                options.Force = false;
+
+                // Intentionally ignoring result, intermediate nodes can be missing.
+                Y_UNUSED(WaitFor(transaction->CopyNode(
+                    snapshotPath,
+                    GetSnapshotPath(operationId),
+                    options)));
+            }
+
             // Commit outer transaction.
             WaitFor(transaction->Commit())
                 .ThrowOnError();

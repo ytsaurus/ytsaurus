@@ -105,6 +105,7 @@ public:
 
     void DoRegisterOperation(
         const TOperationId& operationId,
+        EOperationCypressStorageMode storageMode,
         const IOperationControllerPtr& controller)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -114,14 +115,15 @@ public:
             YCHECK(ControllerMap_.emplace(operationId, controller).second);
         }
 
-        OperationNodesUpdateExecutor_->AddUpdate(operationId, TOperationNodeUpdate(operationId));
+        OperationNodesUpdateExecutor_->AddUpdate(operationId, TOperationNodeUpdate(operationId, storageMode));
     }
 
     void RegisterOperation(
         const TOperationId& operationId,
+        EOperationCypressStorageMode storageMode,
         const IOperationControllerPtr& controller)
     {
-        BIND(&TImpl::DoRegisterOperation, MakeStrong(this), operationId, controller)
+        BIND(&TImpl::DoRegisterOperation, MakeStrong(this), operationId, storageMode, controller)
             .AsyncVia(Invoker_)
             .Run()
             .Subscribe(
@@ -177,12 +179,12 @@ public:
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
         const TTransactionId& transactionId,
-        const TNodeId& tableId,
+        const std::vector<TNodeId>& tableIds,
         const std::vector<TChunkTreeId>& childIds)
     {
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run(operationId, transactionId, tableId, childIds);
+            .Run(operationId, transactionId, tableIds, childIds);
     }
 
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
@@ -286,11 +288,13 @@ private:
 
     struct TOperationNodeUpdate
     {
-        explicit TOperationNodeUpdate(const TOperationId& operationId)
+        TOperationNodeUpdate(const TOperationId& operationId, EOperationCypressStorageMode storageMode)
             : OperationId(operationId)
+            , StorageMode(storageMode)
         { }
 
         TOperationId OperationId;
+        EOperationCypressStorageMode StorageMode;
         TTransactionId TransactionId;
         std::vector<TCreateJobNodeRequest> JobRequests;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
@@ -412,6 +416,7 @@ private:
 
     void DoUpdateOperationNode(
         const TOperationId& operationId,
+        EOperationCypressStorageMode storageMode,
         const TTransactionId& transactionId,
         const std::vector<TCreateJobNodeRequest> jobRequests,
         const std::vector<TLivePreviewRequest> livePreviewRequests)
@@ -419,7 +424,7 @@ private:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         try {
-            CreateJobNodes(operationId, jobRequests);
+            CreateJobNodes(operationId, storageMode, jobRequests);
         } catch (const std::exception& ex) {
             auto error = TError("Error creating job nodes for operation %v",
                 operationId)
@@ -434,22 +439,29 @@ private:
 
         try {
             std::vector<TJobFile> files;
+
             for (const auto& request : jobRequests) {
                 if (request.StderrChunkId) {
-                    files.push_back({
-                        request.JobId,
-                        GetStderrPath(operationId, request.JobId),
-                        request.StderrChunkId,
-                        "stderr"
-                    });
+                    auto paths = GetCompatibilityJobPaths(operationId, request.JobId, storageMode, "stderr");
+                    for (const auto& path : paths) {
+                        files.push_back({
+                            request.JobId,
+                            path,
+                            request.StderrChunkId,
+                            "stderr"
+                        });
+                    }
                 }
                 if (request.FailContextChunkId) {
-                    files.push_back({
-                        request.JobId,
-                        GetFailContextPath(operationId, request.JobId),
-                        request.FailContextChunkId,
-                        "fail_context"
-                    });
+                    auto paths = GetCompatibilityJobPaths(operationId, request.JobId, storageMode, "fail_context");
+                    for (const auto& path : paths) {
+                        files.push_back({
+                            request.JobId,
+                            path,
+                            request.FailContextChunkId,
+                            "fail_context"
+                        });
+                    }
                 }
             }
             SaveJobFiles(operationId, files);
@@ -470,7 +482,7 @@ private:
         }
 
         try {
-            UpdateOperationNodeAttributes(operationId);
+            UpdateOperationNodeAttributes(operationId, storageMode);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
@@ -487,6 +499,7 @@ private:
             return BIND(&TImpl::DoUpdateOperationNode,
                 MakeStrong(this),
                 operationId,
+                update->StorageMode,
                 update->TransactionId,
                 Passed(std::move(update->JobRequests)),
                 Passed(std::move(update->LivePreviewRequests)))
@@ -496,12 +509,10 @@ private:
         }
     }
 
-    void UpdateOperationNodeAttributes(const TOperationId& operationId)
+    void UpdateOperationNodeAttributes(const TOperationId& operationId, EOperationCypressStorageMode storageMode)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto batchReq = StartObjectBatchRequest();
-        auto operationPath = GetOperationPath(operationId);
         auto controller = GetOperationController(operationId);
         if (!controller || !controller->HasProgress()) {
             return;
@@ -509,6 +520,9 @@ private:
 
         controller->SetProgressUpdated();
 
+        auto paths = GetCompatibilityOperationPaths(operationId, storageMode);
+
+        auto batchReq = StartObjectBatchRequest();
         GenerateMutationId(batchReq);
 
         // Set progress.
@@ -516,9 +530,11 @@ private:
             auto progress = controller->GetProgress();
             YCHECK(progress);
 
-            auto req = TYPathProxy::Set(operationPath + "/@progress");
-            req->set_value(progress.GetData());
-            batchReq->AddRequest(req, "update_op_node");
+            for (const auto& operationPath : paths) {
+                auto req = TYPathProxy::Set(operationPath + "/@progress");
+                req->set_value(progress.GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
         }
 
         // Set brief progress.
@@ -526,9 +542,11 @@ private:
             auto progress = controller->GetBriefProgress();
             YCHECK(progress);
 
-            auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
-            req->set_value(progress.GetData());
-            batchReq->AddRequest(req, "update_op_node");
+            for (const auto& operationPath : paths) {
+                auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
+                req->set_value(progress.GetData());
+                batchReq->AddRequest(req, "update_op_node");
+            }
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -537,6 +555,7 @@ private:
 
     void CreateJobNodes(
         const TOperationId& operationId,
+        EOperationCypressStorageMode storageMode,
         const std::vector<TCreateJobNodeRequest>& jobRequests)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -549,14 +568,17 @@ private:
 
         for (const auto& request : jobRequests) {
             const auto& jobId = request.JobId;
-            auto jobPath = GetJobPath(operationId, jobId);
 
+            auto paths = GetCompatibilityJobPaths(operationId, jobId, storageMode);
             auto attributes = ConvertToAttributes(request.Attributes);
-            auto req = TCypressYPathProxy::Create(jobPath);
-            GenerateMutationId(req);
-            req->set_type(static_cast<int>(EObjectType::MapNode));
-            ToProto(req->mutable_node_attributes(), *attributes);
-            batchReq->AddRequest(req, "create");
+
+            for (const auto& path : paths) {
+                auto req = TCypressYPathProxy::Create(path);
+                GenerateMutationId(req);
+                req->set_type(static_cast<int>(EObjectType::MapNode));
+                ToProto(req->mutable_node_attributes(), *attributes);
+                batchReq->AddRequest(req, "create");
+            }
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -734,7 +756,7 @@ private:
     void DoAttachToLivePreview(
         const TOperationId& operationId,
         const TTransactionId& transactionId,
-        const TNodeId& tableId,
+        const std::vector<TNodeId>& tableIds,
         const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -753,47 +775,66 @@ private:
             YCHECK(list->TransactionId == transactionId);
         }
 
-        LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
+        LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableIds: %v, ChildCount: %v)",
             operationId,
-            tableId,
+            tableIds,
             childIds.size());
 
-        for (const auto& childId : childIds) {
-            list->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
+        for (const auto& tableId : tableIds) {
+            for (const auto& childId : childIds) {
+                list->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
+            }
         }
     }
 
     TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
     {
-        auto snapshotPath = NScheduler::GetSnapshotPath(operationId);
+        using NScheduler::GetSnapshotPath;
+        using NScheduler::GetNewSnapshotPath;
 
         auto batchReq = StartObjectBatchRequest();
-        auto req = TYPathProxy::Get(snapshotPath + "/@version");
-        batchReq->AddRequest(req, "get_version");
+        for (const auto& path : {GetSnapshotPath(operationId), GetNewSnapshotPath(operationId)}) {
+            auto req = TYPathProxy::Get(path + "/@version");
+            batchReq->AddRequest(req, "get_version");
+        }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         const auto& batchRsp = batchRspOrError.ValueOrThrow();
 
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_version");
-        // Check for missing snapshots.
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_version");
+
+        TNullable<int> version;
+
+        for (const auto& rsp : rsps) {
+            if (version) {
+                break;
+            }
+
+            if (rsp.IsOK()) {
+                const auto& versionRsp = rsp.Value();
+                version = ConvertTo<int>(TYsonString(versionRsp->value()));
+            } else {
+                if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    THROW_ERROR_EXCEPTION("Error getting snapshot version")
+                        << rsp;
+                }
+            }
+        }
+
+        if (!version) {
             THROW_ERROR_EXCEPTION("Snapshot does not exist");
         }
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting snapshot version");
-
-        const auto& rsp = rspOrError.Value();
-        int version = ConvertTo<int>(TYsonString(rsp->value()));
 
         LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
             operationId,
-            version);
+            *version);
 
-        if (!ValidateSnapshotVersion(version)) {
+        if (!ValidateSnapshotVersion(*version)) {
             THROW_ERROR_EXCEPTION("Snapshot version validation failed");
         }
 
         TOperationSnapshot snapshot;
-        snapshot.Version = version;
+        snapshot.Version = *version;
         try {
             auto downloader = New<TSnapshotDownloader>(
                 Config_,
@@ -1109,9 +1150,10 @@ const IInvokerPtr& TMasterConnector::GetInvoker() const
 
 void TMasterConnector::RegisterOperation(
     const TOperationId& operationId,
+    EOperationCypressStorageMode storageMode,
     const IOperationControllerPtr& controller)
 {
-    Impl_->RegisterOperation(operationId, controller);
+    Impl_->RegisterOperation(operationId, storageMode, controller);
 }
 
 void TMasterConnector::UnregisterOperation(const TOperationId& operationId)
@@ -1132,10 +1174,10 @@ TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operation
 TFuture<void> TMasterConnector::AttachToLivePreview(
     const TOperationId& operationId,
     const TTransactionId& transactionId,
-    const TNodeId& tableId,
+    const std::vector<TNodeId>& tableIds,
     const std::vector<TChunkTreeId>& childIds)
 {
-    return Impl_->AttachToLivePreview(operationId, transactionId, tableId, childIds);
+    return Impl_->AttachToLivePreview(operationId, transactionId, tableIds, childIds);
 }
 
 TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)

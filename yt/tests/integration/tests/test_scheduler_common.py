@@ -402,7 +402,18 @@ class TestJobStderr(YTEnvSetup):
         assert resource_usage["disk_space_per_medium"].get("default", 0) > 0
 
         jobs = ls("//sys/operations/{0}/jobs".format(op.id))
-        assert get("//sys/operations/{0}/jobs/{1}/@recursive_resource_usage".format(op.id, jobs[0])) == resource_usage
+        get("//sys/operations/{0}/jobs/{1}".format(op.id, jobs[0]))
+        get("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, jobs[0]))
+        recursive_resource_usage = get("//sys/operations/{0}/jobs/{1}/@recursive_resource_usage" \
+            .format(op.id, jobs[0]))
+
+        # NOTE: Diving by two here because of compatible operations storage schema:
+        # stderrs are stored in both //sys/operations/<op_id>/jobs/<job_id>/stderr
+        # and //sys/operations/<hash>/<op_id>/jobs/<job_id>/stderr.
+        assert recursive_resource_usage["chunk_count"] == resource_usage["chunk_count"] // 2
+        assert recursive_resource_usage["node_count"] == resource_usage["node_count"] // 2
+        assert recursive_resource_usage["disk_space_per_medium"]["default"] == \
+            resource_usage["disk_space_per_medium"]["default"] // 2
 
         set("//sys/accounts/test_account/@resource_limits/chunk_count", 0)
         set("//sys/accounts/test_account/@resource_limits/node_count", 0)
@@ -2476,11 +2487,13 @@ class TestPoolMetrics(YTEnvSetup):
 
         set("//sys/operations/{0}/@owners/end".format(op.id), "u")
         set("//sys/operations/{0}/@weight".format(op.id), 3)
+        set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 0})
 
         time.sleep(1.0)
 
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
 
 ##################################################################
 
@@ -2582,3 +2595,243 @@ class TestResourceLimitsOverrides(YTEnvSetup):
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
         assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 1
+
+##################################################################
+
+class TestSchedulerDifferentOperationStorageModes(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    STORAGE_MODES = ["simple_hash_buckets", "hash_buckets", "compatible"]
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "snapshot_period": 500
+        }
+    }
+
+    def _get_new_operation_path(self, op_id):
+        return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
+
+    def _get_operation_path(self, op_id):
+        return "//sys/operations/" + op_id
+
+    def _run_operations(self):
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
+
+        ops = []
+        for i in xrange(3):
+            create("table", "//tmp/t_output_" + str(i))
+
+            cmd = """
+if [ "$YT_JOB_INDEX" == "0"  ]; then
+    exit 1
+else
+    sleep 1000; cat
+fi
+"""
+
+            op = map(
+                command=cmd,
+                in_="//tmp/t_input",
+                out="//tmp/t_output_" + str(i),
+                spec={
+                    "testing": {
+                        "cypress_storage_mode": self.STORAGE_MODES[i]
+                    },
+                    "data_size_per_job": 1,
+                },
+                dont_track=True)
+
+            ops.append(op)
+
+        state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state"
+        wait(lambda: all(get(state_path.format(op.id)) == "running" for op in ops))
+
+        return ops
+
+    def test_revive(self):
+        ops = self._run_operations()
+
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs"
+        for op in ops:
+            wait(lambda: get(jobs_path.format(op.id))["failed"] == 1)
+
+        time.sleep(1.0)  # Give scheduler some time to write snapshot.
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        for mode, op in zip(self.STORAGE_MODES, ops):
+            if mode == "hash_buckets":
+                wait(lambda: get(self._get_new_operation_path(op.id) + "/@state") == "running")
+            else:
+                wait(lambda: get(self._get_operation_path(op.id) + "/@state") == "running")
+
+            assert get(jobs_path.format(op.id))["failed"] == 1
+
+    def test_attributes(self):
+        ops = self._run_operations()
+
+        # Simple hash buckets
+        assert get(self._get_operation_path(ops[0].id) + "/@state") == "running"
+        assert not exists(self._get_new_operation_path(ops[0].id) + "/@state")
+        ops[0].complete()
+        assert exists(self._get_new_operation_path(ops[0].id) + "/@committed")
+        assert exists(self._get_new_operation_path(ops[0].id) + "/@completion_transaction_id")
+
+        # Hash buckets
+        assert get(self._get_new_operation_path(ops[1].id) + "/@state") == "running"
+        assert not exists(self._get_operation_path(ops[1].id))
+        ops[1].complete()
+        assert exists(self._get_new_operation_path(ops[1].id) + "/@committed")
+        assert exists(self._get_new_operation_path(ops[1].id) + "/@completion_transaction_id")
+
+        # Compatible
+        assert get(self._get_operation_path(ops[2].id) + "/@state") == "running"
+        assert get(self._get_new_operation_path(ops[2].id) + "/@state") == "running"
+        ops[2].complete()
+        # NOTE: This attribute is moved to hash buckets unconditionally in all modes.
+        assert not exists(self._get_operation_path(ops[2].id) + "/@committed")
+        assert exists(self._get_new_operation_path(ops[2].id) + "/@committed")
+
+    def test_runtime_params(self):
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", [{"key": "value"}])
+        create("table", "//tmp/t_output")
+
+        def _run_op(mode):
+            op = map(
+                command="sleep 1000; cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "testing": {
+                        "cypress_storage_mode": mode
+                    },
+                },
+                dont_track=True)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs"
+            wait(lambda: exists(jobs_path.format(op.id)) and len(ls(jobs_path.format(op.id))) == 1)
+
+            return op
+
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits/user_slots"
+
+        op = _run_op("hash_buckets")
+
+        set(self._get_new_operation_path(op.id) + "/@resource_limits", {"user_slots": 1})
+
+        time.sleep(1.0)
+        assert get(orchid_path.format(op.id)) == 1
+
+        op.abort()
+
+        for mode in ("simple_hash_buckets", "compatible"):
+            op = _run_op("simple_hash_buckets")
+
+            set(self._get_operation_path(op.id) + "/@resource_limits", {"user_slots": 1})
+            set(self._get_new_operation_path(op.id) + "/@resource_limits", {"user_slots": 3})
+
+            time.sleep(1.0)
+            assert get(orchid_path.format(op.id)) == 1
+
+            op.abort()
+
+    def test_inner_operation_nodes(self):
+        create("table", "//tmp/t_input")
+        write_table("<append=%true>//tmp/t_input", [{"key": "value"} for i in xrange(2)])
+        create("table", "//tmp/t_output")
+
+        cmd = """
+if [ "$YT_JOB_INDEX" == "0"  ]; then
+    python -c "import os; os.read(0, 1)"
+    echo "Oh no!" >&2
+    exit 1
+else
+    echo "abacaba"
+    sleep 1000
+fi
+"""
+
+        def _run_op(mode):
+            op = map(
+                command=cmd,
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "testing": {
+                        "cypress_storage_mode": mode
+                    },
+                    "data_size_per_job": 1
+                },
+                dont_track=True)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)
+            wait(lambda: exists(jobs_path) and get(jobs_path)["failed"] == 1 and get(jobs_path)["running"] >= 1)
+
+            time.sleep(1.0)
+
+            return op
+
+        get_async_scheduler_tx_path = lambda op: self._get_operation_path(op.id) + "/@async_scheduler_transaction_id"
+        get_async_scheduler_tx_path_new = lambda op: self._get_new_operation_path(op.id) + "/@async_scheduler_transaction_id"
+
+        get_output_path = lambda op: self._get_operation_path(op.id) + "/output_0"
+        get_output_path_new = lambda op: self._get_new_operation_path(op.id) + "/output_0"
+
+        get_stderr_path = lambda op, job_id: self._get_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
+        get_stderr_path_new = lambda op, job_id: self._get_new_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
+
+        get_fail_context_path = lambda op, job_id: self._get_operation_path(op.id) + "/jobs/" + job_id + "/fail_context"
+        get_fail_context_path_new = lambda op, job_id: self._get_new_operation_path(op.id) + "/jobs/" + job_id + "/fail_context"
+
+        # Compatible mode or simple hash buckets mode.
+        op = _run_op("compatible")
+        assert exists(get_async_scheduler_tx_path(op))
+        assert exists(get_async_scheduler_tx_path_new(op))
+        async_tx_id = get(get_async_scheduler_tx_path(op))
+        assert exists(get_output_path(op), tx=async_tx_id)
+        assert exists(get_output_path_new(op), tx=async_tx_id)
+
+        jobs = ls(self._get_operation_path(op.id) + "/jobs")
+        assert len(jobs) == 1
+        assert exists(get_fail_context_path_new(op, jobs[0]))
+        assert exists(get_fail_context_path(op, jobs[0]))
+        assert read_file(get_stderr_path(op, jobs[0])) == "Oh no!\n"
+        assert read_file(get_stderr_path_new(op, jobs[0])) == "Oh no!\n"
+        op.abort()
+
+        # Simple hash buckets mode.
+        op = _run_op("simple_hash_buckets")
+        assert exists(get_async_scheduler_tx_path(op))
+        assert not exists(get_async_scheduler_tx_path_new(op))
+        async_tx_id = get(get_async_scheduler_tx_path(op))
+        assert exists(get_output_path(op), tx=async_tx_id)
+        assert not exists(get_output_path_new(op), tx=async_tx_id)
+
+        jobs = ls(self._get_operation_path(op.id) + "/jobs")
+        assert len(jobs) == 1
+        assert not exists(get_fail_context_path_new(op, jobs[0]))
+        assert exists(get_fail_context_path(op, jobs[0]))
+        assert read_file(get_stderr_path(op, jobs[0])) == "Oh no!\n"
+        assert not exists(get_stderr_path_new(op, jobs[0]))
+        op.abort()
+
+        # Hash buckets mode.
+        op = _run_op("hash_buckets")
+        assert not exists(get_async_scheduler_tx_path(op))
+        assert exists(get_async_scheduler_tx_path_new(op))
+        async_tx_id = get(get_async_scheduler_tx_path_new(op))
+        assert not exists(get_output_path(op), tx=async_tx_id)
+        assert exists(get_output_path_new(op), tx=async_tx_id)
+
+        jobs = ls(self._get_new_operation_path(op.id) + "/jobs")
+        assert len(jobs) == 1
+        assert exists(get_fail_context_path_new(op, jobs[0]))
+        assert not exists(get_fail_context_path(op, jobs[0]))
+        assert not exists(get_stderr_path(op, jobs[0]))
+        assert read_file(get_stderr_path_new(op, jobs[0])) == "Oh no!\n"

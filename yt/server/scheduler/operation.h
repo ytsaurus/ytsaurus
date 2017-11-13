@@ -150,6 +150,9 @@ public:
     //! Scheduler incarnation that spawned this operation.
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulerIncarnation);
 
+    //! Cypress storage mode of the operation.
+    DEFINE_BYVAL_RO_PROPERTY(EOperationCypressStorageMode, StorageMode);
+
     //! Returns operation id.
     TOperationId GetId() const override;
 
@@ -217,6 +220,7 @@ public:
         const std::vector<TString>& owners,
         TInstant startTime,
         IInvokerPtr controlInvoker,
+        EOperationCypressStorageMode storageMode,
         EOperationState state = EOperationState::None,
         bool suspended = false,
         const std::vector<TOperationEvent>& events = {});

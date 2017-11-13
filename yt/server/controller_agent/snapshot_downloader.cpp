@@ -38,15 +38,20 @@ TSharedRef TSnapshotDownloader::Run()
 
     auto client = Bootstrap_->GetMasterClient();
 
-    auto snapshotPath = GetSnapshotPath(OperationId_);
-
-    IAsyncZeroCopyInputStreamPtr reader;
-    {
+    auto createReader = [&] (const NYPath::TYPath& path) {
         TFileReaderOptions options;
         options.Config = Config_->SnapshotReader;
-        reader = WaitFor(client->CreateFileReader(snapshotPath, options))
-            .ValueOrThrow();
+
+        return WaitFor(client->CreateFileReader(path, options));
+    };
+
+    auto readerOrError = createReader(GetNewSnapshotPath(OperationId_));
+    // COMPAT
+    if (readerOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        readerOrError = createReader(GetSnapshotPath(OperationId_));
     }
+
+    auto reader = readerOrError.ValueOrThrow();
 
     LOG_INFO("Snapshot reader opened");
 

@@ -206,6 +206,7 @@ TOperationControllerBase::TOperationControllerBase(
     , OperationType(operation->GetType())
     , StartTime(operation->GetStartTime())
     , AuthenticatedUser(operation->GetAuthenticatedUser())
+    , StorageMode(operation->GetStorageMode())
     , AuthenticatedMasterClient(CreateClient())
     , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
@@ -398,7 +399,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         SyncPrepare();
     }
 
-    MasterConnector->RegisterOperation(OperationId, MakeStrong(this));
+    MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
 
     LOG_INFO("Operation initialized");
 }
@@ -424,7 +425,7 @@ void TOperationControllerBase::Initialize()
     WaitFor(initializeFuture)
         .ThrowOnError();
 
-    MasterConnector->RegisterOperation(OperationId, MakeStrong(this));
+    MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
 
     UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
 
@@ -1068,7 +1069,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             MasterConnector->AttachToLivePreview(
                 OperationId,
                 AsyncSchedulerTransaction->GetId(),
-                table.LivePreviewTableId,
+                table.LivePreviewTableIds,
                 childIds);
         }
     }
@@ -1084,7 +1085,7 @@ void TOperationControllerBase::ReinstallLivePreview()
         MasterConnector->AttachToLivePreview(
             OperationId,
             AsyncSchedulerTransaction->GetId(),
-            IntermediateTable.LivePreviewTableId,
+            IntermediateTable.LivePreviewTableIds,
             childIds);
     }
 }
@@ -3483,64 +3484,72 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         for (int index = 0; index < OutputTables_.size(); ++index) {
             const auto& table = OutputTables_[index];
-            auto path = GetLivePreviewOutputPath(OperationId, index);
-            addRequest(
-                path,
-                table.CellTag,
-                table.Options->ReplicationFactor,
-                table.Options->CompressionCodec,
-                "create_output",
-                table.EffectiveAcl,
-                table.TableUploadOptions.TableSchema);
+            auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "output_" + ToString(index));
+
+            for (const auto& path : paths) {
+                addRequest(
+                    path,
+                    table.CellTag,
+                    table.Options->ReplicationFactor,
+                    table.Options->CompressionCodec,
+                    "create_output",
+                    table.EffectiveAcl,
+                    table.TableUploadOptions.TableSchema);
+            }
         }
     }
 
     if (StderrTable_) {
         LOG_INFO("Creating live preview for stderr table");
-        auto path = GetLivePreviewStderrTablePath(OperationId);
-        addRequest(
-            path,
-            StderrTable_->CellTag,
-            StderrTable_->Options->ReplicationFactor,
-            StderrTable_->Options->CompressionCodec,
-            "create_stderr",
-            StderrTable_->EffectiveAcl,
-            StderrTable_->TableUploadOptions.TableSchema);
+
+        auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "stderr");
+        for (const auto& path : paths) {
+            addRequest(
+                path,
+                StderrTable_->CellTag,
+                StderrTable_->Options->ReplicationFactor,
+                StderrTable_->Options->CompressionCodec,
+                "create_stderr",
+                StderrTable_->EffectiveAcl,
+                StderrTable_->TableUploadOptions.TableSchema);
+        }
     }
 
     if (IsIntermediateLivePreviewSupported()) {
         LOG_INFO("Creating live preview for intermediate table");
 
-        auto path = GetLivePreviewIntermediatePath(OperationId);
-        addRequest(
-            path,
-            IntermediateOutputCellTag,
-            1,
-            Spec_->IntermediateCompressionCodec,
-            "create_intermediate",
-            BuildYsonStringFluently()
-                .BeginList()
-                    .Item().BeginMap()
-                        .Item("action").Value("allow")
-                        .Item("subjects").BeginList()
-                            .Item().Value(AuthenticatedUser)
-                            .DoFor(Owners, [] (TFluentList fluent, const TString& owner) {
-                                fluent.Item().Value(owner);
-                            })
-                        .EndList()
-                        .Item("permissions").BeginList()
-                            .Item().Value("read")
-                        .EndList()
-                        .Item("account").Value(Spec_->IntermediateDataAccount)
-                    .EndMap()
-                    .DoFor(Spec_->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
-                        fluent.Item().Value(node);
-                    })
-                    .DoFor(Config->AdditionalIntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
-                        fluent.Item().Value(node);
-                    })
-                .EndList(),
-            Null);
+        auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "intermediate");
+        for (const auto& path : paths) {
+            addRequest(
+                path,
+                IntermediateOutputCellTag,
+                1,
+                Spec_->IntermediateCompressionCodec,
+                "create_intermediate",
+                BuildYsonStringFluently()
+                    .BeginList()
+                        .Item().BeginMap()
+                            .Item("action").Value("allow")
+                            .Item("subjects").BeginList()
+                                .Item().Value(AuthenticatedUser)
+                                .DoFor(Owners, [] (TFluentList fluent, const TString& owner) {
+                                    fluent.Item().Value(owner);
+                                })
+                            .EndList()
+                            .Item("permissions").BeginList()
+                                .Item().Value("read")
+                            .EndList()
+                            .Item("account").Value(Spec_->IntermediateDataAccount)
+                        .EndMap()
+                        .DoFor(Spec_->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
+                            fluent.Item().Value(node);
+                        })
+                        .DoFor(Config->AdditionalIntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
+                            fluent.Item().Value(node);
+                        })
+                    .EndList(),
+                Null);
+        }
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -3548,29 +3557,41 @@ void TOperationControllerBase::CreateLivePreviewTables()
     const auto& batchRsp = batchRspOrError.Value();
 
     auto handleResponse = [&] (TLivePreviewTableBase& table, TCypressYPathProxy::TRspCreatePtr rsp) {
-        table.LivePreviewTableId = FromProto<NCypressClient::TNodeId>(rsp->node_id());
+        table.LivePreviewTableIds.push_back(FromProto<NCypressClient::TNodeId>(rsp->node_id()));
     };
 
     if (IsOutputLivePreviewSupported()) {
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
-        YCHECK(rspsOrError.size() == OutputTables_.size());
-        for (int index = 0; index < OutputTables_.size(); ++index) {
-            handleResponse(OutputTables_[index], rspsOrError[index].Value());
+        int nodeCount = StorageMode == EOperationCypressStorageMode::Compatible ? 2 : 1;
+        YCHECK(rspsOrError.size() == OutputTables_.size() * nodeCount);
+
+        int index = 0;
+        int rspIndex = 0;
+        while (index < OutputTables_.size()) {
+            for (int shift = 0; shift < nodeCount; ++shift) {
+                handleResponse(OutputTables_[index], rspsOrError[rspIndex + shift].Value());
+            }
+            index += 1;
+            rspIndex += nodeCount;
         }
 
         LOG_INFO("Live preview for output tables created");
     }
 
     if (StderrTable_) {
-        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_stderr");
-        handleResponse(*StderrTable_, rspOrError.Value());
+        auto responses = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_stderr");
+        for (const auto& rsp : responses) {
+            handleResponse(*StderrTable_, rsp.Value());
+        }
 
         LOG_INFO("Live preview for stderr table created");
     }
 
     if (IsIntermediateLivePreviewSupported()) {
-        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
-        handleResponse(IntermediateTable, rspOrError.Value());
+        auto responses = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_intermediate");
+        for (const auto& rsp : responses) {
+            handleResponse(IntermediateTable, rsp.Value());
+        }
 
         LOG_INFO("Live preview for intermediate table created");
     }
@@ -5039,16 +5060,18 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
 void TOperationControllerBase::AttachToIntermediateLivePreview(TChunkId chunkId)
 {
     if (IsIntermediateLivePreviewSupported()) {
-        AttachToLivePreview(chunkId, IntermediateTable.LivePreviewTableId);
+        AttachToLivePreview(chunkId, IntermediateTable.LivePreviewTableIds);
     }
 }
 
-void TOperationControllerBase::AttachToLivePreview(TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId)
+void TOperationControllerBase::AttachToLivePreview(
+    TChunkTreeId chunkTreeId,
+    const std::vector<NCypressClient::TNodeId>& tableIds)
 {
     MasterConnector->AttachToLivePreview(
         OperationId,
         AsyncSchedulerTransaction->GetId(),
-        tableId,
+        tableIds,
         {chunkTreeId});
 }
 
@@ -5153,7 +5176,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
     table.OutputChunkTreeIds.emplace_back(key, chunkSpec->ChunkId());
 
     if (IsOutputLivePreviewSupported()) {
-        AttachToLivePreview(chunkSpec->ChunkId(), table.LivePreviewTableId);
+        AttachToLivePreview(chunkSpec->ChunkId(), table.LivePreviewTableIds);
     }
 
     LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
@@ -6725,7 +6748,7 @@ IChunkPoolInput::TCookie TOperationControllerBase::TSink::AddWithKey(TChunkStrip
     }
 
     if (Controller_->IsOutputLivePreviewSupported()) {
-        Controller_->AttachToLivePreview(chunkListId, table.LivePreviewTableId);
+        Controller_->AttachToLivePreview(chunkListId, table.LivePreviewTableIds);
     }
     table.OutputChunkTreeIds.emplace_back(key, chunkListId);
 

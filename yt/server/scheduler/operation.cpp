@@ -30,6 +30,7 @@ TOperation::TOperation(
     const std::vector<TString>& owners,
     TInstant startTime,
     IInvokerPtr controlInvoker,
+    EOperationCypressStorageMode storageMode,
     EOperationState state,
     bool suspended,
     const std::vector<TOperationEvent>& events)
@@ -43,6 +44,7 @@ TOperation::TOperation(
     , RuntimeParams_(New<TOperationRuntimeParams>())
     , Owners_(owners)
     , Events_(events)
+    , StorageMode_(storageMode)
     , Id_(id)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)

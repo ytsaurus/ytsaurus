@@ -367,6 +367,7 @@ protected:
     const EOperationType OperationType;
     const TInstant StartTime;
     const TString AuthenticatedUser;
+    const NScheduler::EOperationCypressStorageMode StorageMode;
 
     // Usually these clients are all the same (and connected to master of the current cluster).
     // But `remote copy' operation connects AuthenticatedInputMasterClient to remote cluster master server.
@@ -782,7 +783,9 @@ protected:
 
     virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 
-    void AttachToLivePreview(NChunkClient::TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId);
+    void AttachToLivePreview(
+        NChunkClient::TChunkTreeId chunkTreeId,
+        const std::vector<NCypressClient::TNodeId>& tableIds);
 
     virtual void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
