@@ -40,7 +40,12 @@ TFuture<void> TJournalSession::DoStart()
     chunkStore->RegisterNewChunk(Chunk_);
 
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto asyncChangelog = dispatcher->CreateChangelog(Location_, GetChunkId(), Options_.EnableMultiplexing);
+    auto asyncChangelog = dispatcher->CreateChangelog(
+        Location_,
+        GetChunkId(),
+        Options_.EnableMultiplexing,
+        Options_.WorkloadDescriptor);
+
     return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
         if (Chunk_->IsRemoveScheduled()) {
             THROW_ERROR_EXCEPTION("Chunk %v is scheduled for removal",

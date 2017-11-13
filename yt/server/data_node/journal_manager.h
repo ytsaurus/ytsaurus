@@ -33,7 +33,8 @@ public:
 
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
         const TChunkId& chunkId,
-        bool enableMultiplexing);
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& workloadDescriptor);
 
     TFuture<void> RemoveChangelog(
         const TJournalChunkPtr& chunk,
