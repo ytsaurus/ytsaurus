@@ -275,9 +275,11 @@ public:
 
     virtual i64 GetDataWeightPerJob() const override
     {
-        return JobCount_ > 0
+        auto dataWeightPerJob = JobCount_ > 0
                ? DivCeil(InputDataWeight_, JobCount_)
                : 1;
+
+        return std::min(dataWeightPerJob, DivCeil(GetMaxDataWeightPerJob() , 2));
     }
 
     virtual i64 GetPrimaryDataWeightPerJob() const override
