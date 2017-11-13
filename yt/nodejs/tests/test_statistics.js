@@ -55,7 +55,7 @@ describe("YtStatistics", function() {
         expect(JSON.parse(profiler.dumpSolomon())).to.eql(
             {"sensors":[
                 {"labels":{"sensor":"bar","a":"7"},"value":1},
-                {"labels":{"sensor":"foo"},"value":1,"mode":"deriv"},
+                {"labels":{"sensor":"foo"},"value":"1","mode":"deriv"},
                 {"labels":{"sensor":"zzz.q50"},"value":1.005},
                 {"labels":{"sensor":"zzz.q90"},"value":1.01},
                 {"labels":{"sensor":"zzz.q95"},"value":1.01},
