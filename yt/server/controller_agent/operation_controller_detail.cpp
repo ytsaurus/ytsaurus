@@ -5,7 +5,6 @@
 #include "intermediate_chunk_scraper.h"
 #include "job_info.h"
 #include "job_helpers.h"
-#include "job_metrics_updater.h"
 #include "counter_manager.h"
 #include "task.h"
 
@@ -1593,7 +1592,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
     UpdateJobStatistics(joblet, *jobSummary);
-    joblet->SendJobMetrics(*jobSummary, true);
+    UpdateJobMetrics(joblet, *jobSummary);
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary, joblet);
@@ -1665,7 +1664,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
         .Item("error").Value(error);
 
-    joblet->SendJobMetrics(*jobSummary, true);
+    UpdateJobMetrics(joblet, *jobSummary);
     UpdateJobStatistics(joblet, *jobSummary);
 
     joblet->Task->OnJobFailed(joblet, *jobSummary);
@@ -1718,7 +1717,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
         UpdateJobStatistics(joblet, *jobSummary);
     }
-    joblet->SendJobMetrics(*jobSummary, true);
+
+    UpdateJobMetrics(joblet, *jobSummary);
 
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
@@ -1758,7 +1758,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
         joblet->StatisticsYson = jobSummary->StatisticsYson;
         ParseStatistics(jobSummary.get());
 
-        joblet->SendJobMetrics(*jobSummary, false);
+        UpdateJobMetrics(joblet, *jobSummary);
 
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
@@ -3240,6 +3240,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     BuildAndSaveProgress();
     FlushOperationNode(/* checkFlushResult */ true);
+    WaitForHeartbeat();
 
     LogProgress(/* force */ true);
 
@@ -3257,6 +3258,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
     BuildAndSaveProgress();
     LogProgress(/* force */ true);
+    WaitForHeartbeat();
 
     if (flush) {
         // NB: Error ignored since we cannot do anything with it.
@@ -5263,6 +5265,18 @@ void TOperationControllerBase::OnBeforeDisposal()
     Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
 }
 
+NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelta()
+{
+    NScheduler::TOperationJobMetrics result;
+    result.OperationId = OperationId;
+    {
+        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
+        result.JobMetrics = JobMetricsDelta_;
+        JobMetricsDelta_ = TJobMetrics();
+    }
+    return result;
+}
+
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
 {
     std::vector<TJobPtr> jobs;
@@ -5663,6 +5677,15 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
     JobStatistics.Update(statistics);
 }
 
+void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
+{
+    auto delta = joblet->UpdateJobMetrics(jobSummary);
+    {
+        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
+        JobMetricsDelta_ += delta;
+    }
+}
+
 void TOperationControllerBase::LogProgress(bool force)
 {
     if (!HasProgress()) {
@@ -5715,11 +5738,6 @@ void TOperationControllerBase::BuildJobSplitterInfo(TFluentMap fluent) const
 ui64 TOperationControllerBase::NextJobIndex()
 {
     return JobIndexGenerator.Next();
-}
-
-std::unique_ptr<TJobMetricsUpdater> TOperationControllerBase::CreateJobMetricsUpdater() const
-{
-    return std::make_unique<TJobMetricsUpdater>(Host, OperationId, Config->JobMetricsBatchInterval);
 }
 
 TOperationId TOperationControllerBase::GetOperationId() const
@@ -6335,6 +6353,12 @@ const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobTyp
     auto iter = JobProxyMemoryDigests_.find(jobType);
     YCHECK(iter != JobProxyMemoryDigests_.end());
     return iter->second.get();
+}
+
+
+void TOperationControllerBase::WaitForHeartbeat()
+{
+    Y_UNUSED(WaitFor(ControllerAgent->GetHeartbeatSentFuture()));
 }
 
 void TOperationControllerBase::Persist(const TPersistenceContext& context)

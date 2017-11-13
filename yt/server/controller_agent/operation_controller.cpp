@@ -301,6 +301,11 @@ public:
         return Underlying_->ExtractJobSpec(jobId);
     }
 
+    virtual TOperationJobMetrics ExtractJobMetricsDelta() override
+    {
+        return Underlying_->ExtractJobMetricsDelta();
+    }
+
     virtual TYsonString BuildSuspiciousJobsYson() const override
     {
         return Underlying_->BuildSuspiciousJobsYson();

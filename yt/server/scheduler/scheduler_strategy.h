@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "event_log.h"
+#include "job_metrics.h"
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
@@ -135,9 +136,7 @@ struct ISchedulerStrategy
         std::vector<TUpdatedJob>* updatedJobs,
         std::vector<NScheduler::TCompletedJob>* completedJobs) = 0;
 
-    virtual void ApplyJobMetricsDelta(
-        const TOperationId& operationId,
-        const TJobMetrics& jobMetricsDelta) = 0;
+    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& jobMetricsDelta) = 0;
 
     virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
 
