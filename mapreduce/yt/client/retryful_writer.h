@@ -21,12 +21,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockWriter
+class TRetryfulWriter
     : public TRawTableWriter
 {
 public:
     template <class TWriterOptions>
-    TBlockWriter(
+    TRetryfulWriter(
         const TAuth& auth,
         const TTransactionId& parentId,
         const TString& command,
@@ -42,7 +42,7 @@ public:
         , WriteTransaction_()
         , Buffer_(BufferSize_ * 2)
         , BufferOutput_(Buffer_)
-        , Thread_(TThread::TParams{SendThread, this}.SetName("block_writer"))
+        , Thread_(TThread::TParams{SendThread, this}.SetName("retryful_writer"))
     {
         Parameters_ = FormIORequestParameters(path, options);
 
@@ -62,7 +62,7 @@ public:
         }
     }
 
-    ~TBlockWriter();
+    ~TRetryfulWriter();
 
     void NotifyRowEnd() override;
 

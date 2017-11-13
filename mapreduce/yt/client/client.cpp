@@ -1,7 +1,6 @@
 #include "client.h"
 
 #include "batch_request_impl.h"
-#include "block_writer.h"
 #include "client_reader.h"
 #include "client_writer.h"
 #include "file_reader.h"
@@ -9,6 +8,7 @@
 #include "lock.h"
 #include "mock_client.h"
 #include "operation.h"
+#include "retryful_writer.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/interface/client.h>
@@ -210,7 +210,7 @@ TRawTableWriterPtr TClientBase::CreateRawWriter(
     const TMaybe<TFormat>& format,
     const TTableWriterOptions& options)
 {
-    return ::MakeIntrusive<TBlockWriter>(
+    return ::MakeIntrusive<TRetryfulWriter>(
         Auth_,
         TransactionId_,
         GetWriteTableCommand(),

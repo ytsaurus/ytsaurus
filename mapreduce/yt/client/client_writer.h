@@ -8,7 +8,7 @@
 namespace NYT {
 
 struct TTableWriterOptions;
-class TBlockWriter;
+class TRetryfulWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,7 @@ public:
     void OnRowFinished(size_t tableIndex) override;
 
 private:
-    ::TIntrusivePtr<TBlockWriter> BlockWriter_;
+    ::TIntrusivePtr<TRetryfulWriter> BlockWriter_;
 
     static const size_t BUFFER_SIZE = 64 << 20;
 };
