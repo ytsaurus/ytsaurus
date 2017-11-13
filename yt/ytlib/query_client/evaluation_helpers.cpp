@@ -118,7 +118,7 @@ void TTopCollector::AddRow(const TValue* row)
         auto capturedRow = Capture(row);
         Rows_.emplace_back(capturedRow);
         std::push_heap(Rows_.begin(), Rows_.end(), Comparer_);
-    } else if (!Comparer_(Rows_.front().first, row)) {
+    } else if (!Rows_.empty() && !Comparer_(Rows_.front().first, row)) {
         auto capturedRow = Capture(row);
         std::pop_heap(Rows_.begin(), Rows_.end(), Comparer_);
         AccountGarbage(Rows_.back().first);
