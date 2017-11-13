@@ -103,7 +103,7 @@ struct ITaskHost
 
     virtual void Persist(const TPersistenceContext& context) = 0;
 
-    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() = 0;
+    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() const = 0;
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() = 0;
 

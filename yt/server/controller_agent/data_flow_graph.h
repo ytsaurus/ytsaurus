@@ -22,6 +22,7 @@ struct TEdgeDescriptor
 {
     TEdgeDescriptor() = default;
 
+    // Keep fields below in sync with operator =.
     NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
     bool RequiresRecoveryInfo = false;
     NTableClient::TTableWriterOptionsPtr TableWriterOptions;
@@ -34,6 +35,8 @@ struct TEdgeDescriptor
     bool IsFinalOutput = false;
 
     void Persist(const TPersistenceContext& context);
+
+    TEdgeDescriptor& operator =(const TEdgeDescriptor& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

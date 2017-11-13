@@ -208,15 +208,15 @@ protected:
             , ChunkPoolOutput(nullptr)
         {
             SortTask = controller->SimpleSort
-                ? TSortTaskPtr(New<TSimpleSortTask>(controller, this))
-                : TSortTaskPtr(New<TPartitionSortTask>(controller, this));
+                ? TSortTaskPtr(New<TSimpleSortTask>(controller, this, controller->GetFinalEdgeDescriptors()))
+                : TSortTaskPtr(New<TPartitionSortTask>(controller, this, controller->GetFinalEdgeDescriptors()));
             controller->RegisterTask(SortTask);
 
-            SortedMergeTask = New<TSortedMergeTask>(controller, this);
+            SortedMergeTask = New<TSortedMergeTask>(controller, this, controller->GetFinalEdgeDescriptors());
             controller->RegisterTask(SortedMergeTask);
 
             if (!controller->SimpleSort) {
-                UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
+                UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this, controller->GetFinalEdgeDescriptors());
                 controller->RegisterTask(UnorderedMergeTask);
                 UnorderedMergeTask->SetInputVertex(controller->GetPartitionJobType());
             }
@@ -325,8 +325,8 @@ protected:
             : Controller(nullptr)
         { }
 
-        TPartitionTask(TSortControllerBase* controller, TEdgeDescriptor edgeDescriptor)
-            : TTask(controller, {edgeDescriptor})
+        TPartitionTask(TSortControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
         { }
 
@@ -617,8 +617,11 @@ protected:
             , Partition(nullptr)
         { }
 
-        TPartitionBoundTask(TSortControllerBase* controller, TPartition* partition)
-            : TTask(controller)
+        TPartitionBoundTask(
+            TSortControllerBase* controller,
+            TPartition* partition,
+            std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
             , Partition(partition)
         { }
@@ -662,8 +665,8 @@ protected:
         TSortTask()
         { }
 
-        TSortTask(TSortControllerBase* controller, TPartition* partition)
-            : TPartitionBoundTask(controller, partition)
+        TSortTask(TSortControllerBase* controller, TPartition* partition, std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TPartitionBoundTask(controller, partition, std::move(edgeDescriptors))
         { }
 
         virtual TTaskGroupPtr GetGroup() const override
@@ -890,8 +893,11 @@ protected:
         TPartitionSortTask()
         { }
 
-        TPartitionSortTask(TSortControllerBase* controller, TPartition* partition)
-            : TSortTask(controller, partition)
+        TPartitionSortTask(
+            TSortControllerBase* controller,
+            TPartition* partition,
+            std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TSortTask(controller, partition, std::move(edgeDescriptors))
         { }
 
         virtual TString GetId() const override
@@ -982,8 +988,8 @@ protected:
         TSimpleSortTask()
         { }
 
-        TSimpleSortTask(TSortControllerBase* controller, TPartition* partition)
-            : TSortTask(controller, partition)
+        TSimpleSortTask(TSortControllerBase* controller, TPartition* partition, std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TSortTask(controller, partition, std::move(edgeDescriptors))
         { }
 
         virtual TString GetId() const override
@@ -1012,8 +1018,8 @@ protected:
         TMergeTask()
         { }
 
-        TMergeTask(TSortControllerBase* controller, TPartition* partition)
-            : TPartitionBoundTask(controller, partition)
+        TMergeTask(TSortControllerBase* controller, TPartition* partition, std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TPartitionBoundTask(controller, partition, std::move(edgeDescriptors))
         { }
 
         virtual TTaskGroupPtr GetGroup() const override
@@ -1045,8 +1051,11 @@ protected:
         TSortedMergeTask()
         { }
 
-        TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
-            : TMergeTask(controller, partition)
+        TSortedMergeTask(
+            TSortControllerBase* controller,
+            TPartition* partition,
+            std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TMergeTask(controller, partition, std::move(edgeDescriptors))
             , ChunkPool_(controller->CreateSortedMergeChunkPool())
             , ChunkPoolInput_(CreateHintAddingAdapter(ChunkPool_.get(), this))
         { }
@@ -1277,8 +1286,11 @@ protected:
         TUnorderedMergeTask()
         { }
 
-        TUnorderedMergeTask(TSortControllerBase* controller, TPartition* partition)
-            : TMergeTask(controller, partition)
+        TUnorderedMergeTask(
+            TSortControllerBase* controller,
+            TPartition* partition,
+            std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TMergeTask(controller, partition, std::move(edgeDescriptors))
         { }
 
         virtual TString GetId() const override
@@ -1989,13 +2001,18 @@ protected:
             for (const auto& name : Spec->SortBy) {
                 if (auto column = table.Schema.FindColumn(name)) {
                     if (column->Aggregate()) {
-                        THROW_ERROR_EXCEPTION("Sort by aggreate column is not alowed")
+                        THROW_ERROR_EXCEPTION("Sort by aggregate column is not allowed")
                             << TErrorAttribute("table_path", table.Path.GetPath())
                             << TErrorAttribute("column_name", name);
                     }
                 }
             }
         }
+    }
+
+    virtual const std::vector<TEdgeDescriptor>& GetFinalEdgeDescriptors() const
+    {
+        return GetStandardEdgeDescriptors();
     }
 
     std::unique_ptr<IChunkPool> CreateSortedMergeChunkPool()
@@ -2405,9 +2422,10 @@ private:
 
         InitPartitionPool(partitionJobSizeConstraints, nullptr);
 
-        TEdgeDescriptor partitionTaskEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
-        partitionTaskEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
-        PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
+        TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
+        shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
+        shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
+        PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         FinishTaskInput(PartitionTask);
@@ -2429,16 +2447,13 @@ private:
         // Final sort: reader like sort and output like merge.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
         FinalSortJobIOConfig->TableWriter = CloneYsonSerializable(Spec->MergeJobIO->TableWriter);
-        InitFinalOutputConfig(FinalSortJobIOConfig);
 
         SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-        InitFinalOutputConfig(SortedMergeJobIOConfig);
 
         UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
         // Since we're reading from huge number of paritition chunks, we must use larger buffers,
         // as we do for sort jobs.
         UnorderedMergeJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
-        InitFinalOutputConfig(UnorderedMergeJobIOConfig);
     }
 
     virtual EJobType GetIntermediateSortJobType() const override
@@ -2802,6 +2817,35 @@ public:
             });
     }
 
+    void Persist(const TPersistenceContext& context)
+    {
+        TSortControllerBase::Persist(context);
+
+        using NYT::Persist;
+
+        Persist(context, MapperSinkEdges_);
+        Persist(context, ReducerSinkEdges_);
+    }
+
+    void InitEdgeDescriptors()
+    {
+        const auto& edgeDescriptors = GetStandardEdgeDescriptors();
+
+        MapperSinkEdges_ = std::vector<TEdgeDescriptor>(
+            edgeDescriptors.begin(),
+            edgeDescriptors.begin() + Spec->MapperOutputTableCount);
+        for (int index = 0; index < MapperSinkEdges_.size(); ++index) {
+            MapperSinkEdges_[index].TableWriterOptions->TableIndex = index + 1;
+        }
+
+        ReducerSinkEdges_ = std::vector<TEdgeDescriptor>(
+            edgeDescriptors.begin() + Spec->MapperOutputTableCount,
+            edgeDescriptors.end());
+        for (int index = 0; index < ReducerSinkEdges_.size(); ++index) {
+            ReducerSinkEdges_[index].TableWriterOptions->TableIndex = index;
+        }
+    }
+
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
@@ -2831,6 +2875,11 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceController, 0xca7286bd);
 
     TMapReduceOperationSpecPtr Spec;
+
+    // Mapper edge descriptors are for the data that is written from mappers directly to the first
+    // `Spec->MapperOutputTableCount` output tables skipping the shuffle and reduce phases.
+    std::vector<TEdgeDescriptor> MapperSinkEdges_;
+    std::vector<TEdgeDescriptor> ReducerSinkEdges_;
 
     std::vector<TUserFile> MapperFiles;
     std::vector<TUserFile> ReduceCombinerFiles;
@@ -2939,6 +2988,7 @@ private:
         }
 
         InitJobIOConfigs();
+        InitEdgeDescriptors();
 
         PROFILE_TIMING ("/input_processing_time") {
             BuildPartitions();
@@ -2989,9 +3039,20 @@ private:
             ? Options->PartitionJobSizeAdjuster
             : nullptr);
 
-        TEdgeDescriptor partitionTaskEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
-        partitionTaskEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
-        PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
+        std::vector<TEdgeDescriptor> partitionEdgeDescriptors;
+
+        // Primary edge descriptor for shuffled output of the mapper.
+        TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
+        shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
+        shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
+
+        partitionEdgeDescriptors.emplace_back(std::move(shuffleEdgeDescriptor));
+        partitionEdgeDescriptors.insert(
+            partitionEdgeDescriptors.end(),
+            MapperSinkEdges_.begin(),
+            MapperSinkEdges_.end());
+
+        PartitionTask = New<TPartitionTask>(this, std::move(partitionEdgeDescriptors));
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         FinishTaskInput(PartitionTask);
@@ -3017,11 +3078,9 @@ private:
         // Partition reduce: writer like in merge and reader like in sort.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
         FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
-        InitFinalOutputConfig(FinalSortJobIOConfig);
 
         // Sorted reduce.
         SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-        InitFinalOutputConfig(SortedMergeJobIOConfig);
     }
 
     virtual EJobType GetPartitionJobType() const override
@@ -3047,6 +3106,11 @@ private:
     virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const override
     {
         return Spec->Reducer;
+    }
+
+    virtual const std::vector<TEdgeDescriptor>& GetFinalEdgeDescriptors() const override
+    {
+        return ReducerSinkEdges_;
     }
 
     virtual void PrepareInputQuery() override

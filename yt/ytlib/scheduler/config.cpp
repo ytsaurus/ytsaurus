@@ -660,6 +660,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("reduce_job_io", MergeJobIO)
         .DefaultNew();
 
+    RegisterParameter("mapper_output_table_count", MapperOutputTableCount)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+
     // Provide custom names for shared settings.
     RegisterParameter("map_job_count", PartitionJobCount)
         .Default()
@@ -733,6 +737,13 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
 
         if (!ReduceBy.empty()) {
             NTableClient::ValidateKeyColumns(ReduceBy);
+        }
+
+        if (MapperOutputTableCount >= OutputTablePaths.size()) {
+            THROW_ERROR_EXCEPTION(
+                "There should be at least one non-mapper output table; maybe you need Map operation instead?")
+                << TErrorAttribute("mapper_output_table_count", MapperOutputTableCount)
+                << TErrorAttribute("output_table_count", OutputTablePaths.size());
         }
     });
 }

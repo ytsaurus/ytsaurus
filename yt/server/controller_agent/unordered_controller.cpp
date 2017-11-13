@@ -470,9 +470,7 @@ protected:
 
     void InitJobIOConfig()
     {
-        // TODO(max42): Looks like InitFinalOutputConfig may be easily removed as well as cloning the JobIO.
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
-        InitFinalOutputConfig(JobIOConfig);
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.
