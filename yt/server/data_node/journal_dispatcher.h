@@ -31,7 +31,8 @@ public:
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
         const TStoreLocationPtr& location,
         const TChunkId& chunkId,
-        bool enableMultiplexing);
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& workloadDescriptor);
 
     //! Asynchronously removes files of a given journal chunk.
     TFuture<void> RemoveChangelog(

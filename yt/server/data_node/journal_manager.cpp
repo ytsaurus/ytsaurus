@@ -841,10 +841,9 @@ public:
         : Config_(config)
         , Location_(location)
         , Bootstrap_(bootstrap)
+        , Logger(NLogging::TLogger(DataNodeLogger)
+            .AddTag("LocationId: %v", Location_->GetId()))
     {
-        Logger = DataNodeLogger;
-        Logger.AddTag("LocationId: %v", Location_->GetId());
-
         MultiplexedChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Config_->MultiplexedChangelog,
             "MFlush:" + Location_->GetId(),
@@ -889,11 +888,17 @@ public:
 
     TFuture<IChangelogPtr> CreateChangelog(
         const TChunkId& chunkId,
-        bool enableMultiplexing)
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         auto creator = Location_->DisableOnError(
-            BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId, enableMultiplexing))
-                .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
+            BIND(
+                &TImpl::DoCreateChangelog,
+                MakeStrong(this),
+                chunkId,
+                enableMultiplexing,
+                workloadDescriptor))
+            .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
             return MultiplexedWriter_->WriteCreateRecord(chunkId)
@@ -911,7 +916,11 @@ public:
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing)
     {
-        auto remover = Location_->DisableOnError(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk))
+        auto remover = Location_->DisableOnError(
+            BIND(
+                &TImpl::DoRemoveChangelog,
+                MakeStrong(this),
+                chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
@@ -959,15 +968,32 @@ private:
     TStoreLocation* const Location_;
     NCellNode::TBootstrap* const Bootstrap_;
 
+    const NLogging::TLogger Logger;
+
     TFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
     TFileChangelogDispatcherPtr SplitChangelogDispatcher_;
 
     TIntrusivePtr<TMultiplexedWriter> MultiplexedWriter_;
 
-    NLogging::TLogger Logger;
 
+    TFileChangelogConfigPtr GetSplitChangelogConfig(
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& workloadDescriptor)
+    {
+        if (enableMultiplexing) {
+            return Config_->HighLatencySplitChangelog;
+        }
+        // TODO(babenko): generalize?
+        if (workloadDescriptor.Category == EWorkloadCategory::SystemReplication) {
+            return Config_->HighLatencySplitChangelog;
+        }
+        return Config_->LowLatencySplitChangelog;
+    }
 
-    IChangelogPtr DoCreateChangelog(const TChunkId& chunkId, bool enableMultiplexing)
+    IChangelogPtr DoCreateChangelog(
+        const TChunkId& chunkId,
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         IChangelogPtr changelog;
 
@@ -980,7 +1006,7 @@ private:
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
                 TChangelogMeta(),
-                enableMultiplexing ? Config_->HighLatencySplitChangelog : Config_->LowLatencySplitChangelog);
+                GetSplitChangelogConfig(enableMultiplexing, workloadDescriptor));
         }
 
         LOG_DEBUG("Finished creating journal chunk (ChunkId: %v)",
@@ -1072,8 +1098,12 @@ private:
             chunkStore->RegisterNewChunk(chunk);
 
             const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
-            auto changelog = dispatcher->CreateChangelog(chunk->GetStoreLocation(), chunkId, false)
-                .Get()
+            auto asyncChangelog = dispatcher->CreateChangelog(
+                chunk->GetStoreLocation(),
+                chunkId,
+                false,
+                TWorkloadDescriptor(EWorkloadCategory::SystemRepair));
+            auto changelog = WaitFor(asyncChangelog)
                 .ValueOrThrow();
 
             chunk->AttachChangelog(changelog);
@@ -1146,9 +1176,7 @@ private:
 
     private:
         TImpl* const Impl_;
-
     };
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1175,9 +1203,10 @@ TFuture<IChangelogPtr> TJournalManager::OpenChangelog(
 
 TFuture<IChangelogPtr> TJournalManager::CreateChangelog(
     const TChunkId& chunkId,
-    bool enableMultiplexing)
+    bool enableMultiplexing,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
-    return Impl_->CreateChangelog(chunkId, enableMultiplexing);
+    return Impl_->CreateChangelog(chunkId, enableMultiplexing, workloadDescriptor);
 }
 
 TFuture<void> TJournalManager::RemoveChangelog(

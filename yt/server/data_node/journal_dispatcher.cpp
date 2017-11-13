@@ -71,7 +71,8 @@ public:
     TFuture<IChangelogPtr> CreateChangelog(
         const TStoreLocationPtr& location,
         const TChunkId& chunkId,
-        bool enableMultiplexing);
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& workloadDescriptor);
 
     TFuture<void> RemoveChangelog(
         const TJournalChunkPtr& chunk,
@@ -239,7 +240,8 @@ IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
 TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
     const TStoreLocationPtr& location,
     const TChunkId& chunkId,
-    bool enableMultiplexing)
+    bool enableMultiplexing,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     try {
         auto cookie = BeginInsert({location, chunkId});
@@ -249,7 +251,11 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
         }
 
         const auto& journalManager = location->GetJournalManager();
-        return journalManager->CreateChangelog(chunkId, enableMultiplexing).Apply(BIND(
+        auto asyncChangelog = journalManager->CreateChangelog(
+            chunkId,
+            enableMultiplexing,
+            workloadDescriptor);
+        return asyncChangelog.Apply(BIND(
             &TImpl::OnChangelogOpenedOrCreated,
             MakeStrong(this),
             location,
@@ -330,9 +336,10 @@ TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
 TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
     const TStoreLocationPtr& location,
     const TChunkId& chunkId,
-    bool enableMultiplexing)
+    bool enableMultiplexing,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
-    return Impl_->CreateChangelog(location, chunkId, enableMultiplexing);
+    return Impl_->CreateChangelog(location, chunkId, enableMultiplexing, workloadDescriptor);
 }
 
 TFuture<void> TJournalDispatcher::RemoveChangelog(
