@@ -349,9 +349,9 @@ public:
             .Run(std::move(queue));
     }
 
-    TFuture<void> FlushAll()
+    TFuture<void> FlushChangelogs()
     {
-        return BIND(&TImpl::DoFlushAll, MakeStrong(this))
+        return BIND(&TImpl::DoFlushChangelogs, MakeStrong(this))
             .AsyncVia(GetInvoker())
             .Run();
     }
@@ -465,7 +465,7 @@ private:
         }
     }
 
-    TFuture<void> DoFlushAll()
+    TFuture<void> DoFlushChangelogs()
     {
         std::vector<TFuture<void>> flushResults;
         for (const auto& queue : Queues_) {
@@ -581,7 +581,7 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileChangelogDispatcher::TFileChangelogDispatcher(
-    TFileChangelogDispatcherConfigPtr config,
+    const TFileChangelogDispatcherConfigPtr& config,
     const TString& threadName,
     const TProfiler& profiler)
     : Impl_(New<TImpl>(
@@ -600,7 +600,7 @@ IInvokerPtr TFileChangelogDispatcher::GetInvoker()
 IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
     const TString& path,
     const TChangelogMeta& meta,
-    TFileChangelogConfigPtr config)
+    const TFileChangelogConfigPtr& config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(path, config);
     syncChangelog->Create(meta);
@@ -610,7 +610,7 @@ IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
 
 IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
     const TString& path,
-    TFileChangelogConfigPtr config)
+    const TFileChangelogConfigPtr& config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(path, config);
     syncChangelog->Open();
@@ -620,7 +620,7 @@ IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
 
 TFuture<void> TFileChangelogDispatcher::FlushChangelogs()
 {
-    return Impl_->FlushAll();
+    return Impl_->FlushChangelogs();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

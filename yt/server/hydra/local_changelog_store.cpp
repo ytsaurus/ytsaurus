@@ -328,7 +328,7 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking local changelog store %v",
                 Config_->Path)
-                    << ex;
+                << ex;
         }
     }
 
