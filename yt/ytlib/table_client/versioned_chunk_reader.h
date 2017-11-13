@@ -17,10 +17,12 @@ namespace NTableClient {
 struct TChunkReaderPerformanceCounters
     : public virtual TIntrinsicRefCounted
 {
+    std::atomic<i64> StaticChunkRowReadCount = {0};
+    std::atomic<i64> StaticChunkRowReadDataWeightCount = {0};
     std::atomic<i64> StaticChunkRowLookupCount = {0};
     std::atomic<i64> StaticChunkRowLookupTrueNegativeCount = {0};
     std::atomic<i64> StaticChunkRowLookupFalsePositiveCount = {0};
-    std::atomic<i64> StaticChunkRowReadCount = {0};
+    std::atomic<i64> StaticChunkRowLookupDataWeightCount = {0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
