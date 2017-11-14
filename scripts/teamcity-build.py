@@ -261,8 +261,9 @@ def run_sandbox_upload(options, build_context):
 
     source_binary_root = os.path.join(options.working_directory, "bin")
     processed_files = set()
+    filename_prefix_whitelist = ["ytserver-", "ypserver-"]
     for filename in os.listdir(source_binary_root):
-        if not filename.startswith("ytserver-"):
+        if not any(filename.startswith(x) for x in filename_prefix_whitelist):
             continue
         source_path = os.path.join(source_binary_root, filename)
         destination_path = os.path.join(binary_distribution_folder, filename)
@@ -282,6 +283,7 @@ def run_sandbox_upload(options, build_context):
         "ytserver-node",
         "ytserver-proxy",
         "ytserver-tools",
+        "ypserver-master",
     ))
     if yt_binary_upload_list - processed_files:
         missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
@@ -311,10 +313,22 @@ def run_sandbox_upload(options, build_context):
 
     version_by_teamcity = "{0}@{1}-{2}".format(options.git_branch, options.build_number, options.build_vcs_number[:7])
     cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
+    task_description = """
+    Build id: {0}
+    Build type: {1}
+    Source host: {2}
+    Teamcity build type id: {3}
+    """.format(
+        version_by_teamcity,
+        options.type,
+        socket.getfqdn(),
+        options.btid,
+    )
+
     task_id = cli.create_task(
         "YT_UPLOAD_RESOURCES",
         "YT_ROBOT",
-        "Yt build: {0}".format(version_by_teamcity),
+        task_description,
         sandbox_ctx)
     teamcity_message("Created sandbox upload task: {0}".format(task_id))
     teamcity_message("Check at: https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
