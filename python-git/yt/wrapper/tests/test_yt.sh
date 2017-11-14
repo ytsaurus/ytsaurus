@@ -496,7 +496,7 @@ test_brotli_write()
 {
     local table_path="//home/wrapper_test/test_table"
     echo -ne "x=1\nx=2\nx=3\nx=4\n" | $YT write "$table_path" --format dsv --config '{proxy={content_encoding=br}}'
-    check '4' $($YT get "$table_path/@row_count")
+    check "x=1\nx=2\nx=3\nx=4\n" "$($YT read "$table_path" --format dsv | sort)"
 }
 
 tear_down
