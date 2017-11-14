@@ -40,7 +40,7 @@ void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
 
     static const TNode emptyMap = TNode::CreateMap();
     const TNode* outRow = &emptyMap;
-    if (row.GetType() != TNode::UNDEFINED) {
+    if (row.GetType() != TNode::Undefined) {
         if (!row.IsMap()) {
             ythrow TIOException() << "Row should be a map node";
         } else {

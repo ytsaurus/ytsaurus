@@ -257,7 +257,7 @@ private:
 
             try {
                 bool linkExists = false;
-                if (linkAttrs.GetType() != TNode::UNDEFINED) {
+                if (linkAttrs.GetType() != TNode::Undefined) {
                     if (linkAttrs["type"] == "link" &&
                         (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
                     {

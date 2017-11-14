@@ -83,8 +83,8 @@ public:
     TNode(int i);
 
     //this case made speccially for prevent mess cast of EType into TNode through TNode(int) constructor
-    //usual case of error SomeNode == TNode::UNDEFINED <-- SomeNode indeed will be compared with TNode(0) without this method
-    //correct way is SomeNode.GetType() == TNode::UNDEFINED
+    //usual case of error SomeNode == TNode::Undefined <-- SomeNode indeed will be compared with TNode(0) without this method
+    //correct way is SomeNode.GetType() == TNode::Undefined
     template<class T = EType>
     Y_FORCE_INLINE TNode(EType)
     {
@@ -237,9 +237,9 @@ inline T TNode::IntCast() const {
 template<>
 inline ui64 TNode::IntCast<ui64>() const {
     switch (GetType()) {
-        case TNode::UINT64:
+        case TNode::Uint64:
             return AsUint64();
-        case TNode::INT64:
+        case TNode::Int64:
             if (AsInt64() < 0) {
                 ythrow TTypeError() << AsInt64() << " can't be converted to ui64";
             }
@@ -252,12 +252,12 @@ inline ui64 TNode::IntCast<ui64>() const {
 template<>
 inline i64 TNode::IntCast<i64>() const {
     switch (GetType()) {
-        case TNode::UINT64:
+        case TNode::Uint64:
             if (AsUint64() > (ui64)std::numeric_limits<i64>::max()) {
                 ythrow TTypeError() << AsUint64() << " can't be converted to i64";
             }
             return AsUint64();
-        case TNode::INT64:
+        case TNode::Int64:
             return AsInt64();
         default:
             ythrow TTypeError() << "IntCast() called for type " << TypeToString(GetType());
@@ -272,20 +272,20 @@ inline T TNode::ConvertTo() const {
 template<>
 inline TString TNode::ConvertTo<TString>() const {
     switch (GetType()) {
-        case NYT::TNode::STRING:
+        case NYT::TNode::String:
             return AsString();
-        case NYT::TNode::INT64:
+        case NYT::TNode::Int64:
             return ::ToString(AsInt64());
-        case NYT::TNode::UINT64:
+        case NYT::TNode::Uint64:
             return ::ToString(AsUint64());
-        case NYT::TNode::DOUBLE:
+        case NYT::TNode::Double:
             return ::ToString(AsDouble());
-        case NYT::TNode::BOOL:
+        case NYT::TNode::Bool:
             return ::ToString(AsBool());
-        case NYT::TNode::LIST:
-        case NYT::TNode::MAP:
-        case NYT::TNode::ENTITY:
-        case NYT::TNode::UNDEFINED:
+        case NYT::TNode::List:
+        case NYT::TNode::Map:
+        case NYT::TNode::Null:
+        case NYT::TNode::Undefined:
             ythrow TTypeError() << "ConvertTo<TString>() called for type " << TypeToString(GetType());
     }
 }
@@ -293,23 +293,23 @@ inline TString TNode::ConvertTo<TString>() const {
 template<>
 inline ui64 TNode::ConvertTo<ui64>() const {
     switch (GetType()) {
-        case NYT::TNode::STRING:
+        case NYT::TNode::String:
             return ::FromString(AsString());
-        case NYT::TNode::INT64:
-        case NYT::TNode::UINT64:
+        case NYT::TNode::Int64:
+        case NYT::TNode::Uint64:
             return IntCast<ui64>();
-        case NYT::TNode::DOUBLE:
+        case NYT::TNode::Double:
             // >= because of (1<<64) + 1
             if (AsDouble() < std::numeric_limits<ui64>::min() || AsDouble() >= std::numeric_limits<ui64>::max() || !std::isfinite(AsDouble())) {
                 ythrow TTypeError() << AsDouble() << " can't be converted to ui64";
             }
             return AsDouble();
-        case NYT::TNode::BOOL:
+        case NYT::TNode::Bool:
             return AsBool();
-        case NYT::TNode::LIST:
-        case NYT::TNode::MAP:
-        case NYT::TNode::ENTITY:
-        case NYT::TNode::UNDEFINED:
+        case NYT::TNode::List:
+        case NYT::TNode::Map:
+        case NYT::TNode::Null:
+        case NYT::TNode::Undefined:
             ythrow TTypeError() << "ConvertTo<ui64>() called for type " << TypeToString(GetType());
     }
 }
@@ -317,23 +317,23 @@ inline ui64 TNode::ConvertTo<ui64>() const {
 template<>
 inline i64 TNode::ConvertTo<i64>() const {
     switch (GetType()) {
-        case NYT::TNode::STRING:
+        case NYT::TNode::String:
             return ::FromString(AsString());
-        case NYT::TNode::INT64:
-        case NYT::TNode::UINT64:
+        case NYT::TNode::Int64:
+        case NYT::TNode::Uint64:
             return IntCast<i64>();
-        case NYT::TNode::DOUBLE:
+        case NYT::TNode::Double:
             // >= because of (1<<63) + 1
             if (AsDouble() < std::numeric_limits<i64>::min() || AsDouble() >= std::numeric_limits<i64>::max() || !std::isfinite(AsDouble())) {
                 ythrow TTypeError() << AsDouble() << " can't be converted to i64";
             }
             return AsDouble();
-        case NYT::TNode::BOOL:
+        case NYT::TNode::Bool:
             return AsBool();
-        case NYT::TNode::LIST:
-        case NYT::TNode::MAP:
-        case NYT::TNode::ENTITY:
-        case NYT::TNode::UNDEFINED:
+        case NYT::TNode::List:
+        case NYT::TNode::Map:
+        case NYT::TNode::Null:
+        case NYT::TNode::Undefined:
             ythrow TTypeError() << "ConvertTo<i64>() called for type " << TypeToString(GetType());
     }
 }
@@ -341,20 +341,20 @@ inline i64 TNode::ConvertTo<i64>() const {
 template<>
 inline double TNode::ConvertTo<double>() const {
     switch (GetType()) {
-        case NYT::TNode::STRING:
+        case NYT::TNode::String:
             return ::FromString(AsString());
-        case NYT::TNode::INT64:
+        case NYT::TNode::Int64:
             return AsInt64();
-        case NYT::TNode::UINT64:
+        case NYT::TNode::Uint64:
             return AsUint64();
-        case NYT::TNode::DOUBLE:
+        case NYT::TNode::Double:
             return AsDouble();
-        case NYT::TNode::BOOL:
+        case NYT::TNode::Bool:
             return AsBool();
-        case NYT::TNode::LIST:
-        case NYT::TNode::MAP:
-        case NYT::TNode::ENTITY:
-        case NYT::TNode::UNDEFINED:
+        case NYT::TNode::List:
+        case NYT::TNode::Map:
+        case NYT::TNode::Null:
+        case NYT::TNode::Undefined:
             ythrow TTypeError() << "ConvertTo<double>() called for type " << TypeToString(GetType());
     }
 }
@@ -362,20 +362,20 @@ inline double TNode::ConvertTo<double>() const {
 template<>
 inline bool TNode::ConvertTo<bool>() const {
     switch (GetType()) {
-        case NYT::TNode::STRING:
+        case NYT::TNode::String:
             return ::FromString(AsString());
-        case NYT::TNode::INT64:
+        case NYT::TNode::Int64:
             return AsInt64();
-        case NYT::TNode::UINT64:
+        case NYT::TNode::Uint64:
             return AsUint64();
-        case NYT::TNode::DOUBLE:
+        case NYT::TNode::Double:
             return AsDouble();
-        case NYT::TNode::BOOL:
+        case NYT::TNode::Bool:
             return AsBool();
-        case NYT::TNode::LIST:
-        case NYT::TNode::MAP:
-        case NYT::TNode::ENTITY:
-        case NYT::TNode::UNDEFINED:
+        case NYT::TNode::List:
+        case NYT::TNode::Map:
+        case NYT::TNode::Null:
+        case NYT::TNode::Undefined:
             ythrow TTypeError() << "ConvertTo<bool>() called for type " << TypeToString(GetType());
     }
 }

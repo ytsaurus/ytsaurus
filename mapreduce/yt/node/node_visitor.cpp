@@ -30,31 +30,31 @@ void TNodeVisitor::VisitAny(const TNode& node)
     }
 
     switch (node.GetType()) {
-        case TNode::STRING:
+        case TNode::String:
             VisitString(node);
             break;
-        case TNode::INT64:
+        case TNode::Int64:
             VisitInt64(node);
             break;
-        case TNode::UINT64:
+        case TNode::Uint64:
             VisitUint64(node);
             break;
-        case TNode::DOUBLE:
+        case TNode::Double:
             VisitDouble(node);
             break;
-        case TNode::BOOL:
+        case TNode::Bool:
             VisitBool(node);
             break;
-        case TNode::LIST:
+        case TNode::List:
             VisitList(node.AsList());
             break;
-        case TNode::MAP:
+        case TNode::Map:
             VisitMap(node.AsMap());
             break;
-        case TNode::ENTITY:
+        case TNode::Null:
             VisitEntity();
             break;
-        case TNode::UNDEFINED:
+        case TNode::Undefined:
             ythrow TNode::TTypeError()
                 << Sprintf("unable to visit TNode of type %s",
                     ~TNode::TypeToString(node.GetType()));
