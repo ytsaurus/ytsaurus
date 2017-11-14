@@ -650,6 +650,12 @@ void FetchFunctionImplementationsFromCypress(
         TFunctionImplKey key;
         key.ChunkSpecs = function.ChunkSpecs;
 
+        if (auto value = cache->Find(key)) {
+            // Fast path
+            asyncResults.push_back(MakeFuture(value));
+            continue;
+        }
+
         auto cacheEntry = BIND(&TFunctionImplCache::FetchImplementation, cache)
             .AsyncVia(GetCurrentInvoker())
             .Run(key, externalCGInfo->NodeDirectory, sessionId);
