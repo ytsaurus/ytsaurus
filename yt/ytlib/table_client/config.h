@@ -239,14 +239,14 @@ class TTableReaderConfig
 {
 public:
     bool SuppressAccessTracking;
-    bool IgnoreUnavailableChunks;
+    EUnavailableChunkStrategy UnavailableChunkStrategy;
 
     TTableReaderConfig()
     {
         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
             .Default(false);
-        RegisterParameter("ignore_unavailable_chunks", IgnoreUnavailableChunks)
-            .Default(false);
+        RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
+            .Default(EUnavailableChunkStrategy::Restore);
     }
 };
 
