@@ -729,7 +729,7 @@ private:
 
         ValidateConnected();
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
 
         std::vector<TFuture<void>> asyncResults;
         TKeySetWriterPtr keySetWriter = request->keys_in_attachment()

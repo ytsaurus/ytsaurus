@@ -438,7 +438,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     int totalSessionCount = 0;
     bool full = true;
 
-    auto chunkStore = Bootstrap_->GetChunkStore();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
     for (const auto& location : chunkStore->Locations()) {
         if (location->IsEnabled()) {
             totalAvailableSpace += location->GetAvailableSpace();

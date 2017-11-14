@@ -36,7 +36,7 @@ TFuture<void> TJournalSession::DoStart()
         TChunkDescriptor(GetChunkId()));
     Chunk_->SetActive(true);
 
-    auto chunkStore = Bootstrap_->GetChunkStore();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
 
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
@@ -150,7 +150,7 @@ void TJournalSession::OnFinished()
     Chunk_->DetachChangelog();
     Chunk_->SetActive(false);
 
-    auto chunkStore = Bootstrap_->GetChunkStore();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->UpdateExistingChunk(Chunk_);
 
     Finished_.Fire(TError());

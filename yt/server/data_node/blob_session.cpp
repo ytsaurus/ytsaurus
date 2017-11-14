@@ -519,7 +519,7 @@ IChunkPtr TBlobSession::OnWriterClosed(const TError& error)
         descriptor,
         &Writer_->GetChunkMeta());
 
-    auto chunkStore = Bootstrap_->GetChunkStore();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(chunk);
 
     Finished_.Fire(TError());

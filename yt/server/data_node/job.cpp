@@ -328,7 +328,7 @@ protected:
 
     IChunkPtr GetLocalChunkOrThrow(const TChunkId& chunkId, int mediumIndex)
     {
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
         return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
     }
 
@@ -383,7 +383,7 @@ private:
             mediumIndex);
 
         auto chunk = GetLocalChunkOrThrow(chunkId, mediumIndex);
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
         WaitFor(chunkStore->RemoveChunk(chunk))
             .ThrowOnError();
 
@@ -787,7 +787,7 @@ private:
 
         LOG_INFO("Finished sealing journal chunk");
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(chunk);
     }
 };
