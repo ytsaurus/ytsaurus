@@ -70,6 +70,11 @@ public:
             }
         }
 
+        // Putting more specific networks first in match order.
+        std::sort(Networks_.begin(), Networks_.end(), [] (auto&& lhs, auto&& rhs) {
+            return lhs.first.GetMaskSize() > rhs.first.GetMaskSize();
+        });
+
         CheckExecutor_->Start();
     }
 
