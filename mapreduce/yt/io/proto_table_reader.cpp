@@ -35,7 +35,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
             continue; // no such column
         }
         auto actualType = it->second.GetType();
-        if (actualType == TNode::ENTITY) {
+        if (actualType == TNode::Null) {
             continue; // null field
         }
 
@@ -50,45 +50,45 @@ void ReadMessageFromNode(const TNode& node, Message* row)
         switch (fieldDesc->type()) {
             case FieldDescriptor::TYPE_STRING:
             case FieldDescriptor::TYPE_BYTES:
-                checkType(TNode::STRING, actualType);
+                checkType(TNode::String, actualType);
                 reflection->SetString(row, fieldDesc, it->second.AsString());
                 break;
             case FieldDescriptor::TYPE_INT64:
             case FieldDescriptor::TYPE_SINT64:
             case FieldDescriptor::TYPE_SFIXED64:
-                checkType(TNode::INT64, actualType);
+                checkType(TNode::Int64, actualType);
                 reflection->SetInt64(row, fieldDesc, it->second.AsInt64());
                 break;
             case FieldDescriptor::TYPE_INT32:
             case FieldDescriptor::TYPE_SINT32:
             case FieldDescriptor::TYPE_SFIXED32:
-                checkType(TNode::INT64, actualType);
+                checkType(TNode::Int64, actualType);
                 reflection->SetInt32(row, fieldDesc, it->second.AsInt64());
                 break;
             case FieldDescriptor::TYPE_UINT64:
             case FieldDescriptor::TYPE_FIXED64:
-                checkType(TNode::UINT64, actualType);
+                checkType(TNode::Uint64, actualType);
                 reflection->SetUInt64(row, fieldDesc, it->second.AsUint64());
                 break;
             case FieldDescriptor::TYPE_UINT32:
             case FieldDescriptor::TYPE_FIXED32:
-                checkType(TNode::UINT64, actualType);
+                checkType(TNode::Uint64, actualType);
                 reflection->SetUInt32(row, fieldDesc, it->second.AsUint64());
                 break;
             case FieldDescriptor::TYPE_DOUBLE:
-                checkType(TNode::DOUBLE, actualType);
+                checkType(TNode::Double, actualType);
                 reflection->SetDouble(row, fieldDesc, it->second.AsDouble());
                 break;
             case FieldDescriptor::TYPE_FLOAT:
-                checkType(TNode::DOUBLE, actualType);
+                checkType(TNode::Double, actualType);
                 reflection->SetFloat(row, fieldDesc, it->second.AsDouble());
                 break;
             case FieldDescriptor::TYPE_BOOL:
-                checkType(TNode::BOOL, actualType);
+                checkType(TNode::Bool, actualType);
                 reflection->SetBool(row, fieldDesc, it->second.AsBool());
                 break;
             case FieldDescriptor::TYPE_ENUM: {
-                checkType(TNode::STRING, actualType);
+                checkType(TNode::String, actualType);
                 const auto& v = it->second.AsString();
                 if (const auto* const p = fieldDesc->enum_type()->FindValueByName(v)) {
                     reflection->SetEnum(row, fieldDesc, p);
@@ -99,7 +99,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                 break;
             }
             case FieldDescriptor::TYPE_MESSAGE: {
-                checkType(TNode::STRING, actualType);
+                checkType(TNode::String, actualType);
                 Message* message = reflection->MutableMessage(row, fieldDesc);
                 if (!message->ParseFromArray(~it->second.AsString(), +it->second.AsString())) {
                     ythrow yexception() << "Failed to parse protobuf message";

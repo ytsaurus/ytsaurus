@@ -13,7 +13,7 @@ struct TDumper<NYT::TNode>
     static inline void Dump(S& s, const NYT::TNode& node)
     {
         using namespace NYT;
-        if (node.GetType() == TNode::UNDEFINED) {
+        if (node.GetType() == TNode::Undefined) {
             s.Stream() << "UNDEFINED";
         } else {
             TYsonWriter writer(&s.Stream(), EYsonFormat::YF_TEXT);

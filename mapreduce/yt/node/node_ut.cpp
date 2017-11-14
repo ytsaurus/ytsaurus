@@ -16,44 +16,44 @@ void Out<NYT::TNode>(IOutputStream& s, const NYT::TNode& node)
 SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
     SIMPLE_UNIT_TEST(TestConstsructors) {
         TNode nodeEmpty;
-        UNIT_ASSERT_EQUAL(nodeEmpty.GetType(), TNode::UNDEFINED);
+        UNIT_ASSERT_EQUAL(nodeEmpty.GetType(), TNode::Undefined);
 
         TNode nodeString("foobar");
-        UNIT_ASSERT_EQUAL(nodeString.GetType(), TNode::STRING);
+        UNIT_ASSERT_EQUAL(nodeString.GetType(), TNode::String);
         UNIT_ASSERT(nodeString.IsString());
         UNIT_ASSERT_VALUES_EQUAL(nodeString.AsString(), "foobar");
 
         TNode nodeInt(int(54));
-        UNIT_ASSERT_EQUAL(nodeInt.GetType(), TNode::INT64);
+        UNIT_ASSERT_EQUAL(nodeInt.GetType(), TNode::Int64);
         UNIT_ASSERT(nodeInt.IsInt64());
         UNIT_ASSERT(!nodeInt.IsUint64());
         UNIT_ASSERT_VALUES_EQUAL(nodeInt.AsInt64(), 54ull);
 
         TNode nodeUint(ui64(42));
-        UNIT_ASSERT_EQUAL(nodeUint.GetType(), TNode::UINT64);
+        UNIT_ASSERT_EQUAL(nodeUint.GetType(), TNode::Uint64);
         UNIT_ASSERT(nodeUint.IsUint64());
         UNIT_ASSERT(!nodeUint.IsInt64());
         UNIT_ASSERT_VALUES_EQUAL(nodeUint.AsUint64(), 42ull);
 
         TNode nodeDouble(double(2.3));
-        UNIT_ASSERT_EQUAL(nodeDouble.GetType(), TNode::DOUBLE);
+        UNIT_ASSERT_EQUAL(nodeDouble.GetType(), TNode::Double);
         UNIT_ASSERT(nodeDouble.IsDouble());
         UNIT_ASSERT_VALUES_EQUAL(nodeDouble.AsDouble(), double(2.3));
 
         TNode nodeBool(true);
-        UNIT_ASSERT_EQUAL(nodeBool.GetType(), TNode::BOOL);
+        UNIT_ASSERT_EQUAL(nodeBool.GetType(), TNode::Bool);
         UNIT_ASSERT(nodeBool.IsBool());
         UNIT_ASSERT_VALUES_EQUAL(nodeBool.AsBool(), true);
 
         TNode nodeEntity = TNode::CreateEntity();
-        UNIT_ASSERT_EQUAL(nodeEntity.GetType(), TNode::ENTITY);
+        UNIT_ASSERT_EQUAL(nodeEntity.GetType(), TNode::Null);
         UNIT_ASSERT(nodeEntity.IsEntity());
     }
 
     SIMPLE_UNIT_TEST(TestNodeMap) {
         TNode nodeMap = TNode()("foo", "bar")("bar", "baz");
         UNIT_ASSERT(nodeMap.IsMap());
-        UNIT_ASSERT_EQUAL(nodeMap.GetType(), TNode::MAP);
+        UNIT_ASSERT_EQUAL(nodeMap.GetType(), TNode::Map);
         UNIT_ASSERT_VALUES_EQUAL(nodeMap.Size(), 2);
 
         UNIT_ASSERT(nodeMap.HasKey("foo"));
@@ -62,11 +62,11 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_EQUAL(nodeMap["bar"], TNode("baz"));
 
         // const version of operator[]
-        UNIT_ASSERT_EQUAL(static_cast<const TNode&>(nodeMap)["42"].GetType(), TNode::UNDEFINED);
+        UNIT_ASSERT_EQUAL(static_cast<const TNode&>(nodeMap)["42"].GetType(), TNode::Undefined);
         UNIT_ASSERT(!nodeMap.HasKey("42"));
 
         // nonconst version of operator[]
-        UNIT_ASSERT_EQUAL(nodeMap["42"].GetType(), TNode::UNDEFINED);
+        UNIT_ASSERT_EQUAL(nodeMap["42"].GetType(), TNode::Undefined);
         UNIT_ASSERT(nodeMap.HasKey("42"));
 
         nodeMap("rock!!!", TNode()
@@ -77,14 +77,14 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         copyNode = nodeMap;
         UNIT_ASSERT_EQUAL(copyNode["foo"], TNode("bar"));
         UNIT_ASSERT_EQUAL(copyNode["bar"], TNode("baz"));
-        UNIT_ASSERT(copyNode["42"].GetType() == TNode::UNDEFINED);
+        UNIT_ASSERT(copyNode["42"].GetType() == TNode::Undefined);
         UNIT_ASSERT_EQUAL(copyNode["rock!!!"]["Purple"], TNode("Deep"));
     }
 
     SIMPLE_UNIT_TEST(TestNodeList) {
         TNode nodeList = TNode().Add("foo").Add(42).Add(3.14);
         UNIT_ASSERT(nodeList.IsList());
-        UNIT_ASSERT_EQUAL(nodeList.GetType(), TNode::LIST);
+        UNIT_ASSERT_EQUAL(nodeList.GetType(), TNode::List);
         UNIT_ASSERT_VALUES_EQUAL(nodeList.Size(), 3);
 
         UNIT_ASSERT_EQUAL(nodeList[1], TNode(42));
@@ -262,6 +262,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
     }
 
     SIMPLE_UNIT_TEST(TestETypeToString) {
+        // Compatibility
         UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::UNDEFINED), "undefined");
         UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::STRING), "string_node");
         UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::INT64), "int64_node");

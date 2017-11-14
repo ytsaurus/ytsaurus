@@ -134,7 +134,7 @@ class TListResponseParser
 public:
     virtual void SetResponse(TMaybe<TNode> node) override
     {
-        EnsureType(node, TNode::LIST);
+        EnsureType(node, TNode::List);
         Result.SetValue(std::move(node->AsList()));
     }
 };
@@ -147,7 +147,7 @@ class TExistsResponseParser
 public:
     virtual void SetResponse(TMaybe<TNode> node) override
     {
-        EnsureType(node, TNode::BOOL);
+        EnsureType(node, TNode::Bool);
         Result.SetValue(std::move(node->AsBool()));
     }
 };
@@ -160,7 +160,7 @@ class TGuidResponseParser
 public:
     virtual void SetResponse(TMaybe<TNode> node) override
     {
-        EnsureType(node, TNode::STRING);
+        EnsureType(node, TNode::String);
         Result.SetValue(GetGuid(node->AsString()));
     }
 };
@@ -177,7 +177,7 @@ public:
 
     virtual void SetResponse(TMaybe<TNode> node) override
     {
-        EnsureType(node, TNode::STRING);
+        EnsureType(node, TNode::String);
 
         for (const auto& item : OriginalNode_.GetAttributes().AsMap()) {
             node->Attributes()[item.first] = item.second;
@@ -422,7 +422,7 @@ void TRawBatchRequest::ParseResponse(
 {
     Y_VERIFY(retryBatch);
 
-    EnsureType(node, TNode::LIST);
+    EnsureType(node, TNode::List);
     auto& responseList = node.AsList();
     const auto size = responseList.size();
     if (size > BatchItemList_.size()) {
@@ -433,7 +433,7 @@ void TRawBatchRequest::ParseResponse(
 
     for (size_t i = 0; i != size; ++i) {
         try {
-            EnsureType(responseList[i], TNode::MAP);
+            EnsureType(responseList[i], TNode::Map);
             auto& responseNode = responseList[i].AsMap();
             const auto outputIt = responseNode.find("output");
             if (outputIt != responseNode.end()) {
