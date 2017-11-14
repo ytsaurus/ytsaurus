@@ -18,6 +18,8 @@
 
 #include <yt/core/rpc/response_keeper.h>
 
+#include <utility>
+
 namespace NYT {
 namespace NHydra {
 
@@ -29,7 +31,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto AutoSnapshotCheckPeriod = TDuration::Seconds(15);
-static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,15 +40,18 @@ TCommitterBase::TCommitterBase(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext)
-    : Config_(config)
+    : Config_(std::move(config))
     , Options_(options)
-    , CellManager_(cellManager)
-    , DecoratedAutomaton_(decoratedAutomaton)
+    , CellManager_(std::move(cellManager))
+    , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
     , CommitCounter_("/commits")
     , FlushCounter_("/flushes")
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
+    , Profiler(NProfiling::TProfiler(
+        HydraProfiler.GetPathPrefix(),
+        {CellManager_->GetCellIdTag()}))
 {
     YCHECK(Config_);
     YCHECK(DecoratedAutomaton_);
@@ -106,11 +110,11 @@ public:
             GetStartVersion(),
             mutationCount);
 
-        Profiler.Enqueue("/commit_batch_size", mutationCount, EMetricType::Gauge);
+        owner->Profiler.Enqueue("/commit_batch_size", mutationCount, EMetricType::Gauge);
 
         std::vector<TFuture<void>> asyncResults;
 
-        Timer_ = Profiler.TimingStart(
+        Timer_ = owner->Profiler.TimingStart(
             "/changelog_flush_time",
             EmptyTagIds,
             ETimerMode::Parallel);
@@ -199,7 +203,7 @@ private:
 
         VERIFY_THREAD_AFFINITY(owner->ControlThread);
 
-        auto time = Profiler.TimingCheckpoint(
+        auto time = owner->Profiler.TimingCheckpoint(
             Timer_,
             {owner->CellManager_->GetPeerTag(followerId)});
 
@@ -247,7 +251,7 @@ private:
             return;
         }
 
-        auto time = Profiler.TimingCheckpoint(
+        auto time = owner->Profiler.TimingCheckpoint(
             Timer_,
             {owner->CellManager_->GetPeerTag(owner->CellManager_->GetSelfPeerId())});
 
@@ -294,7 +298,7 @@ private:
             return;
         }
 
-        auto time = Profiler.TimingCheckpoint(
+        auto time = owner->Profiler.TimingCheckpoint(
             Timer_,
             {owner->CellManager_->GetPeerQuorumTag()});
 
