@@ -379,7 +379,10 @@ void TBlobSession::DoCancel(const TError& error)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     for (auto& slot : Window_) {
-        slot.WrittenPromise.TrySet(error);
+        auto& promise = slot.WrittenPromise;
+        if (promise) {
+            promise.TrySet(error);
+        }
     }
 
     AbortWriter()
