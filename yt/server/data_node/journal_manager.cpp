@@ -976,24 +976,17 @@ private:
     TIntrusivePtr<TMultiplexedWriter> MultiplexedWriter_;
 
 
-    TFileChangelogConfigPtr GetSplitChangelogConfig(
-        bool enableMultiplexing,
-        const TWorkloadDescriptor& workloadDescriptor)
+    TFileChangelogConfigPtr GetSplitChangelogConfig(bool enableMultiplexing)
     {
-        if (enableMultiplexing) {
-            return Config_->HighLatencySplitChangelog;
-        }
-        // TODO(babenko): generalize?
-        if (workloadDescriptor.Category == EWorkloadCategory::SystemReplication) {
-            return Config_->HighLatencySplitChangelog;
-        }
-        return Config_->LowLatencySplitChangelog;
+        return enableMultiplexing
+            ? Config_->HighLatencySplitChangelog
+            : Config_->LowLatencySplitChangelog;
     }
 
     IChangelogPtr DoCreateChangelog(
         const TChunkId& chunkId,
         bool enableMultiplexing,
-        const TWorkloadDescriptor& workloadDescriptor)
+        const TWorkloadDescriptor& /*workloadDescriptor*/)
     {
         IChangelogPtr changelog;
 
@@ -1006,7 +999,7 @@ private:
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
                 TChangelogMeta(),
-                GetSplitChangelogConfig(enableMultiplexing, workloadDescriptor));
+                GetSplitChangelogConfig(enableMultiplexing));
         }
 
         LOG_DEBUG("Finished creating journal chunk (ChunkId: %v)",
