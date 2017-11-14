@@ -2463,6 +2463,6 @@ class TestPoolMetrics(YTEnvSetup):
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
 
         set("//sys/operations/{0}/@owners/end".format(op.id), "u")
-        time.sleep(0.5)
+        time.sleep(1.0)
 
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
