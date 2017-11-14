@@ -22,7 +22,7 @@
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

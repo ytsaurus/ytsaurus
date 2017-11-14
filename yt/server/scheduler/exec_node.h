@@ -7,8 +7,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/scheduler/scheduler_service.pb.h>
-#include <yt/ytlib/scheduler/controller_agent_service.pb.h>
+#include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>

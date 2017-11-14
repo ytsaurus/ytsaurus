@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 #include <yt/ytlib/scheduler/public.h>
 
 #include <yt/ytlib/table_client/public.h>

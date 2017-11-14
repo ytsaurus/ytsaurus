@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/scheduler/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
