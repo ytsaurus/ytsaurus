@@ -13,7 +13,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/schema.h>
 

@@ -15,7 +15,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/partitioner.h>

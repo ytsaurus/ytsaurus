@@ -273,14 +273,14 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.proto
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_resources.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/output_result.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_channel.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/controller_agent_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/job_prober_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/output_result.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/scheduler_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/security_client/account_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/security_client/group_ypath.proto

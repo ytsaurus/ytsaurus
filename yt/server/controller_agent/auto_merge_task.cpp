@@ -5,7 +5,7 @@
 #include "job_info.h"
 #include "task_host.h"
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT {
 namespace NControllerAgent {

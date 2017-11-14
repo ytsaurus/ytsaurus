@@ -9,7 +9,7 @@ import "yt/ytlib/job_tracker_client/job.proto";
 import "yt/ytlib/node_tracker_client/node_directory.proto";
 import "yt/ytlib/query_client/functions_cache.proto";
 import "yt/ytlib/query_client/query.proto";
-import "yt/ytlib/scheduler/output_result.proto";
+import "yt/ytlib/scheduler/proto/output_result.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

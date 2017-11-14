@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/table_client/row_buffer.h>
 
-#include <yt/ytlib/scheduler/output_result.pb.h>
+#include <yt/ytlib/scheduler/proto/output_result.pb.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 
