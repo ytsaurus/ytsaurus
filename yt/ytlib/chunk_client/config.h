@@ -427,7 +427,7 @@ public:
     {
         RegisterParameter("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
-            .Default(1_GB);
+            .Default(2_GB);
 
         RegisterParameter("desired_chunk_weight", DesiredChunkWeight)
             .GreaterThan(0)
