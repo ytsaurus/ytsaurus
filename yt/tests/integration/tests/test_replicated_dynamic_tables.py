@@ -6,6 +6,8 @@ from time import sleep
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal
 
+from flaky import flaky
+
 ##################################################################
 
 class TestReplicatedDynamicTables(YTEnvSetup):
@@ -138,6 +140,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         assert get_all_counters("row_count") == (1, 1)
         assert get_all_counters("data_weight") == (13, 13)
 
+    @flaky(max_runs=5)
     def test_replica_tablet_node_profiling(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", attributes={"enable_profiling": True})
