@@ -201,7 +201,7 @@ private:
 
         auto time = Profiler.TimingCheckpoint(
             Timer_,
-            owner->CellManager_->GetPeerTags(followerId));
+            {owner->CellManager_->GetPeerTag(followerId)});
 
         if (!rspOrError.IsOK()) {
             LOG_DEBUG(rspOrError, "Error logging mutations at follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
@@ -249,7 +249,7 @@ private:
 
         auto time = Profiler.TimingCheckpoint(
             Timer_,
-            owner->CellManager_->GetPeerTags(owner->CellManager_->GetSelfPeerId()));
+            {owner->CellManager_->GetPeerTag(owner->CellManager_->GetSelfPeerId())});
 
         LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
@@ -296,7 +296,7 @@ private:
 
         auto time = Profiler.TimingCheckpoint(
             Timer_,
-            owner->CellManager_->GetPeerQuorumTags());
+            {owner->CellManager_->GetPeerQuorumTag()});
 
         LOG_DEBUG("Mutations are flushed by quorum (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
