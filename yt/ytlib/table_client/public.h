@@ -124,6 +124,12 @@ DEFINE_ENUM(EControlAttribute,
     (RowIndex)
 );
 
+DEFINE_ENUM(EUnavailableChunkStrategy,
+    ((ThrowError)   (0))
+    ((Restore)      (1))
+    ((Skip)         (2))
+);
+
 struct TColumnIdMapping
 {
     int ChunkSchemaIndex;
