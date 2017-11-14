@@ -72,6 +72,8 @@ TBrotliCompress::TBrotliCompress(IOutputStream* underlying, int level)
     : Impl_(new TImpl(underlying, level))
 { }
 
+TBrotliCompress::~TBrotliCompress() = default;
+
 void TBrotliCompress::DoWrite(const void* buffer, size_t length)
 {
     return Impl_->DoWrite(buffer, length);
@@ -91,12 +93,15 @@ public:
     inline TImpl(IInputStream* underlying, bool trusted)
         : Underlying_(underlying)
         , Trusted_(trusted)
-    { }
+    {
+        BrotliStateInit(&State_);
+    }
 
     ~TImpl()
     {
-        if (Initialized_) {
+        try {
             BrotliStateCleanup(&State_);
+        } catch (...) {
         }
     }
 
@@ -105,50 +110,36 @@ public:
         YCHECK(length > 0);
 
         size_t availableOut = length;
+        BrotliResult result;
         do {
-            if (InputSize_ == 0 && !Exhausted_) {
+            if (InputSize_ == 0 && !InputExhausted_) {
                 InputBuffer_ = TmpBuf();
                 InputSize_ = Underlying_->Read((void*)InputBuffer_, TmpBufLen());
 
                 if (InputSize_ == 0) {
-                    Exhausted_ = true;
+                    InputExhausted_ = true;
                 }
             }
 
-            if (!Initialized_) {
-                BrotliStateInit(&State_);
-                Initialized_ = true;
+            if (SubstreamFinished_ && !InputExhausted_) {
+                ResetBrotliState();
             }
 
             size_t bytesWritten = 0;
-            auto result = BrotliDecompressBufferStreaming(
+            result = BrotliDecompressBufferStreaming(
                 &InputSize_,
                 &InputBuffer_,
-                0,
+                InputExhausted_,
                 &availableOut,
                 (uint8_t**)&buffer,
                 &bytesWritten,
                 &State_);
-
+            SubstreamFinished_ = (result == BROTLI_RESULT_SUCCESS);
             if (!Trusted_ && result == BROTLI_RESULT_ERROR) {
-                BrotliStateCleanup(&State_);
                 THROW_ERROR_EXCEPTION("Brotli decompression failed");
             }
-
             YCHECK(result != BROTLI_RESULT_ERROR);
-            if (result == BROTLI_RESULT_SUCCESS) {
-                BrotliStateCleanup(&State_);
-                Initialized_ = false;
-                break;
-            }
-
-            if (result == BROTLI_RESULT_NEEDS_MORE_OUTPUT) {
-                break;
-            }
-
-            YCHECK(result == BROTLI_RESULT_NEEDS_MORE_INPUT);
-            YCHECK(InputSize_ == 0);
-        } while (length == availableOut && (InputSize_ != 0 || !Exhausted_));
+        } while (result == BROTLI_RESULT_NEEDS_MORE_INPUT && !InputExhausted_);
 
         return length - availableOut;
     }
@@ -158,8 +149,8 @@ private:
     bool Trusted_;
     BrotliState State_;
 
-    bool Initialized_ = false;
-    bool Exhausted_ = false;
+    bool SubstreamFinished_ = false;
+    bool InputExhausted_ = false;
     const uint8_t* InputBuffer_ = nullptr;
     size_t InputSize_ = 0;
 
@@ -173,11 +164,18 @@ private:
         return AdditionalDataLength();
     }
 
+    void ResetBrotliState()
+    {
+        BrotliStateCleanup(&State_);
+        BrotliStateInit(&State_);
+    }
 };
 
 TBrotliDecompress::TBrotliDecompress(IInputStream* underlying, size_t buflen, bool trusted)
     : Impl_(new (buflen) TImpl(underlying, trusted))
 { }
+
+TBrotliDecompress::~TBrotliDecompress() = default;
 
 size_t TBrotliDecompress::DoRead(void* buffer, size_t length)
 {
