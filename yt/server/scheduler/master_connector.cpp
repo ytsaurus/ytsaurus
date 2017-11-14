@@ -935,6 +935,16 @@ private:
 
         auto spec = attributes.Get<INodePtr>("spec")->AsMap();
 
+        // COMPAT
+        TOperationSpecBasePtr operationSpec;
+        try {
+            operationSpec = ConvertTo<TOperationSpecBasePtr>(spec);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
+                operationId);
+            return TOperationReport();
+        }
+
         result.Operation = New<TOperation>(
             operationId,
             attributes.Get<EOperationType>("operation_type"),
@@ -942,7 +952,7 @@ private:
             userTransactionId,
             spec,
             attributes.Get<TString>("authenticated_user"),
-            attributes.Get<std::vector<TString>>("owners"),
+            attributes.Get<std::vector<TString>>("owners", operationSpec->Owners),
             attributes.Get<TInstant>("start_time"),
             Bootstrap->GetControlInvoker(),
             attributes.Get<EOperationState>("state"),
