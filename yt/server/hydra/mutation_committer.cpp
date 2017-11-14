@@ -67,7 +67,7 @@ public:
         TVersion startVersion)
         : Owner_(owner)
         , StartVersion_(startVersion)
-        , Logger(NLogging::TLogger(Owner_->Logger))
+        , Logger(NLogging::TLogger(owner->Logger))
     { }
 
     void AddMutation(
@@ -75,7 +75,7 @@ public:
         TSharedRef recordData,
         TFuture<void> localFlushResult)
     {
-        auto currentVersion = GetStartVersion().Advance(BatchedRecordsData_.size());
+        auto currentVersion = GetStartVersion().Advance(GetMutationCount());
 
         BatchedRecordsData_.push_back(std::move(recordData));
         LocalFlushResult_ = std::move(localFlushResult);
@@ -94,6 +94,11 @@ public:
 
     void Flush()
     {
+        auto owner = Owner_.Lock();
+        if (!owner) {
+            return;
+        }
+
         int mutationCount = GetMutationCount();
         CommittedVersion_ = GetStartVersion().Advance(mutationCount);
 
@@ -114,15 +119,17 @@ public:
             YCHECK(LocalFlushResult_);
             asyncResults.push_back(LocalFlushResult_.Apply(
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this))
-                    .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
+                    .AsyncVia(owner->EpochContext_->EpochControlInvoker)));
 
-            for (auto followerId = 0; followerId < Owner_->CellManager_->GetTotalPeerCount(); ++followerId) {
-                if (followerId == Owner_->CellManager_->GetSelfPeerId())
+            for (auto followerId = 0; followerId < owner->CellManager_->GetTotalPeerCount(); ++followerId) {
+                if (followerId == owner->CellManager_->GetSelfPeerId()) {
                     continue;
+                }
 
-                auto channel = Owner_->CellManager_->GetPeerChannel(followerId);
-                if (!channel)
+                auto channel = owner->CellManager_->GetPeerChannel(followerId);
+                if (!channel) {
                     continue;
+                }
 
                 LOG_DEBUG("Sending mutations to follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
                     followerId,
@@ -130,25 +137,25 @@ public:
                     GetMutationCount());
 
                 THydraServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(Owner_->Config_->CommitFlushRpcTimeout);
+                proxy.SetDefaultTimeout(owner->Config_->CommitFlushRpcTimeout);
 
-                auto committedVersion = Owner_->DecoratedAutomaton_->GetCommittedVersion();
+                auto committedVersion = owner->DecoratedAutomaton_->GetCommittedVersion();
 
                 auto request = proxy.AcceptMutations();
-                ToProto(request->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
+                ToProto(request->mutable_epoch_id(), owner->EpochContext_->EpochId);
                 request->set_start_revision(GetStartVersion().ToRevision());
                 request->set_committed_revision(committedVersion.ToRevision());
                 request->Attachments() = BatchedRecordsData_;
 
                 asyncResults.push_back(request->Invoke().Apply(
                     BIND(&TBatch::OnRemoteFlush, MakeStrong(this), followerId)
-                        .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
+                        .AsyncVia(owner->EpochContext_->EpochControlInvoker)));
             }
         }
 
         Combine(asyncResults).Subscribe(
             BIND(&TBatch::OnCompleted, MakeStrong(this))
-                .Via(Owner_->EpochContext_->EpochControlInvoker));
+                .Via(owner->EpochContext_->EpochControlInvoker));
     }
 
     int GetMutationCount() const
@@ -167,8 +174,7 @@ public:
     }
 
 private:
-    // NB: TBatch cannot outlive its owner.
-    TLeaderCommitter* const Owner_;
+    const TWeakPtr<TLeaderCommitter> Owner_;
     const TVersion StartVersion_;
 
     const NLogging::TLogger Logger;
@@ -186,11 +192,16 @@ private:
 
     void OnRemoteFlush(TPeerId followerId, const THydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        auto owner = Owner_.Lock();
+        if (!owner) {
+            return;
+        }
+
+        VERIFY_THREAD_AFFINITY(owner->ControlThread);
 
         auto time = Profiler.TimingCheckpoint(
             Timer_,
-            Owner_->CellManager_->GetPeerTags(followerId));
+            owner->CellManager_->GetPeerTags(followerId));
 
         if (!rspOrError.IsOK()) {
             LOG_DEBUG(rspOrError, "Error logging mutations at follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
@@ -207,7 +218,7 @@ private:
                 GetStartVersion(),
                 GetMutationCount(),
                 time.MilliSeconds());
-            OnSuccessfulFlush();
+            OnSuccessfulFlush(owner);
         } else {
             LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
@@ -219,51 +230,65 @@ private:
 
     void OnLocalFlush(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        auto owner = Owner_.Lock();
+        if (!owner) {
+            return;
+        }
+
+        VERIFY_THREAD_AFFINITY(owner->ControlThread);
 
         if (!error.IsOK()) {
-            SetFailed(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Mutations are uncertain: local commit failed")
-                << error);
+            SetFailed(
+                owner,
+                TError(
+                    NRpc::EErrorCode::Unavailable,
+                    "Mutations are uncertain: local commit failed")
+                    << error);
             return;
         }
 
         auto time = Profiler.TimingCheckpoint(
             Timer_,
-            Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfPeerId()));
+            owner->CellManager_->GetPeerTags(owner->CellManager_->GetSelfPeerId()));
 
         LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
             GetMutationCount(),
             time.MilliSeconds());
 
-        OnSuccessfulFlush();
+        OnSuccessfulFlush(owner);
     }
 
     void OnCompleted(const TError&)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        auto owner = Owner_.Lock();
+        if (!owner) {
+            return;
+        }
 
-        SetFailed(TError(
-            NRpc::EErrorCode::Unavailable,
-            "Mutations are uncertain: %v out of %v commits were successful",
-            FlushCount_,
-            Owner_->CellManager_->GetTotalPeerCount()));
+        VERIFY_THREAD_AFFINITY(owner->ControlThread);
+
+        SetFailed(
+            owner,
+            TError(
+                NRpc::EErrorCode::Unavailable,
+                "Mutations are uncertain: %v out of %v commits were successful",
+                FlushCount_,
+                owner->CellManager_->GetTotalPeerCount()));
     }
 
 
-    void OnSuccessfulFlush()
+    void OnSuccessfulFlush(const TLeaderCommitterPtr& owner)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        VERIFY_THREAD_AFFINITY(owner->ControlThread);
 
         ++FlushCount_;
-        if (FlushCount_ == Owner_->CellManager_->GetQuorumPeerCount()) {
-            SetSucceeded();
+        if (FlushCount_ == owner->CellManager_->GetQuorumPeerCount()) {
+            SetSucceeded(owner);
         }
     }
 
-    void SetSucceeded()
+    void SetSucceeded(const TLeaderCommitterPtr& owner)
     {
         if (QuorumFlushResult_.IsSet()) {
             return;
@@ -271,7 +296,7 @@ private:
 
         auto time = Profiler.TimingCheckpoint(
             Timer_,
-            Owner_->CellManager_->GetPeerQuorumTags());
+            owner->CellManager_->GetPeerQuorumTags());
 
         LOG_DEBUG("Mutations are flushed by quorum (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
@@ -281,20 +306,17 @@ private:
         QuorumFlushResult_.Set(TError());
     }
 
-    void SetFailed(const TError& error)
+    void SetFailed(const TLeaderCommitterPtr& owner, const TError& error)
     {
-        if (QuorumFlushResult_.IsSet())
+        if (QuorumFlushResult_.IsSet()) {
             return;
-
-        Profiler.TimingCheckpoint(
-            Timer_,
-            Owner_->CellManager_->GetPeerQuorumTags());
+        }
 
         QuorumFlushResult_.Set(error);
 
-        Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(BIND(
+        owner->EpochContext_->EpochUserAutomatonInvoker->Invoke(BIND(
             &TLeaderCommitter::FireCommitFailed,
-            MakeStrong(Owner_),
+            owner,
             error));
     }
 };
