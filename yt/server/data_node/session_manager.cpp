@@ -106,7 +106,7 @@ ISessionPtr TSessionManager::CreateSession(
 {
     auto chunkType = TypeFromId(DecodeChunkId(sessionId.ChunkId).Id);
 
-    auto chunkStore = Bootstrap_->GetChunkStore();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
     auto location = chunkStore->GetNewChunkLocation(sessionId, options);
 
     auto lease = TLeaseManager::CreateLease(

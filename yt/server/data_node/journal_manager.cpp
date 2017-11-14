@@ -1086,7 +1086,7 @@ private:
 
         virtual IChangelogPtr CreateSplitChangelog(const TChunkId& chunkId) override
         {
-            auto chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             if (chunkStore->FindChunk(chunkId)) {
                 return nullptr;
             }
@@ -1113,7 +1113,7 @@ private:
 
         virtual IChangelogPtr OpenSplitChangelog(const TChunkId& chunkId) override
         {
-            auto chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 return nullptr;
@@ -1133,7 +1133,7 @@ private:
 
         virtual void FlushSplitChangelog(const TChunkId& chunkId) override
         {
-            auto chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk)
                 return;
@@ -1150,7 +1150,7 @@ private:
 
         virtual bool RemoveSplitChangelog(const TChunkId& chunkId) override
         {
-            auto chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 return false;
