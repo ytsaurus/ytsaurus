@@ -426,7 +426,11 @@ public:
         auto* stagingAccount = chunk->GetStagingAccount();
 
         Y_ASSERT(requisition.GetEntryCount() == 1);
-        Y_ASSERT(requisition.begin()->Account == stagingAccount);
+        // If a chunk has been created before the migration but is being confirmed after it,
+        // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
+        // isn't really delta-based, and it's nicer from the user's point of view.
+        auto* requisitionAccount = requisition.begin()->Account;
+        Y_ASSERT(requisitionAccount == stagingAccount || requisitionAccount == ChunkWiseAccountingMigrationAccount_);
 
         auto diskSpace = chunk->ChunkInfo().disk_space();
         auto erasureCodec = chunk->GetErasureCodec();
