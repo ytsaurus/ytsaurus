@@ -246,6 +246,8 @@ b"""
         chunk_meta_cache = {
             capacity = 0;
         };
+        
+        sync_directories_on_connect = %true;
     };
 
     exec_agent = {
