@@ -939,19 +939,19 @@ template <
 >
 struct TVectorSerializer
 {
-    template <class TVector, class C>
-    static void Save(C& context, const TVector& objects)
+    template <class TVectorType, class C>
+    static void Save(C& context, const TVectorType& objects)
     {
         TSizeSerializer::Save(context, objects.size());
 
-        typename TSorterSelector<TVector, C, TSortTag>::TSorter sorter(objects);
+        typename TSorterSelector<TVectorType, C, TSortTag>::TSorter sorter(objects);
         for (const auto& object : sorter) {
             TItemSerializer::Save(context, object);
         }
     }
 
-    template <class TVector, class C>
-    static void Load(C& context, TVector& objects)
+    template <class TVectorType, class C>
+    static void Load(C& context, TVectorType& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
         objects.resize(size);
@@ -974,8 +974,8 @@ template <
 >
 struct TNullableVectorSerializer
 {
-    template <class TVector, class C>
-    static void Save(C& context, const std::unique_ptr<TVector>& objects)
+    template <class TVectorType, class C>
+    static void Save(C& context, const std::unique_ptr<TVectorType>& objects)
     {
         if (objects) {
             TVectorSerializer<TItemSerializer, TSortTag>::Save(context, *objects);
@@ -984,8 +984,8 @@ struct TNullableVectorSerializer
         }
     }
 
-    template <class TVector, class C>
-    static void Load(C& context, std::unique_ptr<TVector>& objects)
+    template <class TVectorType, class C>
+    static void Load(C& context, std::unique_ptr<TVectorType>& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
         if (size == 0) {
@@ -993,7 +993,7 @@ struct TNullableVectorSerializer
             return;
         }
 
-        objects.reset(new TVector());
+        objects.reset(new TVectorType());
         objects->resize(size);
 
         SERIALIZATION_DUMP_WRITE(context, "vector[%v]", size);
