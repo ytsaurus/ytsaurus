@@ -50,11 +50,17 @@ public class DefaultRpcBusClient implements RpcClient {
     private final Lock sessionLock = new ReentrantLock();
     private Session currentSession;
     private boolean closed;
+    private final String destinationName; // for debug
     private final String name; // for debug
 
     private final class Statistics {
-        Histogram requestsAckHistogramLocal;
-        Histogram requestsResponseHistogramLocal;
+        private Histogram requestsAckHistogramLocal;
+        private Histogram requestsResponseHistogramLocal;
+
+        Statistics(String name) {
+            this.requestsAckHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", name));
+            this.requestsResponseHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", name));
+        }
 
         void updateAck(long millis) {
             requestsAckHistogramLocal.update(millis);
@@ -425,17 +431,18 @@ public class DefaultRpcBusClient implements RpcClient {
     }
 
     public DefaultRpcBusClient(BusFactory busFactory) {
+        this(busFactory, busFactory.destinationName());
+    }
+
+    public DefaultRpcBusClient(BusFactory busFactory, String destinationName) {
         this.busFactory = Objects.requireNonNull(busFactory);
+        this.destinationName = destinationName;
         this.name = String.format("%s@%d", busFactory.destinationName(), System.identityHashCode(this));
-
-
-        this.stats = new Statistics();
-        stats.requestsAckHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", destinationName()));
-        stats.requestsResponseHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", destinationName()));
+        this.stats = new Statistics(destinationName());
     }
 
     public String destinationName() {
-        return busFactory.destinationName();
+        return this.destinationName;
     }
 
     @Override
