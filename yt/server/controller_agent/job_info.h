@@ -60,6 +60,7 @@ public:
     int JobIndex;
     i64 StartRowIndex;
     bool Restarted = false;
+    bool Revived = false;
 
     TFuture<TSharedRef> JobSpecProtoFuture;
 

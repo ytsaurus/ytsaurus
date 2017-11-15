@@ -99,17 +99,17 @@ public:
         return this->GetUserJobSpec()->Deterministic;
     }
 
-    void Persist(const TPersistenceContext& context)
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TUnderlyingTask::Persist(context);
 
         using NYT::Persist;
 
-        Persist(context, CanScheduleJob_);
         Persist(context, LastChunkCount_);
     }
 
 private:
+    // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
     bool CanScheduleJob_ = true;
     // Our current best estimate to the number of chunks in the next job we are able to schedule.
     int LastChunkCount_ = 1;
