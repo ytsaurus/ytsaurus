@@ -27,8 +27,6 @@ class TTabletCellBundle
     , public TRefTracked<TTabletCellBundle>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
@@ -42,10 +40,16 @@ public:
 public:
     explicit TTabletCellBundle(const TTabletCellBundleId& id);
 
-    void FillProfilingTag();
+    void SetName(const TString& name);
+    const TString& GetName() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+private:
+    TString Name_;
+
+    void FillProfilingTag();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

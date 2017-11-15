@@ -97,6 +97,19 @@ void TTabletCellBundle::Load(TLoadContext& context)
             }
         }
     }
+
+    FillProfilingTag();
+}
+
+void TTabletCellBundle::SetName(const TString& name)
+{
+    Name_ = name;
+    FillProfilingTag();
+}
+
+const TString& TTabletCellBundle::GetName() const
+{
+    return Name_;
 }
 
 void TTabletCellBundle::FillProfilingTag()
