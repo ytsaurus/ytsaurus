@@ -1084,8 +1084,7 @@ public:
                                 firstTabletIndex,
                                 lastTabletIndex,
                                 newTabletCount,
-                                action->PivotKeys(),
-                                false);
+                                action->PivotKeys());
                         } catch (const std::exception& ex) {
                             for (auto* tablet : oldTablets) {
                                 YCHECK(IsObjectAlive(tablet));
@@ -1790,8 +1789,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TOwningKey>& pivotKeys,
-        bool strictNewTabletCount = true)
+        const std::vector<TOwningKey>& pivotKeys)
     {
         if (!pivotKeys.empty() || !table->IsSorted()) {
             DoReshardTable(
@@ -1804,10 +1802,6 @@ public:
         }
 
         auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
-        if (strictNewTabletCount && newPivotKeys.size() != newTabletCount) {
-            THROW_ERROR_EXCEPTION("Unable to calculate pivot keys");
-        }
-
         newTabletCount = newPivotKeys.size();
         DoReshardTable(
             table,
