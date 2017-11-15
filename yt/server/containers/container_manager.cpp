@@ -1,4 +1,4 @@
-#ifdef _linux_
+#ifdef __linux__
 
 #include "container_manager.h"
 #include "instance.h"

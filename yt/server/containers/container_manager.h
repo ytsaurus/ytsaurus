@@ -1,6 +1,6 @@
 #pragma once
 
-#ifndef _linux_
+#ifndef __linux__
 #error Platform must be linux to include this
 #endif
 
