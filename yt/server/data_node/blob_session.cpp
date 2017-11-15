@@ -295,31 +295,30 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 Y_UNREACHABLE();
             }
-        } catch (const TBlockChecksumValidationException &ex) {
+        } catch (const TBlockChecksumValidationException& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::InvalidBlockChecksum,
                 "Invalid checksum detected in chunk block %v",
                 blockId)
-                          << TErrorAttribute("expected_checksum", ex.GetExpected())
-                          << TErrorAttribute("actual_checksum", ex.GetActual()),
+                << TErrorAttribute("expected_checksum", ex.GetExpected())
+                << TErrorAttribute("actual_checksum", ex.GetActual()),
                 /* fatal */ false);
-        } catch (const std::exception &ex) {
+        } catch (const std::exception& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error writing chunk block %v",
                 blockId)
-                          << ex);
+                << ex);
         }
 
         auto writeTime = timer.GetElapsedTime();
 
         LOG_DEBUG("Finished writing block (BlockIndex: %v)", blockIndex);
 
-        auto &locationProfiler = Location_->GetProfiler();
+        auto& locationProfiler = Location_->GetProfiler();
         locationProfiler.Enqueue("/blob_block_write_size", block.Size(), EMetricType::Gauge);
         locationProfiler.Enqueue("/blob_block_write_time", writeTime.MicroSeconds(), EMetricType::Gauge);
-        locationProfiler.Enqueue("/blob_block_write_throughput",
-            block.Size() * 1000000 / (1 + writeTime.MicroSeconds()), EMetricType::Gauge);
+        locationProfiler.Enqueue("/blob_block_write_throughput", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()), EMetricType::Gauge);
 
         DataNodeProfiler.Increment(DiskBlobWriteByteCounter, block.Size());
 
@@ -332,7 +331,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
-        auto &slot = GetSlot(blockIndex);
+        auto& slot = GetSlot(blockIndex);
         slot.PendingIOGuard.Release();
         if (error.IsOK()) {
             YCHECK(slot.State == ESlotState::Received);
