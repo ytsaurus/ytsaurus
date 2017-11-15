@@ -108,7 +108,9 @@ public:
             TabletIdQueue_.push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             Profiler.Increment(QueueSizeCounter_);
-            LOG_DEBUG("Tablet is put into balancer queue (TabletId: %v)", tablet->GetId());
+            LOG_DEBUG("Tablet is put into balancer queue (TableId: %v, TabletId: %v)",
+                tablet->GetTable()->GetId(),
+                tablet->GetId());
         }
     }
 
@@ -276,8 +278,9 @@ private:
                 }
 
                 if (tabletSize < cellSize - top.first) {
-                    LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v, "
+                    LOG_DEBUG("Tablet balancer would like to move tablet (TableId: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, "
                         "TabletSize: %v, SrcCellSize: %v, DstCellSize: %v, CellBundle: %v)",
+                        tablet->GetTable()->GetId(),
                         tablet->GetId(),
                         cell->GetId(),
                         top.second->GetId(),
@@ -434,7 +437,8 @@ private:
             TouchedTablets_.insert(table->Tablets()[index]);
         }
 
-        LOG_DEBUG("Tablet balancer would like to reshard tablets (TabletIds: %v, NewTabletCount: %v)",
+        LOG_DEBUG("Tablet balancer would like to reshard tablets (TableId: %v, TabletIds: %v, NewTabletCount: %v)",
+            table->GetId(),
             tabletIds,
             newTabletCount);
 
