@@ -267,7 +267,6 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
     Persist(context, ChunkPoolInput_);
     Persist(context, TableIndex_);
     Persist(context, CurrentChunkCount_);
-    Persist(context, CanScheduleJob_);
 }
 
 bool TAutoMergeTask::SupportsInputPathYson() const
