@@ -115,7 +115,7 @@ struct TProcessState
 {
     TString HostName;
     TString UserName;
-    yvector<TString> CommandLine;
+    TVector<TString> CommandLine;
     int Pid;
     TString ClientVersion;
 

@@ -69,7 +69,7 @@ TGUID ParseGuidFromResponse(const TString& response)
     return GetGuid(node.AsString());
 }
 
-void ParseJsonStringArray(const TString& response, yvector<TString>& result)
+void ParseJsonStringArray(const TString& response, TVector<TString>& result)
 {
     NJson::TJsonValue value;
     TStringInput input(response);
@@ -102,9 +102,9 @@ TRichYPath CanonizePath(const TAuth& auth, const TRichYPath& path)
     return result;
 }
 
-yvector<TRichYPath> CanonizePaths(const TAuth& auth, const yvector<TRichYPath>& paths)
+TVector<TRichYPath> CanonizePaths(const TAuth& auth, const TVector<TRichYPath>& paths)
 {
-    yvector<TRichYPath> result;
+    TVector<TRichYPath> result;
     for (const auto& path : paths) {
         result.push_back(CanonizePath(auth, path));
     }
@@ -197,7 +197,7 @@ TString GetProxyForHeavyRequest(const TAuth& auth)
         return auth.ServerName;
     }
 
-    yvector<TString> hosts;
+    TVector<TString> hosts;
     THttpHeader header("GET", TConfig::Get()->Hosts, false);
     TString response = RetryRequest(auth, header);
     ParseJsonStringArray(response, hosts);

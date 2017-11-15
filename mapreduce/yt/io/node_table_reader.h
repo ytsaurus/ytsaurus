@@ -49,10 +49,10 @@ public:
     void Stop();
 
 private:
-    yvector<TRowElement> EnqueueBuffer_;
+    TVector<TRowElement> EnqueueBuffer_;
     size_t EnqueueSize_ = 0;
 
-    yvector<TRowElement> DequeueBuffer_;
+    TVector<TRowElement> DequeueBuffer_;
     size_t DequeueIndex_ = 0;
 
     TAutoEvent EnqueueEvent_;

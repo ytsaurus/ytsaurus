@@ -70,7 +70,7 @@ public:
         const TLinkOptions& options) override;
 
     void Concatenate(
-        const yvector<TYPath>& sourcePaths,
+        const TVector<TYPath>& sourcePaths,
         const TYPath& destinationPath,
         const TConcatenateOptions& options) override;
 
@@ -262,7 +262,7 @@ public:
 
     void ReshardTable(
         const TYPath& path,
-        const yvector<TKey>& keys,
+        const TVector<TKey>& keys,
         const TReshardTableOptions& options) override;
 
     void ReshardTable(

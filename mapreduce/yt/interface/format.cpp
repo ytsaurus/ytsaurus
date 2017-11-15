@@ -52,12 +52,12 @@ TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescri
     return config;
 }
 
-TNode MakeProtoFormatConfigOld(const yvector<const Descriptor*>& descriptors)
+TNode MakeProtoFormatConfigOld(const TVector<const Descriptor*>& descriptors)
 {
     FileDescriptorSet set;
     yhash<const FileDescriptor*, int> saved;
-    yvector<int> fileIndices;
-    yvector<int> messageIndices;
+    TVector<int> fileIndices;
+    TVector<int> messageIndices;
 
     for (auto* descriptor : descriptors) {
         auto* fileDescriptor = descriptor->file();
@@ -81,10 +81,10 @@ TNode MakeProtoFormatConfigOld(const yvector<const Descriptor*>& descriptors)
     return config;
 }
 
-TNode MakeProtoFormatConfigNew(const yvector<const Descriptor*>& descriptors)
+TNode MakeProtoFormatConfigNew(const TVector<const Descriptor*>& descriptors)
 {
     auto enumerations = TNode::CreateMap();
-    yvector<TNode> tables;
+    TVector<TNode> tables;
 
     for (auto* descriptor : descriptors) {
         auto columns = TNode::CreateList();
@@ -118,7 +118,7 @@ TNode MakeProtoFormatConfigNew(const yvector<const Descriptor*>& descriptors)
     return config;
 }
 
-TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
+TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
 {
     if (USE_NEW_PROTO_FORMAT_DESCRIPTION) {
         return MakeProtoFormatConfigNew(descriptors);
@@ -166,7 +166,7 @@ TFormat::TFormat(EFormatType type, const TNode& config)
 }
 
 
-TFormat::TFormat(const yvector<const ::google::protobuf::Descriptor*>& descriptors)
+TFormat::TFormat(const TVector<const ::google::protobuf::Descriptor*>& descriptors)
     : Type(EFormatType::Protobuf)
     , Config(MakeProtoFormatConfig(descriptors))
 { }

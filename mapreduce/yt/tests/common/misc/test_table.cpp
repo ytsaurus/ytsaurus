@@ -38,8 +38,8 @@ public:
     }
 
 private:
-    yvector<yvector<TString>> GetData() const {
-        static yvector<yvector<TString>> data =  {
+    TVector<TVector<TString>> GetData() const {
+        static TVector<TVector<TString>> data =  {
             { "a", "a", "a" },
             { "c", "c", "c" },
             { "e", "e", "e" },
@@ -105,7 +105,7 @@ void TestTableMethods(NMR::TServer& server, const char* tableName) {
         Cout << Sprintf(headerTemplate, "GetRecordCount") << table.GetRecordCount() << "\n";
     }
     {
-        const yvector<ui64> INDICIES = {
+        const TVector<ui64> INDICIES = {
             0, 1, 2, 3, 4, 5, 6, 100, std::numeric_limits<ui64>::max()
         };
         const bool USE_SUBKEY = true;
@@ -119,7 +119,7 @@ void TestTableMethods(NMR::TServer& server, const char* tableName) {
         }
     }
     { // Args = {key}: Find, LowerBound, UpperBound, GetValueByKey.
-        const yvector<const char*> KEYS = {
+        const TVector<const char*> KEYS = {
                 "a", "b", "c",
                 "d", "e", "g",
                 "i", "j", "aa",
@@ -139,7 +139,7 @@ void TestTableMethods(NMR::TServer& server, const char* tableName) {
             Cout << Sprintf(headerTemplate, "UpperBound", key)
                 << ItToString(table.UpperBound(key)) << "\n";
         }
-        yvector<char> value;
+        TVector<char> value;
         for (const auto& key : KEYS) {
             bool res = table.GetValueByKey(key, &value);
             Cout << Sprintf(headerTemplate, "GetValueByKey", key)
@@ -148,7 +148,7 @@ void TestTableMethods(NMR::TServer& server, const char* tableName) {
     }
     { // Args = {key, subkey}: FindSub, LowerBoundSub, UpperBoundSub, GetValueByKeySub
         using TKeySubkey = std::pair<const char*, const char*>;
-        const yvector<TKeySubkey> ARGS = {
+        const TVector<TKeySubkey> ARGS = {
                 { "a", "a" },
                 { "a", "zzz" },
                 { "a", "" },
@@ -175,7 +175,7 @@ void TestTableMethods(NMR::TServer& server, const char* tableName) {
             Cout << Sprintf(headerTemplate, "UpperBoundSub", arg.first, arg.second)
                 << ItToString(table.UpperBoundSub(arg.first, arg.second)) << "\n";
         }
-        yvector<char> value;
+        TVector<char> value;
         for (const auto& arg : ARGS) {
             bool res = table.GetValueByKeySub(arg.first, arg.second, &value);
             Cout << Sprintf(headerTemplate, "GetValueByKeySub", arg.first, arg.second)

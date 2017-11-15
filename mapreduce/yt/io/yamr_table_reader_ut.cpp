@@ -47,7 +47,7 @@ public:
     }
 
 private:
-    yvector<TString> RowList_;
+    TVector<TString> RowList_;
 };
 
 class TTestProxyInput
@@ -103,7 +103,7 @@ SIMPLE_UNIT_TEST_SUITE(TestYamrTableReader)
 {
     SIMPLE_UNIT_TEST(TestReadRetry)
     {
-        const yvector<std::tuple<TString, TString, TString>> expectedResult = {
+        const TVector<std::tuple<TString, TString, TString>> expectedResult = {
             {"foo1", "bar1", "baz1"},
             {"foo2", "bar2", "baz2"},
             {"foo3", "bar3", "baz3"},
@@ -125,7 +125,7 @@ SIMPLE_UNIT_TEST_SUITE(TestYamrTableReader)
             }
 
             TYaMRTableReader tableReader(proxyInput);
-            yvector<std::tuple<TString, TString, TString>> actualResult;
+            TVector<std::tuple<TString, TString, TString>> actualResult;
             for (; tableReader.IsValid(); tableReader.Next()) {
                 auto row = tableReader.GetRow();
                 actualResult.emplace_back(row.Key, row.SubKey, row.Value);
@@ -136,7 +136,7 @@ SIMPLE_UNIT_TEST_SUITE(TestYamrTableReader)
 
     SIMPLE_UNIT_TEST(TestSkipRetry)
     {
-        const yvector<std::tuple<TString, TString, TString>> expectedResult = {
+        const TVector<std::tuple<TString, TString, TString>> expectedResult = {
             {"foo1", "bar1", "baz1"},
             {"foo2", "bar2", "baz2"},
             {"foo3", "bar3", "baz3"},

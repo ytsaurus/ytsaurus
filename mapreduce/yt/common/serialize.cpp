@@ -109,7 +109,7 @@ void Deserialize(TMaybe<T>& value, const TNode& node)
 }
 
 template <class T>
-void Deserialize(yvector<T>& value, const TNode& node)
+void Deserialize(TVector<T>& value, const TNode& node)
 {
     for (const auto& element : node.AsList()) {
         value.emplace_back();

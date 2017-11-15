@@ -57,9 +57,9 @@ TString GetPathFromRequest(const TNode& params)
     return params.AsMap().at("parameters").AsMap().at("path").AsString();
 }
 
-yvector<TString> GetAllPathsFromRequestList(const TNode& requestList)
+TVector<TString> GetAllPathsFromRequestList(const TNode& requestList)
 {
-    yvector<TString> result;
+    TVector<TString> result;
     for (const auto& request : requestList.AsList()) {
         result.push_back(GetPathFromRequest(request)); }
     return result;
@@ -113,7 +113,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestImpl) {
         retryBatch.FillParameterList(3, &retryParameterList, &nextTry);
         UNIT_ASSERT_VALUES_EQUAL(
             GetAllPathsFromRequestList(retryParameterList),
-            yvector<TString>({"//getError-3", "//getError-5"}));
+            TVector<TString>({"//getError-3", "//getError-5"}));
 
         UNIT_ASSERT_VALUES_EQUAL(nextTry, now + TDuration::Seconds(5));
     }

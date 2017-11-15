@@ -27,7 +27,7 @@ public:
     // Throw exception if any operation is failed or aborted.
     // Exception is thrown as soon as error operation is detected
     // and don't wait (or abort) other running operations.
-    yvector<IOperationPtr> WaitAllCompleted();
+    TVector<IOperationPtr> WaitAllCompleted();
 
     //
     // Wait until all operations are finished.
@@ -35,7 +35,7 @@ public:
     // Return vector of all operations.
     //
     // Do not throw exception if any operation is failed or aborted.
-    yvector<IOperationPtr> WaitAllCompletedOrError();
+    TVector<IOperationPtr> WaitAllCompletedOrError();
 
     //
     // Wait until any operaiton is complete and return this operation.

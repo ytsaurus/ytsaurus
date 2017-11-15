@@ -26,9 +26,9 @@ using ::google::protobuf::io::TCopyingInputStreamAdaptor;
 
 namespace {
 
-yvector<const Descriptor*> GetJobDescriptors(const TString& fileName)
+TVector<const Descriptor*> GetJobDescriptors(const TString& fileName)
 {
-    yvector<const Descriptor*> descriptors;
+    TVector<const Descriptor*> descriptors;
     if (!TFsPath(fileName).Exists()) {
         ythrow TIOException() <<
             "Cannot load '" << fileName << "' file";
@@ -49,12 +49,12 @@ yvector<const Descriptor*> GetJobDescriptors(const TString& fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-yvector<const Descriptor*> GetJobInputDescriptors()
+TVector<const Descriptor*> GetJobInputDescriptors()
 {
     return GetJobDescriptors("proto_input");
 }
 
-yvector<const Descriptor*> GetJobOutputDescriptors()
+TVector<const Descriptor*> GetJobOutputDescriptors()
 {
     return GetJobDescriptors("proto_output");
 }
@@ -62,7 +62,7 @@ yvector<const Descriptor*> GetJobOutputDescriptors()
 void ValidateProtoDescriptor(
     const Message& row,
     size_t tableIndex,
-    const yvector<const Descriptor*>& descriptors,
+    const TVector<const Descriptor*>& descriptors,
     bool isRead)
 {
     const char* direction = isRead ? "input" : "output";

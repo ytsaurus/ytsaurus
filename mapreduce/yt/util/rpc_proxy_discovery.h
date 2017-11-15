@@ -11,7 +11,7 @@ namespace NYT {
  *
  * NB!!!  DO NOT USE INSIDE THE JOBS (currently implemented using HTTP API)
  */
-yvector<TString> GetRpcProxyHosts(const TString& proxy, const TString& token = TString());
+TVector<TString> GetRpcProxyHosts(const TString& proxy, const TString& token = TString());
 
 }
 

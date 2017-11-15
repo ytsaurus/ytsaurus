@@ -110,13 +110,13 @@ YT_TEST(TOperation, IdMapIdReduce)
 YT_TEST(TOperation, SingleMerge) {
     SimpleFillTable(Input());
     Server().Sort(Input());
-    yvector<TString> srcTables = { Input() };
+    TVector<TString> srcTables = { Input() };
     Server().Merge(srcTables, Output());
     PrintTable(Output());
 }
 
 YT_TEST(TOperation, MultiMerge) {
-    const yvector<TString> srcs = { "tmp/t0", "tmp/t1", "tmp/t2" };
+    const TVector<TString> srcs = { "tmp/t0", "tmp/t1", "tmp/t2" };
     {
         TClient client(Server());
         TUpdate update0(client, srcs[0]);
@@ -151,7 +151,7 @@ YT_TEST(TOperation, CopyN2N) {
         Server().Sort(TABLE_SORTED);
     }
 
-    const yvector<std::pair<EUpdateMode, EUpdateMode>> modes = {
+    const TVector<std::pair<EUpdateMode, EUpdateMode>> modes = {
         { UM_REPLACE, UM_REPLACE },
         { UM_REPLACE, UM_APPEND },
         { UM_REPLACE, UM_SORTED },

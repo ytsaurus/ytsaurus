@@ -1,6 +1,6 @@
 cimport cython
 from libc.stdlib cimport malloc, free
-from util.generic.vector cimport yvector
+from util.generic.vector cimport TVector
 from util.generic.hash cimport yhash
 from util.generic.string cimport TString
 from util.system.types cimport i64, ui64, ui32
@@ -47,7 +47,7 @@ cdef extern from "mapreduce/yt/node/node.h" namespace "NYT" nogil:
         ui64 AsUint64()
         double AsDouble()
         bint AsBool()
-        yvector[TNode]& AsList()
+        TVector[TNode]& AsList()
         yhash[TString, TNode]& AsMap()
 
         @staticmethod
@@ -199,7 +199,7 @@ cdef extern from "mapreduce/yt/interface/client_method_options.h" namespace "NYT
     cdef cppclass TLookupRowsOptions:
         TLookupRowsOptions() except +
         TLookupRowsOptions Timeout(TDuration)
-        TLookupRowsOptions Columns(yvector[TString])
+        TLookupRowsOptions Columns(TVector[TString])
         TLookupRowsOptions KeepMissingRows(bint)
 
     cdef cppclass TCreateClientOptions:
@@ -285,9 +285,9 @@ cdef extern from "mapreduce/yt/interface/fwd.h" namespace "NYT" nogil:
         TNodeId Create(TString, ENodeType, TCreateOptions) except +
         void MountTable(TString, TMountTableOptions) except +
         void UnmountTable(TString, TUnmountTableOptions) except +
-        void InsertRows(TString, yvector[TNode], TInsertRowsOptions) except +
-        yvector[TNode] SelectRows(TString, TSelectRowsOptions) except +
-        yvector[TNode] LookupRows(TString, yvector[TNode], TLookupRowsOptions) except +
+        void InsertRows(TString, TVector[TNode], TInsertRowsOptions) except +
+        TVector[TNode] SelectRows(TString, TSelectRowsOptions) except +
+        TVector[TNode] LookupRows(TString, TVector[TNode], TLookupRowsOptions) except +
 
     cdef cppclass IClientPtr:
         IClient operator*()
@@ -392,7 +392,7 @@ cdef class Client:
         if require_sync_replica is not None:
             opts.RequireSyncReplica(<bint>require_sync_replica)
         cdef TString cpath = _to_TString(path)
-        cdef yvector[TNode] crows = _pyobj_to_TNode(rows).AsList()
+        cdef TVector[TNode] crows = _pyobj_to_TNode(rows).AsList()
         with nogil:
             cython.operator.dereference(self._client).InsertRows(cpath, crows, opts)
 
@@ -409,7 +409,7 @@ cdef class Client:
         if timeout is not None:
             opts.Timeout(TDuration.MilliSeconds(<int>timeout))
         cdef TString cquery = _to_TString(query)
-        cdef yvector[TNode] rows
+        cdef TVector[TNode] rows
         with nogil:
             rows = cython.operator.dereference(self._client).SelectRows(cquery, opts)
         return [_TNode_to_pyobj(row) for row in rows]
@@ -422,7 +422,7 @@ cdef class Client:
             opts.Columns(columns)
         opts.KeepMissingRows(<bint>keep_missing_rows)
         cdef TString cpath = _to_TString(path)
-        cdef yvector[TNode] ckeys = _pyobj_to_TNode(keys).AsList()
+        cdef TVector[TNode] ckeys = _pyobj_to_TNode(keys).AsList()
         with nogil:
             rows = cython.operator.dereference(self._client).LookupRows(cpath, ckeys, opts)
         return [_TNode_to_pyobj(row) for row in rows]

@@ -256,7 +256,7 @@ TNodeId TMockClient::Move(const TYPath&, const TYPath&, const TMoveOptions&) {
 TNodeId TMockClient::Link(const TYPath&, const TYPath&, const TLinkOptions&) {
     return GetDefaultGuid();
 }
-void TMockClient::Concatenate(const yvector<TYPath>&, const TYPath&, const TConcatenateOptions&) {
+void TMockClient::Concatenate(const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&) {
 }
 
 TRichYPath TMockClient::CanonizeYPath(const TRichYPath&) {
@@ -368,7 +368,7 @@ void TMockClient::FreezeTable(const TYPath&, const TFreezeTableOptions&) {
 void TMockClient::UnfreezeTable(const TYPath&, const TUnfreezeTableOptions&) {
 }
 
-void TMockClient::ReshardTable(const TYPath&, const yvector<TKey>&, const TReshardTableOptions&) {
+void TMockClient::ReshardTable(const TYPath&, const TVector<TKey>&, const TReshardTableOptions&) {
 }
 
 void TMockClient::ReshardTable(const TYPath&, i32, const TReshardTableOptions&) {

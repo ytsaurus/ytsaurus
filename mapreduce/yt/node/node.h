@@ -50,7 +50,7 @@ public:
         ENTITY = Null,
     };
 
-    using TList = yvector<TNode>;
+    using TList = TVector<TNode>;
     using TMap = yhash<TString, TNode>;
 
 private:

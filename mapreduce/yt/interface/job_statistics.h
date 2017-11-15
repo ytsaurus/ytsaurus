@@ -82,13 +82,13 @@ public:
     // Filter statistics by job type.
     // By default filter includes all job types.
     // Specify empty `filter' to include all job types.
-    TJobStatistics JobType(yvector<EJobType> filter) const;
+    TJobStatistics JobType(TVector<EJobType> filter) const;
 
     //
     // Filter statistics by job state.
     // By default filter includes only (successfuly) completed jobs.
     // Specify empty `filter' to include all job states.
-    TJobStatistics JobStatus(yvector<EFinishedJobState> filter) const;
+    TJobStatistics JobStatus(TVector<EFinishedJobState> filter) const;
 
     //
     // Get statistics by name.

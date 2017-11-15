@@ -566,11 +566,11 @@ protected:
         );
 
         auto reader = Client()->CreateTableReader<TNode>(Output());
-        yvector<TString> values;
+        TVector<TString> values;
         for (; reader->IsValid(); reader->Next()) {
             values.emplace_back(reader->GetRow()["value"].AsString());
         }
-        const yvector<TString> expectedValues = {
+        const TVector<TString> expectedValues = {
             "0: a; 0: b; 0: w; 0: x; ",
             "1: c; 1: d; 1: y; 1: z; ",
         };

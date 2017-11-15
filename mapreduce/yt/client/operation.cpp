@@ -149,7 +149,7 @@ public:
             options.JobCommandSuffix_;
     }
 
-    const yvector<TRichYPath>& GetFiles() const
+    const TVector<TRichYPath>& GetFiles() const
     {
         return Files_;
     }
@@ -186,7 +186,7 @@ private:
     TOperationOptions Options_;
 
     TString BinaryPath_;
-    yvector<TRichYPath> Files_;
+    TVector<TRichYPath> Files_;
     bool HasState_ = false;
     TString ClassName_;
     TString Command_;
@@ -403,7 +403,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-yvector<TFailedJobInfo> GetFailedJobInfo(
+TVector<TFailedJobInfo> GetFailedJobInfo(
     const TAuth& auth,
     const TOperationId& operationId,
     const TGetFailedJobInfoOptions& options)
@@ -426,7 +426,7 @@ yvector<TFailedJobInfo> GetFailedJobInfo(
             .AddAttribute("error")));
     auto jobList = NodeFromYsonString(RetryRequest(auth, header)).AsList();
 
-    yvector<TFailedJobInfo> result;
+    TVector<TFailedJobInfo> result;
     for (const auto& job : jobList) {
         if (result.size() >= maxJobCount) {
             break;
@@ -469,7 +469,7 @@ yvector<TFailedJobInfo> GetFailedJobInfo(
 
 void DumpJobInfoForException(
     IOutputStream& output,
-    const yvector<TFailedJobInfo>& failedJobInfoList)
+    const TVector<TFailedJobInfo>& failedJobInfoList)
 {
     // Exceptions has limit to contain 65508 bytes of text, so we also limit stderr text
     constexpr size_t MAX_SIZE = 65508 / 2;
@@ -501,7 +501,7 @@ void DumpJobInfoForException(
     output.Flush();
 }
 
-using TDescriptorList = yvector<const ::google::protobuf::Descriptor*>;
+using TDescriptorList = TVector<const ::google::protobuf::Descriptor*>;
 
 TMultiFormatDesc IdentityDesc(const TMultiFormatDesc& multi)
 {
@@ -884,7 +884,7 @@ void CreateOutputTable(
 void CreateOutputTables(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const yvector<TRichYPath>& paths)
+    const TVector<TRichYPath>& paths)
 {
     if (paths.empty()) {
         ythrow yexception() << "Output tables are not set";
@@ -910,7 +910,7 @@ TString DumpYPath(const TRichYPath& path)
     return stream.Str();
 }
 
-void LogYPaths(const TOperationId& opId, const yvector<TRichYPath>& paths, const char* type)
+void LogYPaths(const TOperationId& opId, const TVector<TRichYPath>& paths, const char* type)
 {
     for (size_t i = 0; i < paths.size(); ++i) {
         LOG_INFO("Operation %s; %s[%" PRISZT "] = %s",
@@ -1815,7 +1815,7 @@ NThreading::TFuture<void> TOperation::Watch()
     return Impl_->Watch(Client_->GetYtPoller());
 }
 
-yvector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOptions& options)
+TVector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOptions& options)
 {
     return NYT::NDetail::GetFailedJobInfo(Client_->GetAuth(), GetId(), options);
 }

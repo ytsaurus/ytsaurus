@@ -44,7 +44,7 @@ public:
 private:
     TMutex Lock_;
 
-    yvector<TPromise<IOperationPtr>> CompletedOperationPromiseList_;
+    TVector<TPromise<IOperationPtr>> CompletedOperationPromiseList_;
     size_t NextReturned_ = 0;
     size_t NextCompleted_ = 0;
 };
@@ -61,18 +61,18 @@ void TOperationTracker::AddOperation(IOperationPtr operation)
     Impl_->AddOperation(operation);
 }
 
-yvector<IOperationPtr> TOperationTracker::WaitAllCompleted()
+TVector<IOperationPtr> TOperationTracker::WaitAllCompleted()
 {
-    yvector<IOperationPtr> result;
+    TVector<IOperationPtr> result;
     while (auto op = WaitOneCompleted()) {
         result.push_back(op);
     }
     return result;
 }
 
-yvector<IOperationPtr> TOperationTracker::WaitAllCompletedOrError()
+TVector<IOperationPtr> TOperationTracker::WaitAllCompletedOrError()
 {
-    yvector<IOperationPtr> result;
+    TVector<IOperationPtr> result;
     while (auto op = WaitOneCompletedOrError()) {
         result.push_back(op);
     }

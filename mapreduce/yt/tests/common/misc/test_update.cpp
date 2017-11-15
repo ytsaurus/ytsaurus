@@ -16,7 +16,7 @@ using namespace NTestUtil;
 
 namespace {
 
-using TData = yvector<yvector<TString>>;
+using TData = TVector<TVector<TString>>;
 
 
 class TUpdate
@@ -28,7 +28,7 @@ public:
     static constexpr auto EMPTY_TABLE = "tmp/update_test/empty_table";
     static constexpr auto UNEXIST_TABLE = "tmp/update_test/unexist_table";
 
-    static yvector<decltype(TABLE)> GetTables()  {
+    static TVector<decltype(TABLE)> GetTables()  {
         return {
             TABLE,
             SORTED_TABLE,
@@ -37,7 +37,7 @@ public:
         };
     }
 
-    static yvector<NMR::EUpdateMode> GetUpdateModes()  {
+    static TVector<NMR::EUpdateMode> GetUpdateModes()  {
         return {
             NMR::UM_REPLACE,
             NMR::UM_APPEND,
@@ -75,7 +75,7 @@ public:
     }
 
     static TData GetSmallSortedTestData() {
-        yvector<yvector<TString>> toAdd;
+        TVector<TVector<TString>> toAdd;
         toAdd.push_back({ "xx", "xx", "xxx" });
         toAdd.push_back({ "xy", "xy", "yyy"  });
         toAdd.push_back({ "xz", "xz", "zzz"  });
@@ -176,7 +176,7 @@ YT_TEST(TUpdate, SingleUpdate) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void DoTestMultiUpdate(NMR::TServer& server, const yvector<NMR::TUpdateTable>& updates, TData&& toAdd) {
+void DoTestMultiUpdate(NMR::TServer& server, const TVector<NMR::TUpdateTable>& updates, TData&& toAdd) {
     try {
         NMR::TClient client(server);
         NMR::TUpdate up(client, updates);
@@ -206,7 +206,7 @@ YT_TEST(TUpdate, MultiUpdate) {
 
     #define X(name, mode) NMR::TUpdateTable(name, mode)
 
-    static const yvector<yvector<NMR::TUpdateTable>> allUpdates = {
+    static const TVector<TVector<NMR::TUpdateTable>> allUpdates = {
         {
             X(EMPTY_TABLE, NMR::UM_APPEND),
             X(UNEXIST_TABLE, NMR::UM_APPEND)

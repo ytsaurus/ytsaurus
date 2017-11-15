@@ -148,7 +148,7 @@ TNodeId TClientBase::Link(
 }
 
 void TClientBase::Concatenate(
-    const yvector<TYPath>& sourcePaths,
+    const TVector<TYPath>& sourcePaths,
     const TYPath& destinationPath,
     const TConcatenateOptions& options)
 {
@@ -395,7 +395,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TTableReaderOptions& options,
     const Message* prototype)
 {
-    yvector<const ::google::protobuf::Descriptor*> descriptors;
+    TVector<const ::google::protobuf::Descriptor*> descriptors;
     descriptors.push_back(prototype->GetDescriptor());
 
     if (TConfig::Get()->UseClientProtobuf) {
@@ -429,7 +429,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TTableWriterOptions& options,
     const Message* prototype)
 {
-    yvector<const ::google::protobuf::Descriptor*> descriptors;
+    TVector<const ::google::protobuf::Descriptor*> descriptors;
     descriptors.push_back(prototype->GetDescriptor());
 
     if (TConfig::Get()->UseClientProtobuf) {
@@ -586,7 +586,7 @@ void TClient::UnfreezeTable(
 
 void TClient::ReshardTable(
     const TYPath& path,
-    const yvector<TKey>& keys,
+    const TVector<TKey>& keys,
     const TReshardTableOptions& options)
 {
     THttpHeader header("POST", "reshard_table");

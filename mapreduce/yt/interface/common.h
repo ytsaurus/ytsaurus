@@ -41,7 +41,7 @@ namespace NYT {
     }
 
 #define FLUENT_VECTOR_FIELD(type, name) \
-    yvector<type> name##s_; \
+    TVector<type> name##s_; \
     TSelf& Add##name(const type& value) \
     { \
         name##s_.push_back(value); \
@@ -90,7 +90,7 @@ struct TKeyBase
         Add(arg, std::forward<TArgs>(args)...);
     }
 
-    TKeyBase(yvector<T> args)
+    TKeyBase(TVector<T> args)
         : Parts_(std::move(args))
     { }
 
@@ -121,7 +121,7 @@ struct TKeyBase
         return std::move(*this);
     }
 
-    yvector<T> Parts_;
+    TVector<T> Parts_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

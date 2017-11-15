@@ -23,7 +23,7 @@ struct TFormat {
     TNode Config;
 
     TFormat(EFormatType type, const TNode& config = TNode());
-    TFormat(const yvector<const ::google::protobuf::Descriptor*>& descriptors);
+    TFormat(const TVector<const ::google::protobuf::Descriptor*>& descriptors);
 
     // Prefer using these methods to create your formats
     static inline TFormat YsonText();

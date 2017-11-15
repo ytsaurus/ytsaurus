@@ -15,7 +15,7 @@ using namespace NYT::NTesting;
 
 TString NormalizeDsv(const TString& value)
 {
-    yvector<TString> splited = StringSplitter(value).Split('\t').ToList<TString>();
+    TVector<TString> splited = StringSplitter(value).Split('\t').ToList<TString>();
     Sort(splited.begin(), splited.end());
     return JoinRange("\t", splited.begin(), splited.end());
 }
@@ -73,14 +73,14 @@ SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
         auto client = CreateTestClient();
         CreateYamredDsvInput(client);
 
-        yvector<TOwningYaMRRow> table;
+        TVector<TOwningYaMRRow> table;
         auto reader = client->CreateTableReader<TYaMRRow>("//testing/yamred_dsv_input");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
         }
 
-        const yvector<TOwningYaMRRow> expectedTable = {
+        const TVector<TOwningYaMRRow> expectedTable = {
             {"oneone", "", "double=1.0\tint=1\tstring=one"},
             {"twotwo", "", "double=2.0\tint=2\tstring=two"},
         };
@@ -93,14 +93,14 @@ SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
         auto client = CreateTestClient();
         CreateYamrInput(client);
 
-        yvector<TOwningYaMRRow> table;
+        TVector<TOwningYaMRRow> table;
         auto reader = client->CreateTableReader<TYaMRRow>("//testing/yamr_input");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
         }
 
-        const yvector<TOwningYaMRRow> expectedTable = {
+        const TVector<TOwningYaMRRow> expectedTable = {
             {"1", "", "one"},
             {"2", "", "two"},
         };
@@ -121,7 +121,7 @@ SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
             new TSwapKvMapper,
             TOperationOptions().UseTableFormats(true));
 
-        yvector<TOwningYaMRRow> table;
+        TVector<TOwningYaMRRow> table;
 
         auto reader = client->CreateTableReader<TYaMRRow>("//testing/output");
         for (; reader->IsValid(); reader->Next()) {
@@ -129,7 +129,7 @@ SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
             table.emplace_back(NormalizeDsv(row.Key.ToString()), row.SubKey.ToString(), row.Value.ToString());
         }
 
-        const yvector<TOwningYaMRRow> expectedTable = {
+        const TVector<TOwningYaMRRow> expectedTable = {
             {"double=1.0\tint=1\tstring=one", "", "oneone"},
             {"double=2.0\tint=2\tstring=two", "", "twotwo"},
         };
@@ -149,14 +149,14 @@ SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
             new TSwapKvMapper,
             TOperationOptions().UseTableFormats(true));
 
-        yvector<TOwningYaMRRow> table;
+        TVector<TOwningYaMRRow> table;
         auto reader = client->CreateTableReader<TYaMRRow>("//testing/output");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
         }
 
-        const yvector<TOwningYaMRRow> expectedTable = {
+        const TVector<TOwningYaMRRow> expectedTable = {
             {"one", "", "1"},
             {"two", "", "2"},
         };

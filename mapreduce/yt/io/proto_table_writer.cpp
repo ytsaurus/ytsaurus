@@ -94,7 +94,7 @@ TNode MakeNodeFromMessage(const Message& row)
 
 TProtoTableWriter::TProtoTableWriter(
     THolder<TProxyOutput> output,
-    yvector<const Descriptor*>&& descriptors)
+    TVector<const Descriptor*>&& descriptors)
     : NodeWriter_(new TNodeTableWriter(std::move(output)))
     , Descriptors_(std::move(descriptors))
 { }
@@ -121,7 +121,7 @@ void TProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 
 TLenvalProtoTableWriter::TLenvalProtoTableWriter(
     THolder<TProxyOutput> output,
-    yvector<const Descriptor*>&& descriptors)
+    TVector<const Descriptor*>&& descriptors)
     : Output_(std::move(output))
     , Descriptors_(std::move(descriptors))
 { }

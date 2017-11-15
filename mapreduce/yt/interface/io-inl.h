@@ -394,7 +394,7 @@ public:
 
     explicit TTableWriterBase(::TIntrusivePtr<IWriterImpl> writer)
         : Writer_(writer)
-        , Locks_(MakeAtomicShared<yvector<TMutex>>(writer->GetStreamCount()))
+        , Locks_(MakeAtomicShared<TVector<TMutex>>(writer->GetStreamCount()))
     { }
 
     ~TTableWriterBase() override
@@ -426,7 +426,7 @@ public:
 
 private:
     ::TIntrusivePtr<IWriterImpl> Writer_;
-    TAtomicSharedPtr<yvector<TMutex>> Locks_;
+    TAtomicSharedPtr<TVector<TMutex>> Locks_;
 };
 
 template <>
@@ -491,7 +491,7 @@ public:
 
 private:
     ::TIntrusivePtr<IProtoWriterImpl> Writer_;
-    yvector<TMutex> Locks_;
+    TVector<TMutex> Locks_;
 };
 
 template <class T>

@@ -593,7 +593,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_VALUES_EQUAL(getRes.GetValue(), TNode(4));
         setRes.GetValue(); // check no exception here
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/two"), TNode(5));
-        UNIT_ASSERT_VALUES_EQUAL(listRes.GetValue(), yvector<TNode>({"child"}));
+        UNIT_ASSERT_VALUES_EQUAL(listRes.GetValue(), TVector<TNode>({"child"}));
         lockRes.GetValue(); // check no exception here
         UNIT_ASSERT_VALUES_EQUAL(existsRes.GetValue(), true);
     }
@@ -622,7 +622,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
             batchRequest->ExecuteBatch();
         }
 
-        yvector<NThreading::TFuture<TNode>> results;
+        TVector<NThreading::TFuture<TNode>> results;
         auto batchRequest = client->CreateBatchRequest();
         for (size_t i = 0; i < 100; ++i) {
             TStringBuilder path;
@@ -669,7 +669,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
 
         client->Set("//testing/node", 5);
         auto batchRequest = client->CreateBatchRequest();
-        yvector<NThreading::TFuture<TNode>> results;
+        TVector<NThreading::TFuture<TNode>> results;
         for (size_t i = 0; i != 500; ++i) {
             results.push_back(batchRequest->Get("//testing/node"));
         }

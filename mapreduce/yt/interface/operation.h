@@ -26,7 +26,7 @@ struct TMultiFormatDesc
     };
 
     EFormat Format = F_NONE;
-    yvector<const ::google::protobuf::Descriptor*> ProtoDescriptors;
+    TVector<const ::google::protobuf::Descriptor*> ProtoDescriptors;
 };
 
 class TOperationIOSpecBase
@@ -47,8 +47,8 @@ public:
     template <class T>
     void SetOutput(size_t tableIndex, const TRichYPath& path);
 
-    yvector<TRichYPath> Inputs_;
-    yvector<TRichYPath> Outputs_;
+    TVector<TRichYPath> Inputs_;
+    TVector<TRichYPath> Outputs_;
 
     const TMultiFormatDesc& GetInputDesc() const
     {
@@ -528,7 +528,7 @@ struct IOperation
     // Though user should keep in mind that this method always fetches info from cypress
     // and doesn't work when operation is archived. Successfully completed operations can be archived
     // quite quickly (in about ~30 seconds).
-    virtual yvector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) = 0;
+    virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) = 0;
 
     //
     // Return current operation status.

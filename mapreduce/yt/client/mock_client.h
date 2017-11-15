@@ -26,7 +26,7 @@ public:
 
     TNodeId Link(const TYPath&, const TYPath&, const TLinkOptions&) override;
 
-    void Concatenate(const yvector<TYPath>&, const TYPath&, const TConcatenateOptions&) override;
+    void Concatenate(const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&) override;
 
     TRichYPath CanonizeYPath(const TRichYPath&) override;
 
@@ -86,7 +86,7 @@ public:
 
     void UnfreezeTable(const TYPath&, const TUnfreezeTableOptions&) override;
 
-    void ReshardTable(const TYPath&, const yvector<TKey>&, const TReshardTableOptions&) override;
+    void ReshardTable(const TYPath&, const TVector<TKey>&, const TReshardTableOptions&) override;
 
     void ReshardTable(const TYPath&, i32, const TReshardTableOptions&) override;
 

@@ -33,7 +33,7 @@ public:
 
     int GetCode() const;
     const TString& GetMessage() const;
-    const yvector<TYtError>& InnerErrors() const;
+    const TVector<TYtError>& InnerErrors() const;
 
     void ParseFrom(const TString& jsonError);
 
@@ -53,7 +53,7 @@ public:
 private:
     int Code_;
     TString Message_;
-    yvector<TYtError> InnerErrors_;
+    TVector<TYtError> InnerErrors_;
     TNode::TMap Attributes_;
 };
 

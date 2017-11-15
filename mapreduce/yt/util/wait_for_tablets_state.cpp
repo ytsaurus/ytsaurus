@@ -11,7 +11,7 @@ namespace NYT {
 void WaitForTabletsState(const IClientPtr& client, const TYPath& table, ETabletState state, const TWaitForTabletsStateOptions& options)
 {
     const TString stateString = ::ToString(state);
-    yvector<TString> tabletStatePathList;
+    TVector<TString> tabletStatePathList;
     const TInstant startTime = TInstant::Now();
     while (TInstant::Now() - startTime < options.Timeout_) {
         auto tabletList = client->Get(table + "/@tablets");

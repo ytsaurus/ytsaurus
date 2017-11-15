@@ -54,7 +54,7 @@ public:
         const TLinkOptions& options = TLinkOptions()) = 0;
 
     virtual void Concatenate(
-        const yvector<TYPath>& sourcePaths,
+        const TVector<TYPath>& sourcePaths,
         const TYPath& destinationPath,
         const TConcatenateOptions& options = TConcatenateOptions()) = 0;
 
