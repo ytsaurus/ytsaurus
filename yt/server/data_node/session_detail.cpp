@@ -117,6 +117,7 @@ void TSessionBase::Cancel(const TError& error)
 
     TLeaseManager::CloseLease(Lease_);
     Active_ = false;
+    Canceled_.store(true);
 
     DoCancel(error);
 }
@@ -187,7 +188,7 @@ TFuture<void> TSessionBase::FlushBlocks(int blockIndex)
     }
 }
 
-void TSessionBase::ValidateActive()
+void TSessionBase::ValidateActive() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
