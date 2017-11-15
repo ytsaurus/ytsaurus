@@ -20,6 +20,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             "running_jobs_update_period": 10,
             "chunk_unstage_period": 10,
             "snapshot_period": 3000,
+            "job_revival_abort_timeout": 2000,
         },
     }
 
@@ -33,8 +34,9 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create_account("acc")
         set("//sys/accounts/acc/@resource_limits/chunk_count", chunk_count)
 
-    def _track_and_report_peak_chunk_count(self, op):
+    def _track_and_report_peak_chunk_count(self, op, with_revive=False):
         peak_chunk_count = 0
+        i = 0
         while True:
             state = op.get_state()
             if state == "completed":
@@ -44,6 +46,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
             peak_chunk_count = max(peak_chunk_count, current_chunk_count)
             sleep(0.5)
+            if with_revive:
+                i += 1
+                if i == 20:
+                    self.Env.kill_schedulers()
+                    self.Env.start_schedulers()
+                    i = 0
         print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
 
     # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
@@ -148,8 +156,10 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert get("//tmp/t_out2/@row_count") == row_count // 2
 
     @pytest.mark.timeout(240)
-    def test_only_auto_merge_output_table(self):
-        self._create_account(40)
+    @pytest.mark.parametrize("with_revive", [True, False])
+    def test_only_auto_merge_output_table(self, with_revive):
+        chunk_limit = 1000 if with_revive else 40
+        self._create_account(chunk_limit)
 
         create("table", "//tmp/t_in", attributes={"account": "acc"})
         create("table", "//tmp/t_out1", attributes={"account": "acc"})
@@ -175,7 +185,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "data_size_per_job": 1
             })
 
-        self._track_and_report_peak_chunk_count(op)
+        self._track_and_report_peak_chunk_count(op, with_revive=with_revive)
 
         assert get("//tmp/t_out1/@row_count") == row_count // 10
         assert get("//tmp/t_out2/@row_count") == row_count * 9 // 10

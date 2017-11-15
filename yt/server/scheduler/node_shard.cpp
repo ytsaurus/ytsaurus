@@ -1129,6 +1129,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     }
 
     if (job->GetWaitingForConfirmation()) {
+        LOG_DEBUG("Job confirmed (JobId: %v, State: %v)",
+            jobId,
+            state);
         RevivalState_->ConfirmJob(job);
     }
 
@@ -1756,8 +1759,13 @@ void TNodeShard::TRevivalState::PrepareReviving()
 
 void TNodeShard::TRevivalState::StartReviving()
 {
+    auto& Logger = Host_->Logger;
+
     Active_ = true;
     ShouldSkipUnknownJobs_ = false;
+
+    LOG_INFO("Waiting for jobs to be confirmed (JobCount: %v)",
+        NotConfirmedJobs_.size());
 
     //! Give some time for nodes to confirm the jobs.
     TDelayedExecutor::Submit(

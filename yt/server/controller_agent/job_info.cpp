@@ -75,6 +75,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
 
     if (context.IsLoad()) {
         JobMetricsUpdater_ = Task->GetTaskHost()->CreateJobMetricsUpdater();
+        Revived = true;
     }
 }
 
