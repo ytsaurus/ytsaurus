@@ -222,7 +222,6 @@ public:
 
         auto* cellBundle = TabletCellBundleMap_.Insert(id, std::move(cellBundleHolder));
         YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
-        cellBundle->FillProfilingTag();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
@@ -2511,7 +2510,6 @@ private:
         for (const auto& pair : TabletCellBundleMap_) {
             auto* cellBundle = pair.second;
             YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
-            cellBundle->FillProfilingTag();
         }
 
         AddressToCell_.clear();
