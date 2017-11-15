@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef _linux_
+#error Platform must be linux to include this
+#endif
+
 #include <yt/server/containers/public.h>
 
 #include <yt/core/misc/process.h>

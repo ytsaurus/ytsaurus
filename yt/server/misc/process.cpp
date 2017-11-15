@@ -1,3 +1,5 @@
+#ifdef _linux_
+
 #include "process.h"
 
 #include <yt/server/containers/instance.h>
@@ -125,3 +127,5 @@ TAsyncReaderPtr TPortoProcess::GetStdErrReader()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#endif

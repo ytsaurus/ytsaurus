@@ -1,10 +1,10 @@
-#include "container_manager.h"
-
 #ifdef _linux_
 
+#include "container_manager.h"
 #include "instance.h"
-#include "porto_executor.h"
 #include "private.h"
+
+#include "porto_executor.h"
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -185,8 +185,6 @@ private:
     DECLARE_NEW_FRIEND();
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 IContainerManagerPtr CreatePortoManager(
     const TString& prefix,
     TCallback<void(const TError&)> errorHandler,
@@ -200,25 +198,4 @@ IContainerManagerPtr CreatePortoManager(
 } // namespace NContainers
 } // namespace NYT
 
-#else
-
-namespace NYT {
-namespace NContainers {
-
-////////////////////////////////////////////////////////////////////////////////
-
-IContainerManagerPtr CreatePortoManager(
-    const TString& prefix,
-    TCallback<void(const TError&)> errorHandler,
-    const TPortoManagerConfig& portoManagerConfig)
-{
-    Y_UNIMPLEMENTED();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NContainers
-} // namespace NYT
-
 #endif
-

@@ -1,6 +1,11 @@
 #pragma once
 
+#ifndef _linux_
+#error Platform must be linux to include this
+#endif
+
 #include "public.h"
+
 #include <yt/core/actions/callback.h>
 #include <yt/core/actions/future.h>
 
