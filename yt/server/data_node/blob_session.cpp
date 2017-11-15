@@ -280,6 +280,10 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
     for (int index = 0; index <  endBlockIndex - beginBlockIndex; ++index) {
+        if (Canceled_.load()) {
+            return;
+        }
+
         const auto& block = blocks[index];
         int blockIndex = beginBlockIndex + index;
 
@@ -330,6 +334,10 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    if (Canceled_.load()) {
+        return;
+    }
+
     for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
         auto& slot = GetSlot(blockIndex);
         slot.PendingIOGuard.Release();
@@ -367,6 +375,10 @@ TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
 void TBlobSession::OnBlockFlushed(int blockIndex, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (Canceled_.load()) {
+        return;
+    }
 
     ReleaseBlocks(blockIndex);
 

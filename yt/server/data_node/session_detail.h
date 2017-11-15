@@ -11,6 +11,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -72,6 +74,9 @@ protected:
     const NProfiling::TProfiler Profiler;
 
     bool Active_ = false;
+    std::atomic<bool> Canceled_ = {false};
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
     virtual TFuture<void> DoStart() = 0;
@@ -89,10 +94,7 @@ protected:
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
     virtual TFuture<void> DoFlushBlocks(int blockIndex) = 0;
 
-    void ValidateActive();
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
+    void ValidateActive() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
