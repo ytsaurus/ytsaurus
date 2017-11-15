@@ -58,7 +58,7 @@ std::vector<TString> ReadAllValues(const TString& fileName)
         fileName,
         raw);
 
-    yvector<TString> values;
+    TVector<TString> values;
     Split(raw.data(), " \n", values);
     return std::vector<TString>(values.begin(), values.end());
 }
@@ -739,7 +739,7 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
 {
     std::map<TString, TString> result;
 
-    yvector<TString> values;
+    TVector<TString> values;
     Split(str.data(), ":\n", values);
     for (size_t i = 0; i + 2 < values.size(); i += 3) {
         FromString<int>(values[i]);
@@ -747,7 +747,7 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
         const TString& subsystemsSet = values[i + 1];
         const TString& name = values[i + 2];
 
-        yvector<TString> subsystems;
+        TVector<TString> subsystems;
         Split(subsystemsSet.data(), ",", subsystems);
         for (const auto& subsystem : subsystems) {
             if (!subsystem.StartsWith("name=")) {
