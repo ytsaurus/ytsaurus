@@ -6,7 +6,6 @@
 
 #include <yt/core/actions/future.h>
 
-
 namespace NYT {
 namespace NExecAgent {
 
@@ -39,7 +38,12 @@ DEFINE_REFCOUNTED_TYPE(IJobDirectoryManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(NDataNode::TVolumeManagerConfigPtr config);
+#ifdef _linux_
+
+IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(
+    NDataNode::TVolumeManagerConfigPtr config);
+
+#endif
 
 IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(
     IInvokerPtr invoker,

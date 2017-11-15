@@ -10,10 +10,12 @@
 
 #include <yt/server/program/names.h>
 
+#ifdef _linux_
 #include <yt/server/containers/container_manager.h>
 #include <yt/server/containers/instance.h>
 
 #include <yt/server/misc/process.h>
+#endif
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
@@ -34,18 +36,26 @@ namespace NExecAgent {
 using namespace NCGroup;
 using namespace NCellNode;
 using namespace NConcurrency;
+#ifdef _linux_
 using namespace NContainers;
+#endif
 using namespace NYTree;
 using namespace NTools;
+
+////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TString GetSlotProcessGroup(int slotIndex)
 {
-    return "slots/" + ToString(slotIndex);
+    return Format("slots/%v", slotIndex);
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -336,6 +346,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
+
 class TPortoJobEnvironment
     : public TProcessJobEnvironmentBase
 {
@@ -418,6 +430,8 @@ private:
     yhash<int, IInstancePtr> PortoInstances_;
 };
 
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* bootstrap)
@@ -439,10 +453,14 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* b
         }
 
         case EJobEnvironmentType::Porto: {
+#ifdef _linux_
             auto portoConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(configNode);
             return New<TPortoJobEnvironment>(
                 portoConfig,
                 bootstrap);
+#else
+            THROW_ERROR_EXCEPTION("Porto is not supported for this platform");
+#endif
         }
 
         default:

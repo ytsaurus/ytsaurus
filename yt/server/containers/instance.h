@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef _linux_
+#error Platform must be linux to include this
+#endif
+
 #include "public.h"
 
 #include <yt/core/actions/future.h>
@@ -57,8 +61,10 @@ DEFINE_REFCOUNTED_TYPE(IInstance)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
 IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor);
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

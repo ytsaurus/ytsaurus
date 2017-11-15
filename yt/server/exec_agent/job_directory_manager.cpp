@@ -4,7 +4,9 @@
 
 #include <yt/server/data_node/config.h>
 
+#ifdef _linux_
 #include <yt/server/containers/porto_executor.h>
+#endif
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -17,15 +19,21 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NConcurrency;
+#ifdef _linux_
 using namespace NContainers;
+#endif
 using namespace NDataNode;
 using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
 
-static auto& Logger = ExecAgentLogger;
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
 
 class TPortoJobDirectoryManager
     : public IJobDirectoryManager
@@ -69,7 +77,7 @@ public:
     }
 
 private:
-    IPortoExecutorPtr Executor_;
+    const IPortoExecutorPtr Executor_;
 
     TSpinLock SpinLock_;
     std::set<TString> ManagedVolumes_;
@@ -106,13 +114,23 @@ private:
     }
 };
 
+IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(TVolumeManagerConfigPtr config)
+{
+    return New<TPortoJobDirectoryManager>(std::move(config));
+}
+
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleJobDirectoryManager
     : public IJobDirectoryManager
 {
 public:
-    TSimpleJobDirectoryManager(IInvokerPtr invoker, const TString& path, bool detachedTmpfsUmount)
+    TSimpleJobDirectoryManager(
+        IInvokerPtr invoker,
+        const TString& path,
+        bool detachedTmpfsUmount)
         : Invoker_(std::move(invoker))
         , Path_(path)
         , DetachedTmpfsUmount_(detachedTmpfsUmount)
@@ -131,11 +149,9 @@ public:
 
             auto error = WaitFor(CleanDirectories(Path_));
             if (!error.IsOK()) {
-                auto wrappedError = TError("Failed to initialize simple job directory manager")
+                THROW_ERROR_EXCEPTION("Failed to initialize simple job directory manager")
                     << TErrorAttribute("path", Path_)
                     << error;
-
-                THROW_ERROR wrappedError;
             }
         }
     }
@@ -214,19 +230,15 @@ private:
     std::set<TString> Directories_;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(TVolumeManagerConfigPtr config)
-{
-    return New<TPortoJobDirectoryManager>(std::move(config));
-}
-
 IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(
     IInvokerPtr invoker,
     const TString& path,
     bool detachedTmpfsUmount)
 {
-    return New<TSimpleJobDirectoryManager>(std::move(invoker), path, detachedTmpfsUmount);
+    return New<TSimpleJobDirectoryManager>(
+        std::move(invoker),
+        path,
+        detachedTmpfsUmount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

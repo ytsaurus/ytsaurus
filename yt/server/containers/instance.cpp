@@ -1,6 +1,6 @@
-#include "instance.h"
-
 #ifdef _linux_
+
+#include "instance.h"
 
 #include "porto_executor.h"
 #include "private.h"
@@ -311,28 +311,6 @@ IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)
 {
     return TPortoInstance::GetSelf(executor);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NContainers
-} // namespace NYT
-
-#else
-
-namespace NYT {
-namespace NContainers {
-
-////////////////////////////////////////////////////////////////////////////////
-
-IInstancePtr CreatePortoInstance(const TString& /*name*/, IPortoExecutorPtr /*executor*/)
-{
-    Y_UNIMPLEMENTED();
-}
-
-IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr /*executor*/)
-{
-    Y_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
