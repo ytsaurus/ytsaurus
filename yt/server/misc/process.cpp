@@ -1,4 +1,4 @@
-#ifdef _linux_
+#ifdef __linux__
 
 #include "process.h"
 
@@ -29,13 +29,11 @@ TPortoProcess::TPortoProcess(
     , ContainerInstance_(containerInstance)
 {
     AddArgument(NFS::GetFileName(path));
-#ifdef _linux_
     if (copyEnv) {
         for (char** envIt = environ; *envIt; ++envIt) {
             Env_.push_back(Capture(*envIt));
         }
     }
-#endif
 }
 
 void TPortoProcess::Kill(int signal)
@@ -45,7 +43,6 @@ void TPortoProcess::Kill(int signal)
 
 void TPortoProcess::DoSpawn()
 {
-#ifdef _linux_
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
     YCHECK(Args_.size());
     if (!WorkingDirectory_.empty()) {
@@ -89,9 +86,6 @@ void TPortoProcess::DoSpawn()
         Finished_ = true;
         FinishedPromise_.Set(StatusToError(exitCode));
     }));
-#else
-    THROW_ERROR_EXCEPTION("Unsupported platform");
-#endif
 }
 
 static TString CreateStdIONamedPipePath()
