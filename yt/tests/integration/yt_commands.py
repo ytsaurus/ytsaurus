@@ -939,6 +939,11 @@ def create_tablet_cell_bundle(name, **kwargs):
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
+    if "options" not in kwargs["attributes"]:
+        kwargs["attributes"]["options"] = dict()
+    for option in ("changelog_account", "snapshot_account"):
+        if option not in kwargs["attributes"]["options"]:
+            kwargs["attributes"]["options"][option] = "sys"
     execute_command("create", kwargs)
 
 def remove_tablet_cell_bundle(name, driver=None):
