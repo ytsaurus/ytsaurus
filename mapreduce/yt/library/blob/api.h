@@ -47,6 +47,6 @@ namespace NYtBlob {
     void Reset(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);
 
     void List(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client,
-              yvector<TBlobInfo>& infos);
-    yvector<TBlobInfo> List(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);
+              TVector<TBlobInfo>& infos);
+    TVector<TBlobInfo> List(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);
 }

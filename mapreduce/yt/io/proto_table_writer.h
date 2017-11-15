@@ -15,7 +15,7 @@ class TProtoTableWriter
 public:
     TProtoTableWriter(
         THolder<TProxyOutput> output,
-        yvector<const ::google::protobuf::Descriptor*>&& descriptors);
+        TVector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TProtoTableWriter() override;
 
     void AddRow(const Message& row, size_t tableIndex) override;
@@ -25,7 +25,7 @@ public:
 
 private:
     THolder<TNodeTableWriter> NodeWriter_;
-    yvector<const ::google::protobuf::Descriptor*> Descriptors_;
+    TVector<const ::google::protobuf::Descriptor*> Descriptors_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +36,7 @@ class TLenvalProtoTableWriter
 public:
     TLenvalProtoTableWriter(
         THolder<TProxyOutput> output,
-        yvector<const ::google::protobuf::Descriptor*>&& descriptors);
+        TVector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TLenvalProtoTableWriter() override;
 
     void AddRow(const Message& row, size_t tableIndex) override;
@@ -46,7 +46,7 @@ public:
 
 private:
     THolder<TProxyOutput> Output_;
-    yvector<const ::google::protobuf::Descriptor*> Descriptors_;
+    TVector<const ::google::protobuf::Descriptor*> Descriptors_;
 };
 
 // Sometime useful outside mapreduce/yt

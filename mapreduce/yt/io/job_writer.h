@@ -33,7 +33,7 @@ private:
         static const size_t BUFFER_SIZE = 1 << 20;
     };
 
-    yvector<THolder<TStream>> Streams_;
+    TVector<THolder<TStream>> Streams_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

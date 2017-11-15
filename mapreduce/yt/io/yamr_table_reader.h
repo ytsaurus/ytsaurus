@@ -19,7 +19,7 @@ TMaybe<TNode> GetTableFormat(
 TMaybe<TNode> GetTableFormats(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const yvector<TRichYPath>& paths);
+    const TVector<TRichYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////////////////
 

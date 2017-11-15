@@ -273,7 +273,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
             writer->Finish();
         }
         client->Create("//testing/concat", NT_FILE);
-        yvector<TYPath> nodes{"//testing/file1", "//testing/file2"};
+        TVector<TYPath> nodes{"//testing/file1", "//testing/file2"};
         client->Concatenate(nodes, "//testing/concat");
         {
             auto reader = client->CreateFileReader("//testing/concat");

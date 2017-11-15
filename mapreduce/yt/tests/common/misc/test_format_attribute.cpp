@@ -82,12 +82,12 @@ YT_TEST(TFormatAttribute, Read_YamredDsv)
     NMR::TClient client(GetServer());
     NMR::TTable table(client, "home/testing/yamred_dsv_table");
 
-    yvector<TOwningYaMRRow> actualRowList;
+    TVector<TOwningYaMRRow> actualRowList;
     for (auto it = table.Begin(); it.IsValid(); ++it) {
         actualRowList.emplace_back(it.GetKey().AsString(), it.GetSubKey().AsString(), it.GetValue().AsString());
     }
 
-    const yvector<TOwningYaMRRow> expectedRowList = {
+    const TVector<TOwningYaMRRow> expectedRowList = {
         {"lol", "", "a=gg"},
         {"bar", "", "a=foo"},
     };
@@ -102,12 +102,12 @@ YT_TEST(TFormatAttribute, Read_Yamr)
     NMR::TClient client(GetServer());
     NMR::TTable table(client, "home/testing/yamr_table");
 
-    yvector<TOwningYaMRRow> actualRowList;
+    TVector<TOwningYaMRRow> actualRowList;
     for (auto it = table.Begin(); it.IsValid(); ++it) {
         actualRowList.emplace_back(it.GetKey().AsString(), it.GetSubKey().AsString(), it.GetValue().AsString());
     }
 
-    const yvector<TOwningYaMRRow> expectedRowList = {
+    const TVector<TOwningYaMRRow> expectedRowList = {
         {"gg", "", "lol"},
         {"foo", "", "bar"},
     };
@@ -137,12 +137,12 @@ YT_TEST(TFormatAttribute, Operation_Yamr)
 
     NMR::TClient client(GetServer());
     NMR::TTable table(client, "home/testing/output");
-    yvector<TOwningYaMRRow> actualRowList;
+    TVector<TOwningYaMRRow> actualRowList;
     for (auto it = table.Begin(); it.IsValid(); ++it) {
         actualRowList.emplace_back(it.GetKey().AsString(), it.GetSubKey().AsString(), it.GetValue().AsString());
     }
 
-    const yvector<TOwningYaMRRow> expectedRowList = {
+    const TVector<TOwningYaMRRow> expectedRowList = {
         {"lol", "", "gg"},
         {"bar", "", "foo"},
     };
@@ -159,12 +159,12 @@ YT_TEST(TFormatAttribute, Operation_YamredDsv)
     NMR::TClient client(GetServer());
     NMR::TTable table(client, "home/testing/output");
 
-    yvector<TOwningYaMRRow> actualRowList;
+    TVector<TOwningYaMRRow> actualRowList;
     for (auto it = table.Begin(); it.IsValid(); ++it) {
         actualRowList.emplace_back(it.GetKey().AsString(), it.GetSubKey().AsString(), it.GetValue().AsString());
     }
 
-    const yvector<TOwningYaMRRow> expectedRowList = {
+    const TVector<TOwningYaMRRow> expectedRowList = {
         {"a=gg", "", "lol"},
         {"a=foo", "", "bar"},
     };

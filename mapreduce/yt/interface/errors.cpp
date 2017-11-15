@@ -162,7 +162,7 @@ const TString& TYtError::GetMessage() const
     return Message_;
 }
 
-const yvector<TYtError>& TYtError::InnerErrors() const
+const TVector<TYtError>& TYtError::InnerErrors() const
 {
     return InnerErrors_;
 }

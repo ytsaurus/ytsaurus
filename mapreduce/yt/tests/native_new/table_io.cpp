@@ -368,14 +368,14 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
 
         TRichYPath path("//testing/table[#10:#20,30:40,#50:#60,70:80,#90,95]");
 
-        yvector<i64> actual;
+        TVector<i64> actual;
         auto reader = client->CreateTableReader<TNode>(path);
         for (; reader->IsValid(); reader->Next()) {
             const auto& row = reader->GetRow();
             actual.push_back(row["key"].AsInt64());
         }
 
-        const yvector<i64> expected = {
+        const TVector<i64> expected = {
             10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
             30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
             50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
@@ -415,8 +415,8 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         path.AddRange(TReadRange()
             .Exact(TReadLimit().Key(1095)));
 
-        yvector<i64> actualKeys;
-        yvector<i64> actualRowIndices;
+        TVector<i64> actualKeys;
+        TVector<i64> actualRowIndices;
         auto reader = client->CreateTableReader<TNode>(path);
         for (; reader->IsValid(); reader->Next()) {
             const auto& row = reader->GetRow();
@@ -424,7 +424,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
             actualRowIndices.push_back(reader->GetRowIndex());
         }
 
-        const yvector<i64> expectedKeys = {
+        const TVector<i64> expectedKeys = {
             1010, 1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018, 1019,
             1030, 1031, 1032, 1033, 1034, 1035, 1036, 1037, 1038, 1039,
             1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059,
@@ -432,7 +432,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
             1090,
             1095,
         };
-        const yvector<i64> expectedRowIndices = {
+        const TVector<i64> expectedRowIndices = {
             10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
             30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
             50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
@@ -549,7 +549,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
     {
         TString input = "{ key1 = [1; 2; 3; value0]; };  {key2 = { key21 = value1; key22 = value2 };}";
         TStringInput stream(input);
-        yvector<TNode> expected = {
+        TVector<TNode> expected = {
             TNode()("key1",
                 TNode()
                 .Add(1).Add(2).Add(3).Add("value0")),
@@ -558,7 +558,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         };
 
         auto reader = CreateTableReader<TNode>(&stream);
-        yvector<TNode> got;
+        TVector<TNode> got;
         for (; reader->IsValid(); reader->Next()) {
             got.push_back(reader->GetRow());
         }

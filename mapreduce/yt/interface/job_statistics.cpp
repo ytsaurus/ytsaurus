@@ -118,8 +118,8 @@ public:
 struct TJobStatistics::TFilter
     : public TThrRefBase
 {
-    yvector<EJobType> JobTypeFilter;
-    yvector<EFinishedJobState> JobStateFilter = {FJS_COMPLETED};
+    TVector<EJobType> JobTypeFilter;
+    TVector<EFinishedJobState> JobStateFilter = {FJS_COMPLETED};
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -148,7 +148,7 @@ TJobStatistics& TJobStatistics::operator=(TJobStatistics&& jobStatistics) = defa
 
 TJobStatistics::~TJobStatistics() = default;
 
-TJobStatistics TJobStatistics::JobType(yvector<EJobType> filter) const
+TJobStatistics TJobStatistics::JobType(TVector<EJobType> filter) const
 {
     auto newFilter = ::MakeIntrusive<TFilter>();
     newFilter->JobTypeFilter = filter;
@@ -157,7 +157,7 @@ TJobStatistics TJobStatistics::JobType(yvector<EJobType> filter) const
     return TJobStatistics(Data_, std::move(newFilter));
 }
 
-TJobStatistics TJobStatistics::JobStatus(yvector<EFinishedJobState> filter) const
+TJobStatistics TJobStatistics::JobStatus(TVector<EFinishedJobState> filter) const
 {
     auto newFilter = ::MakeIntrusive<TFilter>();
     newFilter->JobTypeFilter = Filter_->JobTypeFilter;

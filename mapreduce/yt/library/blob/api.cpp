@@ -226,7 +226,7 @@ void NYtBlob::Reset(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client) {
 }
 
 void NYtBlob::List(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client,
-                   yvector<TBlobInfo>& infos) {
+                   TVector<TBlobInfo>& infos) {
 
     auto reader = client->CreateTableReader<TBlobChunk>(
         ::NYT::TRichYPath{table}
@@ -241,8 +241,8 @@ void NYtBlob::List(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client,
     }
 }
 
-yvector<NYtBlob::TBlobInfo> NYtBlob::List(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client) {
-    yvector<TBlobInfo> infos;
+TVector<NYtBlob::TBlobInfo> NYtBlob::List(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client) {
+    TVector<TBlobInfo> infos;
     List(table, client, infos);
     return infos;
 }

@@ -108,7 +108,7 @@ SIMPLE_UNIT_TEST_SUITE(NConnectionPoolSuite) {
             }
         };
 
-        yvector<THolder<TFuncThread>> threads;
+        TVector<THolder<TFuncThread>> threads;
         for (int i = 0; i != 10; ++i) {
             threads.push_back(MakeHolder<TFuncThread>(func));
         };

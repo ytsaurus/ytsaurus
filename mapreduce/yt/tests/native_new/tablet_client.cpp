@@ -164,7 +164,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         client->UnmountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 
-        yvector<TKey> pivotKeys;
+        TVector<TKey> pivotKeys;
         pivotKeys.push_back(TKey());
         pivotKeys.push_back(4);
         pivotKeys.push_back(8);

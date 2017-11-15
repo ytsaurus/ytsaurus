@@ -117,7 +117,7 @@ public:
 
     virtual void ReshardTable(
         const TYPath& path,
-        const yvector<TKey>& pivotKeys,
+        const TVector<TKey>& pivotKeys,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
     virtual void ReshardTable(

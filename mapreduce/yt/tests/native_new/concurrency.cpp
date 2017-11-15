@@ -34,7 +34,7 @@ SIMPLE_UNIT_TEST_SUITE(Concurrency) {
             }
         };
 
-        yvector<NThreading::TFuture<void>> results;
+        TVector<NThreading::TFuture<void>> results;
         for (int i = 0; i != 10; ++i) {
             results.emplace_back(NThreading::Async(MakeCopy(writer), *threadPool));
         };

@@ -36,7 +36,7 @@ protected:
         TTableMetaAttrs attrs;
         client.GetTableMetaAttrs(Table(), attrs);
 
-        yvector<std::pair<TString, TString>> sorted;
+        TVector<std::pair<TString, TString>> sorted;
         for (auto it = attrs.Begin(); it != attrs.End(); ++it) {
             sorted.push_back(std::make_pair(it.GetName(), it.GetValueAsStroka()));
         }

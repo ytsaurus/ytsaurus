@@ -51,8 +51,8 @@ TGUID ParseGuidFromResponse(const TString& response);
 TRichYPath CanonizePath(
     const TAuth& auth, const TRichYPath& path);
 
-yvector<TRichYPath> CanonizePaths(
-    const TAuth& auth, const yvector<TRichYPath>& paths);
+TVector<TRichYPath> CanonizePaths(
+    const TAuth& auth, const TVector<TRichYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -165,7 +165,7 @@ struct TOperationIOSpecBase::TFormatAdder
 //struct TOperationIOSpecBase::TFormatAdder<Message>;
 
 template<class T>
-void Assign(yvector<T>& array, size_t idx, const T& value) {
+void Assign(TVector<T>& array, size_t idx, const T& value) {
     array.resize(std::max(array.size(), idx + 1));
     array[idx] = value;
 }

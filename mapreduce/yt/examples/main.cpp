@@ -271,7 +271,7 @@ void ManyTablesMapperNode()
 
     TMapOperationSpec spec;
 
-    yvector<TString> inputs;
+    TVector<TString> inputs;
     for (int i = 0; i < inputCount; ++i) {
         TString input = PREFIX + Sprintf("/input%d", i);
         inputs.push_back(input);
@@ -290,7 +290,7 @@ void ManyTablesMapperNode()
         spec.AddInput<TNode>(input);
    }
 
-    yvector<TString> outputs;
+    TVector<TString> outputs;
     for (int i = 0; i < outputCount; ++i) {
         TString output = PREFIX + Sprintf("/output%d", i);
         outputs.push_back(output);

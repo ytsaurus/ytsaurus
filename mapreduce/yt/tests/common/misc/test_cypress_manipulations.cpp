@@ -50,7 +50,7 @@ class TCypressManipulations
 
             {
                 NMR::TClient client(GetServer());
-                yvector<TString> tableList;
+                TVector<TString> tableList;
                 client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
                 for (const auto& table : tableList) {
                     client.Drop(table);
@@ -133,7 +133,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_Simple)
     CreatePath("home/testing/bar");
     CreatePath("home/testing/baz");
 
-    yvector<TString> tableList;
+    TVector<TString> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
     for (const auto& table : tableList) {
@@ -144,7 +144,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_Simple)
 YT_TEST(TCypressManipulations, GetTableList_Prefix_Opaque)
 {
 
-    const yvector<TString> expectedPaths = {
+    const TVector<TString> expectedPaths = {
         "home/testing/bool_false/1",
         "home/testing/bool_false/2",
         "home/testing/bool_false/3",
@@ -171,7 +171,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_Opaque)
     SetOpaque("home/testing/string_false", OT_STRING, false);
     SetOpaque("home/testing/string_true", OT_STRING, true);
 
-    yvector<TString> tableList;
+    TVector<TString> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
     Sort(tableList.begin(), tableList.end());
@@ -185,7 +185,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_OpaqueString)
     CreatePath("home/testing/tt/baz");
     SetOpaque("home/testing/tt", OT_STRING, true);
 
-    yvector<TString> tableList;
+    TVector<TString> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
     for (const auto& table : tableList) {
@@ -199,7 +199,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_BrokenSymlink)
     CreatePath("home/testing/bar");
     CreateBrokenSymlink("home/testing/baz");
 
-    yvector<TString> tableList;
+    TVector<TString> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
     for (const auto& table : tableList) {
