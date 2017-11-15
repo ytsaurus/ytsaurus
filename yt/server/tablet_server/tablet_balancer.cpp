@@ -416,7 +416,10 @@ private:
             newTabletCount = 1;
         }
 
-        if (newTabletCount == endIndex - startIndex + 1) {
+        if (newTabletCount == endIndex - startIndex + 1 && newTabletCount == 1) {
+            LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v)",
+                table->GetId(),
+                tablet->GetId());
             return;
         }
 
@@ -480,7 +483,7 @@ private:
                 maxTabletSize = *tableMaxTabletSize;
                 desiredTabletSize = *tableDesiredTabletSize;
             }
-        } else if (*desiredTabletCount < cellCount) {
+        } else {
             cellCount = *desiredTabletCount;
         }
 
