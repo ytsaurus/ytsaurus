@@ -182,8 +182,6 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_scheduler_config(cls, config):
-        # TODO(max42): remove this when old-school job counters are thrown away.
-        update(config, {"scheduler": {"testing_options": {"validate_total_job_counter_correctness": True}}})
         pass
 
     @classmethod

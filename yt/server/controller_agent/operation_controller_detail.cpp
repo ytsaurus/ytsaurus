@@ -3243,22 +3243,6 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     LogProgress(/* force */ true);
 
-    if (Config->TestingOptions->ValidateTotalJobCounterCorrectness) {
-        auto jobCounterRepresentation = ConvertToYsonString(JobCounter, EYsonFormat::Pretty);
-        auto totalJobCounterRepresentation = ConvertToYsonString(DataFlowGraph_.TotalJobCounter(), EYsonFormat::Pretty);
-        if (jobCounterRepresentation != totalJobCounterRepresentation) {
-            // For MR and Sort there the total job count behaves pretty strangely
-            // and sometimes simply doesn't work as it is supposed to.
-            auto logLevel = (OperationType == EOperationType::MapReduce || OperationType == EOperationType::Sort)
-                ? NLogging::ELogLevel::Warning
-                : NLogging::ELogLevel::Fatal;
-            LOG_EVENT(Logger, logLevel, "Data flow graph total job counter differs from the controller job counter "
-                "(DataFlowCounter: %qv, ControllerCounter: %qv)",
-                jobCounterRepresentation,
-                totalJobCounterRepresentation);
-        }
-    }
-
     Host->OnOperationCompleted(OperationId);
 }
 
