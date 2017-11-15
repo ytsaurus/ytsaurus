@@ -41,7 +41,6 @@ public:
         }
         return CreateNativeTransactionParticipant(
             CellDirectory_,
-            nullptr,
             TimestampProvider_,
             cellId,
             options);
