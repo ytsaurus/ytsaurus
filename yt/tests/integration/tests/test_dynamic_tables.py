@@ -529,15 +529,23 @@ class TestDynamicTables(TestDynamicTablesBase):
                 count[bundle] = count.get(bundle, 0) + 1
             assert count == {bundle: 1 for bundle in bundles}
 
-    def test_cell_bundle_schema(self):
+    def test_cell_bundle_options(self):
         set("//sys/schemas/tablet_cell_bundle/@options", {
             "changelog_read_quorum": 3,
             "changelog_write_quorum": 3,
             "changelog_replication_factor": 5})
-        create_tablet_cell_bundle("custom")
-        assert get("//sys/tablet_cell_bundles/custom/@options/changelog_read_quorum") == 3
-        assert get("//sys/tablet_cell_bundles/custom/@options/changelog_write_quorum") == 3
-        assert get("//sys/tablet_cell_bundles/custom/@options/changelog_replication_factor") == 5
+        create_tablet_cell_bundle("custom", attributes={"options": {
+            "changelog_account": "tmp",
+            "snapshot_account": "tmp"}})
+        options = get("//sys/tablet_cell_bundles/custom/@options")
+        assert options["changelog_read_quorum"] == 3
+        assert options["changelog_write_quorum"] == 3
+        assert options["changelog_replication_factor"] == 5
+        assert options["snapshot_account"] == "tmp"
+        assert options["changelog_account"] == "tmp"
+
+        with pytest.raises(YtError):
+            set("//sys/tablet_cell_bundles/default/@options", {})
 
     def test_tablet_count_by_state(self):
         self.sync_create_cells(1)

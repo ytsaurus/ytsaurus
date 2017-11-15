@@ -12,6 +12,9 @@ namespace NTabletServer {
 using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NTabletClient;
+using namespace NChunkClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +48,16 @@ void TTabletCellBundle::Load(TLoadContext& context)
     if (context.GetVersion() >= 400) {
         Load(context, Acd_);
     }
-    Load(context, *Options_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 625) {
+        Load(context, *Options_);
+    } else {
+        auto str = NYT::Load<TYsonString>(context);
+        auto node = ConvertTo<INodePtr>(str);
+        node->AsMap()->AddChild(ConvertTo<INodePtr>(DefaultStoreAccountName), "changelog_account");
+        node->AsMap()->AddChild(ConvertTo<INodePtr>(DefaultStoreAccountName), "snapshot_account");
+        Options_->Load(node);
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
         // COMPAT(savrus)

@@ -888,7 +888,7 @@ TFuture<void> TObjectManager::GCCollect()
 TObjectBase* TObjectManager::CreateObject(
     const TObjectId& hintId,
     EObjectType type,
-    IAttributeDictionary* userAttributes)
+    IAttributeDictionary* attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -916,14 +916,20 @@ TObjectBase* TObjectManager::CreateObject(
         securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
-    auto attributes = CreateEphemeralAttributes();
-    if (auto* schemaAttributes = schema->GetAttributes()) {
-        for (const auto& pair : schemaAttributes->Attributes()) {
-            attributes->SetYson(pair.first, pair.second);
+    std::unique_ptr<IAttributeDictionary> attributeHolder;
+    if (auto* attributeSet = schema->GetAttributes()) {
+        attributeHolder = CreateEphemeralAttributes();
+        for (const auto& pair : attributeSet->Attributes()) {
+            attributeHolder->SetYson(pair.first, pair.second);
         }
-    }
-    if (userAttributes) {
-        attributes->MergeFrom(*userAttributes);
+        if (attributes) {
+            auto attributeMap = UpdateNode(attributeHolder->ToMap(), attributes->ToMap());
+            attributeHolder = IAttributeDictionary::FromMap(attributeMap->AsMap());
+        }
+        attributes = attributeHolder.get();
+    } else if (!attributes) {
+        attributeHolder = CreateEphemeralAttributes();
+        attributes = attributeHolder.get();
     }
 
     // ITypeHandler::CreateObject may modify the attributes.
@@ -932,7 +938,7 @@ TObjectBase* TObjectManager::CreateObject(
         replicatedAttributes = attributes->Clone();
     }
 
-    auto* object = handler->CreateObject(hintId, attributes.get());
+    auto* object = handler->CreateObject(hintId, attributes);
 
     YCHECK(object->GetObjectRefCounter() == 1);
 
