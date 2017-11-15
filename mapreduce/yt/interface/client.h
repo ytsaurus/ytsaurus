@@ -50,6 +50,10 @@ public:
     virtual Y_WARN_UNUSED_RESULT ITransactionPtr StartTransaction(
         const TStartTransactionOptions& options = TStartTransactionOptions()) = 0;
 
+    //
+    // Change properties of table:
+    //   - switch table between dynamic/static mode
+    //   - or change table schema
     virtual void AlterTable(
         const TYPath& path,
         const TAlterTableOptions& options = TAlterTableOptions()) = 0;
