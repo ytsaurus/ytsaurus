@@ -176,7 +176,9 @@ def _initialize_world(client, environment, wait_tablet_cell_initialization,
     tablet_cell_attributes = {
         "changelog_replication_factor": 1,
         "changelog_read_quorum": 1,
-        "changelog_write_quorum": 1
+        "changelog_write_quorum": 1,
+        "changelog_account": "sys",
+        "snapshot_account": "sys"
     }
 
     if configure_default_tablet_cell_bundle:
