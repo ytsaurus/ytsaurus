@@ -181,7 +181,7 @@ class TestMutations(object):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
-        yt.create_table(other_table)
+        yt.create("table", other_table)
 
         params = {
             "spec": {
@@ -224,7 +224,7 @@ class TestRetries(object):
             with pytest.raises(yt.YtError):
                 yt.read_table(table)
 
-            yt.create_table(table)
+            yt.create("table", table)
             check([], yt.read_table(table))
             assert b"" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
@@ -257,7 +257,7 @@ class TestRetries(object):
         try:
             table = TEST_DIR + "/table"
 
-            yt.create_table(table)
+            yt.create("table", table)
             assert b"" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
             yt.write_table("<sorted_by=[x]>" + table, [{"x": 1}, {"x": 2}, {"x": 3}])

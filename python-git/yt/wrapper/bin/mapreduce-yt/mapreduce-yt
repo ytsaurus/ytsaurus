@@ -22,7 +22,7 @@
 from __future__ import print_function
 
 from yt.wrapper.cli_helpers import write_silently, run_main, die
-from yt.wrapper.table_commands import copy_table, move_table, _get_format_from_tables
+from yt.wrapper.table_commands import copy_table, move_table, _get_format_from_tables, _create_table
 from yt.wrapper.table_helpers import _remove_locks
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
@@ -723,7 +723,7 @@ Examples:
         write_silently(iterator)
 
     if args.createtable is not None:
-        yt.create_table(args.createtable)
+        _create_table(args.createtable)
     if args.write is not None:
         if isinstance(args.write, MissingValue):
             write_tables = dst

@@ -31,15 +31,15 @@ class TestYamrMode(object):
         from yt.wrapper.table_commands import _get_format_from_tables as get_format
 
         existing_table = TEST_DIR + "/table"
-        yt.create_table(existing_table)
+        yt.create("table", existing_table)
         not_existing_table = TEST_DIR + "/not_existing"
 
         yamred_dsv_table = TEST_DIR + "/yamred_dsv_table"
         yamred_dsv_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": True})
-        yt.create_table(yamred_dsv_table, attributes={"_format": yamred_dsv_format})
+        yt.create("table", yamred_dsv_table, attributes={"_format": yamred_dsv_format})
 
         yson_table = TEST_DIR + "/yson_table"
-        yt.create_table(yson_table, attributes={"_format": "yson"})
+        yt.create("table", yson_table, attributes={"_format": "yson"})
 
         assert get_format([], ignore_unexisting_tables=False) is None
         assert get_format([], ignore_unexisting_tables=True) is None
@@ -63,7 +63,7 @@ class TestYamrMode(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, self.get_temp_records())
         other_table = TEST_DIR + "/other_table"
-        yt.create_table(other_table)
+        yt.create("table", other_table)
 
         copy_table(table, other_table)
         assert sorted(self.get_temp_records()) == sorted(yt.read_table(other_table))
