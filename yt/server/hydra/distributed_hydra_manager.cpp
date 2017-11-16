@@ -25,6 +25,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
@@ -187,6 +189,8 @@ public:
             CellManager_->GetSelfPeerId());
 
         ControlState_ = EPeerState::Elections;
+
+        IncrementRestartCounter("Initialization");
 
         Participate();
     }
@@ -465,6 +469,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor_;
 
+    yhash<TString, NProfiling::TSimpleCounter> RestartCounters_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
@@ -686,9 +691,9 @@ private:
         if (DecoratedAutomaton_->GetLoggedVersion() != version) {
             auto error = TError(
                 NHydra::EErrorCode::InvalidVersion,
-                "Invalid logged version: expected %v, actual %v",
-                version,
-                DecoratedAutomaton_->GetLoggedVersion());
+                "Invalid logged version")
+                << TErrorAttribute("expected_version", ToString(version))
+                << TErrorAttribute("actual_version", ToString(DecoratedAutomaton_->GetLoggedVersion()));
             Restart(epochContext, error);
             context->Reply(error);
             return;
@@ -902,6 +907,20 @@ private:
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
+    void IncrementRestartCounter(const TString& message)
+    {
+        auto it = RestartCounters_.find(message);
+        if (it == RestartCounters_.end()) {
+            auto tagIds = NProfiling::TTagIdList{
+                NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellManager_->GetCellId()),
+                NProfiling::TProfileManager::Get()->RegisterTag("reason", message)};
+            auto counter = NProfiling::TSimpleCounter("/restart_count", tagIds);
+            it = RestartCounters_.insert(std::make_pair(message, counter)).first;
+        }
+
+        Profiler.Increment(it->second);
+    }
+
     void Restart(TEpochContextPtr epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -912,6 +931,8 @@ private:
         }
 
         LOG_WARNING(error, "Restarting Hydra instance");
+
+        IncrementRestartCounter(error.GetMessage());
 
         CancelableControlInvoker_->Invoke(BIND(
             &TDistributedHydraManager::DoRestart,
