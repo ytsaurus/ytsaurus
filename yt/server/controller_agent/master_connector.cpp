@@ -124,9 +124,11 @@ public:
         BIND(&TImpl::DoRegisterOperation, MakeStrong(this), operationId, controller)
             .AsyncVia(Invoker_)
             .Run()
-            .Subscribe(BIND([] (TError error) {
-                YCHECK(error.IsOK() && "RegisterOperation failed");
-            }));
+            .Subscribe(
+                BIND([] (TError error) {
+                    YCHECK(error.IsOK() && "RegisterOperation failed");
+                })
+                .AsyncVia(Invoker_));
     }
 
     void UnregisterOperation(const TOperationId& operationId)
@@ -253,9 +255,11 @@ public:
         BIND(&TImpl::DoUpdateConfig, MakeStrong(this), config)
             .AsyncVia(Invoker_)
             .Run()
-            .Subscribe(BIND([] (TError error) {
-                YCHECK(error.IsOK() && "UpdateConfig failed");
-            }));
+            .Subscribe(
+                BIND([] (TError error) {
+                    YCHECK(error.IsOK() && "UpdateConfig failed");
+                })
+                .AsyncVia(Invoker_));
     }
 
 private:
