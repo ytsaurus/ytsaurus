@@ -14,6 +14,7 @@
 #include "tablet_type_handler.h"
 
 #include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/serialize.h>
@@ -4072,6 +4073,7 @@ private:
         NTabletNode::TTabletChunkWriterConfigPtr* writerConfig,
         TTableWriterOptionsPtr* writerOptions)
     {
+        const auto& configManager = Bootstrap_->GetConfigManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
         const auto& tableAttributes = tableProxy->Attributes();
@@ -4079,6 +4081,7 @@ private:
         // Parse and prepare mount config.
         try {
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
+            (*mountConfig)->ProfilingMode = configManager->GetConfig()->DynamicTableProfilingMode;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;
