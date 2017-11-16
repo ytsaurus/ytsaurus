@@ -1065,12 +1065,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
         assert_items_equal(actual, rows)
 
-        sleep(1)
         for tablet in xrange(10):
-            path = "//tmp/t/@tablets/%s/performance_counters" % tablet
-            assert get(path + "/static_chunk_row_lookup_count") == 200
-            #assert get(path + "/static_chunk_row_lookup_false_positive_count") < 4
-            #assert get(path + "/static_chunk_row_lookup_true_negative_count") > 90
+            path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
+            wait(lambda: get(path) > 0)
+            assert get(path) == 200
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("in_memory_mode", ["none", "compressed"])
@@ -1083,24 +1081,19 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": 0, "value": "hello"}])
 
-        sleep(1)
-        assert get(path + "/dynamic_row_write_data_weight_count") != 0
+        wait(lambda: get(path + "/dynamic_row_write_data_weight_count") > 0)
 
         select_rows("* from [//tmp/t]")
 
-        sleep(1)
         # Dynamic read must change, lookup must not change
-        dynamic_row_read_data_weight = get(path + "/dynamic_row_read_data_weight_count")
-        assert dynamic_row_read_data_weight != 0
+        wait(lambda: get(path + "/dynamic_row_read_data_weight_count") > 0)
         assert get(path + "/dynamic_row_lookup_data_weight_count") == 0
 
         lookup_rows("//tmp/t", [{"key": 0}])
 
-        sleep(1)
         # Dynamic read lookup change, read must not change
-        dynamic_row_lookup_data_weight = get(path + "/dynamic_row_lookup_data_weight_count")
-        assert dynamic_row_lookup_data_weight != 0
-        assert get(path + "/dynamic_row_read_data_weight_count") == dynamic_row_read_data_weight
+        wait(lambda: get(path + "/dynamic_row_lookup_data_weight_count") > 0)
+        assert get(path + "/dynamic_row_read_data_weight_count") == get(path + "/dynamic_row_lookup_data_weight_count")
 
         # Static read/lookup must not change
         assert get(path + "/static_chunk_row_read_data_weight_count") == 0
@@ -1110,20 +1103,15 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         select_rows("* from [//tmp/t]")
 
-        sleep(1)
         # Static read must change, lookup must not change
-        static_chunk_row_read_data_weight = get(path + "/static_chunk_row_read_data_weight_count")
-        assert static_chunk_row_read_data_weight != 0
+        wait(lambda: get(path + "/static_chunk_row_read_data_weight_count") > 0)
         assert get(path + "/static_chunk_row_lookup_data_weight_count") == 0
 
         lookup_rows("//tmp/t", [{"key": 0}])
 
-        sleep(1)
         # Static lookup must change, read must not change
-        static_chunk_row_lookup_data_weight = get(path + "/static_chunk_row_lookup_data_weight_count")
-        assert static_chunk_row_lookup_data_weight != 0
-        assert get(path + "/static_chunk_row_read_data_weight_count") == static_chunk_row_read_data_weight
-
+        wait(lambda: get(path + "/static_chunk_row_lookup_data_weight_count") > 0)
+        assert get(path + "/static_chunk_row_read_data_weight_count") == get(path + "/static_chunk_row_lookup_data_weight_count")
 
     def test_store_rotation(self):
         self.sync_create_cells(1)
