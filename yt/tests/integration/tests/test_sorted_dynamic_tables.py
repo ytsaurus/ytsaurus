@@ -1912,8 +1912,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_set_pivot_keys_upon_construction_fail(self):
         with pytest.raises(YtError):
-            self._create_simple_table("//tmp/t", tablet_count=10)
-        with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", pivot_keys=[])
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", pivot_keys=[[10], [20]])
@@ -2155,7 +2153,9 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         tablet_cell_attributes = {
             "changelog_replication_factor": 1,
             "changelog_read_quorum": 1,
-            "changelog_write_quorum": 1
+            "changelog_write_quorum": 1,
+            "changelog_account": "sys",
+            "snapshot_account": "sys"
         }
 
         set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
