@@ -151,7 +151,9 @@ private:
 
     void SetMountConfig(TTableMountConfigPtr config)
     {
-        Throttler_->Reconfigure(config->ReplicationThrottler);
+        if (config) {
+            Throttler_->Reconfigure(config->ReplicationThrottler);
+        }
         auto guard = Guard(MountConfigLock_);
         MountConfig_ = std::move(config);
     }
