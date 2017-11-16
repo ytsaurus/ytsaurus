@@ -1642,6 +1642,10 @@ private:
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
 
+        SysAccount_ = nullptr;
+        TmpAccount_ = nullptr;
+        IntermediateAccount_ = nullptr;
+
         ResetAuthenticatedUser();
     }
 
