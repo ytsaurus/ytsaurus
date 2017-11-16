@@ -14,7 +14,7 @@ TFileWriter::TFileWriter(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TFileWriterOptions& options)
-    : BlockWriter_(
+    : RetryfulWriter_(
         auth,
         transactionId,
         GetWriteFileCommand(),
@@ -31,13 +31,13 @@ TFileWriter::~TFileWriter()
 
 void TFileWriter::DoWrite(const void* buf, size_t len)
 {
-    BlockWriter_.Write(buf, len);
-    BlockWriter_.NotifyRowEnd();
+    RetryfulWriter_.Write(buf, len);
+    RetryfulWriter_.NotifyRowEnd();
 }
 
 void TFileWriter::DoFinish()
 {
-    BlockWriter_.Finish();
+    RetryfulWriter_.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

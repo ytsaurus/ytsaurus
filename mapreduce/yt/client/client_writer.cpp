@@ -1,6 +1,7 @@
 #include "client_writer.h"
 
 #include "retryful_writer.h"
+#include "retryless_writer.h"
 
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -15,15 +16,27 @@ TClientWriter::TClientWriter(
     const TTransactionId& transactionId,
     const TMaybe<TFormat>& format,
     const TTableWriterOptions& options)
-    : BlockWriter_(new TRetryfulWriter(
-        auth,
-        transactionId,
-        GetWriteTableCommand(),
-        format,
-        path,
-        BUFFER_SIZE,
-        options))
-{ }
+{
+    if (options.SingleHttpRequest_) {
+        RawWriter_.Reset(new TRetrylessWriter(
+            auth,
+            transactionId,
+            GetWriteTableCommand(),
+            format,
+            path,
+            BUFFER_SIZE,
+            options));
+    } else {
+        RawWriter_.Reset(new TRetryfulWriter(
+            auth,
+            transactionId,
+            GetWriteTableCommand(),
+            format,
+            path,
+            BUFFER_SIZE,
+            options));
+    }
+}
 
 size_t TClientWriter::GetStreamCount() const
 {
@@ -33,12 +46,12 @@ size_t TClientWriter::GetStreamCount() const
 IOutputStream* TClientWriter::GetStream(size_t tableIndex) const
 {
     Y_UNUSED(tableIndex);
-    return BlockWriter_.Get();
+    return RawWriter_.Get();
 }
 
 void TClientWriter::OnRowFinished(size_t)
 {
-    BlockWriter_->NotifyRowEnd();
+    RawWriter_->NotifyRowEnd();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

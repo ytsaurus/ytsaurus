@@ -626,4 +626,43 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
 
         TConfig::Get()->UseClientProtobuf = oldUseClientProtobuf;
     }
+
+    SIMPLE_UNIT_TEST(SimpleRetrylessWriter)
+    {
+        auto client = CreateTestClient();
+        auto path = TRichYPath("//testing/table1");
+        const int numRows = 100;
+        {
+            auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions().SingleHttpRequest(true));
+            for (int i = 0; i < numRows; ++i) {
+                writer->AddRow(TNode()("key", i));
+            }
+        }
+        auto reader = client->CreateTableReader<TNode>(path);
+        int counter = 0;
+        for (; reader->IsValid(); reader->Next()) {
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("key", counter));
+            ++counter;
+        }
+        UNIT_ASSERT_VALUES_EQUAL(counter, numRows);
+    }
+
+    SIMPLE_UNIT_TEST(RetrylessWriterAndLockedTable)
+    {
+        auto client = CreateTestClient();
+        auto path = TRichYPath("//testing/table523" + TInstant::Now().ToString());
+        auto lockingWriter = client->CreateTableWriter<TNode>(path);
+        lockingWriter->AddRow(TNode()("key", "kluch"));
+
+        auto retrylessWriter = client->CreateTableWriter<TNode>(path, TTableWriterOptions().SingleHttpRequest(true));
+        auto writeMuchData = [&retrylessWriter] {
+            TString row = "0123456789ABCDEF"; // 16 bytes
+            for (int i = 0; i < (5 << 20); ++i) { // 5M * 16B = 80MB > 64MB
+                retrylessWriter->AddRow(TNode()("key", row));
+            }
+        };
+        UNIT_ASSERT_EXCEPTION(writeMuchData(), yexception);
+        UNIT_ASSERT_NO_EXCEPTION(retrylessWriter->Finish()); // It's already finished
+        UNIT_ASSERT_NO_EXCEPTION(lockingWriter->Finish());
+    }
 }

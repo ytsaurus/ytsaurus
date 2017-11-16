@@ -25,8 +25,7 @@ protected:
     void DoFinish() override;
 
 private:
-    TRetryfulWriter BlockWriter_;
-
+    TRetryfulWriter RetryfulWriter_;
     static const size_t BUFFER_SIZE = 64 << 20;
 };
 
