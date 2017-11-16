@@ -70,6 +70,7 @@ class TestMedia(YTEnvSetup):
         return chunk_count
 
     def _assert_account_and_table_usage_equal(self, tbl):
+        multicell_sleep()
         account_usage = get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium")
         table_usage = get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl))
         assert account_usage == table_usage
