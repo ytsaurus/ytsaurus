@@ -90,6 +90,7 @@ DEFINE_ENUM(EAbortReason,
     (NodeOffline)
     (WaitingTimeout)
     (AccountLimitExceeded)
+    (GetSpecFailed)
     (Unknown)
     (RevivalConfirmationTimeout)
     (SchedulingFirst)

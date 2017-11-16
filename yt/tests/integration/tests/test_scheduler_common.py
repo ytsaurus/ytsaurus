@@ -2474,3 +2474,32 @@ class TestPoolMetrics(YTEnvSetup):
 
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
+
+class TestGetJobSpecFailed(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    def test_job_spec_failed(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        op = map(
+            command="sleep 100",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "testing": {
+                    "fail_get_job_spec": True
+                },
+            },
+            dont_track=True)
+
+        time.sleep(2.0)
+
+        jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id), verbose=False)
+        assert jobs["aborted"]["scheduled"]["get_spec_failed"] > 0
+
+        op.abort()

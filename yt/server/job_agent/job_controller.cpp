@@ -10,6 +10,7 @@
 #include <yt/server/exec_agent/slot_manager.h>
 
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+#include <yt/ytlib/job_tracker_client/job.pb.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -89,6 +90,8 @@ private:
 
     yhash<EJobType, TJobFactory> Factories_;
     yhash<TJobId, IJobPtr> Jobs_;
+
+    yhash_set<TJobId> SpeclessJobIds_;
 
     bool StartScheduled_ = false;
 
@@ -572,6 +575,22 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
         LOG_DEBUG("Job statistics prepared (RunningJobsStatisticsSize: %v, CompletedJobsStatisticsSize: %v)",
             runningJobsStatisticsSize,
             completedJobsStatisticsSize);
+
+        // TODO(ignat): make it in more general way (non-scheduler specific).
+        for (const auto& jobId : SpeclessJobIds_) {
+            auto* jobStatus = request->add_jobs();
+            ToProto(jobStatus->mutable_job_id(), jobId);
+            jobStatus->set_job_type(static_cast<int>(EJobType::Unknown));
+            jobStatus->set_state(static_cast<int>(EJobState::Aborted));
+            jobStatus->set_phase(static_cast<int>(EJobPhase::Missing));
+            jobStatus->set_progress(0.0);
+
+            TJobResult jobResult;
+            auto error = TError("Failed to get job spec")
+                << TErrorAttribute("abort_reason", NScheduler::EAbortReason::GetSpecFailed);
+            ToProto(jobResult.mutable_error(), error);
+            *jobStatus->mutable_result() = jobResult;
+        }
     }
 }
 
@@ -582,6 +601,11 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
+        if (SpeclessJobIds_.find(jobId) != SpeclessJobIds_.end()) {
+            SpeclessJobIds_.erase(jobId);
+            continue;
+        }
+
         auto job = FindJob(jobId);
         if (job) {
             RemoveJob(job);
@@ -675,6 +699,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
             auto jobId = FromProto<TJobId>(info.job_id());
             auto operationId = FromProto<TJobId>(info.operation_id());
+            YCHECK(SpeclessJobIds_.insert(jobId).second);
             LOG_DEBUG("Getting job spec (OperationId: %v, JobId: %v)",
                 operationId,
                 jobId);
@@ -708,6 +733,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
             const auto& attachment = jobSpecResponse->Attachments()[index];
             DeserializeProtoWithEnvelope(&spec, attachment);
 
+            YCHECK(SpeclessJobIds_.erase(jobId) > 0);
             CreateJob(jobId, operationId, resourceLimits, std::move(spec));
         }
     }

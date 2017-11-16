@@ -47,6 +47,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(Null);
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
+    RegisterParameter("fail_get_job_spec", FailGetJobSpec)
+        .Default(false);
 }
 
 TAutoMergeConfig::TAutoMergeConfig()

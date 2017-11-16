@@ -5582,6 +5582,9 @@ TYsonString TOperationControllerBase::BuildJobsYson() const
 
 TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
 {
+    if (Spec_->TestingOperationOptions->FailGetJobSpec) {
+        THROW_ERROR_EXCEPTION("Testing failure");
+    }
     auto joblet = GetJobletOrThrow(jobId);
     if (!joblet->JobSpecProtoFuture) {
         THROW_ERROR_EXCEPTION("Spec of job %v is missing", jobId);

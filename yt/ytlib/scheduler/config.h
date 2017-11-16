@@ -191,6 +191,8 @@ public:
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;
 
+    bool FailGetJobSpec;
+
     TTestingOperationOptions();
 };
 
