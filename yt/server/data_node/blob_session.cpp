@@ -35,10 +35,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TSimpleCounter DiskBlobWriteByteCounter("/disk_blob_write_bytes");
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFuture<void> TBlobSession::DoStart()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -324,7 +320,7 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
         locationProfiler.Enqueue("/blob_block_write_time", writeTime.MicroSeconds(), EMetricType::Gauge);
         locationProfiler.Enqueue("/blob_block_write_throughput", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()), EMetricType::Gauge);
 
-        DataNodeProfiler.Increment(DiskBlobWriteByteCounter, block.Size());
+        Location_->IncreaseCompletedIOSize(EIODirection::Write, Options_.WorkloadDescriptor, block.Size());
 
         THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
     }

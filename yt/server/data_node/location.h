@@ -138,6 +138,12 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         i64 delta);
 
+    //! Increases number of bytes done for disk IO.
+    void IncreaseCompletedIOSize(
+        EIODirection direction,
+        const TWorkloadDescriptor& workloadDescriptor,
+        i64 delta);
+
     //! Changes the number of currently active sessions of a given #type by a given #delta.
     void UpdateSessionCount(ESessionType type, int delta);
 
@@ -202,9 +208,13 @@ private:
     NProfiling::TProfiler Profiler_;
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
+    std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleCounter& GetPendingIOSizeCounter(
+        EIODirection direction,
+        EIOCategory category);
+    NProfiling::TSimpleCounter& GetCompletedIOSizeCounter(
         EIODirection direction,
         EIOCategory category);
 

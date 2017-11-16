@@ -66,7 +66,8 @@ TLocation::TLocation(
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
         profileManager->RegisterTag("location_id", Id_),
-        profileManager->RegisterTag("location_type", Type_)
+        profileManager->RegisterTag("location_type", Type_),
+        profileManager->RegisterTag("medium", GetMediumName())
     };
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
 
@@ -80,17 +81,25 @@ TLocation::TLocation(
     PendingIOSizeCounters_.resize(
         TEnumTraits<EIODirection>::GetDomainSize() *
         TEnumTraits<EIOCategory>::GetDomainSize());
-    for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
-        for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-            auto& counter = GetPendingIOSizeCounter(direction, category);
-            counter = NProfiling::TSimpleCounter(
-                "/pending_data_size",
-                {
-                    profileManager->RegisterTag("direction", direction),
-                    profileManager->RegisterTag("category", category)
-                });
+    CompletedIOSizeCounters_.resize(
+        TEnumTraits<EIODirection>::GetDomainSize() *
+        TEnumTraits<EIOCategory>::GetDomainSize());
+
+    auto initializeCounters = [&] (const TString& path, auto getCounter) {
+        for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
+            for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+                auto& counter = (this->*getCounter)(direction, category);
+                counter = NProfiling::TSimpleCounter(
+                    path,
+                    {
+                        profileManager->RegisterTag("direction", direction),
+                        profileManager->RegisterTag("category", category)
+                    });
+            }
         }
-    }
+    };
+    initializeCounters("/pending_data_size", &TLocation::GetPendingIOSizeCounter);
+    initializeCounters("/blob_block_bytes", &TLocation::GetCompletedIOSizeCounter);
 }
 
 ELocationType TLocation::GetType() const
@@ -315,6 +324,16 @@ NProfiling::TSimpleCounter& TLocation::GetPendingIOSizeCounter(
     return PendingIOSizeCounters_[index];
 }
 
+NProfiling::TSimpleCounter& TLocation::GetCompletedIOSizeCounter(
+    EIODirection direction,
+    EIOCategory category)
+{
+    int index =
+        static_cast<int>(direction) +
+        TEnumTraits<EIODirection>::GetDomainSize() * static_cast<int>(category);
+    return CompletedIOSizeCounters_[index];
+}
+
 void TLocation::DecreasePendingIOSize(
     EIODirection direction,
     EIOCategory category,
@@ -339,6 +358,18 @@ void TLocation::UpdatePendingIOSize(
         category,
         result,
         delta);
+}
+
+void TLocation::IncreaseCompletedIOSize(
+    EIODirection direction,
+    const TWorkloadDescriptor& workloadDescriptor,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto category = ToIOCategory(workloadDescriptor);
+    auto& counter = GetCompletedIOSizeCounter(direction, category);
+    Profiler_.Increment(counter, delta);
 }
 
 void TLocation::UpdateSessionCount(ESessionType type, int delta)
