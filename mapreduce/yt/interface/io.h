@@ -155,12 +155,12 @@ public:
 
     virtual TRawTableReaderPtr CreateRawReader(
         const TRichYPath& path,
-        const TMaybe<TFormat>& format,
+        const TFormat& format,
         const TTableReaderOptions& options) = 0;
 
     virtual TRawTableWriterPtr CreateRawWriter(
         const TRichYPath& path,
-        const TMaybe<TFormat>& format,
+        const TFormat& format,
         const TTableWriterOptions& options) = 0;
 
 private:
