@@ -104,6 +104,7 @@ public:
     bool EnableReplicationLogging;
 
     bool EnableProfiling;
+    EDynamicTableProfilingMode ProfilingMode;
 
     bool EnableCompactionAndPartitioning;
 
@@ -227,9 +228,12 @@ public:
 
         RegisterParameter("enable_profiling", EnableProfiling)
             .Default(false);
+        RegisterParameter("profiling_mode", ProfilingMode)
+            .Default(EDynamicTableProfilingMode::Disabled);
 
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
             .Default(true);
+
 
         RegisterValidator([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {

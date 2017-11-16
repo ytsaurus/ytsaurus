@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/tablet_node/public.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -16,6 +18,7 @@ public:
     bool EnableSafeMode;
     bool EnableTabletBalancer;
     bool EnableChunkReplicator;
+    NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
 
     TDynamicClusterConfig()
     {
@@ -25,6 +28,8 @@ public:
             .Default(true);
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
             .Default(true);
+        RegisterParameter("dynamc_table_profiling_mode", DynamicTableProfilingMode)
+            .Default(NTabletNode::EDynamicTableProfilingMode::Path);
     }
 };
 
