@@ -34,9 +34,9 @@ public:
 
     IFileWriterPtr CreateFileWriter(const TRichYPath&, const TFileWriterOptions&) override;
 
-    TRawTableReaderPtr CreateRawReader(const TRichYPath& path, const TMaybe<TFormat>& format, const TTableReaderOptions& options) override;
+    TRawTableReaderPtr CreateRawReader(const TRichYPath& path, const TFormat& format, const TTableReaderOptions& options) override;
 
-    TRawTableWriterPtr CreateRawWriter(const TRichYPath& path, const TMaybe<TFormat>& format, const TTableWriterOptions& options) override;
+    TRawTableWriterPtr CreateRawWriter(const TRichYPath& path, const TFormat& format, const TTableWriterOptions& options) override;
 
     ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(const TRichYPath&, const TTableReaderOptions&) override;
 

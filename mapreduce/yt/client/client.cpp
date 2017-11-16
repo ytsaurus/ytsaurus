@@ -199,7 +199,7 @@ IFileWriterPtr TClientBase::CreateFileWriter(
 
 TRawTableReaderPtr TClientBase::CreateRawReader(
     const TRichYPath& path,
-    const TMaybe<TFormat>& format,
+    const TFormat& format,
     const TTableReaderOptions& options)
 {
     return CreateClientReader(path, format, options).Get();
@@ -207,7 +207,7 @@ TRawTableReaderPtr TClientBase::CreateRawReader(
 
 TRawTableWriterPtr TClientBase::CreateRawWriter(
     const TRichYPath& path,
-    const TMaybe<TFormat>& format,
+    const TFormat& format,
     const TTableWriterOptions& options)
 {
     return ::MakeIntrusive<TRetryfulWriter>(
@@ -351,7 +351,7 @@ void TClientBase::AlterTable(
 
 ::TIntrusivePtr<TClientReader> TClientBase::CreateClientReader(
     const TRichYPath& path,
-    const TMaybe<TFormat>& format,
+    const TFormat& format,
     const TTableReaderOptions& options)
 {
     return ::MakeIntrusive<TClientReader>(
@@ -364,7 +364,7 @@ void TClientBase::AlterTable(
 
 THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TRichYPath& path,
-    const TMaybe<TFormat>& format,
+    const TFormat& format,
     const TTableWriterOptions& options)
 {
     auto realPath = CanonizePath(Auth_, path);
