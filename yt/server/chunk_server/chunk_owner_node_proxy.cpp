@@ -782,6 +782,9 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
     node->Properties() = properties;
     node->SetPrimaryMediumIndex(mediumIndex);
 
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->UpdateAccountNodeUsage(node);
+
     if (!node->IsExternal()) {
         chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
     }
