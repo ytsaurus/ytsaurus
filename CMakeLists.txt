@@ -394,6 +394,7 @@ if(YT_CAN_BUILD_PACKAGE)
     hook_for_debian(yandex-yt-python-${PYTHON_KIND_DASHED}-yson yt-python-${PYTHON_KIND_DASHED}-yson)
     hook_for_debian(yandex-yt-python-${PYTHON_KIND_DASHED}-driver yt-python-${PYTHON_KIND_DASHED}-driver)
   endforeach()
+  hook_for_debian(yandex-yp yp)
 else()
   add_custom_target(package touch package-stamp
     COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100

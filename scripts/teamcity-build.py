@@ -206,7 +206,7 @@ def package(options, build_context):
         teamcity_interact("setParameter", name="yt.package_version", value=version)
         teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
-        artifacts = glob.glob("./ARTIFACTS/yandex-yt*{0}*.changes".format(version))
+        artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
         if artifacts:
             for repository in options.repositories:
                 run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
