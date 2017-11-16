@@ -28,7 +28,7 @@ public:
     void OnRowFinished(size_t tableIndex) override;
 
 private:
-    ::TIntrusivePtr<TRetryfulWriter> BlockWriter_;
+    ::TIntrusivePtr<TRawTableWriter> RawWriter_;
 
     static const size_t BUFFER_SIZE = 64 << 20;
 };

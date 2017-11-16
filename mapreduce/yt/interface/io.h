@@ -77,7 +77,7 @@ public:
     // Should be called after complete record is written.
     // When this method is called TRowTableWriter checks its buffer size
     // and if it is full it sends data to YT.
-    // NOTE: TRowTableWriter never sends partial records to YT (due to retries).
+    // NOTE: TRawTableWriter never sends partial records to YT (due to retries).
 
     virtual void NotifyRowEnd() = 0;
 };

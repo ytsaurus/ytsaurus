@@ -125,10 +125,11 @@ struct TIOOptions
 
     FLUENT_FIELD_OPTION(TNode, Config);
 
-    // When `CreateTransaction` is set to `false`
+    // If `CreateTransaction` is set to `false`
     // reader/writer doesn't create internal transaction and doesn't lock table.
+    // This option is overriden (effectively `false`) for writers by `SingleHttpRequest`.
     //
-    // WARNING: read/write might become non atomic when `CreateTransaction` is false.
+    // WARNING: if `CreateTransaction` is `false`, read/write might become non-atomic.
     // Change ONLY if you are sure what you are doing!
     FLUENT_FIELD_DEFAULT(bool, CreateTransaction, true);
 };
@@ -152,7 +153,16 @@ struct TTableReaderOptions
 
 struct TTableWriterOptions
     : public TIOOptions<TTableWriterOptions>
-{ };
+{
+    // If set to true no retry is made but we also make less requests to master.
+    // If set to false writer can make up to `TConfig::RetryCount` attempts to send each block of data.
+    //
+    // NOTE: writers's methods might throw strange exceptions that might look like network error
+    // when `SingleHttpRequest == true` and YT node encounters an error
+    // (due to limitations of HTTP protocol YT node have no chance to report error
+    // before it reads the whole input so it just drops the connection).
+    FLUENT_FIELD_DEFAULT(bool, SingleHttpRequest, false);
+};
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#starttx
 struct TStartTransactionOptions
