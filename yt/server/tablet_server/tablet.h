@@ -198,6 +198,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
+    DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
+    DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
+
 public:
     explicit TTablet(const TTabletId& id);
 
@@ -221,12 +224,6 @@ public:
 
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
-
-    ETabletState GetState() const;
-    void SetState(ETabletState state);
-
-    NTableServer::TTableNode* GetTable() const;
-    void SetTable(NTableServer::TTableNode* table);
 
 private:
     ETabletState State_ = ETabletState::Unmounted;

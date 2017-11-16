@@ -101,13 +101,13 @@ void TTabletCellBundle::Load(TLoadContext& context)
     FillProfilingTag();
 }
 
-void TTabletCellBundle::SetName(const TString& name)
+void TTabletCellBundle::SetName(TString name)
 {
     Name_ = name;
     FillProfilingTag();
 }
 
-const TString& TTabletCellBundle::GetName() const
+TString TTabletCellBundle::GetName() const
 {
     return Name_;
 }
