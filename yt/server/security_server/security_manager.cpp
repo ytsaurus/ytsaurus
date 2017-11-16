@@ -1475,9 +1475,9 @@ private:
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
         // COMPAT(savrus)
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 606;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 606;
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 613;
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 626;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 626;
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 626;
     }
 
     virtual void OnAfterSnapshotLoaded() override
