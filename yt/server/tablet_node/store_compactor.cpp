@@ -627,8 +627,11 @@ private:
 
     void PartitionEden(TAsyncSemaphoreGuard guard, const TTask& task)
     {
+        auto sessionId = TReadSessionId();
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v", task.Tablet);
+        Logger.AddTag("TabletId: %v, ReadSessionId: %v",
+            task.Tablet,
+            sessionId);
 
         auto scoreParts = UnpackTaskScore(task.Score);
 
@@ -705,19 +708,17 @@ private:
                 ->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
-            auto sessionId = TReadSessionId();
 
             eden->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx, ReadSessionId: %v)",
+            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
-                currentTimestamp,
-                sessionId);
+                currentTimestamp);
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -981,8 +982,11 @@ private:
 
     void CompactPartition(TAsyncSemaphoreGuard guard, const TTask& task)
     {
+        auto sessionId = TReadSessionId();
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v", task.Tablet);
+        Logger.AddTag("TabletId: %v, ReadSessionId: %v",
+            task.Tablet,
+            sessionId);
 
         auto scoreParts = UnpackTaskScore(task.Score);
 
@@ -1063,12 +1067,11 @@ private:
             auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
-            auto sessionId = TReadSessionId();
 
             partition->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, ReadSessionId: %v)",
+                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
@@ -1076,8 +1079,7 @@ private:
                 stores.size(),
                 currentTimestamp,
                 majorTimestamp,
-                retainedTimestamp,
-                sessionId);
+                retainedTimestamp);
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
