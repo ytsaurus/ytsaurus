@@ -471,6 +471,10 @@ public:
     //! The time after which any registered placement info expires.
     TDuration PlacementExpirationTime;
 
+    //! Controls if cluster and cell directories are to be synchronized on connect.
+    //! Useful for tests.
+    bool SyncDirectoriesOnConnect;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -594,13 +598,16 @@ public:
         RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
             .Default(true);
 
-        RegisterParameter("placement_expiration_time", PlacementExpirationTime)
-            .Default(TDuration::Hours(1));
-
         RegisterParameter("use_direct_io", UseDirectIO)
             .Default(EDirectIOPolicy::Never);
 
         RegisterParameter("enable_experimental_skynet_http_api", EnableExperimentalSkynetHttpApi)
+            .Default(false);
+
+        RegisterParameter("placement_expiration_time", PlacementExpirationTime)
+            .Default(TDuration::Hours(1));
+
+        RegisterParameter("sync_directories_on_connect", SyncDirectoriesOnConnect)
             .Default(false);
 
         RegisterInitializer([&] () {

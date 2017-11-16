@@ -269,7 +269,9 @@ void TMasterConnector::RegisterAtMaster()
         InitMedia();
         StartLeaseTransaction();
         RegisterAtPrimaryMaster();
-        SyncDirectories();
+        if (Config_->SyncDirectoriesOnConnect) {
+            SyncDirectories();
+        }
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Error registering at primary master");
         ResetAndScheduleRegisterAtMaster();
