@@ -43,6 +43,7 @@ public class BalancingDestination {
         this.client = Objects.requireNonNull(client);
         this.index = index;
         this.id = String.format("%s/%s", dc, client.toString());
+
         service = client.getService(ApiService.class);
 
         pingHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", client.destinationName()));
