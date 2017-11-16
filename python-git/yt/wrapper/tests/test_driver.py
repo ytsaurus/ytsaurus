@@ -50,5 +50,5 @@ def test_process_params():
     schema.attributes["unique_keys"] = True
 
     table = TEST_DIR + "/dynamic_table"
-    yt.create_table(table, attributes={"schema": schema})
+    yt.create("table", table, attributes={"schema": schema})
     assert parse_bool(yt.get(table + "/@schema/@unique_keys"))
