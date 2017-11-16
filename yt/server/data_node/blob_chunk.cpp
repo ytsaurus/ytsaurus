@@ -34,8 +34,6 @@ using namespace NProfiling;
 
 static const auto& Logger = DataNodeLogger;
 
-static TSimpleCounter DiskBlobReadByteCounter("/blob_block_read_bytes");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlobChunkBase::TBlobChunkBase(
@@ -327,7 +325,8 @@ void TBlobChunkBase::DoReadBlockSet(
         locationProfiler.Enqueue("/blob_block_read_size", bytesRead, EMetricType::Gauge);
         locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds(), EMetricType::Gauge);
         locationProfiler.Enqueue("/blob_block_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()), EMetricType::Gauge);
-        DataNodeProfiler.Increment(DiskBlobReadByteCounter, bytesRead);
+
+        Location_->IncreaseCompletedIOSize(EIODirection::Write, workloadDescriptor, bytesRead);
 
         currentIndex = endIndex;
     }
