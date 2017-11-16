@@ -62,6 +62,16 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
 
     return formats[0]
 
+def _create_table(path, recursive=None, ignore_existing=False, attributes=None, client=None):
+    table = TablePath(path, client=client)
+    attributes = get_value(attributes, {})
+    if get_config(client)["create_table_attributes"] is not None:
+        attributes = update(deepcopy(get_config(client)["create_table_attributes"]), attributes)
+    if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
+        attributes = update({"compression_codec": "zlib_6"}, attributes)
+    create("table", table, recursive=recursive, ignore_existing=ignore_existing,
+           attributes=attributes, client=client)
+
 @deprecated()
 def create_table(path, recursive=None, ignore_existing=False,
                  attributes=None, client=None):
@@ -76,14 +86,8 @@ def create_table(path, recursive=None, ignore_existing=False,
     then :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` will be raised.
     :param dict attributes: attributes.
     """
-    table = TablePath(path, client=client)
-    attributes = get_value(attributes, {})
-    if get_config(client)["create_table_attributes"] is not None:
-        attributes = update(deepcopy(get_config(client)["create_table_attributes"]), attributes)
-    if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
-        attributes = update({"compression_codec": "zlib_6"}, attributes)
-    create("table", table, recursive=recursive, ignore_existing=ignore_existing,
-           attributes=attributes, client=client)
+
+    _create_table(path, recursive, ignore_existing, attributes, client)
 
 def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeout=None, client=None):
     """Creates temporary table by given path with given prefix and return name.
@@ -113,7 +117,7 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
     attributes = update(
         {"expiration_time": datetime_to_string(datetime.utcnow() + timeout)},
         get_value(attributes, {}))
-    create_table(name, attributes=attributes, client=client)
+    _create_table(name, attributes=attributes, client=client)
     return name
 
 def write_table(table, input_stream, format=None, table_writer=None,
@@ -160,7 +164,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     def prepare_table(path):
         if not force_create:
             return
-        create_table(path, ignore_existing=True, client=client)
+        _create_table(path, ignore_existing=True, client=client)
 
     can_split_input = isinstance(input_stream, list) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \

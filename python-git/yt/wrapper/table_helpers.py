@@ -223,7 +223,7 @@ def _prepare_destination_tables(tables, client=None):
     tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
     batch_client = create_batch_client(raise_errors=True, client=client)
     for table in tables:
-        batch_client.create_table(table, ignore_existing=True)
+        batch_client.create("table", table, ignore_existing=True)
     batch_client.commit_batch()
     return tables
 
@@ -249,12 +249,12 @@ def _prepare_operation_files(local_files=None, files=None, yt_files=None):
     return result
 
 def _prepare_stderr_table(name, client=None):
-    from .table_commands import create_table
+    from .table_commands import _create_table
     if name is None:
         return None
 
     table = TablePath(name, client=client)
     with Transaction(transaction_id=null_transaction_id, client=client):
-        create_table(table, ignore_existing=True, client=client)
+        _create_table(table, ignore_existing=True, client=client)
     return table
 

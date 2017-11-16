@@ -67,7 +67,7 @@ class TestBatchExecution(object):
         client.set_attribute(TEST_DIR + "/batch_node2", "attr", 1)
         client.remove(TEST_DIR + "/batch")
         client.create("file", TEST_DIR + "/test_file", recursive=True)
-        client.create_table(table)
+        client.create("table", table)
         client.commit_batch()
 
         node = client.get(TEST_DIR + "/batch_node2", attributes=["attr", "other_attr"])
@@ -88,7 +88,7 @@ class TestBatchExecution(object):
         assert not yt.exists(table)
         assert yt.exists(other_table)
 
-        yt.create_table(table)
+        yt.create("table", table)
 
         client.link(table, link)
         client.create("map_node", map_node)
@@ -106,7 +106,7 @@ class TestBatchExecution(object):
 
         tables = ["{0}/table_{1}".format(TEST_DIR + "/batch_node_list", str(i)) for i in xrange(10)]
         for table in tables:
-            client.create_table(table, recursive=True)
+            client.create("table", table, recursive=True)
         client.commit_batch()
 
         list_result = client.list(TEST_DIR + "/batch_node_list")
@@ -137,7 +137,7 @@ class TestBatchExecution(object):
 
         client = create_batch_client()
 
-        client.create_table(table, recursive=True)
+        client.create("table", table, recursive=True)
         client.commit_batch()
 
         assert yt.exists(table)
@@ -152,17 +152,12 @@ class TestBatchExecution(object):
         assert not is_sorted.get_result()
 
         yt.remove(table)
-        if yt_env.version < "0.18":
-            yt.create_table(table, attributes={"dynamic": True})
-            yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
-            yt.set(table + "/@key_columns", ["x"])
-        else:
-            yt.create_table(table, attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "x", "type": "string", "sort_order": "ascending"},
-                    {"name": "y", "type": "string"}
-                ]})
+        yt.create("table", table, attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "x", "type": "string", "sort_order": "ascending"},
+                {"name": "y", "type": "string"}
+            ]})
         tablet_id = yt.create("tablet_cell", attributes={"size": 1})
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
             time.sleep(0.1)
@@ -188,7 +183,7 @@ class TestBatchExecution(object):
 
         with yt.Transaction():
             client = create_batch_client()
-            client.create_table(table, recursive=True)
+            client.create("table", table, recursive=True)
             client.commit_batch()
 
             assert not new_client.exists(table)

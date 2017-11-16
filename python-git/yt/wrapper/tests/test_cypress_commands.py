@@ -87,7 +87,7 @@ class TestCypressCommands(object):
     @pytest.mark.parametrize("enable_batch_mode", [False, True])
     def test_search(self, enable_batch_mode):
         yt.mkdir(TEST_DIR + "/dir/other_dir", recursive=True)
-        yt.create_table(TEST_DIR + "/dir/table")
+        yt.create("table", TEST_DIR + "/dir/table")
         yt.write_file(TEST_DIR + "/file", b"")
 
         res = [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir", TEST_DIR + "/dir/table", TEST_DIR + "/file"]
@@ -133,8 +133,8 @@ class TestCypressCommands(object):
         # Search in list nodes
         list_node = TEST_DIR + "/list_node"
         yt.set(list_node, ["x"])
-        yt.create_table(list_node + "/end")
-        yt.create_table(list_node + "/end")
+        yt.create("table", list_node + "/end")
+        yt.create("table", list_node + "/end")
         assert list(yt.search(list_node, enable_batch_mode=enable_batch_mode,
                               node_type="table")) == sorted([list_node + "/1", list_node + "/2"])
         assert list(yt.search(list_node, list_node_order=lambda p, obj: [2, 0, 1],
@@ -153,7 +153,7 @@ class TestCypressCommands(object):
                == list(yt.search(TEST_DIR + "/dir_with_slash", enable_batch_mode=enable_batch_mode))
 
         yt.create("map_node", TEST_DIR + "/search_test")
-        yt.create_table(TEST_DIR + "/search_test/search_test_table")
+        yt.create("table", TEST_DIR + "/search_test/search_test_table")
         yt.link(TEST_DIR + "/search_test/search_test_table", TEST_DIR + "/search_test/link_to_table")
         yt.remove(TEST_DIR + "/search_test/search_test_table")
 
@@ -163,7 +163,7 @@ class TestCypressCommands(object):
             [TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table"]
 
         yt.mkdir(TEST_DIR + "/search_test/test_dir")
-        yt.create_table(TEST_DIR + "/search_test/test_dir/table")
+        yt.create("table", TEST_DIR + "/search_test/test_dir/table")
         yt.link(TEST_DIR + "/search_test/test_dir", TEST_DIR + "/search_test/test_dir_link")
 
         for opaque in (True, False):
@@ -259,7 +259,7 @@ class TestCypressCommands(object):
     def test_link(self, yt_env):
         table = TEST_DIR + "/table_with_attributes"
         link = TEST_DIR + "/table_link"
-        yt.create_table(table)
+        yt.create("table", table)
         yt.link(table, link)
         assert not parse_bool(yt.get_attribute(link + "&", "broken"))
         assert yt.get_attribute(link + "&", "target_path") == table
@@ -284,12 +284,12 @@ class TestCypressCommands(object):
     def test_list(self):
         tables = ["{0}/{1}".format(TEST_DIR, name) for name in ("a", "b", "c")]
         for table in tables:
-            yt.create_table(table)
+            yt.create("table", table)
         assert yt.list(TEST_DIR) == sorted(["a", "b", "c"])
         assert yt.list(TEST_DIR, absolute=True) == \
             sorted(["{0}/{1}".format(TEST_DIR, x) for x in ("a", "b", "c")])
         yt.mkdir(TEST_DIR + "/subdir")
-        yt.create_table(TEST_DIR + "/subdir/table")
+        yt.create("table", TEST_DIR + "/subdir/table")
 
         result = yt.list(TEST_DIR + "/subdir", attributes=["type"])[0]
         assert str(result) == "table"
@@ -310,7 +310,7 @@ class TestCypressCommands(object):
         table = TEST_DIR + "/table"
         dir = TEST_DIR + "/dir"
         other_table = dir + "/other_table"
-        yt.create_table(table)
+        yt.create("table", table)
         assert list(yt.read_table(table, format=yt.format.DsvFormat())) == []
 
         with pytest.raises(yt.YtError):
@@ -359,7 +359,7 @@ class TestCypressCommands(object):
     def test_transactions(self):
         table = TEST_DIR + "/transaction_test_table"
 
-        yt.create_table(table)
+        yt.create("table", table)
         yt.write_table(table, [{"x": 1}])
         def read_table(client=None):
             return list(yt.read_table(table, client=client))
