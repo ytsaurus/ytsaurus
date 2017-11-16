@@ -2679,6 +2679,8 @@ private:
             return false;
         }
         cellBundle = DoCreateTabletCellBundle(id, name);
+        cellBundle->GetOptions()->ChangelogAccount = DefaultStoreAccountName;
+        cellBundle->GetOptions()->SnapshotAccount = DefaultStoreAccountName;
         return true;
     }
 
