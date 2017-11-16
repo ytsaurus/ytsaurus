@@ -30,16 +30,26 @@ public final class DataCenter {
     private final String dc;
     private final BalancingDestination[] backends;
     private int aliveCount;
+    private final double weight;
 
     public DataCenter(String dc, BalancingDestination[] backends) {
+        this(dc, backends, -1.0);
+    }
+
+    public DataCenter(String dc, BalancingDestination[] backends, double weight) {
         this.dc = dc;
         this.backends = backends;
         this.aliveCount = backends.length;
+        this.weight = weight;
         pingHistogramDc = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
     }
 
     public double weight() {
-        return pingHistogramDc.getSnapshot().get99thPercentile();
+        if (weight > 0) {
+            return weight;
+        } else {
+            return pingHistogramDc.getSnapshot().get99thPercentile();
+        }
     }
 
     public String getName() {

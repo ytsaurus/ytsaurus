@@ -6,4 +6,5 @@ package ru.yandex.yt.ytclient.rpc;
 public interface RpcFailoverPolicy {
     boolean onError(RpcClientRequest request, Throwable error);
     boolean onTimeout();
+    boolean randomizeDcs();
 }

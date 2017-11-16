@@ -17,23 +17,38 @@ import static org.hamcrest.Matchers.is;
  * @author aozeritsky
  */
 public class BalancingRpcClientTest {
+    class DCData {
+        final String name;
+        final int destinations;
+        final double weight;
+
+        DCData (String name, int destinations, double weight) {
+            this.name = name;
+            this.destinations = destinations;
+            this.weight = weight;
+        }
+    }
+
     @Test
     public void selectDestinations() {
-        Map<String, Integer> testData = ImmutableMap.of("dc1", 10, "dc2", 10, "dc3", 10);
+        Map<String, DCData> testData = ImmutableMap.of(
+                "dc1", new DCData("dc1", 10, 0.3),
+                "dc2", new DCData("dc2", 10, 0.1),
+                "dc3", new DCData("dc3", 10, 0.2));
 
         DataCenter [] dcs = new DataCenter[testData.size()];
 
         int k = 0;
 
-        for (Map.Entry<String, Integer> entry : testData.entrySet()) {
+        for (Map.Entry<String, DCData> entry : testData.entrySet()) {
             String dc = entry.getKey();
-            int n = entry.getValue();
-            BalancingDestination[] dst = new BalancingDestination[n];
-            for (int i = 0; i < n; ++i) {
+            DCData d = entry.getValue();
+            BalancingDestination[] dst = new BalancingDestination[d.destinations];
+            for (int i = 0; i < d.destinations; ++i) {
                 dst[i] = new BalancingDestination(dc, i);
             }
 
-            dcs[k++] = new DataCenter(dc, dst);
+            dcs[k++] = new DataCenter(dc, dst, d.weight);
         }
 
 
@@ -66,7 +81,7 @@ public class BalancingRpcClientTest {
         assertThat(res.toString(), is("[dc2/3, dc2/0, dc3/6, dc3/3, dc1/8, dc1/1]"));
 
         // filter dead proxies
-        k = testData.get(dcs[0].getName());
+        k = testData.get(dcs[0].getName()).destinations;
         for (int i = 0; i < k; ++i) {
             dcs[0].setDead(0, new Exception());
         }
@@ -82,5 +97,10 @@ public class BalancingRpcClientTest {
         res = BalancingRpcClient.selectDestinations(dcs, 6, true, rnd);
         assertThat(res.toString(), is("[dc1/6, dc1/9, dc2/6, dc2/4, dc3/3, dc3/2]"));
 
+        res = BalancingRpcClient.selectDestinations(dcs, 6, true, rnd, true);
+        assertThat(res.toString(), is("[dc1/6, dc1/9, dc2/0, dc2/9, dc3/5, dc3/4]"));
+
+        res = BalancingRpcClient.selectDestinations(dcs, 6, false, rnd, true);
+        assertThat(res.toString(), is("[dc2/5, dc2/2, dc3/5, dc3/3, dc1/9, dc1/6]"));
     }
 }

@@ -131,7 +131,7 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     public RpcClient getAliveClient() {
-        List<BalancingDestination> r = selectDestinations(dataCenters, 1, localDataCenter != null, rnd);
+        List<BalancingDestination> r = selectDestinations(dataCenters, 1, localDataCenter != null, rnd, ! failoverPolicy.randomizeDcs());
         if (r.isEmpty()) {
             return null;
         } else {
@@ -140,29 +140,36 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     static List<BalancingDestination> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd) {
+        return selectDestinations(dataCenters, maxSelect, hasLocal, rnd, false);
+    }
+
+    static List<BalancingDestination> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd, boolean sortDcByPing) {
         List<BalancingDestination> r = new ArrayList<>();
 
         int n = dataCenters.length;
-        int [] idx = new int[n];
-
-        for (int i = 0; i < n; ++i) {
-            idx[i] = i;
-        }
+        DataCenter [] selectedDc = Arrays.copyOf(dataCenters, n);
 
         int from = 0;
         if (hasLocal) {
             from = 1;
         }
 
-        for (int i = from; i < n; ++i) {
-            int j = i + rnd.nextInt(n - i);
-            int t = idx[j];
-            idx[j] = idx[i];
-            idx[i] = t;
+        if (sortDcByPing) {
+            Arrays.sort(selectedDc, from, n, (a, b) ->
+                (int)(1000*(a.weight() - b.weight()))
+            );
+        } else {
+            // shuffle
+            for (int i = from; i < n; ++i) {
+                int j = i + rnd.nextInt(n - i);
+                DataCenter t = selectedDc[j];
+                selectedDc[j] = selectedDc[i];
+                selectedDc[i] = t;
+            }
         }
 
         for (int i = 0; i < n; ++i) {
-            DataCenter dc = dataCenters[idx[i]];
+            DataCenter dc = selectedDc[i];
 
             List<BalancingDestination> select = dc.selectDestinations(min(maxSelect, 2), rnd);
             maxSelect -= select.size();
@@ -198,7 +205,7 @@ public class BalancingRpcClient implements RpcClient {
 
     @Override
     public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
-        List<BalancingDestination> destinations = selectDestinations(dataCenters, 3, localDataCenter != null, rnd);
+        List<BalancingDestination> destinations = selectDestinations(dataCenters, 3, localDataCenter != null, rnd, ! failoverPolicy.randomizeDcs());
 
         CompletableFuture<List<byte[]>> f = new CompletableFuture<>();
 
