@@ -433,7 +433,7 @@ public:
                             parent->SetMode(ESchedulingMode::FairShare);
                             errors.emplace_back(
                                 TError(
-                                    "Pool %Qv cannot have subpools since it is in %v mode",
+                                    "Pool %Qv cannot have subpools since it is in %Qlv mode",
                                     parent->GetId(),
                                     ESchedulingMode::Fifo));
                         }
