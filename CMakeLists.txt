@@ -357,7 +357,7 @@ if(YT_CAN_BUILD_PACKAGE)
       > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
     COMMAND ${CMAKE_SOURCE_DIR}/python/build_driver.sh
     COMMAND mv
-      ../yandex-yt*${YT_VERSION}*
+      ../yandex-*${YT_VERSION}*
       ${CMAKE_BINARY_DIR}/ARTIFACTS
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
     COMMENT "Packaging YT Python..."
