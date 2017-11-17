@@ -492,7 +492,7 @@ protected:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {

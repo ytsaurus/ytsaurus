@@ -1,6 +1,7 @@
 package NYT.NScheduler.NProto;
 
 import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/protobuf_helpers.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/data_slice_descriptor.proto";
 import "yt/ytlib/chunk_client/data_source.proto";
@@ -142,6 +143,8 @@ message TSchedulerJobSpecExt
         optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
     }
 
+    required NYT.NProto.TExtensionSet extensions = 18;
+
     // Configuration for IO during job execution.
     required bytes io_config = 1;
 
@@ -150,7 +153,6 @@ message TSchedulerJobSpecExt
 
     // Job input.
     required string table_reader_options = 19;
-    required NChunkClient.NProto.TDataSourceDirectory data_source_directory = 18;
     repeated TTableInputSpec input_table_specs = 3;
     repeated TTableInputSpec foreign_input_table_specs = 15;
 
