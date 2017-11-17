@@ -925,9 +925,9 @@ struct TSorterSelector<std::unordered_multimap<T...>, C, TSortedTag>
 };
 
 template <class C, class... T>
-struct TSorterSelector<yhash_mm<T...>, C, TSortedTag>
+struct TSorterSelector<THashMultiMap<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_mm<T...>, TKeyValueSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<THashMultiMap<T...>, TKeyValueSorterComparer<C>> TSorter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1641,7 +1641,7 @@ struct TSerializerTraits<std::multimap<K, V, Q, A>, C, void>
 };
 
 template <class K, class V, class C>
-struct TSerializerTraits<yhash_mm<K, V>, C, void>
+struct TSerializerTraits<THashMultiMap<K, V>, C, void>
 {
     typedef TMultiMapSerializer<> TSerializer;
 };

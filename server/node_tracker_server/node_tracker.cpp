@@ -775,7 +775,7 @@ private:
     TRackSet UsedRackIndexes_;
 
     yhash<TString, TNode*> AddressToNodeMap_;
-    yhash_mm<TString, TNode*> HostNameToNodeMap_;
+    THashMultiMap<TString, TNode*> HostNameToNodeMap_;
     yhash<TTransaction*, TNode*> TransactionToNodeMap_;
     yhash<TString, TRack*> NameToRackMap_;
     yhash<TString, TDataCenter*> NameToDataCenterMap_;

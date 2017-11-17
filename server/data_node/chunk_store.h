@@ -146,7 +146,7 @@ private:
     // A chunk may have multiple copies present on one node - as long as those
     // copies are placed on distinct media.
     // Such copies may have different sizes, too.
-    yhash_mm<TChunkId, TChunkEntry> ChunkMap_;
+    THashMultiMap<TChunkId, TChunkEntry> ChunkMap_;
 
     using TChunkIdEntryPair = decltype(ChunkMap_)::value_type;
 
