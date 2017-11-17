@@ -133,7 +133,7 @@ def read_file(path, file_reader=None, offset=None, length=None, client=None):
         retriable_state_class=RetriableState,
         client=client)
 
-def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, client=None):
+def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, compute_hash=False, client=None):
     """Uploads file to destination path from stream on local machine.
 
     :param destination: destination path in Cypress.
@@ -182,6 +182,7 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
 
     params = {}
     set_param(params, "file_writer", file_writer)
+    set_param(params, "compute_hash", compute_hash)
 
     enable_retries = get_config(client)["write_retries"]["enable"]
     if not is_one_small_blob and is_stream_compressed:
