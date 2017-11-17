@@ -715,7 +715,8 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
-            eden->SetCompactionTime(TInstant::Now());
+            auto beginInstant = TInstant::Now();
+            eden->SetCompactionTime(beginInstant);
 
             LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
                 std::get<0>(scoreParts),
@@ -778,6 +779,8 @@ private:
             std::tie(writers, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
 
+            auto endInstant = TInstant::Now();
+
             // We can release semaphore, because we are no longer actively using resources.
             guard.Release();
             doneGuard.Release();
@@ -813,10 +816,11 @@ private:
                     PartitioningTag_);
             }
 
-            LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
                 storeIdsToAdd,
-                storeIdsToRemove);
+                storeIdsToRemove,
+                endInstant - beginInstant);
 
             auto actionData = MakeTransactionActionData(actionRequest);
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
@@ -1071,11 +1075,12 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
+            auto beginInstant = TInstant::Now();
+            partition->SetCompactionTime(beginInstant);
+
             auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
-
-            partition->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
@@ -1139,6 +1144,8 @@ private:
             std::tie(writer, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
 
+            auto endInstant = TInstant::Now();
+
             // We can release semaphore, because we are no longer actively using resources.
             guard.Release();
             doneGuard.Release();
@@ -1174,10 +1181,11 @@ private:
                 writer->GetDataStatistics(),
                 CompactionTag_);
 
-            LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
                 storeIdsToAdd,
-                storeIdsToRemove);
+                storeIdsToRemove,
+                endInstant - beginInstant);
 
             auto actionData = MakeTransactionActionData(actionRequest);
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
