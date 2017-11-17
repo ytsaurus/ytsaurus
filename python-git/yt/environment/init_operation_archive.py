@@ -66,7 +66,6 @@ class TableInfo(object):
 
     def to_dynamic_table(self, client, path):
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
-        attributes.update(self.attributes)
 
         # add unique_keys to schema
         attributes["schema"] = yson.to_yson_type(attributes["schema"], attributes={"unique_keys": True})
@@ -78,15 +77,18 @@ class TableInfo(object):
         })
         logging.info("Converting table to dynamic %s", path)
         client.alter_table(path, dynamic=True)
+        for attr, value in self.attributes.items():
+            client.set("{0}/@{1}".format(path, attr), value)
 
     def alter_table(self, client, path, shards, mount=True):
         logging.info("Altering table %s", path)
         unmount_table(client, path)
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
-        attributes.update(self.attributes)
 
         logging.info("Alter table %s with attributes %s", path, attributes)
         client.alter_table(path, schema=attributes['schema'])
+        for attr, value in self.attributes.items():
+            client.set("{0}/@{1}".format(path, attr), value)
 
         if self.get_pivot_keys:
             client.reshard_table(path, self.get_pivot_keys(shards))
@@ -566,6 +568,29 @@ TRANSFORMS[15] = [
 
 TRANSFORMS[16] = [
     Convert(
+        "jobs",
+            table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+            ],
+            attributes={"atomicity": "none"})),
+    Convert(
         "job_specs",
         table_info=TableInfo([
                 ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
@@ -577,29 +602,6 @@ TRANSFORMS[16] = [
                 ("type", "string"),
             ],
             attributes={"atomicity": "none"})),
-    Convert(
-        "jobs",
-        table_info=TableInfo([
-            ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-            ("operation_id_hi", "uint64"),
-            ("operation_id_lo", "uint64"),
-            ("job_id_hi", "uint64"),
-            ("job_id_lo", "uint64")
-        ], [
-            ("type", "string"),
-            ("state", "string"),
-            ("start_time", "int64"),
-            ("finish_time", "int64"),
-            ("address", "string"),
-            ("error", "any"),
-            ("statistics", "any"),
-            ("stderr_size", "uint64"),
-            ("spec", "string"),
-            ("spec_version", "int64"),
-            ("events", "any"),
-            ("transient_state", "string"),
-        ],
-        attributes={"atomicity": "none"}))
 ]
 
 def swap_table(client, target, source, version):
