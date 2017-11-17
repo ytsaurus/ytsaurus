@@ -25,6 +25,7 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -5928,6 +5929,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 file.Schema,
                 file.Path.GetColumns(),
                 file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
+
             ToProto(descriptor->mutable_data_source(), dataSource);
         } else {
             auto dataSource = file.Type == EObjectType::File
@@ -6042,7 +6044,7 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
 }
 
-TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
+void TOperationControllerBase::SetInputDataSources(TSchedulerJobSpecExt* jobSpec) const
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     for (const auto& inputTable : InputTables) {
@@ -6059,18 +6061,21 @@ TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
 
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
-    return dataSourceDirectory;
+    NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
+    ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
+    SetProtoExtension(jobSpec->mutable_extensions(), dataSourceDirectoryExt);
 }
 
-TDataSourceDirectoryPtr TOperationControllerBase::CreateIntermediateDataSource() const
+void TOperationControllerBase::SetIntermediateDataSource(TSchedulerJobSpecExt* jobSpec) const
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
         IntermediatePath,
         Null,
         Null));
-
-    return dataSourceDirectory;
+    NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
+    ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
+    SetProtoExtension(jobSpec->mutable_extensions(), dataSourceDirectoryExt);
 }
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
@@ -6479,7 +6484,9 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
             OutputTables_[tableIndex].TableUploadOptions.TableSchema,
             Null));
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), dataSourceDirectory);
+        NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
+        ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
+        SetProtoExtension(schedulerJobSpecExt->mutable_extensions(), dataSourceDirectoryExt);
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
     }

@@ -10,6 +10,8 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <util/digest/multi.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -24,6 +26,7 @@ DEFINE_ENUM(ESortOrder,
 class TColumnSchema
 {
 public:
+    // Keep in sync with hasher below.
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
     DEFINE_BYREF_RO_PROPERTY(ELogicalValueType, LogicalType, ELogicalValueType::Null);
     DEFINE_BYREF_RO_PROPERTY(TNullable<ESortOrder>, SortOrder);
@@ -229,3 +232,25 @@ void FromProto(TKeyColumns* keyColumns, const NProto::TKeyColumnsExt& protoKeyCo
 
 } // namespace NTableClient
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct hash<NYT::NTableClient::TColumnSchema>
+{
+    inline size_t operator()(const NYT::NTableClient::TColumnSchema& columnSchema) const
+    {
+        return MultiHash(
+            columnSchema.Name(),
+            columnSchema.LogicalType(),
+            columnSchema.SortOrder(),
+            columnSchema.Lock(),
+            columnSchema.Expression(),
+            columnSchema.Aggregate(),
+            columnSchema.Group(),
+            columnSchema.Required());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+

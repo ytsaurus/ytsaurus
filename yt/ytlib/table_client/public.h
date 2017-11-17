@@ -26,6 +26,7 @@ class TBlockIndexesExt;
 class TBlockMetaExt;
 class TBlockMeta;
 class TSimpleVersionedBlockMeta;
+class TSchemaDictionary;
 
 } // namespace NProto
 
@@ -174,6 +175,7 @@ using TKeyComparer = std::function<int(TKey, TKey)>;
 
 class TColumnSchema;
 class TTableSchema;
+class TSchemaDictionary;
 
 struct IBlockWriter;
 

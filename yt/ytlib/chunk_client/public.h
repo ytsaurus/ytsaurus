@@ -38,6 +38,9 @@ class TRspExecuteBatch;
 
 class TMediumDirectory;
 
+class TDataSource;
+class TDataSourceDirectoryExt;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

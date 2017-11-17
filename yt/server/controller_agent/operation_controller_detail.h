@@ -836,8 +836,8 @@ protected:
         NScheduler::NProto::TUserJobSpec* jobSpec,
         TJobletPtr joblet);
 
-    NChunkClient::TDataSourceDirectoryPtr MakeInputDataSources() const;
-    NChunkClient::TDataSourceDirectoryPtr CreateIntermediateDataSource() const;
+    void SetInputDataSources(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
+    void SetIntermediateDataSource(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
 
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(NScheduler::TJobIOConfigPtr ioConfig) const;
