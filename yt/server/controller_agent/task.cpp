@@ -431,8 +431,10 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
         for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
             YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
             auto outputStatistics = outputStatisticsMap[index];
-            if (outputStatistics.chunk_count() == 0 && !joblet->Revived) {
-                TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+            if (outputStatistics.chunk_count() == 0) {
+                if (!joblet->Revived) {
+                    TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
