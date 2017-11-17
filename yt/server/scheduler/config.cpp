@@ -652,7 +652,7 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(64_KB)
         .GreaterThan(0);
 
-    RegisterParameter("main_nodes_filter", MainNodesFilterFormula)
+    RegisterParameter("main_nodes_filter", MainNodesFilter)
         .Default();
 
     RegisterParameter("memory_distribution_different_node_types_threshold", MemoryDistributionDifferentNodeTypesThreshold)
@@ -717,8 +717,6 @@ void TSchedulerConfig::OnLoaded()
     UpdateOptions(&MapReduceOperationOptions, OperationOptions);
     UpdateOptions(&SortOperationOptions, OperationOptions);
     UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
-
-    MainNodesFilter.Reload(MainNodesFilterFormula);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
