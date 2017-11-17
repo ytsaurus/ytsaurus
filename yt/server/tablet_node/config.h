@@ -229,7 +229,7 @@ public:
         RegisterParameter("enable_profiling", EnableProfiling)
             .Default(false);
         RegisterParameter("profiling_mode", ProfilingMode)
-            .Default(EDynamicTableProfilingMode::Disabled);
+            .Default(EDynamicTableProfilingMode::Path);
 
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
             .Default(true);
