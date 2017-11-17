@@ -795,7 +795,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationRuntimeParams
+class TOperationStrategyRuntimeParams
     : public NYTree::TYsonSerializable
 {
 public:
@@ -803,6 +803,15 @@ public:
 
     TResourceLimitsConfigPtr ResourceLimits;
 
+    TOperationStrategyRuntimeParams();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationStrategyRuntimeParams)
+
+class TOperationRuntimeParams
+    : public TOperationStrategyRuntimeParams
+{
+public:
     std::vector<TString> Owners;
 
     TOperationRuntimeParams();

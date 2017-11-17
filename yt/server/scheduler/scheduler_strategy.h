@@ -143,7 +143,7 @@ struct ISchedulerStrategy
 
     virtual void UpdateOperationRuntimeParams(
         const TOperationPtr& operation,
-        const TOperationRuntimeParamsPtr& runtimeParams) = 0;
+        const TOperationStrategyRuntimeParamsPtr& runtimeParams) = 0;
 
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;

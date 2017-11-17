@@ -175,17 +175,17 @@ public:
 
     TOperationRegistrationUnregistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
-        const TStrategyOperationSpecPtr& spec)
+        const TStrategyOperationSpecPtr& spec,
+        const TOperationStrategyRuntimeParamsPtr& runtimeParams)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto operationId = state->GetHost()->GetId();
-        auto params = BuildInitialRuntimeParams(spec);
 
         auto operationElement = New<TOperationElement>(
             Config,
             spec,
-            params,
+            runtimeParams,
             state->GetController(),
             ControllerConfig,
             Host,
@@ -483,7 +483,7 @@ public:
         }
     }
 
-    void UpdateOperationRuntimeParams(const TOperationPtr& operation, const TOperationRuntimeParamsPtr& runtimeParams)
+    void UpdateOperationRuntimeParams(const TOperationPtr& operation, const TOperationStrategyRuntimeParamsPtr& runtimeParams)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1289,14 +1289,6 @@ private:
         context.SchedulingContext->PreemptJob(job);
     }
 
-    TOperationRuntimeParamsPtr BuildInitialRuntimeParams(const TStrategyOperationSpecPtr& spec)
-    {
-        auto params = New<TOperationRuntimeParams>();
-        params->Weight = spec->Weight;
-        params->ResourceLimits = spec->ResourceLimits;
-        return params;
-    }
-
     TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -2004,7 +1996,7 @@ public:
         YCHECK(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
 
-        auto registrationResult = FairShareTree_->RegisterOperation(state, spec);
+        auto registrationResult = FairShareTree_->RegisterOperation(state, spec, operation->GetRuntimeParams());
         ActivateOperations(registrationResult.OperationsToActivate);
     }
 
@@ -2070,7 +2062,7 @@ public:
 
     virtual void UpdateOperationRuntimeParams(
         const TOperationPtr& operation,
-        const TOperationRuntimeParamsPtr& runtimeParams) override
+        const TOperationStrategyRuntimeParamsPtr& runtimeParams) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 

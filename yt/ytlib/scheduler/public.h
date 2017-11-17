@@ -183,6 +183,8 @@ DECLARE_REFCOUNTED_CLASS(TPoolConfig)
 
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec)
 
+DECLARE_REFCOUNTED_CLASS(TOperationStrategyRuntimeParams)
+
 DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams)
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
