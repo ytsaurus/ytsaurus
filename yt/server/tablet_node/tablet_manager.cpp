@@ -2703,6 +2703,21 @@ private:
                         .Item("opaque").Value(true)
                     .EndAttributes()
                     .Value(tablet->GetConfig())
+                .Item("writer_config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetWriterConfig())
+                .Item("writer_options")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetWriterOptions())
+                .Item("reader_config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetReaderConfig())
                 .DoIf(
                     tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                     fluent
