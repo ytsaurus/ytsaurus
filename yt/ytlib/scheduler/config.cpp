@@ -900,13 +900,17 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .NonEmpty();
 }
 
-TOperationRuntimeParams::TOperationRuntimeParams()
+TOperationStrategyRuntimeParams::TOperationStrategyRuntimeParams()
 {
     RegisterParameter("weight", Weight)
         .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
+}
+
+TOperationRuntimeParams::TOperationRuntimeParams()
+{
     RegisterParameter("owners", Owners)
         .Default();
 }

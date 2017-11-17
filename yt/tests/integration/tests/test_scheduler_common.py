@@ -2458,11 +2458,19 @@ class TestPoolMetrics(YTEnvSetup):
             command="sleep 100",
             in_="//tmp/t_input",
             out="//tmp/t_output",
+            spec={"weight": 5},
             dont_track=True)
 
+
+        time.sleep(1.0)
+
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
 
         set("//sys/operations/{0}/@owners/end".format(op.id), "u")
+        set("//sys/operations/{0}/@weight".format(op.id), 3)
+
         time.sleep(1.0)
 
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0

@@ -1481,11 +1481,16 @@ private:
         auto attributesNode = ConvertToNode(TYsonString(rsp->value()));
 
         try {
-            auto runtimeParams = ConvertTo<TOperationRuntimeParamsPtr>(attributesNode);
-            if (operation->GetOwners() != runtimeParams->Owners) {
-                operation->SetOwners(runtimeParams->Owners);
+            auto newRuntimeParams = CloneYsonSerializable(operation->GetRuntimeParams());
+            if (ReconfigureYsonSerializable(newRuntimeParams, attributesNode)) {
+                if (operation->GetOwners() != newRuntimeParams->Owners) {
+                    operation->SetOwners(newRuntimeParams->Owners);
+                }
+                operation->SetRuntimeParams(newRuntimeParams);
+                Strategy_->UpdateOperationRuntimeParams(operation, newRuntimeParams);
+                LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
+                    operation->GetId());
             }
-            Strategy_->UpdateOperationRuntimeParams(operation, runtimeParams);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing operation runtime parameters (OperationId: %v)",
                 operation->GetId());

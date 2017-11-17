@@ -666,7 +666,7 @@ public:
     TOperationElement(
         TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
-        TOperationRuntimeParamsPtr runtimeParams,
+        TOperationStrategyRuntimeParamsPtr runtimeParams,
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
@@ -738,7 +738,7 @@ public:
 
     TJobResources Finalize();
 
-    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+    DEFINE_BYVAL_RW_PROPERTY(TOperationStrategyRuntimeParamsPtr, RuntimeParams);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 

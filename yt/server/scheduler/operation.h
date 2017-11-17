@@ -117,6 +117,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
+    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain
     // sensitive information.
