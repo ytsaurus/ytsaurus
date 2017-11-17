@@ -700,7 +700,6 @@ public:
     i64 ControllerRowBufferChunkSize;
 
     // Filter of main nodes, used to calculate resource limits in fair share strategy.
-    TBooleanFormula MainNodesFilterFormula;
     TSchedulingTagFilter MainNodesFilter;
 
     // Number of nodes to store by memory distribution.
