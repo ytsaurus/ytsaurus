@@ -1436,6 +1436,7 @@ private:
         ExpirationTracker_->OnNodeDestroyed(trunkNode);
 
         const auto& handler = GetHandler(trunkNode);
+        Y_ASSERT(!trunkNode->GetTransaction());
         handler->Destroy(trunkNode);
 
         // Remove the object from the map but keep it alive.
@@ -2034,6 +2035,7 @@ private:
             auto* originatingNode = NodeMap_.Get(originatingId);
 
             // Merge changes back.
+            Y_ASSERT(branchedNode->GetTransaction() == transaction);
             handler->Merge(originatingNode, branchedNode);
 
             // The root needs a special handling.
@@ -2046,6 +2048,7 @@ private:
             }
         } else {
             // Destroy the branched copy.
+            Y_ASSERT(branchedNode->GetTransaction() == transaction);
             handler->Destroy(branchedNode);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedId);
@@ -2092,6 +2095,7 @@ private:
         }
 
         // Remove the node.
+        Y_ASSERT(branchedNode->GetTransaction() == transaction);
         handler->Destroy(branchedNode);
         NodeMap_.Remove(branchedNodeId);
 
