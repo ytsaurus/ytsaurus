@@ -221,14 +221,14 @@ private:
                 followerId,
                 GetStartVersion(),
                 GetMutationCount(),
-                time.MilliSeconds());
+                time);
             OnSuccessfulFlush(owner);
         } else {
             LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
                 GetStartVersion(),
                 GetMutationCount(),
-                time.MilliSeconds());
+                time);
         }
     }
 
@@ -258,7 +258,7 @@ private:
         LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
             GetMutationCount(),
-            time.MilliSeconds());
+            time);
 
         OnSuccessfulFlush(owner);
     }
@@ -305,7 +305,7 @@ private:
         LOG_DEBUG("Mutations are flushed by quorum (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
             GetMutationCount(),
-            time.MilliSeconds());
+            time);
 
         QuorumFlushResult_.Set(TError());
     }
