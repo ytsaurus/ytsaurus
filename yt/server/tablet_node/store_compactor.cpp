@@ -425,7 +425,6 @@ private:
                 continue;
             }
 
-            // FIXME: check here
             // Don't compact large Eden stores.
             if (partition->IsEden() && store->GetCompressedDataSize() >= config->MinPartitioningDataSize) {
                 continue;
@@ -459,9 +458,15 @@ private:
                 return lhs->GetCompressedDataSize() < rhs->GetCompressedDataSize();
             });
 
-        const auto* eden = tablet->GetEden();
-        int overlappingStoreCount = static_cast<int>(partition->Stores().size() + eden->Stores().size());
-        bool tooManyOverlappingStores = overlappingStoreCount >= config->MaxOverlappingStoreCount;
+        // Partition is critical if it contributes towards the OSC, and MOSC is reached.
+        bool criticalPartition = false;
+        int overlappingStoreCount;
+        if (partition->IsEden()) {
+            overlappingStoreCount = tablet->GetOverlappingStoreCount();
+        } else {
+            overlappingStoreCount = partition->Stores().size() + tablet->GetEden()->Stores().size();
+        }
+        criticalPartition = overlappingStoreCount >= config->MaxOverlappingStoreCount;
 
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
@@ -472,7 +477,7 @@ private:
                    break;
                 }
                 i64 dataSize = candidates[j]->GetCompressedDataSize();
-                if (!tooManyOverlappingStores &&
+                if (!criticalPartition &&
                     dataSize > config->CompactionDataSizeBase &&
                     dataSizeSum > 0 && dataSize > dataSizeSum * config->CompactionDataSizeRatio) {
                     break;
@@ -488,6 +493,7 @@ private:
                     finalists.push_back(candidates[i]->GetId());
                     ++i;
                 }
+                break;
             }
         }
 
