@@ -445,8 +445,10 @@ private:
             if (statistics.SpecVersion()) {
                 builder.AddValue(MakeUnversionedInt64Value(*statistics.SpecVersion(), Table_.Ids.SpecVersion));
             }
-            if (statistics.Type()) {
-                builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Ids.Type));
+            if (GetSharedData()->GetOperationArchiveVersion() >= 16) {
+                if (statistics.Type()) {
+                    builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Ids.Type));
+                }
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
