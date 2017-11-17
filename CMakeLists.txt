@@ -343,7 +343,7 @@ if(YT_CAN_BUILD_PACKAGE)
       --check-dirname-level 0
       -b
     COMMAND mv
-      ../yandex-yt*${YT_VERSION}*
+      ../yandex-*${YT_VERSION}*
       ${CMAKE_BINARY_DIR}/ARTIFACTS
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Packaging YT..."
