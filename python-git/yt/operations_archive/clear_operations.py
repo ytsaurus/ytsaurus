@@ -366,7 +366,7 @@ class OperationNewCleaner(object):
                 {
                     "command": "remove",
                     "parameters": {
-                        "path": op_path,
+                        "path": "//sys/operations/" + op_path,
                     }
                 })
 
@@ -468,8 +468,9 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         for prefix in prefixes:
             try:
                 for op in client.list("//sys/operations/" + prefix, max_size=100000):
-                    if op not in operation_ids:
-                        remove_new_queue.append(prefix + "/" + op)
+                    op_id = str(op)
+                    if op_id not in operation_ids:
+                        remove_new_queue.append(prefix + "/" + op_id)
             except yt.YtError as err:
                 if not err.is_resolve_error():
                     raise
