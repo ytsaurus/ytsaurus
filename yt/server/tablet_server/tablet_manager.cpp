@@ -3544,6 +3544,11 @@ private:
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
+        // Schedule propery update for deleted chunks.
+        for (auto* chunk : chunksToDetach) {
+            chunkManager->ScheduleChunkPropertiesUpdate(chunk);
+        }
+
         // Get new tabet resource usage.
         auto newMemorySize = tablet->GetTabletStaticMemorySize();
         auto newStatistics = GetTabletStatistics(tablet);
