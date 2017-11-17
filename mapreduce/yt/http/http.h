@@ -110,7 +110,7 @@ using TConnectionPtr = TAtomicSharedPtr<TConnection>;
 class TConnectionPool
 {
 public:
-    using TConnectionMap = yhash_mm<TString, TConnectionPtr>;
+    using TConnectionMap = THashMultiMap<TString, TConnectionPtr>;
 
     static TConnectionPool* Get();
 
