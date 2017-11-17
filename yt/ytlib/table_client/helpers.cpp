@@ -151,11 +151,7 @@ void PipeInputToOutput(
     struct TWriteBufferTag { };
     auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize);
 
-    TPeriodicYielder yielder(TDuration::Seconds(1));
-
     while (true) {
-        yielder.TryYield();
-
         auto length = WaitFor(input->Read(buffer))
             .ValueOrThrow();
 
