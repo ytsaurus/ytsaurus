@@ -216,6 +216,7 @@ def _prepare_binary(binary, file_uploader, params, client=None):
         return py_wrapper.WrapResult(cmd=binary, files=[], tmpfs_size=0, environment={}, local_files_to_remove=[], title=None)
 
 def _prepare_destination_tables(tables, client=None):
+    from .table_commands import _create_table
     if tables is None:
         if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
             raise YtError("Destination tables are missing")
@@ -223,7 +224,7 @@ def _prepare_destination_tables(tables, client=None):
     tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
     batch_client = create_batch_client(raise_errors=True, client=client)
     for table in tables:
-        batch_client.create("table", table, ignore_existing=True)
+        _create_table(table, ignore_existing=True, client=batch_client)
     batch_client.commit_batch()
     return tables
 
