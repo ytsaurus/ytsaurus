@@ -469,7 +469,8 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
             try:
                 for op in client.list("//sys/operations/" + prefix, max_size=100000):
                     op_id = str(op)
-                    if op_id not in operation_ids:
+                    # It is important to make additional existance check due to possible races.
+                    if op_id not in operation_ids and not yt.exists("//sys/operations/" + op_id):
                         remove_new_queue.append(prefix + "/" + op_id)
             except yt.YtError as err:
                 if not err.is_resolve_error():
