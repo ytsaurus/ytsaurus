@@ -492,6 +492,8 @@ def add_copy_parser(add_parser):
                         help="preserve account of copied nodes")
     parser.add_argument("--preserve-expiration-time", action="store_true",
                         help="preserve expiration time of copied nodes")
+    parser.add_argument("--preserve-creation-time", action="store_true",
+                        help="preserve creation time of copied nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
 
