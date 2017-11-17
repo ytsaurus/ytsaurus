@@ -213,7 +213,7 @@ void NYtBlob::CreateTable(const ::NYT::TYPath& table, ::NYT::IClientBasePtr clie
             .Attributes(
                 NYT::TNode{}
                     ("_yql_proto_field_info", GenerateProtobufTypeConfig<TBlobInfo>())
-                    ("compression_codec", "brotli_5")
+                    ("compression_codec", "zstd_5")
                     ("optimize_for", "scan")
                     ("schema", NYT::NodeFromTableSchema(NYT::CreateTableSchema<TBlobChunk>({}, false).Strict(true)))));
 }
