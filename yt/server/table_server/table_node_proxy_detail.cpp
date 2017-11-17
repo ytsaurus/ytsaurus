@@ -128,6 +128,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor("optimize_for")
         .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor("optimize_for_statistics")
+        .SetExternal(table->IsExternal())
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));
@@ -410,6 +413,24 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const TString& ke
                 Bootstrap_,
                 chunkList,
                 [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
+        }
+        if (key == "optimize_for_statistics") {
+            auto optimizeForExtractor = [] (const TChunk* chunk) {
+                switch (static_cast<ETableChunkFormat>(chunk->ChunkMeta().version())) {
+                    case ETableChunkFormat::Old:
+                    case ETableChunkFormat::VersionedSimple:
+                    case ETableChunkFormat::Schemaful:
+                    case ETableChunkFormat::SchemalessHorizontal:
+                        return NTableClient::EOptimizeFor::Lookup;
+                    case ETableChunkFormat::VersionedColumnar:
+                    case ETableChunkFormat::UnversionedColumnar:
+                        return NTableClient::EOptimizeFor::Scan;
+                    default:
+                        Y_UNREACHABLE();
+                }
+            };
+
+            return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
         }
     }
 
