@@ -886,6 +886,27 @@ class TestTables(YTEnvSetup):
         codec_info = get(tableB + "/@compression_statistics")
         assert codec_info.keys() == ["snappy"]
 
+    def test_optimize_for_statistics(self):
+        table = "//tmp/a"
+        create("table", table)
+        write_table(table, {"foo": "bar"})
+
+        optimize_for_info = get(table + "/@optimize_for_statistics")
+        assert "lookup" in optimize_for_info and optimize_for_info["lookup"]["chunk_count"] == 1
+
+        set(table + "/@optimize_for", "scan")
+
+        for i in xrange(2):
+            merge(in_=[table, table], out="<append=true>" + table, spec={"force_transform": True})
+
+        assert len(get("//tmp/a/@chunk_ids")) == 3
+
+        optimize_for_info = get(table + "/@optimize_for_statistics")
+        for key in ("scan", "lookup"):
+            assert key in optimize_for_info
+        assert optimize_for_info["lookup"]["chunk_count"] == 1
+        assert optimize_for_info["scan"]["chunk_count"] == 2
+
     def test_json_format(self):
         create("table", "//tmp/t")
         write_table('//tmp/t', '{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
