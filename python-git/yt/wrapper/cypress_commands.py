@@ -87,7 +87,9 @@ def set(path, value, format=None, client=None):
         client=client)
 
 def copy(source_path, destination_path,
-         recursive=None, preserve_account=None, preserve_expiration_time=None, force=None, client=None):
+         recursive=None, preserve_account=None,
+         preserve_expiration_time=None, preserve_creation_time=None,
+         force=None, client=None):
     """Copies Cypress node.
 
     :param source_path: source path.
@@ -96,6 +98,8 @@ def copy(source_path, destination_path,
     :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool preserve_account: preserve account.
+    :param bool preserve_expiration_time: preserve expiration time.
+    :param bool preserve_creation_time: preserve creation time.
     :param bool force: force.
 
     .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#copy>`_
@@ -108,6 +112,7 @@ def copy(source_path, destination_path,
     set_param(params, "force", force, bool_to_string)
     set_param(params, "preserve_account", preserve_account, bool_to_string)
     set_param(params, "preserve_expiration_time", preserve_expiration_time, bool_to_string)
+    set_param(params, "preserve_creation_time", preserve_creation_time, bool_to_string)
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path,
