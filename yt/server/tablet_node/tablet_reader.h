@@ -72,7 +72,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     const TWorkloadDescriptor& workloadDescriptor,
-    const NChunkClient::TReadSessionId& sessionId);
+    const NChunkClient::TReadSessionId& sessionId,
+    int minConcurrency);
 
 ////////////////////////////////////////////////////////////////////////////////
 

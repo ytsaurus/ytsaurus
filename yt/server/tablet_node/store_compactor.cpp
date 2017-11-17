@@ -734,7 +734,8 @@ private:
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
                 TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
-                sessionId);
+                sessionId,
+                stores.size());
 
             INativeTransactionPtr transaction;
             {
@@ -1095,7 +1096,8 @@ private:
                 currentTimestamp,
                 majorTimestamp,
                 TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
-                sessionId);
+                sessionId,
+                stores.size());
 
             INativeTransactionPtr transaction;
             {
