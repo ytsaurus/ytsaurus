@@ -13,6 +13,7 @@ import yt.wrapper as yt
 import sys
 import time
 import pytest
+import datetime
 
 @pytest.mark.usefixtures("yt_env")
 class TestCypressCommands(object):
@@ -355,6 +356,12 @@ class TestCypressCommands(object):
         yt.move(TEST_DIR + "/d1/d2/table", TEST_DIR + "/d3/d4/table", recursive=True)
         assert not yt.exists(TEST_DIR + "/d1/d2/table")
         assert yt.exists(TEST_DIR + "/d3/d4/table")
+
+        yt.create("table", TEST_DIR + "/ttt", attributes={"expiration_time": str(datetime.datetime(year=2030, month=1, day=1))})
+        yt.copy(TEST_DIR + "/ttt", TEST_DIR + "/ttt_copied", preserve_expiration_time=True, preserve_creation_time=True)
+
+        assert yt.get(TEST_DIR + "/ttt/@expiration_time") == yt.get(TEST_DIR + "/ttt_copied/@expiration_time")
+        assert yt.get(TEST_DIR + "/ttt/@creation_time") == yt.get(TEST_DIR + "/ttt_copied/@creation_time")
 
     def test_transactions(self):
         table = TEST_DIR + "/transaction_test_table"
