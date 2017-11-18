@@ -648,6 +648,7 @@ class TestTableCommands(object):
         test_name = "TestYtWrapper" + mode.capitalize()
         dir = os.path.join(TESTS_SANDBOX, test_name)
         id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
         try:
             instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
             second_cluster_client = instance.create_client()
@@ -686,7 +687,8 @@ class TestTableCommands(object):
             assert attributes["tablets"][0]["state"] == "none"
 
         finally:
-            stop(instance.id, path=dir)
+            if instance is not None:
+                stop(instance.id, path=dir)
 
     def _test_read_blob_table(self):
         table = TEST_DIR + "/test_blob_table"
@@ -823,6 +825,7 @@ class TestTableCommands(object):
         test_name = "TestYtWrapper" + mode.capitalize()
         dir = os.path.join(TESTS_SANDBOX, test_name)
         id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
         try:
             instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True)
             client = instance.create_client()
@@ -848,4 +851,5 @@ class TestTableCommands(object):
 
             assert list(client.read_table(table)) == [{"x": 1}, {"x": 2}]
         finally:
-            stop(instance.id, path=dir)
+            if instance is not None:
+                stop(instance.id, path=dir)
