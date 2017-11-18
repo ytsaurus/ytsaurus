@@ -594,7 +594,7 @@ public:
         // Merge operation spec with template
         auto specTemplate = GetSpecTemplate(type, spec);
         if (specTemplate) {
-            spec = UpdateNode(specTemplate, spec)->AsMap();
+            spec = PatchNode(specTemplate, spec)->AsMap();
         }
 
         TOperationSpecBasePtr operationSpec;

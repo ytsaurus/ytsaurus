@@ -20,7 +20,7 @@ void TSchedulerConfig::UpdateOptions(TOptions* options, NYT::NYTree::INodePtr pa
     }
 
     if (*options) {
-        *options = ConvertTo<TOptions>(UpdateNode(patch, ConvertTo<INodePtr>(*options)));
+        *options = ConvertTo<TOptions>(PatchNode(patch, ConvertTo<INodePtr>(*options)));
     } else {
         *options = ConvertTo<TOptions>(patch);
     }

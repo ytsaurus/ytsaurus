@@ -287,7 +287,7 @@ INodePtr CloneNode(const INodePtr& node);
 
 //! Applies changes given by #patch to #base.
 //! Returns the resulting tree.
-INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch);
+INodePtr PatchNode(const INodePtr& base, const INodePtr& patch);
 
 //! Checks given nodes for deep equality.
 bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs);

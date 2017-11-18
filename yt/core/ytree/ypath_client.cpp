@@ -750,7 +750,7 @@ INodePtr CloneNode(const INodePtr& node)
     return ConvertToNode(node);
 }
 
-INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch)
+INodePtr PatchNode(const INodePtr& base, const INodePtr& patch)
 {
     if (base->GetType() == ENodeType::Map && patch->GetType() == ENodeType::Map) {
         auto result = CloneNode(base);
@@ -760,7 +760,7 @@ INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch)
         for (const auto& key : patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                YCHECK(resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
+                YCHECK(resultMap->AddChild(PatchNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
             } else {
                 YCHECK(resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key));
             }
