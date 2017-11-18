@@ -468,57 +468,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TYPathResolver
-    : public INodeResolver
-{
-public:
-    TYPathResolver(
-        TBootstrap* bootstrap,
-        TTransaction* transaction)
-        : Bootstrap_(bootstrap)
-        , Transaction_(transaction)
-    { }
-
-    virtual INodePtr ResolvePath(const TYPath& path) override
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* resolver = objectManager->GetObjectResolver();
-        auto objectProxy = resolver->ResolvePath(path, Transaction_);
-        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(objectProxy.Get());
-        if (!nodeProxy) {
-            THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
-                path,
-                TypeFromId(objectProxy->GetId()));
-        }
-        return nodeProxy;
-    }
-
-    virtual TYPath GetPath(INodePtr node) override
-    {
-        auto* nodeProxy = ICypressNodeProxy::FromNode(node.Get());
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        if (!cypressManager->IsAlive(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction())) {
-            return FromObjectId(nodeProxy->GetId());
-        }
-
-        INodePtr root;
-        auto path = GetNodeYPath(node, &root);
-
-        auto* rootProxy = ICypressNodeProxy::FromNode(root.Get());
-        return rootProxy->GetId() == cypressManager->GetRootNode()->GetId()
-            ? "/" + path
-            : "?" + path;
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-    TTransaction* const Transaction_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCypressManager::TImpl
     : public NCellMaster::TMasterAutomatonPart
 {
@@ -733,12 +682,47 @@ public:
         return node;
     }
 
-    INodeResolverPtr CreateResolver(TTransaction* transaction)
+    TYPath GetNodePath(TCypressNodeBase* trunkNode, TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        if (!IsAlive(trunkNode, transaction)) {
+            return FromObjectId(trunkNode->GetId());
+        }
 
-        return New<TYPathResolver>(Bootstrap_, transaction);
+        // TODO(babenko): optimize
+        auto nodeProxy = GetNodeProxy(trunkNode, transaction);
+
+        INodePtr root;
+        auto path = GetNodeYPath(nodeProxy, &root);
+
+        auto* rootProxy = ICypressNodeProxy::FromNode(root.Get());
+        return rootProxy->GetId() == RootNodeId_
+            ? "/" + path
+            : "?" + path;
     }
+
+    TYPath GetNodePath(const ICypressNodeProxy* nodeProxy)
+    {
+        return GetNodePath(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction());
+    }
+
+    TCypressNodeBase* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->ResolvePathToObject(path, transaction);
+        if (IsVersionedType(object->GetType())) {
+            THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
+                path,
+                object->GetType());
+        }
+        return object->As<TCypressNodeBase>();
+    }
+
+    ICypressNodeProxyPtr ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction)
+    {
+        auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
+        return GetNodeProxy(trunkNode, transaction);
+    }
+
 
     TCypressNodeBase* FindNode(
         TCypressNodeBase* trunkNode,
@@ -1287,10 +1271,8 @@ private:
         }
 
         if (ClearSysAttributes_) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto* resolver = objectManager->GetObjectResolver();
-            auto sysNodeProxy = resolver->ResolvePath("//sys", nullptr);
-            auto* sysNode = sysNodeProxy->GetObject();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto* sysNode = cypressManager->ResolvePathToTrunkNode("//sys");
             auto& attributes = sysNode->GetMutableAttributes()->Attributes();
             auto processAttribute = [&] (const TString& attributeName)
             {
@@ -2123,17 +2105,6 @@ private:
     }
 
 
-    TYPath GetNodePath(
-        TCypressNodeBase* trunkNode,
-        TTransaction* transaction)
-    {
-        Y_ASSERT(trunkNode->IsTrunk());
-
-        auto proxy = GetNodeProxy(trunkNode, transaction);
-        return proxy->GetResolver()->GetPath(proxy);
-    }
-
-
     TCypressNodeBase* DoCloneNode(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactory* factory,
@@ -2466,9 +2437,24 @@ TCypressNodeBase* TCypressManager::GetNodeOrThrow(const TVersionedNodeId& id)
     return Impl_->GetNodeOrThrow(id);
 }
 
-INodeResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
+TYPath TCypressManager::GetNodePath(TCypressNodeBase* trunkNode, TTransaction* transaction)
 {
-    return Impl_->CreateResolver(transaction);
+    return Impl_->GetNodePath(trunkNode, transaction);
+}
+
+TYPath TCypressManager::GetNodePath(const ICypressNodeProxy* nodeProxy)
+{
+    return Impl_->GetNodePath(nodeProxy);
+}
+
+TCypressNodeBase* TCypressManager::ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
+{
+    return Impl_->ResolvePathToTrunkNode(path, transaction);
+}
+
+ICypressNodeProxyPtr TCypressManager::ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction)
+{
+    return Impl_->ResolvePathToNodeProxy(path, transaction);
 }
 
 TCypressNodeBase* TCypressManager::FindNode(

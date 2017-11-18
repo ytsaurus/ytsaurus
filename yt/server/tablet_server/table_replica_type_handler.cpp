@@ -56,15 +56,12 @@ public:
         auto mode = attributes->GetAndRemove<ETableReplicaMode>("mode", ETableReplicaMode::Async);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver(nullptr);
-        auto nodeProxy = resolver->ResolvePath(tablePath);
-
-        auto* cypressNodeProxy = ICypressNodeProxy::FromNode(nodeProxy.Get());
-        if (cypressNodeProxy->GetTrunkNode()->GetType() != EObjectType::ReplicatedTable) {
+        auto* trunkNode = cypressManager->ResolvePathToTrunkNode(tablePath);
+        if (trunkNode->GetType() != EObjectType::ReplicatedTable) {
             THROW_ERROR_EXCEPTION("%v is not a replicated table",
                 tablePath);
         }
-        auto* table = cypressNodeProxy->GetTrunkNode()->As<TReplicatedTableNode>();
+        auto* table = trunkNode->As<TReplicatedTableNode>();
 
         cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
 

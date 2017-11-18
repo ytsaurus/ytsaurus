@@ -340,12 +340,6 @@ public:
         return Parent_->CreateFactory();
     }
 
-    virtual INodeResolverPtr GetResolver() const override
-    {
-        Y_ASSERT(Parent_);
-        return Parent_->GetResolver();
-    }
-
     virtual ICompositeNodePtr GetParent() const override
     {
         return Parent_;

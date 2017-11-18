@@ -840,9 +840,7 @@ private:
     IMapNodePtr GetNodeMap()
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        auto node = resolver->ResolvePath("//sys/nodes");
-        return node->AsMap();
+        return cypressManager->ResolvePathToNodeProxy("//sys/nodes")->AsMap();
     }
 
 
