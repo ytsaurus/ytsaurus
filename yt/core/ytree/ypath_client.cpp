@@ -451,23 +451,6 @@ TFuture<std::vector<TString>> AsyncYPathList(
         }));
 }
 
-void ApplyYPathOverride(
-    const INodePtr& root,
-    const TStringBuf& overrideString)
-{
-    // TODO(babenko): this effectively forbids override path from containing "="
-    int eqIndex = overrideString.find('=');
-    if (eqIndex == TStringBuf::npos) {
-        THROW_ERROR_EXCEPTION("Missing \"=\" in override string");
-    }
-
-    TYPath path(overrideString.begin(), overrideString.begin() + eqIndex);
-    TYsonString value(TString(overrideString.begin() + eqIndex + 1, overrideString.end()));
-
-    ForceYPath(root, path);
-    SyncYPathSet(root, path, value);
-}
-
 static INodePtr WalkNodeByYPath(
     const INodePtr& root,
     const TYPath& path,

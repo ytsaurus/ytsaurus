@@ -246,15 +246,6 @@ TFuture<std::vector<TString>> AsyncYPathList(
     const TYPath& path,
     TNullable<i64> limit = Null);
 
-//! Overrides a part of #root tree.
-/*!
- *  #overrideString must have the |path = value| format.
- *  The method updates #root by setting |value| (forcing those parts of |path| that are missing).
- */
-void ApplyYPathOverride(
-    const INodePtr& root,
-    const TStringBuf& overrideString);
-
 /*!
  *  Throws exception if the specified node does not exist.
  */
