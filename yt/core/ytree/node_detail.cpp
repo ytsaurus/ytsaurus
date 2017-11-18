@@ -149,6 +149,11 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     Y_UNREACHABLE();
 }
 
+TYPath TNodeBase::GetPath() const
+{
+    return GetNodeYPath(const_cast<TNodeBase*>(this));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCompositeNodeMixin::SetRecursive(

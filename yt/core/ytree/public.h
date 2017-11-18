@@ -34,7 +34,6 @@ DECLARE_REFCOUNTED_STRUCT(IEntityNode)
 
 struct INodeFactory;
 struct ITransactionalNodeFactory;
-DECLARE_REFCOUNTED_STRUCT(INodeResolver)
 
 struct IAttributeDictionary;
 

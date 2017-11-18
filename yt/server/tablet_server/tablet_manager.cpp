@@ -1399,7 +1399,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto nodeProxy = cypressManager->GetNodeProxy(table);
-        TYPath path = nodeProxy->GetPath();
+        auto path = nodeProxy->GetPath();
         const auto& allTablets = table->Tablets();
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
@@ -4152,8 +4152,7 @@ private:
     IMapNodePtr GetCellMapNode()
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
+        return cypressManager->ResolvePathToNodeProxy("//sys/tablet_cells")->AsMap();
     }
 
     INodePtr FindCellNode(const TCellId& cellId)
@@ -4168,7 +4167,6 @@ private:
         try {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto& tabletManager = Bootstrap_->GetTabletManager();
-            auto resolver = cypressManager->CreateResolver();
             auto cellIds = GetKeys(TabletCellMap_);
             for (const auto& cellId : cellIds) {
                 auto* cell = tabletManager->FindTabletCell(cellId);
@@ -4179,7 +4177,7 @@ private:
                 auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", ToYPathLiteral(ToString(cellId)));
                 IMapNodePtr snapshotsMap;
                 try {
-                    snapshotsMap = resolver->ResolvePath(snapshotsPath)->AsMap();
+                    snapshotsMap = cypressManager->ResolvePathToNodeProxy(snapshotsPath)->AsMap();
                 } catch (const std::exception& ex) {
                     LOG_WARNING(ex, "Tablet cell has no valid snapshot store (CellId: %v)",
                         cellId);
@@ -4259,7 +4257,7 @@ private:
                 auto changelogsPath = Format("//sys/tablet_cells/%v/changelogs", ToYPathLiteral(ToString(cellId)));
                 IMapNodePtr changelogsMap;
                 try {
-                    changelogsMap = resolver->ResolvePath(changelogsPath)->AsMap();
+                    changelogsMap = cypressManager->ResolvePathToNodeProxy(changelogsPath)->AsMap();
                 } catch (const std::exception& ex) {
                     LOG_WARNING(ex, "Tablet cell has no valid changelog store (CellId: %v)",
                         cellId);
