@@ -115,6 +115,44 @@ TCypressNodeBase* FindMapNodeChild(
     return nullptr;
 }
 
+TStringBuf GetMapNodeChildKey(
+    TMapNode* parentNode,
+    TCypressNodeBase* trunkChildNode)
+{
+    Y_ASSERT(trunkChildNode->IsTrunk());
+    while (true) {
+        auto it = parentNode->ChildToKey().find(trunkChildNode);
+        if (it != parentNode->ChildToKey().end()) {
+            return it->second;
+        }
+        auto* originator = parentNode->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        parentNode = originator->As<TMapNode>();
+    }
+    Y_UNREACHABLE();
+}
+
+int GetListNodeChildIndex(
+    TListNode* parentNode,
+    TCypressNodeBase* trunkChildNode)
+{
+    Y_ASSERT(trunkChildNode->IsTrunk());
+    while (true) {
+        auto it = parentNode->ChildToIndex().find(trunkChildNode);
+        if (it != parentNode->ChildToIndex().end()) {
+            return it->second;
+        }
+        auto* originator = parentNode->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        parentNode = originator->As<TListNode>();
+    }
+    Y_UNREACHABLE();
+}
+
 yhash<TString, NYson::TYsonString> GetNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,

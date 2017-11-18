@@ -688,16 +688,52 @@ public:
             return FromObjectId(trunkNode->GetId());
         }
 
-        // TODO(babenko): optimize
-        auto nodeProxy = GetNodeProxy(trunkNode, transaction);
+        using TToken = TVariant<TStringBuf, int>;
+        SmallVector<TToken, 32> tokens;
 
-        INodePtr root;
-        auto path = GetNodeYPath(nodeProxy, &root);
+        auto* currentNode = GetVersionedNode(trunkNode, transaction);
+        while (true) {
+            auto* currentTrunkNode = currentNode->GetTrunkNode();
+            auto* currentParentTrunkNode = currentNode->GetParent();
+            if (!currentParentTrunkNode) {
+                break;
+            }
+            auto* currentParentNode = GetVersionedNode(currentParentTrunkNode, transaction);
+            switch (currentParentTrunkNode->GetType()) {
+                case EObjectType::MapNode:
+                    tokens.emplace_back(GetMapNodeChildKey(currentParentNode->As<TMapNode>(), currentTrunkNode));
+                    break;
+                case EObjectType::ListNode:
+                    tokens.emplace_back(GetListNodeChildIndex(currentParentNode->As<TListNode>(), currentTrunkNode));
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
 
-        auto* rootProxy = ICypressNodeProxy::FromNode(root.Get());
-        return rootProxy->GetId() == RootNodeId_
-            ? "/" + path
-            : "?" + path;
+        TStringBuilder builder;
+        if (currentNode->GetTrunkNode() == RootNode_) {
+            builder.AppendChar('/');
+        } else {
+            builder.AppendChar('?');
+        }
+
+        for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
+            auto token = *it;
+            builder.AppendChar('/');
+            switch (token.Tag()) {
+                case TToken::TagOf<TStringBuf>():
+                    builder.AppendString(token.As<TStringBuf>());
+                    break;
+                case TToken::TagOf<int>():
+                    builder.AppendFormat("%v", token.As<int>());
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
+
+        return builder.Flush();
     }
 
     TYPath GetNodePath(const ICypressNodeProxy* nodeProxy)
