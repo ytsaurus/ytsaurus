@@ -1409,6 +1409,39 @@ class TestCypress(YTEnvSetup):
         revision11 = get("//tmp/d1/@revision")
         assert revision11 == revision7
 
+    def test_node_path_map(self):
+        set("//tmp/a", 123)
+        assert get("//tmp/a/@path") == "//tmp/a"
+
+    def test_node_path_list(self):
+        set("//tmp/a", [1, 2, 3])
+        assert get("//tmp/a/1/@path") == "//tmp/a/1"
+
+    def test_node_path_map_in_tx(self):
+        tx = start_transaction()
+        set("//tmp/a", 123, tx=tx)
+        assert get("//tmp/a/@path", tx=tx) == "//tmp/a"
+
+    def test_node_path_list_in_tx(self):
+        tx = start_transaction()
+        set("//tmp/a", [1, 2, 3], tx=tx)
+        assert get("//tmp/a/1/@path", tx=tx) == "//tmp/a/1"
+
+    def test_broken_node_path1(self):
+        set("//tmp/a", 123)
+        tx = start_transaction()
+        node_id = get("//tmp/a/@id")
+        lock("//tmp/a", tx=tx, mode="snapshot")
+        remove("//tmp/a")
+        assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
+
+    def test_broken_node_path2(self):
+        set("//tmp/a", 123)
+        tx = start_transaction()
+        node_id = get("//tmp/a/@id")
+        remove("//tmp/a", tx=tx)
+        assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
