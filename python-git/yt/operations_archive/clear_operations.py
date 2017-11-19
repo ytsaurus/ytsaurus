@@ -14,6 +14,7 @@ import yt.packages.requests as requests
 
 from dateutil.parser import parse
 from collections import namedtuple, Counter
+from itertools import izip
 # Import is necessary due to: http://bugs.python.org/issue7980
 import _strptime
 from datetime import datetime, timedelta
@@ -27,6 +28,16 @@ STDERRS_PATH = "{}/stderrs".format(OPERATIONS_ARCHIVE_PATH)
 JOBS_PATH = "{}/jobs".format(OPERATIONS_ARCHIVE_PATH)
 
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state"])
+
+def iter_chunks(iterable, size):
+   chunk = []
+   for item in iterable:
+       chunk.append(item)
+       if len(chunk) == size:
+           yield chunk
+           chunk = []
+   if chunk:
+       yield chunk
 
 def get_filter_factors(op, attributes):
     brief_spec = attributes.get("brief_spec", {})
@@ -357,34 +368,38 @@ class OperationNewCleaner(object):
         self.yt = client
 
     def __call__(self, op_paths):
-        for op_path in op_paths:
-            logger.info("Removing node %s", op_path)
+        for to_remove in iter_chunks(op_paths, 200):
+            for op_path in to_remove:
+                logger.info("Removing node %s", op_path)
 
-        requests = []
-        for op_path in op_paths:
-            requests.append(
-                {
-                    "command": "remove",
-                    "parameters": {
-                        "path": "//sys/operations/" + op_path,
-                    }
-                })
+            requests = []
+            for op_path in to_remove:
+                requests.append(
+                    {
+                        "command": "remove",
+                        "parameters": {
+                            "path": "//sys/operations/" + op_path,
+                        }
+                    })
 
-        responses = self.yt.execute_batch(requests)
+            responses = self.yt.execute_batch(requests)
 
-        errors = []
-        for rsp in responses:
-            if "error" not in rsp:
-                continue
+            unresolved = 0
+            errors = []
+            for rsp in responses:
+                if "error" not in rsp:
+                    continue
 
-            error = yt.YtResponseError(rsp["error"])
-            if error.is_resolve_error():
-                continue
+                error = yt.YtResponseError(rsp["error"])
+                if error.is_resolve_error():
+                    unresolved += 1
+                    continue
 
-            errors.append(error)
+                errors.append(error)
 
-        if errors:
-            raise yt.YtError("Failed to remove operation new nodes", inner_errors=errors)
+            logger.warning("Number of paths that was failed to resolve: %d", unresolved)
+            if errors:
+                logger.warning("%s", str(yt.YtError("Failed to remove operation new nodes", inner_errors=errors)))
 
 # Push metrics
 
@@ -412,6 +427,50 @@ def push_to_solomon(values_map, cluster, ts):
     except:
         logger.exception("Failed to push metrics to Solomon")
 
+def request_operations_recursive(root_operation_ids, prefixes):
+    candidates_to_remove = []
+
+    for prefixes_to_request in iter_chunks(prefixes, 32):
+        list_responses = yt.execute_batch([
+            {
+                "command": "list",
+                "parameters": {
+                    "path": "//sys/operations/{}".format(prefix)
+                }
+            }
+            for prefix in prefixes_to_request])
+
+        for prefix, response in izip(prefixes_to_request, list_responses):
+            if "error" in response:
+                error = yt.YtResponseError(response["error"])
+                if not error.is_resolve_error():
+                    raise
+            else:
+                for op in response["output"]:
+                    # It is important to make additional existance check due to possible races.
+                    if op not in root_operation_ids:
+                        candidates_to_remove.append((prefix, op))
+
+    exists_responses = []
+    for exists_requests in iter_chunks(candidates_to_remove, 200):
+        exists_responses += yt.execute_batch([
+            {
+                "command": "exists",
+                "parameters": {
+                    "path": "//sys/operations/{}".format(op)
+                }
+            }
+            for prefix, op in exists_requests])
+
+    to_remove = []
+    for candidate, response in izip(candidates_to_remove, exists_responses):
+        if "error" in response:
+            raise yt.YtResponseError(response["error"])
+        if not response["output"]:
+            to_remove.append("/".join(candidate))
+
+    return NonBlockingQueue(to_remove)
+
 def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, execution_timeout,
                      max_operations_per_user, robots, archive, archive_jobs, thread_count,
                      stderr_thread_count, push_metrics, remove_threshold, client):
@@ -438,14 +497,17 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         "failed_to_archive_stderr_count",
         "archived_stderr_count",
         "archived_stderr_size",
-        "failed_to_archive_stderr_count"]})
+        "failed_to_archive_stderr_count",
+        "removed_count_stale",
+        "failed_to_remove_count_stale"]})
 
     timers = {name: Timer() for name in [
         "getting_job_counts",
         "getting_operations_list",
         "archiving_operations",
         "archiving_stderrs",
-        "removing_operations"]}
+        "removing_operations",
+        "removing_new_operations"]}
 
     with timers["getting_operations_list"]:
         prefixes = set(["%02x" % prefix for prefix in xrange(256)])
@@ -463,19 +525,15 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
             for op in operations if str(op) not in prefixes]
         operations.sort(key=lambda op: op.start_time, reverse=True)
 
-        operation_ids = set(op.id for op in operations)
-        remove_new_queue = []
-        for prefix in prefixes:
-            try:
-                for op in client.list("//sys/operations/" + prefix, max_size=100000):
-                    op_id = str(op)
-                    # It is important to make additional existance check due to possible races.
-                    if op_id not in operation_ids and not yt.exists("//sys/operations/" + op_id):
-                        remove_new_queue.append(prefix + "/" + op_id)
-            except yt.YtError as err:
-                if not err.is_resolve_error():
-                    raise
-        remove_new_queue = NonBlockingQueue(remove_new_queue)
+        remove_new_queue = request_operations_recursive(set(op.id for op in operations), prefixes)
+
+    failed_to_remove_stale = []
+    remove_count_stale = len(remove_new_queue)
+
+    logger.info("Removing %d stale operation nodes", remove_count_stale)
+    with timers["removing_new_operations"]:
+        run_batching_queue_workers(remove_new_queue, OperationNewCleaner, thread_count, args=(client,), batch_size=8, failed_items=failed_to_remove_stale)
+        failed_to_remove_stale.extend(wait_for_queue(remove_new_queue, "remove_operations_new", end_time_limit))
 
     metrics["initial_count"] = len(operations)
 
@@ -583,9 +641,6 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         run_batching_queue_workers(remove_queue, OperationCleaner, thread_count, args=(client,), batch_size=8, failed_items=failed_to_remove)
         failed_to_remove.extend(wait_for_queue(remove_queue, "remove_operations", end_time_limit))
 
-        run_batching_queue_workers(remove_new_queue, OperationNewCleaner, thread_count, args=(client,), batch_size=8, failed_items=failed_to_remove)
-        failed_to_remove.extend(wait_for_queue(remove_new_queue, "remove_operations_new", end_time_limit))
-
     now_after_clean = datetime.utcnow()
 
     total_time = (now_after_clean - now).total_seconds()
@@ -596,6 +651,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
             "processed %s operations in %.2fs",
             "%s were considered %s in %.2fs",
             "%s were %s in %.2fs",
+            "%s (of %s) stale were removed",
             "%s were retained"]),
         len(operations),
         total_time,
@@ -605,6 +661,8 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         remove_count,
         "archived" if archive else "removed",
         (now_after_clean - now_before_clean).total_seconds(),
+        remove_count_stale - len(failed_to_remove_stale),
+        remove_count_stale,
         number_of_retained_operations)
 
     logger.info("Times: (%s)", "; ".join(["{}: {}".format(name, str(timer)) for name, timer in timers.iteritems()]))
@@ -612,7 +670,9 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
     metrics["total_time_ms"] = total_time * 1000
     metrics["per_operation_time_ms"] = total_time * 1000 / len(operations) if len(operations) > 0 else 0
     metrics["removed_count"] = remove_count - len(failed_to_remove)
+    metrics["removed_count_stale"] = remove_count_stale - len(failed_to_remove_stale)
     metrics["failed_to_remove_count"] = len(failed_to_remove)
+    metrics["failed_to_remove_count_stale"] = len(failed_to_remove_stale)
 
     logger.info("Metrics: (%s)", "; ".join(["{}: {}".format(name, value) for name, value in metrics.iteritems()]))
 
