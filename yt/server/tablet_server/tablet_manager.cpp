@@ -1398,8 +1398,7 @@ public:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto nodeProxy = cypressManager->GetNodeProxy(table);
-        auto path = nodeProxy->GetPath();
+        auto path = cypressManager->GetNodePath(table, nullptr);
         const auto& allTablets = table->Tablets();
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
@@ -2133,9 +2132,8 @@ public:
             }
         } catch (const std::exception& ex) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto sourceTableProxy = cypressManager->GetNodeProxy(trunkSourceTable, transaction);
             THROW_ERROR_EXCEPTION("Error cloning table %v",
-                sourceTableProxy->GetPath())
+                cypressManager->GetNodePath(trunkSourceTable, transaction))
                 << ex;
         }
 
