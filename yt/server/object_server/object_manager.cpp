@@ -829,7 +829,7 @@ TObjectBase* TObjectManager::CreateObject(
             attributeHolder->SetYson(pair.first, pair.second);
         }
         if (attributes) {
-            auto attributeMap = UpdateNode(attributeHolder->ToMap(), attributes->ToMap());
+            auto attributeMap = PatchNode(attributeHolder->ToMap(), attributes->ToMap());
             attributeHolder = IAttributeDictionary::FromMap(attributeMap->AsMap());
         }
         attributes = attributeHolder.get();
