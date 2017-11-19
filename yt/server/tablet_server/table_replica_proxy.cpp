@@ -94,9 +94,8 @@ private:
 
         if (key == "table_path") {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto tableProxy = cypressManager->GetNodeProxy(replica->GetTable(), nullptr);
             BuildYsonFluently(consumer)
-                .Value(tableProxy->GetPath());
+                .Value(cypressManager->GetNodePath(replica->GetTable(), nullptr));
             return true;
         }
 
