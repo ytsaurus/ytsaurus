@@ -746,7 +746,7 @@ public:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->ResolvePathToObject(path, transaction);
-        if (IsVersionedType(object->GetType())) {
+        if (!IsVersionedType(object->GetType())) {
             THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
                 path,
                 object->GetType());
