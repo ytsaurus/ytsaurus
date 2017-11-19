@@ -115,30 +115,52 @@ TCypressNodeBase* FindMapNodeChild(
     return nullptr;
 }
 
-TStringBuf GetMapNodeChildKey(
+TStringBuf FindMapNodeChildKey(
     TMapNode* parentNode,
     TCypressNodeBase* trunkChildNode)
 {
     Y_ASSERT(trunkChildNode->IsTrunk());
-    while (true) {
-        auto it = parentNode->ChildToKey().find(trunkChildNode);
-        if (it != parentNode->ChildToKey().end()) {
-            return it->second;
+
+    TStringBuf key;
+
+    for (const auto* currentParentNode = parentNode; currentParentNode;) {
+        auto it = currentParentNode->ChildToKey().find(trunkChildNode);
+        if (it != currentParentNode->ChildToKey().end()) {
+            key = it->second;
+            break;
         }
-        auto* originator = parentNode->GetOriginator();
+        auto* originator = currentParentNode->GetOriginator();
         if (!originator) {
             break;
         }
-        parentNode = originator->As<TMapNode>();
+        currentParentNode = originator->As<TMapNode>();
     }
-    Y_UNREACHABLE();
+
+    if (!key.data()) {
+        return TStringBuf();
+    }
+
+    for (const auto* currentParentNode = parentNode; currentParentNode;) {
+        auto it = currentParentNode->KeyToChild().find(key);
+        if (it != currentParentNode->KeyToChild().end() && !it->second) {
+            return TStringBuf();
+        }
+        auto* originator = currentParentNode->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        currentParentNode = originator->As<TMapNode>();
+    }
+
+    return key;
 }
 
-int GetListNodeChildIndex(
+int FindListNodeChildIndex(
     TListNode* parentNode,
     TCypressNodeBase* trunkChildNode)
 {
     Y_ASSERT(trunkChildNode->IsTrunk());
+
     while (true) {
         auto it = parentNode->ChildToIndex().find(trunkChildNode);
         if (it != parentNode->ChildToIndex().end()) {
@@ -150,7 +172,8 @@ int GetListNodeChildIndex(
         }
         parentNode = originator->As<TListNode>();
     }
-    Y_UNREACHABLE();
+
+    return -1;
 }
 
 yhash<TString, NYson::TYsonString> GetNodeAttributes(
