@@ -207,12 +207,12 @@ TStringBuf TTokenizer::GetToken() const
 
 TStringBuf TTokenizer::GetPrefix() const
 {
-    return TYPath(Path_.begin(), Input_.begin());
+    return TStringBuf(Path_.begin(), Input_.begin());
 }
 
 TStringBuf TTokenizer::GetSuffix() const
 {
-    return TYPath(Input_.begin() + Token_.length(), Input_.end());
+    return TStringBuf(Input_.begin() + Token_.length(), Input_.end());
 }
 
 TStringBuf TTokenizer::GetInput() const
