@@ -699,16 +699,17 @@ public:
                 break;
             }
             auto* currentParentNode = GetVersionedNode(currentParentTrunkNode, transaction);
-            switch (currentParentTrunkNode->GetType()) {
-                case EObjectType::MapNode:
+            switch (currentParentTrunkNode->GetNodeType()) {
+                case ENodeType::Map:
                     tokens.emplace_back(GetMapNodeChildKey(currentParentNode->As<TMapNode>(), currentTrunkNode));
                     break;
-                case EObjectType::ListNode:
+                case ENodeType::List:
                     tokens.emplace_back(GetListNodeChildIndex(currentParentNode->As<TListNode>(), currentTrunkNode));
                     break;
                 default:
                     Y_UNREACHABLE();
             }
+            currentNode = currentParentNode;
         }
 
         TStringBuilder builder;

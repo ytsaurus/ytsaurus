@@ -270,9 +270,6 @@ void SetNodeByYPath(
  */
 void ForceYPath(const INodePtr& root, const TYPath& path);
 
-//! Computes a full YPath for a given #node and (optionally) returns the root.
-TYPath GetNodeYPath(const INodePtr& node, INodePtr* root = nullptr);
-
 //! Constructs an ephemeral deep copy of #node.
 INodePtr CloneNode(const INodePtr& node);
 
