@@ -56,7 +56,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
             ToYPathLiteral(key));
     }
 
-    return TResolveResultThere{std::move(service), tokenizer.GetSuffix()};
+    return TResolveResultThere{std::move(service), TYPath(tokenizer.GetSuffix())};
 }
 
 void TVirtualMapBase::GetSelf(

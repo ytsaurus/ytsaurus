@@ -44,16 +44,16 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(
 {
     NYPath::TTokenizer tokenizer(path);
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        return ResolveSelf(tokenizer.GetSuffix(), context);
+        return ResolveSelf(TYPath(tokenizer.GetSuffix()), context);
     }
 
     tokenizer.Skip(NYPath::ETokenType::Ampersand);
     tokenizer.Expect(NYPath::ETokenType::Slash);
 
     if (tokenizer.Advance() == NYPath::ETokenType::At) {
-        return ResolveAttributes(tokenizer.GetSuffix(), context);
+        return ResolveAttributes(TYPath(tokenizer.GetSuffix()), context);
     } else {
-        return ResolveRecursive(tokenizer.GetInput(), context);
+        return ResolveRecursive(TYPath(tokenizer.GetInput()), context);
     }
 }
 
@@ -132,9 +132,9 @@ bool TYPathServiceBase::ShouldHideAttributes()
         tokenizer.Skip(NYPath::ETokenType::Ampersand); \
         if (tokenizer.GetType() == NYPath::ETokenType::Slash) { \
             if (tokenizer.Advance() == NYPath::ETokenType::At) { \
-                method##Attribute(tokenizer.GetSuffix(), request, response, context); \
+                method##Attribute(TYPath(tokenizer.GetSuffix()), request, response, context); \
             } else { \
-                method##Recursive(tokenizer.GetInput(), request, response, context); \
+                method##Recursive(TYPath(tokenizer.GetInput()), request, response, context); \
             } \
             return; \
         } \
@@ -466,7 +466,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
         return asyncYson.Apply(BIND(
             &TSupportsAttributes::DoGetAttributeFragment,
             key,
-            tokenizer.GetInput()));
+            TYPath(tokenizer.GetInput())));
    }
 }
 
@@ -567,7 +567,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
         return asyncYson.Apply(BIND(
             &TSupportsAttributes::DoListAttributeFragment,
             key,
-            tokenizer.GetInput()));
+            TYPath(tokenizer.GetInput())));
     }
 }
 
@@ -646,7 +646,7 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
         return asyncYson.Apply(BIND(
             &TSupportsAttributes::DoExistsAttributeFragment,
             key,
-            tokenizer.GetInput()));
+            TYPath(tokenizer.GetInput())));
     }
 }
 
@@ -784,7 +784,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     }
 
                     auto oldWholeNode = ConvertToNode(oldWholeYson);
-                    SyncYPathSet(oldWholeNode, tokenizer.GetInput(), newYson);
+                    SyncYPathSet(oldWholeNode, TYPath(tokenizer.GetInput()), newYson);
                     auto newWholeYson = ConvertToYsonStringStable(oldWholeNode);
 
                     if (!GuardedSetBuiltinAttribute(key, newWholeYson)) {
@@ -807,7 +807,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     }
 
                     auto wholeNode = ConvertToNode(oldWholeYson);
-                    SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
+                    SyncYPathSet(wholeNode, TYPath(tokenizer.GetInput()), newYson);
                     auto newWholeYson = ConvertToYsonStringStable(wholeNode);
 
                     customAttributes->SetYson(key, newWholeYson);
@@ -901,7 +901,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                     permissionValidator.Validate(EPermission::Write);
 
                     auto customNode = ConvertToNode(customYson);
-                    SyncYPathRemove(customNode, tokenizer.GetInput(), /*recursive*/ true, force);
+                    SyncYPathRemove(customNode, TYPath(tokenizer.GetInput()), /*recursive*/ true, force);
                     auto updatedCustomYson = ConvertToYsonStringStable(customNode);
 
                     customAttributes->SetYson(key, updatedCustomYson);
@@ -936,7 +936,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                     }
 
                     auto builtinNode = ConvertToNode(builtinYson);
-                    SyncYPathRemove(builtinNode, tokenizer.GetInput());
+                    SyncYPathRemove(builtinNode, TYPath(tokenizer.GetInput()));
                     auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
 
                     if (!GuardedSetBuiltinAttribute(key, updatedSystemYson)) {
@@ -1288,7 +1288,7 @@ public:
             THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
         }
 
-        return TResolveResultThere{UnderlyingService_, tokenizer.GetSuffix()};
+        return TResolveResultThere{UnderlyingService_, TYPath(tokenizer.GetSuffix())};
     }
 
     virtual void DoWriteAttributesFragment(

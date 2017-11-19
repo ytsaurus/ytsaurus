@@ -15,10 +15,10 @@ public:
     ETokenType Advance();
 
     ETokenType GetType() const;
-    const TStringBuf& GetToken() const;
-    TYPath GetPrefix() const;
-    TYPath GetSuffix() const;
-    TYPath GetInput() const;
+    TStringBuf GetToken() const;
+    TStringBuf GetPrefix() const;
+    TStringBuf GetSuffix() const;
+    TStringBuf GetInput() const;
     const TString& GetLiteralValue() const;
 
     void Expect(ETokenType expectedType);
@@ -38,7 +38,6 @@ private:
     const char* AdvanceEscaped(const char* current);
     static int ParseHexDigit(char ch, const TStringBuf& context);
     static void ThrowMalformedEscapeSequence(const TStringBuf& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

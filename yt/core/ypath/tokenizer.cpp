@@ -200,24 +200,24 @@ ETokenType TTokenizer::GetType() const
     return Type_;
 }
 
-const TStringBuf& TTokenizer::GetToken() const
+TStringBuf TTokenizer::GetToken() const
 {
     return Token_;
 }
 
-TYPath TTokenizer::GetPrefix() const
+TStringBuf TTokenizer::GetPrefix() const
 {
     return TYPath(Path_.begin(), Input_.begin());
 }
 
-TYPath TTokenizer::GetSuffix() const
+TStringBuf TTokenizer::GetSuffix() const
 {
     return TYPath(Input_.begin() + Token_.length(), Input_.end());
 }
 
-TYPath TTokenizer::GetInput() const
+TStringBuf TTokenizer::GetInput() const
 {
-    return TYPath(Input_);
+    return Input_;
 }
 
 const TString& TTokenizer::GetLiteralValue() const

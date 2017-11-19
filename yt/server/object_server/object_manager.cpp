@@ -220,7 +220,7 @@ private:
                 auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
-                return TResolveResultThere{std::move(root), tokenizer.GetSuffix()};
+                return TResolveResultThere{std::move(root), TYPath(tokenizer.GetSuffix())};
             }
 
             case NYPath::ETokenType::Literal: {
@@ -259,7 +259,7 @@ private:
                         ? objectManager->GetProxy(object, transaction)
                         : TNonexistingService::Get();
                 }
-                return TResolveResultThere{std::move(proxy), tokenizer.GetInput()};
+                return TResolveResultThere{std::move(proxy), TYPath(tokenizer.GetInput())};
             }
 
             default:
@@ -898,7 +898,7 @@ TObjectBase* TObjectManager::ResolvePathToObject(const TYPath& path, TTransactio
         }
 
         // Slow path.
-        auto req = TObjectYPathProxy::GetBasicAttributes(suffixPath);
+        auto req = TObjectYPathProxy::GetBasicAttributes(TYPath(suffixPath));
         SetTransactionId(req, GetObjectId(transaction));
         auto rsp = SyncExecuteVerb(proxy, req);
         auto objectId = FromProto<TObjectId>(rsp->object_id());
