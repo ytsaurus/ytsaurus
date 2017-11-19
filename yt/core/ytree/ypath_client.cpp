@@ -687,47 +687,6 @@ void ForceYPath(
     factory->Commit();
 }
 
-TYPath GetNodeYPath(
-    const INodePtr& node,
-    INodePtr* root)
-{
-    std::vector<TString> tokens;
-    auto current = node;
-    while (true) {
-        auto parent = current->GetParent();
-        if (!parent) {
-            break;
-        }
-        TString token;
-        switch (parent->GetType()) {
-            case ENodeType::List: {
-                auto index = parent->AsList()->GetChildIndex(current);
-                token = ToYPathLiteral(index);
-                break;
-            }
-            case ENodeType::Map: {
-                auto key = parent->AsMap()->GetChildKey(current);
-                token = ToYPathLiteral(key);
-                break;
-            }
-            default:
-                Y_UNREACHABLE();
-        }
-        tokens.push_back(token);
-        current = parent;
-    }
-    if (root) {
-        *root = current;
-    }
-    std::reverse(tokens.begin(), tokens.end());
-    TYPath path;
-    for (const auto& token : tokens) {
-        path.append('/');
-        path.append(token);
-    }
-    return path;
-}
-
 INodePtr CloneNode(const INodePtr& node)
 {
     return ConvertToNode(node);

@@ -1,12 +1,11 @@
 #include "node_detail.h"
-#include "convert.h"
-#include "tree_builder.h"
-#include "tree_visitor.h"
-#include "ypath_client.h"
-#include "ypath_detail.h"
-#include "ypath_service.h"
+//#include "convert.h"
+//#include "tree_builder.h"
+//#include "tree_visitor.h"
+//#include "ypath_client.h"
+//#include "ypath_detail.h"
+//#include "ypath_service.h"
 
-#include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/ypath/token.h>
@@ -151,7 +150,38 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
 
 TYPath TNodeBase::GetPath() const
 {
-    return GetNodeYPath(const_cast<TNodeBase*>(this));
+    SmallVector<TString, 64> tokens;
+    IConstNodePtr current(this);
+    while (true) {
+        auto parent = current->GetParent();
+        if (!parent) {
+            break;
+        }
+        TString token;
+        switch (parent->GetType()) {
+            case ENodeType::List: {
+                auto index = parent->AsList()->GetChildIndex(current);
+                token = ToYPathLiteral(index);
+                break;
+            }
+            case ENodeType::Map: {
+                auto key = parent->AsMap()->GetChildKey(current);
+                token = ToYPathLiteral(key);
+                break;
+            }
+            default:
+                Y_UNREACHABLE();
+        }
+        tokens.emplace_back(std::move(token));
+        current = parent;
+    }
+
+    TStringBuilder builder;
+    for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
+        builder.AppendChar('/');
+        builder.AppendString(*it);
+    }
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
