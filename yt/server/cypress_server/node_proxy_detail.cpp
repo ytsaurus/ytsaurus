@@ -1914,7 +1914,7 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Ampersand:
-            return TBase::Resolve(tokenizer.GetSuffix(), context);
+            return TBase::Resolve(TYPath(tokenizer.GetSuffix()), context);
 
         case NYPath::ETokenType::EndOfStream: {
             // NB: Always handle mutating Cypress verbs locally.

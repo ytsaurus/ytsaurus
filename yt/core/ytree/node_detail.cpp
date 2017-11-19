@@ -262,7 +262,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                 THROW_ERROR_EXCEPTION("Child key cannot be empty");
             }
 
-            auto suffix = tokenizer.GetSuffix();
+            auto suffix = TYPath(tokenizer.GetSuffix());
             bool lastToken =  tokenizer.Advance() == NYPath::ETokenType::EndOfStream;
 
             auto child = FindChild(key);
@@ -445,7 +445,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                     return IYPathService::TResolveResultHere{"/" + path};
                 }
 
-                return IYPathService::TResolveResultThere{std::move(child), tokenizer.GetSuffix()};
+                return IYPathService::TResolveResultThere{std::move(child), TYPath(tokenizer.GetSuffix())};
             }
         }
 
