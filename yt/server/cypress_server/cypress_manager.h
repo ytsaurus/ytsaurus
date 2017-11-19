@@ -154,7 +154,6 @@ public:
     void AbortSubtreeTransactions(NYTree::INodePtr node);
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
-    bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);
 
 
     //! Returns the list consisting of the trunk node

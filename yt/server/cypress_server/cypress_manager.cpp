@@ -684,9 +684,9 @@ public:
 
     TYPath GetNodePath(TCypressNodeBase* trunkNode, TTransaction* transaction)
     {
-        if (!IsAlive(trunkNode, transaction)) {
+        auto fallbackToId = [&] {
             return FromObjectId(trunkNode->GetId());
-        }
+        };
 
         using TToken = TVariant<TStringBuf, int>;
         SmallVector<TToken, 32> tokens;
@@ -700,25 +700,34 @@ public:
             }
             auto* currentParentNode = GetVersionedNode(currentParentTrunkNode, transaction);
             switch (currentParentTrunkNode->GetNodeType()) {
-                case ENodeType::Map:
-                    tokens.emplace_back(GetMapNodeChildKey(currentParentNode->As<TMapNode>(), currentTrunkNode));
+                case ENodeType::Map: {
+                    auto key = FindMapNodeChildKey(currentParentNode->As<TMapNode>(), currentTrunkNode);
+                    if (!key.data()) {
+                        return fallbackToId();
+                    }
+                    tokens.emplace_back(key);
                     break;
-                case ENodeType::List:
-                    tokens.emplace_back(GetListNodeChildIndex(currentParentNode->As<TListNode>(), currentTrunkNode));
+                }
+                case ENodeType::List: {
+                    auto index = FindListNodeChildIndex(currentParentNode->As<TListNode>(), currentTrunkNode);
+                    if (index < 0) {
+                        return fallbackToId();
+                    }
+                    tokens.emplace_back(index);
                     break;
+                }
                 default:
                     Y_UNREACHABLE();
             }
             currentNode = currentParentNode;
         }
 
-        TStringBuilder builder;
-        if (currentNode->GetTrunkNode() == RootNode_) {
-            builder.AppendChar('/');
-        } else {
-            builder.AppendChar('?');
+        if (currentNode->GetTrunkNode() != RootNode_) {
+            return fallbackToId();
         }
 
+        TStringBuilder builder;
+        builder.AppendChar('/');
         for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
             auto token = *it;
             builder.AppendChar('/');
@@ -1001,86 +1010,6 @@ public:
                 return false;
             }
             currentNode = currentNode->GetParent();
-        }
-    }
-
-    bool IsAlive(TCypressNodeBase* trunkNode, TTransaction* transaction)
-    {
-        auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
-            // Compute child key or index.
-            auto parentOriginators = GetNodeOriginators(transaction, parentTrunkNode);
-            TNullable<TString> key;
-            for (const auto* parentNode : parentOriginators) {
-                switch (parentNode->GetNodeType()) {
-                    case ENodeType::Map: {
-                        const auto* parentMapNode = parentNode->As<TMapNode>();
-                        auto it = parentMapNode->ChildToKey().find(childTrunkNode);
-                        if (it != parentMapNode->ChildToKey().end()) {
-                            key = it->second;
-                        }
-                        break;
-                    }
-
-                    case ENodeType::List: {
-                        const auto* parentListNode = parentNode->As<TListNode>();
-                        auto it = parentListNode->ChildToIndex().find(childTrunkNode);
-                        return it != parentListNode->ChildToIndex().end();
-                    }
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-
-                if (key) {
-                    break;
-                }
-            }
-
-            if (!key) {
-                return false;
-            }
-
-            // Look for thombstones.
-            for (const auto* parentNode : parentOriginators) {
-                switch (parentNode->GetNodeType()) {
-                    case ENodeType::Map: {
-                        const auto* parentMapNode = parentNode->As<TMapNode>();
-                        auto it = parentMapNode->KeyToChild().find(*key);
-                        if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
-                            return false;
-                        }
-                        break;
-                    }
-
-                    case ENodeType::List:
-                        // Do nothing.
-                        break;
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-            }
-
-            return true;
-        };
-
-
-        auto* currentNode = trunkNode;
-        while (true) {
-            if (!IsObjectAlive(currentNode)) {
-                return false;
-            }
-            if (currentNode == RootNode_) {
-                return true;
-            }
-            auto* parentNode = currentNode->GetParent();
-            if (!parentNode) {
-                return false;
-            }
-            if (!hasChild(parentNode, currentNode)) {
-                return false;
-            }
-            currentNode = parentNode;
         }
     }
 
@@ -2573,13 +2502,6 @@ void TCypressManager::AbortSubtreeTransactions(INodePtr node)
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 {
     return Impl_->IsOrphaned(trunkNode);
-}
-
-bool TCypressManager::IsAlive(
-    TCypressNodeBase* trunkNode,
-    TTransaction* transaction)
-{
-    return Impl_->IsAlive(trunkNode, transaction);
 }
 
 TCypressNodeList TCypressManager::GetNodeOriginators(

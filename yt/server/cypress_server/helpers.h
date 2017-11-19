@@ -40,11 +40,11 @@ TCypressNodeBase* FindMapNodeChild(
     NTransactionServer::TTransaction* transaction,
     const TString& key);
 
-TStringBuf GetMapNodeChildKey(
+TStringBuf FindMapNodeChildKey(
     TMapNode* parentNode,
     TCypressNodeBase* trunkChildNode);
 
-int GetListNodeChildIndex(
+int FindListNodeChildIndex(
     TListNode* parentNode,
     TCypressNodeBase* trunkChildNode);
 
