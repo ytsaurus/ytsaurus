@@ -257,16 +257,16 @@ public class DefaultRpcBusClient implements RpcClient {
                 BusDeliveryTracking level =
                         request.requestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
 
-                logger.debug("({}) starting request `{}`", session, requestId);
+                logger.debug("({}) starting request `{}`", session, request);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
                     stat.updateAck(elapsed.toMillis());
                     if (exception != null) {
                         error(exception);
-                        logger.debug("({}) request `{}` acked in {} ms with error `{}`", session, requestId, elapsed.toMillis(), exception.toString());
+                        logger.debug("({}) request `{}` acked in {} ms with error `{}`", session, request, elapsed.toMillis(), exception.toString());
                     } else {
                         ack();
-                        logger.debug("({}) request `{}` acked in {} ms", session, requestId, elapsed.toMillis());
+                        logger.debug("({}) request `{}` acked in {} ms", session, request, elapsed.toMillis());
                     }
                 });
 
@@ -400,14 +400,14 @@ public class DefaultRpcBusClient implements RpcClient {
         public void response(List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
             stat.updateResponse(elapsed.toMillis());
-            logger.debug("({}) request `{}` finished in {} ms", session, requestId, elapsed.toMillis());
+            logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
 
             lock.lock();
             try {
                 if (state == RequestState.INITIALIZING) {
                     // Мы получили ответ до того, как приаттачили сессию
                     // Этого не может произойти, проверка просто на всякий случай
-                    logger.error("Received response to {} before sending the request", requestId);
+                    logger.error("Received response to {} before sending the request", request);
                     return;
                 }
                 if (state == RequestState.FINISHED) {
