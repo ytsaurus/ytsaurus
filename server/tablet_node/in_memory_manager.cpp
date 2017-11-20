@@ -382,7 +382,7 @@ private:
         const EBlockType BlockType_;
 
         TSpinLock SpinLock_;
-        yhash_set<TChunkId> ChunkIds_;
+        THashSet<TChunkId> ChunkIds_;
         bool Dropped_ = false;
     };
 

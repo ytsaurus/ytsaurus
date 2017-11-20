@@ -45,7 +45,7 @@ private:
     IJobEnvironmentPtr JobEnvironment_;
 
     TSpinLock SpinLock_;
-    yhash_set<int> FreeSlots_;
+    THashSet<int> FreeSlots_;
 
     bool JobProxySocketNameDirectoryCreated_ = false;
 

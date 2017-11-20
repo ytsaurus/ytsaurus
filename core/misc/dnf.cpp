@@ -54,7 +54,7 @@ bool TConjunctiveClause::IsSatisfiedBy(const std::vector<TString>& value) const
     return IsSatisfiedByImpl(value);
 }
 
-bool TConjunctiveClause::IsSatisfiedBy(const yhash_set<TString>& value) const
+bool TConjunctiveClause::IsSatisfiedBy(const THashSet<TString>& value) const
 {
     return IsSatisfiedByImpl(value);
 }
@@ -149,7 +149,7 @@ bool TDnfFormula::IsSatisfiedBy(const std::vector<TString>& value) const
     return IsSatisfiedByImpl(value);
 }
 
-bool TDnfFormula::IsSatisfiedBy(const yhash_set<TString>& value) const
+bool TDnfFormula::IsSatisfiedBy(const THashSet<TString>& value) const
 {
     return IsSatisfiedByImpl(value);
 }

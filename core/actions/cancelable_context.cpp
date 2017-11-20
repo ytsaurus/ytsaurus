@@ -52,8 +52,8 @@ bool TCancelableContext::IsCanceled() const
 
 void TCancelableContext::Cancel()
 {
-    yhash_set<TWeakPtr<TCancelableContext>> propagateToContexts;
-    yhash_set<TFuture<void>> propagateToFutures;
+    THashSet<TWeakPtr<TCancelableContext>> propagateToContexts;
+    THashSet<TFuture<void>> propagateToFutures;
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Canceled_)

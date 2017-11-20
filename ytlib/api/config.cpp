@@ -134,7 +134,7 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterValidator([&] () {
         const auto& cellId = PrimaryMaster->CellId;
         auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);
-        yhash_set<TCellTag> cellTags = {primaryCellTag};
+        THashSet<TCellTag> cellTags = {primaryCellTag};
         for (const auto& cellConfig : SecondaryMasters) {
             if (ReplaceCellTagInId(cellConfig->CellId, primaryCellTag) != cellId) {
                 THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master in connection configuration",

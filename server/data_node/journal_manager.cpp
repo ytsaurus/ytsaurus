@@ -195,9 +195,9 @@ private:
     IMultiplexedReplayerCallbacks* const Callbacks_;
     const NLogging::TLogger Logger;
 
-    yhash_set<TChunkId> CreateChunkIds_;
-    yhash_set<TChunkId> RemoveChunkIds_;
-    yhash_set<TChunkId> AppendChunkIds_;
+    THashSet<TChunkId> CreateChunkIds_;
+    THashSet<TChunkId> RemoveChunkIds_;
+    THashSet<TChunkId> AppendChunkIds_;
     yhash<TChunkId, TVersion> ChunkIdToFirstRelevantVersion_;
 
     struct TSplitEntry
@@ -303,7 +303,7 @@ private:
 
     void DumpAnalysisResults()
     {
-        auto dumpChunkIds = [&] (const yhash_set<TChunkId>& chunkIds, const TString& action) {
+        auto dumpChunkIds = [&] (const THashSet<TChunkId>& chunkIds, const TString& action) {
             for (const auto& chunkId : chunkIds) {
                 LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
                     action,
@@ -614,7 +614,7 @@ private:
 
     //! A collection of futures for various activities recorded in the current multiplexed changelog.
     //! One must wait for these futures to become set before marking the changelog as clean.
-    yhash_set<TFuture<void>> Barriers_;
+    THashSet<TFuture<void>> Barriers_;
 
     //! Maps multiplexed changelog ids to cleanup results.
     //! Used to guarantee that multiplexed changelogs are being marked as clean in proper order.
@@ -808,7 +808,7 @@ private:
             }
         }
 
-        Barriers_ = yhash_set<TFuture<void>>(activeBarriers.begin(), activeBarriers.end());
+        Barriers_ = THashSet<TFuture<void>>(activeBarriers.begin(), activeBarriers.end());
     }
 
     void DoMarkMultiplexedChangelogClean(int changelogId)

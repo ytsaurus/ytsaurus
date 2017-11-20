@@ -29,7 +29,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TReplicatedTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaMode, Mode, ETableReplicaMode::Async)
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, DisablingTablets)
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTablet*>, DisablingTablets)
 
 public:
     explicit TTableReplica(const TTableReplicaId& id);

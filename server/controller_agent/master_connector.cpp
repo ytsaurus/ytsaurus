@@ -305,7 +305,7 @@ private:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         // Collect all transactions that are used by currently running operations.
-        yhash_set<TTransactionId> watchSet;
+        THashSet<TTransactionId> watchSet;
 
         {
             TGuard<TSpinLock> guard(ControllersLock_);
@@ -352,7 +352,7 @@ private:
             }
         }
 
-        yhash_set<TTransactionId> deadTransactionIds;
+        THashSet<TTransactionId> deadTransactionIds;
 
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);

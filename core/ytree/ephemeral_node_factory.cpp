@@ -105,9 +105,9 @@ public:
             std::sort(keys.begin(), keys.end());
         }
 
-        yhash_set<TString> matchingKeys;
+        THashSet<TString> matchingKeys;
         if (attributeKeys) {
-            matchingKeys = yhash_set<TString>(attributeKeys->begin(), attributeKeys->end());
+            matchingKeys = THashSet<TString>(attributeKeys->begin(), attributeKeys->end());
         }
 
         for (const auto& key : keys) {

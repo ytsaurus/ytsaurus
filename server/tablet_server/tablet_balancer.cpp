@@ -128,8 +128,8 @@ private:
     bool Enabled_ = false;
     bool Started_ = false;
     std::deque<TTabletId> TabletIdQueue_;
-    yhash_set<TTabletId> QueuedTabletIds_;
-    yhash_set<const TTablet*> TouchedTablets_;
+    THashSet<TTabletId> QueuedTabletIds_;
+    THashSet<const TTablet*> TouchedTablets_;
 
     const NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter MemoryMoveCounter_;

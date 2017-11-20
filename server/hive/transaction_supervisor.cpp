@@ -1230,7 +1230,7 @@ private:
 
         TFuture<TTimestamp> asyncCoordinatorTimestamp;
         std::vector<TFuture<std::pair<TCellTag, TTimestamp>>> asyncTimestamps;
-        yhash_set<TCellTag> timestampProviderCellTags;
+        THashSet<TCellTag> timestampProviderCellTags;
         auto generateFor = [&] (const TCellId& cellId) {
             try {
                 auto cellTag = CellTagFromId(cellId);

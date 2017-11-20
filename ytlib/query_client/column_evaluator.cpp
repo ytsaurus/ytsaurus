@@ -39,7 +39,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
         auto& column = columns[index];
         if (schema.Columns()[index].Expression()) {
-            yhash_set<TString> references;
+            THashSet<TString> references;
 
             column.Expression = PrepareExpression(
                 schema.Columns()[index].Expression().Get(),

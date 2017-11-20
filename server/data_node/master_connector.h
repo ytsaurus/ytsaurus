@@ -133,16 +133,16 @@ private:
         EState State = EState::Offline;
 
         //! Chunks that were added since the last successful heartbeat.
-        yhash_set<IChunkPtr> AddedSinceLastSuccess;
+        THashSet<IChunkPtr> AddedSinceLastSuccess;
 
         //! Chunks that were removed since the last successful heartbeat.
-        yhash_set<IChunkPtr> RemovedSinceLastSuccess;
+        THashSet<IChunkPtr> RemovedSinceLastSuccess;
 
         //! Maps chunks that were reported added at the last heartbeat (for which no reply is received yet) to their versions.
         yhash<IChunkPtr, int> ReportedAdded;
 
         //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
-        yhash_set<IChunkPtr> ReportedRemoved;
+        THashSet<IChunkPtr> ReportedRemoved;
 
         //! Set when another incremental heartbeat is successfully reported to the corresponding master.
         TPromise<void> HeartbeatBarrier = NewPromise<void>();

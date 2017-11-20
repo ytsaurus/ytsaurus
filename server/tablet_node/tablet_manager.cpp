@@ -623,7 +623,7 @@ private:
 
     TRingQueue<TTablet*> PrelockedTablets_;
 
-    yhash_set<IDynamicStorePtr> OrphanedStores_;
+    THashSet<IDynamicStorePtr> OrphanedStores_;
     yhash<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
 
     TNodeMemoryTrackerGuard DynamicStoresMemoryTrackerGuard_;

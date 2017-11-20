@@ -298,7 +298,7 @@ private:
             YCHECK(registeredCellMap.insert(std::make_pair(cellInfo.CellId, cellInfo)).second);
         }
 
-        yhash_set<TCellId> missingCellIds;
+        THashSet<TCellId> missingCellIds;
         for (const auto& cellInfo : registeredCellList) {
             YCHECK(missingCellIds.insert(cellInfo.CellId).second);
         }

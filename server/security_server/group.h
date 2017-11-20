@@ -18,7 +18,7 @@ class TGroup
     : public TSubject
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TSubject*>, Members);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TSubject*>, Members);
 
 public:
     explicit TGroup(const TGroupId& id);

@@ -26,7 +26,7 @@ private:
     const TNodeDirectoryPtr Directory_;
     NProto::TNodeDirectory* const ProtoDirectory_;
 
-    yhash_set<TNodeId> ListedNodeIds_;
+    THashSet<TNodeId> ListedNodeIds_;
 
 };
 

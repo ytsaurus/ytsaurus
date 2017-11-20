@@ -346,7 +346,7 @@ public:
 
         try {
             // Build the set of potential orphans.
-            yhash_set<TString> orphanPoolIds;
+            THashSet<TString> orphanPoolIds;
             for (const auto& pair : Pools) {
                 YCHECK(orphanPoolIds.insert(pair.first).second);
             }
@@ -807,9 +807,9 @@ private:
 
     yhash<TString, NProfiling::TTagId> PoolIdToProfilingTagId;
 
-    yhash<TString, yhash_set<TString>> UserToEphemeralPools;
+    yhash<TString, THashSet<TString>> UserToEphemeralPools;
 
-    yhash<TString, yhash_set<int>> PoolToSpareSlotIndices;
+    yhash<TString, THashSet<int>> PoolToSpareSlotIndices;
     yhash<TString, int> PoolToMinUnusedSlotIndex;
 
     using TOperationElementPtrByIdMap = yhash<TOperationId, TOperationElementPtr>;
@@ -818,7 +818,7 @@ private:
     std::list<TOperationId> WaitingOperationQueue;
     
     TReaderWriterSpinLock RegisteredOperationsSetLock;
-    yhash_set<TOperationId> RegisteredOperationsSet;
+    THashSet<TOperationId> RegisteredOperationsSet;
 
     TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
     yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
@@ -958,7 +958,7 @@ private:
 
         // Compute discount to node usage.
         LOG_TRACE("Looking for preemptable jobs");
-        yhash_set<TCompositeSchedulerElementPtr> discountedPools;
+        THashSet<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_AGGREGATED_TIMING (AnalyzePreemptableJobsTimeCounter) {
             for (const auto& job : context.SchedulingContext->RunningJobs()) {
@@ -1439,7 +1439,7 @@ private:
 
         auto it = PoolToSpareSlotIndices.find(poolName);
         if (it == PoolToSpareSlotIndices.end()) {
-            YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, yhash_set<int>{slotIndex})).second);
+            YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, THashSet<int>{slotIndex})).second);
         } else {
             it->second.insert(slotIndex);
         }

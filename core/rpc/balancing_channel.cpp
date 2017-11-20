@@ -104,8 +104,8 @@ private:
     TDelayedExecutorCookie RediscoveryCookie_;
     TError TerminationError_;
 
-    yhash_set<TString> ActiveAddresses_;
-    yhash_set<TString> BannedAddresses_;
+    THashSet<TString> ActiveAddresses_;
+    THashSet<TString> BannedAddresses_;
 
     struct TViablePeer
     {
@@ -155,8 +155,8 @@ private:
         TPromise<IChannelPtr> Promise_ = NewPromise<IChannelPtr>();
 
         TSpinLock SpinLock_;
-        yhash_set<TString> RequestedAddresses_;
-        yhash_set<TString> RequestingAddresses_;
+        THashSet<TString> RequestedAddresses_;
+        THashSet<TString> RequestingAddresses_;
         std::vector<TError> InnerErrors_;
 
         NLogging::TLogger Logger;
@@ -422,8 +422,8 @@ private:
     }
 
     TPickPeerResult PickPeer(
-        yhash_set<TString>* requestingAddresses,
-        yhash_set<TString>* requestedAddresses)
+        THashSet<TString>* requestingAddresses,
+        THashSet<TString>* requestedAddresses)
     {
         TReaderGuard guard(SpinLock_);
 

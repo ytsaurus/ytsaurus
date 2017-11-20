@@ -250,7 +250,7 @@ void TVirtualMulticellMapBase::ListSystemAttributes(std::vector<TAttributeDescri
         .SetOpaque(true));
 }
 
-const yhash_set<const char*>& TVirtualMulticellMapBase::GetBuiltinAttributeKeys()
+const THashSet<const char*>& TVirtualMulticellMapBase::GetBuiltinAttributeKeys()
 {
     return BuiltinAttributeKeysCache_.GetBuiltinAttributeKeys(this);
 }

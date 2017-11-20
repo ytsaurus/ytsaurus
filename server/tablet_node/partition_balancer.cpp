@@ -419,7 +419,7 @@ private:
                 ToProto(req->add_subrequests(), chunkId);
             };
 
-            auto addStores = [&] (const yhash_set<ISortedStorePtr>& stores) {
+            auto addStores = [&] (const THashSet<ISortedStorePtr>& stores) {
                 for (const auto& store : stores) {
                     addStore(store);
                 }

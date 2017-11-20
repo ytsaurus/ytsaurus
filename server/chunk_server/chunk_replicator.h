@@ -51,23 +51,23 @@ public:
 
     // 'On all of the media' chunk states. E.g. LostChunks contain chunks that
     // have been lost on all of the media.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostVitalChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, DataMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ParityMissingChunks);
     // Medium-wise unsafely placed chunks: all replicas are on transient media
     // (and properties of these chunks demand otherwise).
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousVitalChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousVitalChunks);
 
 
     // 'On any medium'. E.g. UnderreplicatedChunks contain chunks that are
     // underreplicated on at least one medium.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, QuorumMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnderreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, OverreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, QuorumMissingChunks);
     // Rack-wise unsafely placed chunks.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(

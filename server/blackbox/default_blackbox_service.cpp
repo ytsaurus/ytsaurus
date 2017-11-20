@@ -229,10 +229,10 @@ private:
     const TDefaultBlackboxServiceConfigPtr Config_;
     const IInvokerPtr Invoker_;
 
-    static const yhash_set<TString> PrivateUrlParams_;
+    static const THashSet<TString> PrivateUrlParams_;
 };
 
-const yhash_set<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
+const THashSet<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
     "userip",
     "oauth_token",
     "sessionid",

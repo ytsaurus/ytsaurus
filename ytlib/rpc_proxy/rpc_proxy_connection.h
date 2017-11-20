@@ -52,7 +52,7 @@ private:
     const NLogging::TLogger Logger;
 
     TSpinLock SpinLock_;
-    yhash_set<TRpcProxyTransaction*> Transactions_;
+    THashSet<TRpcProxyTransaction*> Transactions_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
 
     NConcurrency::TPeriodicExecutorPtr PingExecutor_;

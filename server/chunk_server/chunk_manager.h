@@ -135,17 +135,17 @@ public:
     void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree);
     void ScheduleChunkSeal(TChunk* chunk);
 
-    const yhash_set<TChunk*>& LostVitalChunks() const;
-    const yhash_set<TChunk*>& LostChunks() const;
-    const yhash_set<TChunk*>& OverreplicatedChunks() const;
-    const yhash_set<TChunk*>& UnderreplicatedChunks() const;
-    const yhash_set<TChunk*>& DataMissingChunks() const;
-    const yhash_set<TChunk*>& ParityMissingChunks() const;
-    const yhash_set<TChunk*>& PrecariousChunks() const;
-    const yhash_set<TChunk*>& PrecariousVitalChunks() const;
-    const yhash_set<TChunk*>& QuorumMissingChunks() const;
-    const yhash_set<TChunk*>& UnsafelyPlacedChunks() const;
-    const yhash_set<TChunk*>& ForeignChunks() const;
+    const THashSet<TChunk*>& LostVitalChunks() const;
+    const THashSet<TChunk*>& LostChunks() const;
+    const THashSet<TChunk*>& OverreplicatedChunks() const;
+    const THashSet<TChunk*>& UnderreplicatedChunks() const;
+    const THashSet<TChunk*>& DataMissingChunks() const;
+    const THashSet<TChunk*>& ParityMissingChunks() const;
+    const THashSet<TChunk*>& PrecariousChunks() const;
+    const THashSet<TChunk*>& PrecariousVitalChunks() const;
+    const THashSet<TChunk*>& QuorumMissingChunks() const;
+    const THashSet<TChunk*>& UnsafelyPlacedChunks() const;
+    const THashSet<TChunk*>& ForeignChunks() const;
 
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();

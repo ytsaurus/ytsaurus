@@ -189,8 +189,8 @@ public:
 
     private:
         TNodeShard* const Host_;
-        yhash_set<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
-        yhash_set<TJobPtr> NotConfirmedJobs_;
+        THashSet<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
+        THashSet<TJobPtr> NotConfirmedJobs_;
         bool Active_ = false;
         bool ShouldSkipUnknownJobs_ = false;
 

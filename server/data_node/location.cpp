@@ -498,7 +498,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     NFS::CleanTempFiles(GetPath());
     ForceHashDirectories(GetPath());
 
-    yhash_set<TChunkId> chunkIds;
+    THashSet<TChunkId> chunkIds;
     {
         // Enumerate files under the location's directory.
         // Note that these also include trash files but the latter are explicitly skipped.
@@ -946,7 +946,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
 
     ForceHashDirectories(GetTrashPath());
 
-    yhash_set<TChunkId> trashChunkIds;
+    THashSet<TChunkId> trashChunkIds;
     {
         // Enumerate files under the location's trash directory.
         // Note that some of them might have just been moved there during repair.

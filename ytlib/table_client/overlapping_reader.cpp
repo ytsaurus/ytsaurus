@@ -365,7 +365,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoIsFetchingCompleted() c
 template <class TRowMerger>
 std::vector<TChunkId> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetFailedChunkIds() const
 {
-    yhash_set<TChunkId> failedChunkIds;
+    THashSet<TChunkId> failedChunkIds;
     for (const auto& session : AwaitingSessions_) {
         auto sessionChunkIds = session->Reader->GetFailedChunkIds();
         failedChunkIds.insert(sessionChunkIds.begin(), sessionChunkIds.end());

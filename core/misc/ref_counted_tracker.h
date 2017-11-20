@@ -126,7 +126,7 @@ private:
     std::map<TRefCountedTypeKey, size_t> TypeKeyToInstanceSize_;
     std::vector<TKey> CookieToKey_;
     TAnonymousStatistics GlobalStatistics_;
-    yhash_set<TStatisticsHolder*> PerThreadHolders_;
+    THashSet<TStatisticsHolder*> PerThreadHolders_;
 
 
     TRefCountedTracker() = default;

@@ -141,7 +141,7 @@ private:
 
     struct TTablet
     {
-        yhash_set<i64> ConsumedRowIndexes;
+        THashSet<i64> ConsumedRowIndexes;
         i64 MaxConsumedRowIndex = std::numeric_limits<i64>::min();
         i64 FetchRowIndex = std::numeric_limits<i64>::max();
     };
@@ -719,7 +719,7 @@ private:
         struct TTabletStatistics
         {
             i64 LastTrimmedRowIndex = -1;
-            yhash_set<i64> ConsumedRowIndexes;
+            THashSet<i64> ConsumedRowIndexes;
         };
 
         yhash<int, TTabletStatistics> tabletStatisticsMap;

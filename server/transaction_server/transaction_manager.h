@@ -35,7 +35,7 @@ public:
     DECLARE_SIGNAL(void(TTransaction*), TransactionAborted);
 
     //! A set of transactions with no parent.
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TTransaction*>, TopmostTransactions);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, TopmostTransactions);
 
 public:
     TTransactionManager(

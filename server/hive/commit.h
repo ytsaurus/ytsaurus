@@ -44,7 +44,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NHiveClient::TTimestampMap, CommitTimestamps);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellId>, RespondedCellIds);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TCellId>, RespondedCellIds);
 
 public:
     explicit TCommit(const TTransactionId& transactionId);

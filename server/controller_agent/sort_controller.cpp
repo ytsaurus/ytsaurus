@@ -1112,8 +1112,8 @@ protected:
         std::unique_ptr<IChunkPool> ChunkPool_;
         std::unique_ptr<IChunkPoolInput> ChunkPoolInput_;
 
-        yhash_set<TJobletPtr> ActiveJoblets_;
-        yhash_set<TJobletPtr> InvalidatedJoblets_;
+        THashSet<TJobletPtr> ActiveJoblets_;
+        THashSet<TJobletPtr> InvalidatedJoblets_;
         bool Finished_ = false;
         //! This is a dirty hack to make GetTotalJobCount() work correctly
         //! in case when chunk pool was invalidated after the task has been completed.

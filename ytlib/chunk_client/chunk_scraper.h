@@ -30,7 +30,7 @@ public:
         TThrottlerManagerPtr throttlerManager,
         NApi::INativeClientPtr client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const yhash_set<TChunkId>& chunkIds,
+        const THashSet<TChunkId>& chunkIds,
         TChunkLocatedHandler onChunkLocated,
         const NLogging::TLogger& logger);
 
@@ -59,7 +59,7 @@ private:
     TFuture<void> DoStop();
 
     //! Create scraper tasks for each cell.
-    void CreateTasks(const yhash_set<TChunkId>& chunkIds);
+    void CreateTasks(const THashSet<TChunkId>& chunkIds);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkScraper)

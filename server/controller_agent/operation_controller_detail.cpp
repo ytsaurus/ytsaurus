@@ -560,7 +560,7 @@ void TOperationControllerBase::SafePrepare()
             Logger,
             EPermission::Write);
 
-        yhash_set<TObjectId> updatingTableIds;
+        THashSet<TObjectId> updatingTableIds;
         for (const auto* table : UpdatingTables) {
             const auto& path = table->Path.GetPath();
             if (table->Type != EObjectType::Table) {
@@ -883,7 +883,7 @@ void TOperationControllerBase::InitChunkListPool()
 
 void TOperationControllerBase::InitInputChunkScraper()
 {
-    yhash_set<TChunkId> chunkIds;
+    THashSet<TChunkId> chunkIds;
     for (const auto& pair : InputChunkMap) {
         chunkIds.insert(pair.first);
     }
@@ -917,7 +917,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
             if (auto this_ = weakThis.Lock()) {
                 return this_->GetAliveIntermediateChunks();
             } else {
-                return yhash_set<TChunkId>();
+                return THashSet<TChunkId>();
             }
         },
         BIND(&TThis::OnIntermediateChunkLocated, MakeWeak(this)),
@@ -1010,9 +1010,9 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
     }
 }
 
-yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
+THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 {
-    yhash_set<TChunkId> intermediateChunks;
+    THashSet<TChunkId> intermediateChunks;
 
     for (const auto& pair : ChunkOriginMap) {
         if (!pair.second->Lost) {
@@ -4170,7 +4170,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting attributes of user files");
         const auto& batchRsp = batchRspOrError.Value();
 
-        TEnumIndexedVector<yhash_set<TString>, EOperationStage> userFileNames;
+        TEnumIndexedVector<THashSet<TString>, EOperationStage> userFileNames;
         auto validateUserFileName = [&] (const TUserFile& file) {
             // TODO(babenko): more sanity checks?
             auto path = file.Path.GetPath();
@@ -4831,7 +4831,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
             return;
         }
 
-        auto columnSet = yhash_set<TString>(columns->begin(), columns->end());
+        auto columnSet = THashSet<TString>(columns->begin(), columns->end());
         for (const auto& keyColumn : keyColumns) {
             if (columnSet.find(keyColumn) == columnSet.end()) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
@@ -5047,7 +5047,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
 
 void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe, const TTaskPtr& task)
 {
-    yhash_set<TChunkId> visitedChunks;
+    THashSet<TChunkId> visitedChunks;
 
     for (const auto& slice : stripe->DataSlices) {
         slice->Tag = CurrentInputDataSliceTag_++;
@@ -6121,7 +6121,7 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
 
 void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors()
 {
-    yhash_set<TString> columns;
+    THashSet<TString> columns;
     for (const auto& table : InputTables) {
         if (auto selectors = table.Path.GetColumns()) {
             for (const auto& column : *selectors) {

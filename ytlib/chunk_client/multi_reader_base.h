@@ -95,15 +95,15 @@ protected:
     i64 FreeBufferSize_;
 
     TSpinLock FailedChunksLock_;
-    yhash_set<TChunkId> FailedChunks_;
+    THashSet<TChunkId> FailedChunks_;
 
     std::atomic<int> OpenedReaderCount_ = { 0 };
 
     TSpinLock ActiveReadersLock_;
     NProto::TDataStatistics DataStatistics_;
     std::atomic<int> ActiveReaderCount_ = { 0 };
-    yhash_set<IReaderBasePtr> ActiveReaders_;
-    yhash_set<int> NonOpenedReaderIndexes_;
+    THashSet<IReaderBasePtr> ActiveReaders_;
+    THashSet<int> NonOpenedReaderIndexes_;
 
     // If KeepInMemory option is set, we store here references to finished readers.
     std::vector<IReaderBasePtr> FinishedReaders_;

@@ -306,7 +306,7 @@ private:
 
     TReaderWriterSpinLock SpinLock_;
     yhash<TCellId, TEntry> RegisteredCellMap_;
-    yhash_set<TCellId> UnregisteredCellIds_;
+    THashSet<TCellId> UnregisteredCellIds_;
 
 
     void InitChannel(TEntry* entry)
