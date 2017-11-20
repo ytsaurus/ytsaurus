@@ -124,6 +124,33 @@ private:
 };
 REGISTER_MAPPER(TMapperThatChecksFile);
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapperThatReadsProtobufFile : public IMapper<TTableReader<TNode>, TTableWriter<TAllTypesMessage>>
+{
+public:
+    TMapperThatReadsProtobufFile() = default;
+    TMapperThatReadsProtobufFile(const TString& file)
+        : File_(file)
+    { }
+
+    virtual void Do(TReader*, TWriter* writer) override {
+        TIFStream stream(File_);
+        auto fileReader = CreateTableReader<TAllTypesMessage>(&stream);
+        for (; fileReader->IsValid(); fileReader->Next()) {
+            writer->AddRow(fileReader->GetRow());
+        }
+    }
+
+    Y_SAVELOAD_JOB(File_);
+
+private:
+    TString File_;
+};
+REGISTER_MAPPER(TMapperThatReadsProtobufFile);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THugeStderrMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
@@ -416,6 +443,49 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             .AddOutput<TNode>("//testing/output")
             .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input[#0]").Format("yson"))),
             new TMapperThatChecksFile("input"));
+    }
+
+    SIMPLE_UNIT_TEST(TestReadProtobufFileInJob)
+    {
+        auto client = CreateTestClient();
+
+        TAllTypesMessage message;
+        message.SetFixed32Field(2134242);
+        message.SetSfixed32Field(422142);
+        message.SetBoolField(true);
+        message.SetStringField("42");
+        message.SetBytesField("36 popugayev");
+        message.SetEnumField(EEnum::One);
+        message.MutableMessageField()->SetKey("key");
+        message.MutableMessageField()->SetValue("value");
+
+        {
+            auto writer = client->CreateTableWriter<TAllTypesMessage>("//testing/input");
+            writer->AddRow(message);
+            writer->Finish();
+        }
+
+        auto format = TFormat::Protobuf<TAllTypesMessage>();
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TAllTypesMessage>("//testing/output")
+                .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input").Format(format.Config))),
+            new TMapperThatReadsProtobufFile("input"));
+
+        {
+            auto reader = client->CreateTableReader<TAllTypesMessage>("//testing/output");
+            UNIT_ASSERT(reader->IsValid());
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(message.GetFixed32Field(), row.GetFixed32Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetSfixed32Field(), row.GetSfixed32Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetBoolField(), row.GetBoolField());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetStringField(), row.GetStringField());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetBytesField(), row.GetBytesField());
+            UNIT_ASSERT_EQUAL(message.GetEnumField(), row.GetEnumField());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetMessageField().GetKey(), row.GetMessageField().GetKey());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetMessageField().GetValue(), row.GetMessageField().GetValue());
+        }
     }
 
     SIMPLE_UNIT_TEST(TestGetOperationStatus_Completed)

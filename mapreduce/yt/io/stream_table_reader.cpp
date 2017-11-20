@@ -1,6 +1,7 @@
 #include <mapreduce/yt/interface/io.h>
 
 #include "node_table_reader.h"
+#include "proto_table_reader.h"
 #include "yamr_table_reader.h"
 
 namespace NYT {
@@ -46,6 +47,22 @@ TTableReaderPtr<TYaMRRow> CreateTableReader<TYaMRRow>(
     auto impl = ::MakeIntrusive<TYaMRTableReader>(::MakeIntrusive<TInputStreamProxy>(stream));
     return new TTableReader<TYaMRRow>(impl);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+::TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
+    IInputStream* stream,
+    const TTableReaderOptions& /* options */,
+    const ::google::protobuf::Descriptor* descriptor)
+{
+    return new TLenvalProtoTableReader(
+        ::MakeIntrusive<TInputStreamProxy>(stream),
+        {descriptor});
+}
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
