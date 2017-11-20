@@ -901,9 +901,9 @@ struct TSorterSelector<std::unordered_multiset<T...>, C, TSortedTag>
 };
 
 template <class C, class... T>
-struct TSorterSelector<yhash_multiset<T...>, C, TSortedTag>
+struct TSorterSelector<THashMultiSet<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_multiset<T...>, TValueSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<THashMultiSet<T...>, TValueSorterComparer<C>> TSorter;
 };
 
 template <class C, class... T>
@@ -1575,7 +1575,7 @@ struct TSerializerTraits<THashSet<T, H, E, A>, C, void>
 };
 
 template <class T, class C>
-struct TSerializerTraits<yhash_multiset<T>, C, void>
+struct TSerializerTraits<THashMultiSet<T>, C, void>
 {
     typedef TMultiSetSerializer<> TSerializer;
 };
