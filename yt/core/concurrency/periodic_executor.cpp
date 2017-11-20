@@ -23,8 +23,6 @@ TPeriodicExecutor::TPeriodicExecutor(
     , Period_(period)
     , Mode_(mode)
     , Splay_(splay)
-    , IdlePromise_()
-    , ExecutedPromise_()
 {
     YCHECK(Invoker_);
     YCHECK(Callback_);
@@ -48,7 +46,7 @@ void TPeriodicExecutor::DoStop()
         OutOfBandRequested_ = false;
         if (ExecutedPromise_ && !ExecutedPromise_.IsSet()) {
             TInverseGuard<TSpinLock> guard(SpinLock_);
-            ExecutedPromise_.Set(TError("Periodic executor is stopped"));
+            ExecutedPromise_.Set(GetStoppedError());
         }
         TDelayedExecutor::CancelAndClear(Cookie_);
     }
@@ -65,6 +63,11 @@ TFuture<void> TPeriodicExecutor::Stop()
         DoStop();
         return VoidFuture;
     }
+}
+
+TError TPeriodicExecutor::GetStoppedError()
+{
+    return TError("Periodic executor is stopped");
 }
 
 void TPeriodicExecutor::InitIdlePromise()
@@ -89,7 +92,7 @@ void TPeriodicExecutor::InitExecutedPromise()
     if (Started_) {
         ExecutedPromise_ = NewPromise<void>();
     } else {
-        ExecutedPromise_ = MakePromise<void>(TError("Periodic executor is stopped"));
+        ExecutedPromise_ = MakePromise<void>(GetStoppedError());
     }
 }
 

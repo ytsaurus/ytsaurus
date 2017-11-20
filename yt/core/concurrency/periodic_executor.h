@@ -44,7 +44,7 @@ public:
     void Start();
 
     //! Stops the instance, cancels all subsequent invocations.
-    //! Returns a future that becomes set when all outstanding callback 
+    //! Returns a future that becomes set when all outstanding callback
     //! invocations are finished and no more invocations are expected to happen.
     TFuture<void> Stop();
 
@@ -57,6 +57,8 @@ public:
     //! Changes execution period.
     void SetPeriod(TDuration period);
 
+    //! Returns the future that become set when
+    //! at least one action be fully executed from the moment of method call.
     TFuture<void> GetExecutedEvent();
 
 private:
@@ -75,6 +77,8 @@ private:
     TPromise<void> ExecutedPromise_;
 
     void DoStop();
+
+    TError GetStoppedError();
 
     void InitIdlePromise();
     void InitExecutedPromise();
