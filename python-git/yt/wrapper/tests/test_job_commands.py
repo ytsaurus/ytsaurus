@@ -1,4 +1,4 @@
-from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, TESTS_SANDBOX
+from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, get_tests_sandbox
 
 from yt.wrapper.job_shell import JobShell
 from yt.wrapper.driver import get_command_list
@@ -53,7 +53,7 @@ class TestJobCommands(object):
             sys.excepthook(*sys.exc_info())
 
     def _create_tmpdir(self, prefix):
-        basedir = os.path.join(TESTS_SANDBOX, "tmp")
+        basedir = os.path.join(get_tests_sandbox(), "tmp")
         try:
             if not os.path.exists(basedir):
                 os.mkdir(basedir)

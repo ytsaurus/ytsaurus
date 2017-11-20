@@ -17,7 +17,7 @@ export SANDBOX_TOKEN="AVImS1cAAAIG5Gbx39hmSpqvUEcG4AdMCg"
 
 export PYTHONPATH="$(pwd)"
 
-YT="$(pwd)/yt/wrapper/bin/yt/yt"
+YT="$(pwd)/yt/wrapper/bin/yt"
 
 UBUNTU_CODENAME=$(lsb_release -c -s)
 

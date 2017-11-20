@@ -1,8 +1,8 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path, check,
-                      set_config_option, build_python_egg, TESTS_SANDBOX, run_python_script_with_check,
-                      ENABLE_JOB_CONTROL, dumps_yt_config)
+                      set_config_option, build_python_egg, get_tests_sandbox, run_python_script_with_check,
+                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python)
 
 # Necessary for tests.
 try:
@@ -695,7 +695,7 @@ print(op.id)
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
 
-        op_id = subprocess.check_output([sys.executable, file.name, table, table, PYTHONPATH],
+        op_id = subprocess.check_output([get_python(), file.name, table, table, PYTHONPATH],
                                         env=self.env, stderr=sys.stderr).strip()
         time.sleep(3)
 
@@ -884,7 +884,7 @@ print(op.id)
 
         with tempfile.NamedTemporaryFile(mode="w",
                                          suffix=".py",
-                                         dir=TESTS_SANDBOX,
+                                         dir=get_tests_sandbox(),
                                          prefix="test_pickling",
                                          delete=False) as f:
             f.write("TEST = 1")
@@ -1004,7 +1004,7 @@ if __name__ == "__main__":
                                        TEST_DIR + "/other_table")
                 f.write(mapper)
 
-            op_id = subprocess.check_output([sys.executable, f.name],
+            op_id = subprocess.check_output([get_python(), f.name],
                                             env={"PYTHONPATH": PYTHONPATH}).strip()
             op_path = "//sys/operations/{0}".format(op_id)
             while not yt.exists(op_path) \
@@ -1091,7 +1091,7 @@ if __name__ == "__main__":
             "PYTHONPATH": os.pathsep.join([module_egg, PYTHONPATH])
         }
 
-        operation_id = subprocess.check_output([sys.executable, f.name], env=env).strip()
+        operation_id = subprocess.check_output([get_python(), f.name], env=env).strip()
 
         op = yt.Operation("map", operation_id)
         op.wait()
@@ -1473,7 +1473,7 @@ if __name__ == "__main__":
             mode = yt.config["api_version"]
 
         test_name = "TestYtWrapper" + mode.capitalize()
-        dir = os.path.join(TESTS_SANDBOX, test_name)
+        dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
         try:
             instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)

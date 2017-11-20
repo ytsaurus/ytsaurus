@@ -22,8 +22,8 @@ def main():
         requires.append("argparse")
 
     scripts, data_files = prepare_files([
-        "yt/local/bin/yt_local/yt_local",
-        "yt/environment/bin/yt_env_watcher/yt_env_watcher"
+        "yt/local/bin/yt_local",
+        "yt/environment/bin/yt_env_watcher"
     ])
 
     setup(
