@@ -710,7 +710,7 @@ public:
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options) override
     {
-        return NApi::CreateTableReader(this, path, options);
+        return NApi::CreateTableReader(this, path, options, New<TNameTable>());
     }
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
@@ -3640,7 +3640,7 @@ private:
                 }
                 itemsSortDirection = "ASC";
             }
-            
+
             if (options.Pool) {
                 itemsConditions.push_back(Format("pool = %Qv", *options.Pool));
             }
