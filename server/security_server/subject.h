@@ -21,7 +21,7 @@ class TSubject
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
-    typedef yhash_set<TGroup*> TGroupSet;
+    typedef THashSet<TGroup*> TGroupSet;
     //! Set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, MemberOf);
     //! Transitive closure of the set of groups containing this given subject.

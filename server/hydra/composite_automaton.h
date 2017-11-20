@@ -272,7 +272,7 @@ private:
 
     yhash<TString, TLoaderDescriptor> PartNameToLoaderDescriptor_;
 
-    yhash_set<TString> SaverPartNames_;
+    THashSet<TString> SaverPartNames_;
     std::vector<TSyncSaverDescriptor> SyncSavers_;
     std::vector<TAsyncSaverDescriptor> AsyncSavers_;
 

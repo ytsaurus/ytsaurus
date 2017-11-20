@@ -256,7 +256,7 @@ private:
     private:
         TJobSplitterConfigPtr Config_;
         yhash<TJobId, TInstant> JobIdToCompletionTime_;
-        yhash_set<TJobId> InterruptCandidateSet_;
+        THashSet<TJobId> InterruptCandidateSet_;
         TInstant NextUpdateTime_;
         TInstant MedianCompletionTime_ = GetInstant();
     };

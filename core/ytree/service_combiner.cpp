@@ -245,7 +245,7 @@ void TServiceCombiner::ListSelf(
 
     // There is a small chance that while we waited for all services to respond, they moved into an inconsistent
     // state and provided us with non-disjoint lists. In this case we force the list to contain only unique keys.
-    yhash_set<TString> keys;
+    THashSet<TString> keys;
 
     BuildYsonFluently(&writer)
         .DoListFor(combinedServiceResults, [&] (TFluentList fluent, const IStringNodePtr& item) {

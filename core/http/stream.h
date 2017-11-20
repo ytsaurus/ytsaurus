@@ -169,7 +169,7 @@ private:
     const NNet::IConnectionPtr Connection_;
     const EMessageType MessageType_;
 
-    static const yhash_set<TString> FilteredHeaders_;
+    static const THashSet<TString> FilteredHeaders_;
 
     bool ConnectionClose_ = false;
 

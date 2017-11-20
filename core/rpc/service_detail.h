@@ -505,7 +505,7 @@ private:
 
     TSpinLock CancelableRequestLock_;
     yhash<TRequestId, TServiceContext*> IdToContext_;
-    yhash<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
+    yhash<NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts_;
 
     std::atomic<bool> Stopped_ = {false};
     TPromise<void> StopResult_ = NewPromise<void>();

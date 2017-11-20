@@ -16,7 +16,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<yhash_set<NChunkClient::TChunkId>()> TGetChunksCallback;
+typedef std::function<THashSet<NChunkClient::TChunkId>()> TGetChunksCallback;
 
 class TIntermediateChunkScraper
     : public TRefCounted

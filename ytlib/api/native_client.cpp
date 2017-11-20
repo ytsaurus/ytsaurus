@@ -1871,7 +1871,7 @@ private:
             }
         } else {
             yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
-            yhash_set<TTabletId> tabletIds;
+            THashSet<TTabletId> tabletIds;
             for (auto key : keys) {
                 auto tabletInfo = tableInfo->GetTabletForRow(key);
                 if (tabletIds.count(tabletInfo->TabletId) == 0) {

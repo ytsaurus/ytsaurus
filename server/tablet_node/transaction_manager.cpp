@@ -91,7 +91,7 @@ public:
 private:
     const int MaxSize_;
 
-    yhash_set<TTransactionId> IdSet_;
+    THashSet<TTransactionId> IdSet_;
     TRingQueue<TTransactionId> IdQueue_;
 
 };

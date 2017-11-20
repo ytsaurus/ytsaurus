@@ -71,7 +71,7 @@ public:
     //! Tags received from node during registration (those typically come from config).
     DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, NodeTags);
     //! User tags plus node tags.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TString>, Tags);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TString>, Tags);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -115,7 +115,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
-    using TMediumReplicaSet = yhash_set<TChunkPtrWithIndexes>;
+    using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
     using TReplicaSet = TPerMediumArray<TMediumReplicaSet>;
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, Replicas);
 
@@ -123,7 +123,7 @@ public:
     typedef yhash<TChunkPtrWithIndexes, TInstant> TUnapprovedReplicaMap;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobPtr>, Jobs);
 
     //! Indexed by priority. Each map is as follows:
     //! Key:

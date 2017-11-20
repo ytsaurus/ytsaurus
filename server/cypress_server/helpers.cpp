@@ -139,14 +139,14 @@ yhash<TString, NYson::TYsonString> GetNodeAttributes(
     return result;
 }
 
-yhash_set<TString> ListNodeAttributes(
+THashSet<TString> ListNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
-    yhash_set<TString> result;
+    THashSet<TString> result;
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {

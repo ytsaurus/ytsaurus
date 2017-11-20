@@ -304,15 +304,15 @@ protected:
     std::unique_ptr<IChunkPool> ChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
-    yhash_set<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
+    THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
     //! Set containing all chunks that are added to the pool without being suspended.
-    yhash_set<TChunkId> ActiveChunks_;
+    THashSet<TChunkId> ActiveChunks_;
 
     std::vector<TInputStreamDescriptor> InputTables_;
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
-    yhash_set<IChunkPoolOutput::TCookie> OutputCookies_;
+    THashSet<IChunkPoolOutput::TCookie> OutputCookies_;
 
     std::vector<int> UnversionedTableRowCounts_;
 
@@ -535,13 +535,13 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     // All chunks from the IChunkPoolInput point of view.
     yhash<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
-    yhash_set<TChunkId> suspendedChunks;
-    yhash_set<TChunkId> resumedChunks;
+    THashSet<TChunkId> suspendedChunks;
+    THashSet<TChunkId> resumedChunks;
     // All chunks from the IChunkPoolOutput point of view.
     yhash<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
-    yhash_set<TChunkId> pendingChunks;
-    yhash_set<TChunkId> startedChunks;
-    yhash_set<TChunkId> completedChunks;
+    THashSet<TChunkId> pendingChunks;
+    THashSet<TChunkId> startedChunks;
+    THashSet<TChunkId> completedChunks;
     yhash<TChunkId, TInputChunkPtr> chunkIdToChunk;
 
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {

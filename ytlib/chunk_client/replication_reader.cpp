@@ -215,7 +215,7 @@ private:
 
     TSpinLock PeersSpinLock_;
     //! Peers returning NoSuchChunk error are banned forever.
-    yhash_set<TString> BannedForeverPeers_;
+    THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     yhash<TString, int> PeerBanCountMap_;
 
@@ -417,7 +417,7 @@ protected:
     TChunkReplicaList SeedReplicas_;
 
     //! Set of peer addresses banned for the current retry.
-    yhash_set<TString> BannedPeers_;
+    THashSet<TString> BannedPeers_;
 
     //! List of candidates addresses to try during current pass, prioritized by:
     //! locality, ban counter, random number.
@@ -890,7 +890,7 @@ private:
     yhash<int, TBlock> Blocks_;
 
     //! Maps peer addresses to block indexes.
-    yhash<TString, yhash_set<int>> PeerBlocksMap_;
+    yhash<TString, THashSet<int>> PeerBlocksMap_;
 
     virtual bool IsCanceled() const override
     {
@@ -905,7 +905,7 @@ private:
         PeerBlocksMap_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
         for (const auto& pair : Peers_) {
-            PeerBlocksMap_[pair.first] = yhash_set<int>(blockIndexes.begin(), blockIndexes.end());
+            PeerBlocksMap_[pair.first] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
         }
 
         RequestBlocks();

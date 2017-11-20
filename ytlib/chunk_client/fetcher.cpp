@@ -51,7 +51,7 @@ public:
         , Logger(logger)
     { }
 
-    virtual TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs) override
+    virtual TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) override
     {
         return BIND(&TFetcherChunkScraper::DoScrapeChunks, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -85,9 +85,9 @@ private:
 
     int ChunkLocatedCallCount_ = 0;
 
-    TFuture<void> DoScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs)
+    TFuture<void> DoScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs)
     {
-        yhash_set<TChunkId> chunkIds;
+        THashSet<TChunkId> chunkIds;
         ChunkMap_.clear();
         for (const auto& chunkSpec : chunkSpecs) {
             const auto& chunkId = chunkSpec->ChunkId();
@@ -223,7 +223,7 @@ void TFetcherBase::StartFetchingRound()
     // Construct address -> chunk* map.
     typedef yhash<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
     TNodeIdToChunkIndexes nodeIdToChunkIndexes;
-    yhash_set<TInputChunkPtr> unavailableChunks;
+    THashSet<TInputChunkPtr> unavailableChunks;
 
     for (auto chunkIndex : UnfetchedChunkIndexes_) {
         const auto& chunk = Chunks_[chunkIndex];
@@ -281,7 +281,7 @@ void TFetcherBase::StartFetchingRound()
 
     // Pick nodes greedily.
     std::vector<TFuture<void>> asyncResults;
-    yhash_set<int> requestedChunkIndexes;
+    THashSet<int> requestedChunkIndexes;
     for (const auto& it : nodeIts) {
         std::vector<int> chunkIndexes;
         for (int chunkIndex : it->second) {

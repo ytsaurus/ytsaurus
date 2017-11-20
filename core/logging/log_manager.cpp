@@ -313,7 +313,7 @@ public:
         }
 
         if (!logIncludeCategories.empty()) {
-            rule->IncludeCategories.Assign(yhash_set<TString>());
+            rule->IncludeCategories.Assign(THashSet<TString>());
             for (const auto& includeCategory : logIncludeCategories) {
                 rule->IncludeCategories->insert(includeCategory);
             }
@@ -608,7 +608,7 @@ private:
             return it->second;
         }
 
-        yhash_set<TString> writerIds;
+        THashSet<TString> writerIds;
         for (const auto& rule : Config_->Rules) {
             if (rule->IsApplicable(event.Category->Name, event.Level)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());

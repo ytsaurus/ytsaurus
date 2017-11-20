@@ -35,13 +35,13 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, NodeDescriptor);
 
     //! Jobs that are currently running on this node.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobPtr>, Jobs);
 
     //! Mapping from job id to job on this node.
     DEFINE_BYREF_RW_PROPERTY(TJobMap, IdToJob);
 
     //! A set of scheduling tags assigned to this node.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TString>, Tags);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TString>, Tags);
 
     //! Last time when logging of jobs on node took place.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastJobsLogTime);
@@ -135,7 +135,7 @@ struct TExecNodeDescriptor
         const TString& address,
         double ioWeight,
         const TJobResources& resourceLimits,
-        const yhash_set<TString>& tags);
+        const THashSet<TString>& tags);
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
@@ -143,7 +143,7 @@ struct TExecNodeDescriptor
     TString Address;
     double IOWeight = 0.0;
     TJobResources ResourceLimits;
-    yhash_set<TString> Tags;
+    THashSet<TString> Tags;
 
     void Persist(const TStreamPersistenceContext& context);
 };

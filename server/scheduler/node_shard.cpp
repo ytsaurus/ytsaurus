@@ -352,7 +352,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         auto execNode = IdToNode_[nodeId];
         auto oldState = execNode->GetMasterState();
 
-        execNode->Tags() = attributes.Get<yhash_set<TString>>("tags");
+        execNode->Tags() = attributes.Get<THashSet<TString>>("tags");
 
         if (oldState != newState) {
             if (oldState == ENodeState::Online && newState != ENodeState::Online) {

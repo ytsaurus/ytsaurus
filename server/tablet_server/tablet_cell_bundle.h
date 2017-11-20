@@ -35,7 +35,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TBooleanFormula, NodeTagFilter);
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableTabletBalancer, true);
 
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TTabletCell*>, TabletCells);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletCell*>, TabletCells);
 
     DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagId, ProfilingTag);
 

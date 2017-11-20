@@ -618,7 +618,7 @@ protected:
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
 
     //! Gets the list of all intermediate chunks that are not lost.
-    yhash_set<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
+    THashSet<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
 
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).

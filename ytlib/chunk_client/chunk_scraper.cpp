@@ -167,7 +167,7 @@ TChunkScraper::TChunkScraper(
     TThrottlerManagerPtr throttlerManager,
     NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const yhash_set<TChunkId>& chunkIds,
+    const THashSet<TChunkId>& chunkIds,
     TChunkLocatedHandler onChunkLocated,
     const NLogging::TLogger& logger)
     : Config_(config)
@@ -197,7 +197,7 @@ TFuture<void> TChunkScraper::Stop()
     return Combine(futures);
 }
 
-void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
+void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
 {
     // Group chunks by cell tags.
     yhash<TCellTag, int> cellTags;

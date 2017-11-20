@@ -889,9 +889,9 @@ struct TSorterSelector<std::unordered_set<T...>, C, TSortedTag>
 };
 
 template <class C, class... T>
-struct TSorterSelector<yhash_set<T...>, C, TSortedTag>
+struct TSorterSelector<THashSet<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_set<T...>, TValueSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<THashSet<T...>, TValueSorterComparer<C>> TSorter;
 };
 
 template <class C, class... T>
@@ -1569,7 +1569,7 @@ struct TSerializerTraits<std::unordered_set<T, H, P, A>, C, void>
 };
 
 template <class T, class H, class E, class A, class C>
-struct TSerializerTraits<yhash_set<T, H, E, A>, C, void>
+struct TSerializerTraits<THashSet<T, H, E, A>, C, void>
 {
     typedef TSetSerializer<> TSerializer;
 };
@@ -1611,7 +1611,7 @@ struct TSerializerTraits<std::unique_ptr<std::unordered_set<T, H, P, A>>, C, voi
 };
 
 template <class T, class H, class E, class A, class C>
-struct TSerializerTraits<std::unique_ptr<yhash_set<T, H, E, A>>, C, void>
+struct TSerializerTraits<std::unique_ptr<THashSet<T, H, E, A>>, C, void>
 {
     typedef TNullableSetSerializer<> TSerializer;
 };

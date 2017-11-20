@@ -1189,7 +1189,7 @@ private:
 
     std::function<TPartitionChunkWriterPtr(IChunkWriterPtr)> ChunkWriterFactory_;
 
-    yhash_set<int> LargePartitons_;
+    THashSet<int> LargePartitons_;
     std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
 
     TNameTablePtr ChunkNameTable_;

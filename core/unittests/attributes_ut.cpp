@@ -32,8 +32,8 @@ TEST(TAttributesTest, CheckAccessors)
     attributes->Set<double>("weight", 70.5);
 
     auto keys_ = attributes->List();
-    yhash_set<TString> keys(keys_.begin(), keys_.end());
-    yhash_set<TString> expectedKeys;
+    THashSet<TString> keys(keys_.begin(), keys_.end());
+    THashSet<TString> expectedKeys;
     expectedKeys.insert("name");
     expectedKeys.insert("age");
     expectedKeys.insert("weight");

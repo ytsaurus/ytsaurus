@@ -169,7 +169,7 @@ void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back("count");
 }
 
-const yhash_set<const char*>& TVirtualMapBase::GetBuiltinAttributeKeys()
+const THashSet<const char*>& TVirtualMapBase::GetBuiltinAttributeKeys()
 {
     return BuiltinAttributeKeysCache_.GetBuiltinAttributeKeys(this);
 }

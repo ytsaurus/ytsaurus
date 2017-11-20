@@ -45,7 +45,7 @@ yhash<TString, NYson::TYsonString> GetNodeAttributes(
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
-yhash_set<TString> ListNodeAttributes(
+THashSet<TString> ListNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);

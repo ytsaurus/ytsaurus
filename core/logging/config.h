@@ -41,8 +41,8 @@ class TRuleConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<yhash_set<TString>> IncludeCategories;
-    yhash_set<TString> ExcludeCategories;
+    TNullable<THashSet<TString>> IncludeCategories;
+    THashSet<TString> ExcludeCategories;
 
     ELogLevel MinLevel;
     ELogLevel MaxLevel;

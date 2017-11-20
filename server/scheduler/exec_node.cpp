@@ -91,7 +91,7 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     const TString& address,
     double ioWeight,
     const TJobResources& resourceLimits,
-    const yhash_set<TString>& tags)
+    const THashSet<TString>& tags)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)
