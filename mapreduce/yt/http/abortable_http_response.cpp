@@ -58,7 +58,7 @@ public:
 
 private:
     TIntrusiveList<TAbortableHttpResponse> ResponseList_;
-    yhash_multiset<TString> BrokenUrlPatterns_;
+    THashMultiSet<TString> BrokenUrlPatterns_;
     TMutex Lock_;
 };
 
