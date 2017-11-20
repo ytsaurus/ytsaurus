@@ -271,6 +271,5 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::BOOL), "boolean_node");
         UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::LIST), "list_node");
         UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::MAP), "map_node");
-        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::ENTITY), "null");
     }
 }
