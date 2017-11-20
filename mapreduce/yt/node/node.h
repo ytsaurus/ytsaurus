@@ -47,7 +47,6 @@ public:
         BOOL = Bool,
         LIST = List,
         MAP = Map,
-        ENTITY = Null,
     };
 
     using TList = TVector<TNode>;
