@@ -66,4 +66,9 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     protected abstract RpcClientResponseHandler createHandler(CompletableFuture<ResponseType> result);
+
+    @Override
+    public String toString() {
+        return String.format("%s/%s/%s", getService(), getMethod(), getRequestId());
+    }
 }
