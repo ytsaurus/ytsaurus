@@ -733,7 +733,12 @@ void TOperationControllerBase::AbortAllJoblets()
     for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
         JobCounter->Aborted(1, EAbortReason::Scheduler);
-        joblet->Task->OnJobAborted(joblet, TAbortedJobSummary(pair.first, EAbortReason::Scheduler));
+        const auto& jobId = pair.first;
+        auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
+        joblet->Task->OnJobAborted(joblet, jobSummary);
+        if (JobSplitter_) {
+            JobSplitter_->OnJobAborted(jobSummary);
+        }
     }
     JobletMap.clear();
 }
