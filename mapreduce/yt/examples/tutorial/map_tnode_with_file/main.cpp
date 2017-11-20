@@ -15,7 +15,7 @@ public:
         // Если мы прикрепляли табличку //path/to/table, то в операции мы будем видеть её под именем table
         TIFStream stream("is_robot_unsorted");
         auto isRobotReader = CreateTableReader<TNode>(&stream);
-        yhash_set<i64> robotIds;
+        THashSet<i64> robotIds;
         for (; isRobotReader->IsValid(); isRobotReader->Next()) {
             const auto& curRow = isRobotReader->GetRow();
             if (curRow["is_robot"].AsBool()) {
