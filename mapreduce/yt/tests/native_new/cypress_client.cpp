@@ -177,7 +177,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
 
         auto maxSizeRes = client->List("//testing", TListOptions().MaxSize(1));
         UNIT_ASSERT_VALUES_EQUAL(maxSizeRes.size(), 1);
-        UNIT_ASSERT(yhash_set<TString>({"foo", "bar"}).has(maxSizeRes[0].AsString()));
+        UNIT_ASSERT(THashSet<TString>({"foo", "bar"}).has(maxSizeRes[0].AsString()));
 
         auto attrFilterRes = client->List("//testing",
             TListOptions().AttributeFilter(TAttributeFilter().AddAttribute("attr_name")));
