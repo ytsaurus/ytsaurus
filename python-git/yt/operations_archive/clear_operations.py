@@ -427,11 +427,11 @@ def push_to_solomon(values_map, cluster, ts):
     except:
         logger.exception("Failed to push metrics to Solomon")
 
-def request_operations_recursive(root_operation_ids, prefixes):
+def request_operations_recursive(yt_client, root_operation_ids, prefixes):
     candidates_to_remove = []
 
     for prefixes_to_request in iter_chunks(prefixes, 32):
-        list_responses = yt.execute_batch([
+        list_responses = yt_client.execute_batch([
             {
                 "command": "list",
                 "parameters": {
@@ -453,7 +453,7 @@ def request_operations_recursive(root_operation_ids, prefixes):
 
     exists_responses = []
     for exists_requests in iter_chunks(candidates_to_remove, 200):
-        exists_responses += yt.execute_batch([
+        exists_responses += yt_client.execute_batch([
             {
                 "command": "exists",
                 "parameters": {
@@ -525,7 +525,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
             for op in operations if str(op) not in prefixes]
         operations.sort(key=lambda op: op.start_time, reverse=True)
 
-        remove_new_queue = request_operations_recursive(set(op.id for op in operations), prefixes)
+        remove_new_queue = request_operations_recursive(client, set(op.id for op in operations), prefixes)
 
     failed_to_remove_stale = []
     remove_count_stale = len(remove_new_queue)
