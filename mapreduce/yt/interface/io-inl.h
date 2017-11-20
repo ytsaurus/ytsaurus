@@ -314,6 +314,15 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+TTableReaderPtr<T> CreateTableReader(
+    IInputStream* stream, const TTableReaderOptions& options)
+{
+    return TReaderCreator<T>::Create(NDetail::CreateProtoReader(stream, options, T::descriptor()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 class TTableRangesReader<T>
     : public TThrRefBase
