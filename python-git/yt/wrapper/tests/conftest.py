@@ -1,4 +1,5 @@
-from .helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL, sync_create_cell, get_test_file_path
+from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
+                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
 
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
@@ -14,6 +15,11 @@ from yt.packages.six.moves import reload_module
 
 import yt.wrapper as yt
 
+if yatest_common is not None:
+    from yt.environment import arcadia_interop
+else:
+    arcadia_interop = None
+
 import os
 import imp
 import sys
@@ -25,11 +31,17 @@ import pytest
 
 def pytest_ignore_collect(path, config):
     path = str(path)
-    return path.startswith(TESTS_SANDBOX) or \
-            path.startswith(os.path.join(TESTS_LOCATION, "__pycache__"))
+    return path.startswith(get_tests_sandbox()) or \
+            path.startswith(os.path.join(get_tests_location(), "__pycache__"))
 
-def pytest_generate_tests(metafunc):
-    metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])], indirect=True)
+if yatest_common is None:
+    def pytest_generate_tests(metafunc):
+        metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])], indirect=True)
+
+if yatest_common is not None:
+    @pytest.fixture(scope="session", autouse=True)
+    def prepare_path(request):
+        arcadia_interop.prepare_path()
 
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
@@ -57,7 +69,8 @@ class YtTestEnvironment(object):
         logger.LOGGER.setLevel(logging.WARNING)
 
         run_id = uuid.uuid4().hex[:8]
-        dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + run_id)
+        uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
+        dir = os.path.join(get_tests_sandbox(), uniq_dir_name)
 
         common_delta_proxy_config = {
             "proxy": {
@@ -124,27 +137,36 @@ class YtTestEnvironment(object):
                 if delta_proxy_config:
                     update(config, delta_proxy_config)
 
-        local_temp_directory = os.path.join(TESTS_SANDBOX, "tmp_" + run_id)
+        local_temp_directory = os.path.join(get_tests_sandbox(), "tmp_" + run_id)
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
+
+        tmpfs_path = get_tmpfs_path()
+        if tmpfs_path is not None:
+            tmpfs_path = os.path.join(tmpfs_path, uniq_dir_name)
+            if not os.path.exists(tmpfs_path):
+                os.makedirs(tmpfs_path)
 
         self.env = YTInstance(dir,
                               master_count=1,
                               node_count=5,
                               scheduler_count=1,
                               has_proxy=has_proxy,
-                              port_locks_path=os.path.join(TESTS_SANDBOX, "ports"),
+                              port_locks_path=get_port_locks_path(),
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
                               kill_child_processes=True,
+                              tmpfs_path=tmpfs_path,
+                              allow_chunk_storage_in_tmpfs=True,
                               **env_options)
         self.env.start(start_secondary_master_cells=True)
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
-        reload_module(yt)
-        reload_module(yt.config)
-        reload_module(yt.native_driver)
+        if yatest_common is None:
+            reload_module(yt)
+            reload_module(yt.config)
+            reload_module(yt.native_driver)
 
         yt._cleanup_http_session()
 

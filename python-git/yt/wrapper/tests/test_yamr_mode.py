@@ -1,5 +1,5 @@
-from .helpers import (TEST_DIR, TESTS_LOCATION, TESTS_SANDBOX, get_test_file_path,
-                      get_environment_for_binary_test, set_config_option)
+from .helpers import (TEST_DIR, get_tests_location, get_tests_sandbox, get_test_file_path,
+                      get_environment_for_binary_test, set_config_option, yatest_common)
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -110,8 +110,12 @@ class TestYamrMode(object):
         env["FALSE"] = "false"
         env["TRUE"] = "true"
 
-        test_binary = os.path.join(TESTS_LOCATION, "test_mapreduce.sh")
-        binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
+        test_binary = os.path.join(get_tests_location(), "test_mapreduce.sh")
+
+        if yatest_common is None:
+            binaries_dir = os.path.join(os.path.dirname(get_tests_location()), "bin")
+        else:
+            binaries_dir = yatest_common.source_path("yt/python/yt/wrapper/bin")
 
         yt.remove("//home/wrapper_tests", recursive=True)
         proc = subprocess.Popen([test_binary], env=env, cwd=binaries_dir)
@@ -211,7 +215,7 @@ class TestYamrMode(object):
                    files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
         assert yt.row_count(other_table) == 2 * yt.row_count(table)
 
-        test_run_operations_dir = os.path.join(TESTS_SANDBOX, "test_run_operations")
+        test_run_operations_dir = os.path.join(get_tests_sandbox(), "test_run_operations")
         makedirp(test_run_operations_dir)
 
         cpp_file = get_test_file_path("bin.cpp")

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-from .helpers import (TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION,
-                      get_environment_for_binary_test, check, set_config_options, set_config_option)
+from .helpers import (TEST_DIR, get_tests_sandbox, get_tests_location,
+                      get_environment_for_binary_test, check, set_config_options, set_config_option, yatest_common)
 
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
@@ -108,11 +108,14 @@ class TestYtBinary(object):
         env["FALSE"] = "%false"
         env["TRUE"] = "%true"
 
-        sandbox_dir = os.path.join(TESTS_SANDBOX, "TestYtBinary_" + uuid.uuid4().hex[:8])
-        binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
+        sandbox_dir = os.path.join(get_tests_sandbox(), "TestYtBinary_" + uuid.uuid4().hex[:8])
+        if yatest_common is None:
+            binaries_dir = os.path.join(os.path.dirname(get_tests_location()), "bin")
+        else:
+            binaries_dir = yatest_common.source_path("yt/python/yt/wrapper/bin")
         makedirp(sandbox_dir)
         try:
-            test_binary = os.path.join(TESTS_LOCATION, "test_yt.sh")
+            test_binary = os.path.join(get_tests_location(), "test_yt.sh")
             proc = subprocess.Popen([test_binary, sandbox_dir], env=env, cwd=binaries_dir)
             proc.communicate()
             assert proc.returncode == 0

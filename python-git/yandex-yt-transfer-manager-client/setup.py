@@ -22,8 +22,8 @@ def main():
         requires.append("argparse")
 
     scripts, data_files = prepare_files([
-        "yt/transfer_manager/client/bin/transfer-manager/transfer-manager",
-        "yt/transfer_manager/client/bin/transfer-manager-check/transfer-manager-check"
+        "yt/transfer_manager/client/bin/transfer-manager",
+        "yt/transfer_manager/client/bin/transfer-manager-check"
     ])
 
     version = get_version()

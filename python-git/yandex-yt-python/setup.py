@@ -25,10 +25,10 @@ def main():
 
     binaries = [
         "yt/wrapper/bin/mapreduce-yt/mapreduce-yt",
-        "yt/wrapper/bin/yt/yt",
-        "yt/wrapper/bin/yt-fuse/yt-fuse",
-        "yt/wrapper/bin/yt-admin/yt-admin",
-        "yt/wrapper/bin/yt-job-tool/yt-job-tool"]
+        "yt/wrapper/bin/yt",
+        "yt/wrapper/bin/yt-fuse",
+        "yt/wrapper/bin/yt-admin",
+        "yt/wrapper/bin/yt-job-tool"]
 
     if sys.version_info[:2] <= (2, 6):
         scripts, data_files = prepare_files(binaries, add_major_version_suffix=True)
