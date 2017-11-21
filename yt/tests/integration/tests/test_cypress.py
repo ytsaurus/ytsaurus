@@ -1276,6 +1276,8 @@ class TestCypress(YTEnvSetup):
     def test_ignore_ampersand4(self):
         assert not exists("//tmp/missing")
         assert not exists("//tmp/missing&")
+        assert exists("//tmp")
+        assert exists("//tmp&")
 
 
     def test_batch_empty(self):

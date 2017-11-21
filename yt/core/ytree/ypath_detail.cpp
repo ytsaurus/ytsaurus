@@ -43,11 +43,12 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const IServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
-    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+    tokenizer.Advance();
+    tokenizer.Skip(NYPath::ETokenType::Ampersand);
+    if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
         return ResolveSelf(TYPath(tokenizer.GetSuffix()), context);
     }
 
-    tokenizer.Skip(NYPath::ETokenType::Ampersand);
     tokenizer.Expect(NYPath::ETokenType::Slash);
 
     if (tokenizer.Advance() == NYPath::ETokenType::At) {
