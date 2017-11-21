@@ -126,32 +126,22 @@ private:
         TTask() = default;
         TTask(const TTask&) = delete;
         TTask& operator=(const TTask&) = delete;
-        TTask(TTask&&) = default;
-        TTask& operator=(TTask&&) = default;
-
-        void swap(TTask& other)
-        {
-            Slot.Swap(other.Slot);
-            Invoker.Swap(other.Invoker);
-            std::swap(Tablet, other.Tablet);
-            std::swap(Partition, other.Partition);
-            Stores.swap(other.Stores);
-            std::swap(Score, other.Score);
-        }
+        TTask(TTask&&) = delete;
+        TTask& operator=(TTask&&) = delete;
     };
 
     // Variables below contain per-iteration state for slot scan.
     TSpinLock ScanSpinLock_;
     bool ScanForPartitioning_;
     bool ScanForCompactions_;
-    std::vector<TTask> PartitioningCandidates_;
-    std::vector<TTask> CompactionCandidates_;
+    std::vector<std::unique_ptr<TTask>> PartitioningCandidates_;
+    std::vector<std::unique_ptr<TTask>> CompactionCandidates_;
 
     // Variables below are actually scheduled tasks.
     TSpinLock TaskSpinLock_;
-    std::vector<TTask> PartitioningTasks_;
+    std::vector<std::unique_ptr<TTask>> PartitioningTasks_;
     size_t PartitioningTaskIndex_ = 0; // First unscheduled task.
-    std::vector<TTask> CompactionTasks_;
+    std::vector<std::unique_ptr<TTask>> CompactionTasks_;
     size_t CompactionTaskIndex_ = 0; // First unscheduled task.
 
     static constexpr size_t ScorePartSize = 21;
@@ -269,19 +259,19 @@ private:
             return false;
         }
 
-        TTask candidate;
-        candidate.Slot = slot;
-        candidate.Invoker = tablet->GetEpochAutomatonInvoker();
-        candidate.Tablet = tablet->GetId();
-        candidate.Partition = eden->GetId();
-        candidate.Stores = std::move(stores);
+        auto candidate = std::make_unique<TTask>();
+        candidate->Slot = slot;
+        candidate->Invoker = tablet->GetEpochAutomatonInvoker();
+        candidate->Tablet = tablet->GetId();
+        candidate->Partition = eden->GetId();
+        candidate->Stores = std::move(stores);
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
         const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
         const int osc = tablet->GetOverlappingStoreCount();
         const size_t score = static_cast<size_t>(std::max(0, mosc - osc));
         // Pack score into a single 64-bit integer. This is equivalent to order on (Score, -Stores, Random) tuples.
-        candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
+        candidate->Score = PackTaskScore(score, candidate->Stores.size(), RandomNumber<size_t>());
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -304,12 +294,12 @@ private:
             return false;
         }
 
-        TTask candidate;
-        candidate.Slot = slot;
-        candidate.Invoker = tablet->GetEpochAutomatonInvoker();
-        candidate.Tablet = tablet->GetId();
-        candidate.Partition = partition->GetId();
-        candidate.Stores = std::move(stores);
+        auto candidate = std::make_unique<TTask>();
+        candidate->Slot = slot;
+        candidate->Invoker = tablet->GetEpochAutomatonInvoker();
+        candidate->Tablet = tablet->GetId();
+        candidate->Partition = partition->GetId();
+        candidate->Stores = std::move(stores);
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
         const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
@@ -321,7 +311,7 @@ private:
             ? static_cast<size_t>(std::max(0, mosc - osc))
             : static_cast<size_t>(std::max(0, mosc - edenStoreCount - partitionStoreCount));
         // Pack score into a single 64-bit integer.
-        candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
+        candidate->Score = PackTaskScore(score, candidate->Stores.size(), RandomNumber<size_t>());
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -528,8 +518,8 @@ private:
     }
 
     void PickMoreTasks(
-        std::vector<TTask>* candidates,
-        std::vector<TTask>* tasks,
+        std::vector<std::unique_ptr<TTask>>* candidates,
+        std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
         NProfiling::TSimpleCounter& counter)
     {
@@ -546,8 +536,8 @@ private:
             candidates->begin(),
             candidates->begin() + limit,
             candidates->end(),
-            [] (const TTask& lhs, const TTask& rhs) -> bool {
-                return lhs.Score < rhs.Score;
+            [] (const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs) -> bool {
+                return lhs->Score < rhs->Score;
             });
 
         candidates->resize(limit);
@@ -578,11 +568,11 @@ private:
     }
 
     void ScheduleMoreTasks(
-        std::vector<TTask>* tasks,
+        std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
         const TAsyncSemaphorePtr& semaphore,
         NProfiling::TSimpleCounter& counter,
-        void (TStoreCompactor::*action)(TAsyncSemaphoreGuard, const TTask&))
+        void (TStoreCompactor::*action)(TAsyncSemaphoreGuard, const TTask*))
     {
         auto guard = Guard(TaskSpinLock_);
 
@@ -601,7 +591,8 @@ private:
             auto&& task = tasks->at(*index);
             ++(*index);
 
-            task.Invoker->Invoke(BIND(action, MakeStrong(this), Passed(std::move(semaphoreGuard)), std::move(task)));
+            auto invoker = task->Invoker;
+            invoker->Invoke(BIND(action, MakeStrong(this), Passed(std::move(semaphoreGuard)), Owned(task.release())));
 
             ++scheduled;
         }
@@ -631,37 +622,37 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    void PartitionEden(TAsyncSemaphoreGuard guard, const TTask& task)
+    void PartitionEden(TAsyncSemaphoreGuard guard, const TTask* task)
     {
         auto sessionId = TReadSessionId();
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
-            task.Tablet,
+            task->Tablet,
             sessionId);
 
-        auto scoreParts = UnpackTaskScore(task.Score);
+        auto scoreParts = UnpackTaskScore(task->Score);
 
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
         });
 
-        const auto& slot = task.Slot;
+        const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
-        auto* tablet = tabletManager->FindTablet(task.Tablet);
+        auto* tablet = tabletManager->FindTablet(task->Tablet);
         if (!tablet) {
             LOG_DEBUG("Tablet is missing, aborting partitioning");
             return;
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task.Tablet);
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->Tablet);
         if (!tabletSnapshot) {
             LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
         }
 
         auto* eden = tablet->GetEden();
-        if (eden->GetId() != task.Partition) {
+        if (eden->GetId() != task->Partition) {
             LOG_DEBUG("Eden is missing, aborting partitioning");
             return;
         }
@@ -674,8 +665,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TSortedChunkStorePtr> stores;
-        stores.reserve(task.Stores.size());
-        for (const auto& storeId : task.Stores) {
+        stores.reserve(task->Stores.size());
+        for (const auto& storeId : task->Stores) {
             auto store = tablet->FindStore(storeId);
             if (!store || !eden->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
@@ -991,38 +982,38 @@ private:
         return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
     }
 
-    void CompactPartition(TAsyncSemaphoreGuard guard, const TTask& task)
+    void CompactPartition(TAsyncSemaphoreGuard guard, const TTask* task)
     {
         auto sessionId = TReadSessionId();
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
-            task.Tablet,
+            task->Tablet,
             sessionId);
 
-        auto scoreParts = UnpackTaskScore(task.Score);
+        auto scoreParts = UnpackTaskScore(task->Score);
 
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
         });
 
-        const auto& slot = task.Slot;
+        const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
-        auto* tablet = tabletManager->FindTablet(task.Tablet);
+        auto* tablet = tabletManager->FindTablet(task->Tablet);
         if (!tablet) {
             LOG_DEBUG("Tablet is missing, aborting compaction");
             return;
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task.Tablet);
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->Tablet);
         if (!tabletSnapshot) {
             LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;
         }
 
-        auto* partition = tablet->GetEden()->GetId() == task.Partition
+        auto* partition = tablet->GetEden()->GetId() == task->Partition
             ? tablet->GetEden()
-            : tablet->FindPartition(task.Partition);
+            : tablet->FindPartition(task->Partition);
         if (!partition) {
             LOG_DEBUG("Partition is missing, aborting compaction");
             return;
@@ -1036,8 +1027,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TSortedChunkStorePtr> stores;
-        stores.reserve(task.Stores.size());
-        for (const auto& storeId : task.Stores) {
+        stores.reserve(task->Stores.size());
+        for (const auto& storeId : task->Stores) {
             auto store = tablet->FindStore(storeId);
             if (!store || !partition->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
