@@ -1894,7 +1894,8 @@ public:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Reshard table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount %v, PivotKeys: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Resharding table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, "
+            "TabletCount %v, PivotKeys: %v)",
             table->GetId(),
             firstTabletIndex,
             lastTabletIndex,
@@ -1917,7 +1918,7 @@ public:
         }
 
         // For ordered tablets, if the number of tablets decreases then validate that the trailing ones
-        // (which are about to drop) are properly trimmed.
+        // (which we are about to drop) are properly trimmed.
         if (newTabletCount < oldTabletCount) {
             for (int index = firstTabletIndex + newTabletCount; index < firstTabletIndex + oldTabletCount; ++index) {
                 const auto* tablet = table->Tablets()[index];
@@ -1959,16 +1960,16 @@ public:
                 for (auto it = range.first; it != range.second; ++it) {
                     auto* tablet = *it;
                     if (chunkSets[tablet->GetIndex()].find(chunk) == chunkSets[tablet->GetIndex()].end()) {
-                        THROW_ERROR_EXCEPTION("Chunk %v crosses boundary of tablet %v but is missing from its chunk list;"
-                            " please wait until stores are compacted",
+                        THROW_ERROR_EXCEPTION("Chunk %v crosses boundary of tablet %v but is missing from its chunk list; "
+                            "please wait until stores are compacted",
                             chunk->GetId(),
                             tablet->GetId())
-                        << TErrorAttribute("chunk_min_key", keyPair.first)
-                        << TErrorAttribute("chunk_max_key", keyPair.second)
-                        << TErrorAttribute("pivot_key", tablet->GetPivotKey())
-                        << TErrorAttribute("next_pivot_key", tablet->GetIndex() < table->Tablets().size() - 1
-                            ? table->Tablets()[tablet->GetIndex() + 1]->GetPivotKey()
-                            : MaxKey());
+                            << TErrorAttribute("chunk_min_key", keyPair.first)
+                            << TErrorAttribute("chunk_max_key", keyPair.second)
+                            << TErrorAttribute("pivot_key", tablet->GetPivotKey())
+                            << TErrorAttribute("next_pivot_key", tablet->GetIndex() < table->Tablets().size() - 1
+                                ? table->Tablets()[tablet->GetIndex() + 1]->GetPivotKey()
+                                : MaxKey());
                     }
                 }
             }
