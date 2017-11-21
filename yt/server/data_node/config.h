@@ -53,6 +53,9 @@ public:
     //! Controls outcoming location bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
 
+    EIOEngineType IOEngineType;
+    NYTree::INodePtr IOConfig;
+
     TStoreLocationConfigBase()
     {
         RegisterParameter("quota", Quota)
@@ -60,6 +63,10 @@ public:
             .Default(TNullable<i64>());
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
             .DefaultNew();
+        RegisterParameter("io_engine_type", IOEngineType)
+            .Default(EIOEngineType::ThreadPool);
+        RegisterParameter("io_config", IOConfig)
+            .Optional();
     }
 };
 
