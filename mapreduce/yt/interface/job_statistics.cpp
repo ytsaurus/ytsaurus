@@ -29,9 +29,9 @@ class TJobStatistics::TData
     : public TThrRefBase
 {
 public:
-    using TType2Data = yhash<EJobType, TJobStatistics::TDataEntry>;
-    using TState2Type2Data = yhash<EFinishedJobState, TType2Data>;
-    using TName2State2Type2Data = yhash<TString, TState2Type2Data>;
+    using TType2Data = THashMap<EJobType, TJobStatistics::TDataEntry>;
+    using TState2Type2Data = THashMap<EFinishedJobState, TType2Data>;
+    using TName2State2Type2Data = THashMap<TString, TState2Type2Data>;
 
 public:
     TName2State2Type2Data Name2State2Type2Data;

@@ -50,7 +50,7 @@ public:
     };
 
     using TList = TVector<TNode>;
-    using TMap = yhash<TString, TNode>;
+    using TMap = THashMap<TString, TNode>;
 
 private:
     struct TNull {

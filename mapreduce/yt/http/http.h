@@ -63,7 +63,7 @@ private:
     const TString Command;
     const bool IsApi;
 
-    yhash<TString, TString> Params;
+    THashMap<TString, TString> Params;
 
     TString Token;
 
@@ -91,7 +91,7 @@ public:
     TAddressPtr Resolve(const TString& hostName);
 
 private:
-    yhash<TString, TAddressPtr> Cache_;
+    THashMap<TString, TAddressPtr> Cache_;
     TRWMutex Lock_;
 };
 

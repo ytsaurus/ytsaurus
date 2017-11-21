@@ -65,7 +65,7 @@ ui64 RoundUpFileSize(ui64 size)
 
 bool IsLocalMode(const TAuth& auth)
 {
-    static yhash<TString, bool> localModeMap;
+    static THashMap<TString, bool> localModeMap;
     static TRWMutex mutex;
 
     {

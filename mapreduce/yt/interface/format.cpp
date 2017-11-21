@@ -23,7 +23,7 @@ constexpr bool USE_NEW_PROTO_FORMAT_DESCRIPTION = false;
 
 int SaveDependencies(
     FileDescriptorSet& set,
-    yhash<const FileDescriptor*, int>& saved,
+    THashMap<const FileDescriptor*, int>& saved,
     const FileDescriptor* fileDescriptor)
 {
     auto* check = saved.FindPtr(fileDescriptor);
@@ -55,7 +55,7 @@ TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescri
 TNode MakeProtoFormatConfigOld(const TVector<const Descriptor*>& descriptors)
 {
     FileDescriptorSet set;
-    yhash<const FileDescriptor*, int> saved;
+    THashMap<const FileDescriptor*, int> saved;
     TVector<int> fileIndices;
     TVector<int> messageIndices;
 

@@ -40,7 +40,7 @@ public:
 
 private:
     TMutex Lock_;
-    yhash<TString, ui64> Metrics_;
+    THashMap<TString, ui64> Metrics_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
