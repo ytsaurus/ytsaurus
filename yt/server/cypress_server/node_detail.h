@@ -207,7 +207,7 @@ protected:
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransaction* transaction,
+        NTransactionServer::TTransaction* /*transaction*/,
         NYTree::IAttributeDictionary* /*attributes*/,
         NSecurityServer::TAccount* account)
     {
@@ -218,7 +218,12 @@ protected:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         securityManager->ValidatePermission(account, user, NSecurityServer::EPermission::Use);
-        securityManager->SetAccount(nodeHolder.get(), nullptr, account, transaction);
+        // Null is passed as transaction because DoCreate() always creates trunk nodes.
+        securityManager->SetAccount(
+            nodeHolder.get(),
+            nullptr /* oldAccount */,
+            account,
+            nullptr /* transaction*/);
 
         return nodeHolder;
     }
