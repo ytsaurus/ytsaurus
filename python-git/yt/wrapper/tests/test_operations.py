@@ -1163,7 +1163,7 @@ if __name__ == "__main__":
                 .begin_mapper() \
                     .command(binary) \
                 .end_mapper()
-        
+
         tracker = yt.OperationsTrackerPool(pool_size=1)
 
         # To enable progress printing
@@ -1174,7 +1174,7 @@ if __name__ == "__main__":
             yt.write_table(table, [{"x": 1, "y": 1}])
 
             assert tracker.get_operation_count() == 0
-    
+
             spec_builder1 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out1")
             spec_builder2 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out2")
 
@@ -1205,13 +1205,13 @@ if __name__ == "__main__":
             assert tracker.get_operation_count() == 2
 
             tracker.wait_all()
-            
+
             assert tracker.get_operation_count() == 0
 
             tracker.map([create_spec_builder("false", table, TEST_DIR + "/out")])
             with pytest.raises(yt.YtError):
                 tracker.wait_all(check_result=True)
-            
+
             spec_builder = create_spec_builder("cat", table, TEST_DIR + "/out")
             tracker.map([spec_builder])
             tracker.wait_all(keep_finished=True)
@@ -1222,7 +1222,7 @@ if __name__ == "__main__":
             with tracker:
                 spec_builder = create_spec_builder("sleep 2; true", table, TEST_DIR + "/out")
                 tracker.map([spec_builder])
-                
+
                 assert tracker.get_operation_count() == 1
 
             assert tracker.get_operation_count() == 0

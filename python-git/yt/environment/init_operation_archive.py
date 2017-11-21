@@ -670,7 +670,7 @@ def create_tables_latest_version(client, shards=1, base_path=BASE_PATH):
         table_path = BASE_PATH + "/" + table
         schemas[table].create_dynamic_table(client, table_path)
         schemas[table].alter_table(client, table_path, shards)
-    
+
     version = max(TRANSFORMS.keys())
     client.set(BASE_PATH + "/@version", version)
 
