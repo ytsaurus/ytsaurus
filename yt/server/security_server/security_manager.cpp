@@ -1584,8 +1584,8 @@ private:
         GroupMap_.LoadValues(context);
 
         // COMPAT(shakurov)
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 700;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 700;
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 701;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 701;
     }
 
     virtual void OnAfterSnapshotLoaded() override
