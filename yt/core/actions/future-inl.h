@@ -1236,8 +1236,8 @@ private:
     virtual void OnFutureSet(int futureIndex, const TErrorOr<T>& result) override
     {
         if (!result.IsOK()) {
-            this->CancelFutures();
             this->Promise_.TrySet(TError(result));
+            this->CancelFutures();
             return;
         }
 
@@ -1277,8 +1277,8 @@ private:
     virtual void OnFutureSet(int /*futureIndex*/, const TErrorOr<T>& result) override
     {
         if (!result.IsOK()) {
-            this->CancelFutures();
             this->Promise_.TrySet(TError(result));
+            this->CancelFutures();
             return;
         }
 
