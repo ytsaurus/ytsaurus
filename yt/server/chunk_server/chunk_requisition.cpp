@@ -275,6 +275,7 @@ void TRequisitionEntry::Save(NCellMaster::TSaveContext& context) const
     Save(context, Account);
     Save(context, MediumIndex);
     Save(context, ReplicationPolicy);
+    Save(context, Committed);
 }
 
 void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
@@ -284,6 +285,12 @@ void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Account);
     Load(context, MediumIndex);
     Load(context, ReplicationPolicy);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 701) {
+        Load(context, Committed);
+    } else {
+        Committed = true;
+    }
 }
 
 void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/)
