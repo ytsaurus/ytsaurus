@@ -1,6 +1,7 @@
 package NYT.NScheduler.NProto;
 
 import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +40,36 @@ message TOperationJobMetrics
 
 message TReqHeartbeat
 {
+    message TJobInterrupt
+    {
+        required NYT.NProto.TGuid job_id = 1;
+        required int32 reason = 2;
+    }
+
+    message TJobAbort
+    {
+        required NYT.NProto.TGuid job_id = 1;
+        required NYT.NProto.TError error = 2;
+    }
+
+    message TJobFail
+    {
+        required NYT.NProto.TGuid job_id = 1;
+    }
+
+    message TJobsRelease
+    {
+        repeated NYT.NProto.TGuid job_ids = 1;
+        required NYT.NProto.TGuid operation_id = 2;
+        required int32 controller_scheduler_incarnation = 3;
+    }
+
     repeated TOperationJobMetrics job_metrics = 1;
+
+    repeated TJobInterrupt jobs_to_interrupt = 2;
+    repeated TJobAbort jobs_to_abort = 3;
+    repeated TJobFail jobs_to_fail = 4;
+    repeated TJobsRelease jobs_to_release = 5;
 }
 
 message TRspHeartbeat

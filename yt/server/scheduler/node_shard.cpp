@@ -1818,54 +1818,5 @@ void TNodeShard::TRevivalState::FinalizeReviving()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Proxy object to control job outside of node shard.
-class TJobHost
-    : public IJobHost
-{
-public:
-    TJobHost(const TJobId& jobId, const TNodeShardPtr& nodeShard)
-        : JobId_(jobId)
-        , NodeShard_(nodeShard)
-    { }
-
-    virtual TFuture<void> InterruptJob(EInterruptReason reason) override
-    {
-        return BIND(&TNodeShard::InterruptJob, NodeShard_, JobId_, reason)
-            .AsyncVia(NodeShard_->GetInvoker())
-            .Run();
-    }
-
-    virtual TFuture<void> AbortJob(const TError& error) override
-    {
-        // A neat way to choose the proper overload.
-        typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TError&);
-        return BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), NodeShard_, JobId_, error)
-            .AsyncVia(NodeShard_->GetInvoker())
-            .Run();
-    }
-
-    virtual TFuture<void> FailJob() override
-    {
-        return BIND(&TNodeShard::FailJob, NodeShard_, JobId_)
-            .AsyncVia(NodeShard_->GetInvoker())
-            .Run();
-    }
-
-private:
-    TJobId JobId_;
-    TNodeShardPtr NodeShard_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobHost)
-
-////////////////////////////////////////////////////////////////////////////////
-
-IJobHostPtr CreateJobHost(const TJobId& jobId, const TNodeShardPtr& nodeShard)
-{
-    return New<TJobHost>(jobId, nodeShard);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NScheduler
 } // namespace NYT

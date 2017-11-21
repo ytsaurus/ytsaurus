@@ -1770,9 +1770,8 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
             if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
-                auto jobHost = Host->GetJobHost(jobId);
                 LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
-                jobHost->InterruptJob(EInterruptReason::JobSplit);
+                ControllerAgent->InterruptJob(jobId, EInterruptReason::JobSplit);
             }
         }
 
@@ -3307,9 +3306,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     }
 
     for (const auto& joblet : JobletMap) {
-        auto jobHost = Host->GetJobHost(joblet.first);
-
-        jobHost->FailJob();
+        ControllerAgent->FailJob(joblet.first);
     }
 
     auto error = GetTimeLimitError();
@@ -5244,7 +5241,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
             jobIdsToRelease.size(),
             snapshotIndex,
             SchedulerIncarnation_);
-        Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
+        ControllerAgent->ReleaseJobs(std::move(jobIdsToRelease), OperationId, SchedulerIncarnation_);
     }
 
     // Stripe lists.
@@ -5276,7 +5273,7 @@ void TOperationControllerBase::OnBeforeDisposal()
         headCookie,
         SchedulerIncarnation_);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
-    Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
+    ControllerAgent->ReleaseJobs(std::move(jobIdsToRelease), OperationId, SchedulerIncarnation_);
 }
 
 NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelta()

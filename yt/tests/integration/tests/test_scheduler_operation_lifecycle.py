@@ -198,10 +198,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         op = map(dont_track=True,
-            command="sleep 2.0; cat >/dev/null",
+            command="sleep 3.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out",
-            spec={'time_limit': 1000})
+            spec={"time_limit": 2000})
 
         wait(lambda: get("//sys/operations/{0}/@state".format(op.id)) == "failed")
 
@@ -363,7 +363,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
             command="sleep 1 ; cat",
-            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
+            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 3000}})
 
     def _get_metric_maximum_value(self, metric_key, pool):
         result = 0.0

@@ -89,6 +89,14 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId);
 
+    void InterruptJob(const TJobId& jobId, EInterruptReason reason);
+    void AbortJob(const TJobId& jobId, const TError& error);
+    void FailJob(const TJobId& jobId);
+    void ReleaseJobs(
+        std::vector<TJobId> jobIds,
+        const TOperationId& operationId,
+        int controllerSchedulerIncarnation);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

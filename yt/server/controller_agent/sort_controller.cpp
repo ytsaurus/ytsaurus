@@ -1185,7 +1185,8 @@ protected:
             }
             LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetId());
             for (const auto& joblet : ActiveJoblets_) {
-                Controller->Host->GetJobHost(joblet->JobId)->AbortJob(
+                Controller->ControllerAgent->AbortJob(
+                    joblet->JobId,
                     TError("Job is aborted due to chunk pool output invalidation")
                         << error);
                 InvalidatedJoblets_.insert(joblet);

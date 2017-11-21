@@ -131,22 +131,6 @@ struct IOperationHost
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) = 0;
-
-    //! Return IJobHost - access object to TJob
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual NScheduler::IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
-
-    //! Tell scheduler the list of jobs that may be safely removed from their containing nodes as their
-    //! results were saved to the corresponding controller snapshot.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void ReleaseJobs(
-        const TOperationId& operationId,
-        std::vector<TJobId> jobIds,
-        int controllerSchedulerIncarnation) = 0;
 };
 
 struct IOperationControllerStrategyHost
