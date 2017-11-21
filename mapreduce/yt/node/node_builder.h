@@ -34,7 +34,7 @@ public:
     void OnEndAttributes() override;
 
 private:
-    ystack<TNode*> Stack_;
+    TStack<TNode*> Stack_;
 
 private:
     inline void AddNode(TNode node, bool pop);
