@@ -133,7 +133,7 @@ private:
     void AddRequest(TBatchItem batchItem);
 
 private:
-    ydeque<TBatchItem> BatchItemList_;
+    TDeque<TBatchItem> BatchItemList_;
     bool Executed_ = false;
 };
 
