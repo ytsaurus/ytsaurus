@@ -62,12 +62,12 @@ public:
 private:
     // Key is pair (nubmer of slots assigned to this bunde, minus number of spare slots),
     // value is node index in Nodes_ array.
-    using TQueue = std::multimap<std::pair<int,int>, int>;
+    using TQueueType = std::multimap<std::pair<int,int>, int>;
 
     struct TNodeData
     {
         TNode* Node;
-        THashMap<TTabletCellBundle*, TQueue::iterator> Iterators;
+        THashMap<TTabletCellBundle*, TQueueType::iterator> Iterators;
     };
 
     class THostilityChecker
@@ -100,7 +100,7 @@ private:
 
     bool Initialized_ = false;
     std::vector<TNodeData> Nodes_;
-    THashMap<TTabletCellBundle*, TQueue> Queues_;
+    THashMap<TTabletCellBundle*, TQueueType> Queues_;
 
 
     void LazyInitialization()
@@ -111,7 +111,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletCellBundles()) {
-            Queues_.emplace(pair.second, TQueue());
+            Queues_.emplace(pair.second, TQueueType());
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();

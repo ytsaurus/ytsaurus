@@ -121,7 +121,7 @@ private:
 template <typename T>
 class TTryQueues
 {
-    using TQueue = TLockQueue<T, TSpinLock>;
+    using TQueueType = TLockQueue<T, TSpinLock>;
 
 public:
     void Configure(int queueCount)
@@ -134,10 +134,10 @@ public:
     {
         TryQueue(
             index,
-            [&] (TQueue& q) {
+            [&] (TQueueType& q) {
                 return q.TryEnqueue(std::forward<U>(val));
             },
-            [&] (TQueue& q) {
+            [&] (TQueueType& q) {
                 q.Enqueue(std::forward<U>(val));
                 return true;
             });
@@ -149,16 +149,16 @@ public:
 
         return TryQueue(
             index,
-            [&] (TQueue& q) {
+            [&] (TQueueType& q) {
                 return q.TryDequeue(val);
             },
-            [&] (TQueue& q) {
+            [&] (TQueueType& q) {
                 return q.Dequeue(val);
             });
     }
 
 private:
-    TQueue& GetQueue(int index)
+    TQueueType& GetQueue(int index)
     {
         return Queues_[index % Queues_.size()];
     }
@@ -174,7 +174,7 @@ private:
         return f(GetQueue(i));
     }
 
-    std::vector<TQueue> Queues_;
+    std::vector<TQueueType> Queues_;
 };
 
 class TMultiLockActionQueue
