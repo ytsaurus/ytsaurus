@@ -246,7 +246,7 @@ b"""
         chunk_meta_cache = {
             capacity = 0;
         };
-        
+
         sync_directories_on_connect = %true;
     };
 
@@ -285,7 +285,7 @@ b"""
                 };
             }
         };
-        
+
         job_controller = {
             stored_jobs_send_period = 5000;
         }
