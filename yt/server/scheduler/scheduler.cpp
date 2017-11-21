@@ -445,14 +445,6 @@ public:
             .Run();
     }
 
-    virtual IJobHostPtr GetJobHost(const TJobId& jobId) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return CreateJobHost(jobId, nodeShard);
-    }
-
     void DoReleaseJobs(
         const TOperationId& operationId,
         const std::vector<TJobId>& jobIds,
@@ -489,21 +481,6 @@ public:
         if (!error.IsOK()) {
             DoFailOperation(operationId, error);
         }
-    }
-
-    virtual void ReleaseJobs(
-        const TOperationId& operationId,
-        std::vector<TJobId> jobIds,
-        int controllerSchedulerIncarnation) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoReleaseJobs,
-                MakeStrong(this),
-                operationId,
-                std::move(jobIds),
-                controllerSchedulerIncarnation));
     }
 
     virtual void ValidatePoolPermission(
@@ -827,6 +804,40 @@ public:
         for (const auto& jobMetricsProto : request->job_metrics()) {
             auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
             GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
+        }
+
+        for (const auto& jobToInterrupt : request->jobs_to_interrupt()) {
+            auto jobId = FromProto<TJobId>(jobToInterrupt.job_id());
+            auto reason = EInterruptReason(jobToInterrupt.reason());
+            const auto& nodeShard = GetNodeShardByJobId(jobId);
+            nodeShard->GetInvoker()->Invoke(
+                BIND(&TNodeShard::InterruptJob, nodeShard, jobId, reason));
+        }
+
+        for (const auto& jobToAbort : request->jobs_to_abort()) {
+            auto jobId = FromProto<TJobId>(jobToAbort.job_id());
+            auto error = FromProto<TError>(jobToAbort.error());
+            const auto& nodeShard = GetNodeShardByJobId(jobId);
+            typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TError&);
+            nodeShard->GetInvoker()->Invoke(
+                BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), nodeShard, jobId, error));
+        }
+
+        for (const auto& jobToFail : request->jobs_to_fail()) {
+            auto jobId = FromProto<TJobId>(jobToFail.job_id());
+            const auto& nodeShard = GetNodeShardByJobId(jobId);
+            nodeShard->GetInvoker()->Invoke(
+                BIND(&TNodeShard::FailJob, nodeShard, jobId));
+        }
+
+        for (const auto& jobsToRelease : request->jobs_to_release()) {
+            MasterConnector_->GetCancelableControlInvoker()->Invoke(
+                BIND(
+                    &TImpl::DoReleaseJobs,
+                    MakeStrong(this),
+                    FromProto<TOperationId>(jobsToRelease.operation_id()),
+                    FromProto<std::vector<TJobId>>(jobsToRelease.job_ids()),
+                    jobsToRelease.controller_scheduler_incarnation()));
         }
 
         TExecNodeDescriptorListPtr execNodes;
