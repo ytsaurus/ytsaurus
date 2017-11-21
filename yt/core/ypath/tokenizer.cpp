@@ -29,6 +29,7 @@ ETokenType TTokenizer::Advance()
     const char* current = Input_.begin();
     if (current == Input_.end()) {
         SetType(ETokenType::EndOfStream);
+        Token_ = TStringBuf();
         return Type_;
     }
 
