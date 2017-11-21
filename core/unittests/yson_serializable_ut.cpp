@@ -655,7 +655,7 @@ TEST(TYsonSerializableTest, ParameterTuplesAndContainers)
 
 TEST(TYsonSerializableTest, EnumAsKeyToYHash)
 {
-    yhash<ETestEnum, TString> deserialized, original = {
+    THashMap<ETestEnum, TString> deserialized, original = {
         {ETestEnum::Value0, "abc"}
     };
 

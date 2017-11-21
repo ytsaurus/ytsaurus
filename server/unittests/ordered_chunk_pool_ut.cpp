@@ -534,15 +534,15 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     };
 
     // All chunks from the IChunkPoolInput point of view.
-    yhash<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
+    THashMap<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
     THashSet<TChunkId> suspendedChunks;
     THashSet<TChunkId> resumedChunks;
     // All chunks from the IChunkPoolOutput point of view.
-    yhash<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
+    THashMap<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
     THashSet<TChunkId> pendingChunks;
     THashSet<TChunkId> startedChunks;
     THashSet<TChunkId> completedChunks;
-    yhash<TChunkId, TInputChunkPtr> chunkIdToChunk;
+    THashMap<TChunkId, TInputChunkPtr> chunkIdToChunk;
 
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
         const auto& chunkId = chunk->ChunkId();

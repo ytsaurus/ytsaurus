@@ -33,8 +33,8 @@ public:
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
-    yhash<TString, const TMediumDescriptor*> NameToDescriptor_;
-    yhash<int, const TMediumDescriptor*> IndexToDescriptor_;
+    THashMap<TString, const TMediumDescriptor*> NameToDescriptor_;
+    THashMap<int, const TMediumDescriptor*> IndexToDescriptor_;
 
     std::vector<std::unique_ptr<TMediumDescriptor>> Descriptors_;
 

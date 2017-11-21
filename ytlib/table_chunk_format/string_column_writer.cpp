@@ -33,7 +33,7 @@ protected:
     ui32 MaxValueLength_;
 
     i64 DictionarySize_;
-    yhash<TStringBuf, ui32> Dictionary_;
+    THashMap<TStringBuf, ui32> Dictionary_;
 
 
     void Reset()

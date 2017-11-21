@@ -13,7 +13,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 // For each memory capacity gives the number of nodes with this much memory.
-using TMemoryDistribution = yhash<i64, int>;
+using TMemoryDistribution = THashMap<i64, int>;
 
 // Uses precision of 2 decimal digits.
 using TCpuResource = TFixedPointNumber<int, 2>;

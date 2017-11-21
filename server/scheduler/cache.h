@@ -36,7 +36,7 @@ private:
 
 
     NConcurrency::TReaderWriterSpinLock StoreLock_;
-    yhash<TKey, TEntry> Store_;
+    THashMap<TKey, TEntry> Store_;
 
     const TCallback<TValue(TKey)> CalculateValueAction_;
     const TDuration ExpirationTimeout_;

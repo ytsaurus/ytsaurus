@@ -91,7 +91,7 @@ public:
     }
 
 private:
-    yhash<TTabletId, TWeakPtr<TTabletInfo>> Map_;
+    THashMap<TTabletId, TWeakPtr<TTabletInfo>> Map_;
     TReaderWriterSpinLock SpinLock_;
     TInstant LastExpiredRemovalTime_;
     static const TDuration ExpiringTimeout_;

@@ -79,7 +79,7 @@ private:
 
     TChunkScraperPtr Scraper_;
 
-    yhash<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
+    THashMap<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
     int UnavailableFetcherChunkCount_ = 0;
     TPromise<void> BatchLocatedPromise_ = NewPromise<void>();
 
@@ -221,7 +221,7 @@ void TFetcherBase::StartFetchingRound()
         DeadChunks_.size());
 
     // Construct address -> chunk* map.
-    typedef yhash<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
+    typedef THashMap<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
     TNodeIdToChunkIndexes nodeIdToChunkIndexes;
     THashSet<TInputChunkPtr> unavailableChunks;
 

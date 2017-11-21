@@ -140,7 +140,7 @@ private:
         std::multimap<TInstant, NChunkClient::TPlacementId>::iterator DeadlineIterator;
     };
 
-    yhash<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
+    THashMap<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
     std::multimap<TInstant, NChunkClient::TPlacementId> DeadlineToPlacementId_;
 
     // A chunk may have multiple copies present on one node - as long as those

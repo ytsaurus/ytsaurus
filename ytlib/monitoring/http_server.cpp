@@ -108,8 +108,8 @@ private:
     };
 
 private:
-    typedef yhash<TString, TSyncHandler> TSyncHandlerMap;
-    typedef yhash<TString, TAsyncHandler> TAsyncHandlerMap;
+    typedef THashMap<TString, TSyncHandler> TSyncHandlerMap;
+    typedef THashMap<TString, TAsyncHandler> TAsyncHandlerMap;
 
 private:
     std::unique_ptr<TCallback> Callback;

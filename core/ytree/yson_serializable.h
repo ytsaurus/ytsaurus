@@ -121,7 +121,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    yhash<TString, IParameterPtr> Parameters;
+    THashMap<TString, IParameterPtr> Parameters;
 
     NYTree::IMapNodePtr Options;
 

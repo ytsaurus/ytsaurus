@@ -205,7 +205,7 @@ private:
     TNullable<TString> MessageOfTheDay_;
 
     std::vector<TString> Environment_;
-    yhash<TShellId, IShellPtr> IdToShell_;
+    THashMap<TShellId, IShellPtr> IdToShell_;
     bool Terminated_ = false;
 
     const NLogging::TLogger Logger = ShellLogger;

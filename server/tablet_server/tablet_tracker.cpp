@@ -67,7 +67,7 @@ private:
     struct TNodeData
     {
         TNode* Node;
-        yhash<TTabletCellBundle*, TQueue::iterator> Iterators;
+        THashMap<TTabletCellBundle*, TQueue::iterator> Iterators;
     };
 
     class THostilityChecker
@@ -92,7 +92,7 @@ private:
 
     private:
         const TNode* Node_;
-        yhash<TString, bool> Cache_;
+        THashMap<TString, bool> Cache_;
     };
 
 
@@ -100,7 +100,7 @@ private:
 
     bool Initialized_ = false;
     std::vector<TNodeData> Nodes_;
-    yhash<TTabletCellBundle*, TQueue> Queues_;
+    THashMap<TTabletCellBundle*, TQueue> Queues_;
 
 
     void LazyInitialization()
@@ -131,7 +131,7 @@ private:
         TNodeData data{node};
         int index = Nodes_.size();
         int spare = node->GetTotalTabletSlots();
-        yhash<TTabletCellBundle*, int> cellCount;
+        THashMap<TTabletCellBundle*, int> cellCount;
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         if (const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress())) {

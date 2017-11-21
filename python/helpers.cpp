@@ -162,7 +162,7 @@ TPythonStringCache::TPythonStringCache(bool enableCache, const TNullable<TString
     , Encoding_(encoding)
 {
     if (CacheEnabled_) {
-        Cache_.reset(new yhash<TStringBuf, PyObject*>());
+        Cache_.reset(new THashMap<TStringBuf, PyObject*>());
     }
 }
 

@@ -72,7 +72,7 @@ public:
     }
 
 public:
-    yhash<TString, TString> Map_;
+    THashMap<TString, TString> Map_;
 
 };
 

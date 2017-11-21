@@ -1127,7 +1127,7 @@ template <class K, class T>
 class TFutureCombinerHashMapResultHolder
 {
 public:
-    using TResult = yhash<K, T>;
+    using TResult = THashMap<K, T>;
 
 public:
     TFutureCombinerHashMapResultHolder(std::vector<K> keys)
@@ -1341,7 +1341,7 @@ TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
 
 template <class K, class T>
 TFuture<typename TFutureCombineTraits<T>::template TCombinedHashMap<K>> Combine(
-    const yhash<K, TFuture<T>>& futures)
+    const THashMap<K, TFuture<T>>& futures)
 {
     const size_t size = futures.size();
     std::vector<K> keys;

@@ -569,7 +569,7 @@ DEFINE_ENUM(EWritePhase,
     (Commit)
 );
 
-using TTimestampToRevisionMap = yhash<TTimestamp, ui32>;
+using TTimestampToRevisionMap = THashMap<TTimestamp, ui32>;
 
 struct TWriteContext
 {

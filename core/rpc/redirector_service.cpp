@@ -304,7 +304,7 @@ private:
     const IChannelPtr SinkChannel_;
     
     TSpinLock SpinLock_;
-    yhash<TRequestId, IClientRequestControlPtr> ActiveRequestMap_;
+    THashMap<TRequestId, IClientRequestControlPtr> ActiveRequestMap_;
     
     
     void OnResponse(

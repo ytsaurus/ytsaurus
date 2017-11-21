@@ -241,7 +241,7 @@ private:
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     TSpinLock ControllersLock_;
-    yhash<TOperationId, IOperationControllerPtr> ControllerMap_;
+    THashMap<TOperationId, IOperationControllerPtr> ControllerMap_;
 
     struct TLivePreviewRequest
     {
@@ -275,7 +275,7 @@ private:
     TPeriodicExecutorPtr SnapshotExecutor_;
     TPeriodicExecutorPtr UnstageExecutor_;
 
-    yhash<TCellTag, std::vector<TChunkId>> CellTagToChunkUnstageList_;
+    THashMap<TCellTag, std::vector<TChunkId>> CellTagToChunkUnstageList_;
 
     const TCallback<TFuture<void>()> VoidCallback_ = BIND([] { return VoidFuture; });
 
@@ -317,7 +317,7 @@ private:
             }
         }
 
-        yhash<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
+        THashMap<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
 
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
@@ -338,7 +338,7 @@ private:
 
         LOG_INFO("Refreshing transactions");
 
-        yhash<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
+        THashMap<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
 
         for (const auto& pair : batchReqs) {
             auto cellTag = pair.first;
@@ -566,7 +566,7 @@ private:
             NChunkClient::NProto::TDataStatistics Statistics;
         };
 
-        yhash<TNodeId, TTableInfo> tableIdToInfo;
+        THashMap<TNodeId, TTableInfo> tableIdToInfo;
         for (const auto& request : livePreviewRequests) {
             auto& tableInfo = tableIdToInfo[request.TableId];
             tableInfo.TableId = request.TableId;
@@ -614,7 +614,7 @@ private:
             }
         }
 
-        yhash<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
+        THashMap<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
         for (auto& pair : tableIdToInfo) {
             auto& tableInfo  = pair.second;
             cellTagToInfos[tableInfo.CellTag].push_back(&tableInfo);
@@ -819,7 +819,7 @@ private:
 
         const auto& transactionId = transaction->GetId();
 
-        yhash<TCellTag, std::vector<TJobFile>> cellTagToFiles;
+        THashMap<TCellTag, std::vector<TJobFile>> cellTagToFiles;
         for (const auto& file : files) {
             cellTagToFiles[CellTagFromId(file.ChunkId)].push_back(file);
         }

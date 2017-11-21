@@ -247,7 +247,7 @@ protected:
         bool Maniac;
 
         //! Number of sorted bytes residing at a given host.
-        yhash<TNodeId, i64> NodeIdToLocality;
+        THashMap<TNodeId, i64> NodeIdToLocality;
 
         //! The node assigned to this partition, #InvalidNodeId if none.
         NNodeTrackerClient::TNodeId AssignedNodeId = NNodeTrackerClient::InvalidNodeId;
@@ -400,7 +400,7 @@ protected:
         //! The total data size of jobs assigned to a particular node
         //! All data sizes are IO weight-adjusted.
         //! No zero values are allowed.
-        yhash<TNodeId, i64> NodeIdToAdjustedDataWeight;
+        THashMap<TNodeId, i64> NodeIdToAdjustedDataWeight;
         //! The sum of all sizes appearing in #NodeIdToDataWeight.
         //! This value is IO weight-adjusted.
         i64 AdjustedScheduledDataWeight = 0;
@@ -573,7 +573,7 @@ protected:
 
             if (Controller->Spec->EnablePartitionedDataBalancing) {
                 auto nodeDescriptors = Controller->GetExecNodeDescriptors();
-                yhash<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
+                THashMap<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
                 for (const auto& descriptor : nodeDescriptors) {
                     YCHECK(idToNodeDescriptor.insert(std::make_pair(descriptor.Id, descriptor)).second);
                 }

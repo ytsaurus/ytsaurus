@@ -241,7 +241,7 @@ protected:
             return false;
         }
 
-        auto expectedRowParts = ConvertTo<yhash<TString, INodePtr>>(
+        auto expectedRowParts = ConvertTo<THashMap<TString, INodePtr>>(
             TYsonString(yson, EYsonType::MapFragment));
 
         for (int index = 0; index < row.GetCount(); ++index) {

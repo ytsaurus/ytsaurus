@@ -779,10 +779,10 @@ struct TComparerManager
     Function* TernaryComparer;
     TValueTypeLabels TernaryLables;
 
-    yhash<llvm::FoldingSetNodeID, Function*> Hashers;
-    yhash<llvm::FoldingSetNodeID, Function*> EqComparers;
-    yhash<llvm::FoldingSetNodeID, Function*> LessComparers;
-    yhash<llvm::FoldingSetNodeID, Function*> TernaryComparers;
+    THashMap<llvm::FoldingSetNodeID, Function*> Hashers;
+    THashMap<llvm::FoldingSetNodeID, Function*> EqComparers;
+    THashMap<llvm::FoldingSetNodeID, Function*> LessComparers;
+    THashMap<llvm::FoldingSetNodeID, Function*> TernaryComparers;
 
     Function* GetHasher(
         const std::vector<EValueType>& types,

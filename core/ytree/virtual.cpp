@@ -264,8 +264,8 @@ public:
     }
 
 private:
-    yhash<TString, IYPathServicePtr> Services_;
-    yhash<TString, TYsonCallback> Attributes_;
+    THashMap<TString, IYPathServicePtr> Services_;
+    THashMap<TString, TYsonCallback> Attributes_;
 
 };
 

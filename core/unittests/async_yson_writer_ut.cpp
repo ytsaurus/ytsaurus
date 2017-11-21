@@ -146,7 +146,7 @@ TEST(TAsyncYsonWriterTest, AsyncMap)
     writer.OnEndMap();
 
     EXPECT_EQ(
-        ConvertToYsonString(yhash<TString, int>{{"a", 1}, {"b", 2}, {"c", 3}}),
+        ConvertToYsonString(THashMap<TString, int>{{"a", 1}, {"b", 2}, {"c", 3}}),
         writer.Finish().Get().ValueOrThrow());
 }
 

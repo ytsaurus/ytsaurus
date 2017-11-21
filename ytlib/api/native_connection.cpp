@@ -373,7 +373,7 @@ private:
     TCellTag PrimaryMasterCellTag_;
     TCellTagList SecondaryMasterCellTags_;
 
-    TEnumIndexedVector<yhash<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IBlockCachePtr BlockCache_;
     ITableMountCachePtr TableMountCache_;
@@ -396,7 +396,7 @@ private:
     };
 
     TReaderWriterSpinLock StickyTransactionLock_;
-    yhash<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
+    THashMap<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
 
     IChannelPtr CreatePeerChannel(const TMasterConnectionConfigPtr& config, EPeerKind kind)

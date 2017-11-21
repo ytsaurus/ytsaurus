@@ -52,7 +52,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize);
 
     // Statistics
-    using TMulticellStatistics = yhash<NObjectClient::TCellTag, TUserStatistics>;
+    using TMulticellStatistics = THashMap<NObjectClient::TCellTag, TUserStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TUserStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TUserStatistics, ClusterStatistics);

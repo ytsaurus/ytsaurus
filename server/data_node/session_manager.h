@@ -65,7 +65,7 @@ private:
     const TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    yhash<TSessionId, ISessionPtr> SessionMap_;
+    THashMap<TSessionId, ISessionPtr> SessionMap_;
     TEnumIndexedVector<NProfiling::TSimpleCounter, ESessionType> PerTypeSessionCounters_;
 
     ISessionPtr CreateSession(const TSessionId& sessionId, const TSessionOptions& options);

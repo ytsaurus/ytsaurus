@@ -85,7 +85,7 @@ public:
     TFuture<void> ReadMissingBlocksToSave()
     {
         std::vector<int> indexesToRead;
-        yhash<int, int> blockIndexToSavedBlocksIndex;
+        THashMap<int, int> blockIndexToSavedBlocksIndex;
         int counter = 0;
         for (int index = 0; index < BlocksToSave_.size(); ++index) {
             if (!SavedBlocks_[index]) {
@@ -117,7 +117,7 @@ private:
     const IChunkReaderPtr UnderlyingReader_;
     const TWorkloadDescriptor WorkloadDescriptor_;
     const std::vector<int> BlocksToSave_;
-    yhash<int, int> BlockIndexToBlocksToSaveIndex_;
+    THashMap<int, int> BlockIndexToBlocksToSaveIndex_;
 
     std::vector<TNullable<TBlock>> SavedBlocks_;
     std::deque<std::pair<int, TBlock>> CachedBlocks_;

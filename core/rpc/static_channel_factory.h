@@ -17,7 +17,7 @@ public:
     virtual IChannelPtr CreateChannel(const TString& address) override;
 
 private:
-    yhash<TString, IChannelPtr> ChannelMap;
+    THashMap<TString, IChannelPtr> ChannelMap;
 
 };
 

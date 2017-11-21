@@ -54,7 +54,7 @@ private:
     };
 
     NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
-    yhash<TKey, TUpdateRecord> Updates_;
+    THashMap<TKey, TUpdateRecord> Updates_;
 
     DECLARE_THREAD_AFFINITY_SLOT(UpdateThread);
 

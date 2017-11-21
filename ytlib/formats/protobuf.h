@@ -21,8 +21,8 @@ public:
     void Add(TString name, i32 value);
 
 private:
-    yhash<TString, i32> NameToValue_;
-    yhash<i32, TString> ValueToName_;
+    THashMap<TString, i32> NameToValue_;
+    THashMap<i32, TString> ValueToName_;
     TString Name_;
 };
 
@@ -43,7 +43,7 @@ struct TProtobufFieldDescription
 
 struct TProtobufTableDescription
 {
-    yhash<TString, TProtobufFieldDescription> Columns;
+    THashMap<TString, TProtobufFieldDescription> Columns;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +64,7 @@ private:
 
 private:
     std::vector<TProtobufTableDescription> Tables_;
-    yhash<TString, TEnumerationDescription> EnumerationDescriptionMap_;
+    THashMap<TString, TEnumerationDescription> EnumerationDescriptionMap_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufFormatDescription)

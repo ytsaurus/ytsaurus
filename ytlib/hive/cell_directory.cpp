@@ -305,7 +305,7 @@ private:
     };
 
     TReaderWriterSpinLock SpinLock_;
-    yhash<TCellId, TEntry> RegisteredCellMap_;
+    THashMap<TCellId, TEntry> RegisteredCellMap_;
     THashSet<TCellId> UnregisteredCellIds_;
 
 

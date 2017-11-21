@@ -142,7 +142,7 @@ private:
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
     TReaderWriterSpinLock ControllersLock_;
-    yhash<TOperationId, IOperationControllerPtr> Controllers_;
+    THashMap<TOperationId, IOperationControllerPtr> Controllers_;
 
     // TODO: Move this method to some common place to avoid copy/paste.
     TError GetMasterDisconnectedError()

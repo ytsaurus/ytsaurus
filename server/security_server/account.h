@@ -41,7 +41,7 @@ class TAccount
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
-    using TMulticellStatistics = yhash<NObjectClient::TCellTag, TAccountStatistics>;
+    using TMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TAccountStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, ClusterStatistics);

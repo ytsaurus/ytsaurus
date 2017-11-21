@@ -305,7 +305,7 @@ public:
 
     TNullable<bool> EnableInputTableIndex;
 
-    yhash<TString, TString> Environment;
+    THashMap<TString, TString> Environment;
 
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;

@@ -46,9 +46,9 @@ public:
         });
     }
 
-    yhash<TNullable<TString>, yhash<TNullable<TString>, i64>> GetCapacities() const
+    THashMap<TNullable<TString>, THashMap<TNullable<TString>, i64>> GetCapacities() const
     {
-        yhash<TNullable<TString>, yhash<TNullable<TString>, i64>> result;
+        THashMap<TNullable<TString>, THashMap<TNullable<TString>, i64>> result;
         for (const auto& pair : Capacities) {
             auto srcDataCenter = MakeNullable(!pair.first.empty(), pair.first);
             auto& srcDataCenterCapacities = result[srcDataCenter];
@@ -78,7 +78,7 @@ private:
 
     // src DC -> dst DC -> data size.
     // NB: that null DC is encoded as an empty string here.
-    yhash<TString, yhash<TString, i64>> Capacities;
+    THashMap<TString, THashMap<TString, i64>> Capacities;
     i64 DefaultCapacity;
     TDuration UpdateInterval;
     NProfiling::TCpuDuration CpuUpdateInterval;

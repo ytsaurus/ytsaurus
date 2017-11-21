@@ -328,7 +328,7 @@ private:
         { }
     };
 
-    typedef yhash<TPeerId, TStatus> TStatusTable;
+    typedef THashMap<TPeerId, TStatus> TStatusTable;
 
     TStatusTable StatusTable;
 

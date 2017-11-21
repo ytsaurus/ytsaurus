@@ -255,7 +255,7 @@ private:
 
     private:
         TJobSplitterConfigPtr Config_;
-        yhash<TJobId, TInstant> JobIdToCompletionTime_;
+        THashMap<TJobId, TInstant> JobIdToCompletionTime_;
         THashSet<TJobId> InterruptCandidateSet_;
         TInstant NextUpdateTime_;
         TInstant MedianCompletionTime_ = GetInstant();
@@ -363,7 +363,7 @@ private:
 
     TJobSplitterConfigPtr Config_;
 
-    yhash<TJobId, TRunningJob> RunningJobs_;
+    THashMap<TJobId, TRunningJob> RunningJobs_;
     TStatistics Statistics_;
     i64 MaxRunningJobCount_ = 0;
 

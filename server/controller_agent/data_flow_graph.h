@@ -49,7 +49,7 @@ public:
     std::vector<EJobType> GetTopologicalOrder() const;
 
 private:
-    yhash<EJobType, TProgressCounterPtr> JobCounters_;
+    THashMap<EJobType, TProgressCounterPtr> JobCounters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

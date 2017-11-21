@@ -2243,8 +2243,8 @@ TFuture<void> TOperationControllerBase::AnalyzeTmpfsUsage() const
         return VoidFuture;
     }
 
-    yhash<EJobType, i64> maximumUsedTmfpsSizePerJobType;
-    yhash<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
+    THashMap<EJobType, i64> maximumUsedTmfpsSizePerJobType;
+    THashMap<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
         const auto& userJobSpecPtr = task->GetUserJobSpec();
@@ -3075,7 +3075,7 @@ std::vector<TJobResources> TOperationControllerBase::GetMinNeededJobResources() 
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    yhash<EJobType, TJobResources> minNeededJobResources;
+    THashMap<EJobType, TJobResources> minNeededJobResources;
 
     for (const auto& task: Tasks) {
         if (task->GetPendingJobCount() == 0) {
@@ -3939,7 +3939,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
         }
     }
 
-    yhash<TCellTag, std::vector<TOutputTable*>> cellTagToTables;
+    THashMap<TCellTag, std::vector<TOutputTable*>> cellTagToTables;
     for (auto* table : updatingTables) {
         cellTagToTables[table->CellTag].push_back(table);
     }
@@ -5720,7 +5720,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
-    auto fillEnvironment = [&] (yhash<TString, TString>& env) {
+    auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
         }

@@ -246,7 +246,7 @@ private:
 
             auto samplesRange = GetSamples(fromTime);
 
-            yhash<TTagId, TTag> tagIdToValue;
+            THashMap<TTagId, TTag> tagIdToValue;
             for (auto it = samplesRange.first; it != samplesRange.second; ++it) {
                 const auto& sample = *it;
                 for (auto tagId : sample.TagIds) {
@@ -330,13 +330,13 @@ private:
     TSimpleCounter DequeuedCounter;
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue;
-    yhash<TYPath, TBucketPtr> PathToBucket;
+    THashMap<TYPath, TBucketPtr> PathToBucket;
     TIdGenerator SampleIdGenerator;
 
     TForkAwareSpinLock TagSpinLock;
     std::vector<TTag> IdToTag;
-    yhash<std::pair<TString, TString>, int> TagToId;
-    typedef yhash<TString, std::vector<TString>> TTagKeyToValues;
+    THashMap<std::pair<TString, TString>, int> TagToId;
+    typedef THashMap<TString, std::vector<TString>> TTagKeyToValues;
     TTagKeyToValues TagKeyToValues;
 
 #ifdef _linux_

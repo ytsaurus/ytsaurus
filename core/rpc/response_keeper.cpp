@@ -226,7 +226,7 @@ private:
     bool Started_ = false;
     NProfiling::TCpuInstant WarmupDeadline_ = 0;
 
-    yhash<TMutationId, TSharedRefArray> FinishedResponses_;
+    THashMap<TMutationId, TSharedRefArray> FinishedResponses_;
     int FinishedResponseCount_ = 0;
     i64 FinishedResponseSpace_ = 0;
 
@@ -238,7 +238,7 @@ private:
 
     std::deque<TEvictionItem> ResponseEvictionQueue_;
 
-    yhash<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
+    THashMap<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
 
     NLogging::TLogger Logger;
 

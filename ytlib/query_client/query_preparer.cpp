@@ -1601,7 +1601,7 @@ class TSchemaProxy
 public:
     TSchemaProxy() = default;
 
-    explicit TSchemaProxy(const yhash<NAst::TReference, TBaseColumn>& lookup)
+    explicit TSchemaProxy(const THashMap<NAst::TReference, TBaseColumn>& lookup)
         : Lookup_(lookup)
     { }
 
@@ -1651,14 +1651,14 @@ public:
     virtual void Finish()
     { }
 
-    const yhash<NAst::TReference, TBaseColumn>& GetLookup() const
+    const THashMap<NAst::TReference, TBaseColumn>& GetLookup() const
     {
         return Lookup_;
     }
 
 private:
-    yhash<NAst::TReference, TBaseColumn> Lookup_;
-    yhash<std::pair<TString, EValueType>, TBaseColumn> AggregateLookup_;
+    THashMap<NAst::TReference, TBaseColumn> Lookup_;
+    THashMap<std::pair<TString, EValueType>, TBaseColumn> AggregateLookup_;
 
 protected:
     virtual TNullable<TBaseColumn> ProvideColumn(const NAst::TReference& /*reference*/)
@@ -1730,7 +1730,7 @@ public:
 
 private:
     std::vector<TColumnDescriptor>* Mapping_;
-    yhash<TString, size_t> ColumnsCollisions_;
+    THashMap<TString, size_t> ColumnsCollisions_;
     const TTableSchema SourceTableSchema_;
     const TNullable<TString> TableName_;
 

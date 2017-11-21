@@ -87,7 +87,7 @@ public:
     TDuration ShutdownGraceTimeout;
 
     std::vector<TRuleConfigPtr> Rules;
-    yhash<TString, TWriterConfigPtr> WriterConfigs;
+    THashMap<TString, TWriterConfigPtr> WriterConfigs;
     std::vector<TString> SuppressedMessages;
 
     TLogConfig()

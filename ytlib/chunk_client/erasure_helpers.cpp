@@ -302,7 +302,7 @@ private:
     const IBlocksReaderPtr Reader_;
     const std::vector<TPartRange> BlockRanges_;
 
-    yhash<int, TSharedRef> RequestedBlocks_;
+    THashMap<int, TSharedRef> RequestedBlocks_;
     TNullable<TPartRange> PreviousRange_;
 
     TSharedRef LastResult_;

@@ -23,7 +23,7 @@ public:
 
 private:
     const std::vector<IYPathServicePtr> Services_;
-    typedef TErrorOr<yhash<TString, IYPathServicePtr>> TKeyMappingOrError;
+    typedef TErrorOr<THashMap<TString, IYPathServicePtr>> TKeyMappingOrError;
     TKeyMappingOrError KeyMapping_;
 
     NConcurrency::TPeriodicExecutorPtr UpdateKeysExecutor_;

@@ -63,7 +63,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
 
     // Security Manager stuff
-    typedef yhash<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
+    typedef THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 

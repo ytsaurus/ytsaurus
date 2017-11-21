@@ -41,7 +41,7 @@ namespace {
 
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static yhash<EScheduleJobFailReason, TTagId> tagId;
+    static THashMap<EScheduleJobFailReason, TTagId> tagId;
 
     auto it = tagId.find(reason);
     if (it == tagId.end()) {
@@ -55,7 +55,7 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 
 TTagId GetSlotIndexProfilingTag(int slotIndex)
 {
-    static yhash<int, TTagId> slotIndexToTagIdMap;
+    static THashMap<int, TTagId> slotIndexToTagIdMap;
 
     auto it = slotIndexToTagIdMap.find(slotIndex);
     if (it == slotIndexToTagIdMap.end()) {
@@ -352,7 +352,7 @@ public:
             }
 
             // Track ids appearing in various branches of the tree.
-            yhash<TString, TYPath> poolIdToPath;
+            THashMap<TString, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
             std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
@@ -802,17 +802,17 @@ private:
 
     INodePtr LastPoolsNodeUpdate;
 
-    using TPoolMap = yhash<TString, TPoolPtr>;
+    using TPoolMap = THashMap<TString, TPoolPtr>;
     TPoolMap Pools;
 
-    yhash<TString, NProfiling::TTagId> PoolIdToProfilingTagId;
+    THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId;
 
-    yhash<TString, THashSet<TString>> UserToEphemeralPools;
+    THashMap<TString, THashSet<TString>> UserToEphemeralPools;
 
-    yhash<TString, THashSet<int>> PoolToSpareSlotIndices;
-    yhash<TString, int> PoolToMinUnusedSlotIndex;
+    THashMap<TString, THashSet<int>> PoolToSpareSlotIndices;
+    THashMap<TString, int> PoolToMinUnusedSlotIndex;
 
-    using TOperationElementPtrByIdMap = yhash<TOperationId, TOperationElementPtr>;
+    using TOperationElementPtrByIdMap = THashMap<TOperationId, TOperationElementPtr>;
     TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationId> WaitingOperationQueue;
@@ -821,7 +821,7 @@ private:
     THashSet<TOperationId> RegisteredOperationsSet;
 
     TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
-    yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
+    THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
 
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
     std::vector<int> FreeSchedulingTagFilterIndexes;
@@ -830,7 +830,7 @@ private:
         int Index;
         int Count;
     };
-    yhash<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
+    THashMap<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
 
     TRootElementPtr RootElement;
 
@@ -2146,7 +2146,7 @@ private:
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
     TFairShareTreePtr FairShareTree_;
 
-    yhash<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
+    THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
     TInstant LastProfilingTime_;
 
