@@ -154,7 +154,7 @@ void Deserialize(TKeyBase<T>& key, const TNode& node)
 void Deserialize(EValueType& valueType, const TNode& node)
 {
     const auto& nodeStr = node.AsString();
-    static const yhash<TString, EValueType> str2ValueType = {
+    static const THashMap<TString, EValueType> str2ValueType = {
         {"int8",  VT_INT8},
         {"int16", VT_INT16},
         {"int32", VT_INT32},

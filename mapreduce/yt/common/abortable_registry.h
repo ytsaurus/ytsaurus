@@ -67,7 +67,7 @@ public:
     void Remove(const TGUID& id);
 
 private:
-    yhash<TGUID, IAbortablePtr> ActiveAbortables_;
+    THashMap<TGUID, IAbortablePtr> ActiveAbortables_;
     TMutex Lock_;
     bool Running_ = true;
 };

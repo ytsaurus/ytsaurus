@@ -17,7 +17,7 @@ public:
     static TOperationExecutionTimeTracker* Get();
 
 private:
-    yhash<TOperationId, TInstant> StartTimes_;
+    THashMap<TOperationId, TInstant> StartTimes_;
     TMutex Lock_;
 };
 

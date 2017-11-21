@@ -471,8 +471,8 @@ public:
     }
 
 private:
-    yhash<const std::type_info*, TString> JobNames;
-    yhash<TString, TJobFunction> JobFunctions;
+    THashMap<const std::type_info*, TString> JobNames;
+    THashMap<TString, TJobFunction> JobFunctions;
 
     void CheckNotRegistered(const std::type_info* typeInfoPtr, const char* name)
     {

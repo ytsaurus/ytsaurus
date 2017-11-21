@@ -1,7 +1,7 @@
 cimport cython
 from libc.stdlib cimport malloc, free
 from util.generic.vector cimport TVector
-from util.generic.hash cimport yhash
+from util.generic.hash cimport THashMap
 from util.generic.string cimport TString
 from util.system.types cimport i64, ui64, ui32
 
@@ -48,7 +48,7 @@ cdef extern from "mapreduce/yt/node/node.h" namespace "NYT" nogil:
         double AsDouble()
         bint AsBool()
         TVector[TNode]& AsList()
-        yhash[TString, TNode]& AsMap()
+        THashMap[TString, TNode]& AsMap()
 
         @staticmethod
         TNode CreateList()
