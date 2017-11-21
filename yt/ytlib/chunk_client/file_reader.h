@@ -26,17 +26,10 @@ public:
      *  in the meta file. Passing #NullChunkId in #chunkId suppresses this check.
      */
     TFileReader(
+        const IIOEnginePtr& ioEngine,
         const TChunkId& chunkId,
         const TString& fileName,
-        bool validateBlocksChecksums = true
-    );
-
-    TFileReader(
-        IIOEnginePtr ioEngine,
-        const TChunkId& chunkId,
-        const TString& fileName,
-        bool validateBlocksChecksums = true
-    );
+        bool validateBlocksChecksums = true);
 
     // IReader implementation.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -58,25 +51,29 @@ public:
     virtual bool IsValid() const override;
 
 private:
+    const IIOEnginePtr IOEngine_;
     const TChunkId ChunkId_;
     const TString FileName_;
     const bool ValidateBlockChecksums_;
 
     TMutex Mutex_;
     std::atomic<bool> HasCachedDataFile_ = {false};
-    std::unique_ptr<TFile> CachedDataFile_;
+    std::shared_ptr<TFileHandle> CachedDataFile_;
     std::atomic<bool> HasCachedBlocksExt_ = {false};
-    TNullable<NProto::TBlocksExt> CachedBlocksExt_;
+    TFuture<NProto::TBlocksExt> CachedBlocksExt_;
 
-    IIOEnginePtr IoEngine_;
-
-    std::vector<TBlock> DoReadBlocks(int firstBlockIndex, int blockCount);
-    NProto::TChunkMeta DoGetMeta(
+    TFuture<std::vector<TBlock>> DoReadBlocks(int firstBlockIndex, int blockCount);
+    std::vector<TBlock> OnDataBlock(
+        int firstBlockIndex,
+        int blockCount,
+        const TSharedMutableRef& data);
+    TFuture<NProto::TChunkMeta> DoGetMeta(
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags);
+    NProto::TChunkMeta OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& data);
 
     const NProto::TBlocksExt& GetBlockExts();
-    TFile& GetDataFile();
+    const std::shared_ptr<TFileHandle>& GetDataFile();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileReader)

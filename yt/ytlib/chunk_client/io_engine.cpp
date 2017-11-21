@@ -8,8 +8,18 @@
 #include <unistd.h>
 #endif
 
+#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/thread_pool.h>
+
+#include <yt/core/ytree/yson_serializable.h>
+
 #include <yt/core/misc/align.h>
-#include <yt/core/misc/error.h>
+#include <yt/core/misc/fs.h>
+
+#include <util/system/thread.h>
+#include <util/system/mutex.h>
+#include <util/system/condvar.h>
+#include <util/system/align.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -21,197 +31,478 @@ struct TDefaultEngineDataBufferTag {};
 
 #ifdef _linux_
 
-inline int io_setup(unsigned nr, aio_context_t* ctxp)
+int io_setup(unsigned nr, aio_context_t* ctxp)
 {
     return syscall(__NR_io_setup, nr, ctxp);
 }
 
-inline int io_destroy(aio_context_t ctx)
+int io_destroy(aio_context_t ctx)
 {
     return syscall(__NR_io_destroy, ctx);
 }
 
-inline int io_submit(aio_context_t ctx, long nr,  struct iocb** iocbpp) {
+int io_submit(aio_context_t ctx, long nr,  struct iocb** iocbpp)
+{
     return syscall(__NR_io_submit, ctx, nr, iocbpp);
 }
 
-inline int io_getevents(aio_context_t ctx, long min_nr, long max_nr,
-                        struct io_event* events, struct timespec* timeout)
+int io_getevents(
+    aio_context_t ctx,
+    long min_nr,
+    long max_nr,
+    struct io_event* events,
+    struct timespec* timeout)
 {
     return syscall(__NR_io_getevents, ctx, min_nr, max_nr, events, timeout);
 }
 
 #endif
 
-class TDefaultIOEngine
+class TThreadedIOEngineConfig
+    : public NYTree::TYsonSerializableLite
+{
+public:
+    int Threads;
+
+    TThreadedIOEngineConfig()
+    {
+        RegisterParameter("threads", Threads)
+            .GreaterThanOrEqual(1)
+            .Default(1);
+    }
+};
+
+class TThreadedIOEngine
     : public IIOEngine
 {
 public:
-    TDefaultIOEngine() = default;
+    using TConfigType = TThreadedIOEngineConfig;
 
-    virtual size_t Pread(const TFile& handle, TSharedMutableRef & result, size_t len, i64 offset) override;
-    virtual void Pwrite(const TFile& handle, const void* buf, size_t len, i64 offset) override;
-    virtual std::unique_ptr<TFile> Open(const TString& fName, EOpenMode oMode) override;
+    explicit TThreadedIOEngine(const TConfigType& config)
+        : ThreadPool_(config.Threads, "DiskIO")
+    { }
+
+    virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
+    {
+        auto fh = std::make_shared<TFileHandle>(fName, oMode);
+        if (!fh->IsOpen()) {
+            THROW_ERROR_EXCEPTION("Cannot open %Qv with mode %v",
+                fName,
+                oMode) << TError::FromSystem();
+        }
+        return fh;
+    }
+
+    virtual TFuture<TSharedMutableRef> Pread(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset) override
+    {
+        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), fh, len, offset)
+            .AsyncVia(ThreadPool_.GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
+    {
+        return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset)
+            .AsyncVia(ThreadPool_.GetInvoker())
+            .Run();
+    }
+
+private:
+    TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& fh, size_t numBytes, i64 offset)
+    {
+        auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(numBytes, false);
+        size_t result;
+        ui8* buf = reinterpret_cast<ui8*>(data.Begin());
+
+        NFS::ExpectIOErrors([&]() {
+            while (numBytes) {
+                const i32 toRead = static_cast<i32>(Min(MaxPortion_, numBytes));
+                const i32 reallyRead = fh->Pread(buf, toRead, offset);
+
+                if (reallyRead < 0) {
+                    // TODO(aozeritsky): ythrow is placed here consciously.
+                    // ExpectIOErrors rethrows some kind of arcadia-style exception.
+                    // So in order to keep the old behaviour we should use ythrow or
+                    // rewrite ExpectIOErrors.
+                    ythrow TFileError();
+                }
+
+                if (reallyRead == 0) { // file exausted
+                    break;
+                }
+
+                buf += reallyRead;
+                offset += reallyRead;
+                numBytes -= reallyRead;
+            }
+
+            result = buf - (ui8*)data.Begin();
+        });
+
+        YCHECK(result >= 0);
+
+        return data.Slice(0, result);
+    }
+
+    void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
+    {
+        const ui8* buf = reinterpret_cast<ui8*>(data.Begin());
+        size_t numBytes = data.Size();
+
+        NFS::ExpectIOErrors([&]() {
+            while (numBytes) {
+                const i32 toWrite = static_cast<i32>(Min(MaxPortion_, numBytes));
+                const i32 reallyWritten = fh->Pwrite(buf, toWrite, offset);
+
+                if (reallyWritten < 0) {
+                    ythrow TFileError();
+                }
+
+                buf += reallyWritten;
+                offset += reallyWritten;
+                numBytes -= reallyWritten;
+            }
+        });
+    }
+
+    const size_t MaxPortion_ = size_t(1 << 30);
+    NConcurrency::TThreadPool ThreadPool_;
 };
 
-size_t TDefaultIOEngine::Pread(const TFile& handle, TSharedMutableRef& result, size_t len, i64 offset)
-{
-    result = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(len, false);
-    auto size = handle.Pread(result.Begin(), len, offset);
-    result = result.Slice(0, size);
-    return size;
-}
-
-void TDefaultIOEngine::Pwrite(const TFile& handle, const void* buf, size_t len, i64 offset)
-{
-    handle.Pwrite(buf, len, offset);
-}
-
-std::unique_ptr<TFile> TDefaultIOEngine::Open(const TString& fName, EOpenMode oMode)
-{
-    return std::make_unique<TFile>(fName, oMode);
-}
-
 #ifdef _linux_
+
+DECLARE_REFCOUNTED_STRUCT(IAioOperation)
+
+struct IAioOperation
+    : public TRefCounted
+    , public iocb
+{
+    virtual void Start(NConcurrency::TAsyncSemaphoreGuard&& guard) = 0;
+    virtual void Complete(const io_event& ev) = 0;
+    virtual void Fail(const std::exception& ex) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IAioOperation)
+
+class TAioOperation
+    : public IAioOperation
+{
+public:
+    virtual void Start(NConcurrency::TAsyncSemaphoreGuard&& guard) override
+    {
+        Guard_ = std::move(guard);
+    }
+
+    virtual void Complete(const io_event& ev) override
+    {
+        DoComplete(ev);
+        Guard_.Release();
+    }
+
+    virtual void Fail(const std::exception& ex) override
+    {
+        DoFail(ex);
+        Guard_.Release();
+    }
+
+private:
+    NConcurrency::TAsyncSemaphoreGuard Guard_;
+
+    virtual void DoComplete(const io_event& ev) = 0;
+    virtual void DoFail(const std::exception& ex) = 0;
+};
+
+class TAioReadOperation
+    : public TAioOperation
+{
+public:
+    TAioReadOperation(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 alignment)
+        : Data_(TSharedMutableRef::Allocate<TAioEngineDataBufferTag>(len + 3 * alignment, false))
+        , FH_(fh)
+        , Length_(len)
+        , Offset_(offset)
+        , From_(::AlignDown(offset, alignment))
+        , To_(::AlignUp((i64)(offset + len), alignment))
+        , Alignment_(alignment)
+    {
+        Data_ = Data_.Slice(AlignUp(Data_.Begin(), Alignment_), Data_.End());
+
+        memset(static_cast<iocb*>(this), 0, sizeof(iocb));
+
+        aio_fildes = static_cast<FHANDLE>(*fh);
+        aio_lio_opcode = IOCB_CMD_PREAD;
+
+        aio_buf = reinterpret_cast<ui64>(Data_.Begin());
+        aio_offset = From_;
+        aio_nbytes = To_ - From_;
+    }
+
+    TFuture<TSharedMutableRef> Result()
+    {
+        return Result_;
+    }
+
+private:
+    TSharedMutableRef Data_;
+    std::shared_ptr<TFileHandle> FH_;
+    const size_t Length_;
+    const i64 Offset_;
+
+    const i64 From_;
+    const i64 To_;
+
+    const i64 Alignment_;
+
+    TPromise<TSharedMutableRef> Result_ = NewPromise<TSharedMutableRef>();
+
+    virtual void DoComplete(const io_event& ev) override
+    {
+        auto result = ev.res;
+        Data_ = Data_.Slice(Offset_ - From_, Offset_ - From_ + Min(static_cast<size_t>(result), Length_));
+        Result_.Set(Data_);
+    }
+
+    virtual void DoFail(const std::exception& ex) override
+    {
+        Result_.Set(TError(ex));
+    }
+};
+
+class TAioWriteOperation
+    : public TAioOperation
+{
+public:
+    TAioWriteOperation(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
+        : Data_(data)
+        , Fh_(fh)
+    {
+        memset(static_cast<iocb*>(this), 0, sizeof(iocb));
+
+        aio_fildes = static_cast<FHANDLE>(*fh);
+        aio_lio_opcode = IOCB_CMD_PWRITE;
+
+        aio_buf = reinterpret_cast<ui64>(Data_.Begin());
+        aio_offset = offset;
+        aio_nbytes = data.Size();
+    }
+
+    TFuture<void> Result()
+    {
+        return Result_;
+    }
+
+private:
+    TSharedMutableRef Data_;
+    std::shared_ptr<TFileHandle> Fh_;
+
+    TPromise<void> Result_ = NewPromise<void>();
+
+    virtual void DoComplete(const io_event& ev) override
+    {
+        Result_.Set();
+    }
+
+    virtual void DoFail(const std::exception& ex) override
+    {
+        Result_.Set(TError(ex));
+    }
+};
+
+class TAioEngineConfig
+    : public NYTree::TYsonSerializableLite
+{
+public:
+    int MaxQueueSize;
+
+    TAioEngineConfig()
+    {
+        RegisterParameter("max_queue_size", MaxQueueSize)
+            .GreaterThanOrEqual(1)
+            .Default(128);
+    }
+};
 
 class TAioEngine
     : public IIOEngine
 {
 public:
-    TAioEngine();
-    ~TAioEngine();
+    using TConfigType = TAioEngineConfig;
 
-    virtual size_t Pread(const TFile& handle, TSharedMutableRef& result, size_t len, i64 offset) override;
-    virtual void Pwrite(const TFile& handle, const void* buf, size_t len, i64 offset) override;
-    virtual std::unique_ptr<TFile> Open(const TString& fName, EOpenMode oMode) override;
+    explicit TAioEngine(const TAioEngineConfig& config)
+        : MaxQueueSize_(config.MaxQueueSize)
+        , Semaphore_(MaxQueueSize_)
+        , Thread_(StaticLoop, this)
+    {
+        auto ret = io_setup(MaxQueueSize_, &Ctx_);
+        if (ret < 0) {
+            THROW_ERROR_EXCEPTION("Cannot initialize AIO") << TError::FromSystem();
+        }
+
+        Start();
+    }
+
+    ~TAioEngine() override
+    {
+        io_destroy(Ctx_);
+        Stop();
+    }
+
+    virtual TFuture<TSharedMutableRef> Pread(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset) override
+    {
+        auto op = New<TAioReadOperation>(fh, len, offset, Alignment_);
+        Submit(op);
+        return op->Result();
+    }
+
+    virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
+    {
+        auto op = New<TAioWriteOperation>(fh, data, offset);
+        Submit(op);
+        return op->Result();
+    }
+
+    virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
+    {
+        oMode |= DirectAligned;
+        auto fh = std::make_shared<TFileHandle>(fName, oMode);
+        if (!fh->IsOpen()) {
+            THROW_ERROR_EXCEPTION("Cannot open %Qv with mode %v",
+                fName,
+                oMode) << TError::FromSystem();
+        }
+        return fh;
+    }
 
 private:
-    void SubmitRead(FHANDLE fd, void* p, size_t len, i64 offset);
-    void MaybeWait();
-    void Wait();
-
     aio_context_t Ctx_ = 0;
-    bool Initialized_ = false;
-    const int MaxQueueSize_ = 128;
-    int Submitted_ = 0;
+    const int MaxQueueSize_;
+
+    NConcurrency::TAsyncSemaphore Semaphore_;
+    int Inflight_ = 0;
+    std::atomic<bool> Alive_ = {true};
+
+    const i64 Alignment_ = 512;
+
+    TThread Thread_;
+
+    void Loop()
+    {
+        io_event events[MaxQueueSize_];
+        while (Alive_.load(std::memory_order_relaxed)) {
+            auto ret = GetEvents(events);
+            if (ret < 0) {
+                break;
+            }
+
+            for (int i = 0; i < ret; ++i) {
+                auto* op = static_cast<IAioOperation*>(reinterpret_cast<iocb*>(events[i].obj));
+                auto& ev = events[i];
+
+                try {
+                    NFS::ExpectIOErrors([&]() {
+                        if (ev.res < 0) {
+                            ythrow TSystemError(-ev.res);
+                        }
+
+                        op->Complete(ev);
+                    });
+                } catch (const std::exception& ex) {
+                    op->Fail(ex);
+                }
+
+                op->Unref();
+            }
+        }
+    }
+
+    static void* StaticLoop(void * self)
+    {
+        reinterpret_cast<TAioEngine*>(self)->Loop();
+        return nullptr;
+    }
+
+    int GetEvents(io_event * events)
+    {
+        int ret;
+        while ((ret = io_getevents(Ctx_, 1, MaxQueueSize_, events, nullptr)) < 0 && errno == EINTR)
+        { }
+
+        YCHECK(ret >= 0 || errno == EINVAL);
+        return ret;
+    }
+
+    void Start()
+    {
+        YCHECK(Alive_.load(std::memory_order_relaxed));
+        Thread_.Start();
+    }
+
+    void Stop()
+    {
+        YCHECK(Alive_.load(std::memory_order_relaxed));
+        Alive_.store(false, std::memory_order_relaxed);
+        Thread_.Join();
+    }
+
+    void DoSubmit(struct iocb* cb)
+    {
+        struct iocb* cbs[1];
+        cbs[0] = cb;
+        auto ret = io_submit(Ctx_, 1, cbs);
+
+        if (ret < 0) {
+            ythrow TSystemError(LastSystemError());
+        } else if (ret != 1) {
+            THROW_ERROR_EXCEPTION("Unexpected return code from io_submit") << TErrorAttribute("code", ret);
+        }
+    }
+
+    void OnSlotsAvailable(const IAioOperationPtr& op, NConcurrency::TAsyncSemaphoreGuard&& guard)
+    {
+        op->Ref();
+        op->Start(std::move(guard));
+
+        try {
+            NFS::ExpectIOErrors([&] {
+                DoSubmit(op.Get());
+            });
+        } catch (const std::exception& ex) {
+            op->Fail(ex);
+            op->Unref();
+        }
+    }
+
+    void Submit(const IAioOperationPtr& op)
+    {
+        Semaphore_.AsyncAcquire(BIND(&TAioEngine::OnSlotsAvailable, MakeStrong(this), op), GetSyncInvoker());
+    }
 };
 
-TAioEngine::TAioEngine()
-{
-    int ret = io_setup(MaxQueueSize_, &Ctx_);
-    if (ret < 0) {
-        THROW_ERROR_EXCEPTION("Cannot initialize aio") << TError::FromSystem();
-    }
-}
-
-TAioEngine::~TAioEngine()
-{
-    io_destroy(Ctx_);
-}
-
-void TAioEngine::SubmitRead(FHANDLE fd, void* p, size_t len, i64 offset)
-{
-    struct iocb cb;
-    struct iocb* cbs[1];
-    memset(&cb, 0, sizeof(cb));
-
-    cb.aio_fildes = fd;
-    cb.aio_lio_opcode = IOCB_CMD_PREAD;
-
-    cb.aio_buf = reinterpret_cast<ui64>(p);
-    cb.aio_offset = offset;
-    cb.aio_nbytes = len;
-
-    cbs[0] = &cb;
-
-    int ret = io_submit(Ctx_, 1, cbs);
-    if (ret != 1) {
-        THROW_ERROR_EXCEPTION("Cannot read %Qv bytes from file", len) << TError::FromSystem();
-    }
-
-    ++Submitted_;
-}
-
-void TAioEngine::MaybeWait() {
-    if (Submitted_ > MaxQueueSize_ - 1) {
-        Wait();
-    }
-}
-
-void TAioEngine::Wait()
-{
-    if (!Submitted_) {
-        return;
-    }
-
-    struct io_event events[Submitted_];
-    int ret = io_getevents(Ctx_, Submitted_, Submitted_, events, NULL);
-    if (ret < 0) {
-        THROW_ERROR_EXCEPTION("Cannot handle IO requests") << TError::FromSystem();
-    }
-    Submitted_ = 0;
-}
-
-size_t TAioEngine::Pread(const TFile& handle, TSharedMutableRef& result, size_t len, i64 offset)
-{
-    const int alignment = 512; // TODO:
-    const int readBlock = 4096;
-
-    auto tmp = TSharedMutableRef::Allocate<TAioEngineDataBufferTag>(len + 3*alignment, false);
-    tmp = tmp.Slice(AlignUp(tmp.Begin(), alignment), tmp.End());
-
-    auto f = handle.GetHandle();
-
-    i64 from = offset;
-    from -= offset % alignment;
-    i64 to = offset + len;
-
-    char * p = tmp.Begin();
-
-    while (from < to) {
-        size_t bytesToRead = from + readBlock <= to ? readBlock : alignment;
-        SubmitRead(f, p, bytesToRead, from);
-
-        p += bytesToRead;
-        from += bytesToRead;
-
-        MaybeWait();
-    }
-
-    Wait();
-
-    result = tmp.Slice(offset % alignment, offset % alignment + len);
-    return len;
-}
-
-void TAioEngine::Pwrite(const TFile& handle, const void* buf, size_t len, i64 offset)
-{
-    // TODO:
-    handle.Pwrite(buf, len, offset);
-}
-
-std::unique_ptr<TFile> TAioEngine::Open(const TString& fName, EOpenMode oMode)
-{
-    return std::make_unique<TFile>(fName, oMode | DirectAligned);
-}
-
 #endif
 
-IIOEnginePtr CreateDefaultIOEngine()
+template <typename T>
+IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig)
 {
-    return New<TDefaultIOEngine>();
+    typename T::TConfigType config;
+    config.SetDefaults();
+    if (ioConfig) {
+        config.Load(ioConfig);
+    }
+
+    return New<T>(config);
 }
 
-IIOEnginePtr CreateIOEngine(const TString & name)
+IIOEnginePtr CreateIOEngine(NDataNode::EIOEngineType ioType, const NYTree::INodePtr& ioConfig)
 {
-    if (name == "default") {
-        return New<TDefaultIOEngine>();
-#ifdef _linux_
-    } else if (name == "aio") {
-        return New<TAioEngine>();
-#endif
-    } else {
-        THROW_ERROR_EXCEPTION("unknown io engine %Qv", name);
+    switch (ioType) {
+        case NDataNode::EIOEngineType::ThreadPool:
+            return CreateIOEngine<TThreadedIOEngine>(ioConfig);
+    #ifdef _linux_
+        case NDataNode::EIOEngineType::Aio:
+            return CreateIOEngine<TAioEngine>(ioConfig);
+    #endif
+        default:
+            THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv", ioType);
     }
 }
 

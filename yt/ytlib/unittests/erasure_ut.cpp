@@ -32,11 +32,12 @@ class TFailingFileReader
 {
 public:
     TFailingFileReader(
+        const IIOEnginePtr& ioEngine,
         const TChunkId& chunkId,
         const TString& fileName,
         int period = 5,
         bool validateBlocksChecksums = true)
-        : TFileReader(chunkId, fileName, validateBlocksChecksums)
+        : TFileReader(ioEngine, chunkId, fileName, validateBlocksChecksums)
         , IsFailed_(false)
         , Period_(period)
         , Counter_(0)
@@ -237,13 +238,14 @@ public:
         auto repairIndices = *codec->GetRepairIndices(erasedIndices);
         std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
+        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
             if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
                 repairWriters->push_back(NYT::New<TFileWriter>(NullChunkId, filename));
             }
             if (repairReaders && repairIndicesSet.find(i) != repairIndicesSet.end()) {
-                auto reader = NYT::New<TFileReader>(NullChunkId, filename);
+                auto reader = NYT::New<TFileReader>(ioEngine, NullChunkId, filename);
                 repairReaders->push_back(reader);
             }
 
@@ -251,7 +253,7 @@ public:
                 erasedIndicesSet.find(i) == erasedIndicesSet.end() &&
                 (i < codec->GetDataPartCount() || repairIndicesSet.find(i) != repairIndicesSet.end()))
             {
-                auto reader = NYT::New<TFileReader>(NullChunkId, filename);
+                auto reader = NYT::New<TFileReader>(ioEngine, NullChunkId, filename);
                 allReaders->push_back(reader);
             }
         }
@@ -260,10 +262,11 @@ public:
     static std::vector<IChunkReaderPtr> GetFileReaders(int partCount)
     {
         std::vector<IChunkReaderPtr> readers;
+        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
         readers.reserve(partCount);
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
-            auto reader = NYT::New<TFileReader>(NullChunkId, filename);
+            auto reader = NYT::New<TFileReader>(ioEngine, NullChunkId, filename);
             readers.push_back(reader);
         }
         return readers;
@@ -375,12 +378,13 @@ public:
 
         std::vector<IChunkReaderPtr> readers;
         readers.reserve(partCount);
+        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             if (failingTimes[i] == 0) {
-                readers.push_back(NYT::New<TFileReader>(NullChunkId, filename));
+                readers.push_back(NYT::New<TFileReader>(ioEngine, NullChunkId, filename));
             } else {
-                readers.push_back(NYT::New<TFailingFileReader>(NullChunkId, filename, failingTimes[i]));
+                readers.push_back(NYT::New<TFailingFileReader>(ioEngine, NullChunkId, filename, failingTimes[i]));
             }
         }
         return readers;
