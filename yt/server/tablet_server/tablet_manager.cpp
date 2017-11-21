@@ -3801,20 +3801,27 @@ private:
             return result;
         };
 
-        std::vector<TCellKey> cellKeys;
+        std::vector<TTabletCell*> cells;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             if (!IsObjectAlive(cell)) {
                 continue;
             }
             if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
-                cellKeys.push_back(TCellKey{getCellSize(cell), cell});
+                cells.push_back(cell);
             }
         }
-        if (cellKeys.empty()) {
+        if (cells.empty()) {
             // NB: Changed ycheck to throw when it was triggered inside tablet action.
             THROW_ERROR_EXCEPTION("No tablet cells in bundle %Qv",
                 table->GetTabletCellBundle()->GetName());
+        }
+        // NB: Order cells by id to achieve deterministic randomness.
+        std::sort(cells.begin(), cells.end(), TObjectRefComparer::Compare);
+
+        std::vector<TCellKey> cellKeys;
+        for (auto* cell : cells) {
+            cellKeys.push_back(TCellKey{getCellSize(cell), cell});
         }
         std::sort(cellKeys.begin(), cellKeys.end());
 
