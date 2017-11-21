@@ -28,7 +28,6 @@
 
 #include <yt/core/rpc/retrying_channel.h>
 
-#include <yt/core/misc/async_stream_state.h>
 #include <yt/core/misc/nullable.h>
 
 #include <atomic>
