@@ -326,7 +326,7 @@ void TBlobChunkBase::DoReadBlockSet(
         locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds(), EMetricType::Gauge);
         locationProfiler.Enqueue("/blob_block_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()), EMetricType::Gauge);
 
-        Location_->IncreaseCompletedIOSize(EIODirection::Write, workloadDescriptor, bytesRead);
+        Location_->IncreaseCompletedIOSize(EIODirection::Read, workloadDescriptor, bytesRead);
 
         currentIndex = endIndex;
     }
