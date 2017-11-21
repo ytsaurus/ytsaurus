@@ -897,7 +897,7 @@ private:
         tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
-        if (!tablet->IsPhysicallySorted()) {
+        if (tablet->IsPhysicallyOrdered()) {
             tablet->SetTrimmedRowCount(request->trimmed_row_count());
         }
 
