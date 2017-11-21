@@ -63,7 +63,7 @@ struct TCypressNodeLockingState
 {
     std::list<TLock*> AcquiredLocks;
     std::list<TLock*> PendingLocks;
-    // NB: We rely on yhash_* containers not to invalidate iterators on rehash.
+    // NB: We rely on THash* containers not to invalidate iterators on rehash.
     // Keep this in mind when replacing them with std::* analogues.
     THashSet<TLock*> ExclusiveLocks;
     THashMultiMap<TLockKey, TLock*> SharedLocks;

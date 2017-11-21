@@ -217,7 +217,7 @@ private:
     //! Peers returning NoSuchChunk error are banned forever.
     THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
-    yhash<TString, int> PeerBanCountMap_;
+    THashMap<TString, int> PeerBanCountMap_;
 
     std::atomic<bool> IsFailed_;
 
@@ -425,7 +425,7 @@ protected:
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
-    yhash<TString, TPeer> Peers_;
+    THashMap<TString, TPeer> Peers_;
 
     //! Fixed priority invoker build upon CompressionPool.
     IInvokerPtr SessionInvoker_;
@@ -887,10 +887,10 @@ private:
     TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
-    yhash<int, TBlock> Blocks_;
+    THashMap<int, TBlock> Blocks_;
 
     //! Maps peer addresses to block indexes.
-    yhash<TString, THashSet<int>> PeerBlocksMap_;
+    THashMap<TString, THashSet<int>> PeerBlocksMap_;
 
     virtual bool IsCanceled() const override
     {

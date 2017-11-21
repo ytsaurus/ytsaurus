@@ -253,7 +253,7 @@ struct TTaskGroup
     std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
     //! Local tasks keyed by node id.
-    yhash<NNodeTrackerClient::TNodeId, THashSet<TTaskPtr>> NodeIdToTasks;
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TTaskPtr>> NodeIdToTasks;
 
     TTaskGroup();
 

@@ -183,7 +183,7 @@ private:
         std::vector<TString> Values;
     };
 
-    yhash<TString, TEntry> Raw_;
+    THashMap<TString, TEntry> Raw_;
 
     void ValidateValue(TStringBuf header, TStringBuf value);
 };

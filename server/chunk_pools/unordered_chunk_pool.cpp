@@ -474,11 +474,11 @@ private:
         }
     };
 
-    yhash<TNodeId, TLocalityEntry> NodeIdToEntry;
+    THashMap<TNodeId, TLocalityEntry> NodeIdToEntry;
 
     TIdGenerator OutputCookieGenerator;
 
-    yhash<IChunkPoolOutput::TCookie, TExtractedStripeListPtr> ExtractedLists;
+    THashMap<IChunkPoolOutput::TCookie, TExtractedStripeListPtr> ExtractedLists;
 
     THashSet<IChunkPoolOutput::TCookie> LostCookies;
     THashSet<IChunkPoolOutput::TCookie> ReplayCookies;

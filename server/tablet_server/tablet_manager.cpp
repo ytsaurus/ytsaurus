@@ -2429,10 +2429,10 @@ private:
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
 
-    yhash<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
+    THashMap<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
-    yhash<TString, TTabletCellSet> AddressToCell_;
-    yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
+    THashMap<TString, TTabletCellSet> AddressToCell_;
+    THashMap<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
     TTabletCellBundleId DefaultTabletCellBundleId_;

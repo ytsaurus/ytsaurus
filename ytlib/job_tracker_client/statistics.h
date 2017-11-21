@@ -92,7 +92,7 @@ void CreateBuildingYsonConsumer(std::unique_ptr<NYson::IBuildingYsonConsumer<TSt
 
 NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics);
 NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics);
-yhash<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
+THashMap<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

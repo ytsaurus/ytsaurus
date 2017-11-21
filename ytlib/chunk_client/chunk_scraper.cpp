@@ -200,13 +200,13 @@ TFuture<void> TChunkScraper::Stop()
 void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
 {
     // Group chunks by cell tags.
-    yhash<TCellTag, int> cellTags;
+    THashMap<TCellTag, int> cellTags;
     for (const auto& chunkId : chunkIds) {
         auto cellTag = CellTagFromId(chunkId);
         ++cellTags[cellTag];
     }
 
-    yhash<TCellTag, std::vector<TChunkId>> chunksByCells(cellTags.size());
+    THashMap<TCellTag, std::vector<TChunkId>> chunksByCells(cellTags.size());
     for (const auto& cellTag : cellTags) {
         chunksByCells[cellTag.first].reserve(cellTag.second);
     }

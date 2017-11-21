@@ -28,7 +28,7 @@ class TExecNode
     : public TIntrinsicRefCounted
 {
 private:
-    typedef yhash<TJobId, TJobPtr> TJobMap;
+    typedef THashMap<TJobId, TJobPtr> TJobMap;
 
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
@@ -93,7 +93,7 @@ public:
     double GetIOWeight() const;
 
     //! Set the node's IO weight.
-    void SetIOWeights(const yhash<TString, double>& mediumToWeight);
+    void SetIOWeights(const THashMap<TString, double>& mediumToWeight);
 
     //! Returns the node's resource limits, as reported by the node.
     const TJobResources& GetResourceLimits() const;

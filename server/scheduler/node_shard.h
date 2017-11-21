@@ -248,15 +248,15 @@ private:
             : Controller(controller)
         { }
 
-        yhash<TJobId, TJobPtr> Jobs;
+        THashMap<TJobId, TJobPtr> Jobs;
         NControllerAgent::IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
     };
 
-    yhash<TOperationId, TOperationState> OperationStates_;
+    THashMap<TOperationId, TOperationState> OperationStates_;
 
-    typedef yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
+    typedef THashMap<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
     TExecNodeByIdMap IdToNode_;
 
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);

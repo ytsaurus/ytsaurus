@@ -72,7 +72,7 @@ class TReadOnlyEntityMap
 protected:
     using TKey = TEntityKey<TValue>;
     using THash = TEntityHash<TValue>;
-    using TMap = yhash<TKey, TValue*, THash>;
+    using TMap = THashMap<TKey, TValue*, THash>;
 
 public:
     class TIterator

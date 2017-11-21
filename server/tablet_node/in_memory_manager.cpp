@@ -169,7 +169,7 @@ private:
     TAsyncSemaphorePtr PreloadSemaphore_;
 
     TReaderWriterSpinLock InterceptedDataSpinLock_;
-    yhash<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
+    THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
     void ScanSlot(const TTabletSlotPtr& slot)

@@ -1120,7 +1120,7 @@ private:
     NHydra::TEntityMap<TChunkList> ChunkListMap_;
 
     NHydra::TEntityMap<TMedium> MediumMap_;
-    yhash<TString, TMedium*> NameToMediumMap_;
+    THashMap<TString, TMedium*> NameToMediumMap_;
     std::vector<TMedium*> IndexToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 

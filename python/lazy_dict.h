@@ -33,7 +33,7 @@ struct TLazyDictValue
 class TLazyDict
 {
 public:
-    typedef yhash<Py::Object, TLazyDictValue, TPyObjectHasher> THashMapType;
+    typedef THashMap<Py::Object, TLazyDictValue, TPyObjectHasher> THashMapType;
 
     TLazyDict(bool alwaysCreateAttributes, const TNullable<TString>& encoding);
 

@@ -268,9 +268,9 @@ private:
 
     std::vector<TWeakPtr<TCompositeAutomatonPart>> Parts_;
 
-    yhash<TString, TMethodDescriptor> MethodNameToDescriptor_;
+    THashMap<TString, TMethodDescriptor> MethodNameToDescriptor_;
 
-    yhash<TString, TLoaderDescriptor> PartNameToLoaderDescriptor_;
+    THashMap<TString, TLoaderDescriptor> PartNameToLoaderDescriptor_;
 
     THashSet<TString> SaverPartNames_;
     std::vector<TSyncSaverDescriptor> SyncSavers_;

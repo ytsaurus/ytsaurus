@@ -139,7 +139,7 @@ private:
         THashSet<IChunkPtr> RemovedSinceLastSuccess;
 
         //! Maps chunks that were reported added at the last heartbeat (for which no reply is received yet) to their versions.
-        yhash<IChunkPtr, int> ReportedAdded;
+        THashMap<IChunkPtr, int> ReportedAdded;
 
         //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
         THashSet<IChunkPtr> ReportedRemoved;
@@ -149,7 +149,7 @@ private:
     };
 
     //! Per-cell chunks delta.
-    yhash<NObjectClient::TCellTag, TChunksDelta> ChunksDeltaMap_;
+    THashMap<NObjectClient::TCellTag, TChunksDelta> ChunksDeltaMap_;
 
     //! All master cell tags (including the primary).
     NObjectClient::TCellTagList MasterCellTags_;

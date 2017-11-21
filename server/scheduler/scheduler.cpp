@@ -106,7 +106,7 @@ static const auto& Profiler = SchedulerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class K, class V>
-yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)
+THashMap<K, V> FilterLargestValues(const THashMap<K, V>& input, size_t threshold)
 {
     threshold = std::min(threshold, input.size());
     std::vector<std::pair<K, V>> items(input.begin(), input.end());
@@ -117,7 +117,7 @@ yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)
         [] (const std::pair<K, V>& lhs, const std::pair<K, V>& rhs) {
             return lhs.second > rhs.second;
         });
-    return yhash<K, V>(items.begin(), items.begin() + threshold);
+    return THashMap<K, V>(items.begin(), items.begin() + threshold);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1078,7 +1078,7 @@ private:
 
     TInstant ConnectionTime_;
 
-    typedef yhash<TOperationId, TOperationPtr> TOperationIdMap;
+    typedef THashMap<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;

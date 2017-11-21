@@ -1293,7 +1293,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         }
     }
 
-    yhash<TString, TColumnSchema> nameToColumnSchema;
+    THashMap<TString, TColumnSchema> nameToColumnSchema;
     std::vector<TString> columnNames;
 
     for (const auto& schema : schemas) {

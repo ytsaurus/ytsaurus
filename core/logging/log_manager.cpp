@@ -954,7 +954,7 @@ private:
     // default configuration (default level etc.).
     std::atomic<int> Version_ = {0};
     TLogConfigPtr Config_;
-    yhash<const char*, std::unique_ptr<TLoggingCategory>> NameToCategory_;
+    THashMap<const char*, std::unique_ptr<TLoggingCategory>> NameToCategory_;
     const TLoggingCategory* SystemCategory_;
 
     // These are just copies from _Config.
@@ -970,8 +970,8 @@ private:
     std::atomic<ui64> WrittenEvents_ = {0};
     std::atomic<ui64> FlushedEvents_ = {0};
 
-    yhash<TString, ILogWriterPtr> Writers_;
-    yhash<std::pair<TString, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
+    THashMap<TString, ILogWriterPtr> Writers_;
+    THashMap<std::pair<TString, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
     std::vector<ILogWriterPtr> SystemWriters_;
 
     volatile bool ReopenRequested_ = false;
@@ -985,7 +985,7 @@ private:
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
-    yhash<int, TNotificationWatch*> NotificationWatchesIndex_;
+    THashMap<int, TNotificationWatch*> NotificationWatchesIndex_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

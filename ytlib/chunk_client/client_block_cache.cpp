@@ -157,7 +157,7 @@ public:
 private:
     const EBlockType SupportedBlockTypes_;
 
-    yhash<EBlockType, TPerTypeClientBlockCachePtr> PerTypeCaches_;
+    THashMap<EBlockType, TPerTypeClientBlockCachePtr> PerTypeCaches_;
 
     TPerTypeClientBlockCachePtr FindPerTypeCache(EBlockType type)
     {

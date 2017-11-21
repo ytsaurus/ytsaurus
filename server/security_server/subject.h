@@ -27,7 +27,7 @@ public:
     //! Transitive closure of the set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, RecursiveMemberOf);
 
-    typedef yhash<TObjectBase*, int> TLinkedObjects;
+    typedef THashMap<TObjectBase*, int> TLinkedObjects;
     //! Objects whose ACLs reference this particular subject, with counters.
     DEFINE_BYREF_RW_PROPERTY(TLinkedObjects, LinkedObjects);
 

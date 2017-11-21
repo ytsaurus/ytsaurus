@@ -244,7 +244,7 @@ static bool IsDumpExprsEnabled()
 struct TExpressionFragments
 {
     std::vector<TCodegenFragmentInfo> Items;
-    yhash<llvm::FoldingSetNodeID, size_t> Fingerprints;
+    THashMap<llvm::FoldingSetNodeID, size_t> Fingerprints;
     std::vector<TDebugInfo> DebugInfos;
 
     TCodegenFragmentInfosPtr ToFragmentInfos(const TString& namePrefix)

@@ -155,7 +155,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor_;
     const std::unique_ptr<TChunkScanner> PropertiesUpdateScanner_;
 
-    yhash<TJobId, TJobPtr> JobMap_;
+    THashMap<TJobId, TJobPtr> JobMap_;
 
     //! A queue of chunks to be repaired on each medium.
     //! Replica index is always GenericChunkReplicaIndex.
@@ -173,10 +173,10 @@ private:
 
     NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime = {};
     // src DC -> dst DC -> data size
-    yhash<const NNodeTrackerServer::TDataCenter*, yhash<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeConsumption;
-    yhash<const NNodeTrackerServer::TDataCenter*, yhash<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeCapacities;
+    THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeConsumption;
+    THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeCapacities;
     // Cached from the above fields.
-    yhash<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges;
+    THashMap<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges;
 
     void ProcessExistingJobs(
         TNode* node,
