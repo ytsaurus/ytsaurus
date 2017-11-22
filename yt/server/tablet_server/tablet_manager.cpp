@@ -1982,11 +1982,8 @@ public:
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
             auto* newTablet = CreateTablet(table);
-            auto* oldTablet = index < oldTabletCount ? tablets[index + firstTabletIndex] : nullptr;
             if (table->IsSorted()) {
                 newTablet->SetPivotKey(pivotKeys[index]);
-            } else if (oldTablet) {
-                newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablets.push_back(newTablet);
