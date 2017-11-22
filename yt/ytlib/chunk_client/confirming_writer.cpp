@@ -239,7 +239,8 @@ private:
             SessionId_,
             Options_->ErasureCodec,
             erasureCodec,
-            writers);
+            writers,
+            Config_->WorkloadDescriptor);
     }
 
     void DoClose()
