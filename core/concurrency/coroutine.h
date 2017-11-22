@@ -26,7 +26,7 @@ protected:
     TExecutionContext CoroutineContext_;
     std::exception_ptr CoroutineException_;
 
-    TCoroutineBase();
+    TCoroutineBase(const EExecutionStackKind stackKind);
 
     TCoroutineBase(const TCoroutineBase& other) = delete;
     TCoroutineBase& operator=(const TCoroutineBase& other) = delete;
@@ -58,7 +58,7 @@ public:
     using TArguments = std::tuple<TArgs...>;
 
     TCoroutine() = default;
-    TCoroutine(TCallee&& callee);
+    TCoroutine(TCallee&& callee, const EExecutionStackKind stackKind = EExecutionStackKind::Small);
 
     template <class... TParams>
     const TNullable<R>& Run(TParams&&... params);
@@ -87,7 +87,7 @@ public:
     using TArguments = std::tuple<TArgs...>;
 
     TCoroutine() = default;
-    TCoroutine(TCallee&& callee);
+    TCoroutine(TCallee&& callee, const EExecutionStackKind stackKind = EExecutionStackKind::Small);
 
     template <class... TParams>
     bool Run(TParams&&... params);

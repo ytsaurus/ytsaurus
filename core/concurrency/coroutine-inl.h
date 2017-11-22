@@ -28,8 +28,8 @@ void Invoke(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class R, class... TArgs>
-TCoroutine<R(TArgs...)>::TCoroutine(TCoroutine<R(TArgs...)>::TCallee&& callee)
-    : NDetail::TCoroutineBase()
+TCoroutine<R(TArgs...)>::TCoroutine(TCoroutine<R(TArgs...)>::TCallee&& callee, const EExecutionStackKind stackKind)
+    : NDetail::TCoroutineBase(stackKind)
     , Callee_(std::move(callee))
 { }
 
@@ -72,8 +72,8 @@ void TCoroutine<R(TArgs...)>::Invoke()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class... TArgs>
-TCoroutine<void(TArgs...)>::TCoroutine(TCoroutine<void(TArgs...)>::TCallee&& callee)
-    : NDetail::TCoroutineBase()
+TCoroutine<void(TArgs...)>::TCoroutine(TCoroutine<void(TArgs...)>::TCallee&& callee, const EExecutionStackKind stackKind)
+    : NDetail::TCoroutineBase(stackKind)
     , Callee_(std::move(callee))
 { }
 

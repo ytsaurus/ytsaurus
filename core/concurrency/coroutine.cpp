@@ -6,8 +6,8 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCoroutineBase::TCoroutineBase()
-    : CoroutineStack_(CreateExecutionStack(EExecutionStackKind::Small))
+TCoroutineBase::TCoroutineBase(const EExecutionStackKind stackKind)
+    : CoroutineStack_(CreateExecutionStack(stackKind))
     , CoroutineContext_(CoroutineStack_.get(), this)
 { }
 
