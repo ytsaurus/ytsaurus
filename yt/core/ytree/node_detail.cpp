@@ -198,7 +198,7 @@ void TCompositeNodeMixin::SetRecursive(
 
     auto factory = CreateFactory();
     auto child = ConvertToNode(TYsonString(request->value()), factory.get());
-    SetChild(factory.get(), "/" + path, child, false);
+    SetChild(factory.get(), "/" + path, child, request->recursive());
     factory->Commit();
 
     context->Reply();
@@ -263,7 +263,6 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
             }
 
             auto suffix = TYPath(tokenizer.GetSuffix());
-            bool lastToken =  tokenizer.Advance() == NYPath::ETokenType::EndOfStream;
 
             auto child = FindChild(key);
             if (!child) {
@@ -271,7 +270,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                     method == "Create" ||
                     method == "Copy" ||
                     method == "Remove" ||
-                    method == "Set" && lastToken)
+                    method == "Set")
                 {
                     return IYPathService::TResolveResultHere{"/" + path};
                 } else {
