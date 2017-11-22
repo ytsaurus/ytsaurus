@@ -73,15 +73,21 @@ class TestJobQuery(YTEnvSetup):
 
     def test_query_reader_projection(self):
         create("table", "//tmp/t1", attributes={
-            "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}]
+            "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}],
+            "optimize_for": "scan"
         })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b", "c": "d"})
 
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+        op = map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        attrs = get("//tmp/t1/@")
+        assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") < attrs["uncompressed_data_size"]
+        assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") < attrs["compressed_data_size"]
+        assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") < attrs["data_weight"]
 
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     def test_query_filtering(self, mode):
