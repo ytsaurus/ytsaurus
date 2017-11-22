@@ -4,7 +4,6 @@
 #include "job_info.h"
 #include "job_splitter.h"
 #include "job_memory.h"
-#include "job_metrics_updater.h"
 #include "helpers.h"
 #include "task_host.h"
 
@@ -13,7 +12,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/schema.h>
 
@@ -222,7 +221,7 @@ void TTask::ScheduleJob(
     }
 
     int jobIndex = TaskHost_->NextJobIndex();
-    auto joblet = New<TJoblet>(TaskHost_->CreateJobMetricsUpdater(), this, jobIndex);
+    auto joblet = New<TJoblet>(this, jobIndex);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;
@@ -432,7 +431,9 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
             YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
-                TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                if (!joblet->Revived) {
+                    TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
@@ -785,7 +786,10 @@ void TTask::RegisterOutput(
     const NChunkPools::TChunkStripeKey& key)
 {
     auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    auto outputStripes = BuildOutputChunkStripes(schedulerJobResultExt, chunkListIds, schedulerJobResultExt->output_boundary_keys());
+    auto outputStripes = BuildOutputChunkStripes(
+        schedulerJobResultExt,
+        chunkListIds,
+        schedulerJobResultExt->output_boundary_keys());
     for (int tableIndex = 0; tableIndex < EdgeDescriptors_.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
             RegisterStripe(
@@ -908,19 +912,23 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
     google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
 {
     auto stripes = BuildChunkStripes(schedulerJobResultExt->mutable_output_chunk_specs(), chunkTreeIds.size());
+    // Some edge descriptors do not require boundary keys to be returned,
+    // so they are skipped in `boundaryKeysPerTable`.
+    int boundaryKeysIndex = 0;
     for (int tableIndex = 0; tableIndex < chunkTreeIds.size(); ++tableIndex) {
-        if (!chunkTreeIds[tableIndex]) {
-            continue;
-        }
         stripes[tableIndex]->ChunkListId = chunkTreeIds[tableIndex];
-        if (tableIndex < boundaryKeysPerTable.size() &&
-            !boundaryKeysPerTable.Get(tableIndex).empty() &&
-            boundaryKeysPerTable.Get(tableIndex).sorted())
-        {
-            stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
-                boundaryKeysPerTable.Get(tableIndex),
-                EdgeDescriptors_[tableIndex],
-                TaskHost_->GetRowBuffer());
+        if (EdgeDescriptors_[tableIndex].TableWriterOptions->ReturnBoundaryKeys) {
+            // TODO(max42): do not send empty or unsorted boundary keys, this is meaningless.
+            if (boundaryKeysIndex < boundaryKeysPerTable.size() &&
+                !boundaryKeysPerTable.Get(boundaryKeysIndex).empty() &&
+                boundaryKeysPerTable.Get(boundaryKeysIndex).sorted())
+            {
+                stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
+                    boundaryKeysPerTable.Get(boundaryKeysIndex),
+                    EdgeDescriptors_[tableIndex],
+                    TaskHost_->GetRowBuffer());
+            }
+            ++boundaryKeysIndex;
         }
     }
     return stripes;

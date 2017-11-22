@@ -4,11 +4,12 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/server/misc/public.h>
 #include <yt/server/misc/disk_location.h>
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/medium_directory.h>
+
+#include <yt/core/misc/enum.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -86,7 +87,7 @@ public:
     IPrioritizedInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IPrioritizedInvokerPtr GetWritePoolInvoker();
+    IInvokerPtr GetWritePoolInvoker();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     /*!
@@ -137,13 +138,22 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         i64 delta);
 
-    //! Changes the number of currently active sessions by a given delta.
-    void UpdateSessionCount(int delta);
+    //! Increases number of bytes done for disk IO.
+    void IncreaseCompletedIOSize(
+        EIODirection direction,
+        const TWorkloadDescriptor& workloadDescriptor,
+        i64 delta);
+
+    //! Changes the number of currently active sessions of a given #type by a given #delta.
+    void UpdateSessionCount(ESessionType type, int delta);
 
     //! Changes the number of chunks by a given delta.
     void UpdateChunkCount(int delta);
 
-    //! Returns the number of currently active sessions.
+    //! Returns the number of currently active sessions of a given #type.
+    int GetSessionCount(ESessionType type) const;
+
+    //! Returns the number of currently active sessions of any type.
     int GetSessionCount() const;
 
     //! Returns the number of chunks.
@@ -181,7 +191,7 @@ private:
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
-    int SessionCount_ = 0;
+    TEnumIndexedVector<int, ESessionType> PerTypeSessionCount_;
     int ChunkCount_ = 0;
 
     const NConcurrency::TThreadPoolPtr DataReadThreadPool_;
@@ -191,16 +201,20 @@ private:
     const IPrioritizedInvokerPtr MetaReadInvoker_;
 
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
-    const IPrioritizedInvokerPtr WritePoolInvoker_;
+    const IInvokerPtr WritePoolInvoker_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
     NProfiling::TProfiler Profiler_;
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
+    std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleCounter& GetPendingIOSizeCounter(
+        EIODirection direction,
+        EIOCategory category);
+    NProfiling::TSimpleCounter& GetCompletedIOSizeCounter(
         EIODirection direction,
         EIOCategory category);
 
@@ -234,7 +248,7 @@ public:
         TStoreLocationConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    //! Returns Journal Manager accociated with this location.
+    //! Returns Journal Manager associated with this location.
     TJournalManagerPtr GetJournalManager();
 
     //! Returns the space reserved for low watermark.
@@ -257,6 +271,8 @@ private:
 
     const TJournalManagerPtr JournalManager_;
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
+
+    mutable std::atomic<bool> Full_ = {false};
 
     struct TTrashChunkEntry
     {

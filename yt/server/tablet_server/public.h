@@ -77,6 +77,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
 
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletBalancerMasterConfig)
 
 class TTableReplica;
 

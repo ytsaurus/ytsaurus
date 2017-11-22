@@ -1,12 +1,10 @@
 #include "operation_controller.h"
 
 #include "helpers.h"
-#include "legacy_merge_controller.h"
-#include "map_controller.h"
 #include "ordered_controller.h"
-#include "remote_copy_controller.h"
 #include "sort_controller.h"
 #include "sorted_controller.h"
+#include "unordered_controller.h"
 
 #include <yt/server/scheduler/operation.h>
 
@@ -29,6 +27,7 @@ using namespace NScheduler;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,24 +241,24 @@ public:
         return Underlying_->HasJobSplitterInfo();
     }
 
-    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const override
+    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const override
     {
-        Underlying_->BuildSpec(consumer);
+        Underlying_->BuildSpec(fluent);
     }
 
-    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override
+    virtual void BuildOperationAttributes(TFluentMap fluent) const override
     {
-        Underlying_->BuildOperationAttributes(consumer);
+        Underlying_->BuildOperationAttributes(fluent);
     }
 
-    virtual void BuildProgress(IYsonConsumer* consumer) const override
+    virtual void BuildProgress(TFluentMap fluent) const override
     {
-        Underlying_->BuildProgress(consumer);
+        Underlying_->BuildProgress(fluent);
     }
 
-    virtual void BuildBriefProgress(IYsonConsumer* consumer) const override
+    virtual void BuildBriefProgress(TFluentMap fluent) const override
     {
-        Underlying_->BuildBriefProgress(consumer);
+        Underlying_->BuildBriefProgress(fluent);
     }
 
     virtual TString GetLoggingProgress() const override
@@ -267,14 +266,14 @@ public:
         return Underlying_->GetLoggingProgress();
     }
 
-    virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override
+    virtual void BuildMemoryDigestStatistics(TFluentMap fluent) const override
     {
-        Underlying_->BuildMemoryDigestStatistics(consumer);
+        Underlying_->BuildMemoryDigestStatistics(fluent);
     }
 
-    virtual void BuildJobSplitterInfo(IYsonConsumer* consumer) const override
+    virtual void BuildJobSplitterInfo(TFluentMap fluent) const override
     {
-        Underlying_->BuildJobSplitterInfo(consumer);
+        Underlying_->BuildJobSplitterInfo(fluent);
     }
 
     virtual TYsonString GetProgress() const override
@@ -300,6 +299,11 @@ public:
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override
     {
         return Underlying_->ExtractJobSpec(jobId);
+    }
+
+    virtual TOperationJobMetrics ExtractJobMetricsDelta() override
+    {
+        return Underlying_->ExtractJobMetricsDelta();
     }
 
     virtual TYsonString BuildSuspiciousJobsYson() const override
@@ -348,70 +352,51 @@ IOperationControllerPtr CreateControllerForOperation(
     switch (operation->GetType()) {
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-            if (baseSpec->Ordered) {
-                auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-                controller = legacySpec->UseLegacyController
-                    ? CreateLegacyOrderedMapController(host, operation)
-                    : CreateOrderedMapController(host, operation);
-            } else {
-                controller = CreateMapController(host, operation);
-            }
+            controller = baseSpec->Ordered
+                ? CreateOrderedMapController(host, operation)
+                : CreateUnorderedMapController(host, operation);
             break;
         }
         case EOperationType::Merge: {
             auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
             switch (baseSpec->Mode) {
                 case EMergeMode::Ordered: {
-                    auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-                    controller = legacySpec->UseLegacyController
-                        ? CreateLegacyOrderedMergeController(host, operation)
-                        : CreateOrderedMergeController(host, operation);
+                    controller = CreateOrderedMergeController(host, operation);
                     break;
                 }
                 case EMergeMode::Sorted: {
-                    auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-                    controller = legacySpec->UseLegacyController
-                        ? CreateLegacySortedMergeController(host, operation)
-                        : CreateSortedMergeController(host, operation);
+                    controller = CreateSortedMergeController(host, operation);
                     break;
                 }
-                case EMergeMode::Unordered:
+                case EMergeMode::Unordered: {
                     controller = CreateUnorderedMergeController(host, operation);
+                    break;
+                }
             }
             break;
         }
         case EOperationType::Erase: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            controller = legacySpec->UseLegacyController
-                ? CreateLegacyEraseController(host, operation)
-                : CreateEraseController(host, operation);
+            controller = CreateEraseController(host, operation);
             break;
         }
-        case EOperationType::Sort:
+        case EOperationType::Sort: {
             controller = CreateSortController(host, operation);
             break;
+        }
         case EOperationType::Reduce: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            controller = legacySpec->UseLegacyController
-                ? CreateLegacyReduceController(host, operation)
-                : CreateSortedReduceController(host, operation);
+            controller = CreateSortedReduceController(host, operation);
             break;
         }
         case EOperationType::JoinReduce: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            controller = legacySpec->UseLegacyController
-                ? CreateLegacyJoinReduceController(host, operation)
-                : CreateJoinReduceController(host, operation);
+            controller = CreateJoinReduceController(host, operation);
             break;
         }
-        case EOperationType::MapReduce:
+        case EOperationType::MapReduce: {
             controller = CreateMapReduceController(host, operation);
             break;
+        }
         case EOperationType::RemoteCopy: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            controller = legacySpec->UseLegacyController
-                ? CreateLegacyRemoteCopyController(host, operation)
-                : CreateRemoteCopyController(host, operation);
+            controller = CreateRemoteCopyController(host, operation);
             break;
         }
         default:

@@ -172,11 +172,11 @@ private:
             fluent.Item()
                 .BeginAttributes()
                     .Item("medium").Value(medium->GetName())
-                    .DoIf(chunk->IsErasure(), [&] (TFluentAttributes fluent) {
+                    .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
                         fluent
                             .Item("index").Value(replica.GetReplicaIndex());
                     })
-                    .DoIf(chunk->IsJournal(), [&] (TFluentAttributes fluent) {
+                    .DoIf(chunk->IsJournal(), [&] (TFluentMap fluent) {
                         fluent
                             .Item("type").Value(EJournalReplicaType(replica.GetReplicaIndex()));
                     })
@@ -201,7 +201,7 @@ private:
         auto serializeLastSeenReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
             fluent.Item()
                 .BeginAttributes()
-                    .DoIf(chunk->IsErasure(), [&] (TFluentAttributes fluent) {
+                    .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
                         fluent
                             .Item("index").Value(replica.GetReplicaIndex());
                     })

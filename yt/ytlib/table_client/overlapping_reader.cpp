@@ -642,14 +642,14 @@ ISchemafulReaderPtr CreateSchemafulOverlappingRangeReader(
     std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
-    int minConcurrentReaders)
+    int minConcurrency)
 {
     return TSchemafulOverlappingRangeReader::Create(
         boundaries,
         std::move(rowMerger),
         std::move(readerFactory),
         std::move(keyComparer),
-        minConcurrentReaders);
+        minConcurrency);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -711,14 +711,14 @@ IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
     std::unique_ptr<TVersionedRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
-    int minConcurrentReaders)
+    int minConcurrency)
 {
     return New<TVersionedOverlappingRangeReader>(
         boundaries,
         std::move(rowMerger),
         std::move(readerFactory),
         std::move(keyComparer),
-        minConcurrentReaders);
+        minConcurrency);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

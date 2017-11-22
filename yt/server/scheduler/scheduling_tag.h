@@ -36,6 +36,11 @@ extern const TSchedulingTagFilter EmptySchedulingTagFilter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consumer);
+void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 

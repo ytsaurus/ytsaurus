@@ -20,6 +20,11 @@ TDriverResponseHolder::TDriverResponseHolder()
 
 TDriverResponseHolder::~TDriverResponseHolder()
 {
+    // TODO(ignat): fix possible race here.
+    if (!Py_IsInitialized()) {
+        return;
+    }
+
     TGilGuard guard;
     // Releasing Python objects under GIL.
     InputStream_.reset(nullptr);

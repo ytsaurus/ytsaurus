@@ -7,6 +7,8 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
@@ -72,7 +74,7 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate()
     TEdgeDescriptor descriptor;
     descriptor.DestinationPool = nullptr;
     descriptor.TableUploadOptions = TableUploadOptions;
-    descriptor.TableWriterOptions = Options;
+    descriptor.TableWriterOptions = CloneYsonSerializable(Options);
     descriptor.TableWriterConfig = WriterConfig;
     descriptor.Timestamp = Timestamp;
     // Output tables never lose data (hopefully), so we do not need to store

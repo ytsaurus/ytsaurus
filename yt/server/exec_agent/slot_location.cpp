@@ -1,7 +1,7 @@
 #include "slot_location.h"
 #include "private.h"
 #include "config.h"
-#include "mounter.h"
+#include "job_directory_manager.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -28,7 +28,6 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NConcurrency;
-using namespace NContainers;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
@@ -39,12 +38,14 @@ TSlotLocation::TSlotLocation(
     const TSlotLocationConfigPtr& config,
     const NCellNode::TBootstrap* bootstrap,
     const TString& id,
-    bool detachedTmpfsUmount)
+    const IJobDirectoryManagerPtr& jobDirectoryManager,
+    bool enableTmpfs)
     : TDiskLocation(config, id, ExecAgentLogger)
     , Config_(config)
     , Bootstrap_(bootstrap)
+    , JobDirectoryManager_(jobDirectoryManager)
     , LocationQueue_(New<TActionQueue>(id))
-    , DetachedTmpfsUmount_(detachedTmpfsUmount)
+    , EnableTmpfs_(enableTmpfs)
     , HasRootPermissions_(HasRootPermissions())
 {
     Enabled_ = true;
@@ -216,22 +217,18 @@ TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
 
-        if (diskSpaceLimit || inodeLimit) {
-            auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
-            auto config = New<TFSQuotaConfig>();
-            config->DiskSpaceLimit = diskSpaceLimit;
-            config->InodeLimit = inodeLimit;
-            config->UserId = userId;
-            config->SlotPath = sandboxPath;
-            try {
-                RunTool<TFSQuotaTool>(config);
-            } catch (const std::exception& ex) {
-                auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
-                    << TErrorAttribute("sandbox_path", sandboxPath)
-                    << ex;
-                Disable(error);
-                THROW_ERROR error;
-            }
+        auto path = GetSandboxPath(slotIndex, ESandboxKind::User);
+
+        try {
+            auto properties = TJobDirectoryProperties {diskSpaceLimit, inodeLimit, userId};
+            WaitFor(JobDirectoryManager_->ApplyQuota(path, properties))
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
+                << TErrorAttribute("sandbox_path", path)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
         }
 
         auto chownChmod = [&] (ESandboxKind sandboxKind, int permissions) {
@@ -272,25 +269,18 @@ TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
     .Run();
 }
 
-TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
+TFuture<TNullable<TString>> TSlotLocation::MakeSandboxTmpfs(
     int slotIndex,
     ESandboxKind kind,
     i64 size,
-    const TString& path,
-    bool enable,
-    IMounterPtr mounter)
+    const TString& path)
 {
-    return BIND([=, this_ = MakeStrong(this)] () {
+    return BIND([=, this_ = MakeStrong(this)] () -> TNullable<TString   > {
         ValidateEnabled();
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
         auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, path));
 
         try {
-            // This validations do not disable slot.
-            if (!HasRootPermissions_) {
-                THROW_ERROR_EXCEPTION("Sandbox tmpfs is disabled since node doesn't have root permissions");
-            }
-
             if (!tmpfsPath.StartsWith(sandboxPath)) {
                 THROW_ERROR_EXCEPTION("Path of the tmpfs mount point must be inside the sandbox directory")
                     << TErrorAttribute("sandbox_path", sandboxPath)
@@ -308,23 +298,18 @@ TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
                 << ex;
         }
 
-        if (!enable) {
-            // Skip actual tmpfs mount.
-            return tmpfsPath;
+        if (!EnableTmpfs_) {
+            return Null;
         }
 
         try {
-            auto config = New<TMountTmpfsConfig>();
-            config->Path = tmpfsPath;
-            config->Size = size;
-            config->UserId = ::geteuid();
+            auto properties = TJobDirectoryProperties{size, Null, static_cast<int>(::getuid())};
+            WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
+                .ThrowOnError();
 
-            LOG_DEBUG("Mounting tmpfs (Config: %v)",
-                ConvertToYsonString(config, EYsonFormat::Text));
-
-            mounter->Mount(config);
             TmpfsPaths_.insert(tmpfsPath);
-            return tmpfsPath;
+
+            return MakeNullable(tmpfsPath);
         } catch (const std::exception& ex) {
             // Job will be aborted.
             auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
@@ -360,28 +345,10 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
     .Run();
 }
 
-TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex, IMounterPtr mounter)
+TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
-
-        auto removeMountPoint = [=, this_ = MakeStrong(this)] (const TString& path) {
-            auto config = New<TUmountConfig>();
-            config->Path = path;
-            config->Detach = DetachedTmpfsUmount_;
-
-            try {
-                // Due to bug in the kernel, this can sometimes fail with "Directory is not empty" error.
-                // More info: https://bugzilla.redhat.com/show_bug.cgi?id=1066751
-                RunTool<TRemoveDirContentAsRootTool>(path);
-            } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Failed to remove mount point %v", path);
-            }
-
-            YCHECK(mounter);
-
-            mounter->Umount(config);
-        };
 
         for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
             const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
@@ -390,43 +357,12 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex, IMounterPtr mounter)
                     continue;
                 }
 
+                LOG_DEBUG("Removing job directories (Path: %v)", sandboxPath);
+
+                WaitFor(JobDirectoryManager_->CleanDirectories(sandboxPath))
+                    .ThrowOnError();
+
                 LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
-
-                auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
-                auto isInsideSandbox = [&] (const TString& path) {
-                    return path == sandboxFullPath || path.StartsWith(sandboxFullPath + "/");
-                };
-
-                // Unmount all known tmpfs.
-                std::vector<TString> tmpfsPaths;
-                for (const auto& tmpfsPath : TmpfsPaths_) {
-                    if (isInsideSandbox(tmpfsPath)) {
-                        tmpfsPaths.push_back(tmpfsPath);
-                    }
-                }
-
-                for (const auto& path : tmpfsPaths) {
-                    LOG_DEBUG("Remove known mount point (Path: %v)", path);
-                    TmpfsPaths_.erase(path);
-                    removeMountPoint(path);
-                }
-
-                // Unmount unknown tmpfs, e.g. left from previous node run.
-
-                // NB: iterating over /proc/mounts is not reliable,
-                // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
-                // To avoid problems with undeleting tmpfs ordered by user in sandbox
-                // we always try to remove it several times.
-                for (int attempt = 0; mounter && attempt < TmpfsRemoveAttemptCount; ++attempt) {
-                    // Look mount points inside sandbox and unmount it.
-                    auto mountPoints = mounter->GetMountPoints();
-                    for (const auto& mountPoint : mountPoints) {
-                        if (isInsideSandbox(mountPoint.Path)) {
-                            LOG_DEBUG("Remove unknown mount point (Path: %v)", mountPoint.Path);
-                            removeMountPoint(mountPoint.Path);
-                        }
-                    }
-                }
 
                 if (HasRootPermissions_) {
                     RunTool<TRemoveDirAsRootTool>(sandboxPath);
@@ -488,8 +424,10 @@ TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) c
 
 bool TSlotLocation::IsInsideTmpfs(const TString& path) const
 {
-    for (const auto& tmpfsPath : TmpfsPaths_) {
-        if (path.StartsWith(tmpfsPath)) {
+    auto it = TmpfsPaths_.lower_bound(path);
+    if (it != TmpfsPaths_.begin()) {
+        --it;
+        if (path.StartsWith(*it + "/")) {
             return true;
         }
     }

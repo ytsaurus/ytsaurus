@@ -8,7 +8,7 @@
 
 #include <yt/core/rpc/client.h>
 
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {
@@ -246,15 +246,6 @@ TFuture<std::vector<TString>> AsyncYPathList(
     const TYPath& path,
     TNullable<i64> limit = Null);
 
-//! Overrides a part of #root tree.
-/*!
- *  #overrideString must have the |path = value| format.
- *  The method updates #root by setting |value| (forcing those parts of |path| that are missing).
- */
-void ApplyYPathOverride(
-    const INodePtr& root,
-    const TStringBuf& overrideString);
-
 /*!
  *  Throws exception if the specified node does not exist.
  */
@@ -279,15 +270,12 @@ void SetNodeByYPath(
  */
 void ForceYPath(const INodePtr& root, const TYPath& path);
 
-//! Computes a full YPath for a given #node and (optionally) returns the root.
-TYPath GetNodeYPath(const INodePtr& node, INodePtr* root = nullptr);
-
 //! Constructs an ephemeral deep copy of #node.
 INodePtr CloneNode(const INodePtr& node);
 
 //! Applies changes given by #patch to #base.
 //! Returns the resulting tree.
-INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch);
+INodePtr PatchNode(const INodePtr& base, const INodePtr& patch);
 
 //! Checks given nodes for deep equality.
 bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs);

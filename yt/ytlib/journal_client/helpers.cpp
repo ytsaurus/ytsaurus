@@ -67,7 +67,7 @@ public:
         int quorum,
         INodeChannelFactoryPtr channelFactory)
         : TQuorumSessionBase(sessionId.ChunkId, replicas, timeout, quorum, channelFactory)
-        , MediumIndex_(sessionId.MediumIndex)
+        , SessionId_(sessionId)
     { }
 
     TFuture<void> Run()
@@ -79,7 +79,7 @@ public:
     }
 
 private:
-    const int MediumIndex_;
+    const TSessionId SessionId_;
 
     int SuccessCounter_ = 0;
     int ResponseCounter_ = 0;
@@ -109,7 +109,7 @@ private:
             proxy.SetDefaultTimeout(Timeout_);
 
             auto req = proxy.FinishChunk();
-            ToProto(req->mutable_session_id(), TSessionId(ChunkId_, MediumIndex_));
+            ToProto(req->mutable_session_id(), SessionId_);
             req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), descriptor)
                 .Via(GetCurrentInvoker()));
         }

@@ -308,7 +308,7 @@ void SetThreadPriorityAsRoot(TSetThreadPriorityConfigPtr config)
 void SetQuota(TFSQuotaConfigPtr config)
 {
     SafeSetUid(0);
-    NFS::SetQuota(config->UserId, config->SlotPath, config->DiskSpaceLimit, config->InodeLimit);
+    NFS::SetQuota(config->UserId, config->Path, config->DiskSpaceLimit, config->InodeLimit);
 }
 
 TError StatusToError(int status)

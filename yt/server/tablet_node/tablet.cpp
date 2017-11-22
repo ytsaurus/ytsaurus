@@ -49,10 +49,6 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
@@ -82,6 +78,7 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 TReplicaCounters::TReplicaCounters(const TTagIdList& list)
     : LagRowCount("/replica/lag_row_count", list)
     , LagTime("/replica/lag_time", list)
+    , Tags(list)
 { }
 
 // Uses tablet_id and replica_id as the key.
@@ -269,6 +266,15 @@ void TTableReplicaInfo::PopulateStatistics(TTableReplicaStatistics* statistics) 
 void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& statistics)
 {
     RuntimeData_->MergeFrom(statistics);
+}
+
+TProfiler TTableReplicaInfo::GetReplicatorProfiler() const
+{
+    return GetCounters()
+        ? TProfiler(
+            TabletNodeProfiler.GetPathPrefix() + "/replicator",
+            GetCounters()->Tags)
+        : TProfiler();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1128,19 +1134,27 @@ void TTablet::Initialize()
 void TTablet::FillProfilerTags(const TCellId& cellId)
 {
     ProfilerTags_.clear();
-    if (TablePath_.empty()) {
-        LOG_WARNING("Table path is empty, profiling will be disabled (TabletId: %v, CellId: %v)",
-            Id_,
-            cellId);
-        return;
-    }
+
     if (Config_->EnableProfiling) {
         ProfilerTags_.assign({
-            // tablet_id must be the first. See tablet_profiling.cpp for details.
             TProfileManager::Get()->RegisterTag("tablet_id", Id_),
             TProfileManager::Get()->RegisterTag("cell_id", cellId)});
     }
-    ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag("table_path", TablePath_));
+
+    auto addProfilingTag = [&] (const TString& tag, const TString& value) {
+        ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(
+            tag,
+            value ? value : UnknownProfilingTag));
+    };
+
+    switch (Config_->ProfilingMode) {
+        case EDynamicTableProfilingMode::Path:
+            addProfilingTag("table_path", TablePath_);
+            break;
+
+        default:
+            break;
+    }
 
     const auto& writerOptions = WriterOptions_;
     DiskProfilerTags_.assign({

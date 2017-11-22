@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
-
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/transaction_client/public.h>
@@ -74,6 +72,10 @@ public:
         NJobTrackerClient::NProto::TRspHeartbeat>;
     using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
     void ProcessHeartbeat(TCtxHeartbeatPtr context);
+
+    void ProcessControllerAgentHeartbeat(
+        const NScheduler::NProto::TReqHeartbeat* request,
+        NScheduler::NProto::TRspHeartbeat* response);
 
 private:
     class TImpl;

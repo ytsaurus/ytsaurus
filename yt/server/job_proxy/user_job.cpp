@@ -160,7 +160,7 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
-        std::unique_ptr<IUserJobIO> userJobIO,
+        std::unique_ptr<TUserJobIO> userJobIO,
         IResourceControllerPtr resourceController)
         : TJob(host)
         , Logger(Host_->GetLogger())
@@ -364,6 +364,18 @@ public:
         return UserJobReadController_->GetProgress();
     }
 
+    virtual ui64 GetStderrSize() const override
+    {
+        if (!Prepared_) {
+            return 0;
+        }
+        auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentSize(); })
+            .AsyncVia(ReadStderrInvoker_)
+            .Run());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr size");
+        return result.Value();
+    }
+
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return UserJobReadController_->GetFailedChunkIds();
@@ -377,7 +389,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    const std::unique_ptr<IUserJobIO> JobIO_;
+    const std::unique_ptr<TUserJobIO> JobIO_;
     TUserJobReadControllerPtr UserJobReadController_;
 
     const TUserJobSpec& UserJobSpec_;
@@ -1326,7 +1338,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     const TJobId& jobId,
-    std::unique_ptr<IUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO)
 {
     auto subcontroller = host->GetResourceController()
         ? host->GetResourceController()->CreateSubcontroller(CGroupPrefix + ToString(jobId))
@@ -1345,7 +1357,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
     const TJobId& jobId,
-    std::unique_ptr<IUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Unix");
 }

@@ -24,6 +24,10 @@ namespace NProto {
 class TSchedulerJobSpecExt;
 class TSchedulerJobResultExt;
 class TTableInputSpec;
+class TJobResources;
+class TOperationJobMetrics;
+class TReqHeartbeat;
+class TRspHeartbeat;
 
 } // namespace NProto
 
@@ -86,6 +90,7 @@ DEFINE_ENUM(EAbortReason,
     (NodeOffline)
     (WaitingTimeout)
     (AccountLimitExceeded)
+    (GetSpecFailed)
     (Unknown)
     (RevivalConfirmationTimeout)
     (SchedulingFirst)
@@ -179,6 +184,8 @@ DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationSpec)
 DECLARE_REFCOUNTED_CLASS(TPoolConfig)
 
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec)
+
+DECLARE_REFCOUNTED_CLASS(TOperationStrategyRuntimeParams)
 
 DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams)
 

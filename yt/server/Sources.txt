@@ -33,7 +33,6 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/cell_proxy/bootstrap.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/atomic_chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_stripe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_stripe_key.cpp
@@ -88,24 +87,21 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/intermediate_chunk_scraper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_memory.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_metrics_updater.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_info.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_size_adjuster.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_splitter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_spec_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/legacy_merge_controller.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation_controller_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/ordered_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/progress_counter.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/remote_copy_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/snapshot_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/snapshot_downloader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/sort_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/sorted_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/unordered_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/task.cpp
 
@@ -165,8 +161,8 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_environment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_directory_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_prober_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/mounter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/scheduler_connector.cpp
@@ -243,21 +239,17 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_satellite.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_satellite_connection.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/map_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_map_job_io.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_reduce_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/remote_copy_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/resource_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/simple_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_merge_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_reduce_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stderr_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.proto
@@ -331,6 +323,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/exec_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp

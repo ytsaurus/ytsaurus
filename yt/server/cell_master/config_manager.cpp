@@ -3,6 +3,8 @@
 #include "config_manager.h"
 #include "multicell_manager.h"
 
+#include <yt/server/tablet_server/config.h>
+
 #include <yt/core/misc/serialize.h>
 
 #include <yt/core/ytree/ypath_proxy.h>

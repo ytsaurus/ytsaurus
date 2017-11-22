@@ -587,9 +587,12 @@ public:
             Iterator_.MoveNext();
         }
 
-        RowCount_ += rows->size();
+        i64 rowCount = rows->size();
+
+        RowCount_ += rowCount;
         DataWeight_ += dataWeight;
-        Store_->PerformanceCounters_->DynamicRowReadCount += rows->size();
+        Store_->PerformanceCounters_->DynamicRowReadCount += rowCount;
+        Store_->PerformanceCounters_->DynamicRowReadDataWeightCount += dataWeight;
 
         return true;
     }
@@ -709,6 +712,8 @@ public:
             return false;
         }
 
+        i64 dataWeight = 0;
+
         while (rows->size() < rows->capacity()) {
             if (RowCount_ == Keys_.Size())
                 break;
@@ -728,7 +733,7 @@ public:
             rows->push_back(row);
 
             ++RowCount_;
-            DataWeight_ += GetDataWeight(row);
+            dataWeight += GetDataWeight(row);
         }
 
         if (rows->empty()) {
@@ -736,7 +741,9 @@ public:
             return false;
         }
 
+        DataWeight_ += dataWeight;
         Store_->PerformanceCounters_->DynamicRowLookupCount += rows->size();
+        Store_->PerformanceCounters_->DynamicRowLookupDataWeightCount += dataWeight;
 
         return true;
     }

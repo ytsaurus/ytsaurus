@@ -16,7 +16,7 @@ class TTabletBalancer
 {
 public:
     TTabletBalancer(
-        TTabletBalancerConfigPtr config,
+        TTabletBalancerMasterConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
     ~TTabletBalancer();
 

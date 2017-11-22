@@ -113,6 +113,23 @@ public:
         return CancelableControlInvoker;
     }
 
+    void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
+    {
+        auto owners = operation->GetOwners();
+        owners.push_back(operation->GetAuthenticatedUser());
+
+        fluent
+            .BeginList()
+                .Item().BeginMap()
+                    .Item("action").Value(ESecurityAction::Allow)
+                    .Item("subjects").Value(owners)
+                    .Item("permissions").BeginList()
+                        .Item().Value(EPermission::Write)
+                    .EndList()
+                .EndMap()
+            .EndList();
+    }
+
     TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -125,9 +142,6 @@ public:
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
-
-        auto owners = operation->GetOwners();
-        owners.push_back(operation->GetAuthenticatedUser());
 
         {
             auto req = TYPathProxy::Set(GetOperationPath(operationId));
@@ -142,15 +156,8 @@ public:
                     .Item("progress").BeginMap().EndMap()
                     .Item("brief_progress").BeginMap().EndMap()
                     .Item("opaque").Value("true")
-                    .Item("acl").BeginList()
-                        .Item().BeginMap()
-                            .Item("action").Value(ESecurityAction::Allow)
-                            .Item("subjects").Value(owners)
-                            .Item("permissions").BeginList()
-                                .Item().Value(EPermission::Write)
-                            .EndList()
-                        .EndMap()
-                    .EndList()
+                        .Item("acl").Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
+                    .Item("owners").Value(operation->GetOwners())
                 .EndAttributes()
                 .BeginMap()
                     .Item("jobs").BeginAttributes()
@@ -159,6 +166,15 @@ public:
                     .BeginMap().EndMap()
                 .EndMap()
                 .GetData());
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+
+        {
+            auto req = TCypressYPathProxy::Create(GetNewOperationPath(operationId));
+            req->set_type(static_cast<int>(EObjectType::MapNode));
+            req->set_recursive(true);
+            req->set_force(true);
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -172,15 +188,7 @@ public:
             attributes->Set("inherit_acl", false);
             attributes->Set("value", operation->GetSecureVault());
             attributes->Set("acl", BuildYsonStringFluently()
-                .BeginList()
-                    .Item().BeginMap()
-                        .Item("action").Value(ESecurityAction::Allow)
-                        .Item("subjects").Value(owners)
-                        .Item("permissions").BeginList()
-                            .Item().Value(EPermission::Read)
-                        .EndList()
-                    .EndMap()
-                .EndList());
+                .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation)));
             ToProto(req->mutable_node_attributes(), *attributes);
             GenerateMutationId(req);
             batchReq->AddRequest(req);
@@ -582,9 +590,14 @@ private:
                     operationsList->GetChildCount());
                 OperationIds.clear();
                 for (auto operationNode : operationsList->GetChildren()) {
+                    auto state = operationNode->Attributes().Find<EOperationState>("state");
+                    // Ignore map nodes with nested operation nodes.
+                    if (!state) {
+                        continue;
+                    }
+
                     auto id = TOperationId::FromString(operationNode->GetValue<TString>());
-                    auto state = operationNode->Attributes().Get<EOperationState>("state");
-                    if (IsOperationInProgress(state)) {
+                    if (IsOperationInProgress(*state)) {
                         OperationIds.push_back(id);
                     }
                 }
@@ -614,6 +627,7 @@ private:
                             "completion_transaction_id",
                             "debug_output_transaction_id",
                             "spec",
+                            "owners",
                             "authenticated_user",
                             "start_time",
                             "state",
@@ -623,6 +637,14 @@ private:
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                         batchReq->AddRequest(req, "get_op_attr");
+                    }
+                    {
+                        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+                        std::vector<TString> attributeKeys{
+                            "completion_transaction_id",
+                        };
+                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                        batchReq->AddRequest(req, "get_op_attr_new");
                     }
                     // Retrieve secure vault.
                     {
@@ -640,13 +662,21 @@ private:
                 auto attributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr");
                 YCHECK(attributesRsps.size() == OperationIds.size());
 
+                auto attributesNewRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr_new");
+                YCHECK(attributesRsps.size() == OperationIds.size());
+
                 auto secureVaultRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_secure_vault");
                 YCHECK(secureVaultRsps.size() == OperationIds.size());
 
                 for (int index = 0; index < static_cast<int>(OperationIds.size()); ++index) {
                     const auto& operationId = OperationIds[index];
                     auto attributesRsp = attributesRsps[index].Value();
+                    auto attributesNewRsp = attributesNewRsps[index];
                     auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                    if (attributesNewRsp.IsOK()) {
+                        auto attributesNodeNew = ConvertToAttributes(TYsonString(attributesNewRsp.Value()->value()));
+                        attributesNode->MergeFrom(*attributesNodeNew);
+                    }
                     auto secureVaultRspOrError = secureVaultRsps[index];
                     IMapNodePtr secureVault;
                     if (secureVaultRspOrError.IsOK()) {
@@ -699,13 +729,24 @@ private:
                         report.ControllerTransactions->Output->GetId(),
                         NullTransactionId})
                     {
-                        auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "committed"
-                        };
-                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        SetTransactionId(req, transactionId);
-                        batchReq->AddRequest(req, getBatchKey(report));
+                        {
+                            auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
+                            std::vector<TString> attributeKeys{
+                                "committed"
+                            };
+                            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                            SetTransactionId(req, transactionId);
+                            batchReq->AddRequest(req, getBatchKey(report));
+                        }
+                        {
+                            auto req = TYPathProxy::Get(GetNewOperationPath(report.Operation->GetId()) + "/@");
+                            std::vector<TString> attributeKeys{
+                                "committed"
+                            };
+                            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                            SetTransactionId(req, transactionId);
+                            batchReq->AddRequest(req, getBatchKey(report) + "_new");
+                        }
                     }
                 }
             }
@@ -718,20 +759,38 @@ private:
                 for (int index = 0; index < static_cast<int>(operationsWithOutputTransaction.size()); ++index) {
                     auto* report = operationsWithOutputTransaction[index];
                     auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report));
+                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report) + "_new");
 
-                    size_t rspIndex = 0;
-                    for (auto rsp : rsps) {
-                        ++rspIndex;
-                        if (!rsp.IsOK()) {
-                            // Output transaction may be aborted or expired.
+                    YCHECK(rsps.size() == 2);
+                    YCHECK(rspsNew.size() == 2);
+
+                    for (size_t rspIndex = 0; rspIndex < 2; ++rspIndex) {
+                        std::unique_ptr<IAttributeDictionary> attributes;
+                        auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& response) {
+                            if (!response.IsOK()) {
+                                return;
+                            }
+
+                            auto responseAttributes = ConvertToAttributes(TYsonString(response.Value()->value()));
+
+                            if (attributes) {
+                                attributes->MergeFrom(*responseAttributes);
+                            } else {
+                                attributes = std::move(responseAttributes);
+                            }
+                        };
+
+                        updateAttributes(rsps[rspIndex]);
+                        updateAttributes(rspsNew[rspIndex]);
+
+                        // Commit transaction may be missing or aborted.
+                        if (!attributes) {
                             continue;
                         }
 
-                        auto attributesRsp = rsp.Value();
-                        auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
                         if (attributes->Get<bool>("committed", false)) {
                             report->IsCommitted = true;
-                            if (rspIndex == 1) {
+                            if (rspIndex == 0) {
                                 report->ShouldCommitOutputTransaction = true;
                             }
                             break;
@@ -875,6 +934,8 @@ private:
             "debug output transaction");
 
         auto spec = attributes.Get<INodePtr>("spec")->AsMap();
+
+        // COMPAT
         TOperationSpecBasePtr operationSpec;
         try {
             operationSpec = ConvertTo<TOperationSpecBasePtr>(spec);
@@ -891,7 +952,7 @@ private:
             userTransactionId,
             spec,
             attributes.Get<TString>("authenticated_user"),
-            operationSpec->Owners,
+            attributes.Get<std::vector<TString>>("owners", operationSpec->Owners),
             attributes.Get<TInstant>("start_time"),
             Bootstrap->GetControlInvoker(),
             attributes.Get<EOperationState>("state"),
@@ -1053,6 +1114,15 @@ private:
                             fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
                         }
                     })
+                .GetData());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
+        // Set operation acl.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@acl");
+            req->set_value(BuildYsonStringFluently()
+                .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
                 .GetData());
             batchReq->AddRequest(req, "update_op_node");
         }

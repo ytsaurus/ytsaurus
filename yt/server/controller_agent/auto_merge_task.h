@@ -111,6 +111,7 @@ private:
     int TableIndex_;
     int CurrentChunkCount_ = 0;
 
+    // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
     bool CanScheduleJob_ = true;
 
     void UpdateSelf();

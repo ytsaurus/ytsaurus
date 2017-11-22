@@ -3,9 +3,10 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/error.pb.h>
+#include <yt/core/misc/proto/error.pb.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/proc.h>
+
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/tracing/trace_context.h>
@@ -416,7 +417,13 @@ void Serialize(
             })
             .DoIf(valueProducer != nullptr, [=] (TFluentMap fluent) {
                 fluent
-                    .Item("value").Do(*valueProducer);
+                    .Item("value");
+                // NB: we are obligated to deal with a bare consumer here because
+                // we can't use void(TFluentMap) in a function signature as it
+                // will lead to the inclusion of fluent.h in error.h and a cyclic
+                // inclusion error.h -> fluent.h -> callback.h -> error.h
+                auto* consumer = fluent.GetConsumer();
+                (*valueProducer)(consumer);
             })
         .EndMap();
 }

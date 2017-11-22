@@ -9,6 +9,7 @@ namespace NNet {
 
 class TNetworkAddress;
 class TIP6Address;
+class TIP6Network;
 
 DECLARE_REFCOUNTED_STRUCT(IConnection)
 DECLARE_REFCOUNTED_STRUCT(IListener)

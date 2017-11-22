@@ -2,7 +2,7 @@ package NYT.NChunkClient.NProto;
 
 import "yt/ytlib/job_tracker_client/job.proto";
 import "yt/ytlib/node_tracker_client/node_directory.proto";
-import "yt/core/misc/guid.proto";
+import "yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

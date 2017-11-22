@@ -516,16 +516,16 @@ void TBootstrap::DoRun()
         HttpServer->Register(
             "/orchid",
             NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
-
-        if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
-            HttpServer->Register(
-                "/read_skynet_part",
-                MakeSkynetHttpHandler(this));
-        }
     } else {
         NewHttpServer->AddHandler(
             "/orchid/",
             NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
+
+        if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
+            NewHttpServer->AddHandler(
+                "/read_skynet_part",
+                MakeSkynetHttpHandler(this));
+        }
     }
 
     RpcServer->RegisterService(CreateOrchidService(
@@ -594,6 +594,11 @@ const IInvokerPtr& TBootstrap::GetTransactionTrackerInvoker() const
 const INativeClientPtr& TBootstrap::GetMasterClient() const
 {
     return MasterClient;
+}
+
+const INativeConnectionPtr& TBootstrap::GetMasterConnection() const
+{
+    return MasterConnection;
 }
 
 const IServerPtr& TBootstrap::GetRpcServer() const

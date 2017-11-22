@@ -1,6 +1,6 @@
 package NYT.NCoreDump.NProto;
 
-import "yt/core/misc/error.proto";
+import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

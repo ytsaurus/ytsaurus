@@ -14,6 +14,7 @@
 #include <yt/server/scheduler/private.h>
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/scheduler_service.h>
+#include <yt/server/scheduler/controller_agent_service.h>
 
 #include <yt/server/controller_agent/job_spec_service.h>
 #include <yt/server/controller_agent/controller_agent.h>
@@ -46,6 +47,8 @@
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/rpc/local_channel.h>
 
 #include <yt/core/http/server.h>
 
@@ -150,6 +153,8 @@ void TBootstrap::DoRun()
 
     RpcServer_ = CreateBusServer(BusServer_);
 
+    LocalRpcChannel_ = CreateLocalChannel(RpcServer_);
+
     if (!Config_->UseNewHttpServer) {
         HttpServer_.reset(new NXHttp::TServer(
             Config_->MonitoringPort,
@@ -237,6 +242,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobSpecService(this));
+    RpcServer_->RegisterService(CreateControllerAgentService(this));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     if (HttpServer_) {
@@ -258,6 +264,11 @@ const TCellSchedulerConfigPtr& TBootstrap::GetConfig() const
 const INativeClientPtr& TBootstrap::GetMasterClient() const
 {
     return Client_;
+}
+
+const NRpc::IChannelPtr TBootstrap::GetLocalRpcChannel() const
+{
+    return LocalRpcChannel_;
 }
 
 TAddressMap TBootstrap::GetLocalAddresses() const

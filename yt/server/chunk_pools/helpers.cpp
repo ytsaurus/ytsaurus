@@ -64,6 +64,7 @@ TChunkStripeListPtr ApplyChunkMappingToStripe(
     const yhash<TInputChunkPtr, TInputChunkPtr>& inputChunkMapping)
 {
     auto mappedStripeList = New<TChunkStripeList>(stripeList->Stripes.size());
+    mappedStripeList->IsSplittable = stripeList->IsSplittable;
     for (int stripeIndex = 0; stripeIndex < stripeList->Stripes.size(); ++stripeIndex) {
         const auto& stripe = stripeList->Stripes[stripeIndex];
         YCHECK(stripe);

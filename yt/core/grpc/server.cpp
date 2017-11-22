@@ -5,7 +5,7 @@
 
 #include <yt/core/rpc/server_detail.h>
 #include <yt/core/rpc/message.h>
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/core/bus/bus.h>
 
@@ -222,6 +222,11 @@ private:
         virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
         {
             Y_UNREACHABLE();
+        }
+
+        virtual TTcpDispatcherStatistics GetStatistics() const override
+        {
+            return {};
         }
 
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override

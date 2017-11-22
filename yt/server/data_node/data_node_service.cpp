@@ -35,7 +35,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
 
-#include <yt/core/bus/tcp_dispatcher.h>
+#include <yt/core/bus/bus.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -170,7 +170,7 @@ private:
         ValidateNoSession(sessionId);
         ValidateNoChunk(sessionId);
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
         auto result = session->Start();
         context->ReplyFrom(result);
@@ -187,24 +187,20 @@ private:
 
         ValidateConnected();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        auto sessions = sessionManager->GetSessions(sessionId);
-
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
         const TChunkMeta* meta = request->has_chunk_meta() ? &request->chunk_meta() : nullptr;
-
-        for (const auto& session : sessions) {
-            session->Finish(meta, blockCount)
-                .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
-                    if (chunkOrError.IsOK()) {
-                        auto chunk = chunkOrError.Value();
-                        const auto& chunkInfo = session->GetChunkInfo();
-                        *response->mutable_chunk_info() = chunkInfo;
-                        context->Reply();
-                    } else {
-                        context->Reply(chunkOrError);
-                    }
-                }));
-        }
+        session->Finish(meta, blockCount)
+            .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
+                if (chunkOrError.IsOK()) {
+                    auto chunk = chunkOrError.Value();
+                    const auto& chunkInfo = session->GetChunkInfo();
+                    *response->mutable_chunk_info() = chunkInfo;
+                    context->Reply();
+                } else {
+                    context->Reply(chunkOrError);
+                }
+            }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
@@ -214,11 +210,9 @@ private:
         context->SetRequestInfo("ChunkId: %v",
             sessionId);
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        auto sessions = sessionManager->GetSessions(sessionId);
-        for (const auto& session : sessions) {
-            session->Cancel(TError("Canceled by client request"));
-        }
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        session->Cancel(TError("Canceled by client request"));
 
         context->Reply();
     }
@@ -232,8 +226,8 @@ private:
         context->SetRequestInfo("ChunkId: %v",
             sessionId);
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(sessionId);
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->Ping();
 
         context->Reply();
@@ -260,15 +254,15 @@ private:
 
         ValidateConnected();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(sessionId);
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
 
         auto location = session->GetStoreLocation();
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
-        // NB: block checksums are validated before disk write
+        // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /* validateChecksum */ false),
@@ -302,8 +296,8 @@ private:
 
         ValidateConnected();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(sessionId);
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
             .Subscribe(BIND([=] (const TError& error) {
                 if (error.IsOK()) {
@@ -331,8 +325,8 @@ private:
 
         ValidateConnected();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(sessionId);
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
         auto result = session->FlushBlocks(blockIndex);
         context->ReplyFrom(result);
     }
@@ -371,7 +365,7 @@ private:
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
-        i64 netOutQueueSize = GetNetOutQueueSize();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
 
         response->set_net_queue_size(netQueueSize);
@@ -410,7 +404,8 @@ private:
                 blockIndexes,
                 options);
 
-            auto blocks = WaitFor(asyncBlocks).ValueOrThrow();
+            auto blocks = WaitFor(asyncBlocks)
+                .ValueOrThrow();
             SetRpcAttachedBlocks(response, blocks);
         }
 
@@ -491,7 +486,7 @@ private:
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
-        i64 netOutQueueSize = GetNetOutQueueSize();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
 
         response->set_net_queue_size(netQueueSize);
@@ -514,10 +509,12 @@ private:
                 blockCount,
                 options);
 
-            SetRpcAttachedBlocks(response, WaitFor(asyncBlocks).ValueOrThrow());
+            auto blocks = WaitFor(asyncBlocks)
+                .ValueOrThrow();
+            SetRpcAttachedBlocks(response, blocks);
         }
 
-        int blocksWithData = response->Attachments().size();
+        int blocksWithData = static_cast<int>(response->Attachments().size());
         i64 blocksSize = GetByteSize(response->Attachments());
 
         context->SetResponseInfo(
@@ -536,9 +533,12 @@ private:
         // NB: We throttle only heavy responses that contain a non-empty attachment
         // as we want responses containing the information about disk/net throttling
         // to be delivered immediately.
-        auto replyFuture = blocksSize > 0 ? throttler->Throttle(blocksSize) : VoidFuture;
-        context->SetComplete();
-        context->ReplyFrom(replyFuture);
+        if (blocksSize > 0) {
+            context->SetComplete();
+            context->ReplyFrom(throttler->Throttle(blocksSize));
+        } else {
+            context->Reply();
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
@@ -561,7 +561,7 @@ private:
 
         ValidateConnected();
 
-        if (request->enable_throttling() && GetNetOutQueueSize() > Config_->NetOutThrottlingLimit) {
+        if (request->enable_throttling() && context->GetBusStatistics().PendingOutBytes > Config_->NetOutThrottlingLimit) {
             response->set_net_throttling(true);
             context->Reply();
             return;
@@ -729,7 +729,7 @@ private:
 
         ValidateConnected();
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
 
         std::vector<TFuture<void>> asyncResults;
         TKeySetWriterPtr keySetWriter = request->keys_in_attachment()
@@ -1048,12 +1048,6 @@ private:
                 "Chunk %v already exists",
                 sessionId);
         }
-    }
-
-
-    i64 GetNetOutQueueSize()
-    {
-        return NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutBytes;
     }
 
     i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)

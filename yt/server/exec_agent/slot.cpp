@@ -57,8 +57,7 @@ public:
 
         // After that clean the filesystem.
         WaitFor(Location_->CleanSandboxes(
-            SlotIndex_,
-            CreateMounter()))
+            SlotIndex_))
             .ThrowOnError();
         Location_->DecreaseSessionCount();
     }
@@ -125,20 +124,17 @@ public:
             });
     }
 
-    virtual TFuture<TString> PrepareTmpfs(
+    virtual TFuture<TNullable<TString>> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        TString path,
-        bool enable) override
+        TString path) override
     {
-        return RunPrepareAction<TString>([&] () {
+        return RunPrepareAction<TNullable<TString>>([&] () {
                 return Location_->MakeSandboxTmpfs(
                     SlotIndex_,
                     sandboxKind,
                     size,
-                    path,
-                    enable,
-                    CreateMounter());
+                    path);
             },
             // Tmpfs mounting is uncancelable since it includes tool invocation in a separate process.
             true);
@@ -192,12 +188,8 @@ private:
 
     IJobProbePtr JobProberClient_;
 
-    //! Mounter should be alive, after cleaning enviornment.
-    IMounterPtr Mounter_;
-
     std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;
-
 
     TTcpBusClientConfigPtr GetRpcClientConfig() const
     {
@@ -219,14 +211,6 @@ private:
                 : preparationFuture);
             return future;
         }
-    }
-
-    IMounterPtr CreateMounter()
-    {
-        if (!Mounter_) {
-            Mounter_ = JobEnvironment_->CreateMounter(SlotIndex_);
-        }
-        return Mounter_;
     }
 };
 

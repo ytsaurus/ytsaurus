@@ -112,6 +112,7 @@ private:
                 attributes->Set("replication_factor", Options_->ChangelogReplicationFactor);
                 attributes->Set("read_quorum", Options_->ChangelogReadQuorum);
                 attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
+                attributes->Set("account", Options_->ChangelogAccount);
                 attributes->Set("primary_medium", Options_->ChangelogPrimaryMedium);
                 attributes->Set("prev_record_count", meta.prev_record_count());
                 options.Attributes = std::move(attributes);

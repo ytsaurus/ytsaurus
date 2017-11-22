@@ -52,11 +52,6 @@ struct TSchedulerStrategyHostMock
     virtual void ActivateOperation(const TOperationId& operationId) override
     { }
 
-    virtual int GetExecNodeCount() const override
-    {
-        return NodeResourceLimitsList.size();
-    }
-
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         TMemoryDistribution result;

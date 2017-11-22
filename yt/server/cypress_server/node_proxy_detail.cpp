@@ -264,13 +264,10 @@ std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCyp
         options);
 }
 
-INodeResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
+TYPath TNontemplateCypressNodeProxyBase::GetPath() const
 {
-    if (!CachedResolver) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        CachedResolver = cypressManager->CreateResolver(Transaction);
-    }
-    return CachedResolver;
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    return cypressManager->GetNodePath(this);
 }
 
 TTransaction* TNontemplateCypressNodeProxyBase::GetTransaction() const
@@ -1232,7 +1229,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         }
     }
 
-    auto sourceProxy = ICypressNodeProxy::FromNode(GetResolver()->ResolvePath(sourcePath));
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, Transaction);
 
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = removeSource
@@ -1904,7 +1902,7 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Ampersand:
-            return TBase::Resolve(tokenizer.GetSuffix(), context);
+            return TBase::Resolve(TYPath(tokenizer.GetSuffix()), context);
 
         case NYPath::ETokenType::EndOfStream: {
             // NB: Always handle mutating Cypress verbs locally.
@@ -1954,8 +1952,7 @@ bool TLinkNodeProxy::IsBroken() const
     try {
         const auto* impl = GetThisImpl();
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* resolver = objectManager->GetObjectResolver();
-        resolver->ResolvePath(impl->GetTargetPath(), Transaction);
+        objectManager->ResolvePathToObject(impl->GetTargetPath(), Transaction);
         return false;
     } catch (const std::exception&) {
         return true;
@@ -2001,7 +1998,7 @@ IYPathService::TResolveResult TDocumentNodeProxy::ResolveRecursive(
 namespace {
 
 template <class TServerRequest, class TServerResponse, class TContext>
-void DelegateInvocation(
+bool DelegateInvocation(
     IYPathServicePtr service,
     TServerRequest* serverRequest,
     TServerResponse* serverResponse,
@@ -2022,8 +2019,10 @@ void DelegateInvocation(
         const auto& clientResponse = clientResponseOrError.Value();
         serverResponse->MergeFrom(*clientResponse);
         context->Reply();
+        return true;
     } else {
         context->Reply(clientResponseOrError);
+        return false;
     }
 }
 
@@ -2068,7 +2067,9 @@ void TDocumentNodeProxy::SetRecursive(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
-    DelegateInvocation(impl->GetValue(), request, response, context);
+    if (DelegateInvocation(impl->GetValue(), request, response, context)) {
+        SetModified();
+    }
 }
 
 void TDocumentNodeProxy::ListSelf(
@@ -2100,7 +2101,9 @@ void TDocumentNodeProxy::RemoveRecursive(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
-    DelegateInvocation(impl->GetValue(), request, response, context);
+    if (DelegateInvocation(impl->GetValue(), request, response, context)) {
+        SetModified();
+    }
 }
 
 void TDocumentNodeProxy::ExistsRecursive(

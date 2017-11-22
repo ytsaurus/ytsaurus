@@ -7,7 +7,7 @@
 
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/message.h>
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/core/ytree/fluent.h>
 

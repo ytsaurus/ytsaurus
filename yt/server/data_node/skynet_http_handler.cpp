@@ -17,12 +17,14 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
+#include <yt/core/http/http.h>
+
 #include <util/string/cgiparam.h>
 
 namespace NYT {
 namespace NDataNode {
 
-using namespace NXHttp;
+using namespace NHttp;
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkClient;
@@ -38,15 +40,9 @@ const NLogging::TLogger Logger("SkynetHandler");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseRequest(const TString& request, TChunkId* chunkId, TReadRange* readRange, i64* partIndex)
+void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TReadRange* readRange, i64* partIndex)
 {
-    int paramPos = request.find("?");
-    if (paramPos == TString::npos) {
-        THROW_ERROR_EXCEPTION("Bad query");
-    }
-
-    TString paramsString = request.substr(paramPos + 1);
-    TCgiParameters params(paramsString);
+    TCgiParameters params(rawQuery);
 
     if (!params.Has("chunk_id")) {
         THROW_ERROR_EXCEPTION("Missing paramenter \"chunk_id\" in URL query string.");
@@ -71,93 +67,104 @@ void ParseRequest(const TString& request, TChunkId* chunkId, TReadRange* readRan
     *partIndex = FromString<i64>(params.Get("start_part_index"));
 }
 
-TString DoReadSkynetChunk(TBootstrap* bootstrap, const TString& request)
-{
-    TChunkId chunkId;
-    TReadRange readRange;
-    i64 startPartIndex;
-    ParseRequest(request, &chunkId, &readRange, &startPartIndex);
-
-    auto chunkPtr = bootstrap->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
-    auto chunkGuard = TChunkReadGuard::AcquireOrThrow(chunkPtr);
-    auto sessionId = TReadSessionId::Create();
-
-    TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
-    skynetWorkload.Annotations = {"skynet"};
-    auto throttler = bootstrap->GetOutThrottler(skynetWorkload);
-
-    static std::vector<int> miscExtension = {
-        TProtoExtensionTag<TMiscExt>::Value
-    };
-    auto asyncChunkMeta = chunkPtr->ReadMeta(
-        skynetWorkload,
-        miscExtension);
-    auto chunkMeta = WaitFor(asyncChunkMeta).ValueOrThrow();
-
-    auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
-    if (!miscExt.shared_to_skynet()) {
-        THROW_ERROR_EXCEPTION("Chunk access not allowed")
-            << TErrorAttribute("chunk_id", chunkId);
-    }
-
-    auto readerConfig = New<TReplicationReaderConfig>();
-    auto chunkReader = CreateLocalChunkReader(
-        readerConfig,
-        chunkPtr,
-        bootstrap->GetChunkBlockManager(),
-        bootstrap->GetBlockCache());
-
-    auto chunkState = New<TChunkState>(
-        bootstrap->GetBlockCache(),
-        NChunkClient::NProto::TChunkSpec(),
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr);
-
-    auto schemalessReaderConfig = New<TChunkReaderConfig>();
-    schemalessReaderConfig->WorkloadDescriptor = skynetWorkload;
-
-    auto schemalessReader = CreateSchemalessChunkReader(
-        chunkState,
-        schemalessReaderConfig,
-        New<TChunkReaderOptions>(),
-        chunkReader,
-        New<TNameTable>(),
-        sessionId,
-        TKeyColumns(),
-        TColumnFilter(),
-        readRange);
-
-    auto stream = CreateBlobTableReader(
-        schemalessReader,
-        TString("part_index"),
-        TString("data"),
-        startPartIndex);
-
-    TString response;
-    TStringOutput buffer(response);
-    PipeInputToOutput(CreateCopyingAdapter(stream), &buffer, 1024);
-
-    return FormatOKResponse(response);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-NXHttp::TServer::TAsyncHandler MakeSkynetHttpHandler(NCellNode::TBootstrap* bootstrap)
+class TSkynetHttpHandler
+    : public IHttpHandler
 {
-    return BIND([bootstrap] (const TString& request) -> TFuture<TString> {
-        return BIND([bootstrap, request] {
-                try {
-                    return DoReadSkynetChunk(bootstrap, request);
-                } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Error executing skynet http handler");
-                    return FormatInternalServerErrorResponse(ex.what());
-                }
-            })
-            .AsyncVia(bootstrap->GetControlInvoker())
-            .Run();
-    });
+public:
+    TSkynetHttpHandler(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+    void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp)
+    {
+        TChunkId chunkId;
+        TReadRange readRange;
+        i64 startPartIndex;
+        ParseRequest(req->GetUrl().RawQuery, &chunkId, &readRange, &startPartIndex);
+
+        auto chunkPtr = Bootstrap_->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
+        auto chunkGuard = TChunkReadGuard::AcquireOrThrow(chunkPtr);
+        auto sessionId = TReadSessionId::Create();
+
+        TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
+        skynetWorkload.Annotations = {"skynet"};
+        auto throttler = Bootstrap_->GetOutThrottler(skynetWorkload);
+
+        static std::vector<int> miscExtension = {
+            TProtoExtensionTag<TMiscExt>::Value
+        };
+        auto asyncChunkMeta = chunkPtr->ReadMeta(
+            skynetWorkload,
+            miscExtension);
+        auto chunkMeta = WaitFor(asyncChunkMeta).ValueOrThrow();
+
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+        if (!miscExt.shared_to_skynet()) {
+            THROW_ERROR_EXCEPTION("Chunk access not allowed")
+                << TErrorAttribute("chunk_id", chunkId);
+        }
+
+        auto readerConfig = New<TReplicationReaderConfig>();
+        auto chunkReader = CreateLocalChunkReader(
+            readerConfig,
+            chunkPtr,
+            Bootstrap_->GetChunkBlockManager(),
+            Bootstrap_->GetBlockCache());
+
+        auto chunkState = New<TChunkState>(
+            Bootstrap_->GetBlockCache(),
+            NChunkClient::NProto::TChunkSpec(),
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr);
+
+        auto schemalessReaderConfig = New<TChunkReaderConfig>();
+        schemalessReaderConfig->WorkloadDescriptor = skynetWorkload;
+
+        auto schemalessReader = CreateSchemalessChunkReader(
+            chunkState,
+            schemalessReaderConfig,
+            New<TChunkReaderOptions>(),
+            chunkReader,
+            New<TNameTable>(),
+            sessionId,
+            TKeyColumns(),
+            TColumnFilter(),
+            readRange);
+
+        auto stream = CreateBlobTableReader(
+            schemalessReader,
+            TString("part_index"),
+            TString("data"),
+            startPartIndex);
+
+        rsp->WriteHeaders(EStatusCode::Ok);
+        while (true) {
+            auto blob = WaitFor(stream->Read())
+                .ValueOrThrow();
+
+            if (blob.Empty()) {
+                break;
+            }
+
+            WaitFor(rsp->Write(blob))
+                .ThrowOnError();
+        }
+
+        WaitFor(rsp->Close())
+            .ThrowOnError();
+    }
+
+private:
+    TBootstrap* Bootstrap_;
+};
+
+IHttpHandlerPtr MakeSkynetHttpHandler(TBootstrap* bootstrap)
+{
+    return New<TSkynetHttpHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

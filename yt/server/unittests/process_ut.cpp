@@ -1,3 +1,5 @@
+#ifdef _linux_
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/actions/bind.h>
@@ -22,8 +24,6 @@ namespace {
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef _linux_
 
 static TString GetUniqueName()
 {
@@ -272,9 +272,9 @@ TEST(TPortoProcessTest, PollDuration)
     EXPECT_TRUE(p->IsFinished());
     portoInstance->Destroy();
 }
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT
+
+#endif

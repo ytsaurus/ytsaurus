@@ -38,6 +38,9 @@ class TRspExecuteBatch;
 
 class TMediumDirectory;
 
+class TDataSource;
+class TDataSourceDirectoryExt;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +81,7 @@ const int TypicalReplicaCount = 24;
 constexpr int MaxMediumCount = 7;
 constexpr int DefaultStoreMediumIndex = 0;
 constexpr int DefaultCacheMediumIndex = 1;
+extern const TString DefaultStoreAccountName;
 extern const TString DefaultStoreMediumName;
 extern const TString DefaultCacheMediumName;
 constexpr int MaxMediumPriority = 10;

@@ -196,7 +196,7 @@ public:
     TNullable<i64> DiskSpaceLimit;
     TNullable<i64> InodeLimit;
     int UserId;
-    TString SlotPath;
+    TString Path;
 
     TFSQuotaConfig()
     {
@@ -208,7 +208,7 @@ public:
             .Default(Null);
         RegisterParameter("user_id", UserId)
             .GreaterThanOrEqual(0);
-        RegisterParameter("slot_path", SlotPath);
+        RegisterParameter("path", Path);
     }
 };
 

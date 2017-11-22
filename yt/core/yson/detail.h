@@ -614,6 +614,53 @@ protected:
         return result;
     }
 
+    template <bool AllowFinish>
+    double ReadNanOrInf()
+    {
+        static const auto nanString = STRINGBUF("nan");
+        static const auto infString = STRINGBUF("inf");
+        static const auto plusInfString = STRINGBUF("+inf");
+        static const auto minusInfString = STRINGBUF("-inf");
+
+        TStringBuf expectedString;
+        double expectedValue;
+        char ch = TBaseStream::template GetChar<AllowFinish>();
+        switch (ch) {
+            case '+':
+                expectedString = plusInfString;
+                expectedValue = std::numeric_limits<double>::infinity();
+                break;
+            case '-':
+                expectedString = minusInfString;
+                expectedValue = -std::numeric_limits<double>::infinity();
+                break;
+            case 'i':
+                expectedString = infString;
+                expectedValue = std::numeric_limits<double>::infinity();
+                break;
+            case 'n':
+                expectedString = nanString;
+                expectedValue = std::numeric_limits<double>::quiet_NaN();
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Incorrect %%-literal prefix: %Qc",
+                    ch);
+        }
+
+        for (int i = 0; i < expectedString.Size(); ++i) {
+            if (expectedString[i] != ch) {
+                THROW_ERROR_EXCEPTION("Incorrect %%-literal prefix \"%v%c\", expected %Qv",
+                    expectedString.SubStr(0, i),
+                    ch,
+                    expectedString);
+            }
+            TBaseStream::Advance(1);
+            ch = TBaseStream::template GetChar<AllowFinish>();
+        }
+
+        return expectedValue;
+    }
+
     void ReadQuotedString(TStringBuf* value)
     {
         Buffer_.clear();

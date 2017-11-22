@@ -1276,6 +1276,8 @@ class TestCypress(YTEnvSetup):
     def test_ignore_ampersand4(self):
         assert not exists("//tmp/missing")
         assert not exists("//tmp/missing&")
+        assert exists("//tmp")
+        assert exists("//tmp&")
 
 
     def test_batch_empty(self):
@@ -1373,18 +1375,74 @@ class TestCypress(YTEnvSetup):
         revision2 = get("//tmp/d1/@revision")
         assert revision2 > revision1
 
-        set("//tmp/d1/@value", {"f": {"g": ["h", "i", "j"]}})
+        set("//tmp/d1/@value", {"f": {"g": ["h"], "i": "j"}})
         revision3 = get("//tmp/d1/@revision")
         assert revision3 > revision2
 
-        set("//tmp/d1/@value/f/g", ["k", "l", "m"])
+        set("//tmp/d1/f/g", ["k", "l", "m"])
         revision4 = get("//tmp/d1/@revision")
         assert revision4 > revision3
 
-        remove("//tmp/d1/@value/f/g")
+        set("//tmp/d1/@value/f/g", ["n", "o", "p"])
         revision5 = get("//tmp/d1/@revision")
         assert revision5 > revision4
 
+        remove("//tmp/d1/f/g")
+        revision6 = get("//tmp/d1/@revision")
+        assert revision6 > revision5
+
+        remove("//tmp/d1/@value/f/i")
+        revision7 = get("//tmp/d1/@revision")
+        assert revision7 > revision6
+
+        with pytest.raises(YtError): remove("//tmp/d1/f/i")
+        revision8 = get("//tmp/d1/@revision")
+        assert revision8 == revision7
+
+        with pytest.raises(YtError): remove("//tmp/d1/@value/f/i")
+        revision9 = get("//tmp/d1/@revision")
+        assert revision9 == revision7
+
+        with pytest.raises(YtError): set("//tmp/d1/f/g/h", ["q", "r", "s"])
+        revision10 = get("//tmp/d1/@revision")
+        assert revision10 == revision7
+
+        with pytest.raises(YtError): set("//tmp/d1/@value/f/g/h", ["q", "r", "s"])
+        revision11 = get("//tmp/d1/@revision")
+        assert revision11 == revision7
+
+    def test_node_path_map(self):
+        set("//tmp/a", 123)
+        assert get("//tmp/a/@path") == "//tmp/a"
+
+    def test_node_path_list(self):
+        set("//tmp/a", [1, 2, 3])
+        assert get("//tmp/a/1/@path") == "//tmp/a/1"
+
+    def test_node_path_map_in_tx(self):
+        tx = start_transaction()
+        set("//tmp/a", 123, tx=tx)
+        assert get("//tmp/a/@path", tx=tx) == "//tmp/a"
+
+    def test_node_path_list_in_tx(self):
+        tx = start_transaction()
+        set("//tmp/a", [1, 2, 3], tx=tx)
+        assert get("//tmp/a/1/@path", tx=tx) == "//tmp/a/1"
+
+    def test_broken_node_path1(self):
+        set("//tmp/a", 123)
+        tx = start_transaction()
+        node_id = get("//tmp/a/@id")
+        lock("//tmp/a", tx=tx, mode="snapshot")
+        remove("//tmp/a")
+        assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
+
+    def test_broken_node_path2(self):
+        set("//tmp/a", 123)
+        tx = start_transaction()
+        node_id = get("//tmp/a/@id")
+        remove("//tmp/a", tx=tx)
+        assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
 
 ##################################################################
 

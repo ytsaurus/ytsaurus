@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/core/http/public.h>
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -9,7 +9,7 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NXHttp::TServer::TAsyncHandler MakeSkynetHttpHandler(NCellNode::TBootstrap* bootstrap);
+NHttp::IHttpHandlerPtr MakeSkynetHttpHandler(NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

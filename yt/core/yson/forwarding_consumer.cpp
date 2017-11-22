@@ -9,7 +9,7 @@ namespace NYson {
 
 void TForwardingYsonConsumer::Forward(
     IYsonConsumer* consumer,
-    const TClosure& onFinished,
+    std::function<void()> onFinished,
     EYsonType type)
 {
     Y_ASSERT(!ForwardingConsumer_);
@@ -17,7 +17,7 @@ void TForwardingYsonConsumer::Forward(
     Y_ASSERT(ForwardingDepth_ == 0);
 
     ForwardingConsumer_ = consumer;
-    OnFinished_ = onFinished;
+    OnFinished_ = std::move(onFinished);
     ForwardingType_ = type;
 }
 
@@ -26,7 +26,7 @@ bool TForwardingYsonConsumer::CheckForwarding(int depthDelta)
     if (ForwardingDepth_ + depthDelta < 0) {
         FinishForwarding();
     }
-    return ForwardingConsumer_;
+    return ForwardingConsumer_ != nullptr;
 }
 
 void TForwardingYsonConsumer::UpdateDepth(int depthDelta, bool checkFinish)
@@ -42,8 +42,8 @@ void TForwardingYsonConsumer::FinishForwarding()
 {
     ForwardingConsumer_ = nullptr;
     if (OnFinished_) {
-        OnFinished_.Run();
-        OnFinished_.Reset();
+        OnFinished_();
+        OnFinished_ = nullptr;
     }
 }
 

@@ -7,12 +7,12 @@ namespace NRpc {
 
 void IServiceContext::SetRequestInfo()
 {
-    SetRawRequestInfo("");
+    SetRawRequestInfo(TString());
 }
 
 void IServiceContext::SetResponseInfo()
 {
-    SetRawResponseInfo("");
+    SetRawResponseInfo(TString());
 }
 
 void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> asyncMessage)
@@ -24,7 +24,7 @@ void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> asyncMessage)
             Reply(TError(result));
         }
     }));
-    SubscribeCanceled(BIND([=] () mutable {
+    SubscribeCanceled(BIND([asyncMessage = std::move(asyncMessage)] () mutable {
         asyncMessage.Cancel();
     }));
 }
@@ -34,7 +34,7 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
     asyncError.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
         Reply(error);
     }));
-    SubscribeCanceled(BIND([=] () mutable {
+    SubscribeCanceled(BIND([asyncError = std::move(asyncError)] () mutable {
         asyncError.Cancel();
     }));
 }

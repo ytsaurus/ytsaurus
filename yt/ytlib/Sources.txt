@@ -25,8 +25,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/persistent_queue.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/api/protos/api_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/api/protos/discovery_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/api/proto/api_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/api/proto/discovery_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/cgroup/cgroup.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cgroup/config.cpp
@@ -71,6 +71,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_data_slice.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/io_engine.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/key_set.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_reader.cpp
@@ -274,12 +275,13 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.proto
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_resources.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/output_result.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_channel.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/controller_agent_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/job_prober_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/output_result.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/scheduler_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/security_client/account_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/security_client/group_ypath.proto
@@ -332,6 +334,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/row_sampler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/samples_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schema_dictionary.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schema_inferer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_concatenating_reader.cpp

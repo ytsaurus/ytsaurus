@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/core/bus/packet.h>
 

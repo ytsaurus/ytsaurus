@@ -977,9 +977,9 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
         }
         THROW_ERROR_EXCEPTION(
             EErrorCode::SchemaViolation,
-            "Invalid type of column %Qv: expected physical type %Qlv or %Qlv but got %Qlv",
+            "Invalid type of column %Qv: expected type %Qlv or %Qlv but got %Qlv",
             columnSchema.Name(),
-            columnSchema.GetPhysicalType(),
+            columnSchema.LogicalType(),
             EValueType::Null,
             value.Type);
     }

@@ -17,11 +17,10 @@ TDiskLocation::TDiskLocation(
     TDiskLocationConfigPtr config,
     const TString& id,
     const NLogging::TLogger& logger)
-    : Logger(logger)
+    : Logger(NLogging::TLogger(logger)
+         .AddTag("LocationId: %v", id))
     , Config_(config)
-{
-    Logger.AddTag("LocationId: %v", id);
-}
+{ }
 
 bool TDiskLocation::IsEnabled() const
 {

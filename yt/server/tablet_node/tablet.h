@@ -53,6 +53,8 @@ struct TReplicaCounters
 
     NProfiling::TSimpleCounter LagRowCount;
     NProfiling::TSimpleCounter LagTime;
+
+    const NProfiling::TTagIdList Tags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +175,9 @@ struct TTabletPerformanceCounters
     : public TChunkReaderPerformanceCounters
 {
     std::atomic<i64> DynamicRowReadCount = {0};
+    std::atomic<i64> DynamicRowReadDataWeightCount = {0};
     std::atomic<i64> DynamicRowLookupCount = {0};
+    std::atomic<i64> DynamicRowLookupDataWeightCount = {0};
     std::atomic<i64> DynamicRowWriteCount = {0};
     std::atomic<i64> DynamicRowWriteDataWeightCount = {0};
     std::atomic<i64> DynamicRowDeleteCount = {0};
@@ -242,6 +246,8 @@ public:
 
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
+
+    NProfiling::TProfiler GetReplicatorProfiler() const;
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();

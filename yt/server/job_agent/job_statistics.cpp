@@ -220,7 +220,13 @@ TJobStatistics TJobStatistics::ExtractSpec()
     copy.JobId_ = JobId_;
     copy.Spec_ = std::move(Spec_);
     copy.SpecVersion_ = std::move(SpecVersion_);
+    copy.Type_ = Type_;
     return copy;
+}
+
+bool TJobStatistics::IsEmpty() const
+{
+    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_);
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)

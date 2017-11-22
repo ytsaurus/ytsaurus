@@ -28,12 +28,13 @@ struct IJobEnvironment
 
     virtual void CleanProcesses(int slotIndex) = 0;
 
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path) = 0;
+
     //! User id for user job processes.
     virtual int GetUserId(int slotIndex) const = 0;
 
     virtual bool IsEnabled() const = 0;
 
-    virtual IMounterPtr CreateMounter(int slotIndex) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobEnvironment)

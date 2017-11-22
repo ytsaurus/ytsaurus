@@ -100,6 +100,10 @@ public:
                     options.EnableCodeCache,
                     options.UseMultijoin);
 
+                auto finalizer = Finally([&] () {
+                    fragmentParams.Clear();
+                });
+
                 LOG_DEBUG("Evaluating plan fragment");
 
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
@@ -121,10 +125,6 @@ public:
                     fragmentParams.GetLiteralvalues(),
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
-
-                auto finalizer = Finally([&] () {
-                    fragmentParams.Clear();
-                });
 
             } catch (const std::exception& ex) {
                 LOG_DEBUG("Query evaluation failed");
