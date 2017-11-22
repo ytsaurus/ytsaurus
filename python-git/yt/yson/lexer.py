@@ -20,6 +20,10 @@ FALSE_MARKER = int2byte(4)
 TRUE_MARKER = int2byte(5)
 UINT64_MARKER = int2byte(6)
 
+PERCENT_LITERALS = [b"true", b"false", b"nan", b"inf", b"-inf", b"+inf"]
+PERCENT_LITERAL_LENGTH = dict((s[0:1], len(s)) for s in PERCENT_LITERALS)
+assert len(PERCENT_LITERALS) == len(PERCENT_LITERAL_LENGTH)
+
 def _get_numeric_type(string):
     for code in iterbytes(string):
         ch = int2byte(code)
@@ -86,7 +90,8 @@ class YsonLexer(object):
             return YsonToken(value=True, type=TOKEN_BOOLEAN)
 
         elif ch == b"%":
-            return YsonToken(value=self._parse_boolean(), type=TOKEN_BOOLEAN)
+            value, token_type = self._parse_percent_literal()
+            return YsonToken(value=value, type=token_type)
 
         elif ch == b"#":
             return YsonToken(value=self._parse_entity(), type=TOKEN_HASH)
@@ -255,25 +260,28 @@ class YsonLexer(object):
                 self.get_position_info())
         return b"".join(result)
 
-    def _parse_entity(self):
-        self._expect_char(b"#")
-        return None
-
-    def _parse_boolean(self):
+    def _parse_percent_literal(self):
+        def raise_unexpected(string):
+            expected = [b"%" + literal for literal in PERCENT_LITERALS]
+            raise_yson_error(
+                "Incorrect percent-preceded literal %s, expected one of %s" % (b"%" + string, expected),
+                self.get_position_info())
         self._expect_char(b"%")
         ch = self._peek_char()
-        if ch not in [b"f", b"t"]:
-            raise YsonError("Found '%s' while expecting 'f' or 't'" % ch)
-        if ch == b"f":
-            str = self._read_binary_chars(5)
-            if str != b"false":
-                raise YsonError("Incorrect boolean value '%s', expected 'false'" % str)
-            return False
-        if ch == b"t":
-            str = self._read_binary_chars(4)
-            if str != b"true":
-                raise YsonError("Incorrect boolean value '%s', expected 'true'" % str)
-            return True
+        if ch not in PERCENT_LITERAL_LENGTH:
+            raise_unexpected(ch)
+        string = self._read_binary_chars(PERCENT_LITERAL_LENGTH[ch])
+        if string == b"true":
+            return True, TOKEN_BOOLEAN
+        elif string == b"false":
+            return False, TOKEN_BOOLEAN
+        elif string in PERCENT_LITERALS:
+            return float(string), TOKEN_DOUBLE
+        else:
+            raise_unexpected(string)
+
+    def _parse_entity(self):
+        self._expect_char(b"#")
         return None
 
     def _parse_string(self):

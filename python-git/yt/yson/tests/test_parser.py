@@ -11,6 +11,7 @@ from yt.packages.six import PY3
 from yt.packages.six.moves import xrange
 
 import copy
+import math
 import pytest
 
 try:
@@ -61,6 +62,20 @@ class YsonParserTestBase(object):
 
     def test_double(self):
         self.assert_parse(b'1.5', 1.5)
+
+    def test_nan_and_inf(self):
+        assert math.isnan(self.loads(b"%nan"))
+        assert math.isnan(self.load(BytesIO(b"%nan")))
+        inf = float("inf")
+        self.assert_parse(b"%inf", inf)
+        self.assert_parse(b"%+inf", inf)
+        self.assert_parse(b"%-inf", -inf)
+        with pytest.raises(YsonError):
+            self.loads(b"%infi")
+        with pytest.raises(YsonError):
+            self.loads(b"%-nan")
+        with pytest.raises(YsonError):
+            self.loads(b"%nand")
 
     def test_exp_double(self):
         self.assert_parse(b'1.73e23', 1.73e23)

@@ -44,6 +44,7 @@ from . import yson_types
 from yt.packages.six.moves import map as imap
 from yt.packages.six import integer_types, text_type, binary_type, iteritems, PY3
 
+import math
 import re
 from collections import Iterable, Mapping
 
@@ -177,7 +178,15 @@ class Dumper(object):
             if greater_than_max_int64 or isinstance(obj, yson_types.YsonUint64):
                 result += b"u"
         elif isinstance(obj, float):
-            result = str(obj).encode("ascii")
+            if math.isnan(obj):
+                result = b"%nan"
+            elif math.isinf(obj):
+                if obj > 0:
+                    result = b"%inf"
+                else:
+                    result = b"%-inf"
+            else:
+                result = str(obj).encode("ascii")
         elif isinstance(obj, (text_type, binary_type)):
             result = self._dump_string(obj, context)
         elif isinstance(obj, Mapping):
