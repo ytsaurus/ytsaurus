@@ -30,39 +30,27 @@ import signal
 import contextlib
 import time
 
-TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
-TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
-LOCAL_MODE_TESTS_SANDBOX = os.path.join(TESTS_SANDBOX, "TestLocalMode")
-YT_LOCAL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt_local", "yt_local")
-
 def _get_tests_location():
-    if not hasattr(_get_tests_location, "path"):
-        if yatest_common:
-            _get_tests_location.path = yatest_common.source_path("yt/python/yt/local/tests")
-        else:
-            _get_tests_location.path = TESTS_LOCATION
-    return _get_tests_location.path
+    if yatest_common is not None:
+        return yatest_common.source_path("yt/python/yt/local/tests")
+    return os.path.dirname(os.path.abspath(__file__))
 
 def _get_tests_sandbox():
-    if not hasattr(_get_tests_sandbox, "path"):
-        _get_tests_sandbox.path = os.environ.get("TESTS_SANDBOX")
-        if _get_tests_sandbox.path is None:
-            if yatest_common:
-                _get_tests_sandbox.path = os.path.join(yatest_common.work_path(), "sandbox")
-            else:
-                _get_tests_sandbox.path = _get_tests_sandbox()
-    return _get_tests_sandbox.path
+    if "TESTS_SANDBOX" in os.environ:
+        return os.environ["TESTS_SANDBOX"]
+
+    if yatest_common is not None:
+        return os.path.join(yatest_common.output_path(), "sandbox")
+
+    return _get_tests_location() + ".sandbox"
 
 def _get_local_mode_tests_sandbox():
     return os.path.join(_get_tests_sandbox(), "TestLocalMode")
 
 def _get_yt_local_binary():
-    if not hasattr(_get_yt_local_binary, "path"):
-        if yatest_common:
-            _get_yt_local_binary.path = yatest_common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
-        else:
-            _get_yt_local_binary.path = YT_LOCAL_BINARY
-    return _get_yt_local_binary.path
+    if yatest_common is not None:
+        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
+    return os.path.join(os.path.dirname(_get_tests_location()), "bin", "yt_local")
 
 def _get_instance_path(instance_id):
     return os.path.join(_get_local_mode_tests_sandbox(), instance_id)
@@ -249,11 +237,17 @@ class TestLocalMode(object):
 
         path = os.environ.get("YT_LOCAL_ROOT_PATH")
         log_path = os.path.join(path, "test_watcher", "logs")
-        for file_index in xrange(1, 5):
-            assert os.path.exists(os.path.join(log_path, "http-proxy.debug.log.{0}.gz".format(file_index)))
-        for file_index in xrange(1, 5):
-            assert os.path.exists(os.path.join(log_path, "http-application.log.{0}.gz".format(file_index)))
 
+        # Some log file may be missing if we exited during log rotation.
+        presented = 0
+        for file_index in xrange(1, 5):
+            presented += os.path.exists(os.path.join(log_path, "http-proxy.debug.log.{0}.gz".format(file_index)))
+        assert presented in (3, 4)
+
+        presented = 0
+        for file_index in xrange(1, 5):
+            presented += os.path.exists(os.path.join(log_path, "http-application.log.{0}.gz".format(file_index)))
+        assert presented in (3, 4)
 
     def test_commands_sanity(self):
         with local_yt() as environment:

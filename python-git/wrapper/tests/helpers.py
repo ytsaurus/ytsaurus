@@ -23,6 +23,7 @@ import sys
 import tempfile
 import time
 from contextlib import contextmanager
+from copy import deepcopy
 
 TEST_DIR = "//home/wrapper_tests"
 
@@ -98,7 +99,7 @@ def set_config_options(options_dict):
         for key, value in iteritems(old_values):
             yt.config._set(key, value)
 
-# Check equality of records in dsv format
+# Check equality of records
 def check(rowsA, rowsB, ordered=True):
     def prepare(rows):
         def fix_unicode(obj):
@@ -132,7 +133,7 @@ def _filter_simple_types(obj):
         return dict([(key, _filter_simple_types(value)) for key, value in iteritems(obj)])
     return None
 
-def get_environment_for_binary_test():
+def get_environment_for_binary_test(yt_env):
     if yatest_common is None:
         python_binary = sys.executable
     else:
@@ -145,7 +146,18 @@ def get_environment_for_binary_test():
         "YT_VERSION": yt.config["api_version"],
         "YT_PRINT_BACKTRACE": "1",
     }
-    env["YT_CONFIG_PATCHES"] = yson._dumps_to_native_str(_filter_simple_types(yt.config.config))
+
+    config = deepcopy(_filter_simple_types(yt.config.config))
+
+    if config["backend"] == "native":
+        _, filename = tempfile.mkstemp(dir=get_tests_sandbox(), prefix="binary_test_driver_config")
+        with open(filename, "wb") as f:
+            yson.dump({"driver": config["driver_config"], "logging": yt_env.env.driver_logging_config}, f)
+
+        config["driver_config"] = None
+        config["driver_config_path"] = filename
+
+    env["YT_CONFIG_PATCHES"] = yson._dumps_to_native_str(config)
     return env
 
 def build_python_egg(egg_contents_dir, temp_dir=None):

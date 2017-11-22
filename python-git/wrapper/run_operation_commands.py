@@ -35,7 +35,7 @@ Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`
 """
 
 from .table_helpers import _are_default_empty_table, _remove_tables
-from .common import update, is_prefix, get_value, forbidden_inside_job, remove_nones_from_dict
+from .common import update, is_prefix, get_value, forbidden_inside_job, remove_nones_from_dict, declare_deprecated
 from .retries import Retrier
 from .config import get_config
 from .cypress_commands import remove, _make_formatted_transactional_request
@@ -46,7 +46,7 @@ from .spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder
                             EraseSpecBuilder, MapReduceSpecBuilder, RemoteCopySpecBuilder,
                             JoinReduceSpecBuilder, MapSpecBuilder)
 from .table_commands import create_temp_table, get_sorted_by
-from .table_helpers import _prepare_job_io, _prepare_local_files
+from .table_helpers import _prepare_job_io, _prepare_operation_files
 from .transaction import Transaction
 from .ypath import TablePath
 
@@ -123,7 +123,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         .input_table_paths(source_table) \
         .output_table_path(destination_table) \
         .sort_by(sort_by) \
-        .job_io(job_io) \
         .partition_job_io(job_io) \
         .sort_job_io(job_io) \
         .merge_job_io(job_io) \
@@ -201,15 +200,18 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     """
 
     job_io = _prepare_job_io(job_io, table_writer)
-    map_local_files = _prepare_local_files(map_local_files, map_files)
-    reduce_local_files = _prepare_local_files(reduce_local_files, reduce_files)
-    reduce_combiner_local_files = _prepare_local_files(reduce_combiner_local_files, reduce_combiner_files)
+    declare_deprecated('option "map_files"', map_files is not None)
+    declare_deprecated('option "reduce_files"', reduce_files is not None)
+    declare_deprecated('option "reduce_combiner_files"', reduce_combiner_files is not None)
+    map_file_paths = _prepare_operation_files(map_local_files, map_files, map_yt_files)
+    reduce_file_paths = _prepare_operation_files(reduce_local_files, reduce_files, reduce_yt_files)
+    reduce_combiner_file_paths = _prepare_operation_files(reduce_combiner_local_files, reduce_combiner_files,
+                                                          reduce_combiner_yt_files)
 
     spec_builder = MapReduceSpecBuilder() \
         .input_table_paths(source_table) \
         .output_table_paths(destination_table) \
         .stderr_table_path(stderr_table) \
-        .job_io(job_io) \
         .map_job_io(job_io) \
         .reduce_job_io(job_io) \
         .sort_job_io(job_io) \
@@ -224,8 +226,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                 .format(format) \
                 .input_format(map_input_format) \
                 .output_format(map_output_format) \
-                .local_files(map_local_files) \
-                .file_paths(map_yt_files) \
+                .file_paths(map_file_paths) \
                 .memory_limit(mapper_memory_limit) \
             .end_mapper()
     if reducer is not None:
@@ -235,8 +236,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                 .format(format) \
                 .input_format(reduce_input_format) \
                 .output_format(reduce_output_format) \
-                .local_files(reduce_local_files) \
-                .file_paths(reduce_yt_files) \
+                .file_paths(reduce_file_paths) \
                 .memory_limit(reducer_memory_limit) \
             .end_reducer()
     if reduce_combiner is not None:
@@ -246,11 +246,9 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                 .format(format) \
                 .input_format(reduce_combiner_input_format) \
                 .output_format(reduce_combiner_output_format) \
-                .local_files(reduce_combiner_local_files) \
-                .file_paths(reduce_combiner_yt_files) \
+                .file_paths(reduce_combiner_file_paths) \
                 .memory_limit(reduce_combiner_memory_limit) \
             .end_reduce_combiner()
-
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 def run_map(binary, source_table, destination_table,
@@ -272,8 +270,9 @@ def run_map(binary, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
+    declare_deprecated('option "files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
-    local_files = _prepare_local_files(local_files, files)
+    file_paths = _prepare_operation_files(local_files, files, yt_files)
 
     spec_builder = MapSpecBuilder() \
         .input_table_paths(source_table) \
@@ -281,8 +280,7 @@ def run_map(binary, source_table, destination_table,
         .stderr_table_path(stderr_table) \
         .begin_mapper() \
             .command(binary) \
-            .file_paths(yt_files) \
-            .local_files(local_files) \
+            .file_paths(file_paths) \
             .format(format) \
             .input_format(input_format) \
             .output_format(output_format) \
@@ -312,8 +310,10 @@ def run_reduce(binary, source_table, destination_table,
 
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
+
+    declare_deprecated('option "files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
-    local_files = _prepare_local_files(local_files, files)
+    file_paths = _prepare_operation_files(local_files, files, yt_files)
 
     spec_builder = ReduceSpecBuilder() \
         .input_table_paths(source_table) \
@@ -321,8 +321,7 @@ def run_reduce(binary, source_table, destination_table,
         .stderr_table_path(stderr_table) \
         .begin_reducer() \
             .command(binary) \
-            .file_paths(yt_files) \
-            .local_files(local_files) \
+            .file_paths(file_paths) \
             .format(format) \
             .input_format(input_format) \
             .output_format(output_format) \
@@ -359,8 +358,9 @@ def run_join_reduce(binary, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
+    declare_deprecated('option "files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
-    local_files = _prepare_local_files(local_files, files)
+    file_paths = _prepare_operation_files(local_files, files, yt_files)
 
     spec_builder = JoinReduceSpecBuilder() \
         .input_table_paths(source_table) \
@@ -368,8 +368,7 @@ def run_join_reduce(binary, source_table, destination_table,
         .stderr_table_path(stderr_table) \
         .begin_reducer() \
             .command(binary) \
-            .file_paths(yt_files) \
-            .local_files(local_files) \
+            .file_paths(file_paths) \
             .format(format) \
             .input_format(input_format) \
             .output_format(output_format) \

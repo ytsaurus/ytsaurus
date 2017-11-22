@@ -55,10 +55,11 @@ def json_to_yson(json_tree, encode_key=False, encoding=None):
     has_attrs = isinstance(json_tree, dict) and "$value" in json_tree
     value = json_tree["$value"] if has_attrs else json_tree
     if isinstance(value, text_type):
+        encoding = "utf-8" if encoding is None else encoding
         if PY3:
-            result = YsonUnicode(value)
+            result = YsonUnicode(value.encode(encoding), encoding="utf-8")
         else:  # COMPAT
-            result = YsonString(value.encode("utf-8" if encoding is None else encoding))
+            result = YsonString(value.encode(encoding))
     elif isinstance(value, binary_type):
         result = YsonString(value)
     elif value is False or value is True:
@@ -72,16 +73,16 @@ def json_to_yson(json_tree, encode_key=False, encoding=None):
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
-        result = YsonList(imap(json_to_yson, value))
+        result = YsonList(imap(lambda item: json_to_yson(item, encoding=encoding), value))
     elif isinstance(value, dict):
-        result = YsonMap((json_to_yson(k, True), json_to_yson(v)) for k, v in iteritems(YsonMap(value)))
+        result = YsonMap((json_to_yson(k, True, encoding=encoding), json_to_yson(v, encoding=encoding)) for k, v in iteritems(YsonMap(value)))
     elif value is None:
         result = YsonEntity()
     else:
         raise YsonError("Unknown type:", type(value))
 
     if has_attrs and json_tree["$attributes"]:
-        result.attributes = json_to_yson(json_tree["$attributes"])
+        result.attributes = json_to_yson(json_tree["$attributes"], encoding=encoding)
     return result
 
 def yson_to_json(yson_tree, print_attributes=True, encoding=None):

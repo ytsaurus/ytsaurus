@@ -1,5 +1,5 @@
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
-                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path)
+                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
 
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
@@ -15,12 +15,10 @@ from yt.packages.six.moves import reload_module
 
 import yt.wrapper as yt
 
-try:
-    import yatest.common as yatest_common
+if yatest_common is not None:
     from yt.environment import arcadia_interop
-except ImportError:
-    yatest_common = None
-
+else:
+    arcadia_interop = None
 
 import os
 import imp
@@ -177,6 +175,7 @@ class YtTestEnvironment(object):
 
         self.config = update(get_default_config(), config)
         self.config["enable_request_logging"] = True
+        self.config["enable_passing_request_id_to_driver"] = True
         self.config["operation_tracker"]["poll_period"] = 100
         if has_proxy:
             self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]

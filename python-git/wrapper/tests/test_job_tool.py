@@ -1,4 +1,4 @@
-from .helpers import get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive, get_python
+from .helpers import get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive, get_python, yatest_common
 
 from yt.common import makedirp, to_native_str
 import yt.yson as yson
@@ -7,11 +7,6 @@ import yt.subprocess_wrapper as subprocess
 from yt.packages.six.moves import map as imap
 
 import yt.wrapper as yt
-
-try:
-    import yatest.common as yatest_common
-except ImportError:
-    yatest_common = None
 
 import os
 import stat
@@ -93,7 +88,7 @@ for line in sys.stdin:
 
 class TestJobTool(object):
     if yatest_common is None:
-        JOB_TOOL_BINARY = os.path.join(os.path.dirname(get_tests_location()), "bin", "yt-job-tool", "yt-job-tool")
+        JOB_TOOL_BINARY = os.path.join(os.path.dirname(get_tests_location()), "bin", "yt-job-tool")
     else:
         JOB_TOOL_BINARY = yatest_common.binary_path("yt/python/yt/wrapper/bin/yt-job-tool_make/yt-job-tool")
 

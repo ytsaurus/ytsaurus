@@ -5,7 +5,7 @@ parameters, and then by kwargs options.
 """
 
 from .config import get_config
-from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool
+from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool, declare_deprecated
 from .mappings import FrozenDict
 from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
@@ -139,6 +139,11 @@ class Format(object):
         return not self.__eq__(other)
 
     @staticmethod
+    def _check_output_table_index(table_index, table_count):
+        if table_index >= table_count or table_index < 0:
+            raise YtError("Incorrect table index", attributes={"table_index": table_index})
+
+    @staticmethod
     def _escape(string, escape_dict):
         string = string.replace(b"\\", b"\\\\")
         for sym, escaped in iteritems(escape_dict):
@@ -183,13 +188,14 @@ class Format(object):
             return
         self._dump_row(row, stream)
 
-    def dump_rows(self, rows, stream, raw=None):
+    def dump_rows(self, rows, stream_or_streams, raw=None):
         """Serializes rows, creates output table switchers and writes to the stream."""
         if self._is_raw(raw):
+            stream = stream_or_streams[0] if isinstance(stream_or_streams, list) else stream_or_streams
             for row in rows:
                 stream.write(row)
             return
-        self._dump_rows(rows, stream)
+        self._dump_rows(rows, stream_or_streams)
 
     def dumps_row(self, row):
         """Converts parsed row to string."""
@@ -400,7 +406,8 @@ class DsvFormat(Format):
                 stream.write(escape_value(convert_to_bytes(item[1])))
                 stream.write(b"\n" if i == length - 1 else b"\t")
 
-    def _dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream_or_streams):
+        stream = stream_or_streams[0] if isinstance(stream_or_streams, list) else stream_or_streams
         for row in rows:
             self.dump_row(row, stream)
 
@@ -548,7 +555,7 @@ class YsonFormat(Format):
             row.pop(self._coerced_table_index_column, None)
             yield row
 
-    def _dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream_or_streams):
         self._check_bindings()
         if (self.process_table_index is None and self.control_attributes_mode == "row_fields") or self.process_table_index:
             rows = self._process_output_rows(rows)
@@ -559,11 +566,47 @@ class YsonFormat(Format):
         if PY3:
             kwargs["encoding"] = self._encoding
 
-        yson.dump(rows, stream,
-                  yson_type="list_fragment",
-                  yson_format=self.attributes["format"],
-                  boolean_as_string=self.attributes["boolean_as_string"],
-                  **kwargs)
+        if not isinstance(stream_or_streams, list):
+            yson.dump(rows, stream_or_streams,
+                      yson_type="list_fragment",
+                      yson_format=self.attributes["format"],
+                      boolean_as_string=self.attributes["boolean_as_string"],
+                      **kwargs)
+            return
+
+        class RowsIterator(Iterator):
+            def __init__(self, rows, coerced_table_index_column):
+                self.is_finished = False
+                self.table_index = 0
+                self._rows_iterator = iter(rows)
+                self._coerced_table_index_column = coerced_table_index_column
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                try:
+                    row = next(self._rows_iterator)
+                except StopIteration:
+                    self.is_finished = True
+                    raise
+
+                if isinstance(row, yson.YsonEntity) and self._coerced_table_index_column in row.attributes:
+                    new_table_index = row.attributes[self._coerced_table_index_column]
+                    if self.table_index != new_table_index:
+                        YsonFormat._check_output_table_index(new_table_index, len(stream_or_streams))
+                        self.table_index = new_table_index
+                        raise StopIteration()
+
+                return row
+
+        rows_iterator = RowsIterator(rows, self._coerced_table_index_column)
+        while not rows_iterator.is_finished:
+            yson.dump(rows_iterator, stream_or_streams[rows_iterator.table_index],
+                      yson_type="list_fragment",
+                      yson_format=self.attributes["format"],
+                      boolean_as_string=self.attributes["boolean_as_string"],
+                      **kwargs)
 
 class YamrFormat(Format):
     """YAMR legacy data format.
@@ -758,7 +801,14 @@ class YamrFormat(Format):
                 else:
                     stream.write(self._rs)
 
-    def _dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream_or_streams):
+        if isinstance(stream_or_streams, list):
+            for row in rows:
+                table_index = row.tableIndex
+                self._check_output_table_index(table_index, len(stream_or_streams))
+                self.dump_row(row, stream_or_streams[table_index])
+            return
+
         table_index = 0
         for row in rows:
             new_table_index = row.tableIndex
@@ -769,10 +819,10 @@ class YamrFormat(Format):
                     table_switcher = "{0}\n".format(new_table_index)
                     if PY3:
                         table_switcher = table_switcher.encode("ascii")
-                stream.write(table_switcher)
+                stream_or_streams.write(table_switcher)
                 table_index = new_table_index
 
-            self.dump_row(row, stream)
+            self.dump_row(row, stream_or_streams)
 
 class JsonFormat(Format):
     """Open standard text data format for attribute-value data.
@@ -886,11 +936,23 @@ class JsonFormat(Format):
                 del row[self.table_index_column]
             yield row
 
-    def _dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream_or_streams):
         if (self.process_table_index is None and self.control_attributes_mode == "row_fields") or self.process_table_index:
             rows = self._process_output_rows(rows)
+
+        if not isinstance(stream_or_streams, list):
+            for row in rows:
+                self.dump_row(row, stream_or_streams)
+            return
+
+        table_index = 0
         for row in rows:
-            self.dump_row(row, stream)
+            if "$attributes" in row and "table_index" in row["$attributes"]:
+                table_index = row["$attributes"]["table_index"]
+                self._check_output_table_index(table_index, len(stream_or_streams))
+                continue
+
+            self.dump_row(row, stream_or_streams[table_index])
 
     def dumps_row(self, row):
         return self._dumps(row)
@@ -945,17 +1007,16 @@ class SchemafulDsvFormat(Format):
     <https://wiki.yandex-team.ru//yt/userdoc/formats#schemafuldsv>`_
     """
 
-    def __init__(self, columns=None, enable_escaping=None,
-                 enable_table_index=None, table_index_column=None,
+    def __init__(self, columns=None, enable_escaping=None, enable_table_index=None, table_index_column=None,
                  attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
         """
         :param columns: mandatory parameter!
         :type columns: list[str]
         :param bool enable_escaping: process escaped symbols, `True` by default.
-        :param bool process_table_index: process input table indexes in load_rows and \
+        :param bool enable_table_index: process input table indexes in load_rows and \
         output table indexes in dump_rows, `False` by default.
         :param str table_index_column: name for special row field (exists only inside \
-         operation binary!), "@table_index" by default.
+        operation binary!), "@table_index" by default.
         """
         defaults = {"enable_escaping": True, "enable_table_index": False,
                     "table_index_column": "@table_index"}
@@ -1027,9 +1088,10 @@ class SchemafulDsvFormat(Format):
             else:
                 stream.write(b"\n")
 
-    def _dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream_or_streams):
         for row in rows:
-            self.dump_row(row, stream)
+            stream = stream_or_streams[0] if isinstance(stream_or_streams, list) else stream_or_streams
+            self._dump_row(row, stream)
 
     def _parse(self, line):
         def decode(value):
@@ -1056,11 +1118,9 @@ def create_format(yson_name, attributes=None, **kwargs):
     :param yson_name: YSON string like ``'<lenval=false;has_subkey=false>yamr'``.
     :param attributes: Deprecated! Don't use it! It will be removed!
     """
-    if attributes is not None:
-        logger.warning("Usage deprecated parameter 'attributes' of create_format. "
-                       "It will be removed!")
-    else:
-        attributes = {}
+
+    declare_deprecated('option "attributes"', attributes is not None)
+    attributes = get_value(attributes, {})
 
     yson_string = yson._loads_from_native_str(yson_name)
     attributes.update(yson_string.attributes)

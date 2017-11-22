@@ -1,7 +1,7 @@
 from .driver import make_request
 from .table_helpers import _prepare_format, _to_chunk_stream
 from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
-from .config import get_config, get_option, get_command_param
+from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
@@ -43,6 +43,8 @@ def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index
 def _check_transaction_type(client):
     transaction_id = get_command_param("transaction_id", client=client)
     if transaction_id == null_transaction_id:
+        return
+    if get_backend_type(client) == "native":
         return
     require(not is_master_transaction(transaction_id),
             lambda: YtError("Dynamic table commands can not be performed under master transaction"))
@@ -87,7 +89,8 @@ class DynamicTableRequestRetrier(Retrier):
 
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
-                workload_descriptor=None, format=None, raw=None, client=None):
+                workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None,
+                client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -114,6 +117,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
     set_param(params, "max_subqueries", max_subqueries)
     set_param(params, "workload_descriptor", workload_descriptor)
+    set_param(params, "allow_full_scan", allow_full_scan)
+    set_param(params, "allow_join_without_index", allow_join_without_index)
 
     _check_transaction_type(client)
 

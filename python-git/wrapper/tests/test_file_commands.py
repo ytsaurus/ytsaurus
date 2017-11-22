@@ -71,6 +71,10 @@ class TestFileCommands(object):
             yt.write_file(file_path, BytesIO(b"abacaba"))
             assert yt.read_file(file_path).read() == b"abacaba"
 
+        with set_config_option("prefix", TEST_DIR + "/"):
+            yt.smart_upload_file(filename, destination="subdir/abc", placement_strategy="replace")
+            assert yt.read_file("subdir/abc").read() == b"some content"
+
     def test_unicode(self):
         data = u"строка"
         path = TEST_DIR + "/filename"

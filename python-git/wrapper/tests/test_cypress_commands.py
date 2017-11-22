@@ -5,14 +5,15 @@ from __future__ import print_function
 from .helpers import TEST_DIR
 
 from yt.wrapper.common import parse_bool
-from yt.ypath import YPathError
 import yt.json as json
 import yt.yson as yson
 
 import yt.wrapper as yt
 
+import sys
 import time
 import pytest
+import datetime
 
 @pytest.mark.usefixtures("yt_env")
 class TestCypressCommands(object):
@@ -87,7 +88,7 @@ class TestCypressCommands(object):
     @pytest.mark.parametrize("enable_batch_mode", [False, True])
     def test_search(self, enable_batch_mode):
         yt.mkdir(TEST_DIR + "/dir/other_dir", recursive=True)
-        yt.create_table(TEST_DIR + "/dir/table")
+        yt.create("table", TEST_DIR + "/dir/table")
         yt.write_file(TEST_DIR + "/file", b"")
 
         res = [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir", TEST_DIR + "/dir/table", TEST_DIR + "/file"]
@@ -133,8 +134,8 @@ class TestCypressCommands(object):
         # Search in list nodes
         list_node = TEST_DIR + "/list_node"
         yt.set(list_node, ["x"])
-        yt.create_table(list_node + "/end")
-        yt.create_table(list_node + "/end")
+        yt.create("table", list_node + "/end")
+        yt.create("table", list_node + "/end")
         assert list(yt.search(list_node, enable_batch_mode=enable_batch_mode,
                               node_type="table")) == sorted([list_node + "/1", list_node + "/2"])
         assert list(yt.search(list_node, list_node_order=lambda p, obj: [2, 0, 1],
@@ -153,11 +154,50 @@ class TestCypressCommands(object):
                == list(yt.search(TEST_DIR + "/dir_with_slash", enable_batch_mode=enable_batch_mode))
 
         yt.create("map_node", TEST_DIR + "/search_test")
-        yt.create_table(TEST_DIR + "/search_test/search_test_table")
+        yt.create("table", TEST_DIR + "/search_test/search_test_table")
         yt.link(TEST_DIR + "/search_test/search_test_table", TEST_DIR + "/search_test/link_to_table")
         yt.remove(TEST_DIR + "/search_test/search_test_table")
 
-        assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == [TEST_DIR + "/search_test"]
+        assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == \
+            [TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table"]
+        assert list(yt.search(TEST_DIR + "/search_test", follow_links=False)) == \
+            [TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table"]
+
+        yt.mkdir(TEST_DIR + "/search_test/test_dir")
+        yt.create("table", TEST_DIR + "/search_test/test_dir/table")
+        yt.link(TEST_DIR + "/search_test/test_dir", TEST_DIR + "/search_test/test_dir_link")
+
+        for opaque in (True, False):
+            for link_opaque in (True, False):
+                print("OPAQUE", opaque, "LINK_OPAQUE", link_opaque, file=sys.stderr)
+                yt.set(TEST_DIR + "/search_test/test_dir/@opaque", opaque)
+                yt.set(TEST_DIR + "/search_test/test_dir_link&/@opaque", link_opaque)
+
+                correct_result = [
+                    TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table",
+                    TEST_DIR + "/search_test/test_dir", TEST_DIR + "/search_test/test_dir/table",
+                    TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link/table"]
+                if opaque:
+                    correct_result[3:5] = correct_result[4:2:-1]
+                assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == correct_result
+
+                correct_result = [
+                    TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table",
+                    TEST_DIR + "/search_test/test_dir", TEST_DIR + "/search_test/test_dir/table",
+                    TEST_DIR + "/search_test/test_dir_link"]
+                if opaque:
+                    correct_result[3:5] = correct_result[4:2:-1]
+                assert list(yt.search(TEST_DIR + "/search_test", follow_links=False)) == correct_result
+
+        assert list(yt.search(TEST_DIR + "/search_test/test_dir_link", follow_links=True)) == \
+            [TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link/table"]
+        assert list(yt.search(TEST_DIR + "/search_test/test_dir_link", follow_links=False)) == \
+            [TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link/table"]
+
+        assert list(yt.search(TEST_DIR + "/search_test/test_dir_link&", follow_links=True)) == \
+            [TEST_DIR + "/search_test/test_dir_link&"]
+        assert list(yt.search(TEST_DIR + "/search_test/test_dir_link&", follow_links=False)) == \
+            [TEST_DIR + "/search_test/test_dir_link&"]
 
         assert list(yt.search())
 
@@ -220,7 +260,7 @@ class TestCypressCommands(object):
     def test_link(self, yt_env):
         table = TEST_DIR + "/table_with_attributes"
         link = TEST_DIR + "/table_link"
-        yt.create_table(table)
+        yt.create("table", table)
         yt.link(table, link)
         assert not parse_bool(yt.get_attribute(link + "&", "broken"))
         assert yt.get_attribute(link + "&", "target_path") == table
@@ -245,12 +285,12 @@ class TestCypressCommands(object):
     def test_list(self):
         tables = ["{0}/{1}".format(TEST_DIR, name) for name in ("a", "b", "c")]
         for table in tables:
-            yt.create_table(table)
+            yt.create("table", table)
         assert yt.list(TEST_DIR) == sorted(["a", "b", "c"])
         assert yt.list(TEST_DIR, absolute=True) == \
             sorted(["{0}/{1}".format(TEST_DIR, x) for x in ("a", "b", "c")])
         yt.mkdir(TEST_DIR + "/subdir")
-        yt.create_table(TEST_DIR + "/subdir/table")
+        yt.create("table", TEST_DIR + "/subdir/table")
 
         result = yt.list(TEST_DIR + "/subdir", attributes=["type"])[0]
         assert str(result) == "table"
@@ -271,11 +311,9 @@ class TestCypressCommands(object):
         table = TEST_DIR + "/table"
         dir = TEST_DIR + "/dir"
         other_table = dir + "/other_table"
-        yt.create_table(table)
+        yt.create("table", table)
         assert list(yt.read_table(table, format=yt.format.DsvFormat())) == []
 
-        with pytest.raises(YPathError):
-            yt.copy([], table)
         with pytest.raises(yt.YtError):
             yt.copy(table, table)
         with pytest.raises(yt.YtError):
@@ -319,10 +357,16 @@ class TestCypressCommands(object):
         assert not yt.exists(TEST_DIR + "/d1/d2/table")
         assert yt.exists(TEST_DIR + "/d3/d4/table")
 
+        yt.create("table", TEST_DIR + "/ttt", attributes={"expiration_time": str(datetime.datetime(year=2030, month=1, day=1))})
+        yt.copy(TEST_DIR + "/ttt", TEST_DIR + "/ttt_copied", preserve_expiration_time=True, preserve_creation_time=True)
+
+        assert yt.get(TEST_DIR + "/ttt/@expiration_time") == yt.get(TEST_DIR + "/ttt_copied/@expiration_time")
+        assert yt.get(TEST_DIR + "/ttt/@creation_time") == yt.get(TEST_DIR + "/ttt_copied/@creation_time")
+
     def test_transactions(self):
         table = TEST_DIR + "/transaction_test_table"
 
-        yt.create_table(table)
+        yt.create("table", table)
         yt.write_table(table, [{"x": 1}])
         def read_table(client=None):
             return list(yt.read_table(table, client=client))
@@ -467,6 +511,30 @@ class TestCypressCommands(object):
             yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
             yt.abort_transaction(tx)
 
+    def test_shared_key_attribute_locks(self):
+        dir = TEST_DIR + "/dir"
+        yt.create("map_node", dir)
+
+        tx_id = yt.start_transaction()
+        with yt.Transaction(transaction_id=tx_id):
+            yt.lock(dir, mode="shared", attribute_key="my_attr")
+            yt.set(TEST_DIR + "/@my_attr", 10)
+
+            yt.lock(dir, mode="shared", child_key="child")
+            yt.create("table", TEST_DIR + "/child")
+
+        yt.set(TEST_DIR + "/@other_attr", 20)
+        with pytest.raises(yt.YtError):
+            yt.set(TEST_DIR + "/@my_attr", 30)
+
+        yt.create("table", TEST_DIR + "/other_child")
+        with pytest.raises(yt.YtError):
+            yt.set(TEST_DIR + "/child", {})
+
+        yt.commit_transaction(tx_id)
+        yt.set(TEST_DIR + "/@my_attr", 30)
+        yt.remove(TEST_DIR + "/child")
+
     def test_copy_move_sorted_table(self):
         def is_sorted_by_y(table_path):
             sorted_by = yt.get_attribute(table_path, "sorted_by", None)
@@ -513,9 +581,6 @@ class TestCypressCommands(object):
         yt.concatenate([fileA, fileB], output_file)
 
         assert b"HelloWorld" == yt.read_file(output_file).read()
-
-        with pytest.raises(yt.YtError):
-            yt.concatenate([], None)
 
         with pytest.raises(yt.YtError):
             yt.concatenate([], tableA)

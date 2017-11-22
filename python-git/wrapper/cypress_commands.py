@@ -1,21 +1,23 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param
+from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param, update, remove_nones_from_dict
 from .errors import YtResponseError
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
-from .ypath import YPath, escape_ypath_literal, ypath_join
+from .transaction import Transaction
+from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .format import create_format
 from .batch_response import apply_function_to_result
+from .retries import Retrier
+from .http_helpers import get_retriable_errors
 
 import yt.logger as logger
 
 from yt.packages.six import iteritems
 from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 
-import os
 import string
-from copy import deepcopy
+from copy import deepcopy, copy as shallowcopy
 
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
 # instead of None value to distinguish case when default argument
@@ -85,7 +87,9 @@ def set(path, value, format=None, client=None):
         client=client)
 
 def copy(source_path, destination_path,
-         recursive=None, preserve_account=None, preserve_expiration_time=None, force=None, client=None):
+         recursive=None, preserve_account=None,
+         preserve_expiration_time=None, preserve_creation_time=None,
+         force=None, client=None):
     """Copies Cypress node.
 
     :param source_path: source path.
@@ -94,6 +98,8 @@ def copy(source_path, destination_path,
     :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool preserve_account: preserve account.
+    :param bool preserve_expiration_time: preserve expiration time.
+    :param bool preserve_creation_time: preserve creation time.
     :param bool force: force.
 
     .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#copy>`_
@@ -106,6 +112,7 @@ def copy(source_path, destination_path,
     set_param(params, "force", force, bool_to_string)
     set_param(params, "preserve_account", preserve_account, bool_to_string)
     set_param(params, "preserve_expiration_time", preserve_expiration_time, bool_to_string)
+    set_param(params, "preserve_creation_time", preserve_creation_time, bool_to_string)
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path,
@@ -132,6 +139,36 @@ def move(source_path, destination_path,
     set_param(params, "preserve_expiration_time", preserve_expiration_time, bool_to_string)
     return _make_formatted_transactional_request("move", params, format=None, client=client)
 
+class _ConcatenateRetrier(Retrier):
+    def __init__(self, type, source_paths, destination_path, client):
+        self.type = type
+        self.source_paths = source_paths
+        self.destination_path = destination_path
+        self.client = client
+
+        retry_config = {
+            "backoff": get_config(client)["retry_backoff"],
+            "count": get_config(client)["proxy"]["request_retry_count"],
+        }
+        retry_config = update(deepcopy(get_config(client)["concatenate_retries"]), remove_nones_from_dict(retry_config))
+        chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
+        super(_ConcatenateRetrier, self).__init__(retry_config=retry_config,
+                                                  exceptions=get_retriable_errors(),
+                                                  chaos_monkey_enable=chaos_monkey_enable)
+
+    def action(self):
+        title = "Python wrapper: concatenate"
+        with Transaction(attributes={"title": title},
+                         client=self.client):
+            create(self.type, self.destination_path, ignore_existing=True, client=self.client)
+            params = {"source_paths": self.source_paths,
+                      "destination_path": self.destination_path}
+            _make_transactional_request("concatenate", params, client=self.client)
+
+    def except_action(self, error, attempt):
+        logger.warning("%s: %s", type(error), str(error))
+
+
 def concatenate(source_paths, destination_path, client=None):
     """Concatenates cypress nodes. This command applicable only to files and tables.
 
@@ -147,10 +184,10 @@ def concatenate(source_paths, destination_path, client=None):
     type = get(source_paths[0] + "/@type", client=client)
     if type not in ["file", "table"]:
         raise YtError("Type of '{0}' is not table or file".format(source_paths[0]))
-    create(type, destination_path, ignore_existing=True, client=client)
-    params = {"source_paths": source_paths,
-              "destination_path": destination_path}
-    _make_transactional_request("concatenate", params, client=client)
+
+    retrier = _ConcatenateRetrier(type, source_paths, destination_path, client=client)
+    retrier.run()
+
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, force=False, attributes=None, client=None):
     """Makes link to Cypress node.
@@ -410,6 +447,9 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             self.ignore_resolve_error = ignore_resolve_error
             self.content = content
             self.force_search = force_search
+            self.yield_path = True
+            # It is necessary to avoid infinite recursion.
+            self.followed_by_link = False
 
     def process_response_error(error, node):
         node.content = None
@@ -467,18 +507,26 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             logger.warning("Access to %s is denied", node.path)
             return
 
-        if is_opaque(node.content) and not node.ignore_opaque:
-            node.ignore_opaque = True
-            nodes_to_request.append(node)
-            return
-
         object_type = node.content.attributes["type"]
-        if object_type == "link" and follow_links:
-            node.ignore_opaque = False
-            nodes_to_request.append(node)
+
+        if node.followed_by_link and object_type == "link":
             return
 
-        if (node_type is None or object_type in flatten(node_type)) and \
+        if is_opaque(node.content) and not node.ignore_opaque and object_type != "link":
+            new_node = shallowcopy(node)
+            new_node.ignore_opaque = True
+            new_node.yield_path = False
+            nodes_to_request.append(new_node)
+
+        if object_type == "link" and follow_links:
+            assert not node.content
+            new_node = shallowcopy(node)
+            new_node.followed_by_link = True
+            new_node.ignore_opaque = True
+            nodes_to_request.append(new_node)
+
+        if node.yield_path and \
+                (node_type is None or object_type in flatten(node_type)) and \
                 (object_filter is None or object_filter(node.content)) and \
                 (path_filter is None or path_filter(node.path)):
             yson_path_attributes = dict(ifilter(lambda item: item[0] in attributes,
@@ -538,8 +586,8 @@ def remove_with_empty_dirs(path, force=True, client=None):
                 break
             else:
                 raise
-        # TODO(ignat): introduce ypath_dirname and use it here.
-        path = YPath(os.path.dirname(str(path)), simplify=False)
+
+        path = ypath_dirname(path)
         try:
             if str(path) == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
                 break

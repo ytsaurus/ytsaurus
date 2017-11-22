@@ -18,13 +18,15 @@ def retry_backoff_config(**kwargs):
         #   - constant_time
         #     Sleep for duration specified in constant_time option.
         #   - exponential
-        #     Sleep for min(max_timeout, start_timeout * base ^ retry_attempt).
+        #     Sleep for (1.0 + eps) * min(max_timeout, start_timeout * base ^ retry_attempt),
+        #     where eps ~ U[0, decay_factor_bound]
         "policy": None,
         "constant_time": None,
         "exponential_policy": {
             "start_timeout": None,
             "base": None,
             "max_timeout": None,
+            "decay_factor_bound": None
         },
     }
 
@@ -70,7 +72,15 @@ default_config = {
         "heavy_request_retry_timeout": None,
 
         # Retries configuration for http requests.
-        "retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"}),
+        "retries": retries_config(count=6, enable=True, backoff={
+            "policy": "exponential",
+            "exponential_policy": {
+                "start_timeout": 2,
+                "base": 2,
+                "max_timeout": 20000,
+                "decay_factor_bound": 0.3
+            }
+        }),
 
         # Timeout for connect.
         "connect_timeout": 5000,
@@ -119,12 +129,7 @@ default_config = {
         "count": 6,
         "backoff": {
             "policy": "constant_time",
-            "constant_time": 5 * 1000,
-            "exponential_policy": {
-                "start_timeout": None,
-                "base": None,
-                "max_timeout": None
-            }
+            "constant_time": 5 * 1000
         }
     },
 
@@ -339,7 +344,9 @@ default_config = {
         "stderr_download_thread_count": 10,
         # Timeout for downloading jobs stderr messages.
         # This parameter is only supported if stderr_download_threading_enable is True.
-        "stderr_download_timeout": 60 * 1000
+        "stderr_download_timeout": 60 * 1000,
+        # Enables logging in text format operation failed error and job errors.
+        "enable_logging_failed_operation": False,
     },
 
     "read_parallel": {
@@ -376,7 +383,7 @@ default_config = {
     "prefix": None,
 
     # Default timeout of transactions that started manually.
-    "transaction_timeout": 15 * 1000,
+    "transaction_timeout": 30 * 1000,
     # How often wake up to determine whether transaction need to be pinged.
     "transaction_sleep_period": 100,
     # Use signal (SIGUSR1) instead of KeyboardInterrupt in main thread if ping failed.
@@ -394,7 +401,14 @@ default_config = {
     "enable_batch_mode_for_search": False,
 
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
-    "read_retries": retries_config(count=30, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
+    "read_retries": retries_config(count=30, enable=True, backoff={
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 2,
+            "base": 2,
+            "max_timeout": 60000,
+            "decay_factor_bound": 0.3
+        }}) \
         .update_template_dict({
             "allow_multiple_ranges": False,
             "create_transaction_and_take_snapshot_lock": True,
@@ -403,7 +417,14 @@ default_config = {
         }),
 
     # Retries for write commands. It split data stream into chunks and writes it separately under transactions.
-    "write_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
+    "write_retries": retries_config(count=6, enable=True, backoff={
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 2,
+            "base": 2,
+            "max_timeout": 60000,
+            "decay_factor_bound": 0.3
+        }}) \
         .update_template_dict({
             "chunk_size": 512 * common.MB,
             # Parent transaction wrapping whole write process.
@@ -413,13 +434,31 @@ default_config = {
 
     # Retries for start operation requests.
     # It may fail due to violation of cluster operation limit.
-    "start_operation_retries": retries_config(count=30, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
+    "start_operation_retries": retries_config(count=30, enable=True, backoff={
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 3,
+            "base": 2,
+            "max_timeout": 60000,
+            "decay_factor_bound": 0.3
+        }}) \
         .update_template_dict({
             # For backward compatibility.
             "retry_count": None,
             "retry_timeout": None
         }),
     "start_operation_request_timeout": 60000,
+
+    # Retries for concatenate requests.
+    "concatenate_retries": retries_config(count=6, enable=True, backoff={
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 20,
+            "base": 2,
+            "max_timeout": 120000,
+            "decay_factor_bound": 0.3,
+        }
+    }),
 
     "auto_merge_output": {
         # Action can be:
@@ -451,6 +490,7 @@ default_config = {
         # Additional tmpfs size (in bytes) to reserve for user data.
         "additional_tmpfs_size": 0
     },
+
     "max_batch_size": 100,
     "batch_requests_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})
 }

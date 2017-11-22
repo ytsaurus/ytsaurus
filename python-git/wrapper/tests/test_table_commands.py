@@ -4,8 +4,10 @@ from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.driver import get_command_list
+from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.common import parse_bool
+
 from yt.local import start, stop
 
 import yt.zip as zip
@@ -27,7 +29,7 @@ from copy import deepcopy
 class TestTableCommands(object):
     def _test_read_write(self):
         table = TEST_DIR + "/table"
-        yt.create_table(table)
+        yt.create("table", table)
         check([], yt.read_table(table))
 
         yt.write_table(table, [{"x": 1}])
@@ -149,11 +151,11 @@ class TestTableCommands(object):
         table = dir + "/table"
 
         with pytest.raises(yt.YtError):
-            yt.create_table(table)
+            yt.create("table", table)
         with pytest.raises(yt.YtError):
             yt.row_count(table)
 
-        yt.create_table(table, recursive=True)
+        yt.create("table", table, recursive=True)
         assert yt.row_count(table) == 0
         check([], yt.read_table(table, format=yt.DsvFormat()))
 
@@ -162,7 +164,7 @@ class TestTableCommands(object):
 
         yt.remove(dir, recursive=True)
         with pytest.raises(yt.YtError):
-            yt.create_table(table)
+            yt.create("table", table)
 
     def test_create_temp_table(self):
         table = yt.create_temp_table(path=TEST_DIR)
@@ -199,7 +201,7 @@ class TestTableCommands(object):
 
     def test_mount_unmount(self, yt_env):
         table = TEST_DIR + "/table"
-        yt.create_table(table, attributes={
+        yt.create("table", table, attributes={
             "dynamic": True,
             "schema": [
                 {"name": "x", "type": "string", "sort_order": "ascending"},
@@ -235,7 +237,7 @@ class TestTableCommands(object):
                 raw=False))
 
         yt.remove(table, force=True)
-        yt.create_table(table)
+        yt.create("table", table)
         yt.run_sort(table, sort_by=["x"])
 
         yt.set(table + "/@schema", [
@@ -254,7 +256,7 @@ class TestTableCommands(object):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table2"
-            yt.create_table(table, attributes={
+            yt.create("table", table, attributes={
                 "dynamic": True,
                 "schema": [
                     {"name": "x", "type": "string", "sort_order": "ascending"},
@@ -283,7 +285,7 @@ class TestTableCommands(object):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table3"
             yt.remove(table, force=True)
-            yt.create_table(table, attributes={
+            yt.create("table", table, attributes={
                 "dynamic": True,
                 "schema": [
                     {"name": "x", "type": "string", "sort_order": "ascending"},
@@ -362,8 +364,8 @@ class TestTableCommands(object):
         len_a = 5
         len_b = 3
 
-        yt.create_table(src_table_a, recursive=True, ignore_existing=True)
-        yt.create_table(src_table_b, recursive=True, ignore_existing=True)
+        yt.create("table", src_table_a, recursive=True, ignore_existing=True)
+        yt.create("table", src_table_b, recursive=True, ignore_existing=True)
         yt.write_table(src_table_a, b"1=a\t2=a\t3=a\n" * len_a, format=dsv, raw=True)
         yt.write_table(src_table_b, b"1=b\t2=b\t3=b\n" * len_b, format=dsv, raw=True)
 
@@ -480,7 +482,7 @@ class TestTableCommands(object):
     def test_remove_locks(self):
         from yt.wrapper.table_helpers import _remove_locks
         table = TEST_DIR + "/table"
-        yt.create_table(table)
+        yt.create("table", table)
         try:
             for _ in xrange(5):
                 tx = yt.start_transaction(timeout=10000)
@@ -512,7 +514,7 @@ class TestTableCommands(object):
             pytest.skip()
 
         table = TEST_DIR + "/table"
-        yt.create_table(table)
+        yt.create("table", table)
 
         self._set_banned("true")
         with set_config_option("proxy/retries/count", 1,
@@ -550,12 +552,12 @@ class TestTableCommands(object):
         with set_config_option("local_temp_directory", new_temp_dir,
                                final_action=lambda: shutil.rmtree(new_temp_dir)):
             assert os.listdir(yt.config["local_temp_directory"]) == []
+
+            params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
             with pytest.raises(Exception):
-                py_wrapper.wrap(function=foo, operation_type="mapper", uploader=None,
-                                client=None, input_format=None, output_format=None, group_by=None)
+                py_wrapper.wrap(function=foo, uploader=None, params=params, client=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []
-            py_wrapper.wrap(function=foo, operation_type="mapper", uploader=uploader,
-                            client=None, input_format=None, output_format=None, group_by=None)
+            py_wrapper.wrap(function=foo, uploader=uploader, params=params, client=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []
 
     def test_write_compressed_table_data(self):
@@ -576,7 +578,7 @@ class TestTableCommands(object):
 
     def test_incorrect_dynamic_table_commands(self):
         table = TEST_DIR + "/dyn_table"
-        yt.create_table(table, attributes={
+        yt.create("table", table, attributes={
             "dynamic": True,
             "schema": [
                 {"name": "x", "type": "string", "sort_order": "ascending"},
@@ -607,7 +609,7 @@ class TestTableCommands(object):
 
         with set_config_option("tabular_data_format", None):
             table = TEST_DIR + "/test_trimmed_table"
-            yt.create_table(table, attributes={
+            yt.create("table", table, attributes={
                 "dynamic": True,
                 "schema": [
                     {"name": "x", "type": "string"},
@@ -646,6 +648,7 @@ class TestTableCommands(object):
         test_name = "TestYtWrapper" + mode.capitalize()
         dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
         try:
             instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
             second_cluster_client = instance.create_client()
@@ -684,7 +687,8 @@ class TestTableCommands(object):
             assert attributes["tablets"][0]["state"] == "none"
 
         finally:
-            stop(instance.id, path=dir)
+            if instance is not None:
+                stop(instance.id, path=dir)
 
     def _test_read_blob_table(self):
         table = TEST_DIR + "/test_blob_table"
@@ -821,6 +825,7 @@ class TestTableCommands(object):
         test_name = "TestYtWrapper" + mode.capitalize()
         dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
         try:
             instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True)
             client = instance.create_client()
@@ -846,4 +851,5 @@ class TestTableCommands(object):
 
             assert list(client.read_table(table)) == [{"x": 1}, {"x": 2}]
         finally:
-            stop(instance.id, path=dir)
+            if instance is not None:
+                stop(instance.id, path=dir)
