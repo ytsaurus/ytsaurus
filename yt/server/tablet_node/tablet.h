@@ -111,6 +111,7 @@ struct TTabletSnapshot
     NTabletClient::TTableReplicaId UpstreamReplicaId;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
+    int CriticalPartitionCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
     ui64 InMemoryConfigRevision = 0;
 
@@ -291,6 +292,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
     DEFINE_BYVAL_RO_PROPERTY(int, OverlappingStoreCount);
+    DEFINE_BYVAL_RO_PROPERTY(int, CriticalPartitionCount);
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
 
