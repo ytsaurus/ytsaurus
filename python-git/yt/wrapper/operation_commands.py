@@ -124,7 +124,8 @@ def get_operation_state(operation, client=None):
     retry_count = config["proxy"]["retries"]["count"]
     config["proxy"]["retries"]["count"] = config["proxy"]["operation_state_discovery_retry_count"]
     try:
-        return OperationState(get_operation_attributes(operation, client=client)["state"])
+        operation_path = ypath_join(OPERATIONS_PATH, operation)
+        return OperationState(get(operation_path + "/@state", client=client))
     finally:
         config["proxy"]["retries"]["count"] = retry_count
 
