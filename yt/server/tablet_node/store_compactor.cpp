@@ -49,6 +49,7 @@
 #include <yt/core/ytree/helpers.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/heap.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -526,22 +527,19 @@ private:
 
         Profiler.Update(counter, candidates->size());
 
-        size_t limit = 100;
-        limit = std::min(limit, candidates->size());
+        auto&& comparer = [] (const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs) -> bool {
+            return lhs->MakeComparableValue() < rhs->MakeComparableValue();
+        };
 
-        std::partial_sort(
+        MakeHeap(
             candidates->begin(),
-            candidates->begin() + limit,
             candidates->end(),
-            [] (const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs) -> bool {
-                return lhs->MakeComparableValue() < rhs->MakeComparableValue();
-            });
+            std::move(comparer));
 
-        candidates->resize(limit);
         {
             auto guard = Guard(TaskSpinLock_);
             tasks->swap(*candidates);
-            *index = 0;
+            *index = tasks->size();
         }
         candidates->clear();
     }
@@ -576,7 +574,7 @@ private:
         size_t scheduled = 0;
 
         while (true) {
-            if (*index >= tasks->size()) {
+            if (*index == 0) {
                 break;
             }
 
@@ -585,8 +583,17 @@ private:
                 break;
             }
 
+            auto&& comparer = [] (const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs) -> bool {
+                return lhs->MakeComparableValue() < rhs->MakeComparableValue();
+            };
+
+            ExtractHeap(
+                tasks->begin(),
+                tasks->begin() + *index,
+                comparer);
+
+            --(*index);
             auto&& task = tasks->at(*index);
-            ++(*index);
 
             auto invoker = task->Invoker;
             invoker->Invoke(BIND(action, MakeStrong(this), Passed(std::move(semaphoreGuard)), Owned(task.release())));
