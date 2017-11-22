@@ -253,10 +253,10 @@ def _get_hydra_manager_config():
 
 def _get_retrying_channel_config():
     return {
-        "retry_backoff_time": 10,
-        "retry_attempts": 5,
-        "soft_backoff_time": 10,
-        "hard_backoff_time": 10
+        "retry_backoff_time": 100,
+        "retry_attempts": 100,
+        "soft_backoff_time": 100,
+        "hard_backoff_time": 100
     }
 
 def _get_rpc_config():
@@ -509,7 +509,8 @@ class ConfigsProvider_18(ConfigsProvider):
 
             store_location_config = {
                 "low_watermark": 0,
-                "high_watermark": 0
+                "high_watermark": 0,
+                "disable_writes_watermark": 0
             }
 
             if provision["node"]["chunk_store_quota"] is not None:

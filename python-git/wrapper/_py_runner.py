@@ -103,8 +103,8 @@ def main():
         for name in dir(main_module):
             main_module_dict[name] = main_module.__dict__[name]
 
-
     import yt.wrapper
+
     yt.wrapper.py_runner_helpers.process_rows(__operation_dump_filename, __config_dump_filename, start_time=start_time)
 
 if __name__ == "__main__":

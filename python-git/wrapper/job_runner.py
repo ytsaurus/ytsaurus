@@ -18,7 +18,6 @@ import stat
 import argparse
 import subprocess
 import shutil
-import inspect
 from functools import partial
 
 SCRIPT_DIR = os.path.dirname(__file__)

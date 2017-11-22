@@ -1,7 +1,7 @@
 from . import yson
 from .config import get_config, get_option, set_option
 from .compression import get_compressor
-from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_value
+from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_value, get_started_by_short
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
 from .http_helpers import (make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url,
                            parse_error_from_headers, get_header_format, ProxyProvider)
@@ -215,9 +215,6 @@ def make_request(command_name,
     if "_ARGCOMPLETE" in os.environ:
         user_agent += " [argcomplete mode]"
 
-    headers = {"User-Agent": user_agent,
-               "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"]}
-
     header_format = get_header_format(client)
     if header_format not in ["json", "yson"]:
         raise YtError("Incorrect headers format: " + str(header_format))
@@ -225,6 +222,10 @@ def make_request(command_name,
     header_format_header = header_format
     if header_format == "yson":
         header_format_header = "<format=text>yson"
+
+    headers = {"User-Agent": user_agent,
+               "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"],
+               "X-Started-By": dump_params(get_started_by_short(), header_format)}
 
     write_params_to_header = True
     headers["X-YT-Header-Format"] = header_format_header

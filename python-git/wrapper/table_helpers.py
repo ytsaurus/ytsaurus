@@ -8,19 +8,15 @@ from .format import create_format, YsonFormat, YamrFormat
 from .ypath import TablePath
 from .cypress_commands import exists, get_attribute, get_type, remove
 from .transaction_commands import abort_transaction
-from .file_commands import upload_file_to_cache, is_executable
+from .file_commands import upload_file_to_cache, is_executable, LocalFile
 from .transaction import Transaction, null_transaction_id
-
-from yt.common import to_native_str
 
 import yt.logger as logger
 import yt.yson as yson
-from yt.yson.parser import YsonParser
 
 from yt.packages.six import text_type, binary_type, PY3
 from yt.packages.six.moves import map as imap, zip as izip
 
-import os
 import time
 import types
 from copy import deepcopy
@@ -158,35 +154,20 @@ class FileUploader(object):
         file_paths = []
         with Transaction(transaction_id=null_transaction_id, attributes={"title": "Python wrapper: upload operation files"}, client=self.client):
             for file in flatten(files):
-                if isinstance(file, (text_type, binary_type)):
+                if isinstance(file, (text_type, binary_type, LocalFile)):
                     file_params = {"filename": file}
                 else:
                     file_params = deepcopy(file)
 
-                # Hacky way to split string into file path and file path attributes.
                 filename = file_params.pop("filename")
-                if PY3:
-                    filename_bytes = filename.encode("utf-8")
-                else:
-                    filename_bytes = filename
+                local_file = LocalFile(filename)
 
-                stream = BytesIO(filename_bytes)
-                parser = YsonParser(
-                    stream,
-                    encoding="utf-8" if PY3 else None,
-                    always_create_attributes=True)
+                self.disk_size += get_disk_size(local_file.path)
 
-                attributes = {}
-                if parser._has_attributes():
-                    attributes = parser._parse_attributes()
-                    filename = to_native_str(stream.read())
-
-                self.disk_size += get_disk_size(filename)
-
-                path = upload_file_to_cache(filename=filename, client=self.client, **file_params)
+                path = upload_file_to_cache(filename=local_file.path, client=self.client, **file_params)
                 file_paths.append(yson.to_yson_type(path, attributes={
-                    "executable": is_executable(filename, client=self.client),
-                    "file_name": attributes.get("file_name", os.path.basename(filename)),
+                    "executable": is_executable(local_file.path, client=self.client),
+                    "file_name": local_file.file_name,
                 }))
         return file_paths
 
@@ -217,19 +198,16 @@ def _prepare_formats(format, input_format, output_format, binary, client):
 
     return input_format, output_format
 
-def _prepare_binary(binary, operation_type, input_format, output_format,
-                    group_by, file_uploader, client=None):
+def _prepare_binary(binary, file_uploader, params, client=None):
     if _is_python_function(binary):
         start_time = time.time()
-        if isinstance(input_format, YamrFormat) and group_by is not None and set(group_by) != set(["key"]):
-            raise YtError("Yamr format does not support reduce by %r", group_by)
+        if isinstance(params.input_format, YamrFormat) and params.group_by is not None \
+                and set(params.group_by) != set(["key"]):
+            raise YtError("Yamr format does not support reduce by %r", params.group_by)
         wrap_result = \
             py_wrapper.wrap(function=binary,
-                            operation_type=operation_type,
-                            input_format=input_format,
-                            output_format=output_format,
-                            group_by=group_by,
                             uploader=file_uploader,
+                            params=params,
                             client=client)
 
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
@@ -238,6 +216,7 @@ def _prepare_binary(binary, operation_type, input_format, output_format,
         return py_wrapper.WrapResult(cmd=binary, files=[], tmpfs_size=0, environment={}, local_files_to_remove=[], title=None)
 
 def _prepare_destination_tables(tables, client=None):
+    from .table_commands import _create_table
     if tables is None:
         if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
             raise YtError("Destination tables are missing")
@@ -245,7 +224,7 @@ def _prepare_destination_tables(tables, client=None):
     tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
     batch_client = create_batch_client(raise_errors=True, client=client)
     for table in tables:
-        batch_client.create_table(table, ignore_existing=True)
+        _create_table(table, ignore_existing=True, client=batch_client)
     batch_client.commit_batch()
     return tables
 
@@ -256,19 +235,27 @@ def _prepare_job_io(job_io=None, table_writer=None):
         job_io.setdefault("table_writer", table_writer)
     return job_io
 
-def _prepare_local_files(local_files=None, files=None):
+def _prepare_operation_files(local_files=None, files=None, yt_files=None):
     if files is not None:
         require(local_files is None, lambda: YtError("You cannot specify files and local_files simultaneously"))
         local_files = files
-    return local_files
+
+    result = []
+
+    if yt_files is not None:
+        result += flatten(yt_files)
+
+    local_files = flatten(get_value(local_files, []))
+    result += map(LocalFile, local_files)
+    return result
 
 def _prepare_stderr_table(name, client=None):
-    from .table_commands import create_table
+    from .table_commands import _create_table
     if name is None:
         return None
 
     table = TablePath(name, client=client)
     with Transaction(transaction_id=null_transaction_id, client=client):
-        create_table(table, ignore_existing=True, client=client)
+        _create_table(table, ignore_existing=True, client=client)
     return table
 

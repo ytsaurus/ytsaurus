@@ -15,6 +15,7 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
+from yt.wrapper.spec_builders import MapSpecBuilder
 from yt.local import start, stop
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
@@ -1103,9 +1104,6 @@ if __name__ == "__main__":
         old_level = logger.LOGGER.level
         logger.LOGGER.setLevel(logging.INFO)
         try:
-            with pytest.raises(yt.YtError):
-                tracker.add_by_id("123")
-
             table = TEST_DIR + "/table"
             yt.write_table(table, [{"x": 1, "y": 1}])
 
@@ -1154,6 +1152,81 @@ if __name__ == "__main__":
                     raise RuntimeError("error")
 
             assert op.get_state() == "aborted"
+        finally:
+            logger.LOGGER.setLevel(old_level)
+
+    def test_pool_tracker(self):
+        def create_spec_builder(binary, source_table, destination_table):
+            return MapSpecBuilder() \
+                .input_table_paths(source_table) \
+                .output_table_paths(destination_table) \
+                .begin_mapper() \
+                    .command(binary) \
+                .end_mapper()
+
+        tracker = yt.OperationsTrackerPool(pool_size=1)
+
+        # To enable progress printing
+        old_level = logger.LOGGER.level
+        logger.LOGGER.setLevel(logging.INFO)
+        try:
+            table = TEST_DIR + "/table"
+            yt.write_table(table, [{"x": 1, "y": 1}])
+
+            assert tracker.get_operation_count() == 0
+
+            spec_builder1 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out1")
+            spec_builder2 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out2")
+
+            tracker.add(spec_builder1)
+            tracker.add(spec_builder2)
+
+            assert tracker.get_operation_count() == 2
+
+            tracker.abort_all()
+
+            assert tracker.get_operation_count() == 0
+
+            spec_builder1 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out1")
+            spec_builder2 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out2")
+
+            tracker.map([spec_builder1, spec_builder2])
+
+            assert tracker.get_operation_count() == 2
+
+            tracker.abort_all()
+
+            assert tracker.get_operation_count() == 0
+
+            spec_builder1 = create_spec_builder("sleep 2; cat", table, TEST_DIR + "/out1")
+            spec_builder2 = create_spec_builder("sleep 2; cat", table, TEST_DIR + "/out2")
+            tracker.map([spec_builder1, spec_builder2])
+
+            assert tracker.get_operation_count() == 2
+
+            tracker.wait_all()
+
+            assert tracker.get_operation_count() == 0
+
+            tracker.map([create_spec_builder("false", table, TEST_DIR + "/out")])
+            with pytest.raises(yt.YtError):
+                tracker.wait_all(check_result=True)
+
+            spec_builder = create_spec_builder("cat", table, TEST_DIR + "/out")
+            tracker.map([spec_builder])
+            tracker.wait_all(keep_finished=True)
+            tracker.abort_all()
+
+            assert tracker.get_operation_count() == 0
+
+            with tracker:
+                spec_builder = create_spec_builder("sleep 2; true", table, TEST_DIR + "/out")
+                tracker.map([spec_builder])
+
+                assert tracker.get_operation_count() == 1
+
+            assert tracker.get_operation_count() == 0
+
         finally:
             logger.LOGGER.setLevel(old_level)
 
@@ -1227,21 +1300,34 @@ if __name__ == "__main__":
             for row in rows:
                 yield {"row_index": context.row_index}
 
+        @yt.with_context
+        def mapper_table_index(row, context):
+            yield {"table_index": context.table_index}
+
         input = TEST_DIR + "/input"
+        input2 = TEST_DIR + "/input2"
         output = TEST_DIR + "/output"
         yt.write_table(input, [{"x": 1, "y": "a"}, {"x": 1, "y": "b"}, {"x": 2, "y": "b"}])
         yt.run_map(mapper, input, output,
                    format=yt.YsonFormat(),
                    spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
 
-        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)], ordered=True)
+        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
 
         yt.run_sort(input, input, sort_by=["x"])
         yt.run_reduce(reducer, input, output,
                       reduce_by=["x"],
                       format=yt.YsonFormat(),
                       spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
-        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)], ordered=True)
+        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
+
+        yt.write_table(input, [{"x": 1, "y": "a"}])
+        yt.run_map(mapper_table_index, input, output, format=yt.YsonFormat(control_attributes_mode="iterator"))
+        check(yt.read_table(output), [{"table_index": 0}])
+
+        yt.write_table(input2, [{"x": 1, "y": "a"}])
+        yt.run_map(mapper_table_index, [input, input2], output, format=yt.YsonFormat(control_attributes_mode="iterator"))
+        check(yt.read_table(output), [{"table_index": 0}, {"table_index": 1}], ordered=False)
 
     def test_relative_imports_with_run_module(self, yt_env):
         yt.write_table("//tmp/input_table", [{"value": 0}])
@@ -1419,3 +1505,135 @@ if __name__ == "__main__":
 
         finally:
             stop(instance.id, path=dir)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_yson_several_output_tables(self):
+        def first_mapper(row):
+            row["@table_index"] = row["x"]
+            yield row
+
+        def second_mapper(row):
+            yield yt.create_table_switch(row["x"])
+            yield row
+
+        def third_mapper(row):
+            yield yt.create_table_switch(row["x"] + 5)
+            yield row
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(first_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="row_fields"))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        yt.run_map(second_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator"))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        with pytest.raises(yt.YtError):
+            yt.run_map(third_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator"))
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_json_several_output_tables(self):
+        def first_mapper(row):
+            row["@table_index"] = row["x"]
+            yield row
+
+        def second_mapper(row):
+            yield {"$value": None, "$attributes": {"table_index": row["x"]}}
+            yield row
+
+        def third_mapper(row):
+            yield {"$value": None, "$attributes": {"table_index": row["x"] + 5}}
+            yield row
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(first_mapper, table, output_tables, format=yt.JsonFormat(control_attributes_mode="row_fields"))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        yt.run_map(second_mapper, table, output_tables, format=yt.JsonFormat(control_attributes_mode="iterator"))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        with pytest.raises(yt.YtError):
+            yt.run_map(third_mapper, table, output_tables, format=yt.JsonFormat(control_attributes_mode="iterator"))
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_yamr_several_output_tables(self):
+        def first_mapper(rec):
+            rec.tableIndex = int(rec.value)
+            yield rec
+
+        def second_mapper(rec):
+            rec.tableIndex = int(rec.value + 5)
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "x", "value": str(i)} for i in xrange(3)])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(first_mapper, table, output_tables, format=yt.YamrFormat())
+
+        assert list(yt.read_table(output_tables[0])) == [{"key": "x", "value": "0"}]
+        assert list(yt.read_table(output_tables[1])) == [{"key": "x", "value": "1"}]
+        assert list(yt.read_table(output_tables[2])) == [{"key": "x", "value": "2"}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        with pytest.raises(yt.YtError):
+            yt.run_map(second_mapper, table, output_tables, format=yt.YamrFormat())
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_schemaful_dsv_several_output_tables(self):
+        def mapper(row):
+            row["@table_index"] = int(row["x"])
+            yield row
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}, {"x": "1"}, {"x": "2"}])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(mapper, table, output_tables,
+                   format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
+                   spec={"mapper": {"enable_input_table_index": True}})
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": "0"}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": "1"}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": "2"}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        yt.write_table(table, [{"x": "0"}, {"x": "5"}, {"x": "6"}])
+        with pytest.raises(yt.YtError):
+            yt.run_map(mapper, table, output_tables,
+                       format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
+                       spec={"mapper": {"enable_input_table_index": True}})
+
+    def test_enable_logging_failed_operation(self):
+        tableX = TEST_DIR + "/tableX"
+        tableY = TEST_DIR + "/tableY"
+        yt.write_table(tableX, [{"x": 1}])
+        with set_config_option("operation_tracker/enable_logging_failed_operation", True):
+            with pytest.raises(yt.YtError):
+                yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
+

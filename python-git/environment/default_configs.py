@@ -95,6 +95,12 @@ b"""
         idle_post_period = 1000;
         rpc_timeout = 1000;
     };
+
+    tablet_manager = {
+        tablet_balancer = {
+            enable_tablet_balancer = %false;
+        };
+    };
 }
 """)
 
@@ -120,6 +126,10 @@ b"""
         };
     };
 
+    node_directory_synchronizer = {
+        sync_period = 100;
+    };
+
     response_keeper = {
         enable_warmup = %false;
         expiration_time = 25000;
@@ -134,8 +144,12 @@ b"""
         operations_update_period = 500;
         fair_share_update_period = 500;
         watchers_update_period = 100;
+        nodes_attributes_update_period = 100;
         update_exec_node_descriptors_period = 100;
+        scheduling_tag_filter_expire_timeout = 100;
+        node_shard_exec_nodes_cache_update_period = 100;
         chunk_list_release_batch_delay = 100;
+        preemptive_scheduling_backoff = 0;
         connect_grace_delay = 0;
         forbid_immediate_operations_in_root = %false;
         environment = {
@@ -232,6 +246,8 @@ b"""
         chunk_meta_cache = {
             capacity = 0;
         };
+
+        sync_directories_on_connect = %true;
     };
 
     exec_agent = {
@@ -269,6 +285,10 @@ b"""
                 };
             }
         };
+
+        job_controller = {
+            stored_jobs_send_period = 5000;
+        }
     };
 
     tablet_node = {

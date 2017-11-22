@@ -23,7 +23,11 @@ MASTER_CONFIG_PATCHES = [
         "cypress_manager": None,
         "security_manager": None,
         "object_manager": None,
-        "hive_manager": None,
+        # These option is required to decrease timeout for table mounting on local mode startup.
+        "hive_manager": {
+            "ping_period": 1000,
+            "idle_post_period": 1000,
+        },
         "cell_directory_synchronizer": None,
         "hydra_manager": {
             "max_changelog_data_size": 256 * MB

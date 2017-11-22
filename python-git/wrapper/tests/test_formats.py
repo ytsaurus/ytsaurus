@@ -13,6 +13,8 @@ except ImportError:  # Python 3
     from io import BytesIO
 
 import pytest
+import random
+import time
 from itertools import chain
 
 def test_string_iter_io_read():
@@ -275,6 +277,39 @@ def test_raw_dump_records():
     check_format(yt.SchemafulDsvFormat(columns=["x"]), [b"x=1\n", b"x=2\n"])
     check_format(yt.YsonFormat(), [b'{"x"=1}', b'{"x"=2}'])
     check_format(yt.JsonFormat(), [b'{"x":1}', b'{"x":2}'])
+
+def test_yson_dump_rows_speed():
+    format = yt.YsonFormat()
+    rows = []
+
+    for _ in xrange(1000):
+        if random.randint(0, 10) == 1:
+            entity = yson.YsonEntity()
+            entity.attributes["@table_index"] = random.randint(0, 1)
+            rows.append(entity)
+            continue
+
+        rows.append({"a": "abacaba", "b": 1234, "c": 123.123, "d": [1, 2, {}]})
+
+    NUM_ITERATIONS = 1000
+
+    start_time = time.time()
+    for _ in xrange(NUM_ITERATIONS):
+        stream = BytesIO()
+        format.dump_rows(rows, stream)
+
+    one_stream_dump_time = time.time() - start_time
+    start_time = time.time()
+    for _ in xrange(NUM_ITERATIONS):
+        stream = BytesIO()
+        stream2 = BytesIO()
+        format.dump_rows(rows, [stream, stream2])
+
+    two_streams_dump_time = time.time() - start_time
+
+    if two_streams_dump_time / one_stream_dump_time > 2:
+        assert False, "Dump rows to one stream took {0} seconds, " \
+                      "to two streams took {1} seconds".format(one_stream_dump_time, two_streams_dump_time)
 
 if PY3:
     def test_none_encoding():

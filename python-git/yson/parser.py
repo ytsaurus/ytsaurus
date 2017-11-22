@@ -148,8 +148,11 @@ def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attr
 
     if yson_type == "list_fragment":
         stream = StreamWrap(stream, b"[", b"]")
-    if yson_type == "map_fragment":
+    elif yson_type == "map_fragment":
         stream = StreamWrap(stream, b"{", b"}")
+    else:
+        if yson_type is not None:
+            raise YsonError("Unexpected yson type: " + repr(yson_type))
 
     parser = YsonParser(stream, encoding, always_create_attributes)
     return parser.parse()

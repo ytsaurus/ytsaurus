@@ -83,7 +83,7 @@ def get_default_resource_limits(client):
 
 def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None):
     client = get_value(client, yt)
-    users = ["odin", "cron", "nightly_tester", "application_operations", "robot-yt-mon"]
+    users = ["odin", "cron", "cron_merge", "cron_compression", "nightly_tester", "application_operations", "robot-yt-mon"]
     groups = ["devs", "admins", "admin_snapshots"]
     if idm:
         groups.append("yandex")
@@ -94,7 +94,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     for group in groups:
         create("group", group, client)
 
-    add_member("cron", "superusers", client)
+    for cron_user in ("cron", "cron_merge", "cron_compression"):
+        add_member(cron_user, "superusers", client)
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
 
@@ -119,11 +120,40 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
             client)
     client.set("//sys/tokens/@inherit_acl", "false")
 
+    if not client.exists("//sys/accounts/tmp_files"):
+        client.create("account", attributes={"name": "tmp_files",
+                                             "acl": [{
+                                                 "action": "allow",
+                                                 "subjects": ["users"],
+                                                 "permissions": ["use"]
+                                             }],
+                                             "resource_limits": get_default_resource_limits(client)})
+    else:
+        logger.warning("Account 'tmp_files' already exists")
+
+    if not client.exists("//sys/accounts/default"):
+        client.create("account", attributes={"name": "default",
+                                             "acl": [{
+                                                 "action": "allow",
+                                                 "subjects": ["users"],
+                                                 "permissions": ["use"]
+                                             }],
+                                             "resource_limits": get_default_resource_limits(client)})
+    else:
+        logger.warning("Account 'default' already exists")
+
+    if not client.exists("//sys/accounts/tmp_jobs"):
+        client.create("account", attributes={"name": "tmp_jobs",
+                                             "resource_limits": get_default_resource_limits(client)})
+    else:
+        logger.warning("Account 'tmp_jobs' already exists")
+
+
     if not client.exists("//home"):
         client.create("map_node", "//home",
                       attributes={
                           "opaque": "true",
-                          "account": "tmp"})
+                          "account": "default"})
 
     client.create("map_node", "//sys/admin", ignore_existing=True)
     client.create("map_node", "//sys/admin/snapshots", ignore_existing=True)
@@ -139,6 +169,13 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                    [
                        {"action": "allow", "subjects": ["admin_snapshots"], "permissions": ["read"]}
                    ])
+
+    client.create("map_node", "//sys/admin/odin", ignore_existing=True)
+
+    client.set("//sys/admin/odin/@acl",
+               [
+                   {"action": "allow", "subjects": ["odin"], "permissions": ["write", "remove", "read"]}
+               ])
 
     # add_acl to schemas
     for schema in ["user", "group", "tablet_cell"]:
@@ -183,31 +220,21 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                              for name in ["key", "subkey"]] + [{"name": "value", "type": "any"}]
         client.create("table", "//sys/empty_yamr_table", attributes={"schema": yamr_table_schema})
 
-    if not client.exists("//sys/accounts/tmp_files"):
-        client.create("account", attributes={"name": "tmp_files",
-                                             "acl": [{
-                                                 "action": "allow",
-                                                 "subjects": ["users"],
-                                                 "permissions": ["use"]
-                                             }],
-                                             "resource_limits": get_default_resource_limits(client)})
-    else:
-        logger.warning("Account 'tmp_files' already exists")
-
-    if not client.exists("//sys/accounts/tmp_jobs"):
-        client.create("account", attributes={"name": "tmp_jobs",
-                                             "resource_limits": get_default_resource_limits(client)})
-    else:
-        logger.warning("Account 'tmp_jobs' already exists")
-
     client.create("map_node",
                   "//tmp/yt_wrapper/file_storage",
                   attributes={"account": "tmp_files"},
                   recursive=True,
                   ignore_existing=True)
+    client.create("map_node",
+                  "//tmp/yt_wrapper/table_storage",
+                  recursive=True,
+                  ignore_existing=True)
 
     if not client.exists("//sys/tablet_cell_bundles/sys"):
-        client.create("tablet_cell_bundle", attributes={"name": "sys"})
+        client.create("tablet_cell_bundle", attributes={
+            "name": "sys",
+            "changelog_account": "sys",
+            "snapshot_account": "sys"})
     else:
         logger.warning('Tablet cell bundle "sys" already exists')
 

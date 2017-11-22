@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+# TODO(asaitgalin): Remove try/except when DEVTOOLS-3781 is done.
 try:
     from . import common
     from . import default_config
@@ -280,11 +281,35 @@ class Config(types.ModuleType, client_state.ClientState):
     def update_config(self, patch):
         self.common_module.update(self.config, patch)
 
+    def _check_deprecations(self, config):
+        declare_deprecated = self.common_module.declare_deprecated
+
+        declare_deprecated('config option "proxy/request_retry_timeout"',
+                           config["proxy"]["request_retry_timeout"] is not None)
+        declare_deprecated('config option "proxy/heavy_request_retry_timeout"',
+                           config["proxy"]["heavy_request_retry_timeout"] is not None)
+        declare_deprecated('config option "proxy/request_retry_enable"',
+                           config["proxy"]["request_retry_enable"] is not None)
+        declare_deprecated('config option "proxy/request_retry_count"',
+                           config["proxy"]["request_retry_count"] is not None)
+        declare_deprecated('config option "retry_backoff"',
+                           config["retry_backoff"] != self.default_config_module.retry_backoff_config())
+
+        declare_deprecated('config option "start_operation_retries/retry_count"',
+                           config["start_operation_retries"]["retry_count"] is not None)
+        declare_deprecated('config option "start_operation_retries/retry_timeout"',
+                           config["start_operation_retries"]["retry_timeout"] is not None)
+
+        declare_deprecated('config option "read_retries/retry_count"',
+                           config["read_retries"]["retry_count"] is not None)
+
     def get_config(self, client):
         if client is not None:
-            return client.config
+            config = client.config
         else:
-            return self.config
+            config = self.config
+        self._check_deprecations(config)
+        return config
 
     def has_option(self, option, client):
         if client is not None:
