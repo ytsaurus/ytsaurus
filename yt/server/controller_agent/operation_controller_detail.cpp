@@ -38,10 +38,11 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/functions_cache.h>
-#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/range_inferrer.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
@@ -3591,6 +3592,10 @@ void TOperationControllerBase::FetchInputTables()
 
     LOG_INFO("Started fetching input tables");
 
+    TQueryOptions queryOptions;
+        queryOptions.VerboseLogging = true;
+        queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
+
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto ranges = table.Path.GetRanges();
@@ -3599,12 +3604,20 @@ void TOperationControllerBase::FetchInputTables()
             continue;
         }
 
-        if (InputQuery && InputQuery->Query->OriginalSchema.IsSorted()) {
+        if (InputQuery && table.Schema.IsSorted()) {
+            auto rangeInferrer = CreateRangeInferrer(
+                InputQuery->Query->WhereClause,
+                table.Schema,
+                table.Schema.GetKeyColumns(),
+                ControllerAgent->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
+                BuiltinRangeExtractorMap,
+                queryOptions);
+
             std::vector<TReadRange> inferredRanges;
-            for (const auto& range : table.Path.GetRanges()) {
+            for (const auto& range : ranges) {
                 auto lower = range.LowerLimit().HasKey() ? range.LowerLimit().GetKey() : MinKey();
                 auto upper = range.UpperLimit().HasKey() ? range.UpperLimit().GetKey() : MaxKey();
-                auto result = InputQuery->RangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
+                auto result = rangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
                 for (const auto& inferred : result) {
                     auto inferredRange = range;
                     inferredRange.LowerLimit().SetKey(TOwningKey(inferred.first));
@@ -4432,26 +4445,14 @@ void TOperationControllerBase::ParseInputQuery(
         return InferInputSchema(schemas, false);
     };
 
-    TQueryOptions options;
-    options.VerboseLogging = true;
-    options.RangeExpansionLimit = Config->MaxRangesOnTable;
-
     auto query = PrepareJobQuery(
         queryString,
         schema ? *schema : inferSchema(),
         fetchFunctions);
-    auto rangeInferrer = CreateRangeInferrer(
-        query->WhereClause,
-        query->OriginalSchema,
-        query->GetKeyColumns(),
-        ControllerAgent->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
-        BuiltinRangeExtractorMap,
-        options);
 
     InputQuery.Emplace();
     InputQuery->Query = std::move(query);
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
-    InputQuery->RangeInferrer = std::move(rangeInferrer);
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(
