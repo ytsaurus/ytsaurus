@@ -31,8 +31,10 @@ public:
     IInvokerPtr GetReaderInvoker();
     IInvokerPtr GetWriterInvoker();
 
-    IPrioritizedInvokerPtr GetCompressionPoolInvoker();
-    IPrioritizedInvokerPtr GetErasurePoolInvoker();
+    IPrioritizedInvokerPtr GetPrioritizedCompressionPoolInvoker();
+    IPrioritizedInvokerPtr GetPrioritizedErasurePoolInvoker();
+
+    IInvokerPtr GetCompressionPoolInvoker();
 
 private:
     class TImpl;

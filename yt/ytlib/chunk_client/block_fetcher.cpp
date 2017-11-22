@@ -32,7 +32,7 @@ TBlockFetcher::TBlockFetcher(
     , ChunkReader_(std::move(chunkReader))
     , BlockCache_(std::move(blockCache))
     , CompressionInvoker_(CreateFixedPriorityInvoker(
-        TDispatcher::Get()->GetCompressionPoolInvoker(),
+        TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         Config_->WorkloadDescriptor.GetPriority()))
     , AsyncSemaphore_(std::move(asyncSemaphore))
     , Codec_(NCompression::GetCodec(codecId))

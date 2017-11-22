@@ -393,7 +393,7 @@ TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
     PrepareChunkMeta(chunkMeta);
 
     auto invoker = CreateFixedPriorityInvoker(
-        TDispatcher::Get()->GetCompressionPoolInvoker(),
+        TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         WorkloadDescriptor_.GetPriority());
 
     std::vector<TFuture<void>> asyncResults {
