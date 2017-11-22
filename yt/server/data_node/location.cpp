@@ -62,6 +62,7 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
+    , ReplicationOutThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationOutThrottler))
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
@@ -414,6 +415,17 @@ void TLocation::RemoveChunkFiles(const TChunkId& chunkId, bool force)
 {
     Y_UNUSED(force);
     RemoveChunkFilesPermanently(chunkId);
+}
+
+IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
+{
+    switch (descriptor.Category) {
+        case EWorkloadCategory::SystemReplication:
+            return ReplicationOutThrottler_;
+
+        default:
+            return GetUnlimitedThrottler();
+    }
 }
 
 TString TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
