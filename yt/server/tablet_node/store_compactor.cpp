@@ -134,21 +134,63 @@ private:
         // That is, the remaining number of stores in the partition till
         // the tablet hits MOSC limit.
         // Small values indicate that the tablet is in a critical state.
-        ui64 Slack = 0;
+        int Slack = 0;
         // Guaranteed effect on the slack if this task will be done.
         // This is a conservative estimate.
-        ui64 Effect = 0;
+        int Effect = 0;
+        // Future effect on the slack due to concurrent tasks.
+        // This quantity is memoized to provide a valid comparison operator.
+        int FutureEffect = 0;
+        // A random number to deterministically break ties.
         ui64 Random = RandomNumber<size_t>();
 
-        TTask() = default;
+        // These fields are filled upon task invocation.
+        TWeakPtr<TStoreCompactor> Owner;
+        TAsyncSemaphoreGuard SemaphoreGuard;
+
+        TTask() = delete;
         TTask(const TTask&) = delete;
         TTask& operator=(const TTask&) = delete;
         TTask(TTask&&) = delete;
         TTask& operator=(TTask&&) = delete;
 
-        auto MakeComparableValue()
+        TTask(
+            TTabletSlot* slot,
+            const TTablet* tablet,
+            const TPartition* partition,
+            std::vector<TStoreId> stores)
+            : Slot(slot)
+            , Invoker(tablet->GetEpochAutomatonInvoker())
+            , Tablet(tablet->GetId())
+            , Partition(partition->GetId())
+            , Stores(std::move(stores))
+        { }
+
+        ~TTask()
         {
-            return std::make_tuple(Slack, -Effect, -Stores.size(), Random);
+            if (auto owner = Owner.Lock()) {
+                owner->ChangeFutureEffect(Tablet, -Effect);
+            }
+        }
+
+        auto GetOrderingTuple()
+        {
+            return std::make_tuple(Slack + FutureEffect, -Effect, -Stores.size(), Random);
+        }
+
+        void Prepare(TStoreCompactor* owner, TAsyncSemaphoreGuard&& semaphoreGuard)
+        {
+            Owner = MakeWeak(owner);
+            SemaphoreGuard = std::move(semaphoreGuard);
+
+            owner->ChangeFutureEffect(Tablet, Effect);
+        }
+
+        static inline bool Comparer(
+            const std::unique_ptr<TTask>& lhs,
+            const std::unique_ptr<TTask>& rhs)
+        {
+            return lhs->GetOrderingTuple() < rhs->GetOrderingTuple();
         }
     };
 
@@ -159,12 +201,17 @@ private:
     std::vector<std::unique_ptr<TTask>> PartitioningCandidates_;
     std::vector<std::unique_ptr<TTask>> CompactionCandidates_;
 
-    // Variables below are actually scheduled tasks.
+    // Variables below are actually used during the scheduling.
     TSpinLock TaskSpinLock_;
-    std::vector<std::unique_ptr<TTask>> PartitioningTasks_;
-    size_t PartitioningTaskIndex_ = 0; // First unscheduled task.
-    std::vector<std::unique_ptr<TTask>> CompactionTasks_;
-    size_t CompactionTaskIndex_ = 0; // First unscheduled task.
+    std::vector<std::unique_ptr<TTask>> PartitioningTasks_; // Min-heap.
+    size_t PartitioningTaskIndex_ = 0; // Heap end boundary.
+    std::vector<std::unique_ptr<TTask>> CompactionTasks_; // Min-heap.
+    size_t CompactionTaskIndex_ = 0; // Heap end boundary.
+
+    // These are for the future accounting.
+    TReaderWriterSpinLock FutureEffectLock_;
+    yhash<TTabletId, int> FutureEffect_;
+
 
     void OnBeginSlotScan()
     {
@@ -254,18 +301,14 @@ private:
             return false;
         }
 
-        auto candidate = std::make_unique<TTask>();
-        candidate->Slot = slot;
-        candidate->Invoker = tablet->GetEpochAutomatonInvoker();
-        candidate->Tablet = tablet->GetId();
-        candidate->Partition = eden->GetId();
-        candidate->Stores = std::move(stores);
+        auto candidate = std::make_unique<TTask>(slot, tablet, eden, std::move(stores));
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
         const int overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
-        candidate->Slack = static_cast<size_t>(std::max(0, overlappingStoreLimit - overlappingStoreCount));
+        candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
         candidate->Effect = candidate->Stores.size() - 1;
+        candidate->FutureEffect = GetFutureEffect(tablet->GetId());
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -288,28 +331,24 @@ private:
             return false;
         }
 
-        auto candidate = std::make_unique<TTask>();
-        candidate->Slot = slot;
-        candidate->Invoker = tablet->GetEpochAutomatonInvoker();
-        candidate->Tablet = tablet->GetId();
-        candidate->Partition = partition->GetId();
-        candidate->Stores = std::move(stores);
+        auto candidate = std::make_unique<TTask>(slot, tablet, partition, std::move(stores));
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
         const int overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         if (partition->IsEden()) {
-            candidate->Slack = static_cast<size_t>(std::max(0, overlappingStoreLimit - overlappingStoreCount));
+            candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
             candidate->Effect = candidate->Stores.size() - 1;
         } else {
             // For critical partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
             const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
             const int partitionStoreCount = static_cast<int>(partition->Stores().size());
-            candidate->Slack = static_cast<size_t>(std::max(0, overlappingStoreLimit - edenStoreCount - partitionStoreCount));
+            candidate->Slack = std::max(0, overlappingStoreLimit - edenStoreCount - partitionStoreCount);
             if (tablet->GetCriticalPartitionCount() == 1 && edenStoreCount + partitionStoreCount == overlappingStoreCount) {
                 candidate->Effect = candidate->Stores.size() - 1;
             }
         }
+        candidate->FutureEffect = GetFutureEffect(tablet->GetId());
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -521,26 +560,16 @@ private:
         size_t* index,
         NProfiling::TSimpleCounter& counter)
     {
-        if (candidates->empty()) {
-            return;
-        }
-
         Profiler.Update(counter, candidates->size());
 
-        auto&& comparer = [] (const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs) -> bool {
-            return lhs->MakeComparableValue() < rhs->MakeComparableValue();
-        };
-
-        MakeHeap(
-            candidates->begin(),
-            candidates->end(),
-            std::move(comparer));
+        MakeHeap(candidates->begin(), candidates->end(), TTask::Comparer);
 
         {
             auto guard = Guard(TaskSpinLock_);
             tasks->swap(*candidates);
             *index = tasks->size();
         }
+
         candidates->clear();
     }
 
@@ -567,9 +596,9 @@ private:
         size_t* index,
         const TAsyncSemaphorePtr& semaphore,
         NProfiling::TSimpleCounter& counter,
-        void (TStoreCompactor::*action)(TAsyncSemaphoreGuard, const TTask*))
+        void (TStoreCompactor::*action)(TTask*))
     {
-        auto guard = Guard(TaskSpinLock_);
+        auto taskGuard = Guard(TaskSpinLock_);
 
         size_t scheduled = 0;
 
@@ -583,22 +612,31 @@ private:
                 break;
             }
 
-            auto&& comparer = [] (const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs) -> bool {
-                return lhs->MakeComparableValue() < rhs->MakeComparableValue();
-            };
+            // Check if we have to fix the heap. If the smallest element is okay, we just keep going.
+            // Hopefully, we will rarely decide to operate on the same tablet.
+            {
+                TReaderGuard guard(FutureEffectLock_);
+                auto&& firstTask = tasks->at(0);
+                if (firstTask->FutureEffect != LockedGetFutureEffect(guard, firstTask->Tablet)) {
+                    for (size_t i = 0; i < tasks->size(); ++i) {
+                        auto&& task = (*tasks)[i];
+                        task->FutureEffect = LockedGetFutureEffect(guard, task->Tablet);
+                    }
+                    guard.Release();
+                    MakeHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
+                }
+            }
 
-            ExtractHeap(
-                tasks->begin(),
-                tasks->begin() + *index,
-                comparer);
-
+            // Extract the next task.
+            ExtractHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
             --(*index);
             auto&& task = tasks->at(*index);
-
-            auto invoker = task->Invoker;
-            invoker->Invoke(BIND(action, MakeStrong(this), Passed(std::move(semaphoreGuard)), Owned(task.release())));
-
+            task->Prepare(this, std::move(semaphoreGuard));
             ++scheduled;
+
+            // TODO(sandello): Better ownership management.
+            auto invoker = task->Invoker;
+            invoker->Invoke(BIND(action, MakeStrong(this), Owned(task.release())));
         }
 
         if (scheduled > 0) {
@@ -626,7 +664,40 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    void PartitionEden(TAsyncSemaphoreGuard guard, const TTask* task)
+    int LockedGetFutureEffect(TReaderGuard&, const TTabletId& tabletId)
+    {
+        TReaderGuard guard(FutureEffectLock_);
+        auto it = FutureEffect_.find(tabletId);
+        return it != FutureEffect_.end() ? it->second : 0;
+    }
+
+    int GetFutureEffect(const TTabletId& tabletId)
+    {
+        TReaderGuard guard(FutureEffectLock_);
+        return LockedGetFutureEffect(guard, tabletId);
+    }
+
+    void ChangeFutureEffect(const TTabletId& tabletId, int delta)
+    {
+        if (delta == 0) {
+            return;
+        }
+        TWriterGuard guard(FutureEffectLock_);
+        auto pair = FutureEffect_.insert(std::make_pair(tabletId, delta));
+        if (!pair.second) {
+            pair.first->second += delta;
+        }
+        auto Logger = NLogging::TLogger(TabletNodeLogger);
+        LOG_DEBUG("Accounting for the future effect of the compaction/partitioning (TabletId: %v, FutureEffect: %v -> %v)",
+            tabletId,
+            pair.first->second - delta,
+            pair.first->second);
+        if (pair.first->second == 0) {
+            FutureEffect_.erase(pair.first);
+        }
+    }
+
+    void PartitionEden(TTask* task)
     {
         auto sessionId = TReadSessionId();
         NLogging::TLogger Logger(TabletNodeLogger);
@@ -775,7 +846,7 @@ private:
             auto endInstant = TInstant::Now();
 
             // We can release semaphore, because we are no longer actively using resources.
-            guard.Release();
+            task->SemaphoreGuard.Release();
             doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
@@ -984,7 +1055,7 @@ private:
         return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
     }
 
-    void CompactPartition(TAsyncSemaphoreGuard guard, const TTask* task)
+    void CompactPartition(TTask* task)
     {
         auto sessionId = TReadSessionId();
         NLogging::TLogger Logger(TabletNodeLogger);
@@ -1137,7 +1208,7 @@ private:
             auto endInstant = TInstant::Now();
 
             // We can release semaphore, because we are no longer actively using resources.
-            guard.Release();
+            task->SemaphoreGuard.Release();
             doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
