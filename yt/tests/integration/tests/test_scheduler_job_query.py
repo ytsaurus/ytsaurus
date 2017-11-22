@@ -195,3 +195,30 @@ class TestJobQuery(YTEnvSetup):
         _test("[9:20]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
         _test("[#2:#4]", "a where a <= 10", [{"a": 2}, {"a": 10}], 2)
         _test("[10]", "a where a > 0", [{"a": 10}], 1)
+
+    def test_query_range_inference_with_computed_columns(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "h", "type": "int64", "sort_order": "ascending", "expression": "k + 100"},
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "a", "type": "int64", "sort_order": "ascending"}]
+        })
+        create("table", "//tmp/t_out")
+        for i in range(3):
+            write_table("<append=%true>//tmp/t", [{"k": i, "a": i*10 + j} for j in xrange(3)])
+        assert get("//tmp/t/@chunk_count") == 3
+
+        def _test(query, rows, chunk_count):
+            op = map(
+                in_="//tmp/t",
+                out="//tmp/t_out",
+                command="cat",
+                spec={"input_query": query})
+
+            assert_items_equal(read_table("//tmp/t_out"), rows)
+            statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+            assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
+
+        _test("a where k = 1", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("a where k = 1 and a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("a where k in (1, 2) and a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
