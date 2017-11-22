@@ -24,7 +24,7 @@ def main():
         version_output.write("VERSION='{0}'".format(version))
 
     binaries = [
-        "yt/wrapper/bin/mapreduce-yt/mapreduce-yt",
+        "yt/wrapper/bin/mapreduce-yt",
         "yt/wrapper/bin/yt",
         "yt/wrapper/bin/yt-fuse",
         "yt/wrapper/bin/yt-admin",
