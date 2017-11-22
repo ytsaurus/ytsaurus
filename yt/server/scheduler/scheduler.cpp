@@ -452,6 +452,26 @@ public:
         operation->MutableAlerts()[alertType] = alert;
     }
 
+    void DoSetOperationAlerts(
+        const TOperationId& operationId,
+        const TOperationAlertsMap& operationAlerts)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        for (const auto& pair : operationAlerts) {
+            const auto& alertType = pair.first;
+            const auto& alert = pair.second;
+            if (operation->Alerts()[alertType] != alert) {
+                operation->MutableAlerts()[alertType] = alert;
+            }
+        }
+    }
+
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
@@ -857,6 +877,21 @@ public:
                     FromProto<TOperationId>(jobsToRelease.operation_id()),
                     FromProto<std::vector<TJobId>>(jobsToRelease.job_ids()),
                     jobsToRelease.controller_scheduler_incarnation()));
+        }
+
+        for (const auto& operationAlerts : request->operation_alerts()) {
+            TOperationAlertsMap alerts;
+            for (const auto& alertProto : operationAlerts.alerts()) {
+                auto alertType = EOperationAlertType(alertProto.type());
+                auto alert = FromProto<TError>(alertProto.error());
+                YCHECK(alerts.emplace(alertType, std::move(alert)).second);
+            }
+            MasterConnector_->GetCancelableControlInvoker()->Invoke(
+                BIND(
+                    &TImpl::DoSetOperationAlerts,
+                    MakeStrong(this),
+                    FromProto<TOperationId>(operationAlerts.operation_id()),
+                    alerts));
         }
 
         TExecNodeDescriptorListPtr execNodes;

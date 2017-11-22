@@ -385,9 +385,21 @@ private:
 
         auto controllers = GetControllers();
         for (const auto& pair : controllers) {
+            const auto& operationId = pair.first;
             const auto& controller = pair.second;
             auto jobMetricsDelta = controller->ExtractJobMetricsDelta();
             ToProto(req->add_job_metrics(), jobMetricsDelta);
+
+            auto* operationAlertsProto = req->add_operation_alerts();
+            ToProto(operationAlertsProto->mutable_operation_id(), operationId);
+            for (const auto& pair : controller->GetAlerts()) {
+                auto alertType = pair.first;
+                const auto& alert = pair.second;
+
+                auto* alertProto = operationAlertsProto->add_alerts();
+                alertProto->set_type(static_cast<int>(alertType));
+                ToProto(alertProto->mutable_error(), alert);
+            }
         }
 
         auto rspOrError = WaitFor(req->Invoke());

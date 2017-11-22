@@ -75,12 +75,26 @@ message TReqHeartbeat
         required int32 controller_scheduler_incarnation = 3;
     }
 
+    message TOperationAlerts
+    {
+        message TAlert
+        {
+            required int32 type = 1;
+            required NYT.NProto.TError error = 2;
+        }
+
+        required NYT.NProto.TGuid operation_id = 1;
+        repeated TAlert alerts = 2;
+    }
+
     repeated TOperationJobMetrics job_metrics = 1;
 
     repeated TJobInterrupt jobs_to_interrupt = 2;
     repeated TJobAbort jobs_to_abort = 3;
     repeated TJobFail jobs_to_fail = 4;
     repeated TJobsRelease jobs_to_release = 5;
+
+    repeated TOperationAlerts operation_alerts = 6;
 }
 
 message TRspHeartbeat

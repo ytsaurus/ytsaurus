@@ -1949,7 +1949,7 @@ protected:
             .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
-    virtual TFuture<void> AnalyzePartitionHistogram() const override
+    void AnalyzePartitionHistogram() override
     {
         TError error;
 
@@ -1968,7 +1968,7 @@ protected:
             }
         }
 
-        return Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
+        SetOperationAlert(EOperationAlertType::IntermediateDataSkew, error);
     }
 
     void InitJobIOConfigs()

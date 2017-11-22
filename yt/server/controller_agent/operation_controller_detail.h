@@ -352,6 +352,8 @@ public:
 
     virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() override;
 
+    virtual TOperationAlertsMap GetAlerts() override;
+
 protected:
     IOperationHost* Host;
     TControllerAgent* ControllerAgent;
@@ -510,17 +512,16 @@ protected:
 
     void CheckAvailableExecNodes();
 
-    virtual TFuture<void> AnalyzePartitionHistogram() const;
-    TFuture<void> AnalyzeTmpfsUsage() const;
-    TFuture<void> AnalyzeIntermediateJobsStatistics() const;
-    TFuture<void> AnalyzeInputStatistics() const;
-    TFuture<void> AnalyzeAbortedJobs() const;
-    TFuture<void> AnalyzeJobsIOUsage() const;
-    TFuture<void> AnalyzeJobsDuration() const;
-    TFuture<void> AnalyzeScheduleJobStatistics() const;
+    virtual void AnalyzePartitionHistogram();
+    void AnalyzeTmpfsUsage();
+    void AnalyzeIntermediateJobsStatistics();
+    void AnalyzeInputStatistics();
+    void AnalyzeAbortedJobs();
+    void AnalyzeJobsIOUsage();
+    void AnalyzeJobsDuration();
+    void AnalyzeScheduleJobStatistics();
 
-    void AnalyzeOperationProgess() const;
-    TFuture<void> DoAnalyzeOperationProgress() const;
+    void AnalyzeOperationProgress();
 
     void FlushOperationNode(bool checkFlushResult);
 
@@ -884,6 +885,8 @@ protected:
 
     void FinishTaskInput(const TTaskPtr& task);
 
+    void SetOperationAlert(EOperationAlertType type, const TError& alert);
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1025,6 +1028,9 @@ private:
     int SnapshotIndex_ = 0;
     //! Index of a snapshot that is building right now.
     TNullable<int> RecentSnapshotIndex_ = Null;
+
+    TSpinLock AlertsLock_;
+    TOperationAlertsMap Alerts_;
 
     void BuildAndSaveProgress();
 
