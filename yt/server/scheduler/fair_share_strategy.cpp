@@ -100,7 +100,7 @@ struct TOperationRegistrationUnregistrationResult
 struct TPoolsUpdateResult
 {
     TError Error;
-    bool Updated = false;
+    bool Updated;
 };
 
 } // namespace
