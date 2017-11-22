@@ -46,6 +46,9 @@ public:
     // NB: Changing this value will invalidate all changelogs!
     TDuration ExpirationBackoffTime;
 
+    // Forbids performing set inside cypress.
+    bool ForbidSetCommand;
+
     TCypressManagerConfig()
     {
         RegisterParameter("statistics_flush_period", StatisticsFlushPeriod)
@@ -86,6 +89,9 @@ public:
             .Default(1000);
         RegisterParameter("expiration_backoff_time", ExpirationBackoffTime)
             .Default(TDuration::Seconds(10));
+
+        RegisterParameter("forbid_set_command", ForbidSetCommand)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (DefaultJournalReadQuorum + DefaultJournalWriteQuorum < DefaultJournalReplicationFactor + 1) {

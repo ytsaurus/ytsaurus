@@ -316,11 +316,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(key) \
+    YTREE_NODE_TYPE_OVERRIDES_BASE(key) \
+    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override \
+    { \
+        Y_UNUSED(response); \
+        context->SetRequestInfo(); \
+        if (Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand) { \
+            THROW_ERROR_EXCEPTION("Command 'set' is disabled in cypress, use 'create' instead"); \
+        } \
+        DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
+        context->Reply(); \
+    }
+
 #define BEGIN_DEFINE_SCALAR_TYPE(key, type) \
     class T##key##NodeProxy \
         : public TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node> \
     { \
-        YTREE_NODE_TYPE_OVERRIDES(key) \
+        YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(key) \
     \
     public: \
         T##key##NodeProxy( \
@@ -387,7 +400,7 @@ class TMapNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
-    YTREE_NODE_TYPE_OVERRIDES(Map)
+    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Map)
 
 public:
     TMapNodeProxy(
@@ -430,6 +443,12 @@ private:
         TRspList* response,
         const TCtxListPtr& context) override;
 
+    virtual void SetRecursive(
+        const NYTree::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        const TCtxSetPtr& context) override;
+
     void DoRemoveChild(
         TMapNode* impl,
         const TString& key,
@@ -443,7 +462,7 @@ class TListNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
-    YTREE_NODE_TYPE_OVERRIDES(List)
+    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(List)
 
 public:
     TListNodeProxy(
@@ -476,6 +495,12 @@ private:
     virtual TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
+
+    virtual void SetRecursive(
+        const NYTree::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        const TCtxSetPtr& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,7 +508,7 @@ private:
 class TLinkNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode>
 {
-    YTREE_NODE_TYPE_OVERRIDES(Entity)
+    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Entity)
 
 public:
     TLinkNodeProxy(

@@ -1083,7 +1083,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         Transaction,
         lockRequest,
         waitable);
-    
+
     auto lockId = lock->GetId();
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), lock->GetTrunkNode()->GetId());
@@ -1372,6 +1372,19 @@ TMapNodeProxy::TMapNodeProxy(
         transaction,
         trunkNode)
 { }
+
+void TMapNodeProxy::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    const TCtxSetPtr& context)
+{
+    context->SetRequestInfo();
+    if (Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand) {
+        THROW_ERROR_EXCEPTION("Command 'set' is disabled in cypress, use 'create' instead");
+    }
+    TMapNodeMixin::SetRecursive(path, request, response, context);
+}
 
 void TMapNodeProxy::Clear()
 {
@@ -1723,6 +1736,29 @@ TListNodeProxy::TListNodeProxy(
         transaction,
         trunkNode)
 { }
+
+void TListNodeProxy::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    const TCtxSetPtr& context)
+{
+    context->SetRequestInfo();
+
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    auto token = tokenizer.GetToken();
+
+    if (Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand &&
+        !token.StartsWith(ListBeginToken) &&
+        !token.StartsWith(ListEndToken) &&
+        !token.StartsWith(ListBeforeToken) &&
+        !token.StartsWith(ListAfterToken))
+    {
+        THROW_ERROR_EXCEPTION("Command 'set' is disabled in cypress, use 'create' instead");
+    }
+    TListNodeMixin::SetRecursive(path, request, response, context);
+}
 
 void TListNodeProxy::Clear()
 {

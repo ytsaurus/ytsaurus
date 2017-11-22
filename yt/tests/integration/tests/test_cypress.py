@@ -1508,3 +1508,57 @@ class TestCypressMulticell(TestCypress):
         create("table", "//tmp/t", attributes={"external_cell_bias": 0.0})
         assert not exists("//tmp/t/@external_cell_bias")
 
+##################################################################
+
+class TestCypressWithoutSet(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "forbid_set_command": True,
+        }
+    }
+
+    def test_map(self):
+        with pytest.raises(YtError):
+            set("//tmp/dir", {})
+
+        create("map_node", "//tmp/dir")
+        with pytest.raises(YtError):
+            set("//tmp/dir", {})
+
+    def test_attrs(self):
+        create("map_node", "//tmp/dir")
+        set("//tmp/dir/@my_attr", 10)
+        assert get("//tmp/dir/@my_attr") == 10
+
+        set("//tmp/dir/@acl/end", {"action": "allow", "subjects": ["root"], "permissions": ["write"]})
+        assert len(get("//tmp/dir/@acl")) == 1
+
+    def test_document(self):
+        create("document", "//tmp/doc")
+        set("//tmp/doc", {})
+        set("//tmp/doc/value", 10)
+        assert get("//tmp/doc/value") == 10
+
+    def test_list(self):
+        create("list_node", "//tmp/list")
+        set("//tmp/list/end", 0)
+        with pytest.raises(YtError):
+            set("//tmp/list/0", 1)
+        set("//tmp/list/end", 2)
+        assert get("//tmp/list") == [0, 2]
+
+    def test_scalars(self):
+        with pytest.raises(YtError):
+            set("//tmp/integer", 10)
+        create("int64_node", "//tmp/integer")
+        with pytest.raises(YtError):
+            set("//tmp/integer", 20)
+        remove("//tmp/integer")
+
+        create("document", "//tmp/doc")
+        set("//tmp/doc", 10)
+        assert get("//tmp/doc") == 10
+
