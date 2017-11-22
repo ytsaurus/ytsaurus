@@ -61,12 +61,13 @@ TLocation::TLocation(
     , MetaReadQueue_(New<TActionQueue>(Format("MetaRead:%v", Id_)))
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
-    , WritePoolInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
+    , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
         profileManager->RegisterTag("location_id", Id_),
-        profileManager->RegisterTag("location_type", Type_)
+        profileManager->RegisterTag("location_type", Type_),
+        profileManager->RegisterTag("medium", GetMediumName())
     };
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
 
@@ -80,17 +81,25 @@ TLocation::TLocation(
     PendingIOSizeCounters_.resize(
         TEnumTraits<EIODirection>::GetDomainSize() *
         TEnumTraits<EIOCategory>::GetDomainSize());
-    for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
-        for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-            auto& counter = GetPendingIOSizeCounter(direction, category);
-            counter = NProfiling::TSimpleCounter(
-                "/pending_data_size",
-                {
-                    profileManager->RegisterTag("direction", direction),
-                    profileManager->RegisterTag("category", category)
-                });
+    CompletedIOSizeCounters_.resize(
+        TEnumTraits<EIODirection>::GetDomainSize() *
+        TEnumTraits<EIOCategory>::GetDomainSize());
+
+    auto initializeCounters = [&] (const TString& path, auto getCounter) {
+        for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
+            for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+                auto& counter = (this->*getCounter)(direction, category);
+                counter = NProfiling::TSimpleCounter(
+                    path,
+                    {
+                        profileManager->RegisterTag("direction", direction),
+                        profileManager->RegisterTag("category", category)
+                    });
+            }
         }
-    }
+    };
+    initializeCounters("/pending_data_size", &TLocation::GetPendingIOSizeCounter);
+    initializeCounters("/blob_block_bytes", &TLocation::GetCompletedIOSizeCounter);
 }
 
 ELocationType TLocation::GetType() const
@@ -143,7 +152,7 @@ IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
     return MetaReadInvoker_;
 }
 
-IPrioritizedInvokerPtr TLocation::GetWritePoolInvoker()
+IInvokerPtr TLocation::GetWritePoolInvoker()
 {
     return WritePoolInvoker_;
 }
@@ -315,6 +324,16 @@ NProfiling::TSimpleCounter& TLocation::GetPendingIOSizeCounter(
     return PendingIOSizeCounters_[index];
 }
 
+NProfiling::TSimpleCounter& TLocation::GetCompletedIOSizeCounter(
+    EIODirection direction,
+    EIOCategory category)
+{
+    int index =
+        static_cast<int>(direction) +
+        TEnumTraits<EIODirection>::GetDomainSize() * static_cast<int>(category);
+    return CompletedIOSizeCounters_[index];
+}
+
 void TLocation::DecreasePendingIOSize(
     EIODirection direction,
     EIOCategory category,
@@ -341,23 +360,46 @@ void TLocation::UpdatePendingIOSize(
         delta);
 }
 
-void TLocation::UpdateSessionCount(int delta)
+void TLocation::IncreaseCompletedIOSize(
+    EIODirection direction,
+    const TWorkloadDescriptor& workloadDescriptor,
+    i64 delta)
 {
-    if (!IsEnabled())
-        return;
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    SessionCount_ += delta;
+    auto category = ToIOCategory(workloadDescriptor);
+    auto& counter = GetCompletedIOSizeCounter(direction, category);
+    Profiler_.Increment(counter, delta);
+}
+
+void TLocation::UpdateSessionCount(ESessionType type, int delta)
+{
+    if (!IsEnabled()) {
+        return;
+    }
+
+    PerTypeSessionCount_[type] += delta;
+}
+
+int TLocation::GetSessionCount(ESessionType type) const
+{
+    return PerTypeSessionCount_[type];
 }
 
 int TLocation::GetSessionCount() const
 {
-    return SessionCount_;
+    int result = 0;
+    for (auto count : PerTypeSessionCount_) {
+        result += count;
+    }
+    return result;
 }
 
 void TLocation::UpdateChunkCount(int delta)
 {
-    if (!IsEnabled())
+    if (!IsEnabled()) {
         return;
+    }
 
     ChunkCount_ += delta;
 }
@@ -473,7 +515,7 @@ void TLocation::MarkAsDisabled(const TError& error)
 
     AvailableSpace_ = 0;
     UsedSpace_ = 0;
-    SessionCount_ = 0;
+    PerTypeSessionCount_ = {};
     ChunkCount_ = 0;
 }
 
@@ -485,8 +527,9 @@ i64 TLocation::GetAdditionalSpace() const
 bool TLocation::ShouldSkipFileName(const TString& fileName) const
 {
     // Skip cell_id file.
-    if (fileName == CellIdFileName)
+    if (fileName == CellIdFileName) {
         return true;
+    }
 
     return false;
 }
@@ -599,12 +642,22 @@ i64 TStoreLocation::GetLowWatermarkSpace() const
 
 bool TStoreLocation::IsFull() const
 {
-    return GetAvailableSpace() < Config_->LowWatermark;
+    auto available = GetAvailableSpace();
+    auto watermark = Full_.load() ? Config_->LowWatermark : Config_->HighWatermark;
+    auto full = available < watermark;
+    auto expected = !full;
+    if (Full_.compare_exchange_strong(expected, full)) {
+        LOG_DEBUG("Location is %v full (AvailableSpace: %v, WatermarkSpace: %v)",
+            full ? "now" : "no longer",
+            available,
+            watermark);
+    }
+    return full;
 }
 
 bool TStoreLocation::HasEnoughSpace(i64 size) const
 {
-    return GetAvailableSpace() - size >= Config_->HighWatermark;
+    return GetAvailableSpace() - size >= Config_->DisableWritesWatermark;
 }
 
 IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
@@ -851,7 +904,7 @@ TNullable<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& c
     bool hasIndex = NFS::Exists(indexFileName);
 
     if (hasData) {
-        auto dispatcher = Bootstrap_->GetJournalDispatcher();
+        const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
         // NB: This also creates the index file, if missing.
         auto changelog = dispatcher->OpenChangelog(this, chunkId)
             .Get()

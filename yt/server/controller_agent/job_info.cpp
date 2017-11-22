@@ -1,7 +1,6 @@
 #include "job_info.h"
 
 #include "job_helpers.h"
-#include "job_metrics_updater.h"
 #include "task_host.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -32,26 +31,22 @@ TJoblet::TJoblet()
     , OutputCookie(-1)
 { }
 
-TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTask* task, int jobIndex)
+TJoblet::TJoblet(TTask* task, int jobIndex)
     : Task(std::move(task))
     , JobIndex(jobIndex)
     , StartRowIndex(-1)
     , OutputCookie(IChunkPoolOutput::NullCookie)
-    , JobMetricsUpdater_(std::move(jobMetricsUpdater))
 { }
 
-void TJoblet::SendJobMetrics(const NScheduler::TJobSummary& jobSummary, bool flush)
+TJobMetrics TJoblet::UpdateJobMetrics(const NScheduler::TJobSummary& jobSummary)
 {
-    YCHECK(JobMetricsUpdater_);
-    const auto timestamp = jobSummary.Statistics->GetTimestamp().Get(GetInstant());
     const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(
         *jobSummary.Statistics,
         jobSummary.State);
 
-    JobMetricsUpdater_->Update(timestamp, jobMetrics);
-    if (flush) {
-        JobMetricsUpdater_->Flush();
-    }
+    auto delta = jobMetrics - JobMetrics;
+    JobMetrics = jobMetrics;
+    return delta;
 }
 
 void TJoblet::Persist(const TPersistenceContext& context)
@@ -72,9 +67,10 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, ChunkListIds);
     Persist(context, StderrTableChunkListId);
     Persist(context, CoreTableChunkListId);
+    Persist(context, JobMetrics);
 
     if (context.IsLoad()) {
-        JobMetricsUpdater_ = Task->GetTaskHost()->CreateJobMetricsUpdater();
+        Revived = true;
     }
 }
 
@@ -104,6 +100,7 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, LastActivityTime);
     Persist(context, BriefStatistics);
     Persist(context, Progress);
+    Persist(context, StderrSize);
     // NB(max42): JobStatistics is not persisted intentionally since
     // it can increase the size of snapshot significantly.
 }

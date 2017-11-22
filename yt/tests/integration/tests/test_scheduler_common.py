@@ -743,6 +743,30 @@ class TestSchedulerCommon(YTEnvSetup):
         op.resume_jobs()
         op.track()
 
+    def test_job_stderr_size(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
+
+        events = EventsOnFs()
+
+        op = map(
+            dont_track=True,
+            wait_for_jobs=True,
+            label="job_progress",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="echo FOOBAR >&2 ; {wait_cmd}; cat".format(wait_cmd= events.wait_event_cmd("checked_stderr")))
+        op.resume_jobs()
+
+        def get_stderr_size():
+            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, op.jobs[0]))
+        wait(lambda: get_stderr_size() == len("FOOBAR\n"))
+
+        events.notify_event("checked_stderr")
+
+        op.track()
+
     def test_estimated_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -2445,3 +2469,61 @@ class TestPoolMetrics(YTEnvSetup):
 
         assert completed_metrics["parent"] == completed_metrics["child"]
         assert aborted_metrics["parent"] == aborted_metrics["child"]
+
+    def test_runtime_parameters(self):
+        create_user("u")
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        op = map(
+            command="sleep 100",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={"weight": 5},
+            dont_track=True)
+
+
+        time.sleep(1.0)
+
+        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
+
+        set("//sys/operations/{0}/@owners/end".format(op.id), "u")
+        set("//sys/operations/{0}/@weight".format(op.id), 3)
+
+        time.sleep(1.0)
+
+        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
+
+class TestGetJobSpecFailed(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    def test_job_spec_failed(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        op = map(
+            command="sleep 100",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "testing": {
+                    "fail_get_job_spec": True
+                },
+            },
+            dont_track=True)
+
+        time.sleep(2.0)
+
+        jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id), verbose=False)
+        assert jobs["aborted"]["scheduled"]["get_spec_failed"] > 0
+
+        op.abort()

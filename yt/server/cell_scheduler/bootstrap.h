@@ -48,6 +48,7 @@ public:
 
     const TCellSchedulerConfigPtr& GetConfig() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
+    const NRpc::IChannelPtr GetLocalRpcChannel() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
@@ -73,6 +74,7 @@ private:
     NConcurrency::TActionQueuePtr ControllerAgentQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
+    NRpc::IChannelPtr LocalRpcChannel_;
     std::unique_ptr<NXHttp::TServer> HttpServer_;
     NHttp::IServerPtr NewHttpServer_;
     NApi::INativeConnectionPtr Connection_;

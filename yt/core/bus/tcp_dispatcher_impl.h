@@ -61,8 +61,7 @@ public:
     static const TIntrusivePtr<TImpl>& Get();
     void Shutdown();
 
-    const TTcpDispatcherCountersPtr& GetCounters(ETcpInterfaceType interfaceType);
-    TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
+    const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
 
     NConcurrency::IPollerPtr GetAcceptorPoller();
     NConcurrency::IPollerPtr GetXferPoller();
@@ -86,13 +85,14 @@ private:
     NConcurrency::IPollerPtr AcceptorPoller_;
     NConcurrency::IPollerPtr XferPoller_;
 
-    struct TInterfaceInfo
+    struct TNetworkStatistics
     {
         NProfiling::TTagId Tag;
         TTcpDispatcherCountersPtr Counters = New<TTcpDispatcherCounters>();
     };
 
-    TEnumIndexedVector<TInterfaceInfo, ETcpInterfaceType> InterfaceTypeMap_;
+    NConcurrency::TReaderWriterSpinLock StatisticsLock_;
+    yhash<TString, TNetworkStatistics> NetworkStatistics_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 };

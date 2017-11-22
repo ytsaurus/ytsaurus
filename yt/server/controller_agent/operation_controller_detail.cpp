@@ -5,7 +5,6 @@
 #include "intermediate_chunk_scraper.h"
 #include "job_info.h"
 #include "job_helpers.h"
-#include "job_metrics_updater.h"
 #include "counter_manager.h"
 #include "task.h"
 
@@ -26,6 +25,7 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -104,6 +104,7 @@ using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
+using NScheduler::TExecNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -732,7 +733,12 @@ void TOperationControllerBase::AbortAllJoblets()
     for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
         JobCounter->Aborted(1, EAbortReason::Scheduler);
-        joblet->Task->OnJobAborted(joblet, TAbortedJobSummary(pair.first, EAbortReason::Scheduler));
+        const auto& jobId = pair.first;
+        auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
+        joblet->Task->OnJobAborted(joblet, jobSummary);
+        if (JobSplitter_) {
+            JobSplitter_->OnJobAborted(jobSummary);
+        }
     }
     JobletMap.clear();
 }
@@ -1003,7 +1009,10 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
-        if (autoMergeEnabled && outputTable.Path.GetAutoMerge()) {
+        if (autoMergeEnabled &&
+            outputTable.Path.GetAutoMerge() &&
+            !outputTable.TableUploadOptions.TableSchema.IsSorted())
+        {
             auto edgeDescriptor = standardEdgeDescriptors[index];
             // Auto-merge jobs produce single output, so we override the table
             // index in writer options with 0.
@@ -1103,7 +1112,7 @@ void TOperationControllerBase::StartCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetOperationPath(OperationId) + "/@completion_transaction_id";
+        auto path = GetNewOperationPath(OperationId) + "/@completion_transaction_id";
         auto req = TYPathProxy::Set(path);
         req->set_value(ConvertToYsonString(CompletionTransaction->GetId()).GetData());
         WaitFor(proxy.Execute(req))
@@ -1119,7 +1128,7 @@ void TOperationControllerBase::CommitCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetOperationPath(OperationId) + "/@committed";
+        auto path = GetNewOperationPath(OperationId) + "/@committed";
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, CompletionTransaction->GetId());
         req->set_value(ConvertToYsonString(true).GetData());
@@ -1587,7 +1596,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
     UpdateJobStatistics(joblet, *jobSummary);
-    joblet->SendJobMetrics(*jobSummary, true);
+    UpdateJobMetrics(joblet, *jobSummary);
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary, joblet);
@@ -1659,7 +1668,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
         .Item("error").Value(error);
 
-    joblet->SendJobMetrics(*jobSummary, true);
+    UpdateJobMetrics(joblet, *jobSummary);
     UpdateJobStatistics(joblet, *jobSummary);
 
     joblet->Task->OnJobFailed(joblet, *jobSummary);
@@ -1712,7 +1721,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
         UpdateJobStatistics(joblet, *jobSummary);
     }
-    joblet->SendJobMetrics(*jobSummary, true);
+
+    UpdateJobMetrics(joblet, *jobSummary);
 
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
@@ -1747,12 +1757,13 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     auto joblet = GetJoblet(jobSummary->Id);
 
     joblet->Progress = jobSummary->Progress;
+    joblet->StderrSize = jobSummary->StderrSize;
 
     if (jobSummary->StatisticsYson) {
         joblet->StatisticsYson = jobSummary->StatisticsYson;
         ParseStatistics(jobSummary.get());
 
-        joblet->SendJobMetrics(*jobSummary, false);
+        UpdateJobMetrics(joblet, *jobSummary);
 
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
@@ -1812,17 +1823,21 @@ void TOperationControllerBase::BuildJobAttributes(
     const TJobInfoPtr& job,
     EJobState state,
     bool outputStatistics,
-    NYson::IYsonConsumer* consumer) const
+    TFluentMap fluent) const
 {
     static const auto EmptyMapYson = TYsonString("{}");
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("job_type").Value(FormatEnum(job->JobType))
         .Item("state").Value(state)
         .Item("address").Value(job->NodeDescriptor.Address)
         .Item("start_time").Value(job->StartTime)
         .Item("account").Value(job->Account)
         .Item("progress").Value(job->Progress)
+
+        // We use Int64 for `stderr_size' to be consistent with
+        // compressed_data_size / uncompressed_data_size attributes.
+        .Item("stderr_size").Value(i64(job->StderrSize))
         .Item("brief_statistics")
             .Value(job->BriefStatistics)
         .DoIf(outputStatistics, [&] (TFluentMap fluent) {
@@ -1835,12 +1850,12 @@ void TOperationControllerBase::BuildJobAttributes(
 void TOperationControllerBase::BuildFinishedJobAttributes(
     const TFinishedJobInfoPtr& job,
     bool outputStatistics,
-    NYson::IYsonConsumer* consumer) const
+    TFluentMap fluent) const
 {
-    BuildJobAttributes(job, job->Summary.State, outputStatistics, consumer);
+    BuildJobAttributes(job, job->Summary.State, outputStatistics, fluent);
 
     const auto& summary = job->Summary;
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("finish_time").Value(job->FinishTime)
         .DoIf(summary.State == EJobState::Failed, [&] (TFluentMap fluent) {
             auto error = FromProto<TError>(summary.Result.error());
@@ -3234,24 +3249,9 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     BuildAndSaveProgress();
     FlushOperationNode(/* checkFlushResult */ true);
+    WaitForHeartbeat();
 
     LogProgress(/* force */ true);
-
-    if (Config->TestingOptions->ValidateTotalJobCounterCorrectness) {
-        auto jobCounterRepresentation = ConvertToYsonString(JobCounter, EYsonFormat::Pretty);
-        auto totalJobCounterRepresentation = ConvertToYsonString(DataFlowGraph_.TotalJobCounter(), EYsonFormat::Pretty);
-        if (jobCounterRepresentation != totalJobCounterRepresentation) {
-            // For MR and Sort there the total job count behaves pretty strangely
-            // and sometimes simply doesn't work as it is supposed to.
-            auto logLevel = (OperationType == EOperationType::MapReduce || OperationType == EOperationType::Sort)
-                ? NLogging::ELogLevel::Warning
-                : NLogging::ELogLevel::Fatal;
-            LOG_EVENT(Logger, logLevel, "Data flow graph total job counter differs from the controller job counter "
-                "(DataFlowCounter: %qv, ControllerCounter: %qv)",
-                jobCounterRepresentation,
-                totalJobCounterRepresentation);
-        }
-    }
 
     Host->OnOperationCompleted(OperationId);
 }
@@ -3267,6 +3267,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
     BuildAndSaveProgress();
     LogProgress(/* force */ true);
+    WaitForHeartbeat();
 
     if (flush) {
         // NB: Error ignored since we cannot do anything with it.
@@ -3324,7 +3325,7 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
-const std::vector<TEdgeDescriptor>& TOperationControllerBase::GetStandardEdgeDescriptors()
+const std::vector<TEdgeDescriptor>& TOperationControllerBase::GetStandardEdgeDescriptors() const
 {
     return StandardEdgeDescriptors_;
 }
@@ -3393,8 +3394,8 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
 
     auto attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do([&] (IYsonConsumer* consumer) {
-            BuildFinishedJobAttributes(finishedJob, /* outputStatistics */ true, consumer);
+        .Do([&] (TFluentMap fluent) {
+            BuildFinishedJobAttributes(finishedJob, /* outputStatistics */ true, fluent);
         })
         .Finish();
 
@@ -5279,6 +5280,18 @@ void TOperationControllerBase::OnBeforeDisposal()
     Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
 }
 
+NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelta()
+{
+    NScheduler::TOperationJobMetrics result;
+    result.OperationId = OperationId;
+    {
+        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
+        result.JobMetrics = JobMetricsDelta_;
+        JobMetricsDelta_ = TJobMetrics();
+    }
+    return result;
+}
+
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
 {
     std::vector<TJobPtr> jobs;
@@ -5391,18 +5404,18 @@ bool TOperationControllerBase::HasJobSplitterInfo() const
     return IsPrepared() && JobSplitter_;
 }
 
-void TOperationControllerBase::BuildSpec(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildSpec(TFluentAnyWithoutAttributes fluent) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    Serialize(Spec_, consumer);
+    fluent.Value(Spec_);
 }
 
-void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildOperationAttributes(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
@@ -5421,9 +5434,9 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
         });
 }
 
-void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("build_time").Value(TInstant::Now())
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
@@ -5457,12 +5470,13 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             InputDataSizeHistogram_->BuildHistogramView();
             fluent
                 .Item("input_data_size_histogram").Value(*InputDataSizeHistogram_);
-        });
+        })
+        .Item("snapshot_index").Value(SnapshotIndex_)
+        .Item("recent_snapshot_index").Value(RecentSnapshotIndex_);
 }
-
-void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("jobs").Value(JobCounter);
 }
 
@@ -5470,11 +5484,11 @@ void TOperationControllerBase::BuildAndSaveProgress()
 {
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
-            .Do(BIND([=] (IYsonConsumer* consumer) {
-                auto asyncResult = WaitFor(
-                    BIND(&IOperationController::BuildProgress, MakeStrong(this))
-                        .AsyncVia(GetInvoker())
-                        .Run(consumer));
+        .Do(BIND([=] (TFluentMap fluent) {
+            auto asyncResult = WaitFor(
+                BIND(&IOperationController::BuildProgress, MakeStrong(this))
+                    .AsyncVia(GetInvoker())
+                    .Run(fluent));
                 asyncResult
                     .ThrowOnError();
             }))
@@ -5482,11 +5496,11 @@ void TOperationControllerBase::BuildAndSaveProgress()
 
     auto briefProgressString = BuildYsonStringFluently()
         .BeginMap()
-            .Do(BIND([=] (IYsonConsumer* consumer) {
+            .Do(BIND([=] (TFluentMap fluent) {
                 auto asyncResult = WaitFor(
                     BIND(&IOperationController::BuildBriefProgress, MakeStrong(this))
                         .AsyncVia(GetInvoker())
-                        .Run(consumer));
+                        .Run(fluent));
                 asyncResult
                     .ThrowOnError();
             }))
@@ -5518,7 +5532,7 @@ TYsonString TOperationControllerBase::GetBriefProgress() const
 
 TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool outputStatistics) const
 {
-    TCallback<void(IYsonConsumer*)> attributesBuilder;
+    TCallback<void(TFluentMap)> attributesBuilder;
 
     // Case of running job.
     {
@@ -5531,7 +5545,7 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
                 EJobState::Running,
                 outputStatistics);
         } else {
-            attributesBuilder = BIND([] (IYsonConsumer*) {});
+            attributesBuilder = BIND([] (TFluentMap) {});
         }
     }
 
@@ -5562,8 +5576,8 @@ TYsonString TOperationControllerBase::BuildJobsYson() const
             const auto& joblet = pair.second;
             if (joblet->StartTime) {
                 fluent.Item(ToString(jobId)).BeginMap()
-                    .Do([&] (IYsonConsumer* consumer) {
-                        BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, consumer);
+                    .Do([&] (TFluentMap fluent) {
+                        BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, fluent);
                     })
                 .EndMap();
             }
@@ -5583,6 +5597,9 @@ TYsonString TOperationControllerBase::BuildJobsYson() const
 
 TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
 {
+    if (Spec_->TestingOperationOptions->FailGetJobSpec) {
+        THROW_ERROR_EXCEPTION("Testing failure");
+    }
     auto joblet = GetJobletOrThrow(jobId);
     if (!joblet->JobSpecProtoFuture) {
         THROW_ERROR_EXCEPTION("Spec of job %v is missing", jobId);
@@ -5678,6 +5695,15 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
     JobStatistics.Update(statistics);
 }
 
+void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
+{
+    auto delta = joblet->UpdateJobMetrics(jobSummary);
+    {
+        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
+        JobMetricsDelta_ += delta;
+    }
+}
+
 void TOperationControllerBase::LogProgress(bool force)
 {
     if (!HasProgress()) {
@@ -5691,11 +5717,11 @@ void TOperationControllerBase::LogProgress(bool force)
     }
 }
 
-void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .DoIf(Spec_->Title.HasValue(), [&] (TFluentMap fluent) {
             fluent
                 .Item("title").Value(*Spec_->Title);
@@ -5719,22 +5745,17 @@ TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joble
         joblet->JobType);
 }
 
-void TOperationControllerBase::BuildJobSplitterInfo(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildJobSplitterInfo(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(SuspendableInvoker);
     YCHECK(JobSplitter_);
 
-    JobSplitter_->BuildJobSplitterInfo(consumer);
+    JobSplitter_->BuildJobSplitterInfo(fluent);
 }
 
 ui64 TOperationControllerBase::NextJobIndex()
 {
     return JobIndexGenerator.Next();
-}
-
-std::unique_ptr<TJobMetricsUpdater> TOperationControllerBase::CreateJobMetricsUpdater() const
-{
-    return std::make_unique<TJobMetricsUpdater>(Host, OperationId, Config->JobMetricsBatchInterval);
 }
 
 TOperationId TOperationControllerBase::GetOperationId() const
@@ -5912,6 +5933,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 file.Schema,
                 file.Path.GetColumns(),
                 file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
+
             ToProto(descriptor->mutable_data_source(), dataSource);
         } else {
             auto dataSource = file.Type == EObjectType::File
@@ -6026,7 +6048,7 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
 }
 
-TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
+void TOperationControllerBase::SetInputDataSources(TSchedulerJobSpecExt* jobSpec) const
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     for (const auto& inputTable : InputTables) {
@@ -6043,18 +6065,21 @@ TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
 
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
-    return dataSourceDirectory;
+    NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
+    ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
+    SetProtoExtension(jobSpec->mutable_extensions(), dataSourceDirectoryExt);
 }
 
-TDataSourceDirectoryPtr TOperationControllerBase::CreateIntermediateDataSource() const
+void TOperationControllerBase::SetIntermediateDataSource(TSchedulerJobSpecExt* jobSpec) const
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
         IntermediatePath,
         Null,
         Null));
-
-    return dataSourceDirectory;
+    NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
+    ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
+    SetProtoExtension(jobSpec->mutable_extensions(), dataSourceDirectoryExt);
 }
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
@@ -6100,9 +6125,6 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     config->TableWriter->SyncOnClose = false;
 }
 
-void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
-{ }
-
 NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReaderOptions(TJobIOConfigPtr ioConfig)
 {
     auto options = New<TTableReaderOptions>();
@@ -6139,8 +6161,8 @@ void TOperationControllerBase::GetExecNodesInformation()
         return;
     }
 
-    ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+    ExecNodeCount_ = ControllerAgent->GetExecNodeCount();
+    ExecNodesDescriptors_ = ControllerAgent->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
 }
 
@@ -6174,26 +6196,26 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     return false;
 }
 
-void TOperationControllerBase::BuildMemoryDigestStatistics(IYsonConsumer* consumer) const
+void TOperationControllerBase::BuildMemoryDigestStatistics(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("job_proxy_memory_digest")
         .DoMapFor(JobProxyMemoryDigests_, [&] (
-                TFluentMap fluent,
-                const TMemoryDigestMap::value_type& item)
+            TFluentMap fluent,
+            const TMemoryDigestMap::value_type& item)
         {
-            BuildYsonMapFluently(fluent)
+            fluent
                 .Item(ToString(item.first)).Value(
                     item.second->GetQuantile(Config->JobProxyMemoryReserveQuantile));
         })
         .Item("user_job_memory_digest")
         .DoMapFor(JobProxyMemoryDigests_, [&] (
-                TFluentMap fluent,
-                const TMemoryDigestMap::value_type& item)
+            TFluentMap fluent,
+            const TMemoryDigestMap::value_type& item)
         {
-            BuildYsonMapFluently(fluent)
+            fluent
                 .Item(ToString(item.first)).Value(
                     item.second->GetQuantile(Config->UserJobMemoryReserveQuantile));
         });
@@ -6355,6 +6377,12 @@ const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobTyp
     return iter->second.get();
 }
 
+
+void TOperationControllerBase::WaitForHeartbeat()
+{
+    Y_UNUSED(WaitFor(ControllerAgent->GetHeartbeatSentFuture()));
+}
+
 void TOperationControllerBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -6460,7 +6488,9 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
             OutputTables_[tableIndex].TableUploadOptions.TableSchema,
             Null));
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), dataSourceDirectory);
+        NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
+        ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
+        SetProtoExtension(schedulerJobSpecExt->mutable_extensions(), dataSourceDirectoryExt);
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
     }

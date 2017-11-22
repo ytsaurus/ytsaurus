@@ -19,40 +19,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEphemeralYPathResolver
-    : public INodeResolver
-{
-public:
-    explicit TEphemeralYPathResolver(INodePtr node)
-        : Node(node)
-    { }
-
-    virtual INodePtr ResolvePath(const TYPath& path) override
-    {
-        auto root = GetRoot();
-        return GetNodeByYPath(root, path);
-    }
-
-    virtual TYPath GetPath(INodePtr node) override
-    {
-        return GetNodeYPath(node);
-    }
-
-private:
-    const INodePtr Node;
-
-    INodePtr GetRoot()
-    {
-        auto currentNode = Node;
-        while (currentNode->GetParent()) {
-            currentNode = currentNode->GetParent();
-        }
-        return currentNode;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TEphemeralNodeBase
     : public TNodeBase
     , public TSupportsAttributes
@@ -66,11 +32,6 @@ public:
     virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
     {
         return CreateEphemeralNodeFactory(ShouldHideAttributes_);
-    }
-
-    virtual INodeResolverPtr GetResolver() const override
-    {
-        return New<TEphemeralYPathResolver>(const_cast<TEphemeralNodeBase*>(this));
     }
 
     virtual ICompositeNodePtr GetParent() const override

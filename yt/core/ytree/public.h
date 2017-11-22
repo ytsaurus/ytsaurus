@@ -11,6 +11,7 @@ namespace NYTree {
 
 namespace NProto {
 
+class TAttributeDictionary;
 class TAttributeKeys;
 
 } // namespace NProto
@@ -33,7 +34,6 @@ DECLARE_REFCOUNTED_STRUCT(IEntityNode)
 
 struct INodeFactory;
 struct ITransactionalNodeFactory;
-DECLARE_REFCOUNTED_STRUCT(INodeResolver)
 
 struct IAttributeDictionary;
 

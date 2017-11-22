@@ -182,6 +182,11 @@ public:
         return (CopiedChunkCount_ + currentProgress) / TotalChunkCount_;
     }
 
+    virtual ui64 GetStderrSize() const override
+    {
+        return 0;
+    }
+
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return FailedChunkId_

@@ -7,6 +7,8 @@
 
 #include <yt/server/scheduler/job.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -27,7 +29,7 @@ struct IJobSplitter
         const NScheduler::TCompletedJobSummary& summary,
         i64 unreadRowCount) const = 0;
     virtual bool IsJobSplittable(const TJobId& jobId) const = 0;
-    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

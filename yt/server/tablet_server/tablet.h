@@ -130,18 +130,22 @@ struct TTabletPerformanceCounter
 
 #define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
     XX(dynamic_row_read,                        DynamicRowRead) \
+    XX(dynamic_row_read_data_weight,            DynamicRowReadDataWeight) \
     XX(dynamic_row_lookup,                      DynamicRowLookup) \
+    XX(dynamic_row_lookup_data_weight,          DynamicRowLookupDataWeight) \
     XX(dynamic_row_write,                       DynamicRowWrite) \
-    XX(dynamic_row_write_data_weight,           DynamicRowWriteDataWeightCount) \
+    XX(dynamic_row_write_data_weight,           DynamicRowWriteDataWeight) \
     XX(dynamic_row_delete,                      DynamicRowDelete) \
     XX(static_chunk_row_read,                   StaticChunkRowRead) \
+    XX(static_chunk_row_read_data_weight,       StaticChunkRowReadDataWeight) \
     XX(static_chunk_row_lookup,                 StaticChunkRowLookup) \
     XX(static_chunk_row_lookup_true_negative,   StaticChunkRowLookupTrueNegative) \
     XX(static_chunk_row_lookup_false_positive,  StaticChunkRowLookupFalsePositive) \
+    XX(static_chunk_row_lookup_data_weight,     StaticChunkRowLookupDataWeight) \
     XX(unmerged_row_read,                       UnmergedRowRead) \
     XX(merged_row_read,                         MergedRowRead) \
-    XX(compaction_data_weight,                  CompactionDataWeightCount) \
-    XX(partitioning_data_weight,                PartitioningDataWeightCount)
+    XX(compaction_data_weight,                  CompactionDataWeight) \
+    XX(partitioning_data_weight,                PartitioningDataWeight)
 
 struct TTabletPerformanceCounters
 {
@@ -194,6 +198,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
+    DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
+    DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
+
 public:
     explicit TTablet(const TTabletId& id);
 
@@ -206,7 +213,9 @@ public:
 
     TTableReplicaInfo* FindReplicaInfo(const TTableReplica* replica);
     TTableReplicaInfo* GetReplicaInfo(const TTableReplica* replica);
-    TDuration ComputeReplicationLagTime(const TTableReplicaInfo& replicaInfo) const;
+    TDuration ComputeReplicationLagTime(
+        NTransactionClient::TTimestamp latestTimestamp,
+        const TTableReplicaInfo& replicaInfo) const;
 
     bool IsActive() const;
 
@@ -215,12 +224,6 @@ public:
 
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
-
-    ETabletState GetState() const;
-    void SetState(ETabletState state);
-
-    NTableServer::TTableNode* GetTable() const;
-    void SetTable(NTableServer::TTableNode* table);
 
 private:
     ETabletState State_ = ETabletState::Unmounted;

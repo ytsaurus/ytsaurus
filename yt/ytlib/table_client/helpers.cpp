@@ -10,12 +10,13 @@
 
 #include <yt/ytlib/formats/parser.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/ypath/rich.h>
 
-#include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/periodic_yielder.h>
+#include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
@@ -77,10 +78,13 @@ void PipeReaderToWriter(
     bool validateValues,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
+    TPeriodicYielder yielder(TDuration::Seconds(1));
+
     std::vector<TUnversionedRow> rows;
     rows.reserve(bufferRowCount);
 
     while (reader->Read(&rows)) {
+        yielder.TryYield();
         if (rows.empty()) {
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
@@ -124,7 +128,11 @@ void PipeInputToOutput(
     struct TWriteBufferTag { };
     TBlob buffer(TWriteBufferTag(), bufferBlockSize);
 
+    TPeriodicYielder yielder(TDuration::Seconds(1));
+
     while (true) {
+        yielder.TryYield();
+
         size_t length = input->Read(buffer.Begin(), buffer.Size());
         if (length == 0)
             break;

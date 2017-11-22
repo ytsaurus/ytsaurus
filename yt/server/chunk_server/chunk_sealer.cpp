@@ -231,15 +231,12 @@ private:
         LOG_INFO("Sealing journal chunk (ChunkId: %v)",
             chunkId);
 
-        std::vector<TNodeDescriptor> replicas;
-        for (auto nodeWithIndex : chunk->StoredReplicas()) {
-            auto* node = nodeWithIndex.GetPtr();
-            replicas.push_back(node->GetDescriptor());
-        }
+        auto mediumIndex = ComputeChunkMediumIndex(chunk);
+        auto replicas = GetChunkReplicas(chunk);
 
         {
             auto asyncResult = AbortSessionsQuorum(
-                TSessionId(chunk->GetId(), AllMediaIndex),
+                TSessionId(chunk->GetId(), mediumIndex),
                 replicas,
                 Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum(),
@@ -279,7 +276,38 @@ private:
                 chunkId);
         }
 
-        LOG_INFO("Journal chunk sealed (ChunkId: %v)", chunk->GetId());
+        LOG_INFO("Journal chunk sealed (ChunkId: %v)",
+            chunk->GetId());
+    }
+
+    int ComputeChunkMediumIndex(TChunk* chunk)
+    {
+        auto result = InvalidMediumIndex;
+        for (auto replica : chunk->StoredReplicas()) {
+            auto mediumIndex = replica.GetMediumIndex();
+            if (result != InvalidMediumIndex && result != mediumIndex) {
+                THROW_ERROR_EXCEPTION("Journal chunk resides on multiple media: %v and %v",
+                    chunk->GetId(),
+                    result,
+                    mediumIndex);
+            }
+            result = mediumIndex;
+        }
+        if (result == InvalidMediumIndex) {
+            THROW_ERROR_EXCEPTION("No replicas of chunk %v are known",
+                chunk->GetId());
+        }
+        return result;
+    }
+
+    std::vector<TNodeDescriptor> GetChunkReplicas(TChunk* chunk)
+    {
+        std::vector<TNodeDescriptor> replicas;
+        for (auto replica : chunk->StoredReplicas()) {
+            auto* node = replica.GetPtr();
+            replicas.push_back(node->GetDescriptor());
+        }
+        return replicas;
     }
 };
 

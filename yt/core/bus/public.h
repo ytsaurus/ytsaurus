@@ -18,6 +18,9 @@ DECLARE_REFCOUNTED_CLASS(TTcpBusConfig)
 DECLARE_REFCOUNTED_CLASS(TTcpBusServerConfig)
 DECLARE_REFCOUNTED_CLASS(TTcpBusClientConfig)
 
+extern const TString DefaultNetworkName;
+extern const TString LocalNetworkName;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NBus

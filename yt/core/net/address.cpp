@@ -38,6 +38,8 @@ namespace NYT {
 namespace NNet {
 
 using namespace NConcurrency;
+using namespace NYson;
+using namespace NYTree;
 
 using ::ToString;
 
@@ -182,6 +184,27 @@ ui16 TNetworkAddress::GetPort() const
         default:
             THROW_ERROR_EXCEPTION("Address has no port");
     }
+}
+
+bool TNetworkAddress::IsUnix() const
+{
+    return Storage.ss_family == AF_UNIX;
+}
+
+bool TNetworkAddress::IsIP6() const
+{
+    return Storage.ss_family == AF_INET6;
+}
+
+TIP6Address TNetworkAddress::ToIP6Address() const
+{
+    if (Storage.ss_family != AF_INET6) {
+        THROW_ERROR_EXCEPTION("Address is not an IPv6 address");
+    }
+
+    auto addr = reinterpret_cast<const sockaddr_in6*>(&Storage)->sin6_addr;
+    std::reverse(addr.s6_addr, addr.s6_addr + sizeof(addr));
+    return TIP6Address::FromRawBytes(addr.s6_addr);
 }
 
 socklen_t TNetworkAddress::GetLength() const
@@ -496,6 +519,28 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
     return true;
 }
 
+bool ParseMask(const TStringBuf& buf, int* maskSize)
+{
+    if (buf.size() < 2 || buf[0] != '/') {
+        return false;
+    }
+
+    *maskSize = 0;
+    for (int i = 1; i < 4; ++i) {
+        if (i == buf.size()) {
+            return true;
+        }
+
+        if (buf[i] < '0' || '9' < buf[i]) {
+            return false;
+        }
+
+        *maskSize = (*maskSize * 10) + (buf[i] - '0');
+    }
+
+    return buf.size() == 4 && *maskSize <= 128;
+}
+
 } // namespace
 
 const ui8* TIP6Address::GetRawBytes() const
@@ -648,6 +693,16 @@ TIP6Address& operator&=(TIP6Address& lhs, const TIP6Address& rhs)
     return lhs;
 }
 
+void Deserialize(TIP6Address& value, INodePtr node)
+{
+    value = TIP6Address::FromString(node->AsString()->GetValue());
+}
+
+void Serialize(const TIP6Address& value, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(ToString(value));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TIP6Network::TIP6Network(const TIP6Address& network, const TIP6Address& mask)
@@ -655,7 +710,7 @@ TIP6Network::TIP6Network(const TIP6Address& network, const TIP6Address& mask)
     , Mask_(mask)
 { }
 
-const TIP6Address& TIP6Network::GetNetwork() const
+const TIP6Address& TIP6Network::GetAddress() const
 {
     return Network_;
 }
@@ -663,6 +718,16 @@ const TIP6Address& TIP6Network::GetNetwork() const
 const TIP6Address& TIP6Network::GetMask() const
 {
     return Mask_;
+}
+
+int TIP6Network::GetMaskSize() const
+{
+    int size = 0;
+    const auto* parts = Mask_.GetRawDWords();
+    for (size_t partIndex = 0; partIndex < 4; ++partIndex) {
+        size += __builtin_popcount(parts[partIndex]);
+    }
+    return size;
 }
 
 bool TIP6Network::Contains(const TIP6Address& address) const
@@ -681,31 +746,9 @@ TIP6Network TIP6Network::FromString(const TStringBuf& str)
     return network;
 }
 
-bool ParseMask(const TStringBuf& buf, int* maskSize)
-{
-    if (buf.size() < 2 || buf[0] != '/') {
-        return false;
-    }
-
-    *maskSize = 0;
-    for (int i = 1; i < 4; ++i) {
-        if (i == buf.size()) {
-            return true;
-        }
-
-        if (buf[i] < '0' || '9' < buf[i]) {
-            return false;
-        }
-
-        *maskSize = (*maskSize * 10) + (buf[i] - '0');
-    }
-
-    return buf.size() == 4 && *maskSize <= 128;
-}
-
 bool TIP6Network::FromString(const TStringBuf& str, TIP6Network* network)
 {
-    TStringBuf buf = str;
+    auto buf = str;
     if (!ParseIP6Address(&buf, &network->Network_)) {
         return false;
     }
@@ -726,6 +769,28 @@ bool TIP6Network::FromString(const TStringBuf& str, TIP6Network* network)
     }
 
     return true;
+}
+
+void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec)
+{
+    builder->AppendFormat("%v/%v",
+        network.GetAddress(),
+        network.GetMaskSize());
+}
+
+TString ToString(const TIP6Network& network)
+{
+    return ToStringViaBuilder(network);
+}
+
+void Deserialize(TIP6Network& value, INodePtr node)
+{
+    value = TIP6Network::FromString(node->AsString()->GetValue());
+}
+
+void Serialize(const TIP6Network& value, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(ToString(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

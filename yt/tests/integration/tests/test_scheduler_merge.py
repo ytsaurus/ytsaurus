@@ -10,16 +10,6 @@ from time import sleep
 ##################################################################
 
 class TestSchedulerMergeCommands(YTEnvSetup):
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "sorted_merge_operation_options" : {
-                "spec_template" : {
-                    "use_legacy_controller" : False,
-                }
-            }
-        }
-    }
-
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

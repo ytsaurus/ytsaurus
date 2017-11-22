@@ -285,12 +285,7 @@ void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Account);
     Load(context, MediumIndex);
     Load(context, ReplicationPolicy);
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= 701) {
-        Load(context, Committed);
-    } else {
-        Committed = true;
-    }
+    Load(context, Committed);
 }
 
 void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/)

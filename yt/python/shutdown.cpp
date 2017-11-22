@@ -25,7 +25,7 @@ void RegisterShutdown(TCallback<void()> additionalCallback)
     if (!registered) {
         AdditionalShutdownCallback = additionalCallback;
         registered = true;
-        Py_AtExit(Shutdown);
+        Py_AtExit(NPython::Shutdown);
     }
 }
 

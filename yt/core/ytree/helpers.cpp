@@ -128,7 +128,7 @@ void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
     consumer->OnEndMap();
 }
 
-void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
+void ToProto(NProto::TAttributeDictionary* protoAttributes, const IAttributeDictionary& attributes)
 {
     protoAttributes->Clear();
     auto keys = attributes.List();
@@ -141,7 +141,7 @@ void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& a
     }
 }
 
-std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes)
+std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributeDictionary& protoAttributes)
 {
     auto attributes = CreateEphemeralAttributes();
     for (const auto& protoAttribute : protoAttributes.attributes()) {

@@ -23,7 +23,7 @@
 
 #include <yt/core/net/local_address.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
 

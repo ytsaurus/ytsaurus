@@ -106,7 +106,7 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
             objectId);
     }
 
-    return TResolveResultThere{std::move(proxy), tokenizer.GetSuffix()};
+    return TResolveResultThere{std::move(proxy), TYPath(tokenizer.GetSuffix())};
 }
 
 void TVirtualMulticellMapBase::GetSelf(

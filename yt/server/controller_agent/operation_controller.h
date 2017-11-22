@@ -22,7 +22,7 @@
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -40,6 +40,7 @@
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -75,16 +76,6 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual TControllerAgent* GetControllerAgent() = 0;
-
-    //! Returns the total number of online exec nodes.
-    virtual int GetExecNodeCount() const = 0;
-
-    //! Returns the descriptors of online exec nodes that can handle operations
-    //! marked with a given #tag.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
@@ -156,8 +147,6 @@ struct IOperationHost
         const TOperationId& operationId,
         std::vector<TJobId> jobIds,
         int controllerSchedulerIncarnation) = 0;
-
-    virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const NScheduler::TJobMetrics& jobMetrics) = 0;
 };
 
 struct IOperationControllerStrategyHost
@@ -355,13 +344,13 @@ struct IOperationController
     virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
 
     //! Called to construct a YSON representing the controller part of operation attributes.
-    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildOperationAttributes(NYTree::TFluentMap fluent) const = 0;
 
     /*!
      *  \note Invoker affinity: any;
      */
     //! Called to construct a YSON representing the current progress.
-    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const = 0;
 
     /*!
      *  \note Invoker affinity: any.
@@ -385,13 +374,13 @@ struct IOperationController
      *  \note Invoker affinity: Controller invoker
      */
     //! Called to construct a YSON representing the current progress.
-    virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildProgress(NYTree::TFluentMap fluent) const = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
      */
     //! Similar to #BuildProgress but constructs a reduced version to be used by UI.
-    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
@@ -400,7 +389,7 @@ struct IOperationController
     virtual TString GetLoggingProgress() const = 0;
 
     //! Called to construct a YSON representing the current state of memory digests for jobs of each type.
-    virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap consumer) const = 0;
 
     //! Called to get a cached YSON string representing the current progress.
     virtual NYson::TYsonString GetProgress() const = 0;
@@ -412,7 +401,7 @@ struct IOperationController
     virtual bool HasJobSplitterInfo() const = 0;
 
     //! Called to construct a YSON representing job splitter state.
-    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const = 0;
+    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const = 0;
 
     //! Called to get a YSON string representing current job(s) state.
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
@@ -455,6 +444,12 @@ struct IOperationController
     //! Method that is called after operation results are commited and before
     //! controller is disposed.
     virtual void OnBeforeDisposal() = 0;
+
+    /*!
+     * \note Invoker affinity: any.
+     */
+    //! Returns metrics delta since last call.
+    virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -295,9 +295,12 @@ public:
         const TCellId& cellId,
         const TTransactionParticipantOptions& options) override
     {
+        // For tablet writes, manual sync is not needed since Table Mount Cache
+        // is responsible for populating cell directory. Transaction participants,
+        // on the other hand, have no other way to keep cell directory up-to-date.
+        CellDirectorySynchronizer_->Start();
         return NApi::CreateNativeTransactionParticipant(
             CellDirectory_,
-            GetCellDirectorySynchronizer(),
             TimestampProvider_,
             cellId,
             options);

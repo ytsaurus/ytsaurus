@@ -127,6 +127,11 @@ private:
             return *EndpointAttributes;
         }
 
+        virtual TTcpDispatcherStatistics GetStatistics() const override
+        {
+            return {};
+        }
+
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
             NProto::TResponseHeader header;

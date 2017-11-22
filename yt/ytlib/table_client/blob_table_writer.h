@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/api/client.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/chunked_memory_pool.h>

@@ -49,6 +49,7 @@ void Serialize(const TSkynetSharePartsLocations& skynetPartsLocations, IYsonCons
                         .BeginMap()
                             .Item("chunk_id").Value(FromProto<TChunkId>(spec.chunk_id()))
                             .Item("row_index").Value(spec.table_row_index())
+                            .Item("row_count").Value(spec.row_count_override())
                             .Item("range_index").Value(spec.range_index())
                             .DoIf(spec.has_lower_limit(), [&] (TFluentMap fluent) {
                                 fluent.Item("lower_limit").Value(FromProto<TReadLimit>(spec.lower_limit()));

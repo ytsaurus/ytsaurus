@@ -45,8 +45,19 @@ TFileReader::TFileReader(
     : ChunkId_(chunkId)
     , FileName_(fileName)
     , ValidateBlockChecksums_(validateBlocksChecksums)
+    , IoEngine_(CreateDefaultIOEngine())
 { }
 
+TFileReader::TFileReader(
+    IIOEnginePtr ioEngine,
+    const TChunkId& chunkId,
+    const TString& fileName,
+    bool validateBlocksChecksums)
+    : ChunkId_(chunkId)
+    , FileName_(fileName)
+    , ValidateBlockChecksums_(validateBlocksChecksums)
+    , IoEngine_(ioEngine)
+{ }
 
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TWorkloadDescriptor& /*workloadDescriptor*/,
@@ -138,12 +149,12 @@ std::vector<TBlock> TFileReader::DoReadBlocks(
     const auto& lastBlockInfo = blockExts.blocks(lastBlockIndex);
     i64 totalSize = lastBlockInfo.offset() + lastBlockInfo.size() - firstBlockInfo.offset();
 
-    auto data = TSharedMutableRef::Allocate<TFileReaderDataBufferTag>(totalSize, false);
+    TSharedMutableRef data; // TSharedMutableRef::Allocate<TFileReaderDataBufferTag>(totalSize, false);
 
     auto& file = GetDataFile();
 
     NFS::ExpectIOErrors([&] () {
-        file.Pread(data.Begin(), data.Size(), firstBlockInfo.offset());
+        IoEngine_->Pread(file, data, totalSize, firstBlockInfo.offset());
     });
 
     // Slice the result; validate checksums.
@@ -181,6 +192,7 @@ TChunkMeta TFileReader::DoGetMeta(
     YCHECK(!partitionTag);
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
+    // TODO: io engine!
     TFile metaFile(
         metaFileName,
         OpenExisting | RdOnly | Seq | CloseOnExec);
@@ -260,7 +272,7 @@ TFile& TFileReader::GetDataFile()
     if (!HasCachedDataFile_) {
         TGuard<TMutex> guard(Mutex_);
         if (!CachedDataFile_) {
-            CachedDataFile_.reset(new TFile(FileName_, OpenExisting | RdOnly | CloseOnExec));
+            CachedDataFile_ = IoEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec);
             HasCachedDataFile_ = true;
         }
     }

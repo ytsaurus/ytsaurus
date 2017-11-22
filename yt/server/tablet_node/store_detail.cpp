@@ -162,9 +162,9 @@ void TStoreBase::Load(TLoadContext& context)
     Load(context, StoreState_);
 }
 
-void TStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
+void TStoreBase::BuildOrchidYson(TFluentMap fluent)
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("store_state").Value(StoreState_)
         .Item("min_timestamp").Value(GetMaxTimestamp())
         .Item("max_timestamp").Value(GetMaxTimestamp());
@@ -328,11 +328,11 @@ i64 TDynamicStoreBase::GetPoolCapacity() const
     return RowBuffer_->GetCapacity();
 }
 
-void TDynamicStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
+void TDynamicStoreBase::BuildOrchidYson(TFluentMap fluent)
 {
-    TStoreBase::BuildOrchidYson(consumer);
+    TStoreBase::BuildOrchidYson(fluent);
 
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("flush_state").Value(FlushState_)
         .Item("row_count").Value(GetRowCount())
         .Item("lock_count").Value(GetLockCount())
@@ -547,12 +547,12 @@ void TChunkStoreBase::AsyncLoad(TLoadContext& context)
     PrecacheProperties();
 }
 
-void TChunkStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
+void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
 {
-    TStoreBase::BuildOrchidYson(consumer);
+    TStoreBase::BuildOrchidYson(fluent);
 
     auto backingStore = GetBackingStore();
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("preload_state").Value(PreloadState_)
         .Item("compaction_state").Value(CompactionState_)
         .Item("compressed_data_size").Value(MiscExt_.compressed_data_size())

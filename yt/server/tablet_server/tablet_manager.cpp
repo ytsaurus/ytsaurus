@@ -14,6 +14,7 @@
 #include "tablet_type_handler.h"
 
 #include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/serialize.h>
@@ -223,7 +224,6 @@ public:
 
         auto* cellBundle = TabletCellBundleMap_.Insert(id, std::move(cellBundleHolder));
         YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
-        cellBundle->FillProfilingTag();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
@@ -1084,8 +1084,7 @@ public:
                                 firstTabletIndex,
                                 lastTabletIndex,
                                 newTabletCount,
-                                action->PivotKeys(),
-                                false);
+                                action->PivotKeys());
                         } catch (const std::exception& ex) {
                             for (auto* tablet : oldTablets) {
                                 YCHECK(IsObjectAlive(tablet));
@@ -1399,8 +1398,7 @@ public:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto nodeProxy = cypressManager->GetNodeProxy(table);
-        TYPath path = nodeProxy->GetPath();
+        auto path = cypressManager->GetNodePath(table, nullptr);
         const auto resourceUsageBefore = table->GetTabletResourceUsage();
         const auto& allTablets = table->Tablets();
         for (const auto& pair : assignment) {
@@ -1793,8 +1791,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TOwningKey>& pivotKeys,
-        bool strictNewTabletCount = true)
+        const std::vector<TOwningKey>& pivotKeys)
     {
         if (!pivotKeys.empty() || !table->IsSorted()) {
             DoReshardTable(
@@ -1807,10 +1804,6 @@ public:
         }
 
         auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
-        if (strictNewTabletCount && newPivotKeys.size() != newTabletCount) {
-            THROW_ERROR_EXCEPTION("Unable to calculate pivot keys");
-        }
-
         newTabletCount = newPivotKeys.size();
         DoReshardTable(
             table,
@@ -1906,7 +1899,8 @@ public:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Reshard table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount %v, PivotKeys: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Resharding table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, "
+            "TabletCount %v, PivotKeys: %v)",
             table->GetId(),
             firstTabletIndex,
             lastTabletIndex,
@@ -1929,7 +1923,7 @@ public:
         }
 
         // For ordered tablets, if the number of tablets decreases then validate that the trailing ones
-        // (which are about to drop) are properly trimmed.
+        // (which we are about to drop) are properly trimmed.
         if (newTabletCount < oldTabletCount) {
             for (int index = firstTabletIndex + newTabletCount; index < firstTabletIndex + oldTabletCount; ++index) {
                 const auto* tablet = table->Tablets()[index];
@@ -1971,16 +1965,16 @@ public:
                 for (auto it = range.first; it != range.second; ++it) {
                     auto* tablet = *it;
                     if (chunkSets[tablet->GetIndex()].find(chunk) == chunkSets[tablet->GetIndex()].end()) {
-                        THROW_ERROR_EXCEPTION("Chunk %v crosses boundary of tablet %v but is missing from its chunk list;"
-                            " please wait until stores are compacted",
+                        THROW_ERROR_EXCEPTION("Chunk %v crosses boundary of tablet %v but is missing from its chunk list; "
+                            "please wait until stores are compacted",
                             chunk->GetId(),
                             tablet->GetId())
-                        << TErrorAttribute("chunk_min_key", keyPair.first)
-                        << TErrorAttribute("chunk_max_key", keyPair.second)
-                        << TErrorAttribute("pivot_key", tablet->GetPivotKey())
-                        << TErrorAttribute("next_pivot_key", tablet->GetIndex() < table->Tablets().size() - 1
-                            ? table->Tablets()[tablet->GetIndex() + 1]->GetPivotKey()
-                            : MaxKey());
+                            << TErrorAttribute("chunk_min_key", keyPair.first)
+                            << TErrorAttribute("chunk_max_key", keyPair.second)
+                            << TErrorAttribute("pivot_key", tablet->GetPivotKey())
+                            << TErrorAttribute("next_pivot_key", tablet->GetIndex() < table->Tablets().size() - 1
+                                ? table->Tablets()[tablet->GetIndex() + 1]->GetPivotKey()
+                                : MaxKey());
                     }
                 }
             }
@@ -2145,9 +2139,8 @@ public:
             }
         } catch (const std::exception& ex) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto sourceTableProxy = cypressManager->GetNodeProxy(trunkSourceTable, transaction);
             THROW_ERROR_EXCEPTION("Error cloning table %v",
-                sourceTableProxy->GetPath())
+                cypressManager->GetNodePath(trunkSourceTable, transaction))
                 << ex;
         }
 
@@ -2532,7 +2525,6 @@ private:
         for (const auto& pair : TabletCellBundleMap_) {
             auto* cellBundle = pair.second;
             YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
-            cellBundle->FillProfilingTag();
         }
 
         AddressToCell_.clear();
@@ -2702,6 +2694,8 @@ private:
             return false;
         }
         cellBundle = DoCreateTabletCellBundle(id, name);
+        cellBundle->GetOptions()->ChangelogAccount = DefaultStoreAccountName;
+        cellBundle->GetOptions()->SnapshotAccount = DefaultStoreAccountName;
         return true;
     }
 
@@ -2938,12 +2932,13 @@ private:
             auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
                 i64 prevValue = counter->Count;
                 auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
-                counter->Rate = (std::max(curValue, prevValue) - prevValue) / timeDelta;
+                auto valueDelta = std::max(curValue, prevValue) - prevValue;
                 counter->Count = curValue;
+                counter->Rate = valueDelta / timeDelta;
                 auto exp10 = std::exp(-timeDelta / (60 * 10 / 2));
-                counter->Rate10 = curValue * (1 - exp10) + counter->Rate10 * exp10;
+                counter->Rate10 = valueDelta * (1 - exp10) + counter->Rate10 * exp10;
                 auto exp60 = std::exp(-timeDelta / (60 * 60 / 2));
-                counter->Rate60 = curValue * (1 - exp60) + counter->Rate60 * exp60;
+                counter->Rate60 = valueDelta * (1 - exp60) + counter->Rate60 * exp60;
             };
 
             #define XX(name, Name) updatePerformanceCounter( \
@@ -3564,6 +3559,11 @@ private:
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
+        // Schedule propery update for deleted chunks.
+        for (auto* chunk : chunksToDetach) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
+        }
+
         // Get new tabet resource usage.
         auto newMemorySize = tablet->GetTabletStaticMemorySize();
         auto newStatistics = GetTabletStatistics(tablet);
@@ -3818,20 +3818,27 @@ private:
             return result;
         };
 
-        std::vector<TCellKey> cellKeys;
+        std::vector<TTabletCell*> cells;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             if (!IsObjectAlive(cell)) {
                 continue;
             }
             if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
-                cellKeys.push_back(TCellKey{getCellSize(cell), cell});
+                cells.push_back(cell);
             }
         }
-        if (cellKeys.empty()) {
+        if (cells.empty()) {
             // NB: Changed ycheck to throw when it was triggered inside tablet action.
             THROW_ERROR_EXCEPTION("No tablet cells in bundle %Qv",
                 table->GetTabletCellBundle()->GetName());
+        }
+        // NB: Order cells by id to achieve deterministic randomness.
+        std::sort(cells.begin(), cells.end(), TObjectRefComparer::Compare);
+
+        std::vector<TCellKey> cellKeys;
+        for (auto* cell : cells) {
+            cellKeys.push_back(TCellKey{getCellSize(cell), cell});
         }
         std::sort(cellKeys.begin(), cellKeys.end());
 
@@ -4097,6 +4104,7 @@ private:
         NTabletNode::TTabletChunkWriterConfigPtr* writerConfig,
         TTableWriterOptionsPtr* writerOptions)
     {
+        const auto& configManager = Bootstrap_->GetConfigManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
         const auto& tableAttributes = tableProxy->Attributes();
@@ -4104,6 +4112,7 @@ private:
         // Parse and prepare mount config.
         try {
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
+            (*mountConfig)->ProfilingMode = configManager->GetConfig()->DynamicTableProfilingMode;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;
@@ -4169,8 +4178,7 @@ private:
     IMapNodePtr GetCellMapNode()
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
+        return cypressManager->ResolvePathToNodeProxy("//sys/tablet_cells")->AsMap();
     }
 
     INodePtr FindCellNode(const TCellId& cellId)
@@ -4185,7 +4193,6 @@ private:
         try {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto& tabletManager = Bootstrap_->GetTabletManager();
-            auto resolver = cypressManager->CreateResolver();
             auto cellIds = GetKeys(TabletCellMap_);
             for (const auto& cellId : cellIds) {
                 auto* cell = tabletManager->FindTabletCell(cellId);
@@ -4196,7 +4203,7 @@ private:
                 auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", ToYPathLiteral(ToString(cellId)));
                 IMapNodePtr snapshotsMap;
                 try {
-                    snapshotsMap = resolver->ResolvePath(snapshotsPath)->AsMap();
+                    snapshotsMap = cypressManager->ResolvePathToNodeProxy(snapshotsPath)->AsMap();
                 } catch (const std::exception& ex) {
                     LOG_WARNING(ex, "Tablet cell has no valid snapshot store (CellId: %v)",
                         cellId);
@@ -4276,7 +4283,7 @@ private:
                 auto changelogsPath = Format("//sys/tablet_cells/%v/changelogs", ToYPathLiteral(ToString(cellId)));
                 IMapNodePtr changelogsMap;
                 try {
-                    changelogsMap = resolver->ResolvePath(changelogsPath)->AsMap();
+                    changelogsMap = cypressManager->ResolvePathToNodeProxy(changelogsPath)->AsMap();
                 } catch (const std::exception& ex) {
                     LOG_WARNING(ex, "Tablet cell has no valid changelog store (CellId: %v)",
                         cellId);

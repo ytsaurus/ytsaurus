@@ -4,6 +4,7 @@
 #include "public.h"
 #include "serialize.h"
 
+#include <yt/server/scheduler/job_metrics.h>
 #include <yt/server/scheduler/exec_node.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
@@ -28,6 +29,7 @@ struct TJobInfoBase
     TInstant LastActivityTime;
     TBriefJobStatisticsPtr BriefStatistics;
     double Progress = 0.0;
+    ui64 StderrSize = 0;
     NYson::TYsonString StatisticsYson;
 
     virtual void Persist(const TPersistenceContext& context);
@@ -53,13 +55,14 @@ class TJoblet
 public:
     //! Default constructor is for serialization only.
     TJoblet();
-    TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTask* task, int jobIndex);
+    TJoblet(TTask* task, int jobIndex);
 
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
     int JobIndex;
     i64 StartRowIndex;
     bool Restarted = false;
+    bool Revived = false;
 
     TFuture<TSharedRef> JobSpecProtoFuture;
 
@@ -81,10 +84,11 @@ public:
     NChunkClient::TChunkListId StderrTableChunkListId;
     NChunkClient::TChunkListId CoreTableChunkListId;
 
+    NScheduler::TJobMetrics JobMetrics;
+
     virtual void Persist(const TPersistenceContext& context) override;
-    void SendJobMetrics(const NScheduler::TJobSummary& jobSummary, bool flush);
-private:
-    std::unique_ptr<TJobMetricsUpdater> JobMetricsUpdater_;
+
+    NScheduler::TJobMetrics UpdateJobMetrics(const NScheduler::TJobSummary& jobSummary);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)

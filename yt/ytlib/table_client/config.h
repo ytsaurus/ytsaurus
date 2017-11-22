@@ -90,6 +90,7 @@ public:
     bool ValidateColumnCount;
     bool EvaluateComputedColumns;
     bool EnableSkynetSharing;
+    bool ReturnBoundaryKeys;
 
     EOptimizeFor OptimizeFor;
 
@@ -115,6 +116,8 @@ public:
             .Default(true);
         RegisterParameter("enable_skynet_sharing", EnableSkynetSharing)
             .Default(false);
+        RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {
@@ -239,14 +242,14 @@ class TTableReaderConfig
 {
 public:
     bool SuppressAccessTracking;
-    bool IgnoreUnavailableChunks;
+    EUnavailableChunkStrategy UnavailableChunkStrategy;
 
     TTableReaderConfig()
     {
         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
             .Default(false);
-        RegisterParameter("ignore_unavailable_chunks", IgnoreUnavailableChunks)
-            .Default(false);
+        RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
+            .Default(EUnavailableChunkStrategy::Restore);
     }
 };
 

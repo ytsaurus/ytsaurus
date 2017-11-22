@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/table_client/row_buffer.h>
 
-#include <yt/ytlib/scheduler/output_result.pb.h>
+#include <yt/ytlib/scheduler/proto/output_result.pb.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 
@@ -275,9 +275,11 @@ public:
 
     virtual i64 GetDataWeightPerJob() const override
     {
-        return JobCount_ > 0
+        auto dataWeightPerJob = JobCount_ > 0
                ? DivCeil(InputDataWeight_, JobCount_)
                : 1;
+
+        return std::min(dataWeightPerJob, DivCeil<i64>(GetMaxDataWeightPerJob() , 2));
     }
 
     virtual i64 GetPrimaryDataWeightPerJob() const override

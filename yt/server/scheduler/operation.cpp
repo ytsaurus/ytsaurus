@@ -43,6 +43,7 @@ TOperation::TOperation(
     , Prepared_(false)
     , UserTransactionId_(userTransactionId)
     , Spec_(spec)
+    , RuntimeParams_(New<TOperationRuntimeParams>())
     , AuthenticatedUser_(authenticatedUser)
     , Owners_(owners)
     , StartTime_(startTime)
@@ -55,6 +56,10 @@ TOperation::TOperation(
     auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
     SecureVault_ = std::move(parsedSpec->SecureVault);
     Spec_->RemoveChild("secure_vault");
+
+    RuntimeParams_->Weight = parsedSpec->Weight;
+    RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
+    RuntimeParams_->Owners = parsedSpec->Owners;
 }
 
 TFuture<TOperationPtr> TOperation::GetStarted()

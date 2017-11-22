@@ -970,6 +970,7 @@ contrib-libs-snappy
 contrib-libs-sparsehash
 contrib-libs-yajl
 contrib-libs-zlib
+contrib-libs-cctz
 library-colorizer
 library-getopt
 library-http

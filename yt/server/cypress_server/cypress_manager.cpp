@@ -465,57 +465,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TYPathResolver
-    : public INodeResolver
-{
-public:
-    TYPathResolver(
-        TBootstrap* bootstrap,
-        TTransaction* transaction)
-        : Bootstrap_(bootstrap)
-        , Transaction_(transaction)
-    { }
-
-    virtual INodePtr ResolvePath(const TYPath& path) override
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* resolver = objectManager->GetObjectResolver();
-        auto objectProxy = resolver->ResolvePath(path, Transaction_);
-        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(objectProxy.Get());
-        if (!nodeProxy) {
-            THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
-                path,
-                TypeFromId(objectProxy->GetId()));
-        }
-        return nodeProxy;
-    }
-
-    virtual TYPath GetPath(INodePtr node) override
-    {
-        auto* nodeProxy = ICypressNodeProxy::FromNode(node.Get());
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        if (!cypressManager->IsAlive(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction())) {
-            return FromObjectId(nodeProxy->GetId());
-        }
-
-        INodePtr root;
-        auto path = GetNodeYPath(node, &root);
-
-        auto* rootProxy = ICypressNodeProxy::FromNode(root.Get());
-        return rootProxy->GetId() == cypressManager->GetRootNode()->GetId()
-            ? "/" + path
-            : "?" + path;
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-    TTransaction* const Transaction_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCypressManager::TImpl
     : public NCellMaster::TMasterAutomatonPart
 {
@@ -726,12 +675,93 @@ public:
         return node;
     }
 
-    INodeResolverPtr CreateResolver(TTransaction* transaction)
+    TYPath GetNodePath(TCypressNodeBase* trunkNode, TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        auto fallbackToId = [&] {
+            return FromObjectId(trunkNode->GetId());
+        };
 
-        return New<TYPathResolver>(Bootstrap_, transaction);
+        using TToken = TVariant<TStringBuf, int>;
+        SmallVector<TToken, 32> tokens;
+
+        auto* currentNode = GetVersionedNode(trunkNode, transaction);
+        while (true) {
+            auto* currentTrunkNode = currentNode->GetTrunkNode();
+            auto* currentParentTrunkNode = currentNode->GetParent();
+            if (!currentParentTrunkNode) {
+                break;
+            }
+            auto* currentParentNode = GetVersionedNode(currentParentTrunkNode, transaction);
+            switch (currentParentTrunkNode->GetNodeType()) {
+                case ENodeType::Map: {
+                    auto key = FindMapNodeChildKey(currentParentNode->As<TMapNode>(), currentTrunkNode);
+                    if (!key.data()) {
+                        return fallbackToId();
+                    }
+                    tokens.emplace_back(key);
+                    break;
+                }
+                case ENodeType::List: {
+                    auto index = FindListNodeChildIndex(currentParentNode->As<TListNode>(), currentTrunkNode);
+                    if (index < 0) {
+                        return fallbackToId();
+                    }
+                    tokens.emplace_back(index);
+                    break;
+                }
+                default:
+                    Y_UNREACHABLE();
+            }
+            currentNode = currentParentNode;
+        }
+
+        if (currentNode->GetTrunkNode() != RootNode_) {
+            return fallbackToId();
+        }
+
+        TStringBuilder builder;
+        builder.AppendChar('/');
+        for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
+            auto token = *it;
+            builder.AppendChar('/');
+            switch (token.Tag()) {
+                case TToken::TagOf<TStringBuf>():
+                    builder.AppendString(token.As<TStringBuf>());
+                    break;
+                case TToken::TagOf<int>():
+                    builder.AppendFormat("%v", token.As<int>());
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
+
+        return builder.Flush();
     }
+
+    TYPath GetNodePath(const ICypressNodeProxy* nodeProxy)
+    {
+        return GetNodePath(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction());
+    }
+
+    TCypressNodeBase* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->ResolvePathToObject(path, transaction);
+        if (!IsVersionedType(object->GetType())) {
+            THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
+                path,
+                object->GetType());
+        }
+        return object->As<TCypressNodeBase>();
+    }
+
+    ICypressNodeProxyPtr ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction)
+    {
+        auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
+        return GetNodeProxy(trunkNode, transaction);
+    }
+
 
     TCypressNodeBase* FindNode(
         TCypressNodeBase* trunkNode,
@@ -976,86 +1006,6 @@ public:
         }
     }
 
-    bool IsAlive(TCypressNodeBase* trunkNode, TTransaction* transaction)
-    {
-        auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
-            // Compute child key or index.
-            auto parentOriginators = GetNodeOriginators(transaction, parentTrunkNode);
-            TNullable<TString> key;
-            for (const auto* parentNode : parentOriginators) {
-                switch (parentNode->GetNodeType()) {
-                    case ENodeType::Map: {
-                        const auto* parentMapNode = parentNode->As<TMapNode>();
-                        auto it = parentMapNode->ChildToKey().find(childTrunkNode);
-                        if (it != parentMapNode->ChildToKey().end()) {
-                            key = it->second;
-                        }
-                        break;
-                    }
-
-                    case ENodeType::List: {
-                        const auto* parentListNode = parentNode->As<TListNode>();
-                        auto it = parentListNode->ChildToIndex().find(childTrunkNode);
-                        return it != parentListNode->ChildToIndex().end();
-                    }
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-
-                if (key) {
-                    break;
-                }
-            }
-
-            if (!key) {
-                return false;
-            }
-
-            // Look for thombstones.
-            for (const auto* parentNode : parentOriginators) {
-                switch (parentNode->GetNodeType()) {
-                    case ENodeType::Map: {
-                        const auto* parentMapNode = parentNode->As<TMapNode>();
-                        auto it = parentMapNode->KeyToChild().find(*key);
-                        if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
-                            return false;
-                        }
-                        break;
-                    }
-
-                    case ENodeType::List:
-                        // Do nothing.
-                        break;
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-            }
-
-            return true;
-        };
-
-
-        auto* currentNode = trunkNode;
-        while (true) {
-            if (!IsObjectAlive(currentNode)) {
-                return false;
-            }
-            if (currentNode == RootNode_) {
-                return true;
-            }
-            auto* parentNode = currentNode->GetParent();
-            if (!parentNode) {
-                return false;
-            }
-            if (!hasChild(parentNode, currentNode)) {
-                return false;
-            }
-            currentNode = parentNode;
-        }
-    }
-
 
     TCypressNodeList GetNodeOriginators(
         TTransaction* transaction,
@@ -1280,10 +1230,8 @@ private:
         }
 
         if (ClearSysAttributes_) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto* resolver = objectManager->GetObjectResolver();
-            auto sysNodeProxy = resolver->ResolvePath("//sys", nullptr);
-            auto* sysNode = sysNodeProxy->GetObject();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto* sysNode = cypressManager->ResolvePathToTrunkNode("//sys");
             auto& attributes = sysNode->GetMutableAttributes()->Attributes();
             auto processAttribute = [&] (const TString& attributeName)
             {
@@ -2111,17 +2059,6 @@ private:
     }
 
 
-    TYPath GetNodePath(
-        TCypressNodeBase* trunkNode,
-        TTransaction* transaction)
-    {
-        Y_ASSERT(trunkNode->IsTrunk());
-
-        auto proxy = GetNodeProxy(trunkNode, transaction);
-        return proxy->GetResolver()->GetPath(proxy);
-    }
-
-
     TCypressNodeBase* DoCloneNode(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactory* factory,
@@ -2445,9 +2382,24 @@ TCypressNodeBase* TCypressManager::GetNodeOrThrow(const TVersionedNodeId& id)
     return Impl_->GetNodeOrThrow(id);
 }
 
-INodeResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
+TYPath TCypressManager::GetNodePath(TCypressNodeBase* trunkNode, TTransaction* transaction)
 {
-    return Impl_->CreateResolver(transaction);
+    return Impl_->GetNodePath(trunkNode, transaction);
+}
+
+TYPath TCypressManager::GetNodePath(const ICypressNodeProxy* nodeProxy)
+{
+    return Impl_->GetNodePath(nodeProxy);
+}
+
+TCypressNodeBase* TCypressManager::ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
+{
+    return Impl_->ResolvePathToTrunkNode(path, transaction);
+}
+
+ICypressNodeProxyPtr TCypressManager::ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction)
+{
+    return Impl_->ResolvePathToNodeProxy(path, transaction);
 }
 
 TCypressNodeBase* TCypressManager::FindNode(
@@ -2529,13 +2481,6 @@ void TCypressManager::AbortSubtreeTransactions(INodePtr node)
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 {
     return Impl_->IsOrphaned(trunkNode);
-}
-
-bool TCypressManager::IsAlive(
-    TCypressNodeBase* trunkNode,
-    TTransaction* transaction)
-{
-    return Impl_->IsAlive(trunkNode, transaction);
 }
 
 TCypressNodeList TCypressManager::GetNodeOriginators(

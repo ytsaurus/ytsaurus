@@ -25,7 +25,6 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/async_stream_state.h>
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/protobuf_helpers.h>
 

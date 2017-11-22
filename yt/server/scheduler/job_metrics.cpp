@@ -1,5 +1,8 @@
 #include "job_metrics.h"
 
+#include <yt/ytlib/scheduler/public.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+
 #include <yt/core/profiling/profiler.h>
 
 namespace NYT {
@@ -7,6 +10,7 @@ namespace NScheduler {
 
 using namespace NProfiling;
 using namespace NJobTrackerClient;
+using namespace NPhoenix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +38,16 @@ void TJobMetrics::SendToProfiler(
     profiler.Enqueue(prefix + "/disk_writes", DiskWrites_, EMetricType::Counter, tagIds);
     profiler.Enqueue(prefix + "/time_aborted", TimeAborted_, EMetricType::Counter, tagIds);
     profiler.Enqueue(prefix + "/time_completed", TimeCompleted_, EMetricType::Counter, tagIds);
+}
+
+void TJobMetrics::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, DiskReads_);
+    Persist(context, DiskWrites_);
+    Persist(context, TimeCompleted_);
+    Persist(context, TimeAborted_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +83,30 @@ TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs)
     result += rhs;
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(NScheduler::NProto::TOperationJobMetrics* protoOperationJobMetrics, const NScheduler::TOperationJobMetrics& operationJobMetrics)
+{
+    ToProto(protoOperationJobMetrics->mutable_operation_id(), operationJobMetrics.OperationId);
+    protoOperationJobMetrics->set_disk_reads(operationJobMetrics.JobMetrics.GetDiskReads());
+    protoOperationJobMetrics->set_disk_writes(operationJobMetrics.JobMetrics.GetDiskWrites());
+    protoOperationJobMetrics->set_time_completed(operationJobMetrics.JobMetrics.GetTimeCompleted());
+    protoOperationJobMetrics->set_time_aborted(operationJobMetrics.JobMetrics.GetTimeAborted());
+}
+
+void FromProto(NScheduler::TOperationJobMetrics* operationJobMetrics, const NScheduler::NProto::TOperationJobMetrics& protoOperationJobMetrics)
+{
+    FromProto(&operationJobMetrics->OperationId, protoOperationJobMetrics.operation_id());
+    operationJobMetrics->JobMetrics.SetDiskReads(protoOperationJobMetrics.disk_reads());
+    operationJobMetrics->JobMetrics.SetDiskWrites(protoOperationJobMetrics.disk_writes());
+    operationJobMetrics->JobMetrics.SetTimeCompleted(protoOperationJobMetrics.time_completed());
+    operationJobMetrics->JobMetrics.SetTimeAborted(protoOperationJobMetrics.time_aborted());
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

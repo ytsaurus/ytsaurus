@@ -1,12 +1,11 @@
 #include "node_detail.h"
-#include "convert.h"
-#include "tree_builder.h"
-#include "tree_visitor.h"
-#include "ypath_client.h"
-#include "ypath_detail.h"
-#include "ypath_service.h"
+//#include "convert.h"
+//#include "tree_builder.h"
+//#include "tree_visitor.h"
+//#include "ypath_client.h"
+//#include "ypath_detail.h"
+//#include "ypath_service.h"
 
-#include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/ypath/token.h>
@@ -149,6 +148,42 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     Y_UNREACHABLE();
 }
 
+TYPath TNodeBase::GetPath() const
+{
+    SmallVector<TString, 64> tokens;
+    IConstNodePtr current(this);
+    while (true) {
+        auto parent = current->GetParent();
+        if (!parent) {
+            break;
+        }
+        TString token;
+        switch (parent->GetType()) {
+            case ENodeType::List: {
+                auto index = parent->AsList()->GetChildIndex(current);
+                token = ToYPathLiteral(index);
+                break;
+            }
+            case ENodeType::Map: {
+                auto key = parent->AsMap()->GetChildKey(current);
+                token = ToYPathLiteral(key);
+                break;
+            }
+            default:
+                Y_UNREACHABLE();
+        }
+        tokens.emplace_back(std::move(token));
+        current = parent;
+    }
+
+    TStringBuilder builder;
+    for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
+        builder.AppendChar('/');
+        builder.AppendString(*it);
+    }
+    return builder.Flush();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCompositeNodeMixin::SetRecursive(
@@ -227,7 +262,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                 THROW_ERROR_EXCEPTION("Child key cannot be empty");
             }
 
-            auto suffix = tokenizer.GetSuffix();
+            auto suffix = TYPath(tokenizer.GetSuffix());
             bool lastToken =  tokenizer.Advance() == NYPath::ETokenType::EndOfStream;
 
             auto child = FindChild(key);
@@ -410,7 +445,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                     return IYPathService::TResolveResultHere{"/" + path};
                 }
 
-                return IYPathService::TResolveResultThere{std::move(child), tokenizer.GetSuffix()};
+                return IYPathService::TResolveResultThere{std::move(child), TYPath(tokenizer.GetSuffix())};
             }
         }
 

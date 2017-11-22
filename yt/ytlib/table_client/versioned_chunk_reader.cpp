@@ -262,9 +262,11 @@ public:
             return OnBlockEnded();
         }
 
+        i64 rowCount = 0;
+        i64 dataWeight = 0;
+
         while (rows->size() < rows->capacity()) {
             if (CheckKeyLimit_ && KeyComparer_(BlockReader_->GetKey(), Ranges_[RangeIndex_].second) >= 0) {
-                PerformanceCounters_->StaticChunkRowReadCount += rows->size();
                 if (++RangeIndex_ < Ranges_.Size()) {
                     if (!BlockReader_->SkipToKey(Ranges_[RangeIndex_].first)) {
                         BlockEnded_ = true;
@@ -274,7 +276,7 @@ public:
                     }
                 } else {
                     // TODO(lukyan): return false and fix usages of method Read
-                    return true;
+                    break;
                 }
             }
 
@@ -288,8 +290,8 @@ public:
                         row.BeginKeys(), row.EndKeys()) < 0);
             }
             rows->push_back(row);
-            ++RowCount_;
-            DataWeight_ += GetDataWeight(row);
+            ++rowCount;
+            dataWeight += GetDataWeight(row);
 
             if (!BlockReader_->NextRow()) {
                 BlockEnded_ = true;
@@ -297,7 +299,11 @@ public:
             }
         }
 
-        PerformanceCounters_->StaticChunkRowReadCount += rows->size();
+        RowCount_ += rowCount;
+        DataWeight_ += dataWeight;
+        PerformanceCounters_->StaticChunkRowReadCount += rowCount;
+        PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
+
         return true;
     }
 
@@ -440,6 +446,8 @@ public:
             return true;
         }
 
+        i64 dataWeight = 0;
+
         if (!BlockReader_) {
             // Nothing to read from chunk.
             if (RowCount_ == Keys_.Size()) {
@@ -450,7 +458,10 @@ public:
                 rows->push_back(TVersionedRow());
                 ++RowCount_;
             }
+
             PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
+
             return true;
         }
 
@@ -463,8 +474,7 @@ public:
         while (rows->size() < rows->capacity()) {
             if (RowCount_ == Keys_.Size()) {
                 BlockEnded_ = true;
-                PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
-                return true;
+                break;
             }
 
             if (!KeyFilterTest_[RowCount_]) {
@@ -474,15 +484,14 @@ public:
                 const auto& key = Keys_[RowCount_];
                 if (!BlockReader_->SkipToKey(key)) {
                     BlockEnded_ = true;
-                    PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
-                    return true;
+                    break;
                 }
 
                 if (key == BlockReader_->GetKey()) {
                     auto row = BlockReader_->GetRow(&MemoryPool_);
                     rows->push_back(row);
                     ++RowCount_;
-                    DataWeight_ += GetDataWeight(rows->back());
+                    dataWeight += GetDataWeight(rows->back());
                 } else if (BlockReader_->GetKey() > key) {
                     auto nextKeyIt = std::lower_bound(
                         Keys_.begin() + RowCount_,
@@ -493,16 +502,18 @@ public:
                     skippedKeys = std::min(skippedKeys, rows->capacity() - rows->size());
 
                     rows->insert(rows->end(), skippedKeys, TVersionedRow());
-                    PerformanceCounters_->StaticChunkRowLookupFalsePositiveCount += skippedKeys;
                     RowCount_ += skippedKeys;
-                    DataWeight_ += skippedKeys * GetDataWeight(TVersionedRow());
+                    dataWeight += skippedKeys * GetDataWeight(TVersionedRow());
                 } else {
                     Y_UNREACHABLE();
                 }
             }
         }
 
+        DataWeight_ += dataWeight;
         PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
+
         return true;
     }
 
@@ -1052,17 +1063,22 @@ public:
 
             RowBuilder_.ReadValues(range, RowIndex_);
 
-            PerformanceCounters_->StaticChunkRowReadCount += range.Size();
             RowIndex_ += range.Size();
             if (Completed_ || !TryFetchNextRow()) {
                 break;
             }
         }
 
-        RowCount_ += rows->size();
+        i64 rowCount = rows->size();
+        i64 dataWeight = 0;
         for (auto row : *rows) {
-            DataWeight_ += GetDataWeight(row);
+            dataWeight += GetDataWeight(row);
         }
+
+        RowCount_ += rowCount;
+        DataWeight_ += dataWeight;
+        PerformanceCounters_->StaticChunkRowReadCount += rowCount;
+        PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
         return true;
     }
@@ -1168,12 +1184,17 @@ public:
             }
         }
 
-        RowCount_ += rows->size();
+        i64 rowCount = rows->size();
+        i64 dataWeight = 0;
         for (auto row : *rows) {
-            DataWeight_ += GetDataWeight(row);
+            dataWeight += GetDataWeight(row);
         }
 
-        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+        RowCount_ += rowCount;
+        DataWeight_ += dataWeight;
+        PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
+        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
+
         return true;
     }
 

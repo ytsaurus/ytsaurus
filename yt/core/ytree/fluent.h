@@ -180,7 +180,7 @@ public:
     public:
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        operator NYson::IYsonConsumer* () const
+        NYson::IYsonConsumer* GetConsumer() const
         {
             return Consumer;
         }
@@ -208,13 +208,12 @@ public:
         }
     };
 
-    template <template <class TParent> class TThis, class TParent>
+    template <template <class TParent> class TThis, class TParent, class TShallowThis>
     class TFluentFragmentBase
         : public TFluentBase<TParent>
     {
     public:
         typedef TThis<TParent> TDeepThis;
-        typedef TThis<TFluentYsonVoid> TShallowThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         explicit TFluentFragmentBase(NYson::IYsonConsumer* consumer, TParent parent = TParent())
@@ -256,16 +255,14 @@ public:
         }
     };
 
-    template <class TParent>
-    class TAnyWithoutAttributes
+    template <class TParent, class TShallowThis>
+    class TAnyBase
         : public TFluentBase<TParent>
     {
     public:
-        typedef TAnyWithoutAttributes<TParent> TDeepThis;
-        typedef TAnyWithoutAttributes<TFluentYsonVoid> TShallowThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        TAnyWithoutAttributes(NYson::IYsonConsumer* consumer, TParent parent = TParent())
+        TAnyBase(NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
@@ -397,35 +394,47 @@ public:
     };
 
     template <class TParent>
-    class TAny
-        : public TAnyWithoutAttributes<TParent>
+    class TAnyWithoutAttributes
+        : public TAnyBase<TParent, TAnyWithoutAttributes<TFluentYsonVoid>>
     {
     public:
-        typedef TAnyWithoutAttributes<TParent> TBase;
+        typedef TAnyBase<TParent, TAnyWithoutAttributes<TFluentYsonVoid>> TBase;
+
+        explicit TAnyWithoutAttributes(NYson::IYsonConsumer* consumer, TParent parent = TParent())
+            : TBase(consumer, std::move(parent))
+        { }
+    };
+
+    template <class TParent>
+    class TAny
+        : public TAnyBase<TParent, TAny<TFluentYsonVoid>>
+    {
+    public:
+        typedef TAnyBase<TParent, TAny<TFluentYsonVoid>> TBase;
 
         explicit TAny(NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TBase(consumer, std::move(parent))
         { }
 
-        TAttributes<TBase> BeginAttributes()
+        TAttributes<TAnyWithoutAttributes<TParent>> BeginAttributes()
         {
             this->Consumer->OnBeginAttributes();
-            return TAttributes<TBase>(
+            return TAttributes<TAnyWithoutAttributes<TParent>>(
                 this->Consumer,
-                TBase(this->Consumer, this->Parent));
+                TAnyWithoutAttributes<TParent>(this->Consumer, this->Parent));
         }
     };
 
     template <class TParent = TFluentYsonVoid>
     class TAttributes
-        : public TFluentFragmentBase<TAttributes, TParent>
+        : public TFluentFragmentBase<TAttributes, TParent, TMap<TFluentYsonVoid>>
     {
     public:
         typedef TAttributes<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         explicit TAttributes(NYson::IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, std::move(parent))
+            : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent, TMap<TFluentYsonVoid>>(consumer, std::move(parent))
         { }
 
         template <size_t Size>
@@ -475,14 +484,14 @@ public:
 
     template <class TParent = TFluentYsonVoid>
     class TList
-        : public TFluentFragmentBase<TList, TParent>
+        : public TFluentFragmentBase<TList, TParent, TList<TFluentYsonVoid>>
     {
     public:
         typedef TList<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         explicit TList(NYson::IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, std::move(parent))
+            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent, TList<TFluentYsonVoid>>(consumer, std::move(parent))
         { }
 
         TAny<TThis> Item()
@@ -509,14 +518,14 @@ public:
 
     template <class TParent = TFluentYsonVoid>
     class TMap
-        : public TFluentFragmentBase<TMap, TParent>
+        : public TFluentFragmentBase<TMap, TParent, TMap<TFluentYsonVoid>>
     {
     public:
         typedef TMap<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         explicit TMap(NYson::IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, std::move(parent))
+            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent, TMap<TFluentYsonVoid>>(consumer, std::move(parent))
         { }
 
         template <size_t Size>
@@ -595,6 +604,7 @@ using TFluentList = TFluentYsonBuilder::TList<TFluentYsonVoid>;
 using TFluentMap = TFluentYsonBuilder::TMap<TFluentYsonVoid>;
 using TFluentAttributes = TFluentYsonBuilder::TAttributes<TFluentYsonVoid>;
 using TFluentAny = TFluentYsonBuilder::TAny<TFluentYsonVoid>;
+using TFluentAnyWithoutAttributes = TFluentYsonBuilder::TAnyWithoutAttributes<TFluentYsonVoid>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -719,13 +729,19 @@ auto BuildYsonFluentlyWithState(TIntrusivePtr<TState> state)
         TFluentYsonHolder<TState>(state));
 }
 
+// XXX(max42): return types below look pretty nasty :( CLion is not able to deduce
+// them automatically that leads to lots of syntax errors.
+// Remove them when CLion does not suck.
+
 template <NYson::EYsonType type = NYson::EYsonType::Node>
 auto BuildYsonStringFluently(NYson::EYsonFormat format = NYson::EYsonFormat::Binary)
+    -> typename TFluentType<type>::template TValue<TFluentYsonHolder<TFluentYsonWriterState>>
 {
     return BuildYsonFluentlyWithState<TFluentYsonWriterState, type>(New<TFluentYsonWriterState>(format, type));
 }
 
 inline auto BuildYsonNodeFluently(INodeFactory* factory = GetEphemeralNodeFactory())
+    -> typename TFluentType<NYson::EYsonType::Node>::template TValue<TFluentYsonHolder<TFluentYsonBuilderState>>
 {
     return BuildYsonFluentlyWithState<TFluentYsonBuilderState, NYson::EYsonType::Node>(New<TFluentYsonBuilderState>(factory));
 }

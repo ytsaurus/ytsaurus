@@ -248,6 +248,9 @@ public:
 
     bool EnableDirectIO;
 
+    //! If |true| then the chunk is finished as soon as MinUploadReplicationFactor chunks are written.
+    bool EnableEarlyFinish;
+
     TDuration AllocateWriteTargetsBackoffTime;
 
     int AllocateWriteTargetsRetryCount;
@@ -281,6 +284,8 @@ public:
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
         RegisterParameter("enable_direct_io", EnableDirectIO)
+            .Default(false);
+        RegisterParameter("enable_early_finish", EnableEarlyFinish)
             .Default(false);
         RegisterParameter("allocate_write_targets_backoff_time", AllocateWriteTargetsBackoffTime)
             .Default(TDuration::Seconds(5));
@@ -427,7 +432,7 @@ public:
     {
         RegisterParameter("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
-            .Default(1_GB);
+            .Default(2_GB);
 
         RegisterParameter("desired_chunk_weight", DesiredChunkWeight)
             .GreaterThan(0)

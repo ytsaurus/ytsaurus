@@ -41,6 +41,8 @@ TStringBuf GetServiceHostName(const TStringBuf& address);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIP6Address;
+
 //! An opaque wrapper for |sockaddr| type.
 class TNetworkAddress
 {
@@ -62,6 +64,11 @@ public:
     static TNetworkAddress CreateIPv6Any(int port);
     static TNetworkAddress CreateIPv6Loopback(int port);
     static TNetworkAddress CreateUnixDomainAddress(const TString& name);
+
+    bool IsUnix() const;
+    bool IsIP6() const;
+
+    TIP6Address ToIP6Address() const;
 
 private:
     sockaddr_storage Storage;
@@ -115,6 +122,9 @@ TIP6Address operator | (const TIP6Address& lhs, const TIP6Address& rhs);
 TIP6Address& operator &= (TIP6Address& lhs, const TIP6Address& rhs);
 TIP6Address& operator |= (TIP6Address& lhs, const TIP6Address& rhs);
 
+void Deserialize(TIP6Address& value, NYTree::INodePtr node);
+void Serialize(const TIP6Address& value, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIP6Network
@@ -128,13 +138,20 @@ public:
 
     bool Contains(const TIP6Address& address) const;
 
-    const TIP6Address& GetNetwork() const;
+    const TIP6Address& GetAddress() const;
     const TIP6Address& GetMask() const;
+    int GetMaskSize() const;
 
 private:
     TIP6Address Network_;
     TIP6Address Mask_;
 };
+
+void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec);
+TString ToString(const TIP6Network& network);
+
+void Deserialize(TIP6Network& value, NYTree::INodePtr node);
+void Serialize(const TIP6Network& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

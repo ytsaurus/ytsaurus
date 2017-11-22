@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/misc/assert.h>
 

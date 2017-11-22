@@ -1,14 +1,14 @@
 package NYT.NTransactionClient.NProto;
 
-import "yt/core/misc/guid.proto";
-import "yt/core/ytree/attributes.proto";
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
 import "yt/ytlib/transaction_client/action.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqStartTransaction
 {
-    optional NYT.NYTree.NProto.TAttributes attributes = 1;
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 1;
     optional NYT.NProto.TGuid parent_id = 2;
     required int64 timeout = 3;
     optional string title = 4;

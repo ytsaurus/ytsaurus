@@ -66,9 +66,6 @@ public:
     //! Flushes the changelog.
     void Flush();
 
-    //! Returns the timestamp of the last flush.
-    TInstant GetLastFlushed();
-
     //! Synchronously reads at most #maxRecords records starting from record #firstRecordId.
     //! Stops if more than #maxBytes bytes are read.
     std::vector<TSharedRef> Read(

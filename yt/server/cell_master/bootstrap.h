@@ -72,7 +72,7 @@ public:
     const TConfigManagerPtr& GetConfigManager() const;
     const TMulticellManagerPtr& GetMulticellManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
-    const NRpc::IChannelPtr GetLocalRpcChannel() const;
+    const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;

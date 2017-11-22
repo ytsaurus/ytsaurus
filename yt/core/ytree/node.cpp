@@ -24,11 +24,6 @@ const ENodeType TScalarTypeTraits<bool>::NodeType = ENodeType::Boolean;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath INode::GetPath() const
-{
-    return GetResolver()->GetPath(const_cast<INode*>(this));
-}
-
 INodePtr IMapNode::GetChild(const TString& key) const
 {
     auto child = FindChild(key);

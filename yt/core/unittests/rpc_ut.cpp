@@ -17,7 +17,7 @@
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
 
-#include <yt/core/unittests/rpc_ut.pb.h>
+#include <yt/core/unittests/proto/rpc_ut.pb.h>
 
 #include <yt/core/grpc/config.h>
 #include <yt/core/grpc/channel.h>

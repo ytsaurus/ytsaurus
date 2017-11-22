@@ -171,6 +171,7 @@ struct TRunningJobSummary
     TRunningJobSummary(const TJobPtr& job, TJobStatus* status);
 
     const double Progress;
+    const ui64 StderrSize;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

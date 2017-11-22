@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "event_log.h"
+#include "job_metrics.h"
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
@@ -31,7 +32,6 @@ struct ISchedulerStrategyHost
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
-    virtual int GetExecNodeCount() const = 0;
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const = 0;
 
     virtual void ValidatePoolPermission(
@@ -136,15 +136,13 @@ struct ISchedulerStrategy
         std::vector<TUpdatedJob>* updatedJobs,
         std::vector<NScheduler::TCompletedJob>* completedJobs) = 0;
 
-    virtual void ApplyJobMetricsDelta(
-        const TOperationId& operationId,
-        const TJobMetrics& jobMetricsDelta) = 0;
+    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& jobMetricsDelta) = 0;
 
     virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
 
     virtual void UpdateOperationRuntimeParams(
         const TOperationPtr& operation,
-        const NYTree::INodePtr& update) = 0;
+        const TOperationStrategyRuntimeParamsPtr& runtimeParams) = 0;
 
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
@@ -153,27 +151,27 @@ struct ISchedulerStrategy
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(
         const TOperationId& operationId,
-        NYson::IYsonConsumer* consumer) = 0;
+        NYTree::TFluentMap fluent) = 0;
 
     //! Builds a YSON map fragment with strategy specific information about operation
     //! that used for event log.
     virtual void BuildOperationInfoForEventLog(
         const TOperationPtr& operation,
-        NYson::IYsonConsumer* consumer) = 0;
+        NYTree::TFluentMap fluent) = 0;
 
     //! Builds a YSON structure reflecting operation's progress.
     //! This progress is periodically pushed into Cypress and is also displayed via Orchid.
     virtual void BuildOperationProgress(
         const TOperationId& operationId,
-        NYson::IYsonConsumer* consumer) = 0;
+        NYTree::TFluentMap fluent) = 0;
 
     //! Similar to #BuildOperationProgress but constructs a reduced version to be used by UI.
     virtual void BuildBriefOperationProgress(
         const TOperationId& operationId,
-        NYson::IYsonConsumer* consumer) = 0;
+        NYTree::TFluentMap fluent) = 0;
 
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
-    virtual void BuildOrchid(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildOrchid(NYTree::TFluentMap fluent) = 0;
 
     //! Provides a string describing operation status and statistics.
     virtual TString GetOperationLoggingProgress(const TOperationId& operationId) = 0;
@@ -182,7 +180,7 @@ struct ISchedulerStrategy
     //! to be used by UI.
     virtual void BuildBriefSpec(
         const TOperationId& operationId,
-        NYson::IYsonConsumer* consumer) = 0;
+        NYTree::TFluentMap fluent) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -23,9 +23,10 @@ using namespace NObjectClient;
 using namespace NYPath;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
-using namespace NProto;
 using namespace NProfiling;
 using namespace NPhoenix;
+
+using NScheduler::NProto::TSchedulerJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,6 +155,7 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason ab
 TRunningJobSummary::TRunningJobSummary(const TJobPtr& job, TJobStatus* status)
     : TJobSummary(job, status)
     , Progress(status->progress())
+    , StderrSize(status->stderr_size())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

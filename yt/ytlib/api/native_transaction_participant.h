@@ -15,7 +15,6 @@ namespace NApi {
 
 NHiveClient::ITransactionParticipantPtr CreateNativeTransactionParticipant(
     NHiveClient::TCellDirectoryPtr cellDirectory,
-    NHiveClient::TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
     const NObjectClient::TCellId& cellId,
     const TTransactionParticipantOptions& options);

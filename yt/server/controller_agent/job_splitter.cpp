@@ -128,9 +128,9 @@ public:
         return jobCount;
     }
 
-    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override
+    virtual void BuildJobSplitterInfo(TFluentMap fluent) const override
     {
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("build_time").Value(GetInstant())
             .Item("running_job_count").Value(RunningJobs_.size())
             .Item("max_running_job_count").Value(MaxRunningJobCount_)
@@ -235,9 +235,9 @@ private:
             return InterruptCandidateSet_.find(jobId) != InterruptCandidateSet_.end();
         }
 
-        void BuildStatistics(NYson::IYsonConsumer* consumer) const
+        void BuildStatistics(TFluentMap fluent) const
         {
-            BuildYsonMapFluently(consumer)
+            fluent
                 .Item("median_remaining_duration").Value(MedianCompletionTime_ - GetInstant())
                 .Item("next_update_time").Value(NextUpdateTime_);
         }
@@ -320,9 +320,9 @@ private:
             return TotalRowCount_;
         }
 
-        void BuildRunningJobInfo(NYson::IYsonConsumer* consumer) const
+        void BuildRunningJobInfo(TFluentMap fluent) const
         {
-            BuildYsonMapFluently(consumer)
+            fluent
                 .Item("row_count").Value(RowCount_)
                 .Item("splittable").Value(IsSplittable_)
                 .Item("total_row_count").Value(TotalRowCount_)

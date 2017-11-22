@@ -34,14 +34,21 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
+static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStore::TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
+    , ProfilingExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetControlInvoker(),
+        BIND(&TChunkStore::OnProfiling, MakeWeak(this)),
+        ProfilingPeriod))
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+
+    ProfilingExecutor_->Start();
 }
 
 void TChunkStore::Initialize()
@@ -430,7 +437,7 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto sessionManager = Bootstrap_->GetSessionManager();
+    const auto& sessionManager = Bootstrap_->GetSessionManager();
 
     auto sessionId = TSessionId(chunk->GetId(), chunk->GetLocation()->GetMediumDescriptor().Index);
     auto session = sessionManager->FindSession(sessionId);
@@ -593,6 +600,38 @@ void TChunkStore::ExpirePlacementInfos()
             placementId);
         YCHECK(PlacementIdToInfo_.erase(placementId) == 1);
         DeadlineToPlacementId_.erase(it);
+    }
+}
+
+void TChunkStore::OnProfiling()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto* profilingManager = NProfiling::TProfileManager::Get();
+    for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
+        NProfiling::TTagIdList tagIds = {
+            profilingManager->RegisterTag("type", type)
+        };
+        for (const auto& location : Locations_) {
+            const auto& profiler = location->GetProfiler();
+            profiler.Enqueue(
+                "/session_count",
+                location->GetSessionCount(type),
+                NProfiling::EMetricType::Gauge,
+                tagIds);
+        }
+    }
+
+    for (const auto& location : Locations_) {
+        const auto& profiler = location->GetProfiler();
+        profiler.Enqueue(
+            "/available_space",
+            location->GetAvailableSpace(),
+            NProfiling::EMetricType::Gauge);
+        profiler.Enqueue(
+            "/full",
+            location->IsFull() ? 1 : 0,
+            NProfiling::EMetricType::Gauge);
     }
 }
 

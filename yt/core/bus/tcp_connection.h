@@ -45,7 +45,7 @@ public:
     TTcpConnection(
         TTcpBusConfigPtr config,
         EConnectionType connectionType,
-        TNullable<ETcpInterfaceType> interfaceType,
+        const TString& networkName,
         const TConnectionId& id,
         int socket,
         const TString& endpointDescription,
@@ -70,6 +70,7 @@ public:
     // IBus implementation.
     virtual const TString& GetEndpointDescription() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    virtual TTcpDispatcherStatistics GetStatistics() const override;
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
     virtual void Terminate(const TError& error) override;
 
@@ -146,7 +147,7 @@ private:
     const NLogging::TLogger Logger;
     const TString LoggingId_;
 
-    TNullable<ETcpInterfaceType> InterfaceType_;
+    TString NetworkName_;
     TTcpDispatcherCountersPtr Counters_;
     bool GenerateChecksums_ = true;
     bool ConnectionCounterIncremented_ = false;
@@ -209,8 +210,8 @@ private:
     void CloseSocket();
 
     void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);
-    void OnAddressResolved(const NNet::TNetworkAddress& address, ETcpInterfaceType interfaceType);
-    void SetupInterfaceType(ETcpInterfaceType interfaceType);
+    void OnAddressResolved(const NNet::TNetworkAddress& address);
+    void SetupNetwork(const TString& networkName);
 
     int GetSocketError() const;
     bool IsSocketError(ssize_t result);

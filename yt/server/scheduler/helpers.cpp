@@ -21,7 +21,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NProto;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCoreDump::NProto;
@@ -38,9 +37,9 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
+void BuildInitializingOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpec())
@@ -54,26 +53,26 @@ void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonC
         .Do(BIND(&BuildRunningOperationAttributes, operation));
 }
 
-void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
+void BuildRunningOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
     auto controller = operation->GetController();
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
         .Item("slot_index").Value(operation->GetSlotIndex())
-        .DoIf(static_cast<bool>(controller), BIND([=] (IYsonConsumer* consumer) {
+        .DoIf(static_cast<bool>(controller), BIND([=] (TFluentMap fluent) {
             auto asyncResult = BIND(&NControllerAgent::IOperationController::BuildOperationAttributes, controller)
                 .AsyncVia(controller->GetInvoker())
-                .Run(consumer);
+                .Run(fluent);
             WaitFor(asyncResult)
                 .ThrowOnError();
         }));
 }
 
-void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
+void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("state").Value(node->GetMasterState())
         .Item("resource_usage").Value(node->GetResourceUsage())
         .Item("resource_limits").Value(node->GetResourceLimits());

@@ -1,18 +1,21 @@
 #include "job_environment.h"
 #include "config.h"
-#include "mounter.h"
+#include "job_directory_manager.h"
 #include "private.h"
 
 #include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
 #include <yt/server/data_node/master_connector.h>
 
 #include <yt/server/program/names.h>
 
+#ifdef _linux_
 #include <yt/server/containers/container_manager.h>
 #include <yt/server/containers/instance.h>
 
 #include <yt/server/misc/process.h>
+#endif
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
@@ -33,18 +36,26 @@ namespace NExecAgent {
 using namespace NCGroup;
 using namespace NCellNode;
 using namespace NConcurrency;
+#ifdef _linux_
 using namespace NContainers;
+#endif
 using namespace NYTree;
 using namespace NTools;
+
+////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TString GetSlotProcessGroup(int slotIndex)
 {
-    return "slots/" + ToString(slotIndex);
+    return Format("slots/%v", slotIndex);
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,15 +120,6 @@ public:
         return Enabled_;
     }
 
-    virtual IMounterPtr CreateMounter(int /*slotIndex*/) override
-    {
-        //Same mounter for all slots.
-        if (!Mounter_) {
-            Mounter_ = CreateSimpleMounter(ActionQueue_->GetInvoker());
-        }
-        return Mounter_;
-    }
-
 protected:
     struct TJobProxyProcess
     {
@@ -179,8 +181,6 @@ protected:
     { }
 
 private:
-    IMounterPtr Mounter_;
-
     virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/)
     {
         return New<TSimpleProcess>(JobProxyProgramName);
@@ -251,8 +251,17 @@ public:
         return Config_->StartUid + slotIndex;
     }
 
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
+    {
+        return CreateSimpleJobDirectoryManager(
+            MounterThread_->GetInvoker(),
+            path,
+            Bootstrap_->GetConfig()->ExecAgent->SlotManager->DetachedTmpfsUmount);
+    }
+
 private:
     const TCGroupJobEnvironmentConfigPtr Config_;
+    const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
     virtual void AddArguments(TProcessBasePtr process, int slotIndex) override
     {
@@ -321,12 +330,23 @@ public:
             : ::getuid();
     }
 
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
+    {
+        return CreateSimpleJobDirectoryManager(
+            MounterThread_->GetInvoker(),
+            path,
+            Bootstrap_->GetConfig()->ExecAgent->SlotManager->DetachedTmpfsUmount);
+    }
+
 private:
     const TSimpleJobEnvironmentConfigPtr Config_;
     const bool HasRootPermissions_ = HasRootPermissions();
+    const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
 
 class TPortoJobEnvironment
     : public TProcessJobEnvironmentBase
@@ -385,14 +405,9 @@ public:
         return Config_->StartUid + slotIndex;
     }
 
-    virtual IMounterPtr CreateMounter(int slotIndex) override
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& /* path */)
     {
-        auto instanceProvider = BIND([=, this_ = MakeStrong(this)]() {
-            InitPortoInstance(slotIndex);
-            return PortoInstances_.at(slotIndex);
-        });
-
-        return CreatePortoMounter(instanceProvider);
+        return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager);
     }
 
 private:
@@ -415,6 +430,8 @@ private:
     yhash<int, IInstancePtr> PortoInstances_;
 };
 
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* bootstrap)
@@ -436,10 +453,14 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* b
         }
 
         case EJobEnvironmentType::Porto: {
+#ifdef _linux_
             auto portoConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(configNode);
             return New<TPortoJobEnvironment>(
                 portoConfig,
                 bootstrap);
+#else
+            THROW_ERROR_EXCEPTION("Porto is not supported for this platform");
+#endif
         }
 
         default:

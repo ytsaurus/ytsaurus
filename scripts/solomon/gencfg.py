@@ -312,7 +312,7 @@ class Resource(object):
     def create(self, dry_run):
         logging.debug("Creating resource '%s'%s", self.api_url_create, " (dry run)" if dry_run else "")
         if dry_run:
-            self.view_diff()
+            view_object("Create object %s %s" % (self.api_url_create, self.id), self.local)
             return
         rsp = requests.post(self.api_url_create, headers=self.headers, json=self._local_data)
         if not rsp.ok:
@@ -459,10 +459,11 @@ def check_solomon_services(token, yes):
 @cli.command()
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
+@click.option("--type", multiple=True)
 @click.option("--yes", is_flag=True)
-def update_cluster_nodes(token, cluster, yes):
+def update_cluster_nodes(token, cluster, type, yes):
     solomon_cluster = normalize_cluster_id(cluster)
-    types = get_cluster_types()
+    types = get_cluster_types() if not type else type
 
     for type in types:
         conductor_groups = get_conductor_groups(solomon_cluster, type)
@@ -483,10 +484,12 @@ def update_cluster_nodes(token, cluster, yes):
 @cli.command()
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
+@click.option("--type", multiple=True)
 @click.option("--yes", is_flag=True)
-def update_cluster_services(token, cluster, yes):
+def update_cluster_services(token, cluster, type, yes):
     solomon_cluster = normalize_cluster_id(cluster)
-    types = get_cluster_types()
+    types = get_cluster_types() if not type else type
+    type_set = set(types)
 
     cluster_services = {}
     for type in types:
@@ -499,6 +502,8 @@ def update_cluster_services(token, cluster, yes):
     tag = "".join(random.choice("0123456789abcdef") for _ in range(8))
     for service_description in SERVICES:
         type = service_description["type"]
+        if type not in type_set:
+            continue
         solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type)
         service = service_description["solomon_id"]
         if service in cluster_services:
@@ -523,22 +528,26 @@ def update_cluster_services(token, cluster, yes):
 @cli.command()
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
+@click.option("--type", multiple=True)  # type can be empty to cleanup old scheme
 @click.option("--yes", is_flag=True)
-def unlink_cluster(token, cluster, yes):
+def unlink_cluster(token, cluster, type, yes):
     solomon_cluster = normalize_cluster_id(cluster)
     cluster_services = get_cluster_services()
+    types = get_cluster_types() if not type else type
 
-    resource = Resource("/projects/yt/clusters/%s" % solomon_cluster, "services", token)
-    resource.load()
+    for type in types:
+        solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type) if type else solomon_cluster
+        resource = Resource("/projects/yt/clusters/%s" % solomon_cluster_type, "services", token)
+        resource.load()
 
-    for item in resource.local:
-        if item["id"] not in cluster_services:
-            continue
-        shard_id = item["shardId"]
-        if yes:
-            Resource("/projects/yt/shards", shard_id, token).delete()
-        else:
-            view_object("Deleting shard '%s'" % shard_id, item)
+        for item in resource.local:
+            if item["id"] not in cluster_services:
+                continue
+            shard_id = item["shardId"]
+            if yes:
+                Resource("/projects/yt/shards", shard_id, token).delete()
+            else:
+                view_object("Deleting shard '%s'" % shard_id, item)
 
 
 @cli.command()

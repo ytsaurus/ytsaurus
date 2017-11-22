@@ -1,6 +1,6 @@
 package NYT.NHydra.NProto;
 
-import "yt/core/misc/guid.proto";
+import "yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
