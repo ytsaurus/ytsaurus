@@ -47,6 +47,8 @@ void TGetCommand::DoExecute(ICommandContextPtr context)
 TSetCommand::TSetCommand()
 {
     RegisterParameter("path", Path);
+    RegisterParameter("recursive", Options.Recursive)
+        .Optional();
 }
 
 void TSetCommand::DoExecute(ICommandContextPtr context)

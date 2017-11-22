@@ -717,6 +717,10 @@ private:
         TSetNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
 
+        if (request->has_recursive()) {
+            options.Recursive = request->recursive();
+        }
+
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }

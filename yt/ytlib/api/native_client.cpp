@@ -2225,6 +2225,7 @@ private:
         writer.OnRaw(value.GetData(), EYsonType::Node);
         writer.Flush();
         req->set_value(stream.Str());
+        req->set_recursive(options.Recursive);
 
         batchReq->AddRequest(req);
 

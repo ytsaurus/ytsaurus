@@ -177,6 +177,12 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/map/list")
         assert get("//tmp/map") == {}
 
+        with pytest.raises(YtError):
+            set("//tmp/missing/node", {})
+
+        set("//tmp/missing/node", {}, recursive=True)
+        assert get("//tmp/missing") == {"node": {}}
+
     def test_attributes(self):
         set("//tmp/t", "<attr=100;mode=rw> {nodes=[1; 2]}", is_raw=True)
         assert get("//tmp/t/@attr") == 100
@@ -420,7 +426,7 @@ class TestCypress(YTEnvSetup):
 
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
-        assert get("//tmp/t/@compression_codec") == "none" 
+        assert get("//tmp/t/@compression_codec") == "none"
         tx = start_transaction()
         assert get("//tmp/t/@compression_codec", tx=tx) == "none"
         set("//tmp/t/@compression_codec", "lz4", tx=tx)
@@ -829,14 +835,14 @@ class TestCypress(YTEnvSetup):
         link("//tmp/t1", "//tmp/l")
         assert get("//tmp/l/@id") == id1
         with pytest.raises(YtError): link("//tmp/t2", "//tmp/l")
-        
+
     def test_link_ignore_existing(self):
         id1 = create("table", "//tmp/t1")
         id2 = create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         link("//tmp/t2", "//tmp/l", ignore_existing=True)
         assert get("//tmp/l/@id") == id1
-        
+
     def test_link_force1(self):
         id1 = create("table", "//tmp/t1")
         id2 = create("table", "//tmp/t2")
@@ -880,7 +886,7 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t2", "//tmp/l", force=True)
         assert get("//tmp/l/@type") == "table"
         assert get("//tmp/t1/@id") == id1
-                
+
     def test_link_as_move_target_fail(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1189,7 +1195,7 @@ class TestCypress(YTEnvSetup):
         abort_transaction(tx)
         time.sleep(0.1)
         assert not exists("//tmp/x/t")
-    
+
     def test_expiration_time_wait_for_locks_released_recursive(self):
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t")
@@ -1240,21 +1246,21 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
         time.sleep(0.1)
         assert not exists("//tmp/t2")
-    
+
     def test_copy_preserve_creation_time(self):
         create("table", "//tmp/t1")
         creation_time = get("//tmp/t1/@creation_time")
-        
+
         copy("//tmp/t1", "//tmp/t2", preserve_creation_time=True)
         assert creation_time == get("//tmp/t2/@creation_time")
-        
+
         move("//tmp/t2", "//tmp/t1", force=True)
         assert creation_time == get("//tmp/t1/@creation_time")
-        
+
         copy("//tmp/t1", "//tmp/t2")
         new_creation_time = get("//tmp/t2/@creation_time")
         assert creation_time != new_creation_time
-        
+
         move("//tmp/t2", "//tmp/t1", force=True)
         assert new_creation_time == get("//tmp/t1/@creation_time")
 
@@ -1272,7 +1278,7 @@ class TestCypress(YTEnvSetup):
 
     def test_ignore_ampersand3(self):
         assert get("//sys/chunks&/@type") == "chunk_map"
-    
+
     def test_ignore_ampersand4(self):
         assert not exists("//tmp/missing")
         assert not exists("//tmp/missing&")
@@ -1358,7 +1364,7 @@ class TestCypress(YTEnvSetup):
         creation_time = get("//tmp/t1/@creation_time")
         move("//tmp/t1", "//tmp/t2")
         assert creation_time == get("//tmp/t2/@creation_time")
-        
+
     def test_move_preserves_creation_time2(self):
         set("//tmp/t1", {"x": "y"})
         creation_time1 = get("//tmp/t1/@creation_time")
@@ -1366,6 +1372,22 @@ class TestCypress(YTEnvSetup):
         move("//tmp/t1", "//tmp/t2")
         assert creation_time1 == get("//tmp/t2/@creation_time")
         assert creation_time2 == get("//tmp/t2/x/@creation_time")
+
+    def test_document(self):
+        create("document", "//tmp/d1")
+
+        set("//tmp/d1", {})
+        assert get("//tmp/d1") == {}
+        assert get("//tmp/d1/@type") == "document"
+
+        set("//tmp/d1/value", 10)
+        assert get("//tmp/d1/value") == 10
+
+        with pytest.raises(YtError):
+            set("//tmp/d1/some/path", "hello")
+
+        set("//tmp/d1/some/path", "hello", recursive=True)
+        assert get("//tmp/d1") == {"value": 10, "some": {"path": "hello"}}
 
     def test_setting_document_node_increases_revision_yt_7829(self):
         create("document", "//tmp/d1")

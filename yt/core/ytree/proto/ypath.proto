@@ -64,6 +64,7 @@ message TRspGetKey
 message TReqSet
 {
     required bytes value = 1;
+    optional bool recursive = 2 [default = false];
 }
 
 message TRspSet
