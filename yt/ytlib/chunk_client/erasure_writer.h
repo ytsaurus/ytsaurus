@@ -23,7 +23,8 @@ IChunkWriterPtr CreateErasureWriter(
     const TSessionId& sessionId,
     NErasure::ECodec codecId,
     NErasure::ICodec* codec,
-    const std::vector<IChunkWriterPtr>& writers);
+    const std::vector<IChunkWriterPtr>& writers,
+    const TWorkloadDescriptor& workloadDescriptor);
 
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,

@@ -205,7 +205,8 @@ public:
             TSessionId(),
             codecId,
             codec,
-            writers);
+            writers,
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch));
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {
