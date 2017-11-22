@@ -181,7 +181,11 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
     auto node = GetOrRegisterNode(nodeId, descriptor);
     // NB: Resource limits and usage of node should be updated even if
     // node is offline to avoid getting incorrect total limits when node becomes online.
-    UpdateNodeResources(node, request->resource_limits(), request->resource_usage());
+    UpdateNodeResources(node,
+        request->resource_limits(),
+        request->resource_usage(),
+        request->disk_limits(),
+        request->disk_usage());
 
     if (node->GetMasterState() != ENodeState::Online) {
         context->Reply(TError("Node is not online"));
@@ -1243,7 +1247,12 @@ void TNodeShard::AddNodeResources(TExecNodePtr node)
     }
 }
 
-void TNodeShard::UpdateNodeResources(TExecNodePtr node, const TJobResources& limits, const TJobResources& usage)
+void TNodeShard::UpdateNodeResources(
+    TExecNodePtr node,
+    const TJobResources& limits,
+    const TJobResources& usage,
+    const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskUsage)
 {
     auto oldResourceLimits = node->GetResourceLimits();
     auto oldResourceUsage = node->GetResourceUsage();
@@ -1255,6 +1264,8 @@ void TNodeShard::UpdateNodeResources(TExecNodePtr node, const TJobResources& lim
         }
         node->SetResourceLimits(limits);
         node->SetResourceUsage(usage);
+        node->SetDiskUsage(diskUsage);
+        node->SetDiskLimits(diskLimits);
     } else {
         if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == ENodeState::Online) {
             ExecNodeCount_ -= 1;

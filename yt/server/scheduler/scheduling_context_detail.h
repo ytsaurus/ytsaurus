@@ -17,6 +17,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsageDiscount);
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TDiskResources, DiskUsage);
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TDiskResources, DiskLimits);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
@@ -34,6 +36,7 @@ public:
     virtual TJobPtr GetStartedJob(const TJobId& jobId) const override;
 
     virtual bool CanStartJob(const TJobResources& jobResources) const override;
+    virtual bool CanStartJobWithQuota(const TJobResourcesWithQuota& jobResourcesWithQuota) const override;
     virtual bool CanStartMoreJobs() const override;
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const override;
 

@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -20,6 +21,8 @@ TSchedulingContextBase::TSchedulingContextBase(
     : ResourceUsageDiscount_(ZeroJobResources())
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
+    , DiskUsage_(node->GetDiskUsage())
+    , DiskLimits_(node->GetDiskLimits())
     , RunningJobs_(runningJobs)
     , Config_(config)
     , CellTag_(cellTag)
@@ -54,6 +57,15 @@ bool TSchedulingContextBase::HasEnoughResources(const TJobResources& neededResou
 bool TSchedulingContextBase::CanStartJob(const TJobResources& jobResources) const
 {
     return HasEnoughResources(jobResources - ResourceUsageDiscount());
+}
+
+bool TSchedulingContextBase::CanStartJobWithQuota(const TJobResourcesWithQuota& jobResourcesWithQuota) const
+{
+    if (!CanStartJob(jobResourcesWithQuota.ToJobResources())) {
+        return false;
+    }
+
+    return CanSatisfyDiskRequest(DiskLimits_, DiskUsage_, jobResourcesWithQuota.GetDiskQuota());
 }
 
 bool TSchedulingContextBase::CanStartMoreJobs() const

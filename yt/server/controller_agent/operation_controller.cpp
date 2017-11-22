@@ -179,7 +179,7 @@ public:
         return Underlying_->GetNeededResources();
     }
 
-    virtual std::vector<TJobResources> GetMinNeededJobResources() const
+    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const
     {
         return Underlying_->GetMinNeededJobResources();
     }
@@ -211,7 +211,7 @@ public:
 
     virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
-        const TJobResources& jobLimits) override
+        const TJobResourcesWithQuota& jobLimits) override
     {
         return Underlying_->ScheduleJob(std::move(context), jobLimits);
     }

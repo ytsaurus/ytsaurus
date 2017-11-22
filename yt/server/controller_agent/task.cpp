@@ -120,7 +120,7 @@ TJobResources TTask::GetTotalNeededResources() const
 {
     i64 count = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
-    return count == 0 ? ZeroJobResources() : GetMinNeededResources() * count;
+    return count == 0 ? ZeroJobResources() : GetMinNeededResources().ToJobResources() * count;
 }
 
 bool TTask::IsStderrTableEnabled() const
@@ -801,7 +801,7 @@ void TTask::RegisterOutput(
     }
 }
 
-TJobResources TTask::GetMinNeededResources() const
+NScheduler::TJobResourcesWithQuota TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources_) {
         YCHECK(GetPendingJobCount() > 0);
@@ -811,7 +811,7 @@ TJobResources TTask::GetMinNeededResources() const
     if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
         LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
     }
-    return result;
+    return NScheduler::TJobResourcesWithQuota(result);
 }
 
 void TTask::RegisterStripe(

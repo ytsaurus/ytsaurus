@@ -296,7 +296,12 @@ private:
 
     void SubtractNodeResources(TExecNodePtr node);
     void AddNodeResources(TExecNodePtr node);
-    void UpdateNodeResources(TExecNodePtr node, const TJobResources& limits, const TJobResources& usage);
+    void UpdateNodeResources(
+        TExecNodePtr node,
+        const TJobResources& limits,
+        const TJobResources& usage,
+        const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskUsage);
 
     void BeginNodeHeartbeatProcessing(TExecNodePtr node);
     void EndNodeHeartbeatProcessing(TExecNodePtr node);

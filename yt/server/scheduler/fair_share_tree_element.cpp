@@ -1800,7 +1800,7 @@ TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limi
 bool TOperationElement::HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const
 {
     for (const auto& jobResources : Controller_->GetMinNeededJobResourcesList()) {
-        if (context.SchedulingContext->CanStartJob(jobResources)) {
+        if (context.SchedulingContext->CanStartJobWithQuota(jobResources)) {
             return true;
         }
     }
@@ -1907,7 +1907,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     }
 
     auto jobLimits = GetHierarchicalResourceLimits(context);
-    auto minNeededResources = Controller_->GetMinNeededJobResources();
+    auto minNeededResources = Controller_->GetMinNeededJobResources().ToJobResources();
     if (!TryStartScheduleJob(
         now,
         jobLimits,

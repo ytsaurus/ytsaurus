@@ -169,7 +169,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TScheduleJobResultPtr,
         ScheduleJob,
-        (NScheduler::ISchedulingContextPtr context, const TJobResources& jobLimits),
+        (NScheduler::ISchedulingContextPtr context, const NScheduler::TJobResourcesWithQuota& jobLimits),
         (context, jobLimits),
         INVOKER_AFFINITY(CancelableInvoker),
         true,
@@ -226,7 +226,7 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
-    virtual std::vector<TJobResources> GetMinNeededJobResources() const override;
+    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override;
 
     virtual bool IsForgotten() const override;
     virtual bool IsRevivedFromSnapshot() const override;
@@ -531,7 +531,7 @@ protected:
 
     void DoScheduleJob(
         NScheduler::ISchedulingContext* context,
-        const TJobResources& jobLimits,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
