@@ -307,6 +307,11 @@ public:
         return Underlying_->ExtractJobMetricsDelta();
     }
 
+    virtual TOperationAlertsMap GetAlerts() override
+    {
+        return Underlying_->GetAlerts();
+    }
+
     virtual TYsonString BuildSuspiciousJobsYson() const override
     {
         return Underlying_->BuildSuspiciousJobsYson();

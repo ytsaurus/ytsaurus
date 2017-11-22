@@ -354,6 +354,11 @@ bool operator == (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
         lhs.InnerErrors() == rhs.InnerErrors();
 }
 
+bool operator != (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
+{
+    return !(lhs == rhs);
+}
+
 TString ToString(const TError& error)
 {
     TStringBuilder builder;

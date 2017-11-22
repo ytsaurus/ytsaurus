@@ -61,6 +61,10 @@ DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TOperationAlertsMap = yhash<EOperationAlertType, TError>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TOperationControllerInitializeResult
 {
     NYson::TYsonString BriefSpec;
@@ -122,15 +126,6 @@ struct IOperationHost
      */
     virtual void OnUserTransactionAborted(
         const TOperationId& operationId) = 0;
-
-    //! Sets operation alert.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual TFuture<void> SetOperationAlert(
-        const TOperationId& operationId,
-        EOperationAlertType alertType,
-        const TError& alert) = 0;
 };
 
 struct IOperationControllerStrategyHost
@@ -435,6 +430,12 @@ struct IOperationController
      */
     //! Returns metrics delta since last call.
     virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() = 0;
+
+    /*!
+     * \note Invoker affinity: any.
+     */
+    //! Build operation alerts.
+    virtual TOperationAlertsMap GetAlerts() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
