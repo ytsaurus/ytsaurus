@@ -71,6 +71,12 @@ static const size_t MaxRowsPerWrite = 65536;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ * Ultimately, the goal of the compactor is to control the overlapping store count
+ * by performing compactions and partitionings. A compaction operates within a partition,
+ * replacing a set of stores with a newly baked one. A partitioning operates on the Eden,
+ * replacing a set of Eden stores with a set of partition-bound stores.
+ */
 class TStoreCompactor
     : public TRefCounted
 {
@@ -118,10 +124,19 @@ private:
     {
         TTabletSlotPtr Slot;
         IInvokerPtr Invoker;
+
         TTabletId Tablet;
         TPartitionId Partition;
         std::vector<TStoreId> Stores;
-        ui64 Score = 0;
+
+        // Overlapping stores slack for the task.
+        // That is, the remaining number of stores in the partition till
+        // the tablet hits MOSC limit.
+        // Small values indicate that the tablet is in a critical state.
+        ui64 Slack = 0;
+        // Guaranteed effect on the slack if this task will be done.
+        // This is a conservative estimate.
+        ui64 Effect = 0;
         ui64 Random = RandomNumber<size_t>();
 
         TTask() = default;
@@ -132,7 +147,7 @@ private:
 
         auto MakeComparableValue()
         {
-            return std::make_tuple(Score, -Stores.size(), Random);
+            return std::make_tuple(Slack, -Effect, -Stores.size(), Random);
         }
     };
 
@@ -246,9 +261,10 @@ private:
         candidate->Stores = std::move(stores);
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
-        const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
-        const int osc = tablet->GetOverlappingStoreCount();
-        candidate->Score = static_cast<size_t>(std::max(0, mosc - osc));
+        const int overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
+        candidate->Slack = static_cast<size_t>(std::max(0, overlappingStoreLimit - overlappingStoreCount));
+        candidate->Effect = candidate->Stores.size() - 1;
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -279,14 +295,20 @@ private:
         candidate->Stores = std::move(stores);
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
-        const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
-        const int osc = tablet->GetOverlappingStoreCount();
-        const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
-        const int partitionStoreCount = static_cast<int>(partition->Stores().size());
-        // For constrained partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
-        candidate->Score = partition->IsEden()
-            ? static_cast<size_t>(std::max(0, mosc - osc))
-            : static_cast<size_t>(std::max(0, mosc - edenStoreCount - partitionStoreCount));
+        const int overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
+        if (partition->IsEden()) {
+            candidate->Slack = static_cast<size_t>(std::max(0, overlappingStoreLimit - overlappingStoreCount));
+            candidate->Effect = candidate->Stores.size() - 1;
+        } else {
+            // For critical partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
+            const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
+            const int partitionStoreCount = static_cast<int>(partition->Stores().size());
+            candidate->Slack = static_cast<size_t>(std::max(0, overlappingStoreLimit - edenStoreCount - partitionStoreCount));
+            if (tablet->GetCriticalPartitionCount() == 1 && edenStoreCount + partitionStoreCount == overlappingStoreCount) {
+                candidate->Effect = candidate->Stores.size() - 1;
+            }
+        }
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -682,8 +704,10 @@ private:
             auto beginInstant = TInstant::Now();
             eden->SetCompactionTime(beginInstant);
 
-            LOG_INFO("Eden partitioning started (Score: %v, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
-                task->Score,
+            LOG_INFO("Eden partitioning started (Slack: %v, Effect: %v, PartitionCount: %v, DataSize: %v, "
+                "ChunkCount: %v, CurrentTimestamp: %llx)",
+                task->Slack,
+                task->Effect,
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
@@ -1042,9 +1066,10 @@ private:
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
-            LOG_INFO("Partition compaction started (Score: %v, DataSize: %v, ChunkCount: %v, "
+            LOG_INFO("Partition compaction started (Slack: %v, Effect: %v, DataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
-                task->Score,
+                task->Slack,
+                task->Effect,
                 dataSize,
                 stores.size(),
                 currentTimestamp,
