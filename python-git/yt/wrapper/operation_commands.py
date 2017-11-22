@@ -1,6 +1,6 @@
 from .common import ThreadPoolHelper
 from .config import get_config
-from .errors import YtError, YtOperationFailedError, YtResponseError
+from .errors import YtOperationFailedError, YtResponseError
 from .driver import make_request
 from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
@@ -13,7 +13,7 @@ import yt.logger as logger
 from yt.common import format_error, date_string_to_datetime, to_native_str, flatten
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, iterkeys, itervalues
+from yt.packages.six import iteritems, itervalues
 from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 
 import logging
@@ -309,25 +309,26 @@ def get_stderrs(operation, only_failed_jobs, client=None):
             pool.join()
     return result
 
-def format_operation_stderrs(jobs_with_stderr):
-    """Formats operation jobs with stderr to string."""
+def format_operation_stderr(job_with_stderr, output):
+    output.write("Host: ")
+    output.write(job_with_stderr["host"])
+    output.write("\n")
 
-    output = StringIO()
-
-    for job in jobs_with_stderr:
-        output.write("Host: ")
-        output.write(job["host"])
+    if "error" in job_with_stderr:
+        output.write("Error:\n")
+        output.write(format_error(job_with_stderr["error"]))
         output.write("\n")
 
-        if "error" in job:
-            output.write("Error:\n")
-            output.write(format_error(job["error"]))
-            output.write("\n")
+    if "stderr" in job_with_stderr:
+        output.write(job_with_stderr["stderr"])
+        output.write("\n")
 
-        if "stderr" in job:
-            output.write(job["stderr"])
-            output.write("\n\n")
-
+def format_operation_stderrs(jobs_with_stderr):
+    """Formats operation jobs with stderr to string."""
+    output = StringIO()
+    for job_with_stderr in jobs_with_stderr:
+        format_operation_stderr(job_with_stderr, output)
+        output.write("\n")
     return output.getvalue()
 
 # TODO(ignat): is it convinient and generic way to get stderrs? Move to tests? Or remove it completely?
@@ -359,6 +360,15 @@ def _create_operation_failed_error(operation, state):
         stderrs=stderrs,
         url=operation.url)
 
+def get_operation_url(operation, client=None):
+    proxy_url = get_proxy_url(required=False, client=client)
+    if not proxy_url:
+        return None
+
+    return get_config(client)["proxy"]["operation_link_pattern"].format(
+        proxy=get_proxy_url(client=client),
+        id=operation)
+
 class Operation(object):
     """Holds information about started operation."""
     def __init__(self, type, id, finalization_actions=None, abort_exceptions=(KeyboardInterrupt,), client=None):
@@ -368,14 +378,7 @@ class Operation(object):
         self.finalization_actions = finalization_actions
         self.client = client
         self.printer = PrintOperationInfo(id, client=client)
-
-        proxy_url = get_proxy_url(required=False, client=self.client)
-        if proxy_url:
-            self.url = \
-                get_config(self.client)["proxy"]["operation_link_pattern"]\
-                    .format(proxy=get_proxy_url(client=self.client), id=self.id)
-        else:
-            self.url = None
+        self.url = get_operation_url(id, client=client)
 
     def suspend(self):
         """Suspends operation."""
@@ -471,7 +474,14 @@ class Operation(object):
                 finalize_function(state)
 
         if check_result and state.is_unsuccessfully_finished():
-            raise _create_operation_failed_error(self, state)
+            error = _create_operation_failed_error(self, state)
+            if get_config(self.client)["operation_tracker"]["enable_logging_failed_operation"]:
+                logger.warning("***** Failed operation information:\n%s", str(error))
+                if error.attributes["stderrs"]:
+                    job_output = StringIO()
+                    format_operation_stderr(error.attributes["stderrs"][0], job_output)
+                    logger.warning("One of the failed jobs:\n%s", job_output.getvalue())
+            raise error
 
         if get_config(self.client)["operation_tracker"]["log_job_statistics"]:
             statistics = self.get_job_statistics()
@@ -483,118 +493,3 @@ class Operation(object):
             stderrs = get_stderrs(self.id, only_failed_jobs=False, client=self.client)
             if stderrs:
                 logger.log(stderr_level, "\n" + format_operation_stderrs(stderrs))
-
-class OperationsTracker(object):
-    """Holds operations and allows to wait or abort all tracked operations."""
-    def __init__(self, poll_period=5000, abort_on_sigint=True):
-        self.operations = {}
-
-        self._poll_period = poll_period
-        self._abort_on_sigint = abort_on_sigint
-
-    def add(self, operation):
-        """Adds Operation object to tracker.
-
-        :param Operation operation: operation to track.
-        """
-        if operation is None:
-            return
-
-        if not isinstance(operation, Operation):
-            raise YtError("Valid Operation object should be passed "
-                          "to add method, not {0}".format(repr(operation)))
-
-        if not operation.exists():
-            raise YtError("Operation %s does not exist and is not added", operation.id)
-        self.operations[operation.id] = operation
-
-    def add_by_id(self, operation_id, client=None):
-        """Adds operation to tracker (by operation id)
-
-        :param str operation_id: operation id.
-        """
-        try:
-            attributes = get_operation_attributes(operation_id, client=client)
-            operation = Operation(attributes["operation_type"], operation_id, client=client)
-            self.operations[operation_id] = operation
-        except YtResponseError as err:
-            if err.is_resolve_error():
-                raise YtError("Operation %s does not exist and is not added", operation_id)
-            raise
-
-    def wait_all(self, check_result=True, print_progress=True, abort_exceptions=(KeyboardInterrupt,),
-                 keep_finished=False):
-        """Waits all added operations and prints progress.
-
-        :param bool check_result: if `True` then :class:`YtError <yt.common.YtError>` will be raised if \
-        any operation failed. For each failed operation \
-        :class:`YtOperationFailedError <yt.wrapper.errors.YtOperationFailedError>` \
-        object with details will be added to raised error.
-
-        :param bool print_progress: print progress.
-        :param tuple abort_exceptions: if any exception from this tuple is caught all operations \
-        will be aborted.
-        :param bool keep_finished: do not remove finished operations from tracker, just wait for them to finish.
-        """
-        logger.info("Waiting for %d operations to complete...", len(self.operations))
-
-        unsucessfully_finished_count = 0
-        inner_errors = []
-        operations_to_track = set(iterkeys(self.operations))
-
-        with ExceptionCatcher(abort_exceptions, self.abort_all, enable=self._abort_on_sigint):
-            while operations_to_track:
-                operations_to_remove = []
-
-                for id_ in operations_to_track:
-                    operation = self.operations[id_]
-
-                    state = operation.get_state()
-                    if print_progress:
-                        operation.printer(state)
-
-                    if state.is_finished():
-                        operations_to_remove.append(id_)
-
-                        if state.is_unsuccessfully_finished():
-                            unsucessfully_finished_count += 1
-                            inner_errors.append(_create_operation_failed_error(operation, state))
-
-                for operation_id in operations_to_remove:
-                    operations_to_track.remove(operation_id)
-                    if not keep_finished:
-                        del self.operations[operation_id]
-
-                sleep(self._poll_period / 1000.0)
-
-        if check_result and unsucessfully_finished_count > 0:
-            raise YtError("All tracked operations finished but {0} operations finished unsucessfully"
-                          .format(unsucessfully_finished_count), inner_errors=inner_errors)
-
-    def abort_all(self):
-        """Aborts all added operations."""
-        logger.info("Aborting %d operations", len(self.operations))
-        for id_, operation in iteritems(self.operations):
-            state = operation.get_state()
-
-            if state.is_finished():
-                logger.warning("Operation %s is in %s state and cannot be aborted", id_, state)
-                continue
-
-            operation.abort()
-            logger.info("Operation %s was aborted", id_)
-
-        self.operations.clear()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        if exc_type is None:
-            self.wait_all()
-        else:
-            logger.warning(
-                "Error: (type=%s, value=%s), aborting all operations in tracker...",
-                exc_type,
-                str(exc_value).replace("\n", "\\n"))
-            self.abort_all()

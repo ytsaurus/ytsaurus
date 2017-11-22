@@ -1,5 +1,5 @@
 from .common import (flatten, require, update, parse_bool, get_value, set_param, datetime_to_string,
-                     MB, chunk_iter_stream)
+                     MB, chunk_iter_stream, deprecated)
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
@@ -21,6 +21,7 @@ from yt.packages.six import PY3
 from yt.packages.six.moves import map as imap, filter as ifilter
 
 import random
+from copy import deepcopy
 from datetime import datetime, timedelta
 
 # Auxiliary methods
@@ -61,6 +62,17 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
 
     return formats[0]
 
+def _create_table(path, recursive=None, ignore_existing=False, attributes=None, client=None):
+    table = TablePath(path, client=client)
+    attributes = get_value(attributes, {})
+    if get_config(client)["create_table_attributes"] is not None:
+        attributes = update(deepcopy(get_config(client)["create_table_attributes"]), attributes)
+    if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
+        attributes = update({"compression_codec": "zlib_6"}, attributes)
+    create("table", table, recursive=recursive, ignore_existing=ignore_existing,
+           attributes=attributes, client=client)
+
+@deprecated()
 def create_table(path, recursive=None, ignore_existing=False,
                  attributes=None, client=None):
     """Creates empty table. Shortcut for `create("table", ...)`.
@@ -74,14 +86,8 @@ def create_table(path, recursive=None, ignore_existing=False,
     then :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` will be raised.
     :param dict attributes: attributes.
     """
-    table = TablePath(path, client=client)
-    attributes = get_value(attributes, {})
-    if get_config(client)["create_table_attributes"] is not None:
-        attributes = update(get_config(client)["create_table_attributes"], attributes)
-    if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
-        attributes = update({"compression_codec": "zlib_6"}, attributes)
-    create("table", table, recursive=recursive, ignore_existing=ignore_existing,
-           attributes=attributes, client=client)
+
+    _create_table(path, recursive, ignore_existing, attributes, client)
 
 def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeout=None, client=None):
     """Creates temporary table by given path with given prefix and return name.
@@ -111,7 +117,7 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
     attributes = update(
         {"expiration_time": datetime_to_string(datetime.utcnow() + timeout)},
         get_value(attributes, {}))
-    create_table(name, attributes=attributes, client=client)
+    _create_table(name, attributes=attributes, client=client)
     return name
 
 def write_table(table, input_stream, format=None, table_writer=None,
@@ -158,7 +164,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     def prepare_table(path):
         if not force_create:
             return
-        create_table(path, ignore_existing=True, client=client)
+        _create_table(path, ignore_existing=True, client=client)
 
     can_split_input = isinstance(input_stream, list) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
@@ -243,7 +249,7 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
 
     if part_size is None:
         try:
-            part_size = get_attribute(table, "part_size")
+            part_size = get_attribute(table, "part_size", client=client)
         except YtResponseError as err:
             if err.is_resolve_error():
                 raise YtError("You should specify part_size")

@@ -5,7 +5,7 @@ parameters, and then by kwargs options.
 """
 
 from .config import get_config
-from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool
+from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool, declare_deprecated
 from .mappings import FrozenDict
 from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
@@ -574,15 +574,35 @@ class YsonFormat(Format):
                       **kwargs)
             return
 
-        table_index = 0
-        for row in rows:
-            if isinstance(row, yson.YsonEntity):
-                if self._coerced_table_index_column in row.attributes:
-                    table_index = row.attributes[self._coerced_table_index_column]
-                    self._check_output_table_index(table_index, len(stream_or_streams))
-                    continue
+        class RowsIterator(Iterator):
+            def __init__(self, rows, coerced_table_index_column):
+                self.is_finished = False
+                self.table_index = 0
+                self._rows_iterator = iter(rows)
+                self._coerced_table_index_column = coerced_table_index_column
 
-            yson.dump([row], stream_or_streams[table_index],
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                try:
+                    row = next(self._rows_iterator)
+                except StopIteration:
+                    self.is_finished = True
+                    raise
+
+                if isinstance(row, yson.YsonEntity) and self._coerced_table_index_column in row.attributes:
+                    new_table_index = row.attributes[self._coerced_table_index_column]
+                    if self.table_index != new_table_index:
+                        YsonFormat._check_output_table_index(new_table_index, len(stream_or_streams))
+                        self.table_index = new_table_index
+                        raise StopIteration()
+
+                return row
+
+        rows_iterator = RowsIterator(rows, self._coerced_table_index_column)
+        while not rows_iterator.is_finished:
+            yson.dump(rows_iterator, stream_or_streams[rows_iterator.table_index],
                       yson_type="list_fragment",
                       yson_format=self.attributes["format"],
                       boolean_as_string=self.attributes["boolean_as_string"],
@@ -1098,11 +1118,9 @@ def create_format(yson_name, attributes=None, **kwargs):
     :param yson_name: YSON string like ``'<lenval=false;has_subkey=false>yamr'``.
     :param attributes: Deprecated! Don't use it! It will be removed!
     """
-    if attributes is not None:
-        logger.warning("Usage deprecated parameter 'attributes' of create_format. "
-                       "It will be removed!")
-    else:
-        attributes = {}
+
+    declare_deprecated('option "attributes"', attributes is not None)
+    attributes = get_value(attributes, {})
 
     yson_string = yson._loads_from_native_str(yson_name)
     attributes.update(yson_string.attributes)

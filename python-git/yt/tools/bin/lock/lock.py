@@ -9,17 +9,22 @@ import sys
 import time
 import signal
 import argparse
+import socket
 import subprocess
 
 def main():
     parser = argparse.ArgumentParser(description="Run command under lock")
     parser.add_argument("path")
     parser.add_argument("command", nargs="+")
+    parser.add_argument("--proxy")
     parser.add_argument("--step", type=float, default=1.0)
     parser.add_argument("--conflict-exit-code", type=int, default=1)
-    # TODO: support `--proxy` to allow running subcommands without changing their env.
+    parser.add_argument("--set-address", action="store_true", default=False)
     # TODO: support `--auto-create-file`.
     args = parser.parse_args()
+
+    if args.proxy is not None:
+        yt.config["proxy"]["url"] = args.proxy
 
     with yt.Transaction(attributes={"title": "yt_lock transaction"}) as tx:
         try:
@@ -29,6 +34,9 @@ def main():
                 logger.info("Lock conflict (path %s)", args.path)
                 sys.exit(args.conflict_exit_code)
             raise
+
+        if args.set_address:
+            yt.set(args.path + "/@address", socket.getfqdn())
 
         def handler():
             tx.__exit__(None, None, None)

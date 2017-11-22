@@ -344,7 +344,9 @@ default_config = {
         "stderr_download_thread_count": 10,
         # Timeout for downloading jobs stderr messages.
         # This parameter is only supported if stderr_download_threading_enable is True.
-        "stderr_download_timeout": 60 * 1000
+        "stderr_download_timeout": 60 * 1000,
+        # Enables logging in text format operation failed error and job errors.
+        "enable_logging_failed_operation": False,
     },
 
     "read_parallel": {
@@ -446,6 +448,17 @@ default_config = {
             "retry_timeout": None
         }),
     "start_operation_request_timeout": 60000,
+
+    # Retries for concatenate requests.
+    "concatenate_retries": retries_config(count=6, enable=True, backoff={
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 20,
+            "base": 2,
+            "max_timeout": 120000,
+            "decay_factor_bound": 0.3,
+        }
+    }),
 
     "auto_merge_output": {
         # Action can be:

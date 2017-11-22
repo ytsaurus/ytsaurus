@@ -90,9 +90,6 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
 
         if optimize_for is not None:
             set(dst + "/@optimize_for", optimize_for, client=client)
-            # NOTE: Currently there is no way to check if chunks are actually in specified format
-            # (optimized for scan or lookup) so operation is always started if optimize_for is specified.
-            check_codecs = False
 
         if get(src + "/@row_count", client=client) == 0:
             logger.debug("Table %s is empty", src)
@@ -100,7 +97,8 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
 
         if check_codecs and \
                 _check_codec(dst, "compression", compression_codec, client=client) and \
-                _check_codec(dst, "erasure", erasure_codec, client=client):
+                _check_codec(dst, "erasure", erasure_codec, client=client) and \
+                _check_codec(dst, "optimize_for", optimize_for, client=client):
             logger.info("Table %s already has proper codecs", dst)
             return False
 
