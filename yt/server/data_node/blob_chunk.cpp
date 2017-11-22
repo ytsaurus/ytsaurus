@@ -218,6 +218,15 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
     session->Entries.resize(totalBlockCount);
     session->Blocks.resize(totalBlockCount);
 
+    const auto& outThrottler = Location_->GetOutThrottler(workloadDescriptor);
+    TFuture<void> throttleFuture = VoidFuture;
+    if (!outThrottler->TryAcquire(pendingDataSize)) {
+        LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
+            pendingDataSize, 
+            workloadDescriptor);
+        throttleFuture = outThrottler->Throttle(pendingDataSize);
+    }
+
     auto pendingIOGuard = Location_->IncreasePendingIOSize(
         EIODirection::Read,
         workloadDescriptor,
@@ -227,14 +236,14 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
     auto priority = workloadDescriptor.GetPriority();
     auto invoker = CreateFixedPriorityInvoker(Location_->GetDataReadInvoker(), priority);
     return
-        BIND(
-            &TBlobChunkBase::DoReadBlockSet,
-            MakeStrong(this),
-            session,
-            workloadDescriptor,
-            Passed(std::move(pendingIOGuard)))
-        .AsyncVia(std::move(invoker))
-        .Run();
+        throttleFuture.Apply(
+            BIND(
+                &TBlobChunkBase::DoReadBlockSet,
+                MakeStrong(this),
+                session,
+                workloadDescriptor,
+                Passed(std::move(pendingIOGuard)))
+            .AsyncVia(std::move(invoker)));
 }
 
 void TBlobChunkBase::DoReadBlockSet(

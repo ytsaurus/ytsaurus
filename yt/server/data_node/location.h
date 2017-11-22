@@ -162,6 +162,8 @@ public:
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
 
+    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
+
 protected:
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -196,6 +198,8 @@ private:
 
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
     const IInvokerPtr WritePoolInvoker_;
+
+    const NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
@@ -277,7 +281,6 @@ private:
 
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
-
 
     TString GetTrashPath() const;
     TString GetTrashChunkPath(const TChunkId& chunkId) const;
