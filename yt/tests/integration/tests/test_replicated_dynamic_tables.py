@@ -406,6 +406,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(1.0)
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
 
+    @flaky(max_runs=5)
     def test_async_replication_bandwidth_limit(self):
         class Inserter:
             def __init__(self, replica_driver):
