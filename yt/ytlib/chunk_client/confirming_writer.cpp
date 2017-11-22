@@ -224,7 +224,7 @@ private:
         // NB(psushin): we don't ask master for new erasure replicas,
         // because we cannot guarantee proper replica placement.
         auto options = CloneYsonSerializable(Options_);
-        options->AllowAllocatingNewTargetNodes = false;
+        options->AllowAllocatingNewTargetNodes = Config_->EnableErasureTargetNodeReallocation;
         auto writers = CreateErasurePartWriters(
             Config_,
             options,
