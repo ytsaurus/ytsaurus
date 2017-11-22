@@ -492,6 +492,13 @@ test_execute()
     check 'false' $($YT execute exists '{path="'"$table_path"'";output_format=json}')
 }
 
+test_brotli_write()
+{
+    local table_path="//home/wrapper_test/test_table"
+    echo -ne "x=1\nx=2\nx=3\nx=4\n" | $YT write "$table_path" --format dsv --config '{proxy={content_encoding=br}}'
+    check "x=1\nx=2\nx=3\nx=4\n" "$($YT read "$table_path" --format dsv | sort)"
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -513,3 +520,4 @@ run_test test_create_temp_table
 run_test test_dynamic_table_commands
 run_test test_sandbox_file_name_specification
 run_test test_execute
+run_test test_brotli_write

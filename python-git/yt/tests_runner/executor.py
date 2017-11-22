@@ -91,7 +91,10 @@ class Executor(object):
                 file_name = report.location[2].rsplit(".", 1)[1].partition("[")[0]
             else:
                 path = os.path.join(os.environ.get("TESTS_SANDBOX", ""), "tests_stderrs")
-                file_name = report.location[2].partition("[")[0].replace(".", "_")
+                file_name = report.location[2] \
+                    .replace("[", "_") \
+                    .replace("]", "_") \
+                    .replace(".", "_")
 
             makedirp(path)
 

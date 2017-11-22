@@ -80,7 +80,7 @@ class TestClient(object):
             client.remove_member("tester", "testers")
             assert client.get_attribute("//sys/groups/testers", "members") == []
 
-            client.create_table(TEST_DIR + "/table")
+            client.create("table", TEST_DIR + "/table")
             assert client.exists(TEST_DIR + "/table")
 
             temp_table = client.create_temp_table(TEST_DIR)

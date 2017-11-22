@@ -103,8 +103,8 @@ def test_ypath_dirname():
 @pytest.mark.timeout(1200)
 @pytest.mark.usefixtures("yt_env")
 class TestYtBinary(object):
-    def test_yt_binary(self):
-        env = get_environment_for_binary_test()
+    def test_yt_binary(self, yt_env):
+        env = get_environment_for_binary_test(yt_env)
         env["FALSE"] = "%false"
         env["TRUE"] = "%true"
 
@@ -178,10 +178,16 @@ class TestMutations(object):
             yt.abort_operation(operation_id)
             time.sleep(1.0) # Wait for aborting transactions
 
+        def get_operation_count():
+            return len([
+                elem
+                for elem in yt.list("//sys/operations", attributes=["state"])
+                if "state" in elem.attributes])
+
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
-        yt.create_table(other_table)
+        yt.create("table", other_table)
 
         params = {
             "spec": {
@@ -194,12 +200,12 @@ class TestMutations(object):
             "output_format": "json"
         }
 
-        operations_count = yt.get("//sys/operations/@count")
+        operations_count = get_operation_count()
 
         self.check_command(
             lambda: yson.loads(yt.driver.make_request("map", params, decode_content=False)),
             None,
-            lambda: yt.get("//sys/operations/@count") == operations_count + 1,
+            lambda: get_operation_count() == operations_count + 1,
             abort)
 
 
@@ -224,7 +230,7 @@ class TestRetries(object):
             with pytest.raises(yt.YtError):
                 yt.read_table(table)
 
-            yt.create_table(table)
+            yt.create("table", table)
             check([], yt.read_table(table))
             assert b"" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
@@ -257,7 +263,7 @@ class TestRetries(object):
         try:
             table = TEST_DIR + "/table"
 
-            yt.create_table(table)
+            yt.create("table", table)
             assert b"" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
             yt.write_table("<sorted_by=[x]>" + table, [{"x": 1}, {"x": 2}, {"x": 3}])
@@ -445,6 +451,21 @@ class TestRetries(object):
                 yt.select_rows("* from [{0}]".format(table), raw=False)
         finally:
             yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
+
+    def test_concatenate(self):
+        yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
+        try:
+            tableA = TEST_DIR + "/tableA"
+            tableB = TEST_DIR + "/tableB"
+            output_table = TEST_DIR + "/outputTable"
+
+            yt.write_table(tableA, [{"x": 1, "y": 2}])
+            yt.write_table(tableB, [{"x": 10, "y": 20}])
+            yt.concatenate([tableA, tableB], output_table)
+
+            assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
+        finally:
+            yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
 
 def test_wrapped_streams():
     import yt.wrapper.py_runner_helpers as runner_helpers

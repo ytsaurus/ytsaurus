@@ -10,6 +10,8 @@ from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, upd
                               chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
+from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
+                                     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder
 import yt.wrapper.job_tool as job_tool
 import yt.wrapper.completers as completers
 import yt.json as json
@@ -46,12 +48,12 @@ Transaction commands:
 Job commands:
     get-job-stderr, run-job-shell, abort-job
 Other commands:
-    transform'''
+    transform, show-spec, show-default-config'''
 
 EPILOG = '''Examples:
 
-List content of root directory of Plato cluster and check access to system.
-$  yt list / --proxy plato.yt.yandex.net
+List content of root directory of Hume cluster and check access to system.
+$  yt list / --proxy hume.yt.yandex.net
 >> home
    kiwi
    userdata
@@ -59,8 +61,8 @@ $  yt list / --proxy plato.yt.yandex.net
    statbox
    tmp
 
-Set YT_PROXY = plato.yt.yandex.net to avoid usage --proxy option.
-$ export YT_PROXY=plato.yt.yandex.net
+Set YT_PROXY = hume.yt.yandex.net to avoid usage --proxy option.
+$ export YT_PROXY=hume.yt.yandex.net
 (Add this string to ~/.bashrc)
 
 $  yt create table //tmp/sepulki
@@ -242,6 +244,9 @@ def add_type_argument(parser, name, hybrid=False):
     else:
         add_hybrid_argument(parser, name, "", description=NODE_TYPE_HELP)
 
+def add_read_from_argument(parser):
+    parser.add_argument("--read-from", help='Can be set to "cache" to enable reads from system cache')
+
 @copy_docstring_from(yt.exists)
 def exists(**args):
     print("true" if yt.exists(**args) else "false")
@@ -249,9 +254,7 @@ def exists(**args):
 def add_exists_parser(add_parser):
     parser = add_parser("exists", exists)
     add_ypath_argument(parser, "path", hybrid=True)
-    parser.add_argument("--read-from",
-                        help='You can specify read-from equaled to "cache"'
-                             'for enabling using system cache')
+    add_read_from_argument(parser)
 
 def formatted_print(obj, path, long_format):
     if long_format:
@@ -293,9 +296,7 @@ def add_list_parser(add_parser):
                               "if actual directory size exceeds that value only subset "
                               "of entries will be listed (it's not specified which subset); "
                               "default value is enough to list any nonsystem directory."))
-    parser.add_argument("--read-from",
-                        help='You can specify read-from equaled to "cache"'
-                             'for enabling using system cache')
+    add_read_from_argument(parser)
     group.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
 
 def find(**args):
@@ -333,9 +334,7 @@ def add_find_parser(add_parser):
     parser.add_argument("--attribute-filter", help="yson map fragment with filtering attributes, e.g. k1=v1;k2=v2")
     parser.add_argument("--depth", type=int, help="recursion depth (infinite by default)")
     parser.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
-    parser.add_argument("--read-from",
-                        help='You can specify read-from equaled to "cache"'
-                             'for enabling using system cache')
+    add_read_from_argument(parser)
     parser.set_defaults(func=find)
 
 @copy_docstring_from(yt.read_table)
@@ -454,9 +453,7 @@ def add_get_parser(add_parser):
                               "default value is enough to list any nonsystem directory."))
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")
-    parser.add_argument("--read-from",
-                        help='You can specify read-from equaled to "cache"'
-                             'for enabling using system cache')
+    add_read_from_argument(parser)
 
 @copy_docstring_from(yt.set)
 def set(**args):
@@ -495,6 +492,8 @@ def add_copy_parser(add_parser):
                         help="preserve account of copied nodes")
     parser.add_argument("--preserve-expiration-time", action="store_true",
                         help="preserve expiration time of copied nodes")
+    parser.add_argument("--preserve-creation-time", action="store_true",
+                        help="preserve creation time of copied nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
 
@@ -615,6 +614,8 @@ def add_alter_table_replica_parser(add_parser):
 
 @copy_docstring_from(yt.select_rows)
 def select_rows(**args):
+    args["allow_full_scan"] = not args.pop("forbid_full_scan")
+    args["allow_join_without_index"] = not args.pop("forbid_join_without_index")
     write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), 16 * MB))
 
 def add_select_rows_parser(add_parser):
@@ -625,7 +626,9 @@ def add_select_rows_parser(add_parser):
         parser.add_argument("--timestamp", type=int)
         parser.add_argument("--input-row-limit", type=int)
         parser.add_argument("--output-row-limit", type=int)
-        parser.add_argument("--verbose-logging", action="store_true", default=False)
+        parser.add_argument("--verbose-logging", action="store_true")
+        parser.add_argument("--forbid-full-scan", action="store_true")
+        parser.add_argument("--forbid-join-without-index", action="store_true")
         parser.add_argument("--format", action=ParseFormat)
 
 @copy_docstring_from(yt.lookup_rows)
@@ -669,6 +672,43 @@ def add_delete_rows_parser(add_parser):
         parser.add_argument("--no-require-sync-replica", action="store_true",
                             help="do not require sync replication")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
+
+SPEC_BUILDERS = {
+    "map": MapSpecBuilder,
+    "reduce": ReduceSpecBuilder,
+    "map-reduce": MapReduceSpecBuilder,
+    "join-reduce": JoinReduceSpecBuilder,
+    "merge": MergeSpecBuilder,
+    "sort": SortSpecBuilder,
+    "erase": EraseSpecBuilder,
+    "remote-copy": RemoteCopySpecBuilder
+}
+
+def get_spec_description(spec_builder_class, depth=0):
+    spec_options = []
+    methods = sorted(dir(spec_builder_class))
+    for method_name in methods:
+        method = getattr(spec_builder_class, method_name)
+        if getattr(method, "is_spec_method", False):
+            spec_options.append("  {0} - {1}".format(method_name, method.description))
+            if method.nested_spec_builder:
+                spec_options += ["  " + get_spec_description(method.nested_spec_builder, depth + 1)]
+    result = ("\n" + "  " * depth).join(spec_options)
+    return result
+
+def show_spec(operation):
+    """Shows available spec options of the operation."""
+    if operation not in SPEC_BUILDERS:
+        raise yt.YtError("No such operation", attributes={"operation": operation})
+
+    spec_description = get_spec_description(SPEC_BUILDERS[operation])
+    print("Spec options for {0} operation\n".format(operation))
+    print(spec_description)
+    print("\nSee more in the documentation: https://wiki.yandex-team.ru/yt/userdoc/operations/")
+
+def add_show_spec_parser(add_parser):
+    parser = add_parser("show-spec", show_spec)
+    parser.add_argument("operation", help="operation type")
 
 def add_src_arg(parser, **kwargs):
     parser.add_argument("--src", action="append", nargs="+", required=True, dest="source_table", **kwargs)
@@ -1097,6 +1137,7 @@ def main():
     add_job_tool_parser(add_parser)
 
     add_show_default_config_parser(add_parser)
+    add_show_spec_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,

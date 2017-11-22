@@ -27,7 +27,7 @@ def mount_table(client, path):
     mount_table_new(client, path)
 
 class TableInfo(object):
-    def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None):
+    def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None, attributes={}):
         def make_column(name, type_name, expression=None):
             return {
                 "name": name,
@@ -46,9 +46,11 @@ class TableInfo(object):
         self.user_columns = [column["name"] for column in self.schema if "expression" not in column]
         self.get_pivot_keys = get_pivot_keys
         self.in_memory = in_memory
+        self.attributes = attributes
 
     def create_table(self, client, path):
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes.update(self.attributes)
         attributes["dynamic"] = False
         attributes["external"] = False
 
@@ -57,6 +59,7 @@ class TableInfo(object):
 
     def create_dynamic_table(self, client, path):
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes.update(self.attributes)
 
         logging.info("Creating dynamic table %s with attributes %s", path, attributes)
         client.create("table", path, recursive=True, attributes=attributes)
@@ -74,6 +77,8 @@ class TableInfo(object):
         })
         logging.info("Converting table to dynamic %s", path)
         client.alter_table(path, dynamic=True)
+        for attr, value in self.attributes.items():
+            client.set("{0}/@{1}".format(path, attr), value)
 
     def alter_table(self, client, path, shards, mount=True):
         logging.info("Altering table %s", path)
@@ -82,6 +87,8 @@ class TableInfo(object):
 
         logging.info("Alter table %s with attributes %s", path, attributes)
         client.alter_table(path, schema=attributes['schema'])
+        for attr, value in self.attributes.items():
+            client.set("{0}/@{1}".format(path, attr), value)
 
         if self.get_pivot_keys:
             client.reshard_table(path, self.get_pivot_keys(shards))
@@ -557,6 +564,44 @@ TRANSFORMS[15] = [
                 ("pool", "string")
             ],
             in_memory=True))
+]
+
+TRANSFORMS[16] = [
+    Convert(
+        "jobs",
+            table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+            ],
+            attributes={"atomicity": "none"})),
+    Convert(
+        "job_specs",
+        table_info=TableInfo([
+                ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+            ], [
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("type", "string"),
+            ],
+            attributes={"atomicity": "none"})),
 ]
 
 def swap_table(client, target, source, version):

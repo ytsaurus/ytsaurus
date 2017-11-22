@@ -18,7 +18,8 @@ from .format import (DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsv
                      YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError, create_table_switch)
 from .ypath import YPath, TablePath, FilePath, ypath_join, ypath_dirname
 from .cypress_commands import escape_ypath_literal
-from .operation_commands import format_operation_stderrs, Operation, OperationsTracker
+from .operation_commands import format_operation_stderrs, Operation
+from .operations_tracker import OperationsTracker, OperationsTrackerPool
 from .py_wrapper import (aggregator, raw, raw_io, reduce_aggregator,
                          enable_python_job_processing_for_standalone_binary, initialize_python_job_processing,
                          with_context)
@@ -40,3 +41,6 @@ from .http_helpers import (_cleanup_http_session,
 # For PyCharm checks
 from . import config
 from .config import update_config
+
+import warnings
+warnings.simplefilter("default", category=DeprecationWarning)
