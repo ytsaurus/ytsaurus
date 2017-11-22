@@ -35,7 +35,7 @@ TEncodingWriter::TEncodingWriter(
     , Logger(logger)
     , CompressionRatio_(Config_->DefaultCompressionRatio)
     , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(
-        TDispatcher::Get()->GetCompressionPoolInvoker(),
+        TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         Config_->WorkloadDescriptor.GetPriority())))
     , Semaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
     , Codec_(NCompression::GetCodec(options->CompressionCodec))
