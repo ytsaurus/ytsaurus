@@ -4448,6 +4448,27 @@ void TOperationControllerBase::ParseInputQuery(
         BuiltinRangeExtractorMap,
         options);
 
+    auto getColumns = [] (const TTableSchema& desiredSchema, const TTableSchema& tableSchema) {
+        std::vector<TString> columns;
+        for (const auto& column : desiredSchema.Columns()) {
+            if (tableSchema.FindColumn(column.Name())) {
+                columns.push_back(column.Name());
+            }
+        }
+
+        return columns.size() == tableSchema.GetColumnCount()
+            ? TNullable<std::vector<TString>>()
+            : MakeNullable(std::move(columns));
+    };
+
+    // Use query column filter for input tables.
+    for (auto table : InputTables) {
+        auto columns = getColumns(query->GetReadSchema(), table.Schema);
+        if (columns) {
+            table.Path.SetColumns(*columns);
+        }
+    }
+
     InputQuery.Emplace();
     InputQuery->Query = std::move(query);
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
