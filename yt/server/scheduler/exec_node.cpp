@@ -72,12 +72,35 @@ const TJobResources& TExecNode::GetResourceUsage() const
     return ResourceUsage_;
 }
 
+
+const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskUsage() const
+{
+    return DiskUsage_;
+}
+
+const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskLimits() const
+{
+    return DiskLimits_;
+}
+
+
 void TExecNode::SetResourceUsage(const TJobResources& value)
 {
     // NB: No locking is needed since ResourceUsage_ is not used
     // in BuildExecDescriptor.
     ResourceUsage_ = value;
 }
+
+void TExecNode::SetDiskUsage(const NNodeTrackerClient::NProto::TDiskResources& value)
+{
+    DiskUsage_ = value;
+}
+
+void TExecNode::SetDiskLimits(const NNodeTrackerClient::NProto::TDiskResources& value)
+{
+    DiskLimits_ = value;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

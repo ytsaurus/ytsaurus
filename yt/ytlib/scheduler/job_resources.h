@@ -64,8 +64,66 @@ public:
     XX(memory,                Memory) \
     XX(network,               Network)
 
+#define MAKE_JOB_METHODS(Base, Field) \
+    using Base::Get ## Field; \
+    using Base::Set ## Field;
+
+template<class TResourceType>
+class TResourcesWithQuota
+{
+public:
+    i64 GetDiskQuota() const
+    {
+        return DiskQuota_;
+    }
+
+    void SetDiskQuota(i64 DiskQuota)
+    {
+        DiskQuota_ = DiskQuota;
+    }
+
+protected:
+    i64 DiskQuota_ = 0;
+};
+
+template<>
+struct TResourcesWithQuota<TJobResources>
+    : private TJobResources
+    , private TResourcesWithQuota<void>
+{
+public:
+    MAKE_JOB_METHODS(TJobResources, UserSlots)
+    MAKE_JOB_METHODS(TJobResources, Cpu)
+    MAKE_JOB_METHODS(TJobResources, Memory)
+    MAKE_JOB_METHODS(TJobResources, Network)
+    MAKE_JOB_METHODS(TResourcesWithQuota<void>, DiskQuota);
+
+    TJobResources ToJobResources() const
+    {
+        return *this;
+    }
+
+    void Persist(const TStreamPersistenceContext& context)
+    {
+        using NYT::Persist;
+        TJobResources::Persist(context);
+        Persist(context, DiskQuota_);
+    }
+
+    TResourcesWithQuota() = default;
+
+    TResourcesWithQuota(const TJobResources& jobResources)
+        : TJobResources(jobResources)
+    {
+        SetDiskQuota(0);
+    }
+};
+
+using TJobResourcesWithQuota = TResourcesWithQuota<TJobResources>;
+
 TString FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
 TString FormatResources(const TJobResources& resources);
+TString FormatResources(const TJobResourcesWithQuota& resources);
 TString FormatResources(const TExtendedJobResources& resources);
 
 void ProfileResources(
@@ -105,7 +163,9 @@ TJobResources GetAdjustedResourceLimits(
     const TMemoryDistribution& execNodeMemoryDistribution);
 
 const TJobResources& ZeroJobResources();
+const TJobResourcesWithQuota& ZeroJobResourcesWithQuota();
 const TJobResources& InfiniteJobResources();
+const TJobResourcesWithQuota& InfiniteJobResourcesWithQuota();
 
 TJobResources  operator +  (const TJobResources& lhs, const TJobResources& rhs);
 TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs);
@@ -120,18 +180,24 @@ TJobResources& operator *= (TJobResources& lhs, double rhs);
 
 TJobResources  operator -  (const TJobResources& resources);
 
-bool operator == (const TJobResources& a, const TJobResources& b);
-bool operator != (const TJobResources& a, const TJobResources& b);
+bool operator == (const TJobResources& lhs, const TJobResources& rhs);
+bool operator != (const TJobResources& lhs, const TJobResources& rhs);
 
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
 
-TJobResources Max(const TJobResources& a, const TJobResources& b);
-TJobResources Min(const TJobResources& a, const TJobResources& b);
+TJobResources Max(const TJobResources& lhs, const TJobResources& rhs);
+TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
+TJobResourcesWithQuota Min(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
 void Serialize(const TExtendedJobResources& resources, NYson::IYsonConsumer* consumer);
 void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
 
 const TJobResources& MinSpareNodeResources();
+
+bool CanSatisfyDiskRequest(
+    const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskUsage,
+    i64 diskRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

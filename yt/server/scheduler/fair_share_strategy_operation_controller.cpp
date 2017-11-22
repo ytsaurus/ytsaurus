@@ -32,24 +32,24 @@ void TFairShareStrategyOperationController::SetLastScheduleJobFailTime(NProfilin
     LastScheduleJobFailTime_ = now;
 }
 
-void TFairShareStrategyOperationController::SetMinNeededJobResources(std::vector<TJobResources> jobResourcesList)
+void TFairShareStrategyOperationController::SetMinNeededJobResources(std::vector<TJobResourcesWithQuota> jobResourcesList)
 {
     TWriterGuard guard(CachedMinNeededJobResourcesLock_);
     CachedMinNeededJobResourcesList_ = std::move(jobResourcesList);
 
-    CachedMinNeededJobResources_ = InfiniteJobResources();
+    CachedMinNeededJobResources_ = InfiniteJobResourcesWithQuota();
     for (const auto& jobResources : CachedMinNeededJobResourcesList_) {
         CachedMinNeededJobResources_ = Min(CachedMinNeededJobResources_, jobResources);
     }
 }
 
-std::vector<TJobResources> TFairShareStrategyOperationController::GetMinNeededJobResourcesList() const
+std::vector<TJobResourcesWithQuota> TFairShareStrategyOperationController::GetMinNeededJobResourcesList() const
 {
     TReaderGuard guard(CachedMinNeededJobResourcesLock_);
     return CachedMinNeededJobResourcesList_;
 }
 
-TJobResources TFairShareStrategyOperationController::GetMinNeededJobResources() const
+TJobResourcesWithQuota TFairShareStrategyOperationController::GetMinNeededJobResources() const
 {
     TReaderGuard guard(CachedMinNeededJobResourcesLock_);
     return CachedMinNeededJobResources_;
@@ -61,7 +61,7 @@ void TFairShareStrategyOperationController::InvokeMinNeededJobResourcesUpdate()
         .AsyncVia(Controller_->GetCancelableInvoker())
         .Run()
         .Subscribe(
-            BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TJobResources>>& resultOrError) {
+            BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TJobResourcesWithQuota>>& resultOrError) {
                 if (!resultOrError.IsOK()) {
                     LOG_WARNING(resultOrError, "Failed to update min needed resources from controller");
                     return;

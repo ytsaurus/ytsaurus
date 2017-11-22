@@ -158,7 +158,7 @@ struct IOperationControllerStrategyHost
     //! Called during heartbeat processing to request actions the node must perform.
     virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
         NScheduler::ISchedulingContextPtr context,
-        const TJobResources& jobLimits) = 0;
+        const NScheduler::TJobResourcesWithQuota& jobLimits) = 0;
 
     /*!
      *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
@@ -183,7 +183,7 @@ struct IOperationControllerStrategyHost
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called periodically during heartbeat to obtain min needed resources to schedule any operation job.
-    virtual std::vector<TJobResources> GetMinNeededJobResources() const = 0;
+    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const = 0;
 
     /*!
      *  \note Thread affinity: any

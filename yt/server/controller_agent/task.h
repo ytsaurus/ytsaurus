@@ -59,7 +59,7 @@ public:
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
     virtual bool HasInputLocality() const;
 
-    TJobResources GetMinNeededResources() const;
+    NScheduler::TJobResourcesWithQuota GetMinNeededResources() const;
 
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
 
@@ -233,7 +233,7 @@ private:
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
-    TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
+    NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 

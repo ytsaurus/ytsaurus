@@ -71,6 +71,11 @@ message TNodeResources
     optional int64 repair_data_size = 10;
 }
 
+message TDiskResources
+{
+    repeated int64 disk_usage = 1;
+}
+
 // Limits overrides pushed from master to node.
 message TNodeResourceLimitsOverrides
 {

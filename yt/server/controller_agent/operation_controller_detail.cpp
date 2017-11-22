@@ -2613,7 +2613,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
             continue;
         }
 
-        const auto& neededResources = task->GetMinNeededResources();
+        const auto& neededResources = task->GetMinNeededResources().ToJobResources();
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources)) {
             OnOperationFailed(
                 TError("No online node can satisfy the resource demand")
@@ -2626,7 +2626,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
-    const TJobResources& jobLimits)
+    const NScheduler::TJobResourcesWithQuota& jobLimits)
 {
     if (Spec_->TestingOperationOptions->SchedulingDelay) {
         if (Spec_->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
@@ -2813,7 +2813,7 @@ bool TOperationControllerBase::CheckJobLimits(
     const TJobResources& jobLimits,
     const TJobResources& nodeResourceLimits)
 {
-    auto neededResources = task->GetMinNeededResources();
+    auto neededResources = task->GetMinNeededResources().ToJobResources();
     if (Dominates(jobLimits, neededResources)) {
         return true;
     }
@@ -2823,7 +2823,7 @@ bool TOperationControllerBase::CheckJobLimits(
 
 void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const NScheduler::TJobResourcesWithQuota& jobLimits,
     TScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -2835,9 +2835,12 @@ void TOperationControllerBase::DoScheduleJob(
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
     } else {
-        DoScheduleLocalJob(context, jobLimits, scheduleJobResult);
+        if (!CanSatisfyDiskRequest(context->DiskLimits(), context->DiskUsage(), jobLimits.GetDiskQuota())) {
+            return;
+        }
+        DoScheduleLocalJob(context, jobLimits.ToJobResources(), scheduleJobResult);
         if (!scheduleJobResult->JobStartRequest) {
-            DoScheduleNonLocalJob(context, jobLimits, scheduleJobResult);
+            DoScheduleNonLocalJob(context, jobLimits.ToJobResources(), scheduleJobResult);
         }
     }
 }
@@ -3180,11 +3183,11 @@ TJobResources TOperationControllerBase::GetNeededResources() const
     return CachedNeededResources;
 }
 
-std::vector<TJobResources> TOperationControllerBase::GetMinNeededJobResources() const
+std::vector<NScheduler::TJobResourcesWithQuota> TOperationControllerBase::GetMinNeededJobResources() const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    yhash<EJobType, TJobResources> minNeededJobResources;
+    yhash<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
 
     for (const auto& task: Tasks) {
         if (task->GetPendingJobCount() == 0) {
@@ -3202,7 +3205,7 @@ std::vector<TJobResources> TOperationControllerBase::GetMinNeededJobResources() 
         }
     }
 
-    std::vector<TJobResources> result;
+    std::vector<NScheduler::TJobResourcesWithQuota> result;
     for (const auto& pair : minNeededJobResources) {
         result.push_back(pair.second);
         LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
