@@ -121,13 +121,19 @@ private:
         TTabletId Tablet;
         TPartitionId Partition;
         std::vector<TStoreId> Stores;
-        ui64 Score;
+        ui64 Score = 0;
+        ui64 Random = RandomNumber<size_t>();
 
         TTask() = default;
         TTask(const TTask&) = delete;
         TTask& operator=(const TTask&) = delete;
         TTask(TTask&&) = delete;
         TTask& operator=(TTask&&) = delete;
+
+        auto MakeComparableValue()
+        {
+            return std::make_tuple(Score, -Stores.size(), Random);
+        }
     };
 
     // Variables below contain per-iteration state for slot scan.
@@ -143,33 +149,6 @@ private:
     size_t PartitioningTaskIndex_ = 0; // First unscheduled task.
     std::vector<std::unique_ptr<TTask>> CompactionTasks_;
     size_t CompactionTaskIndex_ = 0; // First unscheduled task.
-
-    static constexpr size_t ScorePartSize = 21;
-    static constexpr size_t ScorePartMask = static_cast<size_t>(1 << ScorePartSize) - 1;
-
-    static ui64 PackTaskScore(size_t x, size_t y, size_t z)
-    {
-        x &= ScorePartMask;
-        y &= ScorePartMask; y = ScorePartMask + 1 - y; // Negative, for reversed order.
-        z &= ScorePartMask;
-        size_t result = 0;
-        result |= x;
-        result <<= ScorePartSize;
-        result |= y;
-        result <<= ScorePartSize;
-        result |= z;
-        return result;
-    }
-
-    static std::tuple<size_t, size_t, size_t> UnpackTaskScore(ui64 score)
-    {
-        size_t z = score & ScorePartMask;
-        score >>= ScorePartSize;
-        size_t y = score & ScorePartMask; y = ScorePartMask + 1 - y; // Negative, for reversed order.
-        score >>= ScorePartSize;
-        size_t x = score & ScorePartMask;
-        return std::make_tuple(x, y, z);
-    };
 
     void OnBeginSlotScan()
     {
@@ -269,9 +248,7 @@ private:
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
         const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
         const int osc = tablet->GetOverlappingStoreCount();
-        const size_t score = static_cast<size_t>(std::max(0, mosc - osc));
-        // Pack score into a single 64-bit integer. This is equivalent to order on (Score, -Stores, Random) tuples.
-        candidate->Score = PackTaskScore(score, candidate->Stores.size(), RandomNumber<size_t>());
+        candidate->Score = static_cast<size_t>(std::max(0, mosc - osc));
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -307,11 +284,9 @@ private:
         const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
         const int partitionStoreCount = static_cast<int>(partition->Stores().size());
         // For constrained partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
-        const size_t score = partition->IsEden()
+        candidate->Score = partition->IsEden()
             ? static_cast<size_t>(std::max(0, mosc - osc))
             : static_cast<size_t>(std::max(0, mosc - edenStoreCount - partitionStoreCount));
-        // Pack score into a single 64-bit integer.
-        candidate->Score = PackTaskScore(score, candidate->Stores.size(), RandomNumber<size_t>());
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -537,7 +512,7 @@ private:
             candidates->begin() + limit,
             candidates->end(),
             [] (const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs) -> bool {
-                return lhs->Score < rhs->Score;
+                return lhs->MakeComparableValue() < rhs->MakeComparableValue();
             });
 
         candidates->resize(limit);
@@ -630,8 +605,6 @@ private:
             task->Tablet,
             sessionId);
 
-        auto scoreParts = UnpackTaskScore(task->Score);
-
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
         });
@@ -709,10 +682,8 @@ private:
             auto beginInstant = TInstant::Now();
             eden->SetCompactionTime(beginInstant);
 
-            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
-                std::get<0>(scoreParts),
-                std::get<1>(scoreParts),
-                std::get<2>(scoreParts),
+            LOG_INFO("Eden partitioning started (Score: %v, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
+                task->Score,
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
@@ -990,8 +961,6 @@ private:
             task->Tablet,
             sessionId);
 
-        auto scoreParts = UnpackTaskScore(task->Score);
-
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
         });
@@ -1073,11 +1042,9 @@ private:
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
-            LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, "
+            LOG_INFO("Partition compaction started (Score: %v, DataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
-                std::get<0>(scoreParts),
-                std::get<1>(scoreParts),
-                std::get<2>(scoreParts),
+                task->Score,
                 dataSize,
                 stores.size(),
                 currentTimestamp,
