@@ -1450,7 +1450,7 @@ public:
                 ToProto(req.mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
                 if (table->IsReplicated()) {
                     auto* replicatedTable = table->As<TReplicatedTableNode>();
-                    for (auto* replica : replicatedTable->Replicas()) {
+                    for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                         const auto* replicaInfo = tablet->GetReplicaInfo(replica);
                         PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
                     }
