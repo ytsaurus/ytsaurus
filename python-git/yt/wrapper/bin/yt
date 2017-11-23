@@ -852,6 +852,7 @@ def operation_id_args(parser):
 
 def add_abort_op_parser(add_parser):
     parser = add_parser("abort-op", yt.abort_operation)
+    parser.add_argument("--reason", help="abort reason")
     operation_id_args(parser)
 
 def add_suspend_op_parser(add_parser):
