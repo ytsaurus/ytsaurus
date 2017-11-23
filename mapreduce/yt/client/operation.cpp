@@ -222,6 +222,7 @@ private:
     void CreateStorage() const
     {
         TString cypressFolder = TStringBuilder() << GetFileStorage() << "/hash";
+        cypressFolder = AddPathPrefix(cypressFolder);
         if (!Exists(Auth_, Options_.FileStorageTransactionId_, cypressFolder)) {
             NYT::NDetail::Create(Auth_, Options_.FileStorageTransactionId_, cypressFolder, NT_MAP,
                 TCreateOptions()
@@ -239,15 +240,21 @@ private:
 
         TString twoDigits(buf + md5Size - 2, 2);
 
-        TString cypressPath = TStringBuilder() << GetFileStorage() <<
+        TString symlinkPath = TStringBuilder() << GetFileStorage() <<
             "/hash/" << twoDigits << "/" << buf;
+
+        TString uniquePath = TStringBuilder() << GetFileStorage() <<
+            "/" << twoDigits << "/cpp_" << CreateGuidAsString();
+
+        symlinkPath = AddPathPrefix(symlinkPath);
+        uniquePath = AddPathPrefix(uniquePath);
 
         int retryCount = 256;
         for (int attempt = 0; attempt < retryCount; ++attempt) {
             TNode linkAttrs;
-            if (Exists(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&")) {
+            if (Exists(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&")) {
                 try {
-                    linkAttrs = Get(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&/@");
+                    linkAttrs = Get(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&/@");
                 } catch (TErrorResponse& e) {
                     if (!e.IsResolveError()) {
                         throw;
@@ -256,26 +263,18 @@ private:
             }
 
             try {
-                bool linkExists = false;
                 if (linkAttrs.GetType() != TNode::Undefined) {
                     if (linkAttrs["type"] == "link" &&
                         (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
                     {
-                        linkExists = true;
+                        NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "/@touched", "true");
+                        NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&/@touched", "true");
+                        return symlinkPath;
                     } else {
-                        NYT::NDetail::Remove(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&",
+                        NYT::NDetail::Remove(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&",
                             TRemoveOptions().Recursive(true).Force(true));
                     }
                 }
-
-                if (linkExists) {
-                    NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, cypressPath + "/@touched", "true");
-                    NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&/@touched", "true");
-                    return cypressPath;
-                }
-
-                TString uniquePath = TStringBuilder() << GetFileStorage() <<
-                    "/" << twoDigits << "/cpp_" << CreateGuidAsString();
 
                 NYT::NDetail::Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, NT_FILE,
                     TCreateOptions()
@@ -293,7 +292,7 @@ private:
                     RetryHeavyWriteRequest(Auth_, Options_.FileStorageTransactionId_, header, streamMaker);
                 }
 
-                NYT::NDetail::Link(Auth_, Options_.FileStorageTransactionId_, uniquePath, cypressPath,
+                NYT::NDetail::Link(Auth_, Options_.FileStorageTransactionId_, uniquePath, symlinkPath,
                     TLinkOptions()
                         .IgnoreExisting(true)
                         .Recursive(true)
@@ -308,7 +307,7 @@ private:
             }
             break;
         }
-        return cypressPath;
+        return symlinkPath;
     }
 
     void UploadFilesFromSpec()
