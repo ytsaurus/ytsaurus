@@ -1047,6 +1047,9 @@ void TQueryProfiler::Profile(
                     joinClause->ForeignKeyPrefix,
                     lookupKeyTypes};
 
+                Fold(joinClause->CommonKeyPrefix);
+                Fold(joinClause->ForeignKeyPrefix);
+
                 parameters.push_back(codegenParameters);
 
                 TSingleJoinParameters singeJoinParameters;
@@ -1118,6 +1121,9 @@ void TQueryProfiler::Profile(
                     selfTableColumns[index].Name()))
                 {
                     primaryColumns.emplace_back(index, selfTableColumns[index].GetPhysicalType());
+
+                    Fold(index);
+                    Fold(static_cast<int>(selfTableColumns[index].GetPhysicalType()));
                 }
             }
 
@@ -1125,6 +1131,8 @@ void TQueryProfiler::Profile(
             joinParameters.BatchSize = joinBatchSize;
 
             int index = Variables_->AddOpaque<TMultiJoinParameters>(joinParameters);
+
+            Fold(index);
 
             auto fragmentInfos = equationFragments.ToFragmentInfos("selfEquation");
             for (const auto& codegenParameters: parameters) {
