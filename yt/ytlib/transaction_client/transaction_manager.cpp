@@ -877,6 +877,7 @@ private:
 
             auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), true);
             auto req = proxy.AbortTransaction();
+            req->SetHeavy(true);
             req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
             req->set_force(options.Force);
