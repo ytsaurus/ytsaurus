@@ -251,10 +251,11 @@ protected:
 
     virtual void SetPromise(const TError& error) = 0;
 
+    const IInvokerPtr& GetInvoker();
+
 private:
     void TraceResponse();
     void DoHandleError(const TError& error);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
