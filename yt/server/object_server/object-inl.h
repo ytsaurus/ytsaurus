@@ -188,6 +188,19 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
     return values;
 }
 
+template <class TValue>
+std::vector<TValue*> GetValuesSortedByKey(const yhash_set<TValue*>& entities)
+{
+    std::vector<TValue*> values;
+    for (auto* object : entities) {
+        if (IsObjectAlive(object)) {
+            values.push_back(object);
+        }
+    }
+    std::sort(values.begin(), values.end(), TObjectRefComparer::Compare);
+    return values;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer
