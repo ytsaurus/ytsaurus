@@ -2193,7 +2193,6 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
                 AsyncSchedulerTransaction,
                 InputTransaction,
                 OutputTransaction,
-                CompletionTransaction,
                 DebugOutputTransaction
             })
         {
