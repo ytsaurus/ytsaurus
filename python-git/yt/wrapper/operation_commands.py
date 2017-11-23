@@ -1,4 +1,4 @@
-from .common import ThreadPoolHelper
+from .common import ThreadPoolHelper, set_param
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError
 from .driver import make_request
@@ -202,7 +202,7 @@ class PrintOperationInfo(object):
             logger.log(self.level, *args, **kwargs)
             logger.set_formatter(logger.BASIC_FORMATTER)
 
-def abort_operation(operation, client=None):
+def abort_operation(operation, reason=None, client=None):
     """Aborts operation.
 
     Do nothing if operation is in final state.
@@ -211,7 +211,9 @@ def abort_operation(operation, client=None):
     """
     if get_operation_state(operation, client=client).is_finished():
         return
-    make_request("abort_op", {"operation_id": operation}, client=client)
+    params = {"operation_id": operation}
+    set_param(params, "abort_reason", reason)
+    make_request("abort_op", params, client=client)
 
 def suspend_operation(operation, client=None):
     """Suspends operation.
@@ -389,9 +391,9 @@ class Operation(object):
         """Resumes operation."""
         resume_operation(self.id, client=self.client)
 
-    def abort(self):
+    def abort(self, reason):
         """Aborts operation."""
-        abort_operation(self.id, client=self.client)
+        abort_operation(self.id, reason, client=self.client)
 
     def complete(self):
         """Completes operation."""
