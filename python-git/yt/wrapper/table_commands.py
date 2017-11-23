@@ -340,7 +340,9 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     set_param(params, "unordered", unordered)
 
     if get_config(client)["read_parallel"]["enable"]:
-        if control_attributes is not None:
+        if attributes.get("dynamic"):
+            logger.warning("Cannot read table in parallel since parallel reading for dynamic tables is not supported")
+        elif control_attributes is not None:
             logger.warning('Cannot read table in parallel since parameter "control_attributes" is specified')
         elif table.has_key_limit_in_ranges():
             logger.warning("Cannot read table in parallel since table path contains key limits")
