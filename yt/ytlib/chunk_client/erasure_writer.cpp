@@ -292,7 +292,7 @@ void TErasureWriter::DoOpen()
 
 TFuture<void> TErasureWriter::WriteDataBlocks()
 {
-    VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetCompressionPoolInvoker());
+    VERIFY_THREAD_AFFINITY(WriterThread);
     YCHECK(Groups_.size() <= Writers_.size());
 
     std::vector<TFuture<void>> asyncResults;
@@ -392,22 +392,22 @@ TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
 
-    auto invoker = CreateFixedPriorityInvoker(
+    auto compressionInvoker = CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         WorkloadDescriptor_.GetPriority());
 
     std::vector<TFuture<void>> asyncResults {
         BIND(&TErasureWriter::WriteDataBlocks, MakeStrong(this))
-            .AsyncVia(invoker)
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run(),
         BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this))
-            .AsyncVia(invoker)
+            .AsyncVia(compressionInvoker)
             .Run()
     };
 
     return Combine(asyncResults).Apply(
         BIND(&TErasureWriter::OnWritten, MakeStrong(this))
-            .AsyncVia(invoker));
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
 }
 
 
