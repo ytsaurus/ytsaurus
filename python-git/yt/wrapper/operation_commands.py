@@ -391,7 +391,7 @@ class Operation(object):
         """Resumes operation."""
         resume_operation(self.id, client=self.client)
 
-    def abort(self, reason):
+    def abort(self, reason=None):
         """Aborts operation."""
         abort_operation(self.id, reason, client=self.client)
 
