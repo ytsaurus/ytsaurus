@@ -485,19 +485,18 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         trim_rows("//tmp/t", 0, 1)
         self.sync_unmount_table("//tmp/t")
 
-        def _verify(expected_logical, expected_trimmed):
-            tablet = get("//tmp/t/@tablets/0/tablet_id")
-            chunk_list = get("#{0}/@chunk_list_id".format(tablet))
-            #assert get("#{0}/@statistics/logical_row_count".format(chunk_list)) == expected_logical
-            #assert get("#{0}/@trimmed_row_count".format(tablet)) == expected_trimmed
+        def _verify(expected_flushed, expected_trimmed):
+            tablet = get("//tmp/t/@tablets/0")
+            assert tablet["flushed_row_count"] == expected_flushed
+            assert tablet["trimmed_row_count"] == expected_trimmed
 
         _verify(1, 1)
         reshard_table("//tmp/t", 1)
-        _verify(0, 0)
+        _verify(1, 1)
         self.sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 1}])
         self.sync_unmount_table("//tmp/t")
-        _verify(1, 0)
+        _verify(2, 1)
 
     def test_freeze_empty(self):
         self.sync_create_cells(1)
