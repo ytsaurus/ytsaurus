@@ -1982,8 +1982,11 @@ public:
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
             auto* newTablet = CreateTablet(table);
+            auto* oldTablet = index < oldTabletCount ? tablets[index + firstTabletIndex] : nullptr;
             if (table->IsSorted()) {
                 newTablet->SetPivotKey(pivotKeys[index]);
+            } else if (oldTablet) {
+                newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablets.push_back(newTablet);
@@ -2042,14 +2045,6 @@ public:
             oldTabletChunkTrees.data() + lastTabletIndex + 1,
             oldTabletChunkTrees.data() + oldTabletChunkTrees.size());
 
-        auto enumerateChunks = [&] (int firstTabletIndex, int lastTabletIndex) {
-            std::vector<TChunk*> chunks;
-            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                EnumerateChunksInChunkTree(oldTabletChunkTrees[index]->AsChunkList(), &chunks);
-            }
-            return chunks;
-        };
-
         if (table->IsPhysicallySorted()) {
             // Move chunks from the resharded tablets to appropriate chunk lists.
             int keyColumnCount = table->TableSchema().GetKeyColumnCount();
@@ -2066,14 +2061,25 @@ public:
         } else {
             // If the number of tablets increases, just leave the new trailing ones empty.
             // If the number of tablets decreases, merge the original trailing ones.
-            for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
-                auto chunks = enumerateChunks(
-                    index,
-                    index == firstTabletIndex + newTabletCount - 1 ? lastTabletIndex : index);
-                auto* chunkList = newTabletChunkTrees[index]->AsChunkList();
+            auto attachChunksToChunkList = [&] (TChunkList* chunkList, int firstTabletIndex, int lastTabletIndex) {
+                std::vector<TChunk*> chunks;
+                for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                    EnumerateChunksInChunkTree(oldTabletChunkTrees[index]->AsChunkList(), &chunks);
+                }
                 for (auto* chunk : chunks) {
                     chunkManager->AttachToChunkList(chunkList, chunk);
                 }
+            };
+            for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
+                auto* chunkList = newTabletChunkTrees[index]->AsChunkList();
+                auto* oldChunkList = oldTabletChunkTrees[index]->AsChunkList();
+                attachChunksToChunkList(chunkList, index, index);
+                chunkList->Statistics().LogicalRowCount = oldChunkList->Statistics().LogicalRowCount;
+                chunkList->Statistics().LogicalChunkCount = oldChunkList->Statistics().LogicalChunkCount;
+            }
+            if (oldTabletCount > newTabletCount) {
+                auto* chunkList = newTabletChunkTrees[firstTabletIndex + newTabletCount - 1]->AsChunkList();
+                attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
             }
         }
 
