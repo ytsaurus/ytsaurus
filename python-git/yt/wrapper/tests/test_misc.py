@@ -178,6 +178,12 @@ class TestMutations(object):
             yt.abort_operation(operation_id)
             time.sleep(1.0) # Wait for aborting transactions
 
+        def get_operation_count():
+            return len([
+                elem
+                for elem in yt.list("//sys/operations", attributes=["state"])
+                if "state" in elem.attributes])
+
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
@@ -194,12 +200,12 @@ class TestMutations(object):
             "output_format": "json"
         }
 
-        operations_count = yt.get("//sys/operations/@count")
+        operations_count = get_operation_count()
 
         self.check_command(
             lambda: yson.loads(yt.driver.make_request("map", params, decode_content=False)),
             None,
-            lambda: yt.get("//sys/operations/@count") == operations_count + 1,
+            lambda: get_operation_count() == operations_count + 1,
             abort)
 
 
