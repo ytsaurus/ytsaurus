@@ -74,6 +74,7 @@ public:
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
                 auto req = proxy->AbortTransaction();
+                req->SetHeavy(true);
                 PrepareRequest(req);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 return req;
