@@ -59,7 +59,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None, clien
         format=format,
         client=client)
 
-def set(path, value, format=None, client=None):
+def set(path, value, format=None, recursive=False, client=None):
     """Sets new value to Cypress node.
 
     :param path: path.
@@ -67,6 +67,7 @@ def set(path, value, format=None, client=None):
     :param value: json-able object.
     :param format: format of the value. If format is None than value should be \
     object that can be dumped to JSON of YSON. Otherwise it should be string.
+    :param bool recursive: recursive.
 
     .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#set>`_
     """
@@ -81,7 +82,8 @@ def set(path, value, format=None, client=None):
         "set",
         {
             "path": YPath(path, client=client),
-            "input_format": format.to_yson_type()
+            "input_format": format.to_yson_type(),
+            "recursive": bool_to_string(recursive),
         },
         data=value,
         client=client)
