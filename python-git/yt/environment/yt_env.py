@@ -768,8 +768,9 @@ class YTInstance(object):
 
         client = self.create_client()
         client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
-        client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
         client.set("//sys/pool_trees/@default_tree", "default")
+        if not client.exists("//sys/pools"):
+            client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
 
         self._run_yt_component("scheduler")
 
