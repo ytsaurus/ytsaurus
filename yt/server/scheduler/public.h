@@ -91,6 +91,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     (UpdateFairShare)
     (UpdateArchiveVersion)
     (SyncClusterDirectory)
+    (UnrecognizedConfigOptions)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
