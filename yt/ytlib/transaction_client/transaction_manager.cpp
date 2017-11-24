@@ -237,13 +237,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        DoAbort(TError("Transaction aborted by user request"));
+
         if (Atomicity_ != EAtomicity::Full) {
             return VoidFuture;
         }
 
-        return SendAbort(options).Apply(BIND([=, this_ = MakeStrong(this)] () {
-            DoAbort(TError("Transaction aborted by user request"));
-        }));
+        return SendAbort(options);
     }
 
     TFuture<void> Ping()
