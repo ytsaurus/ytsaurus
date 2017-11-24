@@ -345,6 +345,8 @@ TOperationAlertsConfig::TOperationAlertsConfig()
 
 TSchedulerConfig::TSchedulerConfig()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("control_thread_priority", ControlThreadPriority)
         .Default();
     RegisterParameter("controller_thread_count", ControllerThreadCount)
