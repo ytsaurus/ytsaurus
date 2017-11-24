@@ -704,6 +704,7 @@ public:
 
     // Config for operation alerts.
     TOperationAlertsConfigPtr OperationAlertsConfig;
+    bool EnableUnrecognizedAlert;
 
     // Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
