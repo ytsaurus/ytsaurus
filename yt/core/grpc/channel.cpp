@@ -235,7 +235,7 @@ private:
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
         TGrpcMetadataArray ResponseInitialMetadata_;
-        grpc_byte_buffer* NativeResponseBodyBuffer_ = nullptr;
+        TGrpcByteBufferPtr ResponseBodyBuffer_;
         TGrpcMetadataArray ResponseFinalMetdata_;
         grpc_status_code ResponseStatusCode_ = GRPC_STATUS_UNKNOWN;
         char* ResponseStatusDetails_ = nullptr;
@@ -303,7 +303,7 @@ private:
             ops[0].op = GRPC_OP_RECV_MESSAGE;
             ops[0].flags = 0;
             ops[0].reserved = nullptr;
-            ops[0].data.recv_message.recv_message = &NativeResponseBodyBuffer_;
+            ops[0].data.recv_message.recv_message = ResponseBodyBuffer_.GetPtr();
 
             ops[1].op = GRPC_OP_RECV_STATUS_ON_CLIENT;
             ops[1].flags = 0;
@@ -326,15 +326,12 @@ private:
                 return;
             }
 
-            auto responseBodyBuffer = TGrpcByteBufferPtr(NativeResponseBodyBuffer_);
-            NativeResponseBodyBuffer_ = nullptr;
-
             if (ResponseStatusCode_ == GRPC_STATUS_OK) {
-                if (responseBodyBuffer) {
+                if (ResponseBodyBuffer_) {
                     NRpc::NProto::TResponseHeader responseHeader;
                     ToProto(responseHeader.mutable_request_id(), Request_->GetRequestId());
 
-                    auto responseBody = ByteBufferToEnvelopedMessage(responseBodyBuffer.Unwrap());
+                    auto responseBody = ByteBufferToEnvelopedMessage(ResponseBodyBuffer_.Unwrap());
 
                     auto responseMessage = CreateResponseMessage(
                         responseHeader,
