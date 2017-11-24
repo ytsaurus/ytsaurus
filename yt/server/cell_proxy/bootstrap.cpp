@@ -62,15 +62,13 @@ using namespace NConcurrency;
 using namespace NApi;
 using namespace NRpcProxy;
 using namespace NBlackbox;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const NLogging::TLogger Logger("Bootstrap");
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TCellProxyConfigPtr config, INodePtr configNode)
-    : Config_(std::move(config))
+    : TBootstrapBase(TLogger("Bootstrap"), config)
+    , Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 { }
 
