@@ -198,7 +198,10 @@ public:
         }
     }
 
-    TTabletCellBundle* CreateTabletCellBundle(const TString& name, const TObjectId& hintId)
+    TTabletCellBundle* CreateTabletCellBundle(
+        const TString& name,
+        const TObjectId& hintId,
+        TTabletCellOptionsPtr options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -213,16 +216,20 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCellBundle, hintId);
-        return DoCreateTabletCellBundle(id, name);
+        return DoCreateTabletCellBundle(id, name, std::move(options));
     }
 
-    TTabletCellBundle* DoCreateTabletCellBundle(const TTabletCellBundleId& id, const TString& name)
+    TTabletCellBundle* DoCreateTabletCellBundle(
+        const TTabletCellBundleId& id,
+        const TString& name,
+        TTabletCellOptionsPtr options)
     {
         auto cellBundleHolder = std::make_unique<TTabletCellBundle>(id);
         cellBundleHolder->SetName(name);
 
         auto* cellBundle = TabletCellBundleMap_.Insert(id, std::move(cellBundleHolder));
         YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
+        cellBundle->SetOptions(std::move(options));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
@@ -2681,9 +2688,10 @@ private:
         if (cellBundle) {
             return false;
         }
-        cellBundle = DoCreateTabletCellBundle(id, name);
-        cellBundle->GetOptions()->ChangelogAccount = DefaultStoreAccountName;
-        cellBundle->GetOptions()->SnapshotAccount = DefaultStoreAccountName;
+        auto options = New<TTabletCellOptions>();
+        options->ChangelogAccount = DefaultStoreAccountName;
+        options->SnapshotAccount = DefaultStoreAccountName;
+        cellBundle = DoCreateTabletCellBundle(id, name, std::move(options));
         return true;
     }
 
@@ -4593,9 +4601,12 @@ void TTabletManager::DestroyTabletCell(TTabletCell* cell)
     Impl_->DestroyTabletCell(cell);
 }
 
-TTabletCellBundle* TTabletManager::CreateTabletCellBundle(const TString& name, const TObjectId& hintId)
+TTabletCellBundle* TTabletManager::CreateTabletCellBundle(
+    const TString& name,
+    const TObjectId& hintId,
+    TTabletCellOptionsPtr options)
 {
-    return Impl_->CreateTabletCellBundle(name, hintId);
+    return Impl_->CreateTabletCellBundle(name, hintId, std::move(options));
 }
 
 void TTabletManager::DestroyTabletCellBundle(TTabletCellBundle* cellBundle)
