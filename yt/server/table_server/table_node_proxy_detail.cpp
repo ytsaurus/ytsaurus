@@ -406,7 +406,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
             timestampProvider->GetLatestTimestamp());
         auto lastCommitTimestamp = trunkTable->GetLastCommitTimestamp();
 
-        // Proper order is not guaranteed
+        // NB: Proper order is not guaranteed.
         auto duration = TDuration::Zero();
         if (unflushedTimestamp <= lastCommitTimestamp) {
             duration = NTransactionClient::TimestampDiffToDuration(
