@@ -356,6 +356,8 @@ TOperationAlertsConfig::TOperationAlertsConfig()
 
 TSchedulerConfig::TSchedulerConfig()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("control_thread_priority", ControlThreadPriority)
         .Default();
     RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -661,6 +663,8 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("operation_alerts", OperationAlertsConfig)
         .DefaultNew();
+    RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
+        .Default(true);
 
     RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
         .Default(64_KB)

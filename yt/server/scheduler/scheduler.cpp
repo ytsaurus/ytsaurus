@@ -181,12 +181,6 @@ public:
         YCHECK(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
 
-        auto unrecognized = Config_->GetUnrecognizedRecursively();
-        if (unrecognized && unrecognized->GetChildCount() > 0) {
-            LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
-                ConvertToYsonString(unrecognized, EYsonFormat::Text));
-        }
-
         auto primaryMasterCellTag = GetMasterClient()
             ->GetNativeConnection()
             ->GetPrimaryMasterCellTag();
@@ -1366,6 +1360,8 @@ private:
         WaitFor(processFuture)
             .ThrowOnError();
 
+        ValidateConfig();
+
         LOG_INFO("Scheduler ready (SchedulerIncarnation: %v)",
             SchedulerIncarnation_);
     }
@@ -1648,12 +1644,7 @@ private:
             LOG_INFO("Scheduler configuration updated");
 
             Config_ = newConfig;
-
-            auto unrecognized = Config_->GetUnrecognizedRecursively();
-            if (unrecognized && unrecognized->GetChildCount() > 0) {
-                LOG_WARNING("New scheduler config contains unrecognized options (Unrecognized: %v)",
-                    ConvertToYsonString(unrecognized, EYsonFormat::Text));
-            }
+            ValidateConfig();
 
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
@@ -2678,6 +2669,23 @@ private:
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
         dynamicOrchidService->AddChild("jobs", New<TJobsService>(this));
         return dynamicOrchidService;
+    }
+
+    void ValidateConfig()
+    {
+        if (!Config_->EnableUnrecognizedAlert) {
+            return;
+        }
+
+        auto unrecognized = Config_->GetUnrecognizedRecursively();
+        if (unrecognized && unrecognized->GetChildCount() > 0) {
+            LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, EYsonFormat::Text));
+            SetSchedulerAlert(
+                ESchedulerAlertType::UnrecognizedConfigOptions,
+                TError("Scheduler config contains unrecognized options")
+                    << TErrorAttribute("unrecognized", unrecognized));
+        }
     }
 
     class TOperationsService
