@@ -665,4 +665,44 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_NO_EXCEPTION(retrylessWriter->Finish()); // It's already finished
         UNIT_ASSERT_NO_EXCEPTION(lockingWriter->Finish());
     }
+
+    void TestCompressionCodec(EEncoding encoding)
+    {
+        TConfigSaverGuard configGuard;
+
+        TConfig::Get()->ContentEncoding = encoding;
+        auto client = CreateTestClient();
+        auto path = "//testing/table";
+
+        const TVector<TNode> expectedData = {
+            TNode()("foo", "bar"),
+            TNode()("foo", "baz"),
+        };
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(path);
+            for (const auto& row : expectedData) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        auto reader = client->CreateTableReader<TNode>(path);
+        TVector<TNode> actual;
+        for (; reader->IsValid(); reader->Next()) {
+            actual.push_back(reader->GetRow());
+        }
+        UNIT_ASSERT_VALUES_EQUAL(actual, expectedData);
+    }
+
+    SIMPLE_UNIT_TEST(ComplressionCodecIdentity)
+    {
+        TestCompressionCodec(E_IDENTITY);
+    }
+
+    SIMPLE_UNIT_TEST(ComplressionCodecGzip)
+    {
+        TestCompressionCodec(E_GZIP);
+    }
+
 }
