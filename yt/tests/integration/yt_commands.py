@@ -934,16 +934,17 @@ def create_tablet_cell(**kwargs):
         kwargs["attributes"] = dict()
     return yson.loads(execute_command("create", kwargs))
 
-def create_tablet_cell_bundle(name, **kwargs):
+def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
     kwargs["type"] = "tablet_cell_bundle"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    if "options" not in kwargs["attributes"]:
-        kwargs["attributes"]["options"] = dict()
-    for option in ("changelog_account", "snapshot_account"):
-        if option not in kwargs["attributes"]["options"]:
-            kwargs["attributes"]["options"][option] = "sys"
+    if initialize_options:
+        if "options" not in kwargs["attributes"]:
+            kwargs["attributes"]["options"] = dict()
+        for option in ("changelog_account", "snapshot_account"):
+            if option not in kwargs["attributes"]["options"]:
+                kwargs["attributes"]["options"][option] = "sys"
     execute_command("create", kwargs)
 
 def remove_tablet_cell_bundle(name, driver=None):
