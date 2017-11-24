@@ -33,20 +33,20 @@ TOperation::TOperation(
     EOperationState state,
     bool suspended,
     const std::vector<TOperationEvent>& events)
-    : Id_(id)
-    , Type_(type)
+    : Type_(type)
     , MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
     , Activated_(false)
     , Prepared_(false)
     , UserTransactionId_(userTransactionId)
-    , Spec_(spec)
     , RuntimeParams_(New<TOperationRuntimeParams>())
-    , AuthenticatedUser_(authenticatedUser)
     , Owners_(owners)
-    , StartTime_(startTime)
     , Events_(events)
+    , Id_(id)
+    , StartTime_(startTime)
+    , AuthenticatedUser_(authenticatedUser)
+    , Spec_(spec)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
@@ -58,6 +58,26 @@ TOperation::TOperation(
     RuntimeParams_->Weight = parsedSpec->Weight.Get(1.0);
     RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
     RuntimeParams_->Owners = parsedSpec->Owners;
+}
+
+TOperationId TOperation::GetId() const
+{
+    return Id_;
+}
+
+TInstant TOperation::GetStartTime() const
+{
+    return StartTime_;
+}
+
+TString TOperation::GetAuthenticatedUser() const
+{
+    return AuthenticatedUser_;
+}
+
+NYTree::IMapNodePtr TOperation::GetSpec() const
+{
+    return Spec_;
 }
 
 TFuture<TOperationPtr> TOperation::GetStarted()

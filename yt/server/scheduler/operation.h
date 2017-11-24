@@ -55,6 +55,10 @@ struct IOperationStrategyHost
     virtual TOperationId GetId() const = 0;
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
+
+    virtual NYTree::IMapNodePtr GetSpec() const = 0;
+
+    virtual TOperationRuntimeParamsPtr GetRuntimeParams() const = 0;
 };
 
 #define DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(type, name, ...) \
@@ -97,8 +101,6 @@ public:
 
     using TAlertsArray = TEnumIndexedVector<TError, EOperationAlertType>;
 
-    DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
-
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
 
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
@@ -116,8 +118,6 @@ public:
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 
-    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
-
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
     // A YSON map that is stored under ACL in Cypress.
@@ -125,10 +125,8 @@ public:
     // sensitive information.
     DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
-    DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::vector<TString>, Owners);
 
-    DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(TNullable<TInstant>, FinishTime);
 
     //! List of events that happened to operation.
@@ -151,6 +149,18 @@ public:
 
     //! Scheduler incarnation that spawned this operation.
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulerIncarnation);
+
+    //! Returns operation id.
+    TOperationId GetId() const override;
+
+    //! Returns operation start time.
+    TInstant GetStartTime() const override;
+
+    //! Returns operation authenticated user.
+    TString GetAuthenticatedUser() const override;
+
+    //! Returns operation spec.
+    NYTree::IMapNodePtr GetSpec() const override;
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
@@ -218,6 +228,11 @@ public:
         const std::vector<TOperationEvent>& events = {});
 
 private:
+    const TOperationId Id_;
+    const TInstant StartTime_;
+    const TString AuthenticatedUser_;
+    const NYTree::IMapNodePtr Spec_;
+
     const TString CodicilData_;
     const TCancelableContextPtr CancelableContext_;
     const IInvokerPtr CancelableInvoker_;

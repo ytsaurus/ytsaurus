@@ -209,6 +209,16 @@ public:
         return Controller_;
     }
 
+    virtual NYTree::IMapNodePtr GetSpec() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual TOperationRuntimeParamsPtr GetRuntimeParams() const override
+    {
+        Y_UNREACHABLE();
+    }
+
 private:
     TInstant StartTime_;
     TOperationId Id_;
