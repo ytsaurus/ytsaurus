@@ -626,7 +626,7 @@ public:
         operation->SetState(EOperationState::Initializing);
         operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
-        WaitFor(Strategy_->ValidateOperationStart(operation))
+        WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
             .ThrowOnError();
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
@@ -1585,7 +1585,7 @@ private:
                     operation->SetOwners(newRuntimeParams->Owners);
                 }
                 operation->SetRuntimeParams(newRuntimeParams);
-                Strategy_->UpdateOperationRuntimeParams(operation, newRuntimeParams);
+                Strategy_->UpdateOperationRuntimeParams(operation.Get(), newRuntimeParams);
                 LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
                     operation->GetId());
             }
@@ -1785,7 +1785,7 @@ private:
             auto controller = CreateControllerForOperation(this, operation.Get());
             operation->SetController(controller);
 
-            Strategy_->ValidateOperationCanBeRegistered(operation);
+            Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             RegisterOperation(operation);
             registered = true;
@@ -1818,7 +1818,7 @@ private:
 
         LogEventFluently(ELogEventType::OperationStarted)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
-            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation));
+            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, Unretained(operation.Get())));
 
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
@@ -2038,7 +2038,7 @@ private:
                 .Run(operation->GetId(), operation->GetController());
         }
 
-        Strategy_->RegisterOperation(operation);
+        Strategy_->RegisterOperation(operation.Get());
 
         MasterConnector_->AddOperationWatcherRequester(
             operation,
@@ -2075,7 +2075,7 @@ private:
                 .Run();
         }
 
-        Strategy_->UnregisterOperation(operation);
+        Strategy_->UnregisterOperation(operation.Get());
 
         Bootstrap_->GetControllerAgent()->UnregisterOperation(operation->GetId());
 

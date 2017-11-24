@@ -76,9 +76,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolIdMap, TreeIdToPoolIdMap);
 
 public:
-    TFairShareStrategyOperationState(const TOperationPtr& operation)
-        : Host_(operation.Get())
-        , Controller_(New<TFairShareStrategyOperationController>(operation.Get()))
+    TFairShareStrategyOperationState(IOperationStrategyHost* host)
+        : Host_(host)
+        , Controller_(New<TFairShareStrategyOperationController>(host))
         , Active_(false)
     { }
 
@@ -157,7 +157,7 @@ public:
         return New<TFairShareTreeSnapshot>(this, RootElementSnapshot);
     }
 
-    TFuture<void> ValidateOperationStart(const TOperationPtr& operation, const TString& poolId)
+    TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation, const TString& poolId)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -166,7 +166,7 @@ public:
             .Run(operation, poolId);
     }
 
-    void ValidateOperationCanBeRegistered(const TOperationPtr& operation, const TString& poolId)
+    void ValidateOperationCanBeRegistered(const IOperationStrategyHost* operation, const TString& poolId)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -434,7 +434,7 @@ public:
         return {LastPoolsNodeUpdateError, true};
     }
 
-    void UpdateOperationRuntimeParams(const TOperationPtr& operation, const TOperationStrategyRuntimeParamsPtr& runtimeParams)
+    void UpdateOperationRuntimeParams(const IOperationStrategyHost* operation, const TOperationStrategyRuntimeParamsPtr& runtimeParams)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1742,7 +1742,7 @@ private:
         }
     }
 
-    void ValidateOperationCountLimit(const TOperationPtr& operation, const TString& poolId)
+    void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TString& poolId)
     {
         TCompositeSchedulerElementPtr parentElement = FindPool(poolId);
         if (!parentElement) {
@@ -1760,7 +1760,7 @@ private:
         }
     }
 
-    void ValidateEphemeralPoolLimit(const TOperationPtr& operation, const TString& poolId)
+    void ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TString& poolId)
     {
         auto pool = FindPool(poolId);
         if (pool) {
@@ -1782,7 +1782,7 @@ private:
         }
     }
 
-    void DoValidateOperationStart(const TOperationPtr& operation, const TString& poolId)
+    void DoValidateOperationStart(const IOperationStrategyHost* operation, const TString& poolId)
     {
         ValidateOperationCountLimit(operation, poolId);
         ValidateEphemeralPoolLimit(operation, poolId);
@@ -1981,7 +1981,7 @@ public:
         return snapshot->ScheduleJobs(schedulingContext);
     }
 
-    virtual void RegisterOperation(const TOperationPtr& operation) override
+    virtual void RegisterOperation(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -2002,7 +2002,7 @@ public:
         }
     }
 
-    virtual void UnregisterOperation(const TOperationPtr& operation) override
+    virtual void UnregisterOperation(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -2174,7 +2174,7 @@ public:
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
     }
 
-    virtual void BuildOperationInfoForEventLog(const TOperationPtr& operation, TFluentMap fluent)
+    virtual void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -2192,7 +2192,7 @@ public:
     }
 
     virtual void UpdateOperationRuntimeParams(
-        const TOperationPtr& operation,
+        IOperationStrategyHost* operation,
         const TOperationStrategyRuntimeParamsPtr& runtimeParams) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -2280,7 +2280,7 @@ public:
         }
     }
 
-    virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) override
+    virtual TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -2289,7 +2289,7 @@ public:
             .Run(operation);
     }
 
-    virtual void ValidateOperationCanBeRegistered(const TOperationPtr& operation) override
+    virtual void ValidateOperationCanBeRegistered(const IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -2480,7 +2480,7 @@ private:
     TReaderWriterSpinLock FairShareTreesSnapshotsLock_;
     yhash<TString, IFairShareTreeSnapshotPtr> FairShareTreesSnapshots_;
 
-    TStrategyOperationSpecPtr ParseSpec(const TOperationPtr& operation, INodePtr specNode) const
+    TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation, INodePtr specNode) const
     {
         try {
             return ConvertTo<TStrategyOperationSpecPtr>(specNode);
@@ -2490,7 +2490,7 @@ private:
         }
     }
 
-    yhash<TString, TString> ParseOperationPools(const TOperationPtr& operation) const
+    yhash<TString, TString> ParseOperationPools(const IOperationStrategyHost* operation) const
     {
         auto spec = ParseSpec(operation, operation->GetSpec());
 
@@ -2551,7 +2551,7 @@ private:
         return pools;
     }
 
-    void DoValidateOperationStart(const TOperationPtr& operation)
+    void DoValidateOperationStart(const IOperationStrategyHost* operation)
     {
         if (FairShareTrees_.empty()) {
             THROW_ERROR_EXCEPTION("Scheduler strategy does not have configured fair-share trees");
