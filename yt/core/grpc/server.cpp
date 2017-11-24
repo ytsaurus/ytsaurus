@@ -273,7 +273,7 @@ private:
         TGrpcCallDetails CallDetails_;
         TGrpcMetadataArray CallMetadata_;
         TGrpcCallPtr Call_;
-        grpc_byte_buffer* NativeRequestBodyBuffer_ = nullptr;
+        TGrpcByteBufferPtr RequestBodyBuffer_;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TString ErrorMessage_;
         int Canceled_ = 0;
@@ -332,7 +332,7 @@ private:
             ops[0].op = GRPC_OP_RECV_MESSAGE;
             ops[0].flags = 0;
             ops[0].reserved = nullptr;
-            ops[0].data.recv_message.recv_message = &NativeRequestBodyBuffer_;
+            ops[0].data.recv_message.recv_message = RequestBodyBuffer_.GetPtr();
 
             StartBatch(ops, EServerCallCookie::Normal);
         }
@@ -393,14 +393,14 @@ private:
                 return;
             }
 
-            if (!NativeRequestBodyBuffer_) {
+            if (!RequestBodyBuffer_) {
                 LOG_DEBUG("Empty request body received (RequestId: %v)",
                     RequestId_);
                 Unref();
                 return;
             }
 
-            auto requestBody = ByteBufferToEnvelopedMessage(std::move(NativeRequestBodyBuffer_));
+            auto requestBody = ByteBufferToEnvelopedMessage(RequestBodyBuffer_.Unwrap());
 
             auto header = std::make_unique<NRpc::NProto::TRequestHeader>();
             ToProto(header->mutable_request_id(), RequestId_);
