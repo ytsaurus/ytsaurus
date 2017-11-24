@@ -11,8 +11,6 @@ namespace NYT {
 enum EEncoding : int {
     E_IDENTITY  /* "identity" */,
     E_GZIP      /* "gzip" */,
-    E_Y_LZO     /* "y-lzo" */,
-    E_Y_LZF     /* "y-lzf" */
 };
 
 ////////////////////////////////////////////////////////////////////////////////
