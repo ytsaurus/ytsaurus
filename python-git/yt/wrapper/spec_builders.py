@@ -1075,6 +1075,10 @@ class MapReduceSpecBuilder(SpecBuilder):
     def map_selectivity_factor(self, factor):
         return _set_spec_value(self, "map_selectivity_factor", factor)
 
+    @spec_option("Number of mapper output tables (not taking one mandatory output table into account)")
+    def mapper_output_table_count(self, count):
+        return _set_spec_value(self, "mapper_output_table_count", count)
+
     @spec_option("The account of intermediate data")
     def intermediate_data_account(self, account):
         return _set_spec_value(self, "intermediate_data_account", account)
@@ -1166,7 +1170,7 @@ class MapReduceSpecBuilder(SpecBuilder):
                                              job_type="mapper",
                                              operation_type=self.operation_type,
                                              input_table_count=len(self.get_input_table_paths()),
-                                             output_table_count=1,
+                                             output_table_count=1 + spec.get("mapper_output_table_count", 0),
                                              client=client)
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
