@@ -544,8 +544,16 @@ class TestDynamicTables(TestDynamicTablesBase):
         assert options["snapshot_account"] == "tmp"
         assert options["changelog_account"] == "tmp"
 
+        remove("//sys/schemas/tablet_cell_bundle/@options")
         with pytest.raises(YtError):
             set("//sys/tablet_cell_bundles/default/@options", {})
+        with pytest.raises(YtError):
+            create_tablet_cell_bundle("invalid", initialize_options=False)
+        with pytest.raises(YtError):
+            create_tablet_cell_bundle(
+                "invalid",
+                initialize_options=False,
+                attributes={"options": {}})
 
     def test_tablet_count_by_state(self):
         self.sync_create_cells(1)
