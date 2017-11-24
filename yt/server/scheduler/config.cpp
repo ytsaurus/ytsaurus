@@ -649,6 +649,8 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("operation_alerts", OperationAlertsConfig)
         .DefaultNew();
+    RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
+        .Default(true);
 
     RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
         .Default(64_KB)
