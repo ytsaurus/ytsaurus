@@ -148,6 +148,15 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .Alias("max_running_operations")
         .Default(1000)
         .GreaterThan(0);
+
+    RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
+        .Default();
+
+    RegisterParameter("main_nodes_filter", MainNodesFilter)
+        .Default();
+
+    RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

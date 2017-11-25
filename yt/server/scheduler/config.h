@@ -146,6 +146,12 @@ public:
     int MaxOperationCount;
 
     TFairShareStrategyConfig();
+
+private:
+    //! COMPAT
+    bool EnableOperationsProfiling;
+    TSchedulingTagFilter MainNodesFilter;
+    TDuration TotalResourceLimitsConsiderDelay;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
