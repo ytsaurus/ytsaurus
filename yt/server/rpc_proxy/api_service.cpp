@@ -225,9 +225,6 @@ private:
         return transaction;
     }
 
-    static void NoOp()
-    { }
-
     template <class T>
     void CompleteCallWith(IServiceContextPtr&& context, TFuture<T>&& future)
     {
