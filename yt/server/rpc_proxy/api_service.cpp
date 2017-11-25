@@ -218,7 +218,10 @@ private:
         auto transaction = client->AttachTransaction(transactionId, options);
 
         if (!transaction) {
-            context->Reply(TError("No such transaction %v", transactionId));
+            context->Reply(TError(
+                NTransactionClient::EErrorCode::NoSuchTransaction,
+                "No such transaction %v",
+                transactionId));
             return nullptr;
         }
 
@@ -1396,7 +1399,6 @@ private:
 
         context->Reply();
     }
-
 };
 
 IServicePtr CreateApiService(
