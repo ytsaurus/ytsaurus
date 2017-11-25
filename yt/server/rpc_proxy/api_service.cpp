@@ -29,6 +29,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -55,11 +56,132 @@ using NYT::ToProto;
 struct TApiServiceBufferTag
 { };
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+void SetTimeoutOptions(
+    TTimeoutOptions* options,
+    IServiceContext* context)
+{
+    options->Timeout = context->GetTimeout();
+}
+
+void FromProto(
+    TTransactionalOptions* options,
+    const NProto::TTransactionalOptions& proto)
+{
+    if (proto.has_transaction_id()) {
+        FromProto(&options->TransactionId, proto.transaction_id());
+    }
+    if (proto.has_ping()) {
+        options->Ping = proto.ping();
+    }
+    if (proto.has_ping_ancestors()) {
+        options->PingAncestors = proto.ping_ancestors();
+    }
+    if (proto.has_sticky()) {
+        options->Sticky = proto.sticky();
+    }
+}
+
+void FromProto(
+    TPrerequisiteOptions* options,
+    const NProto::TPrerequisiteOptions& proto)
+{
+    options->PrerequisiteTransactionIds.resize(proto.transactions_size());
+    for (int i = 0; i < proto.transactions_size(); ++i) {
+        const auto& protoItem = proto.transactions(i);
+        auto& item = options->PrerequisiteTransactionIds[i];
+        FromProto(&item, protoItem.transaction_id());
+    }
+    options->PrerequisiteRevisions.reserve(proto.revisions_size());
+    for (int i = 0; i < proto.revisions_size(); ++i) {
+        const auto& protoItem = proto.revisions(i);
+        options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
+        auto& item = *options->PrerequisiteRevisions[i];
+        FromProto(&item.TransactionId, protoItem.transaction_id());
+        item.Revision = protoItem.revision();
+        item.Path = protoItem.path();
+    }
+}
+
+void FromProto(
+    TMasterReadOptions* options,
+    const NProto::TMasterReadOptions& proto)
+{
+    if (proto.has_read_from()) {
+        switch (proto.read_from()) {
+            case NProto::TMasterReadOptions_EMasterReadKind_LEADER:
+                options->ReadFrom = EMasterChannelKind::Leader;
+                break;
+            case NProto::TMasterReadOptions_EMasterReadKind_FOLLOWER:
+                options->ReadFrom = EMasterChannelKind::Follower;
+                break;
+            case NProto::TMasterReadOptions_EMasterReadKind_CACHE:
+                options->ReadFrom = EMasterChannelKind::Cache;
+                break;
+        }
+    }
+    if (proto.has_success_expiration_time()) {
+        FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.success_expiration_time());
+    }
+    if (proto.has_failure_expiration_time()) {
+        FromProto(&options->ExpireAfterFailedUpdateTime, proto.failure_expiration_time());
+    }
+    if (proto.has_cache_sticky_group_size()) {
+        options->CacheStickyGroupSize = proto.cache_sticky_group_size();
+    }
+}
+
+void FromProto(
+    TMutatingOptions* options,
+    const NProto::TMutatingOptions& proto)
+{
+    if (proto.has_mutation_id()) {
+        FromProto(&options->MutationId, proto.mutation_id());
+    }
+    if (proto.has_retry()) {
+        options->Retry = proto.retry();
+    }
+}
+
+void FromProto(
+    TSuppressableAccessTrackingOptions* options,
+    const NProto::TSuppressableAccessTrackingOptions& proto)
+{
+    if (proto.has_suppress_access_tracking()) {
+        options->SuppressAccessTracking = proto.suppress_access_tracking();
+    }
+    if (proto.has_suppress_modification_tracking()) {
+        options->SuppressModificationTracking = proto.suppress_modification_tracking();
+    }
+}
+
+void FromProto(
+    TTabletRangeOptions* options,
+    const NProto::TTabletRangeOptions& proto)
+{
+    if (proto.has_first_tablet_index()) {
+        options->FirstTabletIndex = proto.first_tablet_index();
+    }
+    if (proto.has_last_tablet_index()) {
+        options->LastTabletIndex = proto.last_tablet_index();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiService
     : public TServiceBase
 {
 public:
-    TApiService(
+    explicit TApiService(
         NCellProxy::TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetNativeConnection()->GetInvoker(), // TODO(sandello): Better threading here.
@@ -319,7 +441,7 @@ private:
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            NYT::FromProto<TTransactionId>(request->transaction_id()),
+            FromProto<TTransactionId>(request->transaction_id()),
             transactionAttachOptions);
         if (!transaction) {
             return;
@@ -338,7 +460,7 @@ private:
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            NYT::FromProto<TTransactionId>(request->transaction_id()),
+            FromProto<TTransactionId>(request->transaction_id()),
             transactionAttachOptions);
         if (!transaction) {
             return;
@@ -362,7 +484,7 @@ private:
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            NYT::FromProto<TTransactionId>(request->transaction_id()),
+            FromProto<TTransactionId>(request->transaction_id()),
             transactionAttachOptions);
         if (!transaction) {
             return;
@@ -370,120 +492,6 @@ private:
 
         // TODO(sandello): Options!
         CompleteCallWith(context, transaction->Abort());
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////
-    // OPTIONS
-    ////////////////////////////////////////////////////////////////////////////////
-
-    static void SetTimeoutOptions(
-        TTimeoutOptions* options,
-        IServiceContext* context)
-    {
-        options->Timeout = context->GetTimeout();
-    }
-
-    static void FromProto(
-        TTransactionalOptions* options,
-        const NProto::TTransactionalOptions& proto)
-    {
-        if (proto.has_transaction_id()) {
-            NYT::FromProto(&options->TransactionId, proto.transaction_id());
-        }
-        if (proto.has_ping()) {
-            options->Ping = proto.ping();
-        }
-        if (proto.has_ping_ancestors()) {
-            options->PingAncestors = proto.ping_ancestors();
-        }
-        if (proto.has_sticky()) {
-            options->Sticky = proto.sticky();
-        }
-    }
-
-    static void FromProto(
-        TPrerequisiteOptions* options,
-        const NProto::TPrerequisiteOptions& proto)
-    {
-        options->PrerequisiteTransactionIds.resize(proto.transactions_size());
-        for (int i = 0; i < proto.transactions_size(); ++i) {
-            const auto& protoItem = proto.transactions(i);
-            auto& item = options->PrerequisiteTransactionIds[i];
-            NYT::FromProto(&item, protoItem.transaction_id());
-        }
-        options->PrerequisiteRevisions.reserve(proto.revisions_size());
-        for (int i = 0; i < proto.revisions_size(); ++i) {
-            const auto& protoItem = proto.revisions(i);
-            options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
-            auto& item = *options->PrerequisiteRevisions[i];
-            NYT::FromProto(&item.TransactionId, protoItem.transaction_id());
-            item.Revision = protoItem.revision();
-            item.Path = protoItem.path();
-        }
-    }
-
-    static void FromProto(
-        TMasterReadOptions* options,
-        const NProto::TMasterReadOptions& proto)
-    {
-        if (proto.has_read_from()) {
-            switch (proto.read_from()) {
-                case NProto::TMasterReadOptions_EMasterReadKind_LEADER:
-                    options->ReadFrom = EMasterChannelKind::Leader;
-                    break;
-                case NProto::TMasterReadOptions_EMasterReadKind_FOLLOWER:
-                    options->ReadFrom = EMasterChannelKind::Follower;
-                    break;
-                case NProto::TMasterReadOptions_EMasterReadKind_CACHE:
-                    options->ReadFrom = EMasterChannelKind::Cache;
-                    break;
-            }
-        }
-        if (proto.has_success_expiration_time()) {
-            NYT::FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.success_expiration_time());
-        }
-        if (proto.has_failure_expiration_time()) {
-            NYT::FromProto(&options->ExpireAfterFailedUpdateTime, proto.failure_expiration_time());
-        }
-        if (proto.has_cache_sticky_group_size()) {
-            options->CacheStickyGroupSize = proto.cache_sticky_group_size();
-        }
-    }
-
-    static void FromProto(
-        TMutatingOptions* options,
-        const NProto::TMutatingOptions& proto)
-    {
-        if (proto.has_mutation_id()) {
-            NYT::FromProto(&options->MutationId, proto.mutation_id());
-        }
-        if (proto.has_retry()) {
-            options->Retry = proto.retry();
-        }
-    }
-
-    static void FromProto(
-        TSuppressableAccessTrackingOptions* options,
-        const NProto::TSuppressableAccessTrackingOptions& proto)
-    {
-        if (proto.has_suppress_access_tracking()) {
-            options->SuppressAccessTracking = proto.suppress_access_tracking();
-        }
-        if (proto.has_suppress_modification_tracking()) {
-            options->SuppressModificationTracking = proto.suppress_modification_tracking();
-        }
-    }
-
-    static void FromProto(
-        TTabletRangeOptions* options,
-        const NProto::TTabletRangeOptions& proto)
-    {
-        if (proto.has_first_tablet_index()) {
-            options->FirstTabletIndex = proto.first_tablet_index();
-        }
-        if (proto.has_last_tablet_index()) {
-            options->LastTabletIndex = proto.last_tablet_index();
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -959,7 +967,7 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         if (request->has_cell_id()) {
-            NYT::FromProto(&options.CellId, request->cell_id());
+            FromProto(&options.CellId, request->cell_id());
         }
         if (request->has_freeze()) {
             options.Freeze = request->freeze();
@@ -1141,7 +1149,7 @@ private:
         }
         if (request->has_upstream_replica_id()) {
             options.UpstreamReplicaId.Emplace();
-            NYT::FromProto(options.UpstreamReplicaId.GetPtr(), request->upstream_replica_id());
+            FromProto(options.UpstreamReplicaId.GetPtr(), request->upstream_replica_id());
         }
 
         if (request->has_mutating_options()) {
@@ -1162,7 +1170,7 @@ private:
         }
 
         NTabletClient::TTableReplicaId replicaId;
-        NYT::FromProto(&replicaId, request->replica_id());
+        FromProto(&replicaId, request->replica_id());
 
         TAlterTableReplicaOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1358,7 +1366,7 @@ private:
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            NYT::FromProto<TTransactionId>(request->transaction_id()),
+            FromProto<TTransactionId>(request->transaction_id()),
             transactionAttachOptions);
         if (!transaction) {
             return;
@@ -1389,7 +1397,7 @@ private:
             options.RequireSyncReplica = request->require_sync_replica();
         }
         if (request->has_upstream_replica_id()) {
-            NYT::FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
+            FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
         transaction->ModifyRows(
             request->path(),
