@@ -27,7 +27,11 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
     if (execDuration) {
         jobStatus->set_exec_duration(ToProto<i64>(*execDuration));
     }
-} 
+    auto stderrSize = job->GetStderrSize();
+    if (stderrSize > 0) {
+        jobStatus->set_stderr_size(stderrSize);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

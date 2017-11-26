@@ -381,7 +381,6 @@ protected:
     void InitJobIOConfig()
     {
         JobIOConfig_ = CloneYsonSerializable(Spec_->JobIO);
-        InitFinalOutputConfig(JobIOConfig_);
     }
 
     void InitTeleportableInputTables()
@@ -546,7 +545,7 @@ private:
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
@@ -681,12 +680,12 @@ private:
         return Spec_->Mapper->CpuLimit;
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TOperationControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TOperationControllerBase::BuildBriefSpec(fluent);
+        fluent
             .Item("mapper").BeginMap()
-            .Item("command").Value(TrimCommandForBriefSpec(Spec_->Mapper->Command))
+                .Item("command").Value(TrimCommandForBriefSpec(Spec_->Mapper->Command))
             .EndMap();
     }
 
@@ -745,7 +744,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
 
         if (Spec_->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
@@ -880,10 +879,10 @@ private:
         return true;
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TOrderedControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TOrderedControllerBase::BuildBriefSpec(fluent);
+        fluent
             // In addition to "input_table_paths" and "output_table_paths".
             // Quite messy, only needed for consistency with the regular spec.
             .Item("table_path").Value(Spec_->TablePath);
@@ -992,7 +991,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -1076,10 +1075,10 @@ private:
         return false;
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TOperationControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TOperationControllerBase::BuildBriefSpec(fluent);
+        fluent
             .Item("cluster_name").Value(Spec_->ClusterName)
             .Item("network_name").Value(Spec_->NetworkName);
     }
@@ -1228,7 +1227,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
         schedulerJobSpecExt->set_table_reader_options("");
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
 
         auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
         if (Spec_->NetworkName) {

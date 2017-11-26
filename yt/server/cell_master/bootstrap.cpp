@@ -141,12 +141,9 @@ using NTransactionServer::TTransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TBootstrap::TBootstrap(TCellMasterConfigPtr config, INodePtr configNode)
-    : Config_(std::move(config))
+    : TBootstrapBase(CellMasterLogger, config)
+    , Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 { }
 
@@ -219,7 +216,7 @@ const IServerPtr& TBootstrap::GetRpcServer() const
     return RpcServer_;
 }
 
-const IChannelPtr TBootstrap::GetLocalRpcChannel() const
+const IChannelPtr& TBootstrap::GetLocalRpcChannel() const
 {
     return LocalRpcChannel_;
 }

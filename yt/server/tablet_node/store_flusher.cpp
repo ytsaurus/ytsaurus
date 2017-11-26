@@ -260,6 +260,10 @@ private:
             store->GetId());
 
         try {
+            auto beginInstant = TInstant::Now();
+
+            LOG_INFO("Store flush started");
+
             INativeTransactionPtr transaction;
             {
                 LOG_INFO("Creating store flush transaction");
@@ -282,8 +286,6 @@ private:
                     transaction->GetId());
             }
 
-            LOG_INFO("Store flush started");
-
             auto asyncFlushResult = flushCallback
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run(transaction);
@@ -291,10 +293,13 @@ private:
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();
 
-            LOG_INFO("Store flush completed (ChunkIds: %v)",
+            auto endInstant = TInstant::Now();
+
+            LOG_INFO("Store flush completed (ChunkIds: %v, WallTime: %v)",
                 MakeFormattableRange(flushResult, [] (TStringBuilder* builder, const TAddStoreDescriptor& descriptor) {
                     FormatValue(builder, FromProto<TChunkId>(descriptor.store_id()), TStringBuf());
-                }));
+                }),
+                endInstant - beginInstant);
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tabletId);

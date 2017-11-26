@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/scheduler/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

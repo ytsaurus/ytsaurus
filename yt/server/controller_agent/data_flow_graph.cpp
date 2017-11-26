@@ -31,6 +31,21 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, IsFinalOutput);
 }
 
+TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
+{
+    DestinationPool = other.DestinationPool;
+    RequiresRecoveryInfo = other.RequiresRecoveryInfo;
+    TableWriterOptions = CloneYsonSerializable(other.TableWriterOptions);
+    TableUploadOptions = other.TableUploadOptions;
+    TableWriterConfig = other.TableWriterConfig;
+    Timestamp = other.Timestamp;
+    CellTag = other.CellTag;
+    ImmediatelyUnstageChunkLists = other.ImmediatelyUnstageChunkLists;
+    IsFinalOutput = other.IsFinalOutput;
+
+    return *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDataFlowGraph::BuildYson(TFluentMap fluent) const

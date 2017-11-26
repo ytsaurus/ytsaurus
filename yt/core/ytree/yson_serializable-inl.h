@@ -67,7 +67,7 @@ inline void LoadFromNode(
             if (!parameter) {
                 parameter = node;
             } else {
-                parameter = UpdateNode(parameter, node);
+                parameter = PatchNode(parameter, node);
             }
             break;
         }
@@ -575,7 +575,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     using NYTree::ConvertTo;
 
     if (patch) {
-        return ConvertTo<TIntrusivePtr<T>>(UpdateNode(ConvertTo<INodePtr>(obj), patch));
+        return ConvertTo<TIntrusivePtr<T>>(PatchNode(ConvertTo<INodePtr>(obj), patch));
     } else {
         return CloneYsonSerializable(obj);
     }

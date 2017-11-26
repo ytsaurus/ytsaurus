@@ -1,16 +1,12 @@
 #include "job_proxy.h"
 #include "config.h"
 #include "job_prober_service.h"
-#include "map_job_io.h"
 #include "merge_job.h"
 #include "partition_job.h"
-#include "partition_map_job_io.h"
-#include "partition_reduce_job_io.h"
 #include "partition_sort_job.h"
 #include "remote_copy_job.h"
 #include "simple_sort_job.h"
 #include "sorted_merge_job.h"
-#include "sorted_reduce_job_io.h"
 #include "user_job.h"
 #include "user_job_io.h"
 #include "user_job_synchronizer.h"
@@ -153,6 +149,7 @@ void TJobProxy::SendHeartbeat()
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(Job_->GetProgress());
     req->set_statistics(ConvertToYsonString(GetStatistics()).GetData());
+    req->set_stderr_size(Job_->GetStderrSize());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -326,34 +323,6 @@ void TJobProxy::Run()
     ReportResult(result, statistics, startTime, finishTime);
 }
 
-std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
-{
-    auto jobType = GetJobSpecHelper()->GetJobType();
-
-    switch (jobType) {
-        case NScheduler::EJobType::Map:
-            return CreateMapJobIO(this);
-
-        case NScheduler::EJobType::OrderedMap:
-            return CreateOrderedMapJobIO(this);
-
-        case NScheduler::EJobType::JoinReduce:
-        case NScheduler::EJobType::SortedReduce:
-            return CreateSortedReduceJobIO(this);
-
-        case NScheduler::EJobType::PartitionMap:
-            return CreatePartitionMapJobIO(this);
-
-        // ToDo(psushin): handle separately to form job result differently.
-        case NScheduler::EJobType::ReduceCombiner:
-        case NScheduler::EJobType::PartitionReduce:
-            return CreatePartitionReduceJobIO(this);
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
 IJobPtr TJobProxy::CreateBuiltinJob()
 {
     auto jobType = GetJobSpecHelper()->GetJobType();
@@ -449,7 +418,7 @@ TJobResult TJobProxy::DoRun()
             this,
             userJobSpec,
             JobId_,
-            CreateUserJobIO());
+            std::make_unique<TUserJobIO>(this));
     } else {
         Job_ = CreateBuiltinJob();
     }

@@ -60,6 +60,8 @@ DEFINE_ENUM(EJobType,
     ((RepairChunk)       (102))
     ((SealChunk)         (103))
     ((ReplicatorLast)    (103)) // Sentinel.
+
+    ((Unknown)           (200)) // Fake job type for situation when job type is unknown.
 );
 
 // NB: Please keep the range of values small as this type
@@ -78,6 +80,8 @@ DEFINE_ENUM(EJobState,
 );
 
 DEFINE_ENUM(EJobPhase,
+    ((Missing)                      (100))
+
     ((Created)                      (  0))
     ((PreparingNodeDirectory)       (  5))
     ((DownloadingArtifacts)         ( 10))

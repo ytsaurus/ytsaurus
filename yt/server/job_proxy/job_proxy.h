@@ -125,7 +125,6 @@ private:
 
     NJobTrackerClient::TStatistics GetStatistics() const;
 
-    std::unique_ptr<IUserJobIO> CreateUserJobIO();
     IJobPtr CreateBuiltinJob();
 
     void UpdateResourceUsage(i64 memoryReserve);

@@ -12,7 +12,7 @@
 
 #include <yt/server/job_proxy/public.h>
 
-#include <yt/server/misc/public.h>
+#include <yt/server/misc/bootstrap.h>
 
 #include <yt/server/tablet_node/public.h>
 
@@ -49,6 +49,7 @@ namespace NCellNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
+    : public TBootstrapBase
 {
 public:
     TBootstrap(TCellNodeConfigPtr config, NYTree::INodePtr configNode);
@@ -61,6 +62,7 @@ public:
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
+    const NApi::INativeConnectionPtr& GetMasterConnection() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NYTree::IMapNodePtr& GetOrchidRoot() const;
     const NJobAgent::TJobControllerPtr& GetJobController() const;

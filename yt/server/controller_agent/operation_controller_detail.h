@@ -243,12 +243,12 @@ public:
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
 
-    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const override;
+    virtual void BuildOperationAttributes(NYTree::TFluentMap fluent) const override;
+    virtual void BuildProgress(NYTree::TFluentMap fluent) const override;
+    virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const override;
+    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap fluent) const override;
+    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const override;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -285,7 +285,6 @@ public:
     virtual void AddTaskPendingHint(const TTaskPtr& task) override;
 
     virtual ui64 NextJobIndex() override;
-    virtual std::unique_ptr<TJobMetricsUpdater> CreateJobMetricsUpdater() const override;
 
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override;
@@ -351,6 +350,8 @@ public:
     virtual int OnSnapshotStarted() override;
 
     virtual void OnBeforeDisposal() override;
+
+    virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() override;
 
 protected:
     IOperationHost* Host;
@@ -838,8 +839,8 @@ protected:
         NScheduler::NProto::TUserJobSpec* jobSpec,
         TJobletPtr joblet);
 
-    NChunkClient::TDataSourceDirectoryPtr MakeInputDataSources() const;
-    NChunkClient::TDataSourceDirectoryPtr CreateIntermediateDataSource() const;
+    void SetInputDataSources(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
+    void SetIntermediateDataSource(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
 
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(NScheduler::TJobIOConfigPtr ioConfig) const;
@@ -849,7 +850,6 @@ protected:
         const NChunkPools::TChunkStripeStatisticsVector& stripeStatistics) const;
 
     void InitIntermediateOutputConfig(NScheduler::TJobIOConfigPtr config);
-    void InitFinalOutputConfig(NScheduler::TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(NScheduler::TJobIOConfigPtr ioConfig);
 
@@ -871,13 +871,13 @@ protected:
     void ValidateOutputSchemaOrdered() const;
     void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
 
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
+    virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
 
     virtual NScheduler::TJobSplitterConfigPtr GetJobSplitterConfig() const;
 
     void CheckFailedJobsStatusReceived();
 
-    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() override;
+    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() const override;
 
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
     TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;
@@ -930,6 +930,10 @@ private:
 
     //! Aggregates job statistics.
     NJobTrackerClient::TStatistics JobStatistics;
+
+    TSpinLock JobMetricsDeltaLock_;
+    //! Delta of job metrics that was not reported to scheduler.
+    NScheduler::TJobMetrics JobMetricsDelta_;
 
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
@@ -1037,6 +1041,7 @@ private:
     int GetExecNodeCount();
 
     void UpdateJobStatistics(const TJobletPtr& joblet, const NScheduler::TJobSummary& jobSummary);
+    void UpdateJobMetrics(const TJobletPtr& joblet, const NScheduler::TJobSummary& jobSummary);
 
     void LogProgress(bool force = false);
 
@@ -1085,12 +1090,12 @@ private:
         const TJobInfoPtr& job,
         EJobState state,
         bool outputStatistics,
-        NYson::IYsonConsumer* consumer) const;
+        NYTree::TFluentMap fluent) const;
 
     void BuildFinishedJobAttributes(
         const TFinishedJobInfoPtr& job,
         bool outputStatistics,
-        NYson::IYsonConsumer* consumer) const;
+        NYTree::TFluentMap fluent) const;
 
     void AnalyzeBriefStatistics(
         const TJobletPtr& job,
@@ -1103,6 +1108,8 @@ private:
 
     void DoAbort();
     void AbortAllJoblets();
+
+    void WaitForHeartbeat();
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

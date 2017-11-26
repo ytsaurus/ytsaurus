@@ -117,6 +117,7 @@ public:
     int MaxInProgressJobDataSize;
     int MaxInProgressJobSpecDataSize;
     int MaxItemsInBatch;
+    TString User;
 
     TStatisticsReporterConfig()
     {
@@ -134,6 +135,8 @@ public:
             .Default(250_MB);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(1000);
+        RegisterParameter("user", User)
+            .Default(NRpc::RootUserName);
     }
 };
 

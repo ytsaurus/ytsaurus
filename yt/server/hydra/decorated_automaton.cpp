@@ -1066,7 +1066,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
                 "/mutation_wait_time",
                 DurationToValue(syncTime),
                 EMetricType::Gauge,
-                CellManager_->GetCellIdTags());
+                {CellManager_->GetCellIdTag()});
         }
 
         auto* descriptor = GetTypeDescriptor(mutationType);

@@ -1,6 +1,6 @@
-#include "porto_executor.h"
+#ifdef __linux__
 
-#ifdef _linux_
+#include "porto_executor.h"
 
 #include "private.h"
 
@@ -382,7 +382,10 @@ private:
     }
 };
 
-const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = { "state", "exit_status" };
+const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
+    "state",
+    "exit_status"
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -390,23 +393,6 @@ IPortoExecutorPtr CreatePortoExecutor(TDuration retryTime, TDuration pollPeriod)
 {
     std::unique_ptr<Porto::Connection> api(new Porto::Connection);
     return New<TPortoExecutor>(std::move(api), retryTime, pollPeriod);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NContainers
-} // namespace NYT
-
-#else
-
-namespace NYT {
-namespace NContainers {
-
-////////////////////////////////////////////////////////////////////////////////
-
-IPortoExecutorPtr CreatePortoExecutor(TDuration /*retryTime*/, TDuration /*pollPeriod*/)
-{
-    Y_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

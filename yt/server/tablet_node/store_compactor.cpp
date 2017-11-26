@@ -383,8 +383,8 @@ private:
             if (storeCount >= config->MinPartitioningStoreCount &&
                 storeCount <= config->MaxPartitioningStoreCount &&
                 dataSizeSum >= config->MinPartitioningDataSize &&
-                // Ignore max_partitioning_data_size limit for a single store.
-                (dataSizeSum <= config->MaxPartitioningDataSize || storeCount == 1))
+                // Ignore max_partitioning_data_size limit for a minimal set of stores.
+                (dataSizeSum <= config->MaxPartitioningDataSize || storeCount == config->MinPartitioningStoreCount))
             {
                 // Prefer to partition more data.
                 bestStoreCount = storeCount;
@@ -425,7 +425,6 @@ private:
                 continue;
             }
 
-            // FIXME: check here
             // Don't compact large Eden stores.
             if (partition->IsEden() && store->GetCompressedDataSize() >= config->MinPartitioningDataSize) {
                 continue;
@@ -459,9 +458,15 @@ private:
                 return lhs->GetCompressedDataSize() < rhs->GetCompressedDataSize();
             });
 
-        const auto* eden = tablet->GetEden();
-        int overlappingStoreCount = static_cast<int>(partition->Stores().size() + eden->Stores().size());
-        bool tooManyOverlappingStores = overlappingStoreCount >= config->MaxOverlappingStoreCount;
+        // Partition is critical if it contributes towards the OSC, and MOSC is reached.
+        bool criticalPartition = false;
+        int overlappingStoreCount;
+        if (partition->IsEden()) {
+            overlappingStoreCount = tablet->GetOverlappingStoreCount();
+        } else {
+            overlappingStoreCount = partition->Stores().size() + tablet->GetEden()->Stores().size();
+        }
+        criticalPartition = overlappingStoreCount >= config->MaxOverlappingStoreCount;
 
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
@@ -472,7 +477,7 @@ private:
                    break;
                 }
                 i64 dataSize = candidates[j]->GetCompressedDataSize();
-                if (!tooManyOverlappingStores &&
+                if (!criticalPartition &&
                     dataSize > config->CompactionDataSizeBase &&
                     dataSizeSum > 0 && dataSize > dataSizeSum * config->CompactionDataSizeRatio) {
                     break;
@@ -488,6 +493,7 @@ private:
                     finalists.push_back(candidates[i]->GetId());
                     ++i;
                 }
+                break;
             }
         }
 
@@ -627,8 +633,11 @@ private:
 
     void PartitionEden(TAsyncSemaphoreGuard guard, const TTask& task)
     {
+        auto sessionId = TReadSessionId();
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v", task.Tablet);
+        Logger.AddTag("TabletId: %v, ReadSessionId: %v",
+            task.Tablet,
+            sessionId);
 
         auto scoreParts = UnpackTaskScore(task.Score);
 
@@ -705,19 +714,18 @@ private:
                 ->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
-            auto sessionId = TReadSessionId();
 
-            eden->SetCompactionTime(TInstant::Now());
+            auto beginInstant = TInstant::Now();
+            eden->SetCompactionTime(beginInstant);
 
-            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx, ReadSessionId: %v)",
+            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
-                currentTimestamp,
-                sessionId);
+                currentTimestamp);
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -727,7 +735,8 @@ private:
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
                 TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
-                sessionId);
+                sessionId,
+                stores.size());
 
             INativeTransactionPtr transaction;
             {
@@ -770,6 +779,8 @@ private:
             std::tie(writers, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
 
+            auto endInstant = TInstant::Now();
+
             // We can release semaphore, because we are no longer actively using resources.
             guard.Release();
             doneGuard.Release();
@@ -805,10 +816,11 @@ private:
                     PartitioningTag_);
             }
 
-            LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
                 storeIdsToAdd,
-                storeIdsToRemove);
+                storeIdsToRemove,
+                endInstant - beginInstant);
 
             auto actionData = MakeTransactionActionData(actionRequest);
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
@@ -981,8 +993,11 @@ private:
 
     void CompactPartition(TAsyncSemaphoreGuard guard, const TTask& task)
     {
+        auto sessionId = TReadSessionId();
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v", task.Tablet);
+        Logger.AddTag("TabletId: %v, ReadSessionId: %v",
+            task.Tablet,
+            sessionId);
 
         auto scoreParts = UnpackTaskScore(task.Score);
 
@@ -1060,15 +1075,15 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
+            auto beginInstant = TInstant::Now();
+            partition->SetCompactionTime(beginInstant);
+
             auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
-            auto sessionId = TReadSessionId();
-
-            partition->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, ReadSessionId: %v)",
+                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
@@ -1076,8 +1091,7 @@ private:
                 stores.size(),
                 currentTimestamp,
                 majorTimestamp,
-                retainedTimestamp,
-                sessionId);
+                retainedTimestamp);
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -1087,7 +1101,8 @@ private:
                 currentTimestamp,
                 majorTimestamp,
                 TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
-                sessionId);
+                sessionId,
+                stores.size());
 
             INativeTransactionPtr transaction;
             {
@@ -1129,6 +1144,8 @@ private:
             std::tie(writer, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
 
+            auto endInstant = TInstant::Now();
+
             // We can release semaphore, because we are no longer actively using resources.
             guard.Release();
             doneGuard.Release();
@@ -1164,10 +1181,11 @@ private:
                 writer->GetDataStatistics(),
                 CompactionTag_);
 
-            LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
                 storeIdsToAdd,
-                storeIdsToRemove);
+                storeIdsToRemove,
+                endInstant - beginInstant);
 
             auto actionData = MakeTransactionActionData(actionRequest);
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);

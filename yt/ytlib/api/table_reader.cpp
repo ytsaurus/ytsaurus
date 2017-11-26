@@ -4,6 +4,7 @@
 #include "native_connection.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -112,7 +113,7 @@ private:
     NLogging::TLogger Logger = ApiLogger;
 
     void DoOpen();
-    void RemoveUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const;
+    void CheckUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,7 +243,7 @@ void TSchemalessTableReader::DoOpen()
             Logger,
             &chunkSpecs);
 
-        RemoveUnavailableChunks(&chunkSpecs);
+        CheckUnavailableChunks(&chunkSpecs);
     }
 
     auto options = New<NTableClient::TTableReaderOptions>();
@@ -405,19 +406,22 @@ void TSchemalessTableReader::Interrupt()
     Y_UNREACHABLE();
 }
 
-void TSchemalessTableReader::RemoveUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const
+void TSchemalessTableReader::CheckUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const
 {
     std::vector<TChunkSpec> availableChunkSpecs;
 
     for (auto& chunkSpec : *chunkSpecs) {
-        if (IsUnavailable(chunkSpec)) {
-            if (!Config_->IgnoreUnavailableChunks) {
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::ChunkUnavailable,
-                    "Chunk %v is unavailable",
-                    NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
-            }
-        } else {
+        if (!IsUnavailable(chunkSpec)) {
+            availableChunkSpecs.push_back(std::move(chunkSpec));
+            continue;
+        }
+        if (Config_->UnavailableChunkStrategy == EUnavailableChunkStrategy::ThrowError) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::ChunkUnavailable,
+                "Chunk %v is unavailable",
+                NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
+        } else if (IsErasureChunkId(NYT::FromProto<TChunkId>(chunkSpec.chunk_id())) &&
+                   Config_->UnavailableChunkStrategy == EUnavailableChunkStrategy::Restore) {
             availableChunkSpecs.push_back(std::move(chunkSpec));
         }
     }

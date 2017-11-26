@@ -292,8 +292,16 @@ function runProxy(logger, profiler) {
 
     if (config.monitoring_port) {
         var profiler_server = http.createServer(function(req, rsp) {
-            rsp.writeHead(200, {"Content-Type": "text/plain"});
-            rsp.end(profiler.dump());
+            if (req.url === "/") {
+                rsp.writeHead(200, {"Content-Type": "text/plain"});
+                rsp.end(profiler.dump());
+            } else if (req.url === "/pbjson") {
+                rsp.writeHead(200, {"Content-Type": "application/json"});
+                rsp.end(profiler.dumpSolomon());
+            } else {
+                rsp.writeHead(404);
+                rsp.end("Not Found");
+            }
         }).listen(config.monitoring_port);
     }
 

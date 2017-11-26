@@ -24,22 +24,6 @@ struct TScalarTypeTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Resolves YPaths into nodes and vice versa.
-struct INodeResolver
-    : public virtual TRefCounted
-{
-    //! Returns a node corresponding to a given path.
-    //! Throws if resolution fails.
-    virtual INodePtr ResolvePath(const TYPath& path) = 0;
-
-    //! Returns a path for a given node.
-    virtual TYPath GetPath(INodePtr node) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(INodeResolver)
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! A base DOM-like interface representing a node.
 struct INode
     : public virtual IYPathService
@@ -58,8 +42,8 @@ struct INode
      */
     virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const = 0;
 
-    //! Returns the resolver associated with the tree.
-    virtual INodeResolverPtr GetResolver() const = 0;
+    //! Returns a YPath for this node.
+    virtual TYPath GetPath() const = 0;
 
     // A bunch of "AsSomething" methods that return a pointer
     // to the same node but typed as "Something".
@@ -107,9 +91,6 @@ struct INode
     {
         NDetail::TScalarTypeTraits<T>::SetValue(this, value);
     }
-
-    //! A shortcut for |node->GetResolver()->GetPath(node)|.
-    TYPath GetPath() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(INode)

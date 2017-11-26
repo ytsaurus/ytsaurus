@@ -191,6 +191,8 @@ public:
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;
 
+    bool FailGetJobSpec;
+
     TTestingOperationOptions();
 };
 
@@ -743,6 +745,10 @@ public:
 
     bool ForceReduceCombiners;
 
+    // First `MapperOutputTableCount` tables will be constructed from
+    // mapper's output to file handlers #4, #7, ...
+    int MapperOutputTableCount;
+
     TMapReduceOperationSpec();
 
     virtual void OnLoaded() override;
@@ -791,13 +797,24 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationRuntimeParams
+class TOperationStrategyRuntimeParams
     : public NYTree::TYsonSerializable
 {
 public:
     double Weight;
 
     TResourceLimitsConfigPtr ResourceLimits;
+
+    TOperationStrategyRuntimeParams();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationStrategyRuntimeParams)
+
+class TOperationRuntimeParams
+    : public TOperationStrategyRuntimeParams
+{
+public:
+    std::vector<TString> Owners;
 
     TOperationRuntimeParams();
 };

@@ -8,6 +8,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 namespace NYT {
 namespace NHiveServer {
@@ -41,7 +42,6 @@ public:
         }
         return CreateNativeTransactionParticipant(
             CellDirectory_,
-            nullptr,
             TimestampProvider_,
             cellId,
             options);
@@ -51,7 +51,6 @@ private:
     const TCellDirectoryPtr CellDirectory_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellTag CellTag_;
-
 };
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
@@ -68,6 +67,8 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     INativeConnectionPtr connection)
 {
+    // Ensure cell directory sync.
+    connection->GetCellDirectorySynchronizer()->Start();
     return CreateTransactionParticipantProvider(
         connection->GetCellDirectory(),
         connection->GetTimestampProvider(),

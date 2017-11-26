@@ -48,6 +48,7 @@ class TRemoteSnapshotStoreOptions
 public:
     int SnapshotReplicationFactor;
     NCompression::ECodec SnapshotCompressionCodec;
+    TString SnapshotAccount;
     TString SnapshotPrimaryMedium;
 
     TRemoteSnapshotStoreOptions()
@@ -58,6 +59,8 @@ public:
             .Default(3);
         RegisterParameter("snapshot_compression_codec", SnapshotCompressionCodec)
             .Default(NCompression::ECodec::Lz4);
+        RegisterParameter("snapshot_account", SnapshotAccount)
+            .NonEmpty();
         RegisterParameter("snapshot_primary_medium", SnapshotPrimaryMedium)
             .Default(NChunkClient::DefaultStoreMediumName);
     }
@@ -73,6 +76,7 @@ public:
     int ChangelogReadQuorum;
     int ChangelogWriteQuorum;
     bool EnableChangelogMultiplexing;
+    TString ChangelogAccount;
     TString ChangelogPrimaryMedium;
 
     TRemoteChangelogStoreOptions()
@@ -91,6 +95,8 @@ public:
             .Default(2);
         RegisterParameter("enable_changelog_multiplexing", EnableChangelogMultiplexing)
             .Default(true);
+        RegisterParameter("changelog_account", ChangelogAccount)
+            .NonEmpty();
         RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)
             .Default(NChunkClient::DefaultStoreMediumName);
 

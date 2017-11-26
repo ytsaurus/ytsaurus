@@ -6,6 +6,8 @@ from time import sleep
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal
 
+from flaky import flaky
+
 ##################################################################
 
 class TestReplicatedDynamicTables(YTEnvSetup):
@@ -33,6 +35,12 @@ class TestReplicatedDynamicTables(YTEnvSetup):
                 "replicator_soft_backoff_time": 100
             }
         }
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "timestamp_provider": {
+            "update_period": 500,
+        },
     }
 
     SIMPLE_SCHEMA = [
@@ -132,6 +140,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         assert get_all_counters("row_count") == (1, 1)
         assert get_all_counters("data_weight") == (13, 13)
 
+    @flaky(max_runs=5)
     def test_replica_tablet_node_profiling(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", attributes={"enable_profiling": True})
@@ -676,15 +685,36 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.AGGREGATE_SCHEMA)
 
-        assert get("#{0}/@replication_lag_time".format(replica_id)) == 0
+        def get_lag_time():
+            return get("#{0}/@replication_lag_time".format(replica_id))
+
+        assert get_lag_time() == 0
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         sleep(1.0)
-        get("#{0}/@replication_lag_time".format(replica_id)) > 1000000
+        assert 1000000 < get_lag_time()
 
         self.sync_enable_table_replica(replica_id)
         sleep(1.0)
-        assert get("#{0}/@replication_lag_time".format(replica_id)) == 0
+        assert get_lag_time() == 0
+
+        self.sync_disable_table_replica(replica_id)
+        sleep(1.0)
+        assert get_lag_time() == 0
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
+        sleep(1.0)
+
+        shift = get_lag_time()
+        assert shift > 2000
+
+        for i in xrange(10):
+            sleep(1.0)
+            assert shift + i * 1000 <= get_lag_time() <= shift + (i + 4) * 1000
+
+        self.sync_enable_table_replica(replica_id)
+        sleep(1.0)
+        assert get_lag_time() == 0
 
     def test_expression_replication(self):
         self._create_cells()

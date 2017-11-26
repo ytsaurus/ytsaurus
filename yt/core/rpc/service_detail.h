@@ -395,6 +395,9 @@ protected:
         //! Counts the number of canceled method calls.
         NProfiling::TSimpleCounter CanceledRequestCounter;
 
+        //! Counts the number of failed method calls.
+        NProfiling::TSimpleCounter FailedRequestCounter;
+
         //! Counts the number of timed out method calls.
         NProfiling::TSimpleCounter TimedOutRequestCounter;
 

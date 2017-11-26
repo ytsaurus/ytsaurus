@@ -1,15 +1,13 @@
 #pragma once
 
-#include "public.h"
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
-namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IUserJobIO> CreatePartitionMapJobIO(IJobHostPtr host);
+DECLARE_PROTO_EXTENSION(NChunkClient::NProto::TDataSourceDirectoryExt, 420)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
 } // namespace NYT

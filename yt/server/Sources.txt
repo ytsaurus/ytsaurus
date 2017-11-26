@@ -87,7 +87,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/intermediate_chunk_scraper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_memory.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_metrics_updater.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_info.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_size_adjuster.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_splitter.cpp
@@ -162,8 +161,8 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_environment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_directory_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_prober_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/mounter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/scheduler_connector.cpp
@@ -240,21 +239,17 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_satellite.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_satellite_connection.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/map_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_map_job_io.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_reduce_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/remote_copy_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/resource_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/simple_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_merge_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_reduce_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stderr_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.proto
@@ -266,6 +261,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/public.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/configure_singletons.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
@@ -328,6 +324,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/exec_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp

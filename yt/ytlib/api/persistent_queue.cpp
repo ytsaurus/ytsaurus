@@ -388,12 +388,13 @@ private:
 
         // TODO(babenko): escaping
         auto query = Format(
-            "* from [%v] where [%v] = %v and [%v] >= %v order by [%v] limit %v",
+            "* from [%v] where [%v] = %v and [%v] between %v and %v order by [%v] limit %v",
             DataTablePath_,
             TabletIndexColumnName,
             tabletIndex,
             RowIndexColumnName,
             tablet.FetchRowIndex,
+            tablet.FetchRowIndex + rowLimit - 1,
             RowIndexColumnName,
             rowLimit);
         auto result = WaitFor(Client_->SelectRows(query))

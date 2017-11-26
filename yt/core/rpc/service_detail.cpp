@@ -47,6 +47,7 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
 TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds)
     : RequestCounter("/request_count", tagIds)
     , CanceledRequestCounter("/canceled_request_count", tagIds)
+    , FailedRequestCounter("/failed_request_count", tagIds)
     , TimedOutRequestCounter("/timed_out_request_count", tagIds)
     , ExecutionTimeCounter("/request_time/execution", tagIds)
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
@@ -352,6 +353,9 @@ private:
 
         Profiler.Update(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(ExecutionTime_));
         Profiler.Update(PerformanceCounters_->TotalTimeCounter, DurationToValue(TotalTime_));
+        if (!Error_.IsOK()) {
+            Profiler.Increment(PerformanceCounters_->FailedRequestCounter);
+        }
 
         Finalize();
     }

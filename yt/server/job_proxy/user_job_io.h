@@ -4,32 +4,38 @@
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
-#include <yt/ytlib/scheduler/public.h>
-
 #include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
 
-class IOutputStream;
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IUserJobIO
-    : private TNonCopyable
+class TUserJobIO
 {
-    virtual ~IUserJobIO()
-    { }
+public:
+    explicit TUserJobIO(IJobHostPtr host);
+    ~TUserJobIO();
 
-    virtual void Init() = 0;
+    void Init();
 
-    virtual std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const = 0;
-    virtual IOutputStream* GetStderrTableWriter() const = 0;
+    std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const;
+    IOutputStream* GetStderrTableWriter() const;
 
-    virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) = 0;
-    virtual void PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) = 0;
+    void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt);
+    void PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt);
+
+protected:
+    const IJobHostPtr Host_;
+
+    std::atomic<bool> Initialized_ = {false};
+
+    std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
+    std::unique_ptr<NTableClient::TBlobTableWriter> StderrTableWriter_;
+
+    NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

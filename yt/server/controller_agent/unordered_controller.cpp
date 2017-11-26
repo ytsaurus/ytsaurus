@@ -470,9 +470,7 @@ protected:
 
     void InitJobIOConfig()
     {
-        // TODO(max42): Looks like InitFinalOutputConfig may be easily removed as well as cloning the JobIO.
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
-        InitFinalOutputConfig(JobIOConfig);
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.
@@ -494,7 +492,7 @@ protected:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
@@ -532,10 +530,10 @@ public:
         }
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TUnorderedControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TUnorderedControllerBase::BuildBriefSpec(fluent);
+        fluent
             .Item("mapper").BeginMap()
                 .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
             .EndMap();

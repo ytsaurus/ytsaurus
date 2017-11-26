@@ -368,9 +368,6 @@ public:
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
 
-    //! Check that controller job counter agrees with the total job counter in data flow graph.
-    bool ValidateTotalJobCounterCorrectness;
-
     TTestingOptions();
 };
 
@@ -698,12 +695,12 @@ public:
 
     // Config for operation alerts.
     TOperationAlertsConfigPtr OperationAlertsConfig;
+    bool EnableUnrecognizedAlert;
 
     // Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
 
     // Filter of main nodes, used to calculate resource limits in fair share strategy.
-    TBooleanFormula MainNodesFilterFormula;
     TSchedulingTagFilter MainNodesFilter;
 
     // Number of nodes to store by memory distribution.
@@ -720,6 +717,12 @@ public:
     // How much time we wait before aborting the revived job that was not confirmed
     // by the corresponding execution node.
     TDuration JobRevivalAbortTimeout;
+
+    // Controller agent-to-scheduler heartbeat period.
+    TDuration ControllerAgentHeartbeatPeriod;
+
+    // Controller agent-to-scheduler heartbeat timeout.
+    TDuration ControllerAgentHeartbeatRpcTimeout;
 
     TSchedulerConfig();
 

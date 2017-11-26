@@ -326,6 +326,18 @@ public:
         }
     }
 
+    virtual ui64 GetStderrSize() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        return StderrSize_;
+    }
+
+    virtual void SetStderrSize(ui64 value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        StderrSize_ = value;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -503,6 +515,7 @@ private:
     TFuture<void> ArtifactsFuture_ = VoidFuture;
 
     double Progress_ = 0.0;
+    ui64 StderrSize_ = 0;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();
@@ -672,11 +685,10 @@ private:
             BIND(&TJob::PrepareSandboxDirectories, MakeStrong(this))
                 .AsyncVia(Invoker_)
                 .Run()
-                .Subscribe(
-                    BIND(
-                        &TJob::OnDirectoriesPrepared,
-                        MakeWeak(this))
-                        .Via(Invoker_));
+                .Subscribe(BIND(
+                    &TJob::OnDirectoriesPrepared,
+                    MakeWeak(this))
+                .Via(Invoker_));
         });
     }
 
@@ -935,19 +947,11 @@ private:
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
-                bool enable = Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs;
                 TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
                     ESandboxKind::User,
                     userJobSpec.tmpfs_size(),
-                    userJobSpec.tmpfs_path(),
-                    enable))
+                    userJobSpec.tmpfs_path()))
                 .ValueOrThrow();
-
-                // Slot just creates directory in that case and job proxy
-                // should not consider this directory as tmpfs.
-                if (!enable) {
-                    TmpfsPath_ = Null;
-                }
             }
         }
     }
@@ -991,7 +995,7 @@ private:
 
     TFuture<std::vector<NDataNode::IChunkPtr>> DownloadArtifacts()
     {
-        auto chunkCache = Bootstrap_->GetChunkCache();
+        const auto& chunkCache = Bootstrap_->GetChunkCache();
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
         for (const auto& artifact : Artifacts_) {

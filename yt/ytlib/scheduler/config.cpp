@@ -47,6 +47,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(Null);
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
+    RegisterParameter("fail_get_job_spec", FailGetJobSpec)
+        .Default(false);
 }
 
 TAutoMergeConfig::TAutoMergeConfig()
@@ -660,6 +662,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("reduce_job_io", MergeJobIO)
         .DefaultNew();
 
+    RegisterParameter("mapper_output_table_count", MapperOutputTableCount)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+
     // Provide custom names for shared settings.
     RegisterParameter("map_job_count", PartitionJobCount)
         .Default()
@@ -733,6 +739,13 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
 
         if (!ReduceBy.empty()) {
             NTableClient::ValidateKeyColumns(ReduceBy);
+        }
+
+        if (MapperOutputTableCount >= OutputTablePaths.size()) {
+            THROW_ERROR_EXCEPTION(
+                "There should be at least one non-mapper output table; maybe you need Map operation instead?")
+                << TErrorAttribute("mapper_output_table_count", MapperOutputTableCount)
+                << TErrorAttribute("output_table_count", OutputTablePaths.size());
         }
     });
 }
@@ -889,13 +902,19 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .NonEmpty();
 }
 
-TOperationRuntimeParams::TOperationRuntimeParams()
+TOperationStrategyRuntimeParams::TOperationStrategyRuntimeParams()
 {
     RegisterParameter("weight", Weight)
         .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
+}
+
+TOperationRuntimeParams::TOperationRuntimeParams()
+{
+    RegisterParameter("owners", Owners)
+        .Default();
 }
 
 TSchedulerConnectionConfig::TSchedulerConnectionConfig()

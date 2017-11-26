@@ -6,6 +6,8 @@
 
 #include <yt/server/cell_scheduler/public.h>
 
+#include <yt/server/scheduler/scheduling_tag.h>
+
 #include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service.pb.h>
 
@@ -66,6 +68,20 @@ public:
     void UnregisterOperation(const TOperationId& operationId);
 
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests);
+
+    TFuture<void> GetHeartbeatSentFuture();
+
+    //! Returns the total number of online exec nodes.
+    /*!
+     *  \note Thread affinity: any
+     */
+    int GetExecNodeCount() const;
+
+    //! Returns the descriptors of online exec nodes matching a given #filter.
+    /*!
+     *  \note Thread affinity: any
+     */
+    NScheduler::TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
 
     void AttachJobContext(
         const NYTree::TYPath& path,

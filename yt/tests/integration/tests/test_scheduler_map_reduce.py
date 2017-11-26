@@ -709,6 +709,29 @@ print "x={0}\ty={1}".format(x, y)
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    @pytest.mark.parametrize("sorted", [False, True])
+    def test_map_output_table(self, sorted):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out_map", attributes={
+            "schema": [
+                {"name": "bypass_key", "type": "int64", "sort_order": "ascending" if sorted else None}
+            ]
+        })
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out_map", "//tmp/t_out"],
+            mapper_command="echo \"{bypass_key=$YT_JOB_INDEX}\" 1>&4; echo '{shuffle_key=23}'",
+            reducer_command="cat",
+            reduce_by=["shuffle_key"],
+            sort_by=["shuffle_key"],
+            spec={"mapper_output_table_count" : 1, "max_failed_job_count": 1, "data_size_per_map_job": 1})
+        assert read_table("//tmp/t_out") == [{"shuffle_key": 23}] * 10
+        assert len(read_table("//tmp/t_out_map")) == 10
+
 ##################################################################
 
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):

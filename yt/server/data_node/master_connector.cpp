@@ -269,7 +269,9 @@ void TMasterConnector::RegisterAtMaster()
         InitMedia();
         StartLeaseTransaction();
         RegisterAtPrimaryMaster();
-        SyncDirectories();
+        if (Config_->SyncDirectoriesOnConnect) {
+            SyncDirectories();
+        }
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Error registering at primary master");
         ResetAndScheduleRegisterAtMaster();
@@ -431,8 +433,6 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
 {
-    auto chunkStore = Bootstrap_->GetChunkStore();
-
     i64 totalAvailableSpace = 0;
     i64 totalLowWatermarkSpace = 0;
     i64 totalUsedSpace = 0;
@@ -440,7 +440,8 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     int totalSessionCount = 0;
     bool full = true;
 
-    for (auto location : chunkStore->Locations()) {
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    for (const auto& location : chunkStore->Locations()) {
         if (location->IsEnabled()) {
             totalAvailableSpace += location->GetAvailableSpace();
             totalLowWatermarkSpace += location->GetLowWatermarkSpace();
@@ -461,7 +462,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
         full = false;
     }
 
-    auto chunkCache = Bootstrap_->GetChunkCache();
+    const auto& chunkCache = Bootstrap_->GetChunkCache();
     int totalCachedChunkCount = chunkCache->GetChunkCount();
 
     result->set_total_available_space(totalAvailableSpace);
@@ -471,7 +472,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     result->set_total_cached_chunk_count(totalCachedChunkCount);
     result->set_full(full);
 
-    auto sessionManager = Bootstrap_->GetSessionManager();
+    const auto& sessionManager = Bootstrap_->GetSessionManager();
     result->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
     result->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
     result->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
@@ -757,14 +758,18 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
             auto performanceCounters = tabletSnapshot->PerformanceCounters;
             protoPerformanceCounters->set_dynamic_row_read_count(performanceCounters->DynamicRowReadCount);
+            protoPerformanceCounters->set_dynamic_row_read_data_weight_count(performanceCounters->DynamicRowReadDataWeightCount);
             protoPerformanceCounters->set_dynamic_row_lookup_count(performanceCounters->DynamicRowLookupCount);
+            protoPerformanceCounters->set_dynamic_row_lookup_data_weight_count(performanceCounters->DynamicRowLookupDataWeightCount);
             protoPerformanceCounters->set_dynamic_row_write_count(performanceCounters->DynamicRowWriteCount);
             protoPerformanceCounters->set_dynamic_row_write_data_weight_count(performanceCounters->DynamicRowWriteDataWeightCount);
             protoPerformanceCounters->set_dynamic_row_delete_count(performanceCounters->DynamicRowDeleteCount);
             protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
+            protoPerformanceCounters->set_static_chunk_row_read_data_weight_count(performanceCounters->StaticChunkRowReadDataWeightCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_true_negative_count(performanceCounters->StaticChunkRowLookupTrueNegativeCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_false_positive_count(performanceCounters->StaticChunkRowLookupFalsePositiveCount);
+            protoPerformanceCounters->set_static_chunk_row_lookup_data_weight_count(performanceCounters->StaticChunkRowLookupDataWeightCount);
             protoPerformanceCounters->set_unmerged_row_read_count(performanceCounters->UnmergedRowReadCount);
             protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
             protoPerformanceCounters->set_compaction_data_weight_count(performanceCounters->CompactionDataWeightCount);

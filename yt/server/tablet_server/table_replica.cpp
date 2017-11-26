@@ -10,6 +10,7 @@ namespace NTabletServer {
 
 using namespace NYPath;
 using namespace NTableServer;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +58,7 @@ void TTableReplica::ThrowInvalidState()
         State_);
 }
 
-TDuration TTableReplica::ComputeReplicationLagTime() const
+TDuration TTableReplica::ComputeReplicationLagTime(TTimestamp latestTimestamp) const
 {
     if (Mode_ == ETableReplicaMode::Sync) {
         return TDuration::Zero();
@@ -65,7 +66,7 @@ TDuration TTableReplica::ComputeReplicationLagTime() const
     auto result = TDuration::Zero();
     for (auto* tablet : Table_->Tablets()) {
         const auto* replicaInfo = tablet->GetReplicaInfo(this);
-        result = std::max(result, tablet->ComputeReplicationLagTime(*replicaInfo));
+        result = std::max(result, tablet->ComputeReplicationLagTime(latestTimestamp, *replicaInfo));
     }
     return result;
 }

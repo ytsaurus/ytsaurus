@@ -447,7 +447,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const TReadSessionId& sessionId,
+    int minConcurrency)
 {
     if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
@@ -490,7 +491,6 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
             Y_ASSERT(index < stores.size());
-
             return stores[index]->CreateReader(
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
@@ -507,7 +507,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
             const TUnversionedValue* rhsEnd)
         {
             return keyComparer(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
-        });
+        },
+        minConcurrency);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

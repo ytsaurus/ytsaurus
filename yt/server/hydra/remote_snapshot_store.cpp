@@ -271,6 +271,7 @@ private:
                     auto attributes = CreateEphemeralAttributes();
                     attributes->Set("replication_factor", Store_->Options_->SnapshotReplicationFactor);
                     attributes->Set("compression_codec", Store_->Options_->SnapshotCompressionCodec);
+                    attributes->Set("account", Store_->Options_->SnapshotAccount);
                     attributes->Set("primary_medium", Store_->Options_->SnapshotPrimaryMedium);
                     attributes->Set("prev_record_count", Meta_.prev_record_count());
                     options.Attributes = std::move(attributes);

@@ -12,17 +12,21 @@
 #include <yt/core/concurrency/poller.h>
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/logging/log.h>
+
 namespace NYT {
 namespace NSkynetManager {
 
 using namespace NConcurrency;
 using namespace NNet;
 using namespace NHttp;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
-    : Config(std::move(config))
+    : TBootstrapBase(TLogger("Bootstrap"), config)
+    , Config(std::move(config))
 {
     Poller = CreateThreadPoolPoller(Config->IOPoolSize, "Poller");
 

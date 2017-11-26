@@ -437,7 +437,7 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto sessionManager = Bootstrap_->GetSessionManager();
+    const auto& sessionManager = Bootstrap_->GetSessionManager();
 
     auto sessionId = TSessionId(chunk->GetId(), chunk->GetLocation()->GetMediumDescriptor().Index);
     auto session = sessionManager->FindSession(sessionId);

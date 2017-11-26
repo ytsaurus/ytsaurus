@@ -93,8 +93,20 @@ public:
     //! Finds node by id, throws if nothing is found.
     TCypressNodeBase* GetNodeOrThrow(const TVersionedNodeId& id);
 
-    //! Creates a resolver that provides a view in the context of a given transaction.
-    NYTree::INodeResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
+    NYPath::TYPath GetNodePath(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction);
+
+    NYPath::TYPath GetNodePath(
+        const ICypressNodeProxy* nodeProxy);
+
+    TCypressNodeBase* ResolvePathToTrunkNode(
+        const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction = nullptr);
+
+    ICypressNodeProxyPtr ResolvePathToNodeProxy(
+        const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction = nullptr);
 
     //! Similar to |FindNode| provided by |DECLARE_ENTITY_ACCESSORS| but
     //! specially optimized for the case of null transaction.
@@ -142,7 +154,6 @@ public:
     void AbortSubtreeTransactions(NYTree::INodePtr node);
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
-    bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);
 
 
     //! Returns the list consisting of the trunk node
@@ -165,11 +176,9 @@ private:
     class TNodeFactory;
     class TNodeTypeHandler;
     class TLockTypeHandler;
-    class TYPathResolver;
 
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressManager)

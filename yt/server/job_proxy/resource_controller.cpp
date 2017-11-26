@@ -2,10 +2,12 @@
 
 #include <yt/server/exec_agent/config.h>
 
+#ifdef _linux_
 #include <yt/server/containers/container_manager.h>
 #include <yt/server/containers/instance.h>
 
 #include <yt/server/misc/process.h>
+#endif
 
 #include <yt/core/logging/log_manager.h>
 
@@ -14,7 +16,9 @@
 namespace NYT {
 namespace NJobProxy {
 
+#ifdef _linux_
 using namespace NContainers;
+#endif
 using namespace NCGroup;
 using namespace NExecAgent;
 using namespace NYTree;
@@ -25,7 +29,7 @@ using namespace NYTree;
 // To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
 static constexpr int CpuShareMultiplier = 10;
 
-static NLogging::TLogger Logger("ResourceController");
+static const NLogging::TLogger Logger("ResourceController");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,6 +169,8 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
 
 template <class ...Args>
 static TError CheckErrors(const TUsage& stats, const Args&... args)
@@ -380,6 +386,8 @@ private:
     DECLARE_NEW_FRIEND();
 };
 
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IResourceControllerPtr CreateResourceController(NYTree::INodePtr config)
@@ -388,12 +396,17 @@ IResourceControllerPtr CreateResourceController(NYTree::INodePtr config)
     switch (environmentConfig->Type) {
         case EJobEnvironmentType::Cgroups:
             return New<TCGroupResourceController>(ConvertTo<TCGroupJobEnvironmentConfigPtr>(config));
+
+#ifdef _linux_
         case EJobEnvironmentType::Porto:
             return TPortoResourceController::Create(ConvertTo<TPortoJobEnvironmentConfigPtr>(config));
+#endif
+
         case EJobEnvironmentType::Simple:
             return nullptr;
+
         default:
-            THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qv environment",
+            THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",
                 environmentConfig->Type);
     }
 }

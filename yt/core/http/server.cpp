@@ -28,7 +28,7 @@ class TCallbackHandler
     : public IHttpHandler
 {
 public:
-    TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
+    explicit TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
         : Handler_(handler)
     { }
 
@@ -56,13 +56,16 @@ class TServer
     : public IServer
 {
 public:
-    TServer(const TServerConfigPtr& config, const IListenerPtr& listener, const IPollerPtr& poller)
+    TServer(
+        const TServerConfigPtr& config,
+        const IListenerPtr& listener,
+        const IPollerPtr& poller)
         : Config_(config)
         , Listener_(listener)
         , Poller_(poller)
     { }
     
-    virtual void AddHandler(const TString& path, const IHttpHandlerPtr& handler)
+    virtual void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
     {
         YCHECK(!Started_.load());
         Handlers_.Add(path, handler);
@@ -71,29 +74,7 @@ public:
     virtual TFuture<void> Start() override
     {
         Started_ = true;
-        return BIND([this, this_ = MakeStrong(this)] () {
-            LOG_INFO("Server started");
-            auto logStop = Finally([] {
-                LOG_INFO("Server stopped");
-            });
-
-            while (true) {
-                auto client = WaitFor(Listener_->Accept()).ValueOrThrow();
-                HttpProfiler.Increment(ConnectionsAccepted_);
-                if (++ActiveClients_ >= Config_->MaxSimultaneousConnections) {
-                    HttpProfiler.Increment(ConnectionsDropped_);
-                    --ActiveClients_;
-                    LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
-                        client->RemoteAddress());
-                    continue;
-                }
-
-                LOG_DEBUG("Accepted client (RemoteAddress: %v)", client->RemoteAddress());
-                BIND(&TServer::HandleClient, MakeStrong(this), std::move(client))
-                    .AsyncVia(Poller_->GetInvoker())
-                    .Run();
-            }
-        })
+        return BIND(&TServer::MainLoop, MakeStrong(this))
             .AsyncVia(Poller_->GetInvoker())
             .Run();
     }
@@ -110,6 +91,32 @@ private:
 
     TSimpleCounter ConnectionsAccepted_{"/connections_accepted"};
     TSimpleCounter ConnectionsDropped_{"/connections_dropped"};
+
+
+    void MainLoop()
+    {
+        LOG_INFO("Server started");
+        auto logStop = Finally([] {
+            LOG_INFO("Server stopped");
+        });
+
+        while (true) {
+            auto client = WaitFor(Listener_->Accept()).ValueOrThrow();
+            HttpProfiler.Increment(ConnectionsAccepted_);
+            if (++ActiveClients_ >= Config_->MaxSimultaneousConnections) {
+                HttpProfiler.Increment(ConnectionsDropped_);
+                --ActiveClients_;
+                LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
+                    client->RemoteAddress());
+                continue;
+            }
+
+            LOG_DEBUG("Accepted client (RemoteAddress: %v)", client->RemoteAddress());
+            BIND(&TServer::HandleClient, MakeStrong(this), std::move(client))
+                .AsyncVia(Poller_->GetInvoker())
+                .Run();
+        }
+    }
 
     void HandleClient(const IConnectionPtr& connection)
     {

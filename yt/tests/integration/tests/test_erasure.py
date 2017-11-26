@@ -85,7 +85,7 @@ class TestErasure(YTEnvSetup):
         node_chunk_id = "-".join(hex(i)[2:] for i in parts)
         return get("//sys/nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
 
-    def _test_repair_on_spot(self, allow_repair):
+    def _prepare_table(self):
         for node in ls("//sys/nodes"):
             set("//sys/nodes/{0}/@resource_limits_overrides".format(node), {"repair_slots": 0})
 
@@ -107,6 +107,44 @@ class TestErasure(YTEnvSetup):
         for index, replica in enumerate(replicas[:12]):
             blocks_count = self._get_blocks_count(chunk_id, replica, index)
             assert blocks_count == 1
+
+        return replicas, content
+
+    def _test_fetching_specs(self, chunk_strategy):
+        replicas, _ = self._prepare_table()
+        replica = replicas[3]
+        address_to_ban = str(replica)
+        self.set_node_banned(address_to_ban, True)
+        time.sleep(1)
+
+        has_failed = None
+
+        try:
+            response = read_table("//tmp/table",
+                                  table_reader={
+                                      "unavailable_chunk_strategy": chunk_strategy,
+                                      "pass_count": 1,
+                                      "retry_count": 1,
+                                  })
+        except YtResponseError:
+            has_failed = True
+        else:
+            has_failed = False
+        finally:
+            self.set_node_banned(address_to_ban, False)
+
+        return has_failed
+
+    def test_throw_error(self):
+        has_failed = self._test_fetching_specs("throw_error")
+        assert has_failed, "Expected to fail due to unavailable chunk specs"
+
+    def test_repair_works(self):
+        has_failed = self._test_fetching_specs("restore")
+        assert not has_failed, "Expected successful read"
+
+    def _test_repair_on_spot(self, allow_repair):
+        replicas, content = self._prepare_table()
 
         replica = replicas[3]
         window_size = 1024

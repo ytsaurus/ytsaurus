@@ -133,7 +133,10 @@ private:
     TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, const NObjectClient::TObjectId& hintId);
     void DestroyTabletCell(TTabletCell* cell);
 
-    TTabletCellBundle* CreateTabletCellBundle(const TString& name, const NObjectClient::TObjectId& hintId);
+    TTabletCellBundle* CreateTabletCellBundle(
+        const TString& name,
+        const NObjectClient::TObjectId& hintId,
+        TTabletCellOptionsPtr options);
     void DestroyTabletCellBundle(TTabletCellBundle* cellBundle);
 
     TTableReplica* CreateTableReplica(

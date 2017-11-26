@@ -1475,9 +1475,9 @@ private:
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
         // COMPAT(savrus)
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 606;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 606;
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 613;
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 626;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 626;
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 626;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1641,6 +1641,10 @@ private:
         EveryoneGroup_ = nullptr;
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
+
+        SysAccount_ = nullptr;
+        TmpAccount_ = nullptr;
+        IntermediateAccount_ = nullptr;
 
         ResetAuthenticatedUser();
     }

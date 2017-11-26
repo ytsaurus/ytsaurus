@@ -53,6 +53,8 @@ public:
 
     virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
 
+    virtual TYPath GetPath() const override;
+
 protected:
     template <class TNode>
     void DoSetSelf(TNode* node, const NYson::TYsonString& value)

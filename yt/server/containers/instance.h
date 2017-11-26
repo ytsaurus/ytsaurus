@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef __linux__
+#error Platform must be linux to include this
+#endif
+
 #include "public.h"
 
 #include <yt/core/actions/future.h>
@@ -51,17 +55,16 @@ struct IInstance
     virtual TFuture<int> Exec(
         const std::vector<const char*>& argv,
         const std::vector<const char*>& env) = 0;
-    virtual void MountTmpfs(const TString& path, size_t size, const TString& user) = 0;
-    virtual void Umount(const TString& path) = 0;
-    virtual std::vector<NFS::TMountPoint> ListVolumes() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInstance)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
 IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor);
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
