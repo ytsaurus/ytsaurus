@@ -24,23 +24,24 @@ public:
     //! Asynchronously opens (or returns a cached) changelog corresponding
     //! to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
-        TStoreLocationPtr location,
+        const TStoreLocationPtr& location,
         const TChunkId& chunkId);
 
     //! Asynchronously creates a new changelog corresponding to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
-        TStoreLocationPtr location,
+        const TStoreLocationPtr& location,
         const TChunkId& chunkId,
-        bool enableMultiplexing);
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& workloadDescriptor);
 
     //! Asynchronously removes files of a given journal chunk.
     TFuture<void> RemoveChangelog(
-        TJournalChunkPtr chunk,
+        const TJournalChunkPtr& chunk,
         bool enableMultiplexing);
 
     //! Asynchronously checks if a given journal chunk is sealed.
     TFuture<bool> IsChangelogSealed(
-        TStoreLocationPtr location,
+        const TStoreLocationPtr& location,
         const TChunkId& chunkId);
 
     //! Asynchronously marks a given journal chunk as sealed.
@@ -56,7 +57,6 @@ private:
     using TImplPtr = TIntrusivePtr<TImpl>;
 
     const TImplPtr Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalDispatcher)

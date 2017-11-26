@@ -40,6 +40,14 @@ TCypressNodeBase* FindMapNodeChild(
     NTransactionServer::TTransaction* transaction,
     const TString& key);
 
+TStringBuf FindMapNodeChildKey(
+    TMapNode* parentNode,
+    TCypressNodeBase* trunkChildNode);
+
+int FindListNodeChildIndex(
+    TListNode* parentNode,
+    TCypressNodeBase* trunkChildNode);
+
 yhash<TString, NYson::TYsonString> GetNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,

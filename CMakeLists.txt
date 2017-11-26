@@ -22,6 +22,7 @@ option(YT_BUILD_ENABLE_PYTHON_SKYNET      "Build Python Skynet bindings" FALSE)
 option(YT_BUILD_ENABLE_PYTHON_3_4         "Build Python 3.4 bindings" FALSE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
 option(YT_BUILD_ENABLE_CPP_TESTS          "Build C++ integration tests" TRUE)
+option(YT_BUILD_ENABLE_YP                 "Build YP" FALSE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
 option(YT_BUILD_HAVE_CYTHON               "Do you have Cython 2.5?" TRUE)
@@ -271,7 +272,7 @@ add_subdirectory(cmake/deps-yt-contrib-zstd-legacy)
 add_subdirectory(cmake/deps-contrib-benchmark)
 add_subdirectory(python)
 add_subdirectory(yt)
-if (YT_BUILD_HAVE_CYTHON)
+if (YT_BUILD_HAVE_CYTHON AND YT_BUILD_ENABLE_YP)
   add_subdirectory(yp)
 endif()
 
@@ -343,7 +344,7 @@ if(YT_CAN_BUILD_PACKAGE)
       --check-dirname-level 0
       -b
     COMMAND mv
-      ../yandex-yt*${YT_VERSION}*
+      ../yandex-*${YT_VERSION}*
       ${CMAKE_BINARY_DIR}/ARTIFACTS
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Packaging YT..."
@@ -357,7 +358,7 @@ if(YT_CAN_BUILD_PACKAGE)
       > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
     COMMAND ${CMAKE_SOURCE_DIR}/python/build_driver.sh
     COMMAND mv
-      ../yandex-yt*${YT_VERSION}*
+      ../yandex-*${YT_VERSION}*
       ${CMAKE_BINARY_DIR}/ARTIFACTS
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
     COMMENT "Packaging YT Python..."
@@ -394,6 +395,7 @@ if(YT_CAN_BUILD_PACKAGE)
     hook_for_debian(yandex-yt-python-${PYTHON_KIND_DASHED}-yson yt-python-${PYTHON_KIND_DASHED}-yson)
     hook_for_debian(yandex-yt-python-${PYTHON_KIND_DASHED}-driver yt-python-${PYTHON_KIND_DASHED}-driver)
   endforeach()
+  hook_for_debian(yandex-yp yp)
 else()
   add_custom_target(package touch package-stamp
     COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100

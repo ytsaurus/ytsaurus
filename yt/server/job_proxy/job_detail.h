@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>
@@ -58,6 +58,8 @@ public:
     virtual void Cleanup() override;
 
     virtual double GetProgress() const override;
+
+    virtual ui64 GetStderrSize() const override;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const override;

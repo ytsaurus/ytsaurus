@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk_reader.h"
+#include "io_engine.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
@@ -27,8 +28,15 @@ public:
     TFileReader(
         const TChunkId& chunkId,
         const TString& fileName,
-        bool validateBlocksChecksums = true);
+        bool validateBlocksChecksums = true
+    );
 
+    TFileReader(
+        IIOEnginePtr ioEngine,
+        const TChunkId& chunkId,
+        const TString& fileName,
+        bool validateBlocksChecksums = true
+    );
 
     // IReader implementation.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -59,6 +67,8 @@ private:
     std::unique_ptr<TFile> CachedDataFile_;
     std::atomic<bool> HasCachedBlocksExt_ = {false};
     TNullable<NProto::TBlocksExt> CachedBlocksExt_;
+
+    IIOEnginePtr IoEngine_;
 
     std::vector<TBlock> DoReadBlocks(int firstBlockIndex, int blockCount);
     NProto::TChunkMeta DoGetMeta(

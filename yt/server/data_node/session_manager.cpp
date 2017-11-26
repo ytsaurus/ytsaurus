@@ -62,7 +62,7 @@ ISessionPtr TSessionManager::FindSession(const TSessionId& sessionId)
     return it == SessionMap_.end() ? nullptr : it->second;
 }
 
-ISessionPtr TSessionManager::GetSession(const TSessionId& sessionId)
+ISessionPtr TSessionManager::GetSessionOrThrow(const TSessionId& sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -74,40 +74,6 @@ ISessionPtr TSessionManager::GetSession(const TSessionId& sessionId)
             sessionId);
     }
     return session;
-}
-
-TSessionManager::TSessionPtrList TSessionManager::FindSessions(const TSessionId& sessionId)
-{
-    TSessionPtrList result;
-
-    if (sessionId.MediumIndex != AllMediaIndex) {
-        auto session = FindSession(sessionId);
-        if (session) {
-            result.emplace_back(std::move(session));
-        }
-    } else {
-        const auto& chunkId = sessionId.ChunkId;
-        for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-            auto session = FindSession(TSessionId(chunkId, mediumIndex));
-            if (session) {
-                result.emplace_back(std::move(session));
-            }
-        }
-    }
-
-    return result;
-}
-
-TSessionManager::TSessionPtrList TSessionManager::GetSessions(const TSessionId& sessionId)
-{
-    auto result = FindSessions(sessionId);
-    if (result.empty()) {
-       THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::NoSuchSession,
-            "Session %v is invalid or expired",
-            sessionId);
-    }
-    return result;
 }
 
 ISessionPtr TSessionManager::StartSession(
@@ -140,7 +106,7 @@ ISessionPtr TSessionManager::CreateSession(
 {
     auto chunkType = TypeFromId(DecodeChunkId(sessionId.ChunkId).Id);
 
-    auto chunkStore = Bootstrap_->GetChunkStore();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
     auto location = chunkStore->GetNewChunkLocation(sessionId, options);
 
     auto lease = TLeaseManager::CreateLease(
@@ -170,7 +136,7 @@ ISessionPtr TSessionManager::CreateSession(
                 location,
                 lease);
             break;
-    
+
         default:
             THROW_ERROR_EXCEPTION("Invalid session chunk type %Qlv",
                 chunkType);
@@ -226,6 +192,7 @@ void TSessionManager::RegisterSession(const ISessionPtr& session)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     YCHECK(SessionMap_.emplace(session->GetId(), session).second);
+    session->GetStoreLocation()->UpdateSessionCount(session->GetType(), +1);
 }
 
 void TSessionManager::UnregisterSession(const ISessionPtr& session)
@@ -233,6 +200,7 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     YCHECK(SessionMap_.erase(session->GetId()) == 1);
+    session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

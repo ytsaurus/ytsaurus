@@ -476,6 +476,28 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", 1)
 
+    def test_reshard_after_trim(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1}])
+        self.sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 1)
+        self.sync_unmount_table("//tmp/t")
+
+        def _verify(expected_flushed, expected_trimmed):
+            tablet = get("//tmp/t/@tablets/0")
+            assert tablet["flushed_row_count"] == expected_flushed
+            assert tablet["trimmed_row_count"] == expected_trimmed
+
+        _verify(1, 1)
+        reshard_table("//tmp/t", 1)
+        _verify(1, 1)
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1}])
+        self.sync_unmount_table("//tmp/t")
+        _verify(2, 1)
+
     def test_freeze_empty(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")

@@ -41,18 +41,7 @@ public:
 
     //! Finds session by session ID. Throws if no session is found.
     //! Session ID must not specify AllMediaIndex as medium index.
-    ISessionPtr GetSession(const TSessionId& sessionId);
-
-    //! Finds session by session ID. Returns empty vector if no sessions were found.
-    //! If session ID specifies AllMediaIndex as medium index, all sessions
-    //! matching chunk ID are returned.
-    TSessionPtrList FindSessions(const TSessionId& sessionId);
-
-    //! Finds sessions by session ID. Throws if no sessions were found (never
-    //! returns empty vector).
-    //! If session ID specifies AllMediaIndex as medium index, all sessions
-    //! matching chunk ID are returned.
-    TSessionPtrList GetSessions(const TSessionId& sessionId);
+    ISessionPtr GetSessionOrThrow(const TSessionId& sessionId);
 
     //! Returns the number of currently active sessions of a given type.
     int GetSessionCount(ESessionType type);

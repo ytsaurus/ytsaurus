@@ -212,7 +212,7 @@ TEST(TYsonTest, UpdateNodes)
             .EndMap()
         .EndMap();
 
-    auto res = UpdateNode(base, patch);
+    auto res = PatchNode(base, patch);
 
     EXPECT_EQ(
         "100",

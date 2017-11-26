@@ -417,7 +417,13 @@ void Serialize(
             })
             .DoIf(valueProducer != nullptr, [=] (TFluentMap fluent) {
                 fluent
-                    .Item("value").Do(*valueProducer);
+                    .Item("value");
+                // NB: we are obligated to deal with a bare consumer here because
+                // we can't use void(TFluentMap) in a function signature as it
+                // will lead to the inclusion of fluent.h in error.h and a cyclic
+                // inclusion error.h -> fluent.h -> callback.h -> error.h
+                auto* consumer = fluent.GetConsumer();
+                (*valueProducer)(consumer);
             })
         .EndMap();
 }

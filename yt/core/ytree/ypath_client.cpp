@@ -451,23 +451,6 @@ TFuture<std::vector<TString>> AsyncYPathList(
         }));
 }
 
-void ApplyYPathOverride(
-    const INodePtr& root,
-    const TStringBuf& overrideString)
-{
-    // TODO(babenko): this effectively forbids override path from containing "="
-    int eqIndex = overrideString.find('=');
-    if (eqIndex == TStringBuf::npos) {
-        THROW_ERROR_EXCEPTION("Missing \"=\" in override string");
-    }
-
-    TYPath path(overrideString.begin(), overrideString.begin() + eqIndex);
-    TYsonString value(TString(overrideString.begin() + eqIndex + 1, overrideString.end()));
-
-    ForceYPath(root, path);
-    SyncYPathSet(root, path, value);
-}
-
 static INodePtr WalkNodeByYPath(
     const INodePtr& root,
     const TYPath& path,
@@ -704,53 +687,12 @@ void ForceYPath(
     factory->Commit();
 }
 
-TYPath GetNodeYPath(
-    const INodePtr& node,
-    INodePtr* root)
-{
-    std::vector<TString> tokens;
-    auto current = node;
-    while (true) {
-        auto parent = current->GetParent();
-        if (!parent) {
-            break;
-        }
-        TString token;
-        switch (parent->GetType()) {
-            case ENodeType::List: {
-                auto index = parent->AsList()->GetChildIndex(current);
-                token = ToYPathLiteral(index);
-                break;
-            }
-            case ENodeType::Map: {
-                auto key = parent->AsMap()->GetChildKey(current);
-                token = ToYPathLiteral(key);
-                break;
-            }
-            default:
-                Y_UNREACHABLE();
-        }
-        tokens.push_back(token);
-        current = parent;
-    }
-    if (root) {
-        *root = current;
-    }
-    std::reverse(tokens.begin(), tokens.end());
-    TYPath path;
-    for (const auto& token : tokens) {
-        path.append('/');
-        path.append(token);
-    }
-    return path;
-}
-
 INodePtr CloneNode(const INodePtr& node)
 {
     return ConvertToNode(node);
 }
 
-INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch)
+INodePtr PatchNode(const INodePtr& base, const INodePtr& patch)
 {
     if (base->GetType() == ENodeType::Map && patch->GetType() == ENodeType::Map) {
         auto result = CloneNode(base);
@@ -760,7 +702,7 @@ INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch)
         for (const auto& key : patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                YCHECK(resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
+                YCHECK(resultMap->AddChild(PatchNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
             } else {
                 YCHECK(resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key));
             }

@@ -300,8 +300,6 @@ TTestingOptions::TTestingOptions()
         .Default(false);
     RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
         .Default(Null);
-    RegisterParameter("validate_total_job_counter_correctness", ValidateTotalJobCounterCorrectness)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -347,6 +345,8 @@ TOperationAlertsConfig::TOperationAlertsConfig()
 
 TSchedulerConfig::TSchedulerConfig()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("control_thread_priority", ControlThreadPriority)
         .Default();
     RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -649,12 +649,14 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("operation_alerts", OperationAlertsConfig)
         .DefaultNew();
+    RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
+        .Default(true);
 
     RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
         .Default(64_KB)
         .GreaterThan(0);
 
-    RegisterParameter("main_nodes_filter", MainNodesFilterFormula)
+    RegisterParameter("main_nodes_filter", MainNodesFilter)
         .Default();
 
     RegisterParameter("memory_distribution_different_node_types_threshold", MemoryDistributionDifferentNodeTypesThreshold)
@@ -671,6 +673,12 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));
+
+    RegisterParameter("controller_agent_heartbeat_period", ControllerAgentHeartbeatPeriod)
+        .Default(TDuration::MilliSeconds(10));
+
+    RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
+        .Default(TDuration::Seconds(10));
 
     RegisterInitializer([&] () {
         ChunkLocationThrottler->Limit = 10000;
@@ -713,8 +721,6 @@ void TSchedulerConfig::OnLoaded()
     UpdateOptions(&MapReduceOperationOptions, OperationOptions);
     UpdateOptions(&SortOperationOptions, OperationOptions);
     UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
-
-    MainNodesFilter.Reload(MainNodesFilterFormula);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/row_base.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -14,7 +14,8 @@
 #include <yt/core/misc/range.h>
 
 #include <yt/core/yson/public.h>
-#include <yt/ytlib/table_client/row_base.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -57,7 +58,7 @@ struct IStore
     //! Deserializes the asynchronous part of the state.
     virtual void AsyncLoad(TLoadContext& context) = 0;
 
-    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) = 0;
 
     virtual bool IsDynamic() const = 0;
     virtual IDynamicStorePtr AsDynamic() = 0;

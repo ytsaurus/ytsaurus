@@ -2,15 +2,19 @@
 
 #include "public.h"
 
+#include <yt/server/cell_scheduler/public.h>
+
+#include <yt/core/rpc/public.h>
+
 namespace NYT {
-namespace NJobProxy {
+namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHostPtr host);
-std::unique_ptr<IUserJobIO> CreateOrderedMapJobIO(IJobHostPtr host);
+NRpc::IServicePtr CreateControllerAgentService(NCellScheduler::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
+} // namespace NScheduler
 } // namespace NYT
+

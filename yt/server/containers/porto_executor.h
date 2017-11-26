@@ -1,14 +1,16 @@
 #pragma once
 
+#ifndef __linux__
+#error Platform must be linux to include this
+#endif
+
 #include "public.h"
 
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/signal.h>
 
-#ifdef _linux_
 #include <yt/contrib/portoapi/rpc.pb.h>
 #include <yt/contrib/portoapi/libporto.hpp>
-#endif
 
 namespace NYT {
 namespace NContainers {
@@ -24,22 +26,15 @@ struct TVolumeId
 
 const int ContainerErrorCodeBase = 12000;
 
-#ifdef _linux_
 DEFINE_ENUM(EContainerErrorCode,
     ((InvalidState)((ContainerErrorCodeBase + ::rpc::EError::InvalidState)))
 );
-#else
-DEFINE_ENUM(EContainerErrorCode,
-    ((InvalidState)((ContainerErrorCodeBase + 1)))
-);
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IPortoExecutor
     : public TRefCounted
 {
-#ifdef _linux_
     virtual TFuture<void> CreateContainer(const TString& name) = 0;
     virtual TFuture<void> SetProperty(
         const TString& name,
@@ -66,7 +61,6 @@ struct IPortoExecutor
     virtual TFuture<std::vector<Porto::Volume>> ListVolumes() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed)
-#endif
 };
 
 DEFINE_REFCOUNTED_TYPE(IPortoExecutor)

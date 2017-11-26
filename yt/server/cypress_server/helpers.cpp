@@ -115,6 +115,67 @@ TCypressNodeBase* FindMapNodeChild(
     return nullptr;
 }
 
+TStringBuf FindMapNodeChildKey(
+    TMapNode* parentNode,
+    TCypressNodeBase* trunkChildNode)
+{
+    Y_ASSERT(trunkChildNode->IsTrunk());
+
+    TStringBuf key;
+
+    for (const auto* currentParentNode = parentNode; currentParentNode;) {
+        auto it = currentParentNode->ChildToKey().find(trunkChildNode);
+        if (it != currentParentNode->ChildToKey().end()) {
+            key = it->second;
+            break;
+        }
+        auto* originator = currentParentNode->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        currentParentNode = originator->As<TMapNode>();
+    }
+
+    if (!key.data()) {
+        return TStringBuf();
+    }
+
+    for (const auto* currentParentNode = parentNode; currentParentNode;) {
+        auto it = currentParentNode->KeyToChild().find(key);
+        if (it != currentParentNode->KeyToChild().end() && !it->second) {
+            return TStringBuf();
+        }
+        auto* originator = currentParentNode->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        currentParentNode = originator->As<TMapNode>();
+    }
+
+    return key;
+}
+
+int FindListNodeChildIndex(
+    TListNode* parentNode,
+    TCypressNodeBase* trunkChildNode)
+{
+    Y_ASSERT(trunkChildNode->IsTrunk());
+
+    while (true) {
+        auto it = parentNode->ChildToIndex().find(trunkChildNode);
+        if (it != parentNode->ChildToIndex().end()) {
+            return it->second;
+        }
+        auto* originator = parentNode->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        parentNode = originator->As<TListNode>();
+    }
+
+    return -1;
+}
+
 yhash<TString, NYson::TYsonString> GetNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,

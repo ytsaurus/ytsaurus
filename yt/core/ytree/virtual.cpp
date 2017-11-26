@@ -56,7 +56,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
             ToYPathLiteral(key));
     }
 
-    return TResolveResultThere{std::move(service), tokenizer.GetSuffix()};
+    return TResolveResultThere{std::move(service), TYPath(tokenizer.GetSuffix())};
 }
 
 void TVirtualMapBase::GetSelf(
@@ -338,12 +338,6 @@ public:
     {
         Y_ASSERT(Parent_);
         return Parent_->CreateFactory();
-    }
-
-    virtual INodeResolverPtr GetResolver() const override
-    {
-        Y_ASSERT(Parent_);
-        return Parent_->GetResolver();
     }
 
     virtual ICompositeNodePtr GetParent() const override

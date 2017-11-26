@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/formats/parser.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/ypath/rich.h>
 

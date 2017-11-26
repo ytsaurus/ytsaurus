@@ -12,7 +12,7 @@
 
 #include <yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -33,9 +33,9 @@ DEFINE_REFCOUNTED_TYPE(IJobHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
-void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
-void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer);
+void BuildInitializingOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
+void BuildRunningOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
+void BuildExecNodeAttributes(TExecNodePtr node, NYTree::TFluentMap fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 

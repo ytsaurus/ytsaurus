@@ -52,11 +52,11 @@ struct ISlot
         const TString& destinationName,
         bool isExecutable) = 0;
 
-    virtual TFuture<TString> PrepareTmpfs(
+    virtual TFuture<TNullable<TString>> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        TString path,
-        bool enable) = 0;
+        TString path) = 0;
+
 
     virtual TFuture<void> FinalizePreparation(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) = 0;
 

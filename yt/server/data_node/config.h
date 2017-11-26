@@ -36,6 +36,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreLocationConfigBase
     : public TDiskLocationConfig
 {
@@ -62,6 +64,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocationConfigBase)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TStoreLocationConfig
     : public TStoreLocationConfigBase
@@ -132,6 +136,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TCacheLocationConfig
     : public TStoreLocationConfigBase
 {
@@ -151,6 +157,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
@@ -206,6 +214,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TArtifactCacheReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
     , public virtual NTableClient::TTableReaderConfig
@@ -214,6 +224,8 @@ class TArtifactCacheReaderConfig
 
 DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TRepairReaderConfig
     : public NChunkClient::TReplicationReaderConfig
     , public TWorkloadConfig
@@ -221,12 +233,82 @@ class TRepairReaderConfig
 
 DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TSealReaderConfig
     : public NChunkClient::TReplicationReaderConfig
     , public TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TSealReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLayerLocationConfig
+    : public TDiskLocationConfig
+{
+public:
+    //! The location is considered to be full when available space becomes less than #LowWatermark.
+    i64 LowWatermark;
+
+    //! Maximum space layers are allowed to occupy.
+    //! (If not initialized then indicates to occupy all available space on drive).
+    TNullable<i64> Quota;
+
+    TLayerLocationConfig()
+    {
+        RegisterParameter("low_watermark", LowWatermark)
+            .Default(1_GB)
+            .GreaterThan(0);
+
+        RegisterParameter("quota", Quota)
+            .Default(Null);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLayerLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVolumeManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::vector<TLayerLocationConfigPtr> LayerLocations;
+    TDuration PortoRetryTimeout;
+    TDuration PortoPollPeriod;
+
+    TVolumeManagerConfig()
+    {
+        RegisterParameter("layer_locations", LayerLocations);
+
+        RegisterParameter("porto_retry_timeout", PortoRetryTimeout)
+            .Default(TDuration::Seconds(1))
+            .GreaterThan(TDuration::Zero());
+
+        RegisterParameter("porto_poll_period", PortoPollPeriod)
+            .Default(TDuration::MilliSeconds(200))
+            .GreaterThan(TDuration::Zero());
+    }
+
+    i64 GetCacheCapacity() const
+    {
+        i64 result = 0;
+        for (const auto& location : LayerLocations) {
+            if (!location->Quota) {
+                // Infinite capacity.
+                return std::numeric_limits<i64>::max();
+            } else {
+                result += *location->Quota;
+            }
+        }
+        return result;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TVolumeManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Describes a configuration of a data node.
 class TDataNodeConfig
@@ -317,6 +399,9 @@ public:
     //! Cached chunks location.
     std::vector<TCacheLocationConfigPtr> CacheLocations;
 
+    //! Manages layers and root volumes for porto job environment.
+    TVolumeManagerConfigPtr VolumeManager;
+
     //! Reader configuration used to download chunks into cache.
     TArtifactCacheReaderConfigPtr ArtifactCacheReader;
 
@@ -391,6 +476,10 @@ public:
     //! The time after which any registered placement info expires.
     TDuration PlacementExpirationTime;
 
+    //! Controls if cluster and cell directories are to be synchronized on connect.
+    //! Useful for tests.
+    bool SyncDirectoriesOnConnect;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -452,6 +541,9 @@ public:
         RegisterParameter("cache_locations", CacheLocations)
             .NonEmpty();
 
+        RegisterParameter("volume_manager", VolumeManager)
+            .DefaultNew();
+
         RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
             .DefaultNew();
         RegisterParameter("replication_writer", ReplicationWriter)
@@ -511,13 +603,16 @@ public:
         RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
             .Default(true);
 
-        RegisterParameter("placement_expiration_time", PlacementExpirationTime)
-            .Default(TDuration::Hours(1));
-
         RegisterParameter("use_direct_io", UseDirectIO)
             .Default(EDirectIOPolicy::Never);
 
         RegisterParameter("enable_experimental_skynet_http_api", EnableExperimentalSkynetHttpApi)
+            .Default(false);
+
+        RegisterParameter("placement_expiration_time", PlacementExpirationTime)
+            .Default(TDuration::Hours(1));
+
+        RegisterParameter("sync_directories_on_connect", SyncDirectoriesOnConnect)
             .Default(false);
 
         RegisterInitializer([&] () {

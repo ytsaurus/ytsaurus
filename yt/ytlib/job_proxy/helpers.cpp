@@ -8,7 +8,7 @@
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/query.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_writer.h>

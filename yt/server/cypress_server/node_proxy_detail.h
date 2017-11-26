@@ -37,7 +37,7 @@ public:
         NSecurityServer::TAccount* account,
         const TNodeFactoryOptions& options) const override;
 
-    virtual NYTree::INodeResolverPtr GetResolver() const override;
+    virtual NYPath::TYPath GetPath() const override;
 
     virtual NTransactionServer::TTransaction* GetTransaction() const override;
 
@@ -75,7 +75,6 @@ protected:
     TCypressNodeBase* const TrunkNode;
 
     mutable TCypressNodeBase* CachedNode = nullptr;
-    mutable NYTree::INodeResolverPtr CachedResolver;
 
     bool AccessTrackingSuppressed = false;
     bool ModificationTrackingSuppressed = false;

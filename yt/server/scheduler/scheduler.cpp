@@ -79,7 +79,6 @@ using namespace NApi;
 using namespace NCellScheduler;
 using namespace NObjectClient;
 using namespace NHydra;
-using namespace NScheduler::NProto;
 using namespace NJobTrackerClient;
 using namespace NChunkClient;
 using namespace NJobProberClient;
@@ -98,6 +97,8 @@ using NControllerAgent::IOperationController;
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerClient::TNodeDirectory;
+
+using NScheduler::NProto::TRspStartOperation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,10 +146,6 @@ public:
             NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , CachedExecNodeDescriptorsByTags_(New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
-            BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker()))
         , CachedExecNodeMemoryDistributionByTags_(New<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
@@ -163,12 +160,6 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
-
-        auto unrecognized = Config_->GetUnrecognizedRecursively();
-        if (unrecognized && unrecognized->GetChildCount() > 0) {
-            LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
-                ConvertToYsonString(unrecognized, EYsonFormat::Text));
-        }
 
         auto primaryMasterCellTag = GetMasterClient()
             ->GetNativeConnection()
@@ -228,6 +219,13 @@ public:
             Unretained(this)));
         MasterConnector_->AddGlobalWatcherHandler(BIND(
             &TImpl::HandleConfig,
+            Unretained(this)));
+
+        MasterConnector_->AddGlobalWatcherRequester(BIND(
+            &TImpl::RequestOperationArchiveVersion,
+            Unretained(this)));
+        MasterConnector_->AddGlobalWatcherHandler(BIND(
+            &TImpl::HandleOperationArchiveVersion,
             Unretained(this)));
 
         MasterConnector_->SubscribeMasterConnected(BIND(
@@ -364,7 +362,7 @@ public:
         return operation;
     }
 
-    virtual int GetExecNodeCount() const override
+    int GetExecNodeCount() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -384,19 +382,6 @@ public:
             totalNodeCount += nodeShard->GetTotalNodeCount();
         }
         return totalNodeCount;
-    }
-
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (filter.IsEmpty()) {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
-
-            return CachedExecNodeDescriptors_;
-        }
-
-        return CachedExecNodeDescriptorsByTags_->Get(filter);
     }
 
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
@@ -515,11 +500,6 @@ public:
                 controllerSchedulerIncarnation));
     }
 
-    virtual void SendJobMetricsToStrategy(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) override
-    {
-        GetStrategy()->ApplyJobMetricsDelta(operationId, jobMetricsDelta);
-    }
-
     virtual void ValidatePoolPermission(
         const TYPath& path,
         const TString& user,
@@ -603,7 +583,7 @@ public:
         // Merge operation spec with template
         auto specTemplate = GetSpecTemplate(type, spec);
         if (specTemplate) {
-            spec = UpdateNode(specTemplate, spec)->AsMap();
+            spec = PatchNode(specTemplate, spec)->AsMap();
         }
 
         TOperationSpecBasePtr operationSpec;
@@ -832,6 +812,28 @@ public:
         nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
     }
 
+    void ProcessControllerAgentHeartbeat(
+        const NScheduler::NProto::TReqHeartbeat* request,
+        NScheduler::NProto::TRspHeartbeat* response)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        for (const auto& jobMetricsProto : request->job_metrics()) {
+            auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
+            GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
+        }
+
+        TExecNodeDescriptorListPtr execNodes;
+        {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+            execNodes = CachedExecNodeDescriptors_;
+        }
+
+        for (const auto& execNode : execNodes->Descriptors) {
+            ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
+        }
+    }
+
     // ISchedulerStrategyHost implementation
     virtual TJobResources GetTotalResourceLimits() override
     {
@@ -1022,6 +1024,11 @@ public:
         return proxy;
     }
 
+    virtual int GetOperationArchiveVersion() const override
+    {
+        return OperationArchiveVersion_.load(std::memory_order_relaxed);
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
@@ -1049,7 +1056,6 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
-    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
@@ -1078,6 +1084,8 @@ private:
 
     TEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
+
+    std::atomic<int> OperationArchiveVersion_ = {-1};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1232,7 +1240,6 @@ private:
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
 
-        CachedExecNodeDescriptorsByTags_->Start();
         CachedExecNodeMemoryDistributionByTags_->Start();
 
         IsConnected_.store(true);
@@ -1249,6 +1256,8 @@ private:
             .Run();
         WaitFor(processFuture)
             .ThrowOnError();
+
+        ValidateConfig();
 
         LOG_INFO("Scheduler ready (SchedulerIncarnation: %v)",
             SchedulerIncarnation_);
@@ -1270,7 +1279,6 @@ private:
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
 
-        CachedExecNodeDescriptorsByTags_->Stop();
         CachedExecNodeMemoryDistributionByTags_->Stop();
 
         LogEventFluently(ELogEventType::MasterDisconnected)
@@ -1460,14 +1468,29 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
         if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error updating operation runtime parameters");
+            LOG_ERROR(rspOrError, "Error updating operation runtime parameters (OperationId: %v)",
+                operation->GetId());
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         auto attributesNode = ConvertToNode(TYsonString(rsp->value()));
 
-        Strategy_->UpdateOperationRuntimeParams(operation, attributesNode);
+        try {
+            auto newRuntimeParams = CloneYsonSerializable(operation->GetRuntimeParams());
+            if (ReconfigureYsonSerializable(newRuntimeParams, attributesNode)) {
+                if (operation->GetOwners() != newRuntimeParams->Owners) {
+                    operation->SetOwners(newRuntimeParams->Owners);
+                }
+                operation->SetRuntimeParams(newRuntimeParams);
+                Strategy_->UpdateOperationRuntimeParams(operation, newRuntimeParams);
+                LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
+                    operation->GetId());
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing operation runtime parameters (OperationId: %v)",
+                operation->GetId());
+        }
     }
 
     void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
@@ -1519,12 +1542,7 @@ private:
             LOG_INFO("Scheduler configuration updated");
 
             Config_ = newConfig;
-
-            auto unrecognized = Config_->GetUnrecognizedRecursively();
-            if (unrecognized && unrecognized->GetChildCount() > 0) {
-                LOG_WARNING("New scheduler config contains unrecognized options (Unrecognized: %v)",
-                    ConvertToYsonString(unrecognized, EYsonFormat::Text));
-            }
+            ValidateConfig();
 
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
@@ -1552,6 +1570,33 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
+        }
+    }
+
+    void RequestOperationArchiveVersion(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        LOG_INFO("Updating operation archive version");
+        auto req = TYPathProxy::Get(GetOperationsArchiveVersionPath());
+        batchReq->AddRequest(req, "get_operation_archive_version");
+    }
+
+    void HandleOperationArchiveVersion(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation_archive_version");
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error getting operation archive version");
+            return;
+        }
+
+        try {
+            OperationArchiveVersion_.store(
+                ConvertTo<int>(TYsonString(rspOrError.Value()->value())),
+                std::memory_order_relaxed);
+            SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, TError());
+        } catch (const std::exception& ex) {
+            auto error = TError("Error parsing operation archive version")
+                << ex;
+            SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, error);
         }
     }
 
@@ -1937,14 +1982,14 @@ private:
             operation->GetId());
     }
 
-    void BuildOperationInfoForEventLog(TOperationPtr operation, IYsonConsumer* consumer)
+    void BuildOperationInfoForEventLog(TOperationPtr operation, TFluentMap fluent)
     {
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
-        Strategy_->BuildOperationInfoForEventLog(operation, consumer);
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation));
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -2410,7 +2455,7 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
-                    .Do([=] (IYsonConsumer* consumer) {
+                    .Do([=] (TFluentMap fluent) {
                         std::vector<TFuture<TYsonString>> asyncResults;
                         for (const auto& pair : IdToOperation_) {
                             const auto& operation = pair.second;
@@ -2424,16 +2469,20 @@ private:
                         auto results = WaitFor(Combine(asyncResults))
                             .ValueOrThrow();
 
+                        // Suspicious jobs are received as a bunch of YSON strings defining map fragments
+                        // that should be simply concatenated, so we have to work with a bare consumer here.
+                        auto* consumer = fluent.GetConsumer();
+
                         for (const auto& ysonString : results) {
                             consumer->OnRaw(ysonString);
                         }
                     })
                 .EndMap()
                 .Item("nodes").BeginMap()
-                    .Do([=] (IYsonConsumer* consumer) {
+                    .Do([=] (TFluentMap fluent) {
                         for (auto nodeShard : NodeShards_) {
                             auto asyncResult = WaitFor(
-                                BIND(&TNodeShard::BuildNodesYson, nodeShard, consumer)
+                                BIND(&TNodeShard::BuildNodesYson, nodeShard, fluent)
                                     .AsyncVia(nodeShard->GetInvoker())
                                     .Run());
                             asyncResult.ThrowOnError();
@@ -2458,22 +2507,22 @@ private:
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
                             // TODO(ignat): maybe use cached version here?
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
-                                .Run(consumer));
+                                .Run(fluent));
                         asyncResult.ThrowOnError();
                     }))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
                             BIND(&IOperationController::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
-                                .Run(consumer));
+                                .Run(fluent));
                         asyncResult.ThrowOnError();
                     }))
                     .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
@@ -2482,12 +2531,14 @@ private:
                     .Item("opaque").Value("true")
                 .EndAttributes()
                 .BeginMap()
-                    .Do([=] (IYsonConsumer* consumer) {
+                    .Do([=] (TFluentMap fluent) {
                         auto future = BIND(&IOperationController::BuildJobsYson, controller)
                             .AsyncVia(controller->GetCancelableInvoker())
                             .Run();
                         auto jobsYson = WaitFor(future)
                             .ValueOrThrow();
+
+                        auto consumer = fluent.GetConsumer();
                         consumer->OnRaw(jobsYson);
                     })
                 .EndMap()
@@ -2495,19 +2546,19 @@ private:
                     .Item("opaque").Value("true")
                 .EndAttributes()
                 .BeginMap()
-                    .DoIf(hasControllerJobSplitterInfo, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerJobSplitterInfo, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
                             BIND(&IOperationController::BuildJobSplitterInfo, controller)
                                 .AsyncVia(controller->GetInvoker())
-                                .Run(consumer));
+                                .Run(fluent));
                         asyncResult.ThrowOnError();
                     }))
                 .EndMap()
-                .Do([=] (IYsonConsumer* consumer) {
+                .Do([=] (TFluentMap fluent) {
                     auto asyncResult = WaitFor(
                         BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
                             .AsyncVia(controller->GetInvoker())
-                            .Run(consumer));
+                            .Run(fluent));
                     asyncResult.ThrowOnError();
                 })
             .EndMap();
@@ -2519,6 +2570,26 @@ private:
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
         dynamicOrchidService->AddChild("jobs", New<TJobsService>(this));
         return dynamicOrchidService;
+    }
+
+    void ValidateConfig()
+    {
+        // First reset the alert.
+        SetSchedulerAlert(ESchedulerAlertType::UnrecognizedConfigOptions, TError());
+
+        if (!Config_->EnableUnrecognizedAlert) {
+            return;
+        }
+
+        auto unrecognized = Config_->GetUnrecognizedRecursively();
+        if (unrecognized && unrecognized->GetChildCount() > 0) {
+            LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, EYsonFormat::Text));
+            SetSchedulerAlert(
+                ESchedulerAlertType::UnrecognizedConfigOptions,
+                TError("Scheduler config contains unrecognized options")
+                    << TErrorAttribute("unrecognized", unrecognized));
+        }
     }
 
     class TOperationsService
@@ -2783,6 +2854,13 @@ TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const TNullable<TDuratio
 void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)
 {
     Impl_->ProcessHeartbeat(context);
+}
+
+void TScheduler::ProcessControllerAgentHeartbeat(
+    const NScheduler::NProto::TReqHeartbeat* request,
+    NScheduler::NProto::TRspHeartbeat* response)
+{
+    Impl_->ProcessControllerAgentHeartbeat(request, response);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -51,7 +51,7 @@
 #include <yt/ytlib/query_client/ast.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
@@ -4007,6 +4007,13 @@ private:
                 "statistics",
                 "stderr_size"});
 
+            int version = DoGetOperationsArchiveVersion();
+            if (version >= 16) {
+                selectFields = JoinSeq(",", {
+                    selectFields,
+                    "transient_state"});
+            }
+
             TString orderBy;
             if (options.SortField != EJobSortField::None) {
                 switch (options.SortField) {
@@ -4049,7 +4056,7 @@ private:
             auto result = WaitFor(SelectRows(query, selectRowsOptions))
                 .ValueOrThrow();
 
-            const auto& rows = result.Rowset->GetRows();
+            auto rows = result.Rowset->GetRows();
 
             auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name) {
                 if (value.Type == EValueType::Null) {
@@ -4068,8 +4075,11 @@ private:
                 job.JobId = jobId;
                 checkIsNotNull(row[4], "type");
                 job.JobType = ParseEnum<EJobType>(TString(row[4].Data.String, row[4].Length));
-                checkIsNotNull(row[5], "state");
-                job.JobState = ParseEnum<EJobState>(TString(row[5].Data.String, row[5].Length));
+                int jobStateIndex = (version >= 16 && row[5].Type == EValueType::Null)
+                    ? 12
+                    : 5;
+                checkIsNotNull(row[jobStateIndex], "state");
+                job.JobState = ParseEnum<EJobState>(TString(row[jobStateIndex].Data.String, row[jobStateIndex].Length));
                 checkIsNotNull(row[6], "start_time");
                 job.StartTime = TInstant(row[6].Data.Int64);
 
@@ -4203,6 +4213,7 @@ private:
                 auto jobType = ParseEnum<NJobTrackerClient::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
                 auto jobState = ParseEnum<NJobTrackerClient::EJobState>(values->GetChild("state")->AsString()->GetValue());
                 auto address = values->GetChild("address")->AsString()->GetValue();
+                auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;
@@ -4216,8 +4227,13 @@ private:
                     continue;
                 }
 
-                if (options.HasStderr && !(*options.HasStderr)) {
-                    continue;
+                if (options.HasStderr) {
+                    if (*options.HasStderr && stderrSize <= 0) {
+                        continue;
+                    }
+                    if (!(*options.HasStderr) && stderrSize > 0) {
+                        continue;
+                    }
                 }
 
                 TGuid jobId = TGuid::FromString(item.first);
@@ -4228,6 +4244,7 @@ private:
                 job.JobState = jobState;
                 job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
                 job.Address = address;
+                job.StderrSize = stderrSize;
 
                 if (auto error = values->FindChild("error")) {
                     job.Error = TYsonString(error->AsString()->GetValue());

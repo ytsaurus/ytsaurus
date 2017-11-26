@@ -155,6 +155,7 @@ def configure(options, build_context):
         "-DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON",
         "-DYT_BUILD_ENABLE_TESTS:BOOL=ON",
         "-DYT_BUILD_ENABLE_GDB_INDEX:BOOL=ON",
+        "-DYT_BUILD_ENABLE_YP:BOOL=ON",
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
@@ -206,7 +207,7 @@ def package(options, build_context):
         teamcity_interact("setParameter", name="yt.package_version", value=version)
         teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
-        artifacts = glob.glob("./ARTIFACTS/yandex-yt*{0}*.changes".format(version))
+        artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
         if artifacts:
             for repository in options.repositories:
                 run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
@@ -261,8 +262,9 @@ def run_sandbox_upload(options, build_context):
 
     source_binary_root = os.path.join(options.working_directory, "bin")
     processed_files = set()
+    filename_prefix_whitelist = ["ytserver-", "ypserver-"]
     for filename in os.listdir(source_binary_root):
-        if not filename.startswith("ytserver-"):
+        if not any(filename.startswith(x) for x in filename_prefix_whitelist):
             continue
         source_path = os.path.join(source_binary_root, filename)
         destination_path = os.path.join(binary_distribution_folder, filename)
@@ -282,6 +284,8 @@ def run_sandbox_upload(options, build_context):
         "ytserver-node",
         "ytserver-proxy",
         "ytserver-tools",
+        "ypserver-master",
+        "ytserver-skynet-manager",
     ))
     if yt_binary_upload_list - processed_files:
         missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
@@ -311,10 +315,22 @@ def run_sandbox_upload(options, build_context):
 
     version_by_teamcity = "{0}@{1}-{2}".format(options.git_branch, options.build_number, options.build_vcs_number[:7])
     cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
+    task_description = """
+    Build id: {0}
+    Build type: {1}
+    Source host: {2}
+    Teamcity build type id: {3}
+    """.format(
+        version_by_teamcity,
+        options.type,
+        socket.getfqdn(),
+        options.btid,
+    )
+
     task_id = cli.create_task(
         "YT_UPLOAD_RESOURCES",
         "YT_ROBOT",
-        "Yt build: {0}".format(version_by_teamcity),
+        task_description,
         sandbox_ctx)
     teamcity_message("Created sandbox upload task: {0}".format(task_id))
     teamcity_message("Check at: https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))

@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/scheduler/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
@@ -117,13 +117,15 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
+    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain
     // sensitive information.
     DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
     DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
-    DEFINE_BYVAL_RO_PROPERTY(std::vector<TString>, Owners);
+    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::vector<TString>, Owners);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(TNullable<TInstant>, FinishTime);

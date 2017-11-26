@@ -115,7 +115,6 @@ private:
     TSharedRef UnconsumedData_;
 
     bool HeadersReceived_ = false;
-    bool BodyReceived_ = false;
     THttpParser Parser_;
 
     TString RawUrl_;

@@ -32,12 +32,11 @@ struct TJobTableDescriptor
         const int JobIdLo;
         const int Type;
         const int State;
+        const int TransientState;
         const int StartTime;
         const int FinishTime;
         const int Address;
         const int Error;
-        const int Spec;
-        const int SpecVersion;
         const int Statistics;
         const int Events;
     };
@@ -58,6 +57,7 @@ struct TJobSpecTableDescriptor
         const int JobIdLo;
         const int Spec;
         const int SpecVersion;
+        const int Type;
     };
 
     const NTableClient::TNameTablePtr NameTable;
@@ -78,6 +78,7 @@ public:
     void ReportStatistics(TJobStatistics&& statistics);
     void SetEnabled(bool enable);
     void SetSpecEnabled(bool enable);
+    void SetOperationArchiveVersion(int version);
 
 private:
     class TImpl;

@@ -178,7 +178,8 @@ public:
     void WriteTo(IOutputStream* out, const yhash_set<TString>* filtered = nullptr) const;
 
 private:
-    struct TEntry {
+    struct TEntry
+    {
         TString OriginalHeaderName;
         std::vector<TString> Values;
     };
@@ -230,9 +231,6 @@ struct IResponse
     , public virtual NConcurrency::IAsyncZeroCopyInputStream
 {
     virtual EStatusCode GetStatusCode() = 0;
-
-    void CheckStatusOrThrow();
-
     virtual const THeadersPtr& GetHeaders() = 0;
     virtual const THeadersPtr& GetTrailers() = 0;
 };

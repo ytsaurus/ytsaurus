@@ -89,6 +89,7 @@ private:
 
         try {
             Config_ = New<TConfig>();
+            Config_->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
             Config_->Load(ConfigNode_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error loading configuration file %v",

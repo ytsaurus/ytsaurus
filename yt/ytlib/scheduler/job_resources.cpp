@@ -2,6 +2,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 namespace NYT {
@@ -434,6 +436,28 @@ const TJobResources& MinSpareNodeResources()
     static auto result = GetMinSpareResources();
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler::TJobResources& resources)
+{
+    protoResources->set_cpu(static_cast<double>(resources.GetCpu()));
+    protoResources->set_user_slots(resources.GetUserSlots());
+    protoResources->set_memory(resources.GetMemory());
+    protoResources->set_network(resources.GetNetwork());
+}
+
+void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::TJobResources& protoResources)
+{
+    resources->SetCpu(TCpuResource(protoResources.cpu()));
+    resources->SetUserSlots(protoResources.user_slots());
+    resources->SetMemory(protoResources.memory());
+    resources->SetNetwork(protoResources.network());
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

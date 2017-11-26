@@ -16,6 +16,10 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
+
+#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
@@ -32,7 +36,6 @@ using namespace NJobProberClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NProfiling;
-using namespace NScheduler::NProto;
 using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
@@ -46,6 +49,8 @@ using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
 
 using NCypressClient::TObjectId;
+
+using NScheduler::NProto::TSchedulerJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,6 +213,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
 
     response->set_enable_job_reporter(Config_->EnableJobReporter);
     response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
+    response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
 
     auto scheduleJobsAsyncResult = VoidFuture;
 
@@ -682,12 +688,12 @@ void TNodeShard::FailJob(const TJobId& jobId)
     job->SetFailRequested(true);
 }
 
-void TNodeShard::BuildNodesYson(IYsonConsumer* consumer)
+void TNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     for (auto& node : IdToNode_) {
-        BuildNodeYson(node.second, consumer);
+        BuildNodeYson(node.second, fluent);
     }
 }
 
@@ -988,7 +994,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     for (auto& jobStatus : *request->mutable_jobs()) {
         auto jobType = EJobType(jobStatus.job_type());
         // Skip jobs that are not issued by the scheduler.
-        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast) {
+        if (jobType != EJobType::Unknown && (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)) {
             continue;
         }
 
@@ -1699,9 +1705,9 @@ TNodeShard::TOperationState& TNodeShard::GetOperationState(const TOperationId& o
     return it->second;
 }
 
-void TNodeShard::BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
+void TNodeShard::BuildNodeYson(TExecNodePtr node, TFluentMap fluent)
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item(node->GetDefaultAddress()).BeginMap()
             .Do([=] (TFluentMap fluent) {
                 BuildExecNodeAttributes(node, fluent);

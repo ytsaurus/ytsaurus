@@ -4,6 +4,7 @@
 #include <yt/server/cell_scheduler/bootstrap.h>
 
 #include <yt/server/scheduler/config.h>
+#include <yt/server/scheduler/cache.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -11,6 +12,8 @@
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/ytlib/event_log/event_log.h>
+
+#include <yt/ytlib/scheduler/controller_agent_service_proxy.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -58,6 +61,10 @@ public:
 
         CancelableContext_->Cancel();
 
+        CachedExecNodeDescriptorsByTags_->Stop();
+
+        HeartbeatExecutor_->Stop();
+
         ControllerAgentMasterConnector_.Reset();
     }
 
@@ -72,6 +79,18 @@ public:
             CancelableInvoker_,
             Config_,
             Bootstrap_);
+
+        CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
+            BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            GetCancelableInvoker());
+        CachedExecNodeDescriptorsByTags_->Start();
+
+        HeartbeatExecutor_ = New<TPeriodicExecutor>(
+            CancelableInvoker_,
+            BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
+            Config_->ControllerAgentHeartbeatPeriod);
+        HeartbeatExecutor_->Start();
 
         Connected_.store(true);
     }
@@ -215,6 +234,13 @@ public:
         return results;
     }
 
+    TFuture<void> GetHeartbeatSentFuture()
+    {
+        // In the a bit more far future this function will become unnecessary
+        // because of changes in processing operation statuses.
+        return HeartbeatExecutor_->GetExecutedEvent();
+    }
+
     void AttachJobContext(
         const TYPath& path,
         const TChunkId& chunkId,
@@ -222,6 +248,26 @@ public:
         const TJobId& jobId)
     {
         ControllerAgentMasterConnector_->AttachJobContext(path, chunkId, operationId, jobId);
+    }
+
+    TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (filter.IsEmpty()) {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+            return CachedExecNodeDescriptors_;
+        }
+
+        return CachedExecNodeDescriptorsByTags_->Get(filter);
+    }
+
+    int GetExecNodeCount() const
+    {
+        TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+        return CachedExecNodeDescriptors_->Descriptors.size();
     }
 
 private:
@@ -244,8 +290,15 @@ private:
     TInstant ConnectionTime_;
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
+    using TControllersMap = yhash<TOperationId, IOperationControllerPtr>;
     TReaderWriterSpinLock ControllersLock_;
-    yhash<TOperationId, IOperationControllerPtr> Controllers_;
+    TControllersMap Controllers_;
+
+    TReaderWriterSpinLock ExecNodeDescriptorsLock_;
+    TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
+    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
+
+    TPeriodicExecutorPtr HeartbeatExecutor_;
 
     // TODO: Move this method to some common place to avoid copy/paste.
     TError GetMasterDisconnectedError()
@@ -263,6 +316,68 @@ private:
             return nullptr;
         }
         return it->second;
+    }
+
+    TControllersMap GetControllers()
+    {
+        TReaderGuard guard(ControllersLock_);
+        return Controllers_;
+    }
+
+    void SendHeartbeat()
+    {
+        auto proxy = TControllerAgentServiceProxy(Bootstrap_->GetLocalRpcChannel());
+        proxy.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
+
+        auto req = proxy.Heartbeat();
+
+        auto controllers = GetControllers();
+        for (const auto& pair : controllers) {
+            const auto& controller = pair.second;
+            auto jobMetricsDelta = controller->ExtractJobMetricsDelta();
+            ToProto(req->add_job_metrics(), jobMetricsDelta);
+        }
+
+        auto rspOrError = WaitFor(req->Invoke());
+
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NRpc::EErrorCode::Unavailable)) {
+                LOG_DEBUG(rspOrError, "Scheduler is currently unavailable; retrying heartbeat");
+            } else {
+                LOG_WARNING(rspOrError, "Error reporting heratbeat to scheduler; disconnecting");
+                // TODO(ignat): this class is not ready from disconnection inside! Fix it!!!
+                //Disconnect();
+            }
+            return;
+        }
+
+        const auto& rsp = rspOrError.Value();
+
+        if (rsp->has_exec_nodes()) {
+            auto execNodeDescriptors = New<TExecNodeDescriptorList>();
+            FromProto(&execNodeDescriptors->Descriptors, rsp->exec_nodes().exec_nodes());
+
+            {
+                TWriterGuard guard(ExecNodeDescriptorsLock_);
+                std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
+            }
+        }
+    }
+
+    // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
+    TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+        auto result = New<TExecNodeDescriptorList>();
+        for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
+            if (filter.CanSchedule(descriptor.Tags)) {
+                result->Descriptors.push_back(descriptor);
+            }
+        }
+        return result;
     }
 };
 
@@ -372,6 +487,21 @@ void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
 std::vector<TErrorOr<TSharedRef>> TControllerAgent::GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
 {
     return Impl_->GetJobSpecs(jobSpecRequests);
+}
+
+TFuture<void> TControllerAgent::GetHeartbeatSentFuture()
+{
+    return Impl_->GetHeartbeatSentFuture();
+}
+
+int TControllerAgent::GetExecNodeCount() const
+{
+    return Impl_->GetExecNodeCount();
+}
+
+TExecNodeDescriptorListPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+{
+    return Impl_->GetExecNodeDescriptors(filter);
 }
 
 void TControllerAgent::AttachJobContext(

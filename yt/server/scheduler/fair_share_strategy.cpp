@@ -175,17 +175,17 @@ public:
 
     TOperationRegistrationUnregistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
-        const TStrategyOperationSpecPtr& spec)
+        const TStrategyOperationSpecPtr& spec,
+        const TOperationStrategyRuntimeParamsPtr& runtimeParams)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto operationId = state->GetHost()->GetId();
-        auto params = BuildInitialRuntimeParams(spec);
 
         auto operationElement = New<TOperationElement>(
             Config,
             spec,
-            params,
+            runtimeParams,
             state->GetController(),
             ControllerConfig,
             Host,
@@ -333,15 +333,15 @@ public:
         *completedJobs = remainingCompletedJobs;
     }
 
-    void ApplyJobMetricsDelta(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta)
+    void ApplyJobMetricsDelta(const TOperationJobMetrics& jobMetrics)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TRootElementSnapshotPtr rootElementSnapshot = GetRootSnapshot();
 
-        auto* operationElement = rootElementSnapshot->FindOperationElement(operationId);
+        auto* operationElement = rootElementSnapshot->FindOperationElement(jobMetrics.OperationId);
         if (operationElement) {
-            operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
+            operationElement->ApplyJobMetricsDelta(jobMetrics.JobMetrics);
         }
     }
 
@@ -433,7 +433,7 @@ public:
                             parent->SetMode(ESchedulingMode::FairShare);
                             errors.emplace_back(
                                 TError(
-                                    "Pool %Qv cannot have subpools since it is in %v mode",
+                                    "Pool %Qv cannot have subpools since it is in %Qlv mode",
                                     parent->GetId(),
                                     ESchedulingMode::Fifo));
                         }
@@ -483,26 +483,16 @@ public:
         }
     }
 
-    void UpdateOperationRuntimeParams(const TOperationPtr& operation, const INodePtr& update)
+    void UpdateOperationRuntimeParams(const TOperationPtr& operation, const TOperationStrategyRuntimeParamsPtr& runtimeParams)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operation->GetId());
-        if (!element)
+        if (!element) {
             return;
-
-        NLogging::TLogger Logger(SchedulerLogger);
-        Logger.AddTag("OperationId: %v", operation->GetId());
-
-        try {
-            auto newRuntimeParams = CloneYsonSerializable(element->GetRuntimeParams());
-            if (ReconfigureYsonSerializable(newRuntimeParams, update)) {
-                element->SetRuntimeParams(newRuntimeParams);
-                LOG_INFO("Operation runtime parameters updated");
-            }
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing operation runtime parameters");
         }
+
+        element->SetRuntimeParams(runtimeParams);
     }
 
     void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
@@ -525,28 +515,28 @@ public:
         }
     }
 
-    void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer)
+    void BuildOperationAttributes(const TOperationId& operationId, TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
-        BuildYsonMapFluently(consumer)
+        fluent
             .Items(*serializedParams)
             .Item("pool").Value(element->GetParent()->GetId());
     }
 
     void BuildOperationInfoForEventLog(
         const TOperationPtr& operation,
-        NYson::IYsonConsumer* consumer)
+        TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("pool").Value(GetOperationPoolName(operation));
     }
 
-    void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer)
+    void BuildOperationProgress(const TOperationId& operationId, TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -556,7 +546,7 @@ public:
         }
 
         auto* parent = element->GetParent();
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("pool").Value(parent->GetId())
             .Item("slot_index").Value(element->GetSlotIndex())
             .Item("start_time").Value(element->GetStartTime())
@@ -566,7 +556,7 @@ public:
             .Do(BIND(&TFairShareTree::BuildElementYson, Unretained(this), element));
     }
 
-    void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer)
+    void BuildBriefOperationProgress(const TOperationId& operationId, TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -577,18 +567,18 @@ public:
 
         auto* parent = element->GetParent();
         const auto& attributes = element->Attributes();
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("pool").Value(parent->GetId())
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
-    void BuildOrchid(IYsonConsumer* consumer)
+    void BuildOrchid(TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        // TODO(ignat): stop using pools from here and remove this section (since it is also presented in fair_share_info subsection).
-        BuildPoolsInformation(consumer);
-        BuildYsonMapFluently(consumer)
+        fluent
+            // TODO(ignat): stop using pools from here and remove this section (since it is also presented in fair_share_info subsection).
+            .Do(BIND(&TFairShareTree::BuildPoolsInformation, Unretained(this)))
             .Item("fair_share_info").BeginMap()
                 .Do(BIND(&TFairShareTree::BuildFairShareInfo, Unretained(this)))
             .EndMap()
@@ -627,12 +617,12 @@ public:
             element->GetAggressivelyPreemptableJobCount());
     }
 
-    void BuildBriefSpec(const TOperationId& operationId, IYsonConsumer* consumer)
+    void BuildBriefSpec(const TOperationId& operationId, TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = GetOperationElement(operationId);
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("pool").Value(element->GetParent()->GetId());
     }
 
@@ -745,11 +735,11 @@ public:
         }
     }
 
-    void BuildPoolsInformation(IYsonConsumer* consumer)
+    void BuildPoolsInformation(TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
                 const auto& id = pair.first;
                 const auto& pool = pair.second;
@@ -776,34 +766,34 @@ public:
             });
     }
 
-    void BuildFairShareInfo(IYsonConsumer* consumer)
+    void BuildFairShareInfo(TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        BuildYsonMapFluently(consumer)
+        fluent
             .Do(BIND(&TFairShareTree::BuildPoolsInformation, Unretained(this)))
             .Item("operations").DoMapFor(
                 OperationIdToElement,
                 [=] (TFluentMap fluent, const TOperationElementPtrByIdMap::value_type& pair) {
                     const auto& operationId = pair.first;
-                    BuildYsonMapFluently(fluent)
+                    fluent
                         .Item(ToString(operationId)).BeginMap()
                             .Do(BIND(&TFairShareTree::BuildOperationProgress, Unretained(this), operationId))
                         .EndMap();
                 });
     }
 
-    void BuildEssentialFairShareInfo(IYsonConsumer* consumer)
+    void BuildEssentialFairShareInfo(TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        BuildYsonMapFluently(consumer)
+        fluent
             .Do(BIND(&TFairShareTree::BuildEssentialPoolsInformation, Unretained(this)))
             .Item("operations").DoMapFor(
                 OperationIdToElement,
                 [=] (TFluentMap fluent, const TOperationElementPtrByIdMap::value_type& pair) {
                     const auto& operationId = pair.first;
-                    BuildYsonMapFluently(fluent)
+                    fluent
                         .Item(ToString(operationId)).BeginMap()
                             .Do(BIND(&TFairShareTree::BuildEssentialOperationProgress, Unretained(this), operationId))
                         .EndMap();
@@ -843,7 +833,7 @@ private:
     TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationId> WaitingOperationQueue;
-    
+
     TReaderWriterSpinLock RegisteredOperationsSetLock;
     yhash_set<TOperationId> RegisteredOperationsSet;
 
@@ -1299,14 +1289,6 @@ private:
         context.SchedulingContext->PreemptJob(job);
     }
 
-    TOperationRuntimeParamsPtr BuildInitialRuntimeParams(const TStrategyOperationSpecPtr& spec)
-    {
-        auto params = New<TOperationRuntimeParams>();
-        params->Weight = spec->Weight;
-        params->ResourceLimits = spec->ResourceLimits;
-        return params;
-    }
-
     TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -1497,7 +1479,7 @@ private:
         }
     }
 
-    void BuildEssentialOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer)
+    void BuildEssentialOperationProgress(const TOperationId& operationId, TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1506,7 +1488,7 @@ private:
             return;
         }
 
-        BuildYsonMapFluently(consumer)
+        fluent
             .Do(BIND(&TFairShareTree::BuildEssentialOperationElementYson, Unretained(this), element));
     }
 
@@ -1658,9 +1640,9 @@ private:
         std::swap(RootElementSnapshot, rootElementSnapshot);
     }
 
-    void BuildEssentialPoolsInformation(IYsonConsumer* consumer)
+    void BuildEssentialPoolsInformation(TFluentMap fluent)
     {
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
                 const auto& id = pair.first;
                 const auto& pool = pair.second;
@@ -1671,14 +1653,14 @@ private:
             });
     }
 
-    void BuildElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer)
+    void BuildElementYson(const TSchedulerElementPtr& element, TFluentMap fluent)
     {
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
         auto guaranteedResources = Host->GetMainNodesResourceLimits() * attributes.GuaranteedResourcesRatio;
 
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
             .Item("fair_share_starvation_tolerance").Value(element->GetFairShareStarvationTolerance())
@@ -1706,13 +1688,12 @@ private:
             .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
     }
 
-    void BuildEssentialElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer,
-                                   bool shouldPrintResourceUsage)
+    void BuildEssentialElementYson(const TSchedulerElementPtr& element, TFluentMap fluent, bool shouldPrintResourceUsage)
     {
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("usage_ratio").Value(element->GetResourceUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
@@ -1723,12 +1704,12 @@ private:
             });
     }
 
-    void BuildEssentialPoolElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer) {
-        BuildEssentialElementYson(element, consumer, false);
+    void BuildEssentialPoolElementYson(const TSchedulerElementPtr& element, TFluentMap fluent) {
+        BuildEssentialElementYson(element, fluent, false);
     }
 
-    void BuildEssentialOperationElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer) {
-        BuildEssentialElementYson(element, consumer, true);
+    void BuildEssentialOperationElementYson(const TSchedulerElementPtr& element, TFluentMap fluent) {
+        BuildEssentialElementYson(element, fluent, true);
     }
 
     TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element)
@@ -2015,7 +1996,7 @@ public:
         YCHECK(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
 
-        auto registrationResult = FairShareTree_->RegisterOperation(state, spec);
+        auto registrationResult = FairShareTree_->RegisterOperation(state, spec, operation->GetRuntimeParams());
         ActivateOperations(registrationResult.OperationsToActivate);
     }
 
@@ -2034,32 +2015,32 @@ public:
         FairShareTree_->UpdatePools(poolsNode);
     }
 
-    virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
+    virtual void BuildOperationAttributes(const TOperationId& operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        FairShareTree_->BuildOperationAttributes(operationId, consumer);
+        FairShareTree_->BuildOperationAttributes(operationId, fluent);
     }
 
-    virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
+    virtual void BuildOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        FairShareTree_->BuildOperationProgress(operationId, consumer);
+        FairShareTree_->BuildOperationProgress(operationId, fluent);
     }
 
-    virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
+    virtual void BuildBriefOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        FairShareTree_->BuildBriefOperationProgress(operationId, consumer);
+        FairShareTree_->BuildBriefOperationProgress(operationId, fluent);
     }
 
-    virtual void BuildBriefSpec(const TOperationId& operationId, IYsonConsumer* consumer) override
+    virtual void BuildBriefSpec(const TOperationId& operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        FairShareTree_->BuildBriefSpec(operationId, consumer);
+        FairShareTree_->BuildBriefSpec(operationId, fluent);
     }
 
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
@@ -2072,20 +2053,20 @@ public:
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
     }
 
-    virtual void BuildOperationInfoForEventLog(const TOperationPtr& operation, NYson::IYsonConsumer* consumer)
+    virtual void BuildOperationInfoForEventLog(const TOperationPtr& operation, TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        FairShareTree_->BuildOperationInfoForEventLog(operation, consumer);
+        FairShareTree_->BuildOperationInfoForEventLog(operation, fluent);
     }
 
     virtual void UpdateOperationRuntimeParams(
         const TOperationPtr& operation,
-        const INodePtr& update) override
+        const TOperationStrategyRuntimeParamsPtr& runtimeParams) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        FairShareTree_->UpdateOperationRuntimeParams(operation, update);
+        FairShareTree_->UpdateOperationRuntimeParams(operation, runtimeParams);
     }
 
     virtual TString GetOperationLoggingProgress(const TOperationId& operationId) override
@@ -2095,20 +2076,18 @@ public:
         return FairShareTree_->GetOperationLoggingProgress(operationId);
     }
 
-    virtual void BuildOrchid(IYsonConsumer* consumer) override
+    virtual void BuildOrchid(TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        FairShareTree_->BuildOrchid(consumer);
+        FairShareTree_->BuildOrchid(fluent);
     }
 
-    virtual void ApplyJobMetricsDelta(
-        const TOperationId& operationId,
-        const TJobMetrics& jobMetricsDelta) override
+    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& jobMetrics) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        FairShareTree_->ApplyJobMetricsDelta(operationId, jobMetricsDelta);
+        FairShareTree_->ApplyJobMetricsDelta(jobMetrics);
     }
 
     virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) override

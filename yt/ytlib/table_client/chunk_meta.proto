@@ -33,6 +33,20 @@ message TTableSchemaExt
     optional bool unique_keys = 3 [default = false];
 }
 
+message TSchemaDictionary
+{
+    repeated TColumnSchema columns = 1;
+
+    message TTableSchemaInternal
+    {
+        repeated int32 columns = 1;
+        optional bool strict = 2 [default = true];
+        optional bool unique_keys = 3 [default = false];
+    }
+
+    repeated TTableSchemaInternal tables = 2;
+}
+
 message TNameTableExt
 {
     repeated string names = 1;

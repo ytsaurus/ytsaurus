@@ -9,13 +9,14 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 #include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/partitioner.h>
@@ -129,7 +130,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
     }
 
-    auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(schedulerJobSpecExt.data_source_directory());
+    auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+    auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
     auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
         schedulerJobSpecExt.table_reader_options()));
@@ -227,7 +229,8 @@ public:
         auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
             schedulerJobSpecExt.table_reader_options()));
 
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(schedulerJobSpecExt.data_source_directory());
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
@@ -341,7 +344,7 @@ public:
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
         const TTableSchema& tableSchema,
-        const TChunkTimestamps& /* chunkTimestamps */) override
+        const TChunkTimestamps& chunkTimestamps) override
     {
         const auto& jobSpec = JobSpecHelper_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -356,16 +359,32 @@ public:
         // We pass partitioning columns through schema but input stream is not sorted.
         options->ValidateSorted = false;
 
-        return CreatePartitionMultiChunkWriter(
-            config,
-            options,
-            nameTable,
-            TTableSchema::FromKeyColumns(keyColumns),
-            std::move(client),
-            CellTagFromId(chunkListId),
-            transactionId,
-            chunkListId,
-            std::move(partitioner));
+        // TODO(max42): currently ReturnBoundaryKeys are set exactly for the writers
+        // that correspond to the map-sink edge. Think more about how this may be done properly.
+        if (!options->ReturnBoundaryKeys) {
+            // This writer is used for partitioning.
+            return CreatePartitionMultiChunkWriter(
+                config,
+                options,
+                nameTable,
+                TTableSchema::FromKeyColumns(keyColumns),
+                std::move(client),
+                CellTagFromId(chunkListId),
+                transactionId,
+                chunkListId,
+                std::move(partitioner));
+        } else {
+            // This writer is used for mapper output tables.
+            return CreateTableWriter(
+                JobSpecHelper_,
+                std::move(client),
+                std::move(config),
+                std::move(options),
+                chunkListId,
+                transactionId,
+                tableSchema,
+                chunkTimestamps);
+        }
     }
 
 private:
@@ -397,7 +416,8 @@ public:
 
         const auto& inputSpec = schedulerJobSpecExt.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(schedulerJobSpecExt.data_source_directory());
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());

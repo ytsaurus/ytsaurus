@@ -420,7 +420,7 @@ Handle<Value> TNodeWrap::CreateMerged(const Arguments& args)
 
             delta = TNodeWrap::UnwrapNode(args[i]);
             result = result
-                ? UpdateNode(std::move(result), std::move(delta))
+                ? PatchNode(std::move(result), std::move(delta))
                 : std::move(delta);
         }
     } catch (const std::exception& ex) {
