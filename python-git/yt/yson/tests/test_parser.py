@@ -236,13 +236,15 @@ if yt_yson_bindings:
             rows = list(self.loads(b'123;#;{a={b=[";"]}};<attr=10>0.1;', raw=True, yson_type="list_fragment"))
             assert [b"123;", b"#;", b'{a={b=[";"]}};', b"<attr=10>0.1;"] == rows
 
-            rows = list(self.loads(b"123;#", raw=True, yson_type="list_fragment"))
+            rows = list(self.loads(b"123;#;", raw=True, yson_type="list_fragment"))
             assert [b"123;", b"#;"] == rows
 
             with pytest.raises(Exception):
                 self.loads(b"{a=b")
             with pytest.raises(Exception):
                 self.loads(b"{a=b}{c=d}")
+            with pytest.raises(Exception):
+                self.loads(b"{a=b};{c=d}")
 
         def test_context(self):
             def check_context(error, context, context_pos):
@@ -349,7 +351,7 @@ if yt_yson_bindings:
             assert not result
 
         def test_list_fragment(self):
-            result = list(yt_yson_bindings.loads(b"{a=0};{a=1};{a=2}", lazy=True, yson_type="list_fragment"))
+            result = list(yt_yson_bindings.loads(b"{a=0};{a=1};{a=2};", lazy=True, yson_type="list_fragment"))
             assert len(result) == 3
 
             for i in xrange(3):
@@ -357,7 +359,7 @@ if yt_yson_bindings:
                 assert len(result[i]) == 1
                 assert not result[i].attributes
 
-            result = list(yt_yson_bindings.loads(b"{a=[];b=1};<testattr=abacaba>{a=2;b=3}",
+            result = list(yt_yson_bindings.loads(b"{a=[];b=1};<testattr=abacaba>{a=2;b=3};",
                                                  lazy=True, yson_type="list_fragment"))
             assert len(result) == 2
 
