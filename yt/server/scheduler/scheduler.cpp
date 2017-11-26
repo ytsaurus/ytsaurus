@@ -2574,6 +2574,9 @@ private:
 
     void ValidateConfig()
     {
+        // First reset the alert.
+        SetSchedulerAlert(ESchedulerAlertType::UnrecognizedConfigOptions, TError());
+
         if (!Config_->EnableUnrecognizedAlert) {
             return;
         }
