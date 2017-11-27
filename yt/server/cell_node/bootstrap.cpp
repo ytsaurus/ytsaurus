@@ -36,7 +36,6 @@
 #include <yt/server/job_agent/statistics_reporter.h>
 
 #include <yt/server/misc/address_helpers.h>
-#include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/object_server/master_cache_service.h>
 
@@ -65,6 +64,7 @@
 
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
+#include <yt/ytlib/misc/build_attributes.h>
 #include <yt/ytlib/misc/workload.h>
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
