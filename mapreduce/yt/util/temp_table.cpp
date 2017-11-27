@@ -32,11 +32,45 @@ TTempTable::TTempTable(
     Client_->Create(Name_, NT_TABLE, options);
 }
 
+TTempTable::TTempTable(TTempTable&& sourceTable)
+    : Client_(sourceTable.Client_)
+    , Name_(sourceTable.Name_)
+    , Owns_(sourceTable.Owns_)
+{
+    sourceTable.Owns_ = false;
+}
+
+TTempTable& TTempTable::operator=(TTempTable&& sourceTable)
+{
+    if (&sourceTable == this) {
+        return *this;
+    }
+
+    if (Owns_) {
+        RemoveTable();
+    }
+
+    Client_ = sourceTable.Client_;
+    Name_ = sourceTable.Name_;
+    Owns_ = sourceTable.Owns_;
+
+    sourceTable.Owns_ = false;
+
+    return *this;
+}
+
+void TTempTable::RemoveTable()
+{
+    Client_->Remove(Name_, TRemoveOptions().Force(true));
+}
+
 TTempTable::~TTempTable()
 {
-    try {
-        Client_->Remove(Name_, TRemoveOptions().Force(true));
-    } catch (...) {
+    if (Owns_) {
+        try {
+            RemoveTable();
+        } catch (...) {
+        }
     }
 }
 

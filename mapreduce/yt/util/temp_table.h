@@ -15,6 +15,12 @@ public:
         const TYPath& path = {},
         const TCreateOptions& options = {});
 
+    TTempTable(const TTempTable&) = delete;
+    TTempTable& operator=(const TTempTable&) = delete;
+
+    TTempTable(TTempTable&&);
+    TTempTable& operator=(TTempTable&&);
+
     ~TTempTable();
 
     TString Name() const;
@@ -22,6 +28,10 @@ public:
 private:
     IClientBasePtr Client_;
     TYPath Name_;
+    bool Owns_ = true;
+
+private:
+    void RemoveTable();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
