@@ -225,23 +225,26 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
         throttleFuture = outThrottler->Throttle(pendingDataSize);
     }
 
-    auto pendingIOGuard = Location_->IncreasePendingIOSize(
-        EIODirection::Read,
-        workloadDescriptor,
-        pendingDataSize);
-
     // Actually serve the request: delegate to the appropriate thread.
     auto priority = workloadDescriptor.GetPriority();
     auto invoker = CreateFixedPriorityInvoker(Location_->GetDataReadInvoker(), priority);
     return
-        throttleFuture.Apply(
-            BIND(
+        throttleFuture.Apply(BIND([=, this_ = MakeStrong(this)] {
+            auto pendingIOGuard = Location_->IncreasePendingIOSize(
+                EIODirection::Read,
+                workloadDescriptor,
+                pendingDataSize);
+            // Note that outer Apply checks that the return value is of type
+            // TError and returns the TFuture<void> instead of TFuture<TError> here.
+            return BIND(
                 &TBlobChunkBase::DoReadBlockSet,
-                MakeStrong(this),
+                this_,
                 session,
                 workloadDescriptor,
                 Passed(std::move(pendingIOGuard)))
-            .AsyncVia(std::move(invoker)));
+                .AsyncVia(std::move(invoker))
+                .Run();
+        }));
 }
 
 void TBlobChunkBase::DoReadBlockSet(
