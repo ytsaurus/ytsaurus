@@ -261,9 +261,8 @@ class RequestRetrier(Retrier):
         return response
 
     def except_action(self, error, attempt):
-        message = error.message if hasattr(error, "message") else str(error)
         logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                       self.method, self.request_url, str(type(error)), message, str(hide_token(dict(self.headers))))
+                       self.method, self.request_url, str(type(error)), str(error), str(hide_token(dict(self.headers))))
         self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if isinstance(error, YtError):
             logger.info("Full error message:\n%s", str(error))
