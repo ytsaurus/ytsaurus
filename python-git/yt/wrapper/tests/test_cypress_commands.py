@@ -591,7 +591,7 @@ class TestCypressCommands(object):
         with pytest.raises(yt.YtError):
             yt.concatenate([TEST_DIR, tableB], output_table)
 
-    def test_set_recursive(self):
+    def DISABLED_test_set_recursive(self):
         yt.create("map_node", TEST_DIR + "/node")
 
         with pytest.raises(yt.YtError):
