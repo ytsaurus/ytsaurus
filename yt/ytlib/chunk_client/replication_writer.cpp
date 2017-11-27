@@ -512,6 +512,7 @@ private:
             BannedNodes_.push_back(node->Descriptor.GetDefaultAddress());
         }
 
+        node->PingExecutor->Stop();
         node->Error = wrappedError;
         --AliveNodeCount_;
 
@@ -527,6 +528,8 @@ private:
             LOG_WARNING(cumulativeError, "Chunk writer failed");
             CancelWriter();
             StateError_.TrySet(cumulativeError);
+        } else {
+            CheckFinished();
         }
     }
 
@@ -744,8 +747,14 @@ private:
             chunkInfo.disk_space());
 
         node->IsFinished = true;
+        node->PingExecutor->Stop();
         ChunkInfo_ = chunkInfo;
 
+        CheckFinished();
+    }
+
+    void CheckFinished()
+    {
         int finishedNodeCount = 0;
         bool hasUnfinishedNode = false;
         for (const auto& node : Nodes_) {
