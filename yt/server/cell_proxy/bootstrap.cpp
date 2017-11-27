@@ -8,7 +8,6 @@
 #include <yt/server/blackbox/cookie_authenticator.h>
 
 #include <yt/server/misc/address_helpers.h>
-#include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/rpc_proxy/api_service.h>
 #include <yt/server/rpc_proxy/discovery_service.h>
@@ -16,6 +15,8 @@
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
+
+#include <yt/ytlib/misc/build_attributes.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/http_server.h>

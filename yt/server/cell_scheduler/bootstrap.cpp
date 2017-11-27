@@ -6,7 +6,6 @@
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/server/misc/address_helpers.h>
-#include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/job_prober_service.h>
@@ -27,6 +26,8 @@
 
 #include <yt/ytlib/hydra/config.h>
 #include <yt/ytlib/hydra/peer_channel.h>
+
+#include <yt/ytlib/misc/build_attributes.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/http_server.h>
