@@ -90,7 +90,7 @@ def test_ypath_dirname():
     assert ypath_dirname("//a/b\\\\\\\\/c") == "//a/b\\\\\\\\"
     assert ypath_dirname("//\\\\a\\/b") == "/"
     assert ypath_dirname("//a/b\\\\\\/c/d/\\\\e") == "//a/b\\\\\\/c/d"
-    assert ypath_dirname("//a/b\\\\\\/c/d/\\\\\\e") == "//a/b\\\\\\/c/d"
+    assert ypath_dirname("//a/b\\\\\\/c/d/\\\\\\[") == "//a/b\\\\\\/c/d"
     assert ypath_dirname("//a/b\\/\\/c") == "//a"
     assert ypath_dirname("#a-b-c-d") == "#a-b-c-d"
     assert ypath_dirname("#a-b-c-d/a") == "#a-b-c-d"
