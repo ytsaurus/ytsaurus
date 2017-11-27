@@ -34,10 +34,6 @@ def pytest_ignore_collect(path, config):
     return path.startswith(get_tests_sandbox()) or \
             path.startswith(os.path.join(get_tests_location(), "__pycache__"))
 
-if yatest_common is None:
-    def pytest_generate_tests(metafunc):
-        metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])], indirect=True)
-
 if yatest_common is not None:
     @pytest.fixture(scope="session", autouse=True)
     def prepare_path(request):
