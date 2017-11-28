@@ -934,6 +934,7 @@ private:
     TSpinLock JobMetricsDeltaLock_;
     //! Delta of job metrics that was not reported to scheduler.
     NScheduler::TJobMetrics JobMetricsDelta_;
+    NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_;
 
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;

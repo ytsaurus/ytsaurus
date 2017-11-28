@@ -5279,13 +5279,26 @@ void TOperationControllerBase::OnBeforeDisposal()
 
 NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelta()
 {
+    TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
+
     NScheduler::TOperationJobMetrics result;
     result.OperationId = OperationId;
+
+    auto now = NProfiling::GetCpuInstant();
+
+    if (State == EControllerState::Running &&
+        LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsDeltaReportBackoff) > now)
     {
-        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
+        return result;
+    }
+
+    if (!JobMetricsDelta_.IsEmpty()) {
         result.JobMetrics = JobMetricsDelta_;
         JobMetricsDelta_ = TJobMetrics();
     }
+
+    LastJobMetricsDeltaReportTime_ = now;
+
     return result;
 }
 

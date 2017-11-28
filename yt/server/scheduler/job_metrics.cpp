@@ -29,6 +29,14 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(const NJobTrackerClient::TStat
     return metrics;
 }
 
+bool TJobMetrics::IsEmpty() const
+{
+    return DiskReads_ == 0 &&
+        DiskWrites_ == 0 &&
+        TimeCompleted_ == 0 &&
+        TimeAborted_ == 0;
+}
+
 void TJobMetrics::SendToProfiler(
     const NProfiling::TProfiler& profiler,
     const TString& prefix,
