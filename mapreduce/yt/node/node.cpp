@@ -140,7 +140,7 @@ bool TNode::IsList() const
 
 bool TNode::IsMap() const
 {
-    return Value_.Is<TMap>();
+    return Value_.Is<TMapType>();
 }
 
 bool TNode::IsEntity() const
@@ -166,7 +166,7 @@ bool TNode::Empty() const
         case LIST:
             return Value_.As<TList>().empty();
         case MAP:
-            return Value_.As<TMap>().empty();
+            return Value_.As<TMapType>().empty();
         default:
             ythrow TTypeError() << "Empty() called for type " << TypeToString(GetType());
     }
@@ -180,7 +180,7 @@ size_t TNode::Size() const
         case LIST:
             return Value_.As<TList>().size();
         case MAP:
-            return Value_.As<TMap>().size();
+            return Value_.As<TMapType>().size();
         default:
             ythrow TTypeError() << "Size() called for type " << TypeToString(GetType());
     }
@@ -203,7 +203,7 @@ TNode::EType TNode::GetType() const
             return Bool;
         case TValue::TagOf<TList>():
             return List;
-        case TValue::TagOf<TMap>():
+        case TValue::TagOf<TMapType>():
             return Map;
         case TValue::TagOf<TNull>():
             return Null;
@@ -247,10 +247,10 @@ const TNode::TList& TNode::AsList() const
     return Value_.As<TList>();
 }
 
-const TNode::TMap& TNode::AsMap() const
+const TNode::TMapType& TNode::AsMap() const
 {
     CheckType(MAP);
-    return Value_.As<TMap>();
+    return Value_.As<TMapType>();
 }
 
 TNode::TList& TNode::AsList()
@@ -259,10 +259,10 @@ TNode::TList& TNode::AsList()
     return Value_.As<TList>();
 }
 
-TNode::TMap& TNode::AsMap()
+TNode::TMapType& TNode::AsMap()
 {
     CheckType(MAP);
-    return Value_.As<TMap>();
+    return Value_.As<TMapType>();
 }
 
 const TString& TNode::UncheckedAsString() const noexcept
@@ -295,9 +295,9 @@ const TNode::TList& TNode::UncheckedAsList() const noexcept
     return Value_.As<TList>();
 }
 
-const TNode::TMap& TNode::UncheckedAsMap() const noexcept
+const TNode::TMapType& TNode::UncheckedAsMap() const noexcept
 {
-    return Value_.As<TMap>();
+    return Value_.As<TMapType>();
 }
 
 TNode::TList& TNode::UncheckedAsList() noexcept
@@ -305,9 +305,9 @@ TNode::TList& TNode::UncheckedAsList() noexcept
     return Value_.As<TList>();
 }
 
-TNode::TMap& TNode::UncheckedAsMap() noexcept
+TNode::TMapType& TNode::UncheckedAsMap() noexcept
 {
-    return Value_.As<TMap>();
+    return Value_.As<TMapType>();
 }
 
 TNode TNode::CreateList()
@@ -320,7 +320,7 @@ TNode TNode::CreateList()
 TNode TNode::CreateMap()
 {
     TNode node;
-    node.Value_ = TValue(TVariantTypeTag<TMap>());
+    node.Value_ = TValue(TVariantTypeTag<TMapType>());
     return node;
 }
 
@@ -381,13 +381,13 @@ TNode TNode::Add(TNode&& node) &&
 bool TNode::HasKey(const TStringBuf key) const
 {
     CheckType(MAP);
-    return Value_.As<TMap>().has(key);
+    return Value_.As<TMapType>().has(key);
 }
 
 TNode& TNode::operator()(const TString& key, const TNode& value) &
 {
     AssureMap();
-    Value_.As<TMap>()[key] = value;
+    Value_.As<TMapType>()[key] = value;
     return *this;
 }
 
@@ -399,7 +399,7 @@ TNode TNode::operator()(const TString& key, const TNode& value) &&
 TNode& TNode::operator()(const TString& key, TNode&& value) &
 {
     AssureMap();
-    Value_.As<TMap>()[key] = std::move(value);
+    Value_.As<TMapType>()[key] = std::move(value);
     return *this;
 }
 
@@ -412,8 +412,8 @@ const TNode& TNode::operator[](const TStringBuf key) const
 {
     CheckType(MAP);
     static TNode notFound;
-    const auto& map = Value_.As<TMap>();
-    TMap::const_iterator i = map.find(key);
+    const auto& map = Value_.As<TMapType>();
+    TMapType::const_iterator i = map.find(key);
     if (i == map.end()) {
         return notFound;
     } else {
@@ -424,7 +424,7 @@ const TNode& TNode::operator[](const TStringBuf key) const
 TNode& TNode::operator[](const TStringBuf key)
 {
     AssureMap();
-    return Value_.As<TMap>()[key];
+    return Value_.As<TMapType>()[key];
 }
 
 bool TNode::HasAttributes() const
@@ -506,7 +506,7 @@ void TNode::CheckType(EType type) const
 void TNode::AssureMap()
 {
     if (Value_.Is<TUndefined>()) {
-        Value_ = TMap();
+        Value_ = TMapType();
     } else {
         CheckType(MAP);
     }
@@ -524,7 +524,7 @@ void TNode::AssureList()
 void TNode::CreateAttributes()
 {
     Attributes_ = new TNode;
-    Attributes_->Value_ = TMap();
+    Attributes_->Value_ = TMapType();
 }
 
 void TNode::Save(IOutputStream* out) const

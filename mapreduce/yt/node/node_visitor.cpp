@@ -103,7 +103,7 @@ void TNodeVisitor::VisitList(const TNode::TList& nodeList)
     Consumer_->OnEndList();
 }
 
-void TNodeVisitor::VisitMap(const TNode::TMap& nodeMap)
+void TNodeVisitor::VisitMap(const TNode::TMapType& nodeMap)
 {
     Consumer_->OnBeginMap();
     for (const auto& item : nodeMap) {

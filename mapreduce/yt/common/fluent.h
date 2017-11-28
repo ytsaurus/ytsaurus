@@ -60,7 +60,7 @@ public:
     template <class TParent> class TToAttributes;
     template <class TParent> class TAttributes;
     template <class TParent> class TList;
-    template <class TParent> class TMap;
+    template <class TParent> class TMapType;
 
     template <class TParent>
     class TFluentBase
@@ -231,17 +231,17 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        TMap<TParent> BeginMap()
+        TMapType<TParent> BeginMap()
         {
             this->Consumer->OnBeginMap();
-            return TMap<TParent>(this->Consumer, this->Parent);
+            return TMapType<TParent>(this->Consumer, this->Parent);
         }
 
         template <class TFunc>
         TUnwrappedParent DoMap(const TFunc& func)
         {
             this->Consumer->OnBeginMap();
-            func(TMap<TFluentYsonVoid>(this->Consumer));
+            func(TMapType<TFluentYsonVoid>(this->Consumer));
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
         }
@@ -251,7 +251,7 @@ public:
         {
             this->Consumer->OnBeginMap();
             for (auto current = begin; current != end; ++current) {
-                func(TMap<TFluentYsonVoid>(this->Consumer), current);
+                func(TMapType<TFluentYsonVoid>(this->Consumer), current);
             }
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
@@ -262,7 +262,7 @@ public:
         {
             this->Consumer->OnBeginMap();
             for (const auto& item : collection) {
-                func(TMap<TFluentYsonVoid>(this->Consumer), item);
+                func(TMapType<TFluentYsonVoid>(this->Consumer), item);
             }
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
@@ -350,15 +350,15 @@ public:
     };
 
     template <class TParent = TFluentYsonVoid>
-    class TMap
-        : public TFluentFragmentBase<TMap, TParent>
+    class TMapType
+        : public TFluentFragmentBase<TMapType, TParent>
     {
     public:
-        using TThis = TMap<TParent>;
+        using TThis = TMapType<TParent>;
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
-        explicit TMap(IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, std::move(parent))
+        explicit TMapType(IYsonConsumer* consumer, TParent parent = TParent())
+            : TFluentFragmentBase<TFluentYsonBuilder::TMapType, TParent>(consumer, std::move(parent))
         { }
 
         template <size_t Size>
@@ -388,7 +388,7 @@ public:
 
 using TFluentAny = TFluentYsonBuilder::TAny<TFluentYsonVoid>;
 using TFluentList = TFluentYsonBuilder::TList<TFluentYsonVoid>;
-using TFluentMap = TFluentYsonBuilder::TMap<TFluentYsonVoid>;
+using TFluentMap = TFluentYsonBuilder::TMapType<TFluentYsonVoid>;
 using TFluentAttributes = TFluentYsonBuilder::TAttributes<TFluentYsonVoid>;
 
 ////////////////////////////////////////////////////////////////////////////////

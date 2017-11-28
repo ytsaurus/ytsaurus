@@ -90,8 +90,8 @@ TYtError::TYtError(int code, const TString& message)
 
 TYtError::TYtError(const TJsonValue& value)
 {
-    const TJsonValue::TMap& map = value.GetMap();
-    TJsonValue::TMap::const_iterator it = map.find("message");
+    const TJsonValue::TMapType& map = value.GetMap();
+    TJsonValue::TMapType::const_iterator it = map.find("message");
     if (it != map.end()) {
         Message_ = it->second.GetString();
     }
@@ -221,7 +221,7 @@ bool TYtError::HasAttributes() const
     return !Attributes_.empty();
 }
 
-const TNode::TMap& TYtError::GetAttributes() const
+const TNode::TMapType& TYtError::GetAttributes() const
 {
     return Attributes_;
 }
