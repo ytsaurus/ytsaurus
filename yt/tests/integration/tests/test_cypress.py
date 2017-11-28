@@ -345,7 +345,12 @@ class TestCypress(YTEnvSetup):
 
     def test_copy_recursive_fail(self):
         create("map_node", "//tmp/a")
-        with pytest.raises(YtError): copy("//tmp/a", "//tmp/b/c", recursive=False)
+        with pytest.raises(YtError):
+            copy("//tmp/a", "//tmp/b/c", recursive=False)
+
+        with pytest.raises(YtError):
+            copy("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
+        assert not exists("//tmp/b/c/d")
 
     def test_copy_tx1(self):
         tx = start_transaction()
@@ -574,7 +579,12 @@ class TestCypress(YTEnvSetup):
 
     def test_move_recursive_fail(self):
         create("map_node", "//tmp/a")
-        with pytest.raises(YtError): move("//tmp/a", "//tmp/b/c", recursive=False)
+        with pytest.raises(YtError):
+            move("//tmp/a", "//tmp/b/c", recursive=False)
+
+        with pytest.raises(YtError):
+            move("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
+        assert not exists("//tmp/b/c/d")
 
     def test_move_force1(self):
         create("table", "//tmp/t1")
@@ -754,6 +764,14 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@id") == id2
         id3 = create("file", "//tmp/t", force=True)
         assert get("//tmp/t/@id") == id3
+
+    def test_create_recursive(self):
+        assert not exists("//tmp/a/b/c/d")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/a/b/c/d/@d", recursive=True)
+        assert not exists("//tmp/a/b/c/d")
+        create("map_node", "//tmp/a/b/c/d", recursive=True)
+        assert exists("//tmp/a/b/c/d")
 
     def test_link1(self):
         with pytest.raises(YtError): link("//tmp/a", "//tmp/b")
