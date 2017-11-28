@@ -60,7 +60,7 @@ void BuildRunningOperationAttributes(TOperationPtr operation, TFluentMap fluent)
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
-        .Item("slot_index_per_tree").Value(operation->GetSlotIndices())
+        .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
         .DoIf(static_cast<bool>(controller), BIND([=] (TFluentMap fluent) {
             auto asyncResult = BIND(&NControllerAgent::IOperationController::BuildOperationAttributes, controller)
                 .AsyncVia(controller->GetInvoker())

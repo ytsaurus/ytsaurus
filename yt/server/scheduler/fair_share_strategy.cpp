@@ -2152,9 +2152,11 @@ public:
                         .Item("pool").Value(it->second);
                 }
             }))
-            .Item("pool_per_tree").DoMapFor(pools, [&] (TFluentMap fluent, const auto& value) {
+            .Item("fair_share_info_per_pool_tree").DoMapFor(pools, [&] (TFluentMap fluent, const auto& value) {
                 fluent
-                    .Item(value.first).Value(value.second);
+                    .Item(value.first).BeginMap()
+                        .Item("pool").Value(value.second)
+                    .EndMap();
             });
     }
 
@@ -2231,14 +2233,14 @@ public:
         }
 
         fluent
-            .Item("user_to_ephemeral_pools_per_tree")
+            .Item("user_to_ephemeral_pools_per_pool_tree")
                 .DoMapFor(FairShareTrees_, [&] (TFluentMap fluent, const TFairShareTreeMap::value_type& value) {
                     const auto& treeId = value.first;
                     const auto& tree = value.second;
                     fluent
                         .Item(treeId).Do(BIND(&TFairShareTree::BuildUserToEphemeralPools, tree));
                 })
-            // COMPAT(asaitgalin): Remove it when UI will use fair_share_info_per_tree
+            // COMPAT(asaitgalin): Remove it when UI will use fair_share_info_per_pool_tree
             .DoIf(DefaultFairShareTree_.HasValue(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("fair_share_info").BeginMap()
@@ -2246,7 +2248,7 @@ public:
                     .EndMap()
                     .Item("default_fair_share_tree").Value(*DefaultFairShareTree_);
             })
-            .Item("fair_share_info_per_tree")
+            .Item("fair_share_info_per_pool_tree")
                 .DoMapFor(FairShareTrees_, [&] (TFluentMap fluent, const TFairShareTreeMap::value_type& value) {
                     const auto& treeId = value.first;
                     const auto& tree = value.second;
@@ -2625,7 +2627,7 @@ private:
         fluent
             .DoIf(DefaultFairShareTree_ && pools.find(*DefaultFairShareTree_) != pools.end(),
                   BIND(method, GetTree(*DefaultFairShareTree_), operationId))
-            .Item("fair_share_info_per_tree")
+            .Item("fair_share_info_per_pool_tree")
                 .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TString>& value) {
                     const auto& treeId = value.first;
                     fluent
