@@ -405,9 +405,9 @@ public:
         return Config_->StartUid + slotIndex;
     }
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& /* path */)
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
     {
-        return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager);
+        return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path);
     }
 
 private:
