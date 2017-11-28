@@ -37,6 +37,9 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
             "alerts_update_period": 100,
+            # Unrecognized alert often interferes with the alerts that
+            # are tested in this test suite.
+            "enable_unrecognized_alert": False
         }
     }
 
