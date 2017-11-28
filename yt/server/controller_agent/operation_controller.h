@@ -128,6 +128,8 @@ struct IOperationHost
         const TOperationId& operationId) = 0;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationControllerStrategyHost
     : public virtual TRefCounted
 {
@@ -145,7 +147,6 @@ struct IOperationControllerStrategyHost
      *  Most of non-const controller methods are expected to be run in this invoker.
      */
     virtual IInvokerPtr GetCancelableInvoker() const = 0;
-
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
