@@ -531,7 +531,6 @@ public:
         codegenAggregate.Finalize = [
             this_ = MakeStrong(this),
             stateType,
-            resultType,
             name
         ] (TCGBaseContext& builder, Value* buffer, Value* aggState) {
             return TCGValue::CreateFromLlvmValue(
