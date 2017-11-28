@@ -959,7 +959,7 @@ private:
             attributes.Get<bool>("suspended"),
             attributes.Get<std::vector<TOperationEvent>>("events", {}));
 
-        auto slotIndexMap = attributes.Find<yhash<TString, int>>("slot_index_per_tree");
+        auto slotIndexMap = attributes.Find<yhash<TString, int>>("slot_index_per_pool_tree");
         if (slotIndexMap) {
             for (const auto& pair : *slotIndexMap) {
                 result.Operation->SetSlotIndex(pair.first, pair.second);
