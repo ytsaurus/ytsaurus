@@ -46,7 +46,7 @@ class YsonParser(object):
             value = self._parse_any()
             if key in result:
                 raise_yson_error(
-                    "Repeated attribute '%s' in Yson" % key,
+                    'Repeated attribute "{0}" in Yson'.format(key),
                     self._tokenizer.get_position_info())
             result[key] = value
             self._tokenizer.parse_next()
@@ -87,7 +87,7 @@ class YsonParser(object):
             value = self._parse_any()
             if key in result:
                 raise_yson_error(
-                    "Repeated map key '%s' in Yson" % key,
+                    'Repeated map key "{0}" in Yson'.format(key),
                     self._tokenizer.get_position_info())
             result[key] = value
             self._tokenizer.parse_next()
@@ -152,7 +152,7 @@ def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attr
         stream = StreamWrap(stream, b"{", b"}")
     else:
         if yson_type is not None:
-            raise YsonError("Unexpected yson type: " + repr(yson_type))
+            raise YsonError("Unexpected yson type: {0!r}".format(yson_type))
 
     parser = YsonParser(stream, encoding, always_create_attributes)
     return parser.parse()

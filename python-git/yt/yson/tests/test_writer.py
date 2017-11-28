@@ -206,8 +206,8 @@ class YsonWriterTestBase(object):
         assert b'{"x"={"a"=[1;2;3;];};}' == self.dumps({"x": {"a": [1, 2, 3]}})
         assert b'"x"=1;\n' == self.dumps({"x": 1}, yson_type="map_fragment")
         assert b'"x" = 1;\n' == self.dumps({"x": 1}, yson_type="map_fragment", yson_format="pretty")
-        assert b'1;\n2;\n3;\n' == self.dumps([1, 2, 3], yson_type="list_fragment")
-        assert b'1;\n2;\n3;\n' == self.dumps([1, 2, 3], yson_type="list_fragment", yson_format="pretty")
+        assert b"1;\n2;\n3;\n" == self.dumps([1, 2, 3], yson_type="list_fragment")
+        assert b"1;\n2;\n3;\n" == self.dumps([1, 2, 3], yson_type="list_fragment", yson_format="pretty")
 
     def test_frozen_dict(self):
         from yt.wrapper.mappings import FrozenDict
@@ -243,7 +243,7 @@ if yt_yson_bindings:
 
         def test_zero_byte(self):
             assert b'"\\0"' == self.dumps("\x00")
-            assert b'\x01\x02\x00' == self.dumps("\x00", yson_format="binary")
+            assert b"\x01\x02\x00" == self.dumps("\x00", yson_format="binary")
 
 if yt_yson_bindings:
     def test_equal_formatting():

@@ -5,7 +5,7 @@ class YsonType(object):
         if attribute == "attributes":
             self.__dict__[attribute] = {}
             return self.__dict__[attribute]
-        raise AttributeError("Attribute '%s' not found" % attribute)
+        raise AttributeError('Attribute "{0}" not found'.format(attribute))
 
     def __eq__(self, other):
         if hasattr(other, "attributes"):
@@ -135,7 +135,7 @@ class YsonList(list, YsonType):
         return not (self == other)
 
     def __hash__(self):
-        raise TypeError("unhashable type 'YsonList'")
+        raise TypeError('unhashable type "YsonList"')
 
     def __repr__(self):
         return self.to_str(list, repr)
@@ -153,7 +153,7 @@ class YsonMap(dict, YsonType):
         return not (self == other)
 
     def __hash__(self):
-        raise TypeError("unhashable type 'YsonMap'")
+        raise TypeError('unhashable type "YsonMap"')
 
     def __repr__(self):
         return self.to_str(dict, repr)
