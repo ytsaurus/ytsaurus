@@ -72,6 +72,7 @@ private:
     bool Started_ = false;
     bool Busy_ = false;
     bool OutOfBandRequested_ = false;
+    bool ExecutingCallback_ = false;
     TDelayedExecutorCookie Cookie_;
     TPromise<void> IdlePromise_;
     TPromise<void> ExecutedPromise_;
