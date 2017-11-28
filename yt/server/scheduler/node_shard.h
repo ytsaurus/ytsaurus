@@ -108,7 +108,7 @@ public:
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerPtr& operationController);
+    void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerSchedulerHostPtr& operationController);
     void UnregisterOperation(const TOperationId& operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
@@ -262,12 +262,12 @@ private:
 
     struct TOperationState
     {
-        TOperationState(const NControllerAgent::IOperationControllerPtr& controller)
+        TOperationState(const NControllerAgent::IOperationControllerSchedulerHostPtr& controller)
             : Controller(controller)
         { }
 
         yhash<TJobId, TJobPtr> Jobs;
-        NControllerAgent::IOperationControllerPtr Controller;
+        NControllerAgent::IOperationControllerSchedulerHostPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
     };

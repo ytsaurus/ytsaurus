@@ -136,7 +136,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlertsArray, Alerts);
 
     //! Controller that owns the operation.
-    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerSchedulerHostPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);

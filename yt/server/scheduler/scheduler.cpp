@@ -92,7 +92,7 @@ using namespace NShell;
 using namespace NEventLog;
 
 using NControllerAgent::TControllerTransactionsPtr;
-using NControllerAgent::IOperationController;
+using NControllerAgent::IOperationControllerSchedulerHost;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -975,7 +975,7 @@ public:
                 }));
         } else {
             operation->SetState(EOperationState::Materializing);
-            BIND(&IOperationController::Materialize, controller)
+            BIND(&IOperationControllerSchedulerHost::Materialize, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run()
                 .Subscribe(BIND([operation] (const TError& error) {
@@ -1648,7 +1648,7 @@ private:
 
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
-                BIND(&IOperationController::UpdateConfig, controller, Config_)
+                BIND(&IOperationControllerSchedulerHost::UpdateConfig, controller, Config_)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
             }
@@ -1788,10 +1788,13 @@ private:
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             RegisterOperation(operation);
+            // Ignore result? (we cannot throw error here)
+            Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
+
             registered = true;
 
             {
-                auto asyncResult = BIND(&IOperationController::Initialize, controller)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Initialize, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 auto error = WaitFor(asyncResult);
@@ -1851,7 +1854,7 @@ private:
             operation->SetState(EOperationState::Preparing);
 
             auto controller = operation->GetController();
-            auto asyncResult = BIND(&IOperationController::Prepare, controller)
+            auto asyncResult = BIND(&IOperationControllerSchedulerHost::Prepare, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
 
@@ -1914,8 +1917,9 @@ private:
         // If the revival fails, we still need to update the node
         // and unregister the operation from Master Connector.
 
+        IOperationControllerPtr controller;
         try {
-            auto controller = CreateControllerForOperation(this, operation.Get());
+            controller = CreateControllerForOperation(this, operation.Get());
             operation->SetController(controller);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
@@ -1928,6 +1932,8 @@ private:
 
         // NB: Should not throw!
         RegisterOperation(operation);
+        // Ignore result? (we cannot throw error here)
+        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
     }
 
     TFuture<void> ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
@@ -1952,7 +1958,7 @@ private:
             auto controller = operation->GetController();
 
             {
-                auto asyncResult = BIND(&IOperationController::InitializeReviving, controller, controllerTransactions)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, controllerTransactions)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 auto error = WaitFor(asyncResult);
@@ -1969,7 +1975,7 @@ private:
             }
 
             {
-                auto asyncResult = BIND(&IOperationController::Revive, controller)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 auto error = WaitFor(asyncResult);
@@ -2046,9 +2052,6 @@ private:
         MasterConnector_->AddOperationWatcherHandler(
             operation,
             BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
-
-        // Ignore result? (we cannot throw error here)
-        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation->GetController());
 
         LOG_DEBUG("Operation registered (OperationId: %v)",
             operation->GetId());
@@ -2192,7 +2195,7 @@ private:
 
             {
                 auto controller = operation->GetController();
-                auto asyncResult = BIND(&IOperationController::Commit, controller)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Commit, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 WaitFor(asyncResult)
@@ -2228,7 +2231,7 @@ private:
 
             // Notify controller that it is going to be disposed.
             if (const auto& controller = operation->GetController()) {
-                controller->GetInvoker()->Invoke(BIND(&IOperationController::OnBeforeDisposal, controller));
+                controller->GetInvoker()->Invoke(BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller));
             }
 
             FinishOperation(operation);
@@ -2405,7 +2408,7 @@ private:
         // Notify controller that it is going to be disposed.
         if (const auto& controller = operation->GetController()) {
             auto error = WaitFor(
-                BIND(&IOperationController::OnBeforeDisposal, controller)
+                BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller)
                     .AsyncVia(controller->GetInvoker())
                     .Run());
             YCHECK(error.IsOK() && "OnBeforeDisposal failed");
@@ -2560,7 +2563,7 @@ private:
                             const auto& operation = pair.second;
                             auto controller = operation->GetController();
                             if (controller) {
-                                asyncResults.push_back(BIND(&IOperationController::BuildSuspiciousJobsYson, controller)
+                                asyncResults.push_back(BIND(&IOperationControllerSchedulerHost::BuildSuspiciousJobsYson, controller)
                                     .AsyncVia(controller->GetInvoker())
                                     .Run());
                             }
@@ -2609,7 +2612,7 @@ private:
                     .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
                             // TODO(ignat): maybe use cached version here?
-                            BIND(&IOperationController::BuildProgress, controller)
+                            BIND(&IOperationControllerSchedulerHost::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(fluent));
                         asyncResult.ThrowOnError();
@@ -2619,7 +2622,7 @@ private:
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
-                            BIND(&IOperationController::BuildBriefProgress, controller)
+                            BIND(&IOperationControllerSchedulerHost::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(fluent));
                         asyncResult.ThrowOnError();
@@ -2631,7 +2634,7 @@ private:
                 .EndAttributes()
                 .BeginMap()
                     .Do([=] (TFluentMap fluent) {
-                        auto future = BIND(&IOperationController::BuildJobsYson, controller)
+                        auto future = BIND(&IOperationControllerSchedulerHost::BuildJobsYson, controller)
                             .AsyncVia(controller->GetCancelableInvoker())
                             .Run();
                         auto jobsYson = WaitFor(future)
@@ -2647,7 +2650,7 @@ private:
                 .BeginMap()
                     .DoIf(hasControllerJobSplitterInfo, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
-                            BIND(&IOperationController::BuildJobSplitterInfo, controller)
+                            BIND(&IOperationControllerSchedulerHost::BuildJobSplitterInfo, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(fluent));
                         asyncResult.ThrowOnError();
@@ -2655,7 +2658,7 @@ private:
                 .EndMap()
                 .Do([=] (TFluentMap fluent) {
                     auto asyncResult = WaitFor(
-                        BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
+                        BIND(&IOperationControllerSchedulerHost::BuildMemoryDigestStatistics, controller)
                             .AsyncVia(controller->GetInvoker())
                             .Run(fluent));
                     asyncResult.ThrowOnError();
@@ -2799,7 +2802,7 @@ private:
                 return;
             }
 
-            auto jobYsonCallback = BIND(&IOperationController::BuildJobYson, controller, jobId, /* outputStatistics */ true)
+            auto jobYsonCallback = BIND(&IOperationControllerSchedulerHost::BuildJobYson, controller, jobId, /* outputStatistics */ true)
                 .AsyncVia(controller->GetInvoker())
                 .Run();
 
