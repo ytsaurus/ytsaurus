@@ -1,8 +1,5 @@
 #include "lib.h"
 
-#include <mapreduce/yt/tests/native_new/all_types.pb.h>
-#include <mapreduce/yt/tests/native_new/row.pb.h>
-
 #include <mapreduce/yt/common/config.h>
 
 #include <mapreduce/yt/interface/errors.h>
@@ -55,4 +52,33 @@ SIMPLE_UNIT_TEST_SUITE(Schema) {
         }
     }
 
+    SIMPLE_UNIT_TEST(SchemaAsPathAttribute) {
+        auto schema = TTableSchema()
+            .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
+            .AddColumn(TColumnSchema().Name("value").Type(VT_INT64));
+
+        auto client = CreateTestClient();
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/table").Schema(schema));
+
+        TVector<TNode> expected = {
+            TNode()("key", "one")("value", 1),
+        };
+        {
+            for (const auto& e : expected) {
+                writer->AddRow(e);
+            }
+            writer->Finish();
+        }
+
+        auto actualSchema = client->Get("//testing/table/@schema");
+        UNIT_ASSERT_VALUES_EQUAL(actualSchema, schema.ToNode());
+
+        TVector<TNode> actual;
+        auto reader = client->CreateTableReader<TNode>("//testing/table");
+        for (; reader->IsValid(); reader->Next()) {
+            actual.push_back(reader->GetRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    }
 }
