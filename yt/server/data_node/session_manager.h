@@ -43,7 +43,6 @@ public:
     //! Session ID must not specify AllMediaIndex as medium index.
     ISessionPtr GetSessionOrThrow(const TSessionId& sessionId);
 
-    //! Finds session by session ID. Returns empty vector if no sessions were found.
     //! Returns the number of currently active sessions of a given type.
     int GetSessionCount(ESessionType type);
 
