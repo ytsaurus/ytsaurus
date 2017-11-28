@@ -50,7 +50,7 @@ public:
     };
 
     using TList = TVector<TNode>;
-    using TMap = THashMap<TString, TNode>;
+    using TMapType = THashMap<TString, TNode>;
 
 private:
     struct TNull {
@@ -68,7 +68,7 @@ private:
         double,
         TString,
         TList,
-        TMap,
+        TMapType,
         TNull,
         TUndefined
         >;
@@ -135,9 +135,9 @@ public:
     double AsDouble() const;
     bool AsBool() const;
     const TList& AsList() const;
-    const TMap& AsMap() const;
+    const TMapType& AsMap() const;
     TList& AsList();
-    TMap& AsMap();
+    TMapType& AsMap();
 
     const TString& UncheckedAsString() const noexcept;
     i64 UncheckedAsInt64() const noexcept;
@@ -145,9 +145,9 @@ public:
     double UncheckedAsDouble() const noexcept;
     bool UncheckedAsBool() const noexcept;
     const TList& UncheckedAsList() const noexcept;
-    const TMap& UncheckedAsMap() const noexcept;
+    const TMapType& UncheckedAsMap() const noexcept;
     TList& UncheckedAsList() noexcept;
-    TMap& UncheckedAsMap() noexcept;
+    TMapType& UncheckedAsMap() noexcept;
 
     // ui64 <-> i64
     // makes overflow checks

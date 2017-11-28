@@ -43,7 +43,7 @@ public:
     bool ContainsText(const TStringBuf& text) const;
 
     bool HasAttributes() const;
-    const TNode::TMap& GetAttributes() const;
+    const TNode::TMapType& GetAttributes() const;
 
     TString GetYsonText() const;
 
@@ -54,7 +54,7 @@ private:
     int Code_;
     TString Message_;
     TVector<TYtError> InnerErrors_;
-    TNode::TMap Attributes_;
+    TNode::TMapType Attributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
