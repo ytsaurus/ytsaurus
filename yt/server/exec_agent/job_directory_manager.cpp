@@ -39,11 +39,21 @@ class TPortoJobDirectoryManager
     : public IJobDirectoryManager
 {
 public:
-    explicit TPortoJobDirectoryManager(const TVolumeManagerConfigPtr& config)
-        : Executor_(CreatePortoExecutor(config->PortoRetryTimeout, config->PortoPollPeriod))
+    explicit TPortoJobDirectoryManager(const TVolumeManagerConfigPtr& config, const TString& path)
+        : Path_(path)
+        , Executor_(CreatePortoExecutor(config->PortoRetryTimeout, config->PortoPollPeriod))
     {
-        // Since all the volumes should have been linked to the old node container,
-        // there should be no volumes we could possibly restore.
+        // Collect and drop all existing volumes.
+        auto volumes = WaitFor(Executor_->ListVolumes())
+            .ValueOrThrow();
+
+        for (const auto& volume : volumes) {
+            if (volume.Path.StartsWith(Path_ + "/")) {
+                LOG_DEBUG("Unlink old volume, left from previous run (Path: %v)", volume.Path);
+                WaitFor(Executor_->UnlinkVolume(volume.Path, "self"))
+                    .ThrowOnError();
+            }
+        }
     }
 
     virtual TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
@@ -77,6 +87,7 @@ public:
     }
 
 private:
+    const TString Path_;
     const IPortoExecutorPtr Executor_;
 
     TSpinLock SpinLock_;
@@ -114,9 +125,9 @@ private:
     }
 };
 
-IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(TVolumeManagerConfigPtr config)
+IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(TVolumeManagerConfigPtr config, const TString& path)
 {
-    return New<TPortoJobDirectoryManager>(std::move(config));
+    return New<TPortoJobDirectoryManager>(std::move(config), path);
 }
 
 #endif
