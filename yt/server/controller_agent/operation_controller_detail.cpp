@@ -5286,18 +5286,29 @@ void TOperationControllerBase::OnBeforeDisposal()
 
 NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelta()
 {
+    TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+
     NScheduler::TOperationJobMetrics result;
     result.OperationId = OperationId;
-    {
-        TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
-        for (auto& pair : JobMetricsDeltaPerTree_) {
-            const auto& treeId = pair.first;
-            auto& delta = pair.second;
+    auto now = NProfiling::GetCpuInstant();
+
+    if (State == EControllerState::Running &&
+        LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsDeltaReportBackoff) > now)
+    {
+        return result;
+    }
+
+    for (auto& pair : JobMetricsDeltaPerTree_) {
+        const auto& treeId = pair.first;
+        auto& delta = pair.second;
+        if (!delta.IsEmpty()) {
             result.Metrics.push_back({treeId, delta});
             delta = NScheduler::TJobMetrics();
         }
     }
+
+    LastJobMetricsDeltaReportTime_ = now;
 
     return result;
 }
