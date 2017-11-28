@@ -350,7 +350,11 @@ void TMapNodeMixin::SetChild(
         tokenizer.ThrowUnexpected();
     }
 
-    auto currentNode = AsMap();
+    IMapNodePtr rootNode = AsMap();
+    INodePtr rootChild;
+    TString rootKey;
+
+    auto currentNode = rootNode;
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
         tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
@@ -387,12 +391,20 @@ void TMapNodeMixin::SetChild(
         }
 
         auto newChild = lastStep ? child : factory->CreateMap();
-        YCHECK(currentNode->AddChild(newChild, key));
+        if (currentNode != rootNode) {
+            YCHECK(currentNode->AddChild(newChild, key));
+        } else {
+            rootChild = newChild;
+            rootKey = key;
+        }
 
         if (!lastStep) {
             currentNode = newChild->AsMap();
         }
     }
+
+    YCHECK(rootKey);
+    rootNode->AddChild(rootChild, rootKey);
 }
 
 int TMapNodeMixin::GetMaxKeyLength() const
