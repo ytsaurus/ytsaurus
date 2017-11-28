@@ -711,9 +711,6 @@ public:
 
     NCompression::ECodec JobSpecCodec;
 
-    // How often job metrics should be updated.
-    TDuration JobMetricsBatchInterval;
-
     // How much time we wait before aborting the revived job that was not confirmed
     // by the corresponding execution node.
     TDuration JobRevivalAbortTimeout;
@@ -723,6 +720,9 @@ public:
 
     // Controller agent-to-scheduler heartbeat timeout.
     TDuration ControllerAgentHeartbeatRpcTimeout;
+
+    // Backoff to report job metrics from operation to scheduler.
+    TDuration JobMetricsDeltaReportBackoff;
 
     TSchedulerConfig();
 
