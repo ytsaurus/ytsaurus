@@ -57,7 +57,7 @@ TJobResourcesWithQuota TFairShareStrategyOperationController::GetMinNeededJobRes
 
 void TFairShareStrategyOperationController::InvokeMinNeededJobResourcesUpdate()
 {
-    BIND(&NControllerAgent::IOperationController::GetMinNeededJobResources, Controller_)
+    BIND(&NControllerAgent::IOperationControllerSchedulerHost::GetMinNeededJobResources, Controller_)
         .AsyncVia(Controller_->GetCancelableInvoker())
         .Run()
         .Subscribe(
@@ -85,7 +85,7 @@ bool TFairShareStrategyOperationController::IsBlocked(
 void TFairShareStrategyOperationController::AbortJob(std::unique_ptr<TAbortedJobSummary> abortedJobSummary)
 {
     Controller_->GetCancelableInvoker()->Invoke(BIND(
-        &NControllerAgent::IOperationControllerStrategyHost::OnJobAborted,
+        &NControllerAgent::IOperationControllerSchedulerHost::OnJobAborted,
         Controller_,
         Passed(std::move(abortedJobSummary))));
 }

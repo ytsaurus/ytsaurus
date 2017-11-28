@@ -40,8 +40,8 @@ using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
 
-using NControllerAgent::IOperationController;
-using NControllerAgent::IOperationControllerPtr;
+using NControllerAgent::IOperationControllerSchedulerHost;
+using NControllerAgent::IOperationControllerSchedulerHostPtr;
 
 using NNodeTrackerClient::NodeIdFromObjectId;
 
@@ -138,7 +138,7 @@ void TNodeShard::OnMasterDisconnected()
     SubmitUpdatedAndCompletedJobsToStrategy();
 }
 
-void TNodeShard::RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& operationController)
+void TNodeShard::RegisterOperation(const TOperationId& operationId, const IOperationControllerSchedulerHostPtr& operationController)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1363,7 +1363,7 @@ void TNodeShard::ProcessScheduledJobs(
             if (operationState && !operationState->Terminated) {
                 const auto& controller = operationState->Controller;
                 controller->GetCancelableInvoker()->Invoke(BIND(
-                    &IOperationController::OnJobAborted,
+                    &IOperationControllerSchedulerHost::OnJobAborted,
                     controller,
                     Passed(std::make_unique<TAbortedJobSummary>(
                         job->GetId(),
@@ -1378,7 +1378,7 @@ void TNodeShard::ProcessScheduledJobs(
 
         const auto& controller = operationState->Controller;
         controller->GetCancelableInvoker()->Invoke(BIND(
-            &IOperationController::OnJobStarted,
+            &IOperationControllerSchedulerHost::OnJobStarted,
             controller,
             job->GetId(),
             job->GetStartTime()));
@@ -1430,7 +1430,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
-        BIND(&IOperationController::OnJobRunning,
+        BIND(&IOperationControllerSchedulerHost::OnJobRunning,
             controller,
             Passed(std::make_unique<TRunningJobSummary>(job, status)))
             .Via(controller->GetCancelableInvoker())
@@ -1473,7 +1473,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         if (operationState) {
             const auto& controller = operationState->Controller;
             controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationController::OnJobCompleted,
+                &IOperationControllerSchedulerHost::OnJobCompleted,
                 controller,
                 Passed(std::make_unique<TCompletedJobSummary>(job, status, abandoned))));
         }
@@ -1496,7 +1496,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
         if (operationState) {
             const auto& controller = operationState->Controller;
             controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationController::OnJobFailed,
+                &IOperationControllerSchedulerHost::OnJobFailed,
                 controller,
                 Passed(std::make_unique<TFailedJobSummary>(job, status))));
         }
@@ -1526,7 +1526,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
         if (operationState && !operationTerminated) {
             const auto& controller = operationState->Controller;
             controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationController::OnJobAborted,
+                &IOperationControllerSchedulerHost::OnJobAborted,
                 controller,
                 Passed(std::make_unique<TAbortedJobSummary>(job, status))));
         }

@@ -15,6 +15,8 @@ extern const TString IntermediatePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IOperationController)
+
 DECLARE_REFCOUNTED_STRUCT(TSnapshotJob)
 
 DECLARE_REFCOUNTED_CLASS(TSnapshotBuilder)
