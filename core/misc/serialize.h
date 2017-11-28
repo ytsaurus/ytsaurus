@@ -1307,20 +1307,20 @@ template <
 >
 struct TMapSerializer
 {
-    template <class TMap, class C>
-    static void Save(C& context, const TMap& map)
+    template <class TMapType, class C>
+    static void Save(C& context, const TMapType& map)
     {
         TSizeSerializer::Save(context, map.size());
 
-        typename TSorterSelector<TMap, C, TSortTag>::TSorter sorter(map);
+        typename TSorterSelector<TMapType, C, TSortTag>::TSorter sorter(map);
         for (const auto& pair : sorter) {
             TKeySerializer::Save(context, pair.first);
             TValueSerializer::Save(context, pair.second);
         }
     }
 
-    template <class TMap, class C>
-    static void Load(C& context, TMap& map)
+    template <class TMapType, class C>
+    static void Load(C& context, TMapType& map)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1330,12 +1330,12 @@ struct TMapSerializer
 
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index < size; ++index) {
-                typename TMap::key_type key;
+                typename TMapType::key_type key;
                 TKeySerializer::Load(context, key);
 
                 SERIALIZATION_DUMP_WRITE(context, "=>");
 
-                typename TMap::mapped_type value;
+                typename TMapType::mapped_type value;
                 SERIALIZATION_DUMP_INDENT(context) {
                     TValueSerializer::Load(context, value);
                 }
@@ -1353,8 +1353,8 @@ template <
 >
 struct TMultiMapSerializer
 {
-    template <class TMap, class C>
-    static void Save(C& context, const TMap& map)
+    template <class TMapType, class C>
+    static void Save(C& context, const TMapType& map)
     {
         TMapSerializer<
             TDefaultSerializer,
@@ -1363,8 +1363,8 @@ struct TMultiMapSerializer
         >::Save(context, map);
     }
 
-    template <class TMap, class C>
-    static void Load(C& context, TMap& map)
+    template <class TMapType, class C>
+    static void Load(C& context, TMapType& map)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1373,12 +1373,12 @@ struct TMultiMapSerializer
         map.clear();
 
         for (size_t index = 0; index < size; ++index) {
-            typename TMap::key_type key;
+            typename TMapType::key_type key;
             TKeySerializer::Load(context, key);
 
             SERIALIZATION_DUMP_WRITE(context, "=>");
 
-            typename TMap::mapped_type value;
+            typename TMapType::mapped_type value;
             SERIALIZATION_DUMP_INDENT(context) {
                 TValueSerializer::Load(context, value);
             }
