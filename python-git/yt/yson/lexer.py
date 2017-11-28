@@ -27,9 +27,9 @@ assert len(PERCENT_LITERALS) == len(PERCENT_LITERAL_LENGTH)
 def _get_numeric_type(string):
     for code in iterbytes(string):
         ch = int2byte(code)
-        if ch == b'E' or ch == b'e' or ch == b'.':
+        if ch == b"E" or ch == b"e" or ch == b".":
             return _SEEMS_DOUBLE
-        elif ch == b'u':
+        elif ch == b"u":
             return _SEEMS_UINT64
     return _SEEMS_INT64
 
@@ -145,7 +145,7 @@ class YsonLexer(object):
             ch = self._read_char(True)
             if not ch:
                 raise_yson_error(
-                    "Premature end-of-stream while reading byte %d out of %d" % (i + 1, char_count),
+                    "Premature end-of-stream while reading byte {0} out of {1}".format(i + 1, char_count),
                     self.get_position_info())
             result.append(ch)
         return b"".join(result)
@@ -154,11 +154,11 @@ class YsonLexer(object):
         read_ch = self._read_char()
         if not read_ch:
             raise_yson_error(
-                "Premature end-of-stream expecting '%s' in Yson" % expected_ch,
+                'Premature end-of-stream expecting "{0}" in Yson'.format(expected_ch),
                 self.get_position_info())
         if read_ch != expected_ch:
             raise_yson_error(
-                "Found '%s' while expecting '%s' in Yson" % (read_ch, expected_ch),
+                'Found "{0}" while expecting "{1}" in Yson'.foramt(read_ch, expected_ch),
                 self.get_position_info())
 
     def _skip_whitespaces(self):
@@ -177,7 +177,7 @@ class YsonLexer(object):
             return self._read_quoted_string()
         if not ch.isalpha() and not ch == b"_" and not ch == b"%":
             raise_yson_error(
-                "Expecting string literal but found %s in Yson" % ch,
+                "Expecting string literal but found {0} in Yson".format(ch),
                 self.get_position_info())
         return self._read_unquoted_string()
 
@@ -314,7 +314,7 @@ class YsonLexer(object):
                     raise ValueError()
             except ValueError:
                 raise_yson_error(
-                    "Failed to parse Int64 literal %s in Yson" % string,
+                    "Failed to parse Int64 literal {0} in Yson".format(string),
                     self.get_position_info())
         elif numeric_type == _SEEMS_UINT64:
             try:
@@ -327,13 +327,13 @@ class YsonLexer(object):
                     raise ValueError()
             except ValueError:
                 raise_yson_error(
-                    "Failed to parse Uint64 literal %s in Yson" % string,
+                    "Failed to parse Uint64 literal {0} in Yson".format(string),
                     self.get_position_info())
         else:
             try:
                 result = float(string)
             except ValueError:
                 raise_yson_error(
-                    "Failed to parse Double literal %s in Yson" % string,
+                    "Failed to parse Double literal {0} in Yson".format(string),
                     self.get_position_info())
         return result

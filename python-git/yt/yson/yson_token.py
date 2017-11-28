@@ -130,7 +130,7 @@ class YsonToken(object):
         token_type = self.get_type()
         expected_types = flatten(type_or_types)
         if token_type is None:
-            raise YsonError("Unexpected '{0}' while parsing node".format(decode_token_value(self.get_value())))
+            raise YsonError('Unexpected "{0}" while parsing node'.format(decode_token_value(self.get_value())))
 
         if token_type not in expected_types:
             if token_type == TOKEN_END_OF_STREAM:

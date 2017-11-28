@@ -17,7 +17,7 @@ Examples:
 
 >>> import yt.yson as yson
 >>> yson.loads("{a=10}")
-{'a': 10}
+{"a": 10}
 
 >>> yson.dumps(True)
 '"true"'
