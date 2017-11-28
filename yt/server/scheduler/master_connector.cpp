@@ -633,7 +633,7 @@ private:
                             "state",
                             "suspended",
                             "events",
-                            "slot_index_per_tree"
+                            "slot_index_per_pool_tree"
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                         batchReq->AddRequest(req, "get_op_attr");
