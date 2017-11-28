@@ -700,6 +700,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
+        .Default(TDuration::Seconds(5));
+
     RegisterInitializer([&] () {
         ChunkLocationThrottler->Limit = 10000;
 

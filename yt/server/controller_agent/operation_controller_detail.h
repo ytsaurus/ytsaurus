@@ -938,6 +938,7 @@ private:
     TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
     yhash<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_;
 
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;

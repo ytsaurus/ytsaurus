@@ -34,6 +34,8 @@ public:
         const NJobTrackerClient::TStatistics& statistics,
         NJobTrackerClient::EJobState jobState);
 
+    bool IsEmpty() const;
+
     void SendToProfiler(
         const NProfiling::TProfiler& profiler,
         const TString& prefix,
