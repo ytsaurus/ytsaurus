@@ -55,7 +55,7 @@ void TPeriodicExecutor::DoStop()
 TFuture<void> TPeriodicExecutor::Stop()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    if (Busy_) {
+    if (ExecutingCallback_) {
         InitIdlePromise();
         DoStop();
         return IdlePromise_;
@@ -171,6 +171,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
         if (!Started_ || Busy_)
             return;
         Busy_ = true;
+        ExecutingCallback_ = true;
         TDelayedExecutor::CancelAndClear(Cookie_);
         if (ExecutedPromise_) {
             executedPromise = ExecutedPromise_;
@@ -187,7 +188,9 @@ void TPeriodicExecutor::OnCallbackSuccess()
     {
         TGuard<TSpinLock> guard(SpinLock_);
         idlePromise = IdlePromise_;
+        ExecutingCallback_ = false;
     }
+
     if (idlePromise && !idlePromise.IsSet()) {
         idlePromise.Set();
     }
