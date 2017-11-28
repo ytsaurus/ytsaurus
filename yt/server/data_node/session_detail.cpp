@@ -130,7 +130,7 @@ TFuture<IChunkPtr> TSessionBase::Finish(const TChunkMeta* chunkMeta, const TNull
         ValidateActive();
 
         LOG_INFO("Finishing session");
-    
+
         TLeaseManager::CloseLease(Lease_);
         Active_ = false;
 
