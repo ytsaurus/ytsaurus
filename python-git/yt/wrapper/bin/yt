@@ -756,7 +756,7 @@ def add_merge_parser(add_parser):
     add_src_arg(parser)
     add_ypath_argument(parser, "--dst", required=True, dest="destination_table",
         help="path to destination table. For append mode add <append=true> before path.")
-    parser.add_argument("--mode", default="unordered", choices=["unordered", "ordered", "sorted", "auto"],
+    parser.add_argument("--mode", default="auto", choices=["unordered", "ordered", "sorted", "auto"],
         help="use sorted mode for saving sortedness. unordered mode by default, ordered for saving order of chunks. "
              "Mode auto chooses from sorted and unordered modes depending on sortedness of source tables.")
     parser.add_argument("--print-statistics", action="store_true", default=False)
