@@ -95,6 +95,8 @@ message TReqHeartbeat
     repeated TJobsRelease jobs_to_release = 5;
 
     repeated TOperationAlerts operation_alerts = 6;
+
+    required bool exec_nodes_requested = 7;
 }
 
 message TRspHeartbeat

@@ -888,14 +888,16 @@ public:
                     alerts));
         }
 
-        TExecNodeDescriptorListPtr execNodes;
-        {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
-            execNodes = CachedExecNodeDescriptors_;
-        }
+        if (request->exec_nodes_requested()) {
+            TExecNodeDescriptorListPtr execNodes;
+            {
+                TReaderGuard guard(ExecNodeDescriptorsLock_);
+                execNodes = CachedExecNodeDescriptors_;
+            }
 
-        for (const auto& execNode : execNodes->Descriptors) {
-            ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
+            for (const auto& execNode : execNodes->Descriptors) {
+                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
+            }
         }
     }
 
@@ -1160,6 +1162,7 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
+    bool ShouldSendExecNodeDescriptorToControllerAgent_ = false;
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
@@ -1727,6 +1730,7 @@ private:
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
             std::swap(CachedExecNodeDescriptors_, result);
+            ShouldSendExecNodeDescriptorToControllerAgent_ = true;
         }
 
         auto execNodeMemoryDistribution = CalculateMemoryDistribution(EmptySchedulingTagFilter);
