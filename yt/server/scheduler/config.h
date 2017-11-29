@@ -723,9 +723,6 @@ public:
 
     NCompression::ECodec JobSpecCodec;
 
-    // How often job metrics should be updated.
-    TDuration JobMetricsBatchInterval;
-
     // How much time we wait before aborting the revived job that was not confirmed
     // by the corresponding execution node.
     TDuration JobRevivalAbortTimeout;

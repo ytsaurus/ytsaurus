@@ -688,9 +688,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_spec_codec", JobSpecCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("job_metrics_batch_interval", JobMetricsBatchInterval)
-        .Default(TDuration::Minutes(1));
-
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));
 
@@ -701,7 +698,7 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(10));
 
     RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::Seconds(15));
 
     RegisterInitializer([&] () {
         ChunkLocationThrottler->Limit = 10000;

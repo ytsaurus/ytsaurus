@@ -2321,7 +2321,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "job_metrics_batch_interval": 3000,  # 3 sec
+            "job_metrics_delta_report_backoff": 3000,  # 3 sec
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
