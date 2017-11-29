@@ -677,7 +677,10 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
             }
 
             rows->push_back(row);
-            dataWeight += GetDataWeight(rows->back());
+
+            auto rowWeight = GetDataWeight(rows->back());
+            dataWeight += rowWeight;
+            DataWeight_ += rowWeight;
             ++RowCount_;
         }
         ++RowIndex_;
@@ -687,7 +690,6 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
         }
     }
 
-    DataWeight_ += dataWeight;
     return true;
 }
 
@@ -1061,6 +1063,7 @@ public:
 
         if (RowSampler_) {
             i64 insertIndex = 0;
+            // ToDo(psushin): fix data weight statistics row sampler is used.
 
             std::vector<TUnversionedRow>& rowsRef = *rows;
             for (i64 rowIndex = 0; rowIndex < rows->size(); ++rowIndex) {
