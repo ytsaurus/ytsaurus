@@ -10,6 +10,7 @@ TBufferedStream::TBufferedStream(size_t capacity)
     : Data_(TSharedMutableRef::Allocate(capacity, false))
     , Begin_(Data_.Begin())
     , Capacity_(capacity)
+    , AllowRead_(NewPromise<void>())
     , AllowWrite_(NewPromise<void>())
 { }
 
