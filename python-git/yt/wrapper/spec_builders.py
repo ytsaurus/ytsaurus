@@ -483,7 +483,7 @@ class UserJobSpecBuilder(object):
                 if hasattr(file, "attributes") and "disk_size" in file.attributes:
                     file_disk_size = file.attributes["disk_size"]
                 else:
-                    attributes = get(file + "/@")
+                    attributes = get(file + "/@", client=client)
                     if attributes["type"] == "table":
                         raise YtError(
                             'Attributes "disk_size" must be specified for table file "{0}"'.format(str(file)))
