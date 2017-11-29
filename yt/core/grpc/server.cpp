@@ -65,8 +65,10 @@ private:
 
     virtual void DoStart() override
     {
+        TGrpcChannelArgs args(Config_->GrpcArguments);
+
         Native_ = TGrpcServerPtr(grpc_server_create(
-            nullptr,
+            args.Unwrap(),
             nullptr));
 
         grpc_server_register_completion_queue(
