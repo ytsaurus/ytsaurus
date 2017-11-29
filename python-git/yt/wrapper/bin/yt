@@ -341,9 +341,9 @@ def add_find_parser(add_parser):
 def read_table(**args):
     stream = yt.read_table(**args)
     if yt.config["read_retries"]["enable"]:
-        iterator = chunk_iter_rows(stream, 16 * MB)
+        iterator = chunk_iter_rows(stream, yt.config["read_buffer_size"])
     else:
-        iterator = chunk_iter_stream(stream, 16 * MB)
+        iterator = chunk_iter_stream(stream, yt.config["read_buffer_size"])
     write_silently(iterator)
 
 def add_read_table_parser(add_parser):
@@ -357,7 +357,7 @@ def add_read_table_parser(add_parser):
 
 @copy_docstring_from(yt.read_file)
 def read_file(**args):
-    write_silently(chunk_iter_stream(yt.read_file(**args), 16 * MB))
+    write_silently(chunk_iter_stream(yt.read_file(**args), yt.config["read_buffer_size"]))
 
 def add_read_file_parser(add_parser):
     for name, func in [("read-file", read_file), ("download", read_file)]:
@@ -370,7 +370,7 @@ def add_read_file_parser(add_parser):
 @copy_docstring_from(yt.read_blob_table)
 def read_blob_table(**args):
     stream = yt.read_blob_table(**args)
-    iterator = chunk_iter_stream(stream, 16 * MB)
+    iterator = chunk_iter_stream(stream, yt.config["read_buffer_size"])
     write_silently(iterator)
 
 def add_read_blob_table_parser(add_parser):
@@ -616,7 +616,7 @@ def add_alter_table_replica_parser(add_parser):
 def select_rows(**args):
     args["allow_full_scan"] = not args.pop("forbid_full_scan")
     args["allow_join_without_index"] = not args.pop("forbid_join_without_index")
-    write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), 16 * MB))
+    write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), yt.config["read_buffer_size"]))
 
 def add_select_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
@@ -633,7 +633,7 @@ def add_select_rows_parser(add_parser):
 
 @copy_docstring_from(yt.lookup_rows)
 def lookup_rows(**args):
-    write_silently(chunk_iter_stream(yt.lookup_rows(raw=True, **args), 16 * MB))
+    write_silently(chunk_iter_stream(yt.lookup_rows(raw=True, **args), yt.config["read_buffer_size"]))
 
 def add_lookup_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
@@ -979,7 +979,7 @@ def add_abort_job_parser(add_parser):
 
 @copy_docstring_from(yt.get_job_stderr)
 def get_job_stderr(**args):
-    write_silently(chunk_iter_stream(yt.get_job_stderr(**args), 16 * MB))
+    write_silently(chunk_iter_stream(yt.get_job_stderr(**args), yt.config["read_buffer_size"]))
 
 def add_run_get_job_stderr_parser(add_parser):
     parser = add_parser("get-job-stderr", get_job_stderr)
