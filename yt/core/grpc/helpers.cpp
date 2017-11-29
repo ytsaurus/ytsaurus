@@ -4,6 +4,8 @@
 #include <yt/core/misc/proto/protobuf_helpers.pb.h>
 #include <yt/core/misc/proto/error.pb.h>
 
+#include <yt/core/ytree/node.h>
+
 #include <yt/core/compression/codec.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
@@ -11,9 +13,12 @@
 #include <contrib/libs/grpc/include/grpc/byte_buffer_reader.h>
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 
 namespace NYT {
 namespace NGrpc {
+
+using NYTree::ENodeType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,7 +104,7 @@ TGrpcChannelArgs::TGrpcChannelArgs(const yhash<TString, NYTree::INodePtr>& args)
         auto& item = Items_.back();
         const auto& key = pair.first;
         const auto& node = pair.second;
-        item.key = key.c_str();
+        item.key = const_cast<char*>(key.c_str());
 
         auto setIntegerValue = [&] (auto value) {
             item.type = GRPC_ARG_INTEGER;
@@ -109,12 +114,12 @@ TGrpcChannelArgs::TGrpcChannelArgs(const yhash<TString, NYTree::INodePtr>& args)
                     node->GetType(),
                     key);
             }
-            item.value = static_cast<int>(value);
+            item.value.integer = static_cast<int>(value);
         };
 
         auto setStringValue = [&] (const auto& value) {
             item.type = GRPC_ARG_STRING;
-            item.value = value.c_str();
+            item.value.string = const_cast<char*>(value.c_str());
         };
 
         switch (node->GetType()) {
