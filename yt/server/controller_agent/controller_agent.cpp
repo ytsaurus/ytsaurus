@@ -31,6 +31,7 @@ using namespace NYTree;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NEventLog;
+using namespace NProfiling;
 
 static const auto& Logger = ControllerAgentLogger;
 
@@ -298,6 +299,8 @@ private:
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
 
+    TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
+
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
     // TODO: Move this method to some common place to avoid copy/paste.
@@ -338,6 +341,10 @@ private:
             ToProto(req->add_job_metrics(), jobMetricsDelta);
         }
 
+        auto now = GetCpuInstant();
+        bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
+        req->set_exec_nodes_requested(shouldRequestExecNodes);
+
         auto rspOrError = WaitFor(req->Invoke());
 
         if (!rspOrError.IsOK()) {
@@ -361,6 +368,8 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
+
+            LastExecNodesUpdateTime_ = now;
         }
     }
 

@@ -40,6 +40,8 @@ message TOperationJobMetrics
 message TReqHeartbeat
 {
     repeated TOperationJobMetrics job_metrics = 1;
+
+    required bool exec_nodes_requested = 7;
 }
 
 message TRspHeartbeat
