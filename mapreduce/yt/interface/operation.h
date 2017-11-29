@@ -145,8 +145,14 @@ struct TIntermediateTablesHintSpec
     template <class T>
     TDerived& HintReduceInput();
 
+    // Add output of map stage.
+    // Mapper output table #0 is always intermediate table that is going to be reduced later.
+    // Rows that mapper write to tables #1, #2, ... are saved in MapOutput tables.
+    template <class T>
+    TDerived& AddMapOutput(const TRichYPath& path);
 
-    TMultiFormatDesc MapOutputHintDesc_;
+    TMultiFormatDesc MapOutputDesc_;
+    TVector<TRichYPath> MapOutputs_;
 
     TMultiFormatDesc ReduceCombinerInputHintDesc_;
     TMultiFormatDesc ReduceCombinerOutputHintDesc_;
