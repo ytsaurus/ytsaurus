@@ -35,7 +35,6 @@ public:
 
 private:
     T* Ptr_;
-
 };
 
 using TGrpcByteBufferPtr = TGrpcObjectPtr<grpc_byte_buffer, grpc_byte_buffer_destroy>;
@@ -80,7 +79,6 @@ private:
     static constexpr size_t TypicalSize = 4;
     SmallVector<grpc_metadata, TypicalSize> NativeMetadata_;
     SmallVector<TString, TypicalSize> Strings_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +100,20 @@ public:
 
 private:
     grpc_call_details Native_;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TGrpcChannelArgs
+{
+public:
+    explicit TGrpcChannelArgs(const yhash<TString, NYTree::INodePtr>& args)
+
+    grpc_channel_args* Unwrap();
+
+private:
+    grpc_channel_args Native_;
+    std::vector<grpc_arg> Items_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

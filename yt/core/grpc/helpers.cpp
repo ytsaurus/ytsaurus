@@ -91,6 +91,60 @@ grpc_call_details* TGrpcCallDetails::operator->()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+TGrpcChannelArgs::TGrpcChannelArgs(const yhash<TString, NYTree::INodePtr>& args)
+{
+    for (const auto& pair : args) {
+        Items_.emplace_back();
+        auto& item = Items_.back();
+        const auto& key = pair.first;
+        const auto& node = pair.second;
+        item.key = key.c_str();
+
+        auto setIntegerValue = [&] (auto value) {
+            item.type = GRPC_ARG_INTEGER;
+            if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
+                THROW_ERROR_EXCEPTION("Value %v of GRPC argument %Qv is out of range",
+                    value,
+                    node->GetType(),
+                    key);
+            }
+            item.value = static_cast<int>(value);
+        };
+
+        auto setStringValue = [&] (const auto& value) {
+            item.type = GRPC_ARG_STRING;
+            item.value = value.c_str();
+        };
+
+        switch (node->GetType()) {
+            case ENodeType::Int64:
+                setIntegerValue(node->GetValue<i64>());
+                break;
+            case ENodeType::Uint64:
+                setIntegerValue(node->GetValue<ui64>());
+                break;
+            case ENodeType::String:
+                setStringValue(node->GetValue<TString>());
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Invalid type %Qlv of GRPC argument %Qv in channel configuration",
+                    node->GetType(),
+                    key);
+        }
+    }
+
+    Native_.num_args = args.size();
+    Native_.args = Items_.data();
+}
+
+grpc_channel_args* TGrpcChannelArgs::Unwrap()
+{
+    return &Native_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TMessageTag
 { };
 

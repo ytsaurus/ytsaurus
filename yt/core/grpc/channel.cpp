@@ -50,16 +50,15 @@ public:
             .BeginMap()
                 .Item("address").Value(EndpointDescription_)
             .EndMap()))
-    { }
-
-    void Initialize()
     {
         // TODO(babenko): secured channels
         YCHECK(Config_->Type == EAddressType::Insecure);
 
+        TGrpcChannelArgs args(Config_->GrpcArguments);
+
         Channel_= TGrpcChannelPtr(grpc_insecure_channel_create(
             Config_->Address.c_str(),
-            nullptr,
+            args.Unwrap(),
             nullptr));
     }
 
@@ -419,9 +418,7 @@ DEFINE_REFCOUNTED_TYPE(TChannel)
 
 IChannelPtr CreateGrpcChannel(TChannelConfigPtr config)
 {
-    auto channel = New<TChannel>(std::move(config));
-    channel->Initialize();
-    return channel;
+    return New<TChannel>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
