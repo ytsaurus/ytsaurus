@@ -14,6 +14,14 @@ def main():
     if args.has_cloud:
         yt.create("map_node", "//sys/pool_trees/cloud", attributes={"nodes_filter": "external"})
     yt.set("//sys/pool_trees/@default_tree", "physical")
+    yt.set("//sys/pool_trees/@acl/end",
+        {
+            "permissions": ["use"],
+            "action": "allow",
+            "subjects": ["users"],
+            "inheritance_mode": "object_and_descendants"
+        }
+    )
 
     keys = ["min_share_preemption_timeout", "fair_share_preemption_timeout",
             "fair_share_starvation_tolerance", "min_share_preemption_timeout_limit",
