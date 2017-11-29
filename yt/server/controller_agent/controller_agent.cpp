@@ -31,6 +31,7 @@ using namespace NYTree;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NEventLog;
+using namespace NProfiling;
 
 static const auto& Logger = ControllerAgentLogger;
 
@@ -345,6 +346,8 @@ private:
 
     TControllerAgentServiceProxy SchedulerProxy_;
 
+    TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
+
     TSpinLock HeartbeatRequestLock_;
     TControllerAgentServiceProxy::TReqHeartbeatPtr HeartbeatRequest_;
 
@@ -402,6 +405,10 @@ private:
             }
         }
 
+        auto now = GetCpuInstant();
+        bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
+        req->set_exec_nodes_requested(shouldRequestExecNodes);
+
         auto rspOrError = WaitFor(req->Invoke());
 
         if (!rspOrError.IsOK()) {
@@ -425,6 +432,8 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
+
+            LastExecNodesUpdateTime_ = now;
         }
     }
 

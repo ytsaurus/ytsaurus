@@ -576,6 +576,9 @@ public:
     //! Time between two consecutive calls in operation controller to get exec nodes information from scheduler.
     TDuration ControllerUpdateExecNodesInformationDelay;
 
+    //! Backoff between requesting exec nodes from scheduler.
+    TDuration ExecNodesRequestPeriod;
+
     //! Timeout to store cached value of exec nodes information
     //! for scheduling tag filter without access.
     TDuration SchedulingTagFilterExpireTimeout;

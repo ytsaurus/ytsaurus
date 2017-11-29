@@ -519,6 +519,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_update_exec_nodes_information_delay", ControllerUpdateExecNodesInformationDelay)
         .Default(TDuration::Seconds(30));
 
+    RegisterParameter("exec_nodes_request_period", ExecNodesRequestPeriod)
+        .Default(TDuration::Seconds(10));
+
     RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
     RegisterParameter("node_shard_exec_nodes_cache_update_period", NodeShardExecNodesCacheUpdatePeriod)
