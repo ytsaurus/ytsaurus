@@ -581,7 +581,7 @@ def remove_with_empty_dirs(path, force=True, client=None):
     path = YPath(path, client=client)
     while True:
         try:
-            remove(path, recursive=True, force=True, client=client)
+            remove(path, recursive=True, force=force, client=client)
         except YtResponseError as error:
             if error.is_access_denied():
                 logger.warning("Cannot remove %s, access denied", path)
