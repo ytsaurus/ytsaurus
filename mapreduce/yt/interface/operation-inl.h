@@ -292,10 +292,20 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintMapOutput()
 {
-    if (!MapOutputHintDesc_.ProtoDescriptors.empty()) {
-        ythrow TApiUsageError() << "HintMapOutput cannot be called multiple times";
+    TOperationIOSpecBase::TFormatAdder<TRow>::Set(0, MapOutputDesc_);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+template <class TRow>
+TDerived& TIntermediateTablesHintSpec<TDerived>::AddMapOutput(const TRichYPath& path)
+{
+    if (MapOutputs_.empty()) {
+        TOperationIOSpecBase::TFormatAdder<TRow>::Set(1, MapOutputDesc_);
+    } else {
+        TOperationIOSpecBase::TFormatAdder<TRow>::Add(MapOutputDesc_);
     }
-    TOperationIOSpecBase::TFormatAdder<TRow>::Add(MapOutputHintDesc_);
+    MapOutputs_.push_back(path);
     return *static_cast<TDerived*>(this);
 }
 

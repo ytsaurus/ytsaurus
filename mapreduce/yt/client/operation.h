@@ -4,6 +4,7 @@
 #include <mapreduce/yt/interface/operation.h>
 
 #include <util/generic/ptr.h>
+#include <util/generic/vector.h>
 
 namespace NYT {
 

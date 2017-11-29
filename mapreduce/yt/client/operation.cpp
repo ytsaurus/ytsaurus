@@ -1181,10 +1181,15 @@ TOperationId ExecuteMapReduce(
 {
     auto spec = uncanonizedSpec;
     spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
+    spec.MapOutputs_ = CanonizePaths(auth, spec.MapOutputs_);
     spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
     spec.MapperSpec_.Files_ = CanonizePaths(auth, spec.MapperSpec_.Files_);
     spec.ReduceCombinerSpec_.Files_ = CanonizePaths(auth, spec.ReduceCombinerSpec_.Files_);
     spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
+
+    TVector<TRichYPath> allOutputs;
+    allOutputs.insert(allOutputs.end(), spec.MapOutputs_.begin(), spec.MapOutputs_.end());
+    allOutputs.insert(allOutputs.end(), spec.Outputs_.begin(), spec.Outputs_.end());
 
     TMaybe<TNode> format;
     if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
@@ -1197,7 +1202,7 @@ TOperationId ExecuteMapReduce(
         CreateDebugOutputTables(spec, auth);
     }
     if (spec.CreateOutputTables_) {
-        CreateOutputTables(auth, transactionId, spec.Outputs_);
+        CreateOutputTables(auth, transactionId, allOutputs);
     }
 
     TKeyColumns sortBy(spec.SortBy_);
@@ -1238,7 +1243,7 @@ TOperationId ExecuteMapReduce(
     auto reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerClassInputDesc, spec.ReduceCombinerInputHintDesc_,
         "spec from reduce combiner CLASS input", "spec from HINT for reduce combiner input");
 
-    auto mapOutputDesc = MergeIntermediateDesc(mapperClassOutputDesc, spec.MapOutputHintDesc_,
+    auto mapOutputDesc = MergeIntermediateDesc(mapperClassOutputDesc, spec.MapOutputDesc_,
         "spec from mapper CLASS output", "spec from HINT for map output");
 
     const auto& mapInputDesc = spec.GetInputDesc();
@@ -1280,7 +1285,7 @@ TOperationId ExecuteMapReduce(
                 "--yt-map",
                 spec.MapperSpec_,
                 mapper,
-                1,
+                1 + spec.MapOutputs_.size(),
                 mapInputDesc,
                 mapOutputDesc,
                 options);
@@ -1326,7 +1331,8 @@ TOperationId ExecuteMapReduce(
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
         .Item("input_table_paths").List(spec.Inputs_)
-        .Item("output_table_paths").List(spec.Outputs_)
+        .Item("output_table_paths").List(allOutputs)
+        .Item("mapper_output_table_count").Value(spec.MapOutputs_.size())
         .Item("map_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
