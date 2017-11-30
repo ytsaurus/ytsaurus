@@ -1180,21 +1180,21 @@ template <
 >
 struct TSetSerializer
 {
-    template <class TSet, class C>
-    static void Save(C& context, const TSet& set)
+    template <class TSetType, class C>
+    static void Save(C& context, const TSetType& set)
     {
         TSizeSerializer::Save(context, set.size());
 
-        typename TSorterSelector<TSet, C, TSortTag>::TSorter sorter(set);
+        typename TSorterSelector<TSetType, C, TSortTag>::TSorter sorter(set);
         for (const auto& item : sorter) {
             TItemSerializer::Save(context, item);
         }
     }
 
-    template <class TSet, class C>
-    static void Load(C& context, TSet& set)
+    template <class TSetType, class C>
+    static void Load(C& context, TSetType& set)
     {
-        typedef typename TSet::key_type TKey;
+        typedef typename TSetType::key_type TKey;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1222,16 +1222,16 @@ template <
 >
 struct TMultiSetSerializer
 {
-    template <class TSet, class C>
-    static void Save(C& context, const TSet& set)
+    template <class TSetType, class C>
+    static void Save(C& context, const TSetType& set)
     {
         TSetSerializer<TItemSerializer, TSortTag>::Save(context, set);
     }
 
-    template <class TSet, class C>
-    static void Load(C& context, TSet& set)
+    template <class TSetType, class C>
+    static void Load(C& context, TSetType& set)
     {
-        typedef typename TSet::key_type TKey;
+        typedef typename TSetType::key_type TKey;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1259,8 +1259,8 @@ template <
 >
 struct TNullableSetSerializer
 {
-    template <class TSet, class C>
-    static void Save(C& context, const std::unique_ptr<TSet>& set)
+    template <class TSetType, class C>
+    static void Save(C& context, const std::unique_ptr<TSetType>& set)
     {
         if (set) {
             TSetSerializer<TItemSerializer, TSortTag>::Save(context, *set);
@@ -1269,10 +1269,10 @@ struct TNullableSetSerializer
         }
     }
 
-    template <class TSet, class C>
-    static void Load(C& context, std::unique_ptr<TSet>& set)
+    template <class TSetType, class C>
+    static void Load(C& context, std::unique_ptr<TSetType>& set)
     {
-        typedef typename TSet::key_type TKey;
+        typedef typename TSetType::key_type TKey;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1283,7 +1283,7 @@ struct TNullableSetSerializer
             return;
         }
 
-        set.reset(new TSet());
+        set.reset(new TSetType());
 
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index < size; ++index) {
