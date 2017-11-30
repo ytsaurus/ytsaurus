@@ -4098,8 +4098,15 @@ private:
                 << ex;
         }
 
-        // Prepare table reader config.
-        *readerConfig = Config_->ChunkReader;
+        // Parse and prepare table reader config.
+        try {
+            *readerConfig = UpdateYsonSerializable(
+                Config_->ChunkReader,
+                tableAttributes.FindYson("chunk_reader"));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing chunk reader config")
+                << ex;
+        }
 
         // Parse and prepare table writer config.
         try {
