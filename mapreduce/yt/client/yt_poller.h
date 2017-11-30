@@ -56,8 +56,8 @@ private:
 
     TAuth Auth_;
 
-    ylist<IYtPollerItemPtr> InProgress_;
-    ylist<IYtPollerItemPtr> Pending_;
+    TList<IYtPollerItemPtr> InProgress_;
+    TList<IYtPollerItemPtr> Pending_;
 
     TThread WaiterThread_;
     TMutex Lock_;
