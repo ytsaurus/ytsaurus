@@ -235,7 +235,7 @@ private:
                 auto error = TError("Discovery request failed for peer %v", address)
                     << *Owner_->EndpointAttributes_
                     << rspOrError;
-                LOG_WARNING(error);
+                LOG_DEBUG(error);
                 BanPeer(address, error, Owner_->Config_->HardBackoffTime);
             }
 
