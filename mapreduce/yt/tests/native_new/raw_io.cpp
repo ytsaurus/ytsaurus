@@ -31,14 +31,14 @@ public:
         return Client_;
     }
 
-    const TNode::TList& GetData() const {
+    const TNode::TListType& GetData() const {
         return Data_;
     }
 
     // Scan first occurrences of rangeIndex / rowIndex
     // Removes all control entities from the list
-    static void FilterControlNodes(TNode::TList& list, TMaybe<ui32>& rangeIndex, TMaybe<ui64>& rowIndex) {
-        TNode::TList filteredList;
+    static void FilterControlNodes(TNode::TListType& list, TMaybe<ui32>& rangeIndex, TMaybe<ui64>& rowIndex) {
+        TNode::TListType filteredList;
         for (auto& node: list) {
             if (node.IsEntity()) {
                 auto& attrs = node.GetAttributes().AsMap();
@@ -60,7 +60,7 @@ public:
     }
 
 private:
-    TNode::TList Data_;
+    TNode::TListType Data_;
     IClientPtr Client_;
 };
 
@@ -126,7 +126,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
             UNIT_ASSERT_VALUES_EQUAL(rangeIndex, 0u);
             UNIT_ASSERT_VALUES_EQUAL(rowIndex, 5ull);
             UNIT_ASSERT_VALUES_EQUAL(res.AsList(),
-                TNode::TList(testFixture.GetData().begin() + 5, testFixture.GetData().end()));
+                TNode::TListType(testFixture.GetData().begin() + 5, testFixture.GetData().end()));
         }
     }
 
@@ -147,7 +147,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
         UNIT_ASSERT_VALUES_EQUAL(rangeIndex, 0u);
         UNIT_ASSERT_VALUES_EQUAL(rowIndex, 9ull);
         UNIT_ASSERT_VALUES_EQUAL(res.AsList(),
-            TNode::TList(testFixture.GetData().begin() + 9, testFixture.GetData().end()));
+            TNode::TListType(testFixture.GetData().begin() + 9, testFixture.GetData().end()));
     }
 
     SIMPLE_UNIT_TEST(ReadRange)
@@ -171,7 +171,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
         UNIT_ASSERT_VALUES_EQUAL(rangeIndex, 0u);
         UNIT_ASSERT_VALUES_EQUAL(rowIndex, 1ull);
         UNIT_ASSERT_VALUES_EQUAL(res.AsList(),
-            TNode::TList(testFixture.GetData().begin() + 1, testFixture.GetData().begin() + 5));
+            TNode::TListType(testFixture.GetData().begin() + 1, testFixture.GetData().begin() + 5));
     }
 
     SIMPLE_UNIT_TEST(RetryReadRange)
@@ -201,7 +201,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
 
             UNIT_ASSERT_VALUES_EQUAL(rangeIndex, 0u);
             UNIT_ASSERT_VALUES_EQUAL(rowIndex, 1ull);
-            TNode::TList expected(testFixture.GetData().begin() + 1, testFixture.GetData().begin() + 5);
+            TNode::TListType expected(testFixture.GetData().begin() + 1, testFixture.GetData().begin() + 5);
             expected.insert(expected.end(), testFixture.GetData().begin() + 10, testFixture.GetData().begin() + 14);
             UNIT_ASSERT_VALUES_EQUAL(res.AsList(), expected);
         }
@@ -215,7 +215,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
 
             UNIT_ASSERT_VALUES_EQUAL(rangeIndex, 0u);
             UNIT_ASSERT_VALUES_EQUAL(rowIndex, 3ull);
-            TNode::TList expected(testFixture.GetData().begin() + 3, testFixture.GetData().begin() + 5);
+            TNode::TListType expected(testFixture.GetData().begin() + 3, testFixture.GetData().begin() + 5);
             expected.insert(expected.end(), testFixture.GetData().begin() + 10, testFixture.GetData().begin() + 14);
             UNIT_ASSERT_VALUES_EQUAL(res.AsList(), expected);
         }
@@ -229,7 +229,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
 
             UNIT_ASSERT_VALUES_EQUAL(rangeIndex, 0u); // Range with 1 index becames 0 after retrying
             UNIT_ASSERT_VALUES_EQUAL(rowIndex, 12ull);
-            UNIT_ASSERT_VALUES_EQUAL(res.AsList(), TNode::TList(testFixture.GetData().begin() + 12, testFixture.GetData().begin() + 14));
+            UNIT_ASSERT_VALUES_EQUAL(res.AsList(), TNode::TListType(testFixture.GetData().begin() + 12, testFixture.GetData().begin() + 14));
         }
     }
 }

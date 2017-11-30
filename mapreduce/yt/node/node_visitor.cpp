@@ -88,7 +88,7 @@ void TNodeVisitor::VisitBool(const TNode& node)
     Consumer_->OnBooleanScalar(node.AsBool());
 }
 
-void TNodeVisitor::VisitList(const TNode::TList& nodeList)
+void TNodeVisitor::VisitList(const TNode::TListType& nodeList)
 {
     Consumer_->OnBeginList();
     size_t index = 0;

@@ -100,7 +100,7 @@ void TClientBase::Set(
     NDetail::Set(Auth_, TransactionId_, path, value);
 }
 
-TNode::TList TClientBase::List(
+TNode::TListType TClientBase::List(
     const TYPath& path,
     const TListOptions& options)
 {
@@ -610,7 +610,7 @@ void TClient::ReshardTable(
 
 void TClient::InsertRows(
     const TYPath& path,
-    const TNode::TList& rows,
+    const TNode::TListType& rows,
     const TInsertRowsOptions& options)
 {
     THttpHeader header("PUT", "insert_rows");
@@ -623,7 +623,7 @@ void TClient::InsertRows(
 
 void TClient::DeleteRows(
     const TYPath& path,
-    const TNode::TList& keys,
+    const TNode::TListType& keys,
     const TDeleteRowsOptions& options)
 {
     THttpHeader header("PUT", "delete_rows");
@@ -634,9 +634,9 @@ void TClient::DeleteRows(
     RetryRequest(Auth_, header, body, true);
 }
 
-TNode::TList TClient::LookupRows(
+TNode::TListType TClient::LookupRows(
     const TYPath& path,
-    const TNode::TList& keys,
+    const TNode::TListType& keys,
     const TLookupRowsOptions& options)
 {
     Y_UNUSED(options);
@@ -660,7 +660,7 @@ TNode::TList TClient::LookupRows(
     return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
 }
 
-TNode::TList TClient::SelectRows(
+TNode::TListType TClient::SelectRows(
     const TString& query,
     const TSelectRowsOptions& options)
 {

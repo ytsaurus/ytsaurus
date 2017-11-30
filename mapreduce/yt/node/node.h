@@ -49,7 +49,7 @@ public:
         MAP = Map,
     };
 
-    using TList = TVector<TNode>;
+    using TListType = TVector<TNode>;
     using TMapType = THashMap<TString, TNode>;
 
 private:
@@ -67,7 +67,7 @@ private:
         ui64,
         double,
         TString,
-        TList,
+        TListType,
         TMapType,
         TNull,
         TUndefined
@@ -134,9 +134,9 @@ public:
     ui64 AsUint64() const;
     double AsDouble() const;
     bool AsBool() const;
-    const TList& AsList() const;
+    const TListType& AsList() const;
     const TMapType& AsMap() const;
-    TList& AsList();
+    TListType& AsList();
     TMapType& AsMap();
 
     const TString& UncheckedAsString() const noexcept;
@@ -144,9 +144,9 @@ public:
     ui64 UncheckedAsUint64() const noexcept;
     double UncheckedAsDouble() const noexcept;
     bool UncheckedAsBool() const noexcept;
-    const TList& UncheckedAsList() const noexcept;
+    const TListType& UncheckedAsList() const noexcept;
     const TMapType& UncheckedAsMap() const noexcept;
-    TList& UncheckedAsList() noexcept;
+    TListType& UncheckedAsList() noexcept;
     TMapType& UncheckedAsMap() noexcept;
 
     // ui64 <-> i64

@@ -127,20 +127,20 @@ public:
 
     virtual void InsertRows(
         const TYPath& path,
-        const TNode::TList& rows,
+        const TNode::TListType& rows,
         const TInsertRowsOptions& options = TInsertRowsOptions()) = 0;
 
     virtual void DeleteRows(
         const TYPath& path,
-        const TNode::TList& keys,
+        const TNode::TListType& keys,
         const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
 
-    virtual TNode::TList LookupRows(
+    virtual TNode::TListType LookupRows(
         const TYPath& path,
-        const TNode::TList& keys,
+        const TNode::TListType& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TNode::TList SelectRows(
+    virtual TNode::TListType SelectRows(
         const TString& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 

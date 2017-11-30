@@ -59,7 +59,7 @@ public:
     template <class TParent> class TAny;
     template <class TParent> class TToAttributes;
     template <class TParent> class TAttributes;
-    template <class TParent> class TList;
+    template <class TParent> class TListType;
     template <class TParent> class TMapType;
 
     template <class TParent>
@@ -194,17 +194,17 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        TList<TParent> BeginList()
+        TListType<TParent> BeginList()
         {
             this->Consumer->OnBeginList();
-            return TList<TParent>(this->Consumer, this->Parent);
+            return TListType<TParent>(this->Consumer, this->Parent);
         }
 
         template <class TFunc>
         TUnwrappedParent DoList(const TFunc& func)
         {
             this->Consumer->OnBeginList();
-            func(TList<TFluentYsonVoid>(this->Consumer));
+            func(TListType<TFluentYsonVoid>(this->Consumer));
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
         }
@@ -214,7 +214,7 @@ public:
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
-                func(TList<TFluentYsonVoid>(this->Consumer), current);
+                func(TListType<TFluentYsonVoid>(this->Consumer), current);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
@@ -225,7 +225,7 @@ public:
         {
             this->Consumer->OnBeginList();
             for (const auto& item : collection) {
-                func(TList<TFluentYsonVoid>(this->Consumer), item);
+                func(TListType<TFluentYsonVoid>(this->Consumer), item);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
@@ -323,15 +323,15 @@ public:
     };
 
     template <class TParent = TFluentYsonVoid>
-    class TList
-        : public TFluentFragmentBase<TList, TParent>
+    class TListType
+        : public TFluentFragmentBase<TListType, TParent>
     {
     public:
-        using TThis = TList<TParent>;
+        using TThis = TListType<TParent>;
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
-        explicit TList(IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, std::move(parent))
+        explicit TListType(IYsonConsumer* consumer, TParent parent = TParent())
+            : TFluentFragmentBase<TFluentYsonBuilder::TListType, TParent>(consumer, std::move(parent))
         { }
 
         TAny<TThis> Item()
@@ -387,7 +387,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 using TFluentAny = TFluentYsonBuilder::TAny<TFluentYsonVoid>;
-using TFluentList = TFluentYsonBuilder::TList<TFluentYsonVoid>;
+using TFluentList = TFluentYsonBuilder::TListType<TFluentYsonVoid>;
 using TFluentMap = TFluentYsonBuilder::TMapType<TFluentYsonVoid>;
 using TFluentAttributes = TFluentYsonBuilder::TAttributes<TFluentYsonVoid>;
 

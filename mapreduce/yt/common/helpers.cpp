@@ -23,7 +23,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString NodeListToYsonString(const TNode::TList& nodes)
+TString NodeListToYsonString(const TNode::TListType& nodes)
 {
     TStringStream stream;
     TYsonWriter writer(&stream, YF_BINARY, YT_LIST_FRAGMENT);

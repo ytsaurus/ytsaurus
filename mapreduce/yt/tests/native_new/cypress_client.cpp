@@ -10,7 +10,7 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-static TNode::TList SortedStrings(TNode::TList input) {
+static TNode::TListType SortedStrings(TNode::TListType input) {
     std::sort(input.begin(), input.end(), [] (const TNode& lhs, const TNode& rhs) {
         return lhs.AsString() < rhs.AsString();
     });
@@ -168,12 +168,12 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
 
         UNIT_ASSERT_VALUES_EQUAL(
             SortedStrings(res),
-            TNode::TList({"bar", "foo"}));
+            TNode::TListType({"bar", "foo"}));
 
         auto txRes = tx->List("//testing");
         UNIT_ASSERT_VALUES_EQUAL(
             SortedStrings(txRes),
-            TNode::TList({"bar", "foo", "tx_qux"}));
+            TNode::TListType({"bar", "foo", "tx_qux"}));
 
         auto maxSizeRes = client->List("//testing", TListOptions().MaxSize(1));
         UNIT_ASSERT_VALUES_EQUAL(maxSizeRes.size(), 1);
@@ -186,7 +186,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         barNode.Attributes()("attr_name", "attr_value");
         UNIT_ASSERT_VALUES_EQUAL(
             attrFilterRes,
-            TNode::TList({barNode, "foo"}));
+            TNode::TListType({barNode, "foo"}));
     }
 
     SIMPLE_UNIT_TEST(TestCopy)

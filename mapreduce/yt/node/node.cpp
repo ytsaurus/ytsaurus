@@ -135,7 +135,7 @@ bool TNode::IsBool() const
 
 bool TNode::IsList() const
 {
-    return Value_.Is<TList>();
+    return Value_.Is<TListType>();
 }
 
 bool TNode::IsMap() const
@@ -164,7 +164,7 @@ bool TNode::Empty() const
         case STRING:
             return Value_.As<TString>().empty();
         case LIST:
-            return Value_.As<TList>().empty();
+            return Value_.As<TListType>().empty();
         case MAP:
             return Value_.As<TMapType>().empty();
         default:
@@ -178,7 +178,7 @@ size_t TNode::Size() const
         case STRING:
             return Value_.As<TString>().size();
         case LIST:
-            return Value_.As<TList>().size();
+            return Value_.As<TListType>().size();
         case MAP:
             return Value_.As<TMapType>().size();
         default:
@@ -201,7 +201,7 @@ TNode::EType TNode::GetType() const
             return Double;
         case TValue::TagOf<bool>():
             return Bool;
-        case TValue::TagOf<TList>():
+        case TValue::TagOf<TListType>():
             return List;
         case TValue::TagOf<TMapType>():
             return Map;
@@ -241,10 +241,10 @@ bool TNode::AsBool() const
     return Value_.As<bool>();
 }
 
-const TNode::TList& TNode::AsList() const
+const TNode::TListType& TNode::AsList() const
 {
     CheckType(LIST);
-    return Value_.As<TList>();
+    return Value_.As<TListType>();
 }
 
 const TNode::TMapType& TNode::AsMap() const
@@ -253,10 +253,10 @@ const TNode::TMapType& TNode::AsMap() const
     return Value_.As<TMapType>();
 }
 
-TNode::TList& TNode::AsList()
+TNode::TListType& TNode::AsList()
 {
     CheckType(LIST);
-    return Value_.As<TList>();
+    return Value_.As<TListType>();
 }
 
 TNode::TMapType& TNode::AsMap()
@@ -290,9 +290,9 @@ bool TNode::UncheckedAsBool() const noexcept
     return Value_.As<bool>();
 }
 
-const TNode::TList& TNode::UncheckedAsList() const noexcept
+const TNode::TListType& TNode::UncheckedAsList() const noexcept
 {
-    return Value_.As<TList>();
+    return Value_.As<TListType>();
 }
 
 const TNode::TMapType& TNode::UncheckedAsMap() const noexcept
@@ -300,9 +300,9 @@ const TNode::TMapType& TNode::UncheckedAsMap() const noexcept
     return Value_.As<TMapType>();
 }
 
-TNode::TList& TNode::UncheckedAsList() noexcept
+TNode::TListType& TNode::UncheckedAsList() noexcept
 {
-    return Value_.As<TList>();
+    return Value_.As<TListType>();
 }
 
 TNode::TMapType& TNode::UncheckedAsMap() noexcept
@@ -313,7 +313,7 @@ TNode::TMapType& TNode::UncheckedAsMap() noexcept
 TNode TNode::CreateList()
 {
     TNode node;
-    node.Value_ = TValue(TVariantTypeTag<TList>());
+    node.Value_ = TValue(TVariantTypeTag<TListType>());
     return node;
 }
 
@@ -334,19 +334,19 @@ TNode TNode::CreateEntity()
 const TNode& TNode::operator[](size_t index) const
 {
     CheckType(LIST);
-    return Value_.As<TList>()[index];
+    return Value_.As<TListType>()[index];
 }
 
 TNode& TNode::operator[](size_t index)
 {
     CheckType(LIST);
-    return Value_.As<TList>()[index];
+    return Value_.As<TListType>()[index];
 }
 
 TNode& TNode::Add() &
 {
     AssureList();
-    return Value_.As<TList>().emplace_back();
+    return Value_.As<TListType>().emplace_back();
 }
 
 TNode TNode::Add() &&
@@ -357,7 +357,7 @@ TNode TNode::Add() &&
 TNode& TNode::Add(const TNode& node) &
 {
     AssureList();
-    Value_.As<TList>().emplace_back(node);
+    Value_.As<TListType>().emplace_back(node);
     return *this;
 }
 
@@ -369,7 +369,7 @@ TNode TNode::Add(const TNode& node) &&
 TNode& TNode::Add(TNode&& node) &
 {
     AssureList();
-    Value_.As<TList>().emplace_back(std::move(node));
+    Value_.As<TListType>().emplace_back(std::move(node));
     return *this;
 }
 
@@ -515,7 +515,7 @@ void TNode::AssureMap()
 void TNode::AssureList()
 {
     if (Value_.Is<TUndefined>()) {
-        Value_ = TList();
+        Value_ = TListType();
     } else {
         CheckType(LIST);
     }

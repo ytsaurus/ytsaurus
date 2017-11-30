@@ -129,7 +129,7 @@ public:
 ////////////////////////////////////////////////////////////////////
 
 class TListResponseParser
-    : public TResponseParserBase<TNode::TList>
+    : public TResponseParserBase<TNode::TListType>
 {
 public:
     virtual void SetResponse(TMaybe<TNode> node) override
@@ -312,7 +312,7 @@ TFuture<void> TRawBatchRequest::Set(
         node);
 }
 
-TFuture<TNode::TList> TRawBatchRequest::List(
+TFuture<TNode::TListType> TRawBatchRequest::List(
     const TTransactionId& transaction,
     const TYPath& path,
     const TListOptions& options)

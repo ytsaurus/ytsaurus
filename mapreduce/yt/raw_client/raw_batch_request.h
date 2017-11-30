@@ -80,7 +80,7 @@ public:
         const TTransactionId& transaction,
         const TYPath& path,
         const TNode& value);
-    NThreading::TFuture<TNode::TList> List(
+    NThreading::TFuture<TNode::TListType> List(
         const TTransactionId& transaction,
         const TYPath& path,
         const TListOptions& options);
