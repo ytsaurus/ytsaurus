@@ -626,12 +626,14 @@ class YTEnvSetup(object):
             yt_commands.remove_data_center(dc, driver=driver)
 
     def _restore_pool_trees(self, driver=None):
-        yt_commands.remove("//sys/pool_trees/*", driver=driver)
-        yt_commands.create("map_node", "//sys/pool_trees/default", driver=driver)
-        yt_commands.set("//sys/pool_trees/@default_tree", "default", driver=driver)
-        default_tree_path = "//sys/scheduler/orchid/scheduler/default_fair_share_tree"
-        wait(lambda: yt_commands.exists(default_tree_path, driver=driver) and \
-                     yt_commands.get(default_tree_path, driver=driver) == "default")
+        if self.__class__.__name__ in ["TestFairShareOptionsPerTree", "TestFairShareTreesReconfiguration"]:
+            yt_commands.remove("//sys/pool_trees/*", driver=driver)
+            yt_commands.create("map_node", "//sys/pool_trees/default", driver=driver)
+            yt_commands.set("//sys/pool_trees/@default_tree", "default", driver=driver)
+            sleep(0.5)  # Give scheduler some time to reload trees
+        else:
+            # In other tests we do not modify trees.
+            yt_commands.remove("//sys/pool_trees/default/*", driver=driver)
 
     def _remove_tablet_actions(self, driver=None):
         actions = yt_commands.get_tablet_actions()
