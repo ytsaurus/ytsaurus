@@ -10,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString NodeListToYsonString(const TNode::TList& nodes);
+TString NodeListToYsonString(const TNode::TListType& nodes);
 
 TNode PathToNode(const TRichYPath& path);
 TNode PathToParamNode(const TRichYPath& path);

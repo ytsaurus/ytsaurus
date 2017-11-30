@@ -72,8 +72,8 @@ TNode MakeProtoFormatConfigOld(const TVector<const Descriptor*>& descriptors)
     TNode config("protobuf");
     config.Attributes()
         ("file_descriptor_set", fileDescriptorSetBytes)
-        ("file_indices", TNode::CreateList()) //  TNode::TList(fileIndices.cbegin(), fileIndices.cend())))
-        ("message_indices", TNode::CreateList()) //TList(messageIndices.cbegin(), messageIndices.cend()))
+        ("file_indices", TNode::CreateList()) //  TNode::TListType(fileIndices.cbegin(), fileIndices.cend())))
+        ("message_indices", TNode::CreateList()) //TListType(messageIndices.cbegin(), messageIndices.cend()))
         ("enums_as_strings", true)
         ("nested_messages_mode", "protobuf");
     config.Attributes()["file_indices"].AsList().assign(fileIndices.cbegin(), fileIndices.cend());

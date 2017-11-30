@@ -64,7 +64,7 @@ TFuture<void> TBatchRequest::Set(const TYPath& path, const TNode& node)
     return Impl_->Set(DefaultTransaction_, path, node);
 }
 
-TFuture<TNode::TList> TBatchRequest::List(const TYPath& path, const TListOptions& options)
+TFuture<TNode::TListType> TBatchRequest::List(const TYPath& path, const TListOptions& options)
 {
     return Impl_->List(DefaultTransaction_, path, options);
 }

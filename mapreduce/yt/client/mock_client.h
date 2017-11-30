@@ -18,7 +18,7 @@ public:
 
     void Set(const TYPath&, const TNode&) override;
 
-    TNode::TList List(const TYPath&, const TListOptions&) override;
+    TNode::TListType List(const TYPath&, const TListOptions&) override;
 
     TNodeId Copy(const TYPath&, const TYPath&, const TCopyOptions&) override;
 
@@ -90,13 +90,13 @@ public:
 
     void ReshardTable(const TYPath&, i32, const TReshardTableOptions&) override;
 
-    void InsertRows(const TYPath&, const TNode::TList&, const TInsertRowsOptions&) override;
+    void InsertRows(const TYPath&, const TNode::TListType&, const TInsertRowsOptions&) override;
 
-    void DeleteRows(const TYPath&, const TNode::TList&, const TDeleteRowsOptions&) override;
+    void DeleteRows(const TYPath&, const TNode::TListType&, const TDeleteRowsOptions&) override;
 
-    TNode::TList LookupRows(const TYPath&, const TNode::TList&, const TLookupRowsOptions&) override;
+    TNode::TListType LookupRows(const TYPath&, const TNode::TListType&, const TLookupRowsOptions&) override;
 
-    TNode::TList SelectRows(const TString&, const TSelectRowsOptions&) override;
+    TNode::TListType SelectRows(const TString&, const TSelectRowsOptions&) override;
 
     void EnableTableReplica(const TReplicaId&) override;
 

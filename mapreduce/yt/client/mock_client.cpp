@@ -243,8 +243,8 @@ TNode TMockClient::Get(const TYPath&, const TGetOptions&) {
 void TMockClient::Set(const TYPath&, const TNode&) {
 }
 
-TNode::TList TMockClient::List(const TYPath&, const TListOptions&) {
-    return TNode::TList();
+TNode::TListType TMockClient::List(const TYPath&, const TListOptions&) {
+    return TNode::TListType();
 }
 
 TNodeId TMockClient::Copy(const TYPath&, const TYPath&, const TCopyOptions&) {
@@ -374,18 +374,18 @@ void TMockClient::ReshardTable(const TYPath&, const TVector<TKey>&, const TResha
 void TMockClient::ReshardTable(const TYPath&, i32, const TReshardTableOptions&) {
 }
 
-void TMockClient::InsertRows(const TYPath&, const TNode::TList&, const TInsertRowsOptions&) {
+void TMockClient::InsertRows(const TYPath&, const TNode::TListType&, const TInsertRowsOptions&) {
 }
 
-void TMockClient::DeleteRows(const TYPath&, const TNode::TList&, const TDeleteRowsOptions&) {
+void TMockClient::DeleteRows(const TYPath&, const TNode::TListType&, const TDeleteRowsOptions&) {
 }
 
-TNode::TList TMockClient::LookupRows(const TYPath&, const TNode::TList&, const TLookupRowsOptions&) {
-    return TNode::TList();
+TNode::TListType TMockClient::LookupRows(const TYPath&, const TNode::TListType&, const TLookupRowsOptions&) {
+    return TNode::TListType();
 }
 
-TNode::TList TMockClient::SelectRows(const TString&, const TSelectRowsOptions&) {
-    return TNode::TList();
+TNode::TListType TMockClient::SelectRows(const TString&, const TSelectRowsOptions&) {
+    return TNode::TListType();
 }
 
 void TMockClient::EnableTableReplica(const TReplicaId&) {

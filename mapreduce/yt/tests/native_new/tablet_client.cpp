@@ -155,7 +155,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
 
-        TNode::TList rows;
+        TNode::TListType rows;
         for (int i = 0; i < 16; ++i) {
             rows.push_back(TNode()("key", i)("value", ToString(i)));
         }
@@ -188,7 +188,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
 
-        TNode::TList rows = {
+        TNode::TListType rows = {
             TNode()("key", 1)("value", "one"),
             TNode()("key", 42)("value", "forty two"),
         };
@@ -196,14 +196,14 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
 
         {
             auto result = client->LookupRows(tablePath, {TNode()("key", 42), TNode()("key", 1)});
-            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TList({rows[1], rows[0]}));
+            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TListType({rows[1], rows[0]}));
         }
 
         client->DeleteRows(tablePath, {TNode()("key", 42)});
 
         {
             auto result = client->LookupRows(tablePath, {TNode()("key", 42), TNode()("key", 1)});
-            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TList({rows[0]}));
+            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TListType({rows[0]}));
         }
 
         client->UnmountTable(tablePath);
@@ -220,7 +220,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
 
-        TNode::TList rows = {
+        TNode::TListType rows = {
             TNode()("key", 1)("value", "one"),
             TNode()("key", 42)("value", "forty two"),
         };
@@ -232,7 +232,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
 
         {
             auto result = client->LookupRows(tablePath, {TNode()("key", 42), TNode()("key", 1)});
-            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TList({rows[1], rows[0]}));
+            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TListType({rows[1], rows[0]}));
         }
 
         UNIT_ASSERT_EXCEPTION(
@@ -244,7 +244,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
 
         {
             auto result = client->LookupRows(tablePath, {TNode()("key", 42), TNode()("key", 1)});
-            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TList({rows[0]}));
+            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TListType({rows[0]}));
         }
 
         client->UnmountTable(tablePath);
@@ -260,7 +260,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
 
-        TNode::TList rows = {
+        TNode::TListType rows = {
             TNode()("key", 1)("value", "one"),
             TNode()("key", 42)("value", "forty two"),
         };
@@ -270,7 +270,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
             auto result = client->LookupRows(tablePath,
                 {TNode()("key", 42), TNode()("key", 1)},
                 NYT::TLookupRowsOptions().Timeout(TDuration::Seconds(1)));
-            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TList({rows[1], rows[0]}));
+            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TListType({rows[1], rows[0]}));
         }
 
         {

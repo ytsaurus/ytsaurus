@@ -36,7 +36,7 @@ public:
         const TYPath& path,
         const TNode& node) = 0;
 
-    virtual NThreading::TFuture<TNode::TList> List(
+    virtual NThreading::TFuture<TNode::TListType> List(
         const TYPath& path,
         const TListOptions& options = TListOptions()) = 0;
 

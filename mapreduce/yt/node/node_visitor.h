@@ -15,7 +15,7 @@ public:
 
     void Visit(const TNode& node);
     void VisitMap(const TNode::TMapType& nodeMap);
-    void VisitList(const TNode::TList& nodeMap);
+    void VisitList(const TNode::TListType& nodeMap);
 
 private:
     IYsonConsumer* Consumer_;

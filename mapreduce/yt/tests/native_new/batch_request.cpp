@@ -63,7 +63,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-static TNode::TList SortedStrings(TNode::TList input) {
+static TNode::TListType SortedStrings(TNode::TListType input) {
     std::sort(input.begin(), input.end(), [] (const TNode& lhs, const TNode& rhs) {
         return lhs.AsString() < rhs.AsString();
     });
@@ -147,11 +147,11 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
 
         UNIT_ASSERT_VALUES_EQUAL(
             SortedStrings(simpleRes.GetValue()),
-            TNode::TList({"bar", "foo"}));
+            TNode::TListType({"bar", "foo"}));
 
         UNIT_ASSERT_VALUES_EQUAL(
             SortedStrings(txRes.GetValue()),
-            TNode::TList({"bar", "foo", "qux"}));
+            TNode::TListType({"bar", "foo", "qux"}));
         UNIT_ASSERT_VALUES_EQUAL(maxSizeRes.GetValue().size(), 1);
 
         {

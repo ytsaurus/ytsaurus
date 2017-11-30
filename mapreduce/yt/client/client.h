@@ -50,7 +50,7 @@ public:
         const TYPath& path,
         const TNode& value) override;
 
-    TNode::TList List(
+    TNode::TListType List(
         const TYPath& path,
         const TListOptions& options) override;
 
@@ -272,20 +272,20 @@ public:
 
     void InsertRows(
         const TYPath& path,
-        const TNode::TList& rows,
+        const TNode::TListType& rows,
         const TInsertRowsOptions& options) override;
 
     void DeleteRows(
         const TYPath& path,
-        const TNode::TList& keys,
+        const TNode::TListType& keys,
         const TDeleteRowsOptions& options) override;
 
-    TNode::TList LookupRows(
+    TNode::TListType LookupRows(
         const TYPath& path,
-        const TNode::TList& keys,
+        const TNode::TListType& keys,
         const TLookupRowsOptions& options) override;
 
-    TNode::TList SelectRows(
+    TNode::TListType SelectRows(
         const TString& query,
         const TSelectRowsOptions& options) override;
 

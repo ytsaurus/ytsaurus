@@ -34,7 +34,7 @@ public:
         const TYPath& path,
         const TNode& value) = 0;
 
-    virtual TNode::TList List(
+    virtual TNode::TListType List(
         const TYPath& path,
         const TListOptions& options = TListOptions()) = 0;
 

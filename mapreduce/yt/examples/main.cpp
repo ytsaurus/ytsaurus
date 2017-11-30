@@ -450,21 +450,21 @@ void Tablets()
     Sleep(TDuration::Seconds(15)); // TODO: wait for tablet cell status
 
     { // insert
-        TNode::TList rows;
+        TNode::TListType rows;
         for (i64 i = 0; i < 10; ++i) {
             rows.push_back(TNode()("a", i)("b", 2 * i));
         }
         client->InsertRows(table, rows);
     }
     { // delete
-        TNode::TList keys;
+        TNode::TListType keys;
         for (i64 i = 0; i < 3; ++i) {
             keys.push_back(TNode()("a", i));
         }
         client->DeleteRows(table, keys);
     }
     { // lookup
-        TNode::TList keys;
+        TNode::TListType keys;
         for (i64 i = 0; i < 6; ++i) {
             keys.push_back(TNode()("a", i));
         }
