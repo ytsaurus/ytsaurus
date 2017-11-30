@@ -918,7 +918,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
 
         auto waited3 = tracker.WaitOneCompleted();
         UNIT_ASSERT(!waited3);
-        UNIT_ASSERT_VALUES_EQUAL(yset<IOperation*>({op1.Get(), op2.Get()}), yset<IOperation*>({waited1.Get(), waited2.Get()}));
+        UNIT_ASSERT_VALUES_EQUAL(TSet<IOperation*>({op1.Get(), op2.Get()}), TSet<IOperation*>({waited1.Get(), waited2.Get()}));
     }
 
     SIMPLE_UNIT_TEST(WaitOneCompleted_ErrorOperation)
@@ -964,7 +964,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         auto waited3 = tracker.WaitOneCompletedOrError();
         UNIT_ASSERT(!waited3);
 
-        UNIT_ASSERT_VALUES_EQUAL(yset<IOperation*>({op1.Get(), op2.Get()}), yset<IOperation*>({waited1.Get(), waited2.Get()}));
+        UNIT_ASSERT_VALUES_EQUAL(TSet<IOperation*>({op1.Get(), op2.Get()}), TSet<IOperation*>({waited1.Get(), waited2.Get()}));
         UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), OS_COMPLETED);
         UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), OS_FAILED);
     }
