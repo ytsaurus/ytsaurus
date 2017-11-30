@@ -1011,8 +1011,8 @@ struct TNullableVectorSerializer
 template <class TItemSerializer = TDefaultSerializer>
 struct TListSerializer
 {
-    template <class TList, class C>
-    static void Save(C& context, const TList& objects)
+    template <class TListType, class C>
+    static void Save(C& context, const TListType& objects)
     {
         TSizeSerializer::Save(context, objects.size());
 
@@ -1021,8 +1021,8 @@ struct TListSerializer
         }
     }
 
-    template <class TList, class C>
-    static void Load(C& context, TList& objects)
+    template <class TListType, class C>
+    static void Load(C& context, TListType& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
         objects.clear();
@@ -1030,7 +1030,7 @@ struct TListSerializer
         SERIALIZATION_DUMP_WRITE(context, "list[%v]", size);
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index != size; ++index) {
-                typename TList::value_type obj;
+                typename TListType::value_type obj;
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
                 SERIALIZATION_DUMP_INDENT(context) {
                     TItemSerializer::Load(context, obj);
@@ -1080,8 +1080,8 @@ struct TArraySerializer
 template <class TItemSerializer = TDefaultSerializer>
 struct TNullableListSerializer
 {
-    template <class TList, class C>
-    static void Save(C& context, const std::unique_ptr<TList>& objects)
+    template <class TListType, class C>
+    static void Save(C& context, const std::unique_ptr<TListType>& objects)
     {
         using NYT::Save;
         if (objects) {
@@ -1091,8 +1091,8 @@ struct TNullableListSerializer
         }
     }
 
-    template <class TList, class C>
-    static void Load(C& context, std::unique_ptr<TList>& objects)
+    template <class TListType, class C>
+    static void Load(C& context, std::unique_ptr<TListType>& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1103,11 +1103,11 @@ struct TNullableListSerializer
             return;
         }
 
-        objects.reset(new TList());
+        objects.reset(new TListType());
 
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index != size; ++index) {
-                typename TList::value_type obj;
+                typename TListType::value_type obj;
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
                 SERIALIZATION_DUMP_INDENT(context) {
                     TItemSerializer::Load(context, obj);
