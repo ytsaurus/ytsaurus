@@ -13,6 +13,7 @@
 
 #include <util/generic/maybe.h>
 #include <util/folder/path.h>
+#include <util/system/env.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -203,6 +204,70 @@ public:
     }
 };
 REGISTER_MAPPER(TProtobufMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobBaseThatUsesEnv
+{
+public:
+    TJobBaseThatUsesEnv() = default;
+    TJobBaseThatUsesEnv(const TString& envName)
+        : EnvName_(envName)
+    { }
+
+    void Process(TTableReader<TNode>* reader, TTableWriter<TNode>* writer) {
+        for (; reader->IsValid(); reader->Next()) {
+            auto row = reader->GetRow();
+            TString prevValue;
+            if (row.HasKey(EnvName_)) {
+                prevValue = row[EnvName_].AsString();
+            }
+            row[EnvName_] = prevValue.append(GetEnv(EnvName_));
+            writer->AddRow(row);
+        }
+    }
+
+protected:
+    TString EnvName_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapperThatUsesEnv : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>, public TJobBaseThatUsesEnv
+{
+public:
+    TMapperThatUsesEnv() = default;
+    TMapperThatUsesEnv(const TString& envName)
+        : TJobBaseThatUsesEnv(envName)
+    { }
+
+    virtual void Do(TReader* reader, TWriter* writer) override {
+        TJobBaseThatUsesEnv::Process(reader, writer);
+    }
+
+    Y_SAVELOAD_JOB(EnvName_);
+};
+
+REGISTER_MAPPER(TMapperThatUsesEnv);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReducerThatUsesEnv : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>, public TJobBaseThatUsesEnv
+{
+public:
+    TReducerThatUsesEnv() = default;
+    TReducerThatUsesEnv(const TString& envName)
+        : TJobBaseThatUsesEnv(envName)
+    { }
+
+    virtual void Do(TReader* reader, TWriter* writer) override {
+        TJobBaseThatUsesEnv::Process(reader, writer);
+    }
+
+    Y_SAVELOAD_JOB(EnvName_);
+};
+
+REGISTER_REDUCER(TReducerThatUsesEnv);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -611,6 +676,85 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["StringField"], "tri mapped");
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
+    }
+
+    SIMPLE_UNIT_TEST(JobPreffix)
+    {
+        auto client = CreateTestClient();
+        auto inputTable = TRichYPath("//testing/input");
+        auto outputTable = TRichYPath("//testing/output");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("input", "dummy"));
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputTable)
+                .AddOutput<TNode>(outputTable),
+            new TMapperThatUsesEnv("TEST_ENV"));
+        {
+            auto reader = client->CreateTableReader<TNode>(outputTable);
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["TEST_ENV"], "");
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputTable)
+                .AddOutput<TNode>(outputTable),
+            new TMapperThatUsesEnv("TEST_ENV"),
+            TOperationOptions().JobCommandPrefix("TEST_ENV=common "));
+        {
+            auto reader = client->CreateTableReader<TNode>(outputTable);
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["TEST_ENV"], "common");
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputTable)
+                .AddOutput<TNode>(outputTable)
+                .MapperSpec(TUserJobSpec()
+                    .JobCommandPrefix("TEST_ENV=mapper ")
+                ),
+            new TMapperThatUsesEnv("TEST_ENV"));
+        {
+            auto reader = client->CreateTableReader<TNode>(outputTable);
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["TEST_ENV"], "mapper");
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputTable)
+                .AddOutput<TNode>(outputTable)
+                .MapperSpec(TUserJobSpec()
+                    .JobCommandPrefix("TEST_ENV=mapper ")
+                ),
+            new TMapperThatUsesEnv("TEST_ENV"),
+            TOperationOptions().JobCommandPrefix("TEST_ENV=common "));
+        {
+            auto reader = client->CreateTableReader<TNode>(outputTable);
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["TEST_ENV"], "mapper");
+        }
+
+        client->MapReduce(
+            TMapReduceOperationSpec()
+                .AddInput<TNode>(inputTable)
+                .AddOutput<TNode>(outputTable)
+                .ReduceBy({"input"})
+                .MapperSpec(TUserJobSpec()
+                    .JobCommandPrefix("TEST_ENV=mapper ")
+                )
+                .ReducerSpec(TUserJobSpec()
+                    .JobCommandPrefix("TEST_ENV=reducer ")
+                ),
+            new TMapperThatUsesEnv("TEST_ENV"),
+            new TReducerThatUsesEnv("TEST_ENV"),
+            TOperationOptions().JobCommandPrefix("TEST_ENV=common "));
+        {
+            auto reader = client->CreateTableReader<TNode>(outputTable);
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["TEST_ENV"], "mapperreducer");
+        }
     }
 }
 

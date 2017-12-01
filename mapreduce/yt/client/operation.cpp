@@ -137,16 +137,26 @@ public:
             jobBinaryPath = BinaryPath_;
         }
 
+        TString jobCommandPrefix = options.JobCommandPrefix_;
+        if (!spec.JobCommandPrefix_.empty()) {
+            jobCommandPrefix = spec.JobCommandPrefix_;
+        }
+
+        TString jobCommandSuffix = options.JobCommandSuffix_;
+        if (!spec.JobCommandSuffix_.empty()) {
+            jobCommandSuffix = spec.JobCommandSuffix_;
+        }
+
         ClassName_ = TJobFactory::Get()->GetJobName(job);
         Command_ = TStringBuilder() <<
-            options.JobCommandPrefix_ <<
+            jobCommandPrefix <<
             (TConfig::Get()->UseClientProtobuf ? "" : "YT_USE_CLIENT_PROTOBUF=0 ") <<
             jobBinaryPath << " " <<
             commandLineName << " " <<
             "\"" << ClassName_ << "\" " <<
             outputTableCount << " " <<
             HasState_ <<
-            options.JobCommandSuffix_;
+            jobCommandSuffix;
     }
 
     const TVector<TRichYPath>& GetFiles() const
