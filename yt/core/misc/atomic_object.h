@@ -5,8 +5,9 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-//! A synchronization object to load and store nontrivial object. It looks like atomics but for objects.
 
+//! A synchronization object to load and store nontrivial object.
+//! It looks like atomics but for objects.
 template <class T>
 class TAtomicObject
 {

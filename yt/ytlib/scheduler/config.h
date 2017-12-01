@@ -71,15 +71,15 @@ class TSchedulableConfig
     : public TSupportsSchedulingTagsConfig
 {
 public:
-    double Weight;
+    TNullable<double> Weight;
 
     // Specifies resource limits in terms of a share of all cluster resources.
-    double MaxShareRatio;
+    TNullable<double> MaxShareRatio;
     // Specifies resource limits in absolute values.
     TResourceLimitsConfigPtr ResourceLimits;
 
     // Specifies guaranteed resources in terms of a share of all cluster resources.
-    double MinShareRatio;
+    TNullable<double> MinShareRatio;
     // Specifies guaranteed resources in absolute values.
     TResourceLimitsConfigPtr MinShareResources;
 
@@ -92,10 +92,23 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeoutLimit;
     TNullable<double> FairShareStarvationToleranceLimit;
 
-    bool AllowAggressiveStarvationPreemption;
+    TNullable<bool> AllowAggressiveStarvationPreemption;
 
     TSchedulableConfig();
 };
+
+class TExtendedSchedulableConfig
+    : public TSchedulableConfig
+{
+public:
+    TNullable<TString> Pool;
+
+    TExtendedSchedulableConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TExtendedSchedulableConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPoolConfig
     : public TSchedulableConfig
@@ -127,6 +140,15 @@ class TStrategyOperationSpec
 {
 public:
     TNullable<TString> Pool;
+
+    //! This options have higher priority than Pool and other options
+    //! defined in this class.
+    yhash<TString, TExtendedSchedulableConfigPtr> FairShareOptionsPerPoolTree;
+
+    //! Pool trees to schedule operation in.
+    //! Operation will be scheduled in default tree (if any) if this parameter
+    //! is not specified.
+    yhash_set<TString> PoolTrees;
 
     TStrategyOperationSpec();
 

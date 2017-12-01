@@ -32,23 +32,21 @@ TOperation::TOperation(
     IInvokerPtr controlInvoker,
     EOperationState state,
     bool suspended,
-    const std::vector<TOperationEvent>& events,
-    int slotIndex)
-    : Id_(id)
-    , Type_(type)
+    const std::vector<TOperationEvent>& events)
+    : Type_(type)
     , MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
     , Activated_(false)
     , Prepared_(false)
     , UserTransactionId_(userTransactionId)
-    , Spec_(spec)
     , RuntimeParams_(New<TOperationRuntimeParams>())
-    , AuthenticatedUser_(authenticatedUser)
     , Owners_(owners)
-    , StartTime_(startTime)
     , Events_(events)
-    , SlotIndex_(slotIndex)
+    , Id_(id)
+    , StartTime_(startTime)
+    , AuthenticatedUser_(authenticatedUser)
+    , Spec_(spec)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
@@ -57,9 +55,29 @@ TOperation::TOperation(
     SecureVault_ = std::move(parsedSpec->SecureVault);
     Spec_->RemoveChild("secure_vault");
 
-    RuntimeParams_->Weight = parsedSpec->Weight;
+    RuntimeParams_->Weight = parsedSpec->Weight.Get(1.0);
     RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
     RuntimeParams_->Owners = parsedSpec->Owners;
+}
+
+TOperationId TOperation::GetId() const
+{
+    return Id_;
+}
+
+TInstant TOperation::GetStartTime() const
+{
+    return StartTime_;
+}
+
+TString TOperation::GetAuthenticatedUser() const
+{
+    return AuthenticatedUser_;
+}
+
+NYTree::IMapNodePtr TOperation::GetSpec() const
+{
+    return Spec_;
 }
 
 TFuture<TOperationPtr> TOperation::GetStarted()
@@ -139,6 +157,29 @@ void TOperation::SetState(EOperationState state)
     State_ = state;
     Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
     ShouldFlush_ = true;
+}
+
+void TOperation::SetSlotIndex(const TString& treeId, int value)
+{
+    TreeIdToSlotIndex_.emplace(treeId, value);
+}
+
+TNullable<int> TOperation::FindSlotIndex(const TString& treeId) const
+{
+    auto it = TreeIdToSlotIndex_.find(treeId);
+    return it != TreeIdToSlotIndex_.end() ? MakeNullable(it->second) : Null;
+}
+
+int TOperation::GetSlotIndex(const TString& treeId) const
+{
+    auto slotIndex = FindSlotIndex(treeId);
+    YCHECK(slotIndex);
+    return *slotIndex;
+}
+
+const yhash<TString, int>& TOperation::GetSlotIndices() const
+{
+    return TreeIdToSlotIndex_;
 }
 
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()

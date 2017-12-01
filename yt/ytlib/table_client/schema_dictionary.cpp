@@ -72,6 +72,7 @@ bool TSchemaDictionary::TEqualsInternal::operator()(
     return
         lhs.strict() == rhs.strict() &&
         lhs.unique_keys() == rhs.unique_keys() &&
+        lhs.columns().size() == rhs.columns().size() &&
         std::equal(lhs.columns().data(), lhs.columns().data() + lhs.columns().size(), rhs.columns().data());
 }
 

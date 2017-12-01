@@ -48,7 +48,6 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
-using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 

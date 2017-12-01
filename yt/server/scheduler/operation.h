@@ -46,14 +46,19 @@ struct IOperationStrategyHost
 
     virtual TInstant GetStartTime() const = 0;
 
-    virtual int GetSlotIndex() const = 0;
-    virtual void SetSlotIndex(int index) = 0;
+    virtual TNullable<int> FindSlotIndex(const TString& treeId) const = 0;
+    virtual int GetSlotIndex(const TString& treeId) const = 0;
+    virtual void SetSlotIndex(const TString& treeId, int index) = 0;
 
     virtual TString GetAuthenticatedUser() const = 0;
 
     virtual TOperationId GetId() const = 0;
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
+
+    virtual NYTree::IMapNodePtr GetSpec() const = 0;
+
+    virtual TOperationRuntimeParamsPtr GetRuntimeParams() const = 0;
 };
 
 #define DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(type, name, ...) \
@@ -96,8 +101,6 @@ public:
 
     using TAlertsArray = TEnumIndexedVector<TError, EOperationAlertType>;
 
-    DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
-
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
 
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
@@ -115,8 +118,6 @@ public:
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 
-    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
-
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
     // A YSON map that is stored under ACL in Cypress.
@@ -124,10 +125,8 @@ public:
     // sensitive information.
     DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
-    DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::vector<TString>, Owners);
 
-    DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(TNullable<TInstant>, FinishTime);
 
     //! List of events that happened to operation.
@@ -137,7 +136,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlertsArray, Alerts);
 
     //! Controller that owns the operation.
-    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerSchedulerHostPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
@@ -145,14 +144,23 @@ public:
     //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
-    //! Numeric index of operation in pool.
-    DEFINE_BYVAL_RW_PROPERTY(int, SlotIndex);
-
     //! Mark that operation attributes should be flushed to cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
     //! Scheduler incarnation that spawned this operation.
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulerIncarnation);
+
+    //! Returns operation id.
+    TOperationId GetId() const override;
+
+    //! Returns operation start time.
+    TInstant GetStartTime() const override;
+
+    //! Returns operation authenticated user.
+    TString GetAuthenticatedUser() const override;
+
+    //! Returns operation spec.
+    NYTree::IMapNodePtr GetSpec() const override;
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
@@ -192,6 +200,13 @@ public:
     //! Sets operation state and adds corresponding event.
     void SetState(EOperationState state);
 
+    //! Slot index machinery.
+    TNullable<int> FindSlotIndex(const TString& treeId) const override;
+    int GetSlotIndex(const TString& treeId) const override;
+    void SetSlotIndex(const TString& treeId, int value) override;
+
+    const yhash<TString, int>& GetSlotIndices() const;
+
     //! Returns a cancelable control invoker corresponding to this operation.
     const IInvokerPtr& GetCancelableControlInvoker();
 
@@ -210,13 +225,19 @@ public:
         IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,
         bool suspended = false,
-        const std::vector<TOperationEvent>& events = {},
-        int slotIndex = -1);
+        const std::vector<TOperationEvent>& events = {});
 
 private:
+    const TOperationId Id_;
+    const TInstant StartTime_;
+    const TString AuthenticatedUser_;
+    const NYTree::IMapNodePtr Spec_;
+
     const TString CodicilData_;
     const TCancelableContextPtr CancelableContext_;
     const IInvokerPtr CancelableInvoker_;
+
+    yhash<TString, int> TreeIdToSlotIndex_;
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();

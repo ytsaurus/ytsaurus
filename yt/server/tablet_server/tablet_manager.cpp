@@ -199,7 +199,10 @@ public:
         }
     }
 
-    TTabletCellBundle* CreateTabletCellBundle(const TString& name, const TObjectId& hintId)
+    TTabletCellBundle* CreateTabletCellBundle(
+        const TString& name,
+        const TObjectId& hintId,
+        TTabletCellOptionsPtr options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -214,16 +217,20 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCellBundle, hintId);
-        return DoCreateTabletCellBundle(id, name);
+        return DoCreateTabletCellBundle(id, name, std::move(options));
     }
 
-    TTabletCellBundle* DoCreateTabletCellBundle(const TTabletCellBundleId& id, const TString& name)
+    TTabletCellBundle* DoCreateTabletCellBundle(
+        const TTabletCellBundleId& id,
+        const TString& name,
+        TTabletCellOptionsPtr options)
     {
         auto cellBundleHolder = std::make_unique<TTabletCellBundle>(id);
         cellBundleHolder->SetName(name);
 
         auto* cellBundle = TabletCellBundleMap_.Insert(id, std::move(cellBundleHolder));
         YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
+        cellBundle->SetOptions(std::move(options));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
@@ -1451,7 +1458,7 @@ public:
                 ToProto(req.mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
                 if (table->IsReplicated()) {
                     auto* replicatedTable = table->As<TReplicatedTableNode>();
-                    for (auto* replica : replicatedTable->Replicas()) {
+                    for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                         const auto* replicaInfo = tablet->GetReplicaInfo(replica);
                         PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
                     }
@@ -2050,14 +2057,6 @@ public:
             oldTabletChunkTrees.data() + lastTabletIndex + 1,
             oldTabletChunkTrees.data() + oldTabletChunkTrees.size());
 
-        auto enumerateChunks = [&] (int firstTabletIndex, int lastTabletIndex) {
-            std::vector<TChunk*> chunks;
-            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                EnumerateChunksInChunkTree(oldTabletChunkTrees[index]->AsChunkList(), &chunks);
-            }
-            return chunks;
-        };
-
         if (table->IsPhysicallySorted()) {
             // Move chunks from the resharded tablets to appropriate chunk lists.
             int keyColumnCount = table->TableSchema().GetKeyColumnCount();
@@ -2074,14 +2073,25 @@ public:
         } else {
             // If the number of tablets increases, just leave the new trailing ones empty.
             // If the number of tablets decreases, merge the original trailing ones.
-            for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
-                auto chunks = enumerateChunks(
-                    index,
-                    index == firstTabletIndex + newTabletCount - 1 ? lastTabletIndex : index);
-                auto* chunkList = newTabletChunkTrees[index]->AsChunkList();
+            auto attachChunksToChunkList = [&] (TChunkList* chunkList, int firstTabletIndex, int lastTabletIndex) {
+                std::vector<TChunk*> chunks;
+                for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                    EnumerateChunksInChunkTree(oldTabletChunkTrees[index]->AsChunkList(), &chunks);
+                }
                 for (auto* chunk : chunks) {
                     chunkManager->AttachToChunkList(chunkList, chunk);
                 }
+            };
+            for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
+                auto* chunkList = newTabletChunkTrees[index]->AsChunkList();
+                auto* oldChunkList = oldTabletChunkTrees[index]->AsChunkList();
+                attachChunksToChunkList(chunkList, index, index);
+                chunkList->Statistics().LogicalRowCount = oldChunkList->Statistics().LogicalRowCount;
+                chunkList->Statistics().LogicalChunkCount = oldChunkList->Statistics().LogicalChunkCount;
+            }
+            if (oldTabletCount > newTabletCount) {
+                auto* chunkList = newTabletChunkTrees[firstTabletIndex + newTabletCount - 1]->AsChunkList();
+                attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
             }
         }
 
@@ -2693,9 +2703,10 @@ private:
         if (cellBundle) {
             return false;
         }
-        cellBundle = DoCreateTabletCellBundle(id, name);
-        cellBundle->GetOptions()->ChangelogAccount = DefaultStoreAccountName;
-        cellBundle->GetOptions()->SnapshotAccount = DefaultStoreAccountName;
+        auto options = New<TTabletCellOptions>();
+        options->ChangelogAccount = DefaultStoreAccountName;
+        options->SnapshotAccount = DefaultStoreAccountName;
+        cellBundle = DoCreateTabletCellBundle(id, name, std::move(options));
         return true;
     }
 
@@ -3818,27 +3829,16 @@ private:
             return result;
         };
 
-        std::vector<TTabletCell*> cells;
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
+        std::vector<TCellKey> cellKeys;
+        for (auto* cell : GetValuesSortedByKey(TabletCellMap_)) {
             if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
-                cells.push_back(cell);
+                cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
         }
-        if (cells.empty()) {
+        if (cellKeys.empty()) {
             // NB: Changed ycheck to throw when it was triggered inside tablet action.
             THROW_ERROR_EXCEPTION("No tablet cells in bundle %Qv",
                 table->GetTabletCellBundle()->GetName());
-        }
-        // NB: Order cells by id to achieve deterministic randomness.
-        std::sort(cells.begin(), cells.end(), TObjectRefComparer::Compare);
-
-        std::vector<TCellKey> cellKeys;
-        for (auto* cell : cells) {
-            cellKeys.push_back(TCellKey{getCellSize(cell), cell});
         }
         std::sort(cellKeys.begin(), cellKeys.end());
 
@@ -4118,8 +4118,15 @@ private:
                 << ex;
         }
 
-        // Prepare table reader config.
-        *readerConfig = Config_->ChunkReader;
+        // Parse and prepare table reader config.
+        try {
+            *readerConfig = UpdateYsonSerializable(
+                Config_->ChunkReader,
+                tableAttributes.FindYson("chunk_reader"));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing chunk reader config")
+                << ex;
+        }
 
         // Parse and prepare table writer config.
         try {
@@ -4610,9 +4617,12 @@ void TTabletManager::DestroyTabletCell(TTabletCell* cell)
     Impl_->DestroyTabletCell(cell);
 }
 
-TTabletCellBundle* TTabletManager::CreateTabletCellBundle(const TString& name, const TObjectId& hintId)
+TTabletCellBundle* TTabletManager::CreateTabletCellBundle(
+    const TString& name,
+    const TObjectId& hintId,
+    TTabletCellOptionsPtr options)
 {
-    return Impl_->CreateTabletCellBundle(name, hintId);
+    return Impl_->CreateTabletCellBundle(name, hintId, std::move(options));
 }
 
 void TTabletManager::DestroyTabletCellBundle(TTabletCellBundle* cellBundle)

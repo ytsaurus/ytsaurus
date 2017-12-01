@@ -148,8 +148,8 @@ private:
                 0,
                 0);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating remote changelog %v",
-                path)
+            THROW_ERROR_EXCEPTION("Error creating remote changelog")
+                << TErrorAttribute("changelog_path", path)
                 << ex;
         }
     }
@@ -171,9 +171,9 @@ private:
                 if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION(
                         NHydra::EErrorCode::NoSuchChangelog,
-                        "Changelog %v does not exist in remote store %v",
-                        id,
-                        Path_);
+                        "Changelog does not exist in remote store")
+                        << TErrorAttribute("changelog_path", Path_)
+                        << TErrorAttribute("store_id", id);
                 }
 
                 auto node = ConvertToNode(result.ValueOrThrow());
@@ -194,8 +194,8 @@ private:
                 recordCount,
                 dataSize);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error opening remote changelog %v",
-                path)
+            THROW_ERROR_EXCEPTION("Error opening remote changelog")
+                << TErrorAttribute("changelog_path", path)
                 << ex;
         }
     }
@@ -315,8 +315,8 @@ private:
                 return WaitFor(reader->Read())
                     .ValueOrThrow();
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error reading remote changelog %v",
-                    Path_)
+                THROW_ERROR_EXCEPTION("Error reading remote changelog")
+                    << TErrorAttribute("changelog_path", Path_)
                     << ex;
             }
         }
@@ -382,8 +382,8 @@ private:
                 prerequisiteTransaction,
                 reachableVersion);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error locking remote changelog store %v",
-                Path_)
+            THROW_ERROR_EXCEPTION("Error locking remote changelog store")
+                << TErrorAttribute("changelog_path", Path_)
                 << ex;
         }
     }
@@ -454,8 +454,8 @@ private:
 
             const auto& attributes = node->Attributes();
             if (!attributes.Get<bool>("sealed")) {
-                THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
-                    path);
+                THROW_ERROR_EXCEPTION("Changelog is not sealed")
+                    << TErrorAttribute("changelog_path", path);
             }
             recordCount = attributes.Get<int>("quorum_row_count");
         }

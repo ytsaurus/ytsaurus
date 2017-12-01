@@ -4,6 +4,8 @@
 #include <yt/core/misc/proto/protobuf_helpers.pb.h>
 #include <yt/core/misc/proto/error.pb.h>
 
+#include <yt/core/ytree/node.h>
+
 #include <yt/core/compression/codec.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
@@ -11,9 +13,12 @@
 #include <contrib/libs/grpc/include/grpc/byte_buffer_reader.h>
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 
 namespace NYT {
 namespace NGrpc {
+
+using NYTree::ENodeType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,6 +90,60 @@ grpc_call_details* TGrpcCallDetails::Unwrap()
 }
 
 grpc_call_details* TGrpcCallDetails::operator->()
+{
+    return &Native_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+TGrpcChannelArgs::TGrpcChannelArgs(const yhash<TString, NYTree::INodePtr>& args)
+{
+    for (const auto& pair : args) {
+        Items_.emplace_back();
+        auto& item = Items_.back();
+        const auto& key = pair.first;
+        const auto& node = pair.second;
+        item.key = const_cast<char*>(key.c_str());
+
+        auto setIntegerValue = [&] (auto value) {
+            item.type = GRPC_ARG_INTEGER;
+            if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
+                THROW_ERROR_EXCEPTION("Value %v of GRPC argument %Qv is out of range",
+                    value,
+                    node->GetType(),
+                    key);
+            }
+            item.value.integer = static_cast<int>(value);
+        };
+
+        auto setStringValue = [&] (const auto& value) {
+            item.type = GRPC_ARG_STRING;
+            item.value.string = const_cast<char*>(value.c_str());
+        };
+
+        switch (node->GetType()) {
+            case ENodeType::Int64:
+                setIntegerValue(node->GetValue<i64>());
+                break;
+            case ENodeType::Uint64:
+                setIntegerValue(node->GetValue<ui64>());
+                break;
+            case ENodeType::String:
+                setStringValue(node->GetValue<TString>());
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Invalid type %Qlv of GRPC argument %Qv in channel configuration",
+                    node->GetType(),
+                    key);
+        }
+    }
+
+    Native_.num_args = args.size();
+    Native_.args = Items_.data();
+}
+
+grpc_channel_args* TGrpcChannelArgs::Unwrap()
 {
     return &Native_;
 }

@@ -22,8 +22,11 @@ public:
 
     ~TYsonParser();
 
+    void Read(const char* begin, const char* end, bool finish = false);
     void Read(const TStringBuf& data);
     void Finish();
+
+    const char* GetCurrentPositionInBlock();
 
 private:
     class TImpl;

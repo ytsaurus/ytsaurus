@@ -79,8 +79,8 @@ void TTabletCellBundle::Load(TLoadContext& context)
     } else if (context.GetVersion() >= 614) {
         bool enableTabletBalancer;
         Load(context, enableTabletBalancer);
-        TabletBalancerConfig_->EnableInMemoryBalancer = false;
-        TabletBalancerConfig_->EnableTabletSizeBalancer = false;
+        TabletBalancerConfig_->EnableInMemoryBalancer = enableTabletBalancer;
+        TabletBalancerConfig_->EnableTabletSizeBalancer = enableTabletBalancer;
     }
 
     //COMPAT(savrus)

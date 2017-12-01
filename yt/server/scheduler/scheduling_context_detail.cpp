@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -20,6 +21,8 @@ TSchedulingContextBase::TSchedulingContextBase(
     : ResourceUsageDiscount_(ZeroJobResources())
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
+    , DiskUsage_(node->GetDiskUsage())
+    , DiskLimits_(node->GetDiskLimits())
     , RunningJobs_(runningJobs)
     , Config_(config)
     , CellTag_(cellTag)
@@ -56,6 +59,15 @@ bool TSchedulingContextBase::CanStartJob(const TJobResources& jobResources) cons
     return HasEnoughResources(jobResources - ResourceUsageDiscount());
 }
 
+bool TSchedulingContextBase::CanStartJobWithQuota(const TJobResourcesWithQuota& jobResourcesWithQuota) const
+{
+    if (!CanStartJob(jobResourcesWithQuota.ToJobResources())) {
+        return false;
+    }
+
+    return CanSatisfyDiskRequest(DiskLimits_, DiskUsage_, jobResourcesWithQuota.GetDiskQuota());
+}
+
 bool TSchedulingContextBase::CanStartMoreJobs() const
 {
     if (!CanStartJob(MinSpareNodeResources())) {
@@ -75,7 +87,10 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
     return filter.IsEmpty() || filter.CanSchedule(NodeTags_);
 }
 
-TJobPtr TSchedulingContextBase::StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest)
+TJobPtr TSchedulingContextBase::StartJob(
+    const TString& treeId,
+    const TOperationId& operationId,
+    const TJobStartRequest& jobStartRequest)
 {
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
     auto job = New<TJob>(
@@ -85,7 +100,8 @@ TJobPtr TSchedulingContextBase::StartJob(const TOperationId& operationId, const 
         Node_,
         startTime,
         jobStartRequest.ResourceLimits,
-        jobStartRequest.Interruptible);
+        jobStartRequest.Interruptible,
+        treeId);
     StartedJobs_.push_back(job);
     return job;
 }

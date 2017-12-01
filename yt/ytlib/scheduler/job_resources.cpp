@@ -122,9 +122,22 @@ TString FormatResources(const TJobResources& resources)
         "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
-        resources.GetMemory() / (1024 * 1024),
+        resources.GetMemory() / 1_MB,
         resources.GetNetwork());
 }
+
+TString FormatResources(const TJobResourcesWithQuota& resources)
+{
+    return Format(
+        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, Disk Quota: %v}",
+        resources.GetUserSlots(),
+        resources.GetCpu(),
+        resources.GetMemory() / 1_MB,
+        resources.GetNetwork(),
+        resources.GetDiskQuota()
+    );
+}
+
 
 TString FormatResources(const TExtendedJobResources& resources)
 {
@@ -279,6 +292,12 @@ const TJobResources& ZeroJobResources()
     return value;
 }
 
+const TJobResourcesWithQuota& ZeroJobResourcesWithQuota()
+{
+    static auto value = TJobResourcesWithQuota();
+    return value;
+}
+
 TJobResources GetInfiniteResources()
 {
     TJobResources result;
@@ -288,9 +307,20 @@ TJobResources GetInfiniteResources()
     return result;
 }
 
+TJobResourcesWithQuota GetInfiniteResourcesWithQuota()
+{
+    return TJobResourcesWithQuota(GetInfiniteResources());
+}
+
 const TJobResources& InfiniteJobResources()
 {
     static auto result = GetInfiniteResources();
+    return result;
+}
+
+const TJobResourcesWithQuota& InfiniteJobResourcesWithQuota()
+{
+    static auto result = GetInfiniteResourcesWithQuota();
     return result;
 }
 
@@ -394,21 +424,31 @@ bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
     true;
 }
 
-TJobResources Max(const TJobResources& a, const TJobResources& b)
+TJobResources Max(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
-    #define XX(name, Name) result.Set##Name(std::max(a.Get##Name(), b.Get##Name()));
+    #define XX(name, Name) result.Set##Name(std::max(lhs.Get##Name(), rhs.Get##Name()));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
 }
 
-TJobResources Min(const TJobResources& a, const TJobResources& b)
+TJobResources Min(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
+    #define XX(name, Name) result.Set##Name(std::min(lhs.Get##Name(), rhs.Get##Name()));
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    return result;
+}
+
+TJobResourcesWithQuota Min(const TJobResourcesWithQuota& a, const TJobResourcesWithQuota& b)
+{
+    TJobResourcesWithQuota result;
     #define XX(name, Name) result.Set##Name(std::min(a.Get##Name(), b.Get##Name()));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
+    result.SetDiskQuota(std::min(a.GetDiskQuota(), b.GetDiskQuota()));
     return result;
 }
 
@@ -435,6 +475,25 @@ const TJobResources& MinSpareNodeResources()
 {
     static auto result = GetMinSpareResources();
     return result;
+}
+
+bool CanSatisfyDiskRequest(
+    const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskUsage,
+    i64 diskRequest)
+{
+    auto limits = diskLimits.disk_usage();
+    auto usage = diskUsage.disk_usage();
+    auto limitsIt = limits.begin();
+    auto usageIt = usage.begin();
+    while (limitsIt != limits.end() && usageIt != usage.end()) {
+        if (diskRequest <= *limitsIt - *usageIt) {
+            return true;
+        }
+        ++limitsIt;
+        ++usageIt;
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

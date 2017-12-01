@@ -35,10 +35,13 @@ class TServerConfig
 {
 public:
     std::vector<TServerAddressConfigPtr> Addresses;
+    yhash<TString, NYTree::INodePtr> GrpcArguments;
 
     TServerConfig()
     {
         RegisterParameter("addresses", Addresses);
+        RegisterParameter("grpc_arguments", GrpcArguments)
+            .Default();
     }
 };
 
@@ -50,12 +53,15 @@ class TChannelConfig
 public:
     EAddressType Type;
     TString Address;
+    yhash<TString, NYTree::INodePtr> GrpcArguments;
 
     TChannelConfig()
     {
         RegisterParameter("type", Type)
             .Default(EAddressType::Insecure);
         RegisterParameter("address", Address);
+        RegisterParameter("grpc_arguments", GrpcArguments)
+            .Default();
     }
 
     static TChannelConfigPtr CreateInsecure(const TString& address)

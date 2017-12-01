@@ -220,7 +220,7 @@ void TClientResponseBase::HandleError(const TError& error)
         return;
     }
 
-    TDispatcher::Get()->GetLightInvoker()->Invoke(
+    GetInvoker()->Invoke(
         BIND(&TClientResponseBase::DoHandleError, MakeStrong(this), error));
 }
 
@@ -243,6 +243,13 @@ void TClientResponseBase::TraceResponse()
         ClientContext_->GetService(),
         ClientContext_->GetMethod(),
         NTracing::ClientReceiveAnnotation);
+}
+
+const IInvokerPtr& TClientResponseBase::GetInvoker()
+{
+    return ClientContext_->GetHeavy()
+        ? TDispatcher::Get()->GetHeavyInvoker()
+        : TDispatcher::Get()->GetLightInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,10 +294,7 @@ void TClientResponse::HandleResponse(TSharedRefArray message)
     auto prevState = State_.exchange(EState::Done);
     Y_ASSERT(prevState == EState::Sent || prevState == EState::Ack);
 
-    const auto& invoker = ClientContext_->GetHeavy()
-        ? TDispatcher::Get()->GetHeavyInvoker()
-        : TDispatcher::Get()->GetLightInvoker();
-    invoker->Invoke(
+    GetInvoker()->Invoke(
         BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
 }
 

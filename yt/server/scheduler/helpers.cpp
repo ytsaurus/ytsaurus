@@ -47,7 +47,7 @@ void BuildInitializingOperationAttributes(TOperationPtr operation, TFluentMap fl
             .BeginAttributes()
                 .Item("opaque").Value(true)
             .EndAttributes()
-            .Do(BIND(&IOperationController::BuildSpec, operation->GetController()))
+            .Do(BIND(&IOperationControllerSchedulerHost::BuildSpec, operation->GetController()))
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
         .Do(BIND(&BuildRunningOperationAttributes, operation));
@@ -60,9 +60,9 @@ void BuildRunningOperationAttributes(TOperationPtr operation, TFluentMap fluent)
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
-        .Item("slot_index").Value(operation->GetSlotIndex())
+        .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
         .DoIf(static_cast<bool>(controller), BIND([=] (TFluentMap fluent) {
-            auto asyncResult = BIND(&NControllerAgent::IOperationController::BuildOperationAttributes, controller)
+            auto asyncResult = BIND(&NControllerAgent::IOperationControllerSchedulerHost::BuildOperationAttributes, controller)
                 .AsyncVia(controller->GetInvoker())
                 .Run(fluent);
             WaitFor(asyncResult)

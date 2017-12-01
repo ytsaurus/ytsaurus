@@ -458,6 +458,7 @@ message TReqSetNode
 {
     required string path = 1; // ypath
     required bytes value = 2; // yson string
+    optional bool recursive = 3;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;

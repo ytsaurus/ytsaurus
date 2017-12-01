@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/misc/public.h>
+#include <yt/server/misc/bootstrap.h>
 
 #include <yt/server/blackbox/public.h>
 
@@ -28,6 +28,7 @@ namespace NCellProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
+    : public TBootstrapBase
 {
 public:
     TBootstrap(TCellProxyConfigPtr config, NYTree::INodePtr configNode);

@@ -145,6 +145,12 @@ public:
      */
     const TErrorOr<T>& Get() const;
 
+    //! Waits for setting the value.
+    /*!
+     *  This call will block until either the value is set or timeout expired.
+     */
+    bool TimedWait(TDuration timeout) const;
+
     //! Gets the value if set.
     /*!
      *  This call does not block.

@@ -399,7 +399,7 @@ class YTEnvSetup(object):
             if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 self._wait_jobs_to_abort(driver=driver)
                 self._remove_operations(driver=driver)
-                self._remove_pools(driver=driver)
+                self._restore_pool_trees(driver=driver)
             self._remove_accounts(driver=driver)
             self._remove_users(driver=driver)
             self._remove_groups(driver=driver)
@@ -625,8 +625,15 @@ class YTEnvSetup(object):
         for dc in data_centers:
             yt_commands.remove_data_center(dc, driver=driver)
 
-    def _remove_pools(self, driver=None):
-        yt_commands.remove("//sys/pools/*", driver=driver)
+    def _restore_pool_trees(self, driver=None):
+        if self.__class__.__name__ in ["TestFairShareOptionsPerTree", "TestFairShareTreesReconfiguration"]:
+            yt_commands.remove("//sys/pool_trees/*", driver=driver)
+            yt_commands.create("map_node", "//sys/pool_trees/default", driver=driver)
+            yt_commands.set("//sys/pool_trees/@default_tree", "default", driver=driver)
+            sleep(0.5)  # Give scheduler some time to reload trees
+        else:
+            # In other tests we do not modify trees.
+            yt_commands.remove("//sys/pool_trees/default/*", driver=driver)
 
     def _remove_tablet_actions(self, driver=None):
         actions = yt_commands.get_tablet_actions()

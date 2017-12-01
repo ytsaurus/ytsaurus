@@ -235,7 +235,7 @@ if __name__ == "__main__":
 
     client = yt.YtClient(proxy=args.proxy)
     batch_client = client.create_batch_client()
-    operations = [Operation(operation_id, args.proxy, batch_client) for operation_id in client.list("//sys/operations")]
+    operations = [Operation(operation_id, args.proxy, batch_client) for operation_id in client.list("//sys/operations") if len(operation_id) > 2]
 
     fetch_batch(batch_client, operations, lambda op: op.fetch_attrs())
 

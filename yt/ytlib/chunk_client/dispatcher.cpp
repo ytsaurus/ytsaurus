@@ -47,14 +47,19 @@ public:
         return WriterThread_->GetInvoker();
     }
 
-    IPrioritizedInvokerPtr GetCompressionPoolInvoker()
+    IPrioritizedInvokerPtr GetPrioritizedCompressionPoolInvoker()
     {
         return CompressionPoolInvoker_.Get();
     }
 
-    IPrioritizedInvokerPtr GetErasurePoolInvoker()
+    IPrioritizedInvokerPtr GetPrioritizedErasurePoolInvoker()
     {
         return ErasurePoolInvoker_.Get();
+    }
+
+    IInvokerPtr GetCompressionPoolInvoker()
+    {
+        return CompressionPool_->GetInvoker();
     }
 
 private:
@@ -113,14 +118,19 @@ IInvokerPtr TDispatcher::GetWriterInvoker()
     return Impl_->GetWriterInvoker();
 }
 
-IPrioritizedInvokerPtr TDispatcher::GetCompressionPoolInvoker()
+IPrioritizedInvokerPtr TDispatcher::GetPrioritizedCompressionPoolInvoker()
 {
-    return Impl_->GetCompressionPoolInvoker();
+    return Impl_->GetPrioritizedCompressionPoolInvoker();
 }
 
-IPrioritizedInvokerPtr TDispatcher::GetErasurePoolInvoker()
+IPrioritizedInvokerPtr TDispatcher::GetPrioritizedErasurePoolInvoker()
 {
-    return Impl_->GetErasurePoolInvoker();
+    return Impl_->GetPrioritizedErasurePoolInvoker();
+}
+
+IInvokerPtr TDispatcher::GetCompressionPoolInvoker()
+{
+    return Impl_->GetCompressionPoolInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

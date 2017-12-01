@@ -20,7 +20,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Base classes for Сypress nodes that own chunks.
+//! Base classes for cypress nodes that own chunks.
 class TChunkOwnerBase
     : public NCypressServer::TCypressNodeBase
 {

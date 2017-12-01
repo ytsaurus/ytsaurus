@@ -824,17 +824,17 @@ TResourceLimitsConfig::TResourceLimitsConfig()
 TSchedulableConfig::TSchedulableConfig()
 {
     RegisterParameter("weight", Weight)
-        .Default(1.0)
+        .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
     RegisterParameter("max_share_ratio", MaxShareRatio)
-        .Default(1.0)
+        .Default()
         .InRange(0.0, 1.0);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 
     RegisterParameter("min_share_ratio", MinShareRatio)
-        .Default(0.0)
+        .Default()
         .InRange(0.0, 1.0);
     RegisterParameter("min_share_resources", MinShareResources)
         .DefaultNew();
@@ -857,6 +857,12 @@ TSchedulableConfig::TSchedulableConfig()
 
     RegisterParameter("allow_aggressive_starvation_preemption", AllowAggressiveStarvationPreemption)
         .Default(true);
+}
+
+TExtendedSchedulableConfig::TExtendedSchedulableConfig()
+{
+    RegisterParameter("pool", Pool)
+        .Default();
 }
 
 TPoolConfig::TPoolConfig()
@@ -898,8 +904,11 @@ void TPoolConfig::Validate()
 TStrategyOperationSpec::TStrategyOperationSpec()
 {
     RegisterParameter("pool", Pool)
-        .Default()
-        .NonEmpty();
+        .Default();
+    RegisterParameter("fair_share_options_per_pool_tree", FairShareOptionsPerPoolTree)
+        .Default();
+    RegisterParameter("pool_trees", PoolTrees)
+        .Default();
 }
 
 TOperationStrategyRuntimeParams::TOperationStrategyRuntimeParams()

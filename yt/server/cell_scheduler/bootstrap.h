@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/misc/public.h>
+#include <yt/server/misc/bootstrap.h>
 
 #include <yt/server/scheduler/public.h>
 
@@ -41,6 +41,7 @@ DEFINE_ENUM(EControlQueue,
 );
 
 class TBootstrap
+    : public TBootstrapBase
 {
 public:
     TBootstrap(TCellSchedulerConfigPtr config, NYTree::INodePtr configNode);

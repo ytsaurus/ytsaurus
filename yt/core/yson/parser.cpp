@@ -20,6 +20,7 @@ private:
     typedef TCoroutine<int(const char* begin, const char* end, bool finish)> TParserCoroutine;
 
     TParserCoroutine ParserCoroutine_;
+    TParserYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>> Parser_;
 
 public:
     TImpl(
@@ -30,7 +31,7 @@ public:
         bool enableContext)
         : ParserCoroutine_(BIND(
             [=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
-                ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>>(
+                Parser_.DoParse(
                     TBlockReader<TParserCoroutine>(self, begin, end, finish),
                     consumer,
                     parsingMode,
@@ -58,6 +59,11 @@ public:
     {
         Read(0, 0, true);
     }
+
+    const char* GetCurrentPositionInBlock()
+    {
+        return Parser_.GetCurrentPositionInBlock();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,6 +85,11 @@ TYsonParser::TYsonParser(
 TYsonParser::~TYsonParser()
 { }
 
+void TYsonParser::Read(const char* begin, const char* end, bool finish)
+{
+    Impl->Read(begin, end, finish);
+}
+
 void TYsonParser::Read(const TStringBuf& data)
 {
     Impl->Read(data);
@@ -87,6 +98,11 @@ void TYsonParser::Read(const TStringBuf& data)
 void TYsonParser::Finish()
 {
     Impl->Finish();
+}
+
+const char* TYsonParser::GetCurrentPositionInBlock()
+{
+    return Impl->GetCurrentPositionInBlock();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,7 +165,8 @@ void ParseYsonStringBuffer(
     i64 memoryLimit,
     bool enableContext)
 {
-    ParseYsonStreamImpl<IYsonConsumer, TStringReader>(
+    TParserYsonStreamImpl<IYsonConsumer, TStringReader> Parser;
+    Parser.DoParse(
         TStringReader(buffer.begin(), buffer.end()),
         consumer,
         type,
@@ -168,7 +185,8 @@ void ParseYsonSharedRefArray(
 {
     typedef TCoroutine<int(const char* begin, const char* end, bool finish)> TParserCoroutine;
     TParserCoroutine parserCoroutine(BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
-        ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>>(
+        TParserYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>> Parser;
+        Parser.DoParse(
             TBlockReader<TParserCoroutine>(self, begin, end, finish),
             consumer,
             type,

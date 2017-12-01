@@ -262,6 +262,12 @@ private:
 
         LOG_DEBUG("Started compiling module");
 
+        for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
+            it->setComdat(nullptr);
+        }
+
+        Module_->getComdatSymbolTable().clear();
+
         if (IsIRDumpEnabled()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
             Module_->dump();
