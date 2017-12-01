@@ -5,7 +5,7 @@ export YT_PROXY=locke.yt.yandex.net
 export YT_TOKEN=1da6afc98d189e8ba59d2ea39f29d0f1 #teamcity user
 export PYTHONPATH="."
 DEST="//home/files"
-YT="yt/wrapper/bin/yt/yt"
+YT="yt/wrapper/bin/yt"
 UBUNTU_VERSION="$(lsb_release --short --codename )"
 VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 
@@ -39,23 +39,6 @@ if [ -z "$FOUND_EGG" ] || [ -n "$FORCE_DEPLOY" ]; then
 fi
 
 PYTHON_VERSION="$(python --version | awk '{print $2}')"
-
-# If we use python2.7 then...
-# NB: pyinstaller does not work correctly with python <= 2.6.
-if [ "$PYTHON_VERSION" != "${PYTHON_VERSION/2.7/}" ]; then
-    # Upload self-contained binaries
-    for name in yt mapreduce-yt yt-fuse; do
-        if [ -n "$(echo "$FILES" | silent_grep "${name}_${VERSION}_${UBUNTU_VERSION}")" ] && [ -z "$FORCE_DEPLOY" ]; then
-            continue
-        fi
-        rm -rf build dist
-        pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/bin/$name/$name
-        pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
-        cat dist/$name | $YT upload "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}"
-        make_link "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}" "$DEST/${name}_${UBUNTU_VERSION}"
-    done
-fi
-
 
 if [ -n "$CREATE_CONDUCTOR_TICKET" ]; then
     HEADER="Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa"

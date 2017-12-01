@@ -16,6 +16,11 @@ import yt.json as json
 
 import yt.wrapper as yt
 
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
+
 import os
 import sys
 import pytest
@@ -25,13 +30,30 @@ import signal
 import contextlib
 import time
 
-TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
-TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
-LOCAL_MODE_TESTS_SANDBOX = os.path.join(TESTS_SANDBOX, "TestLocalMode")
-YT_LOCAL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt_local", "yt_local")
+def _get_tests_location():
+    if yatest_common is not None:
+        return yatest_common.source_path("yt/python/yt/local/tests")
+    return os.path.dirname(os.path.abspath(__file__))
+
+def _get_tests_sandbox():
+    if "TESTS_SANDBOX" in os.environ:
+        return os.environ["TESTS_SANDBOX"]
+
+    if yatest_common is not None:
+        return os.path.join(yatest_common.output_path(), "sandbox")
+
+    return _get_tests_location() + ".sandbox"
+
+def _get_local_mode_tests_sandbox():
+    return os.path.join(_get_tests_sandbox(), "TestLocalMode")
+
+def _get_yt_local_binary():
+    if yatest_common is not None:
+        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
+    return os.path.join(os.path.dirname(_get_tests_location()), "bin", "yt_local")
 
 def _get_instance_path(instance_id):
-    return os.path.join(LOCAL_MODE_TESTS_SANDBOX, instance_id)
+    return os.path.join(_get_local_mode_tests_sandbox(), instance_id)
 
 def _read_pids_file(instance_id):
     pids_filename = os.path.join(_get_instance_path(instance_id), "pids.txt")
@@ -61,6 +83,14 @@ def _wait_instance_to_become_ready(process, instance_id):
 
     raise yt.YtError("Local YT is not started")
 
+@pytest.fixture(scope="session", autouse=True)
+def prepare_path():
+    try:
+        import yt.environment.arcadia_interop
+        yt.environment.arcadia_interop.prepare_path()
+    except ImportError:
+        pass
+
 @contextlib.contextmanager
 def local_yt(*args, **kwargs):
     environment = None
@@ -77,7 +107,11 @@ class YtLocalBinary(object):
         self.port_locks_path = port_locks_path
 
     def _prepare_binary_command_and_env(self, *args, **kwargs):
-        command = [sys.executable, YT_LOCAL_BINARY] + list(args)
+        if yatest_common:
+            command = [_get_yt_local_binary()]
+        else:
+            command = [sys.executable, _get_yt_local_binary()]
+        command += list(args)
 
         for key, value in iteritems(kwargs):
             key = key.replace("_", "-")
@@ -110,9 +144,9 @@ class TestLocalMode(object):
     @classmethod
     def setup_class(cls):
         cls.old_yt_local_root_path = os.environ.get("YT_LOCAL_ROOT_PATH", None)
-        os.environ["YT_LOCAL_ROOT_PATH"] = LOCAL_MODE_TESTS_SANDBOX
+        os.environ["YT_LOCAL_ROOT_PATH"] = _get_local_mode_tests_sandbox()
         # Add ports_lock_path argument to YTEnvironment for parallel testing.
-        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = os.path.join(TESTS_SANDBOX, "ports")
+        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = os.path.join(_get_tests_sandbox(), "ports")
         cls.yt_local = YtLocalBinary(os.environ["YT_LOCAL_ROOT_PATH"],
                                      os.environ["YT_LOCAL_PORT_LOCKS_PATH"])
 
@@ -301,7 +335,7 @@ class TestLocalMode(object):
             pass
 
     def test_local_cypress_synchronization(self):
-        local_cypress_path = os.path.join(TESTS_LOCATION, "local_cypress_tree")
+        local_cypress_path = os.path.join(_get_tests_location(), "local_cypress_tree")
         with local_yt(local_cypress_dir=local_cypress_path) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
@@ -327,9 +361,9 @@ class TestLocalMode(object):
     def test_configs_patches(self):
         patch = {"test_key": "test_value"}
         try:
-            with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, delete=False) as yson_file:
+            with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as yson_file:
                 yson.dump(patch, yson_file)
-            with tempfile.NamedTemporaryFile(mode="w", dir=TESTS_SANDBOX, delete=False) as json_file:
+            with tempfile.NamedTemporaryFile(mode="w", dir=_get_tests_sandbox(), delete=False) as json_file:
                 json.dump(patch, json_file)
 
             with local_yt(master_config=yson_file.name,
@@ -365,9 +399,9 @@ class TestLocalMode(object):
 
         patch = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 100}}}}
         try:
-            with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, delete=False) as node_config:
+            with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as node_config:
                 yson.dump(patch, node_config)
-            with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, delete=False) as config:
+            with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as config:
                 yson.dump({"yt_local_test_key": "yt_local_test_value"}, config)
 
             env_id = self.yt_local(

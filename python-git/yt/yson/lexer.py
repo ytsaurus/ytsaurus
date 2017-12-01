@@ -20,12 +20,16 @@ FALSE_MARKER = int2byte(4)
 TRUE_MARKER = int2byte(5)
 UINT64_MARKER = int2byte(6)
 
+PERCENT_LITERALS = [b"true", b"false", b"nan", b"inf", b"-inf", b"+inf"]
+PERCENT_LITERAL_LENGTH = dict((s[0:1], len(s)) for s in PERCENT_LITERALS)
+assert len(PERCENT_LITERALS) == len(PERCENT_LITERAL_LENGTH)
+
 def _get_numeric_type(string):
     for code in iterbytes(string):
         ch = int2byte(code)
-        if ch == b'E' or ch == b'e' or ch == b'.':
+        if ch == b"E" or ch == b"e" or ch == b".":
             return _SEEMS_DOUBLE
-        elif ch == b'u':
+        elif ch == b"u":
             return _SEEMS_UINT64
     return _SEEMS_INT64
 
@@ -86,7 +90,8 @@ class YsonLexer(object):
             return YsonToken(value=True, type=TOKEN_BOOLEAN)
 
         elif ch == b"%":
-            return YsonToken(value=self._parse_boolean(), type=TOKEN_BOOLEAN)
+            value, token_type = self._parse_percent_literal()
+            return YsonToken(value=value, type=token_type)
 
         elif ch == b"#":
             return YsonToken(value=self._parse_entity(), type=TOKEN_HASH)
@@ -140,7 +145,7 @@ class YsonLexer(object):
             ch = self._read_char(True)
             if not ch:
                 raise_yson_error(
-                    "Premature end-of-stream while reading byte %d out of %d" % (i + 1, char_count),
+                    "Premature end-of-stream while reading byte {0} out of {1}".format(i + 1, char_count),
                     self.get_position_info())
             result.append(ch)
         return b"".join(result)
@@ -149,11 +154,11 @@ class YsonLexer(object):
         read_ch = self._read_char()
         if not read_ch:
             raise_yson_error(
-                "Premature end-of-stream expecting '%s' in Yson" % expected_ch,
+                'Premature end-of-stream expecting "{0}" in Yson'.format(expected_ch),
                 self.get_position_info())
         if read_ch != expected_ch:
             raise_yson_error(
-                "Found '%s' while expecting '%s' in Yson" % (read_ch, expected_ch),
+                'Found "{0}" while expecting "{1}" in Yson'.foramt(read_ch, expected_ch),
                 self.get_position_info())
 
     def _skip_whitespaces(self):
@@ -172,7 +177,7 @@ class YsonLexer(object):
             return self._read_quoted_string()
         if not ch.isalpha() and not ch == b"_" and not ch == b"%":
             raise_yson_error(
-                "Expecting string literal but found %s in Yson" % ch,
+                "Expecting string literal but found {0} in Yson".format(ch),
                 self.get_position_info())
         return self._read_unquoted_string()
 
@@ -255,25 +260,28 @@ class YsonLexer(object):
                 self.get_position_info())
         return b"".join(result)
 
-    def _parse_entity(self):
-        self._expect_char(b"#")
-        return None
-
-    def _parse_boolean(self):
+    def _parse_percent_literal(self):
+        def raise_unexpected(string):
+            expected = [b"%" + literal for literal in PERCENT_LITERALS]
+            raise_yson_error(
+                "Incorrect percent-preceded literal %s, expected one of %s" % (b"%" + string, expected),
+                self.get_position_info())
         self._expect_char(b"%")
         ch = self._peek_char()
-        if ch not in [b"f", b"t"]:
-            raise YsonError("Found '%s' while expecting 'f' or 't'" % ch)
-        if ch == b"f":
-            str = self._read_binary_chars(5)
-            if str != b"false":
-                raise YsonError("Incorrect boolean value '%s', expected 'false'" % str)
-            return False
-        if ch == b"t":
-            str = self._read_binary_chars(4)
-            if str != b"true":
-                raise YsonError("Incorrect boolean value '%s', expected 'true'" % str)
-            return True
+        if ch not in PERCENT_LITERAL_LENGTH:
+            raise_unexpected(ch)
+        string = self._read_binary_chars(PERCENT_LITERAL_LENGTH[ch])
+        if string == b"true":
+            return True, TOKEN_BOOLEAN
+        elif string == b"false":
+            return False, TOKEN_BOOLEAN
+        elif string in PERCENT_LITERALS:
+            return float(string), TOKEN_DOUBLE
+        else:
+            raise_unexpected(string)
+
+    def _parse_entity(self):
+        self._expect_char(b"#")
         return None
 
     def _parse_string(self):
@@ -306,7 +314,7 @@ class YsonLexer(object):
                     raise ValueError()
             except ValueError:
                 raise_yson_error(
-                    "Failed to parse Int64 literal %s in Yson" % string,
+                    "Failed to parse Int64 literal {0} in Yson".format(string),
                     self.get_position_info())
         elif numeric_type == _SEEMS_UINT64:
             try:
@@ -319,13 +327,13 @@ class YsonLexer(object):
                     raise ValueError()
             except ValueError:
                 raise_yson_error(
-                    "Failed to parse Uint64 literal %s in Yson" % string,
+                    "Failed to parse Uint64 literal {0} in Yson".format(string),
                     self.get_position_info())
         else:
             try:
                 result = float(string)
             except ValueError:
                 raise_yson_error(
-                    "Failed to parse Double literal %s in Yson" % string,
+                    "Failed to parse Double literal {0} in Yson".format(string),
                     self.get_position_info())
         return result

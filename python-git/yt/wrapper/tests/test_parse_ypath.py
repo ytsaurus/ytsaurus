@@ -1,3 +1,4 @@
+# coding=utf-8
 from __future__ import print_function
 
 from yt.wrapper.etc_commands import make_parse_ypath_request
@@ -34,6 +35,7 @@ TEST_PATHS = ["//tmp/table[#1:#2]",
               "//home/table[:(#, 10)]",
               "//home/table[(a, #):(#, b)]",
               "//some/table{}",
+              "//some/table\\[brackets] and spaces and русский",
               "//some/table{a}",
               "//some/table{a,b}",
               "//some/table[(a,b,1):(a,c)]",
@@ -75,7 +77,9 @@ FAILED_TEST_PATHS = ["<ds>><test",
                      "//home/[|/~`\;]",
                      "//home/[!@#$%/.,^&*()_+|]",
                      "//home/[\xd1]",
-                     "[//home]"]
+                     "[//home]",
+                     "//home/test[]s",
+                     "//home/test[]щ"]
 
 @pytest.mark.usefixtures("yt_env")
 class TestParseYpath(object):

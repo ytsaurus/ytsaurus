@@ -1,6 +1,6 @@
 from __future__ import with_statement
 
-from .helpers import TEST_DIR, check, set_config_option, TESTS_SANDBOX
+from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.driver import get_command_list
@@ -321,6 +321,28 @@ class TestTableCommands(object):
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == [{"x": "a", "y": "a"}]
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == [{"x": "a", "y": "a"}]
 
+    def test_read_from_dynamic_table(self):
+        with set_config_option("tabular_data_format", None):
+            # Name must differ with name of table in select test because of metadata caches
+            table = TEST_DIR + "/table4"
+            yt.create("table", table, attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "x", "type": "string", "sort_order": "ascending"},
+                    {"name": "y", "type": "string"}
+                ]})
+
+            tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
+                time.sleep(0.1)
+
+            yt.mount_table(table, sync=True)
+            yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
+            yt.unmount_table(table, sync=True)
+
+            assert list(yt.read_table(table)) == [{"x": "a", "y": "b"}]
+            with set_config_option("read_parallel/enable", True):
+                assert list(yt.read_table(table)) == [{"x": "a", "y": "b"}]
 
     def test_start_row_index(self):
         table = TEST_DIR + "/table"
@@ -646,7 +668,7 @@ class TestTableCommands(object):
             pytest.skip()
 
         test_name = "TestYtWrapper" + mode.capitalize()
-        dir = os.path.join(TESTS_SANDBOX, test_name)
+        dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
@@ -823,7 +845,7 @@ class TestTableCommands(object):
             mode = yt.config["api_version"]
 
         test_name = "TestYtWrapper" + mode.capitalize()
-        dir = os.path.join(TESTS_SANDBOX, test_name)
+        dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:

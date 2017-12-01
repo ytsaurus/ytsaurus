@@ -11,7 +11,6 @@ from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
 
 from yt.common import to_native_str
-import yt.logger as logger
 import yt.json as json
 
 from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
@@ -21,7 +20,6 @@ from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as if
 import os
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter
-from types import MethodType
 import copy
 import struct
 try:

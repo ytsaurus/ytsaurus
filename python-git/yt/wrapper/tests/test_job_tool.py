@@ -1,4 +1,4 @@
-from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION, wait_record_in_job_archive
+from .helpers import get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive, get_python, yatest_common
 
 from yt.common import makedirp, to_native_str
 import yt.yson as yson
@@ -19,21 +19,22 @@ import time
 ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}"
 NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
 
+
 class TestJobRunner(object):
     @classmethod
     def setup_class(cls):
-        makedirp(TESTS_SANDBOX)
+        makedirp(get_tests_sandbox())
 
     def _start_job_runner(self, config):
-        with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, prefix="job_runner", delete=False) as fout:
+        with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), prefix="job_runner", delete=False) as fout:
             yson.dump(config, fout, yson_format="pretty")
         return subprocess.Popen(
-            [sys.executable, "-m", "yt.wrapper.job_runner", "--config-path", fout.name],
+            [get_python(), "-m", "yt.wrapper.job_runner", "--config-path", fout.name],
             stderr=subprocess.PIPE)
 
     @pytest.mark.parametrize("use_yamr_descriptors", [True, False])
     def test_job_runner(self, use_yamr_descriptors):
-        tmp_dir = tempfile.mkdtemp(dir=TESTS_SANDBOX)
+        tmp_dir = tempfile.mkdtemp(dir=get_tests_sandbox())
         command_path = os.path.join(tmp_dir, "command")
         input_path = os.path.join(tmp_dir, "input")
         output_path = os.path.join(tmp_dir, "output")
@@ -57,7 +58,7 @@ for line in sys.stdin:
         with open(os.path.join(sandbox_path, "script.py"), "w") as fout:
             fout.write(script)
         with open(command_path, "w") as fout:
-            fout.write(sys.executable + " script.py")
+            fout.write(get_python() + " script.py")
         with open(input_path, "w") as fout:
             if use_yamr_descriptors:
                 descriptors = [1, 3, 4, 5, 6]
@@ -86,7 +87,10 @@ for line in sys.stdin:
             assert os.path.exists(os.path.join(output_path, "5"))  # Statistics descriptor
 
 class TestJobTool(object):
-    JOB_TOOL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt-job-tool", "yt-job-tool")
+    if yatest_common is None:
+        JOB_TOOL_BINARY = os.path.join(os.path.dirname(get_tests_location()), "bin", "yt-job-tool")
+    else:
+        JOB_TOOL_BINARY = yatest_common.binary_path("yt/python/yt/wrapper/bin/yt-job-tool_make/yt-job-tool")
 
     TEXT_YSON = "<format=pretty>yson"
 
@@ -97,12 +101,15 @@ class TestJobTool(object):
         return "cat > {tmpdir}/$YT_JOB_ID.input && echo OK_COMMAND >&2".format(tmpdir=self._tmpdir)
 
     def setup(self):
-        self._tmpdir = tempfile.mkdtemp(dir=TESTS_SANDBOX)
+        self._tmpdir = tempfile.mkdtemp(dir=get_tests_sandbox())
         os.chmod(self._tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO) # allow user job to write to this directory
 
     def _prepare_job_environment(self, yt_env_job_archive, operation_id, job_id, full=False):
-        args = [
-            sys.executable,
+        if yatest_common is None:
+            args = [sys.executable]
+        else:
+            args = []
+        args += [
             self.JOB_TOOL_BINARY,
             "prepare-job-environment",
             operation_id,

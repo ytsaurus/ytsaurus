@@ -160,4 +160,4 @@ fi
 
 # Final cleanup
 clean
-rm -rf debian setup.py MANIFEST.in requirements.txt
+rm -rf debian setup.py MANIFEST.in requirements.txt dist __pycache__
