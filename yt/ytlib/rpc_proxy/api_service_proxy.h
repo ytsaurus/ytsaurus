@@ -56,6 +56,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetFileFromCache);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PutFileToCache);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

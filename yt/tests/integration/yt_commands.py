@@ -519,6 +519,11 @@ def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["cache_path"] = cache_path
     return execute_command("get_file_from_cache", kwargs)
 
+def put_file_to_cache(path, md5, **kwargs):
+    kwargs["path"] = path
+    kwargs["md5"] = md5
+    return execute_command("put_file_to_cache", kwargs)
+
 class TimeoutError(Exception):
     pass
 

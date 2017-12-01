@@ -326,12 +326,39 @@ TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
     SetTimeoutOptions(*req, options);
 
     req->set_md5(md5);
+    req->set_cache_path(options.CachePath);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_master_read_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetFileFromCachePtr& rsp) {
         return FromProto<TGetFileFromCacheResult>(rsp->result());
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
+    const NYPath::TYPath& path,
+    const TString& expectedMD5,
+    const NApi::TPutFileToCacheOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.PutFileToCache();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+    req->set_md5(expectedMD5);
+    req->set_cache_path(options.CachePath);
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+    ToProto(req->mutable_master_read_options(), options);
+    ToProto(req->mutable_mutating_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPutFileToCachePtr& rsp) {
+        return FromProto<TPutFileToCacheResult>(rsp->result());
     }));
 }
 
