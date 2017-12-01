@@ -297,7 +297,7 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
     return response
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
-               raw=None, response_parameters=None, client=None):
+               raw=None, response_parameters=None, enable_read_parallel=None, client=None):
     """Reads rows from table and parse (optionally).
 
     :param table: table to read.
@@ -339,8 +339,12 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     set_param(params, "table_reader", table_reader)
     set_param(params, "unordered", unordered)
 
-    if get_config(client)["read_parallel"]["enable"]:
-        if control_attributes is not None:
+    enable_read_parallel = get_value(enable_read_parallel, get_config(client)["read_parallel"]["enable"])
+
+    if enable_read_parallel:
+        if attributes.get("dynamic"):
+            logger.warning("Cannot read table in parallel since parallel reading for dynamic tables is not supported")
+        elif control_attributes is not None:
             logger.warning('Cannot read table in parallel since parameter "control_attributes" is specified')
         elif table.has_key_limit_in_ranges():
             logger.warning("Cannot read table in parallel since table path contains key limits")

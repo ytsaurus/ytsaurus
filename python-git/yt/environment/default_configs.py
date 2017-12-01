@@ -137,7 +137,6 @@ b"""
     };
 
     scheduler = {
-        strategy = fair_share;
         snapshot_period = 100000000;
         lock_transaction_timeout = 5000;
         transactions_refresh_period = 500;
@@ -146,11 +145,11 @@ b"""
         watchers_update_period = 100;
         nodes_attributes_update_period = 100;
         update_exec_node_descriptors_period = 100;
+        exec_nodes_request_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
         chunk_list_release_batch_delay = 100;
         preemptive_scheduling_backoff = 0;
-        connect_grace_delay = 0;
         forbid_immediate_operations_in_root = %false;
         environment = {
              PYTHONUSERBASE = "/tmp"
@@ -246,7 +245,7 @@ b"""
         chunk_meta_cache = {
             capacity = 0;
         };
-        
+
         sync_directories_on_connect = %true;
     };
 
@@ -285,7 +284,7 @@ b"""
                 };
             }
         };
-        
+
         job_controller = {
             stored_jobs_send_period = 5000;
         }

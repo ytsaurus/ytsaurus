@@ -6,6 +6,7 @@ from .errors import YtResponseError
 from .config import get_backend_type
 from .http_helpers import get_proxy_url, get_api_version, get_token
 
+from yt.packages.six import b
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter
 with PackagesImporter():
@@ -14,7 +15,6 @@ with PackagesImporter():
     from tornado.ioloop import IOLoop
     # It is necessary to prevent local imports during runtime.
     import tornado.simple_httpclient
-    from six import b
 
 from copy import deepcopy
 from binascii import hexlify

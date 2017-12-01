@@ -1,4 +1,4 @@
-from .common import ThreadPoolHelper
+from .common import ThreadPoolHelper, set_param
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError
 from .driver import make_request
@@ -124,7 +124,8 @@ def get_operation_state(operation, client=None):
     retry_count = config["proxy"]["retries"]["count"]
     config["proxy"]["retries"]["count"] = config["proxy"]["operation_state_discovery_retry_count"]
     try:
-        return OperationState(get_operation_attributes(operation, client=client)["state"])
+        operation_path = ypath_join(OPERATIONS_PATH, operation)
+        return OperationState(get(operation_path + "/@state", client=client))
     finally:
         config["proxy"]["retries"]["count"] = retry_count
 
@@ -201,7 +202,7 @@ class PrintOperationInfo(object):
             logger.log(self.level, *args, **kwargs)
             logger.set_formatter(logger.BASIC_FORMATTER)
 
-def abort_operation(operation, client=None):
+def abort_operation(operation, reason=None, client=None):
     """Aborts operation.
 
     Do nothing if operation is in final state.
@@ -210,7 +211,9 @@ def abort_operation(operation, client=None):
     """
     if get_operation_state(operation, client=client).is_finished():
         return
-    make_request("abort_op", {"operation_id": operation}, client=client)
+    params = {"operation_id": operation}
+    set_param(params, "abort_reason", reason)
+    make_request("abort_op", params, client=client)
 
 def suspend_operation(operation, client=None):
     """Suspends operation.
@@ -388,9 +391,9 @@ class Operation(object):
         """Resumes operation."""
         resume_operation(self.id, client=self.client)
 
-    def abort(self):
+    def abort(self, reason=None):
         """Aborts operation."""
-        abort_operation(self.id, client=self.client)
+        abort_operation(self.id, reason, client=self.client)
 
     def complete(self):
         """Completes operation."""

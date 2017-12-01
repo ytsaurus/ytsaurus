@@ -233,8 +233,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     if not client.exists("//sys/tablet_cell_bundles/sys"):
         client.create("tablet_cell_bundle", attributes={
             "name": "sys",
-            "changelog_account": "sys",
-            "snapshot_account": "sys"})
+            "options": {"changelog_account": "sys", "snapshot_account": "sys"}})
     else:
         logger.warning('Tablet cell bundle "sys" already exists')
 

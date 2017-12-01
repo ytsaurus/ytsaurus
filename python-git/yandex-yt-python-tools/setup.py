@@ -6,11 +6,11 @@ def main():
     requires = ["yandex-yt >= 0.8.4", "sh", "subprocess32"]
 
     scripts, data_files = prepare_files([
-        "yt/tools/bin/add_user/yt_add_user.py",
-        "yt/tools/bin/set_account/yt_set_account.py",
-        "yt/tools/bin/lock/yt_lock.py",
-        "yt/tools/bin/checksum/yt_checksum.py",
-        "yt/tools/bin/dump_restore_erase/yt_dump_restore_erase.py"])
+        "yt/tools/bin/yt_add_user.py",
+        "yt/tools/bin/yt_set_account.py",
+        "yt/tools/bin/yt_lock.py",
+        "yt/tools/bin/yt_checksum.py",
+        "yt/tools/bin/yt_dump_restore_erase.py"])
 
     setup(
         name = "yandex-yt-tools",

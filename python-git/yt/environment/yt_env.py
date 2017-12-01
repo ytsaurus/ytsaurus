@@ -766,9 +766,13 @@ class YTInstance(object):
     def start_schedulers(self, sync=True):
         self._remove_scheduler_lock()
 
-        self._run_yt_component("scheduler")
-
         client = self.create_client()
+        client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
+        client.set("//sys/pool_trees/@default_tree", "default")
+        if not client.exists("//sys/pools"):
+            client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
+
+        self._run_yt_component("scheduler")
 
         def schedulers_ready():
             self._validate_processes_is_running("scheduler")
@@ -1016,7 +1020,7 @@ class YTInstance(object):
         if watcher_path:
             return watcher_path[0]
 
-        watcher_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin", "yt_env_watcher", "yt_env_watcher"))
+        watcher_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin", "yt_env_watcher"))
         if os.path.exists(watcher_path):
             return watcher_path
 

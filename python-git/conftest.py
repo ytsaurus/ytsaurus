@@ -1,10 +1,19 @@
 import yt.tests_runner as tests_runner
 
-from collections import defaultdict
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
 
+from collections import defaultdict
 import re
+import sys
 
 pytest_plugins = "yt.tests_runner.plugin"
+
+if yatest_common is None:
+    def pytest_generate_tests(metafunc):
+        metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])], indirect=True)
 
 def pytest_configure(config):
     def scheduling_func(test_items, process_count):
