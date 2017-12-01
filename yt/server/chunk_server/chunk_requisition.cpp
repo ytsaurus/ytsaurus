@@ -601,7 +601,6 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
     }
 
     YCHECK(Insert(TChunkRequisition(), objectManager) == EmptyChunkRequisitionIndex);
-    Ref(EmptyChunkRequisitionIndex); // Fake reference - always keep the empty requisition.
 
     // When migrating to chunk-wise accounting, assume all chunks belong to a
     // special migration account.
@@ -611,7 +610,6 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
         TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /* dataPartsOnly */),
         true /* committed */);
     YCHECK(Insert(defaultRequisition, objectManager) == MigrationChunkRequisitionIndex);
-    Ref(MigrationChunkRequisitionIndex); // Fake reference - always keep the migration requisition.
 
     TChunkRequisition rf2Requisition(
         chunkWiseAccountingMigrationAccount,
@@ -619,7 +617,6 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
         TReplicationPolicy(2 /*replicationFactor*/, false /* dataPartsOnly */),
         true /* committed */);
     YCHECK(Insert(rf2Requisition, objectManager) == MigrationRF2ChunkRequisitionIndex);
-    Ref(MigrationRF2ChunkRequisitionIndex);
 
     TChunkRequisition defaultErasureRequisition(
         chunkWiseAccountingMigrationAccount,
@@ -627,6 +624,15 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
         TReplicationPolicy(1 /*replicationFactor*/, false /* dataPartsOnly */),
         true /* committed */);
     YCHECK(Insert(defaultErasureRequisition, objectManager) == MigrationErasureChunkRequisitionIndex);
+
+    FakeRefBuiltinRequisitions();
+}
+
+void TChunkRequisitionRegistry::FakeRefBuiltinRequisitions() {
+    // Fake reference - always keep builtin requisitions.
+    Ref(EmptyChunkRequisitionIndex);
+    Ref(MigrationChunkRequisitionIndex);
+    Ref(MigrationRF2ChunkRequisitionIndex);
     Ref(MigrationErasureChunkRequisitionIndex);
 }
 
@@ -666,6 +672,10 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
     YCHECK(IndexToItem_.has(MigrationRF2ChunkRequisitionIndex));
     YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
+
+    // Since requisitions' refcounts aren't stored but recalculated by chunk
+    // manager we need to restore fake references to builtin requisitions.
+    FakeRefBuiltinRequisitions();
 
     Load(context, NextIndex_);
 

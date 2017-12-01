@@ -472,6 +472,8 @@ private:
     void Erase(
         TChunkRequisitionIndex index,
         const NObjectServer::TObjectManagerPtr& objectManager);
+
+    void FakeRefBuiltinRequisitions();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
