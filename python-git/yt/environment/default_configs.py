@@ -145,6 +145,7 @@ b"""
         watchers_update_period = 100;
         nodes_attributes_update_period = 100;
         update_exec_node_descriptors_period = 100;
+        exec_nodes_request_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
         chunk_list_release_batch_delay = 100;
