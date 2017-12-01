@@ -231,7 +231,8 @@ public:
             .Default(false);
         RegisterParameter("profiling_mode", ProfilingMode)
             .Default(EDynamicTableProfilingMode::Path);
-        RegisterParameter("profiling_tag", ProfilingTag);
+        RegisterParameter("profiling_tag", ProfilingTag)
+            .Optional();
 
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
             .Default(true);
