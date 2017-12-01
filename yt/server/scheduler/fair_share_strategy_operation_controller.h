@@ -23,9 +23,9 @@ public:
 
     void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
 
-    void SetMinNeededJobResources(std::vector<TJobResources> jobResourcesList);
-    std::vector<TJobResources> GetMinNeededJobResourcesList() const;
-    TJobResources GetMinNeededJobResources() const;
+    void SetMinNeededJobResources(std::vector<TJobResourcesWithQuota> jobResourcesList);
+    std::vector<TJobResourcesWithQuota> GetMinNeededJobResourcesList() const;
+    TJobResourcesWithQuota GetMinNeededJobResources() const;
 
     void InvokeMinNeededJobResourcesUpdate();
 
@@ -37,7 +37,8 @@ public:
     TScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& jobLimits,
-        TDuration timeLimit);
+        TDuration timeLimit,
+        const TString& treeId);
 
     void AbortJob(std::unique_ptr<TAbortedJobSummary> abortedJobSummary);
 
@@ -51,8 +52,8 @@ private:
     std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = {0};
 
     NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
-    std::vector<TJobResources> CachedMinNeededJobResourcesList_;
-    TJobResources CachedMinNeededJobResources_;
+    std::vector<TJobResourcesWithQuota> CachedMinNeededJobResourcesList_;
+    TJobResourcesWithQuota CachedMinNeededJobResources_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationController)

@@ -2138,7 +2138,7 @@ private:
 
         if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
             THROW_ERROR_EXCEPTION("Invalid tablet index: expected in range [0,%v], got %v",
-                tableInfo->Tablets.size(),
+                tableInfo->Tablets.size() - 1,
                 tabletIndex);
         }
 
@@ -2225,6 +2225,7 @@ private:
         writer.OnRaw(value.GetData(), EYsonType::Node);
         writer.Flush();
         req->set_value(stream.Str());
+        req->set_recursive(options.Recursive);
 
         batchReq->AddRequest(req);
 

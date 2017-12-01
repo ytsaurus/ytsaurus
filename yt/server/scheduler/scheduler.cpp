@@ -92,7 +92,7 @@ using namespace NShell;
 using namespace NEventLog;
 
 using NControllerAgent::TControllerTransactionsPtr;
-using NControllerAgent::IOperationController;
+using NControllerAgent::IOperationControllerSchedulerHost;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -124,6 +124,27 @@ yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPoolTreeKeysHolder
+{
+    TPoolTreeKeysHolder()
+    {
+        auto treeConfigTemplate = New<TFairShareStrategyTreeConfig>();
+        auto treeConfigKeys = treeConfigTemplate->GetRegisteredKeys();
+
+        auto poolConfigTemplate = New<TPoolConfig>();
+        auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
+
+        Keys.reserve(treeConfigKeys.size() + poolConfigKeys.size() + 1);
+        Keys.insert(Keys.end(), treeConfigKeys.begin(), treeConfigKeys.end());
+        Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
+        Keys.insert(Keys.end(), DefaultTreeAttributeName);
+    }
+
+    std::vector<TString> Keys;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TScheduler::TImpl
     : public TRefCounted
     , public NControllerAgent::IOperationHost
@@ -151,7 +172,6 @@ public:
             Config_->SchedulingTagFilterExpireTimeout,
             GetControlInvoker()))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
-        , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
@@ -160,12 +180,6 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
-
-        auto unrecognized = Config_->GetUnrecognizedRecursively();
-        if (unrecognized && unrecognized->GetChildCount() > 0) {
-            LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
-                ConvertToYsonString(unrecognized, EYsonFormat::Text));
-        }
 
         auto primaryMasterCellTag = GetMasterClient()
             ->GetNativeConnection()
@@ -286,10 +300,9 @@ public:
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(GetControlInvoker(EControlQueue::Orchid));
 
-        return New<TServiceCombiner>(std::vector<IYPathServicePtr> {
-            staticOrchidService,
-            dynamicOrchidService
-        });
+        return New<TServiceCombiner>(
+            std::vector<IYPathServicePtr>{staticOrchidService, dynamicOrchidService},
+            Config_->OrchidKeysUpdatePeriod);
     }
 
     std::vector<TOperationPtr> GetOperations()
@@ -433,6 +446,26 @@ public:
         operation->MutableAlerts()[alertType] = alert;
     }
 
+    void DoSetOperationAlerts(
+        const TOperationId& operationId,
+        const TOperationAlertsMap& operationAlerts)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        for (const auto& pair : operationAlerts) {
+            const auto& alertType = pair.first;
+            const auto& alert = pair.second;
+            if (operation->Alerts()[alertType] != alert) {
+                operation->MutableAlerts()[alertType] = alert;
+            }
+        }
+    }
+
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
@@ -443,14 +476,6 @@ public:
         return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert.Sanitize())
             .AsyncVia(GetControlInvoker())
             .Run();
-    }
-
-    virtual IJobHostPtr GetJobHost(const TJobId& jobId) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return CreateJobHost(jobId, nodeShard);
     }
 
     void DoReleaseJobs(
@@ -489,21 +514,6 @@ public:
         if (!error.IsOK()) {
             DoFailOperation(operationId, error);
         }
-    }
-
-    virtual void ReleaseJobs(
-        const TOperationId& operationId,
-        std::vector<TJobId> jobIds,
-        int controllerSchedulerIncarnation) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoReleaseJobs,
-                MakeStrong(this),
-                operationId,
-                std::move(jobIds),
-                controllerSchedulerIncarnation));
     }
 
     virtual void ValidatePoolPermission(
@@ -616,7 +626,7 @@ public:
         operation->SetState(EOperationState::Initializing);
         operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
-        WaitFor(Strategy_->ValidateOperationStart(operation))
+        WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
             .ThrowOnError();
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
@@ -829,14 +839,65 @@ public:
             GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
         }
 
-        TExecNodeDescriptorListPtr execNodes;
-        {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
-            execNodes = CachedExecNodeDescriptors_;
+        for (const auto& jobToInterrupt : request->jobs_to_interrupt()) {
+            auto jobId = FromProto<TJobId>(jobToInterrupt.job_id());
+            auto reason = EInterruptReason(jobToInterrupt.reason());
+            const auto& nodeShard = GetNodeShardByJobId(jobId);
+            nodeShard->GetInvoker()->Invoke(
+                BIND(&TNodeShard::InterruptJob, nodeShard, jobId, reason));
         }
 
-        for (const auto& execNode : execNodes->Descriptors) {
-            ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
+        for (const auto& jobToAbort : request->jobs_to_abort()) {
+            auto jobId = FromProto<TJobId>(jobToAbort.job_id());
+            auto error = FromProto<TError>(jobToAbort.error());
+            const auto& nodeShard = GetNodeShardByJobId(jobId);
+            typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TError&);
+            nodeShard->GetInvoker()->Invoke(
+                BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), nodeShard, jobId, error));
+        }
+
+        for (const auto& jobToFail : request->jobs_to_fail()) {
+            auto jobId = FromProto<TJobId>(jobToFail.job_id());
+            const auto& nodeShard = GetNodeShardByJobId(jobId);
+            nodeShard->GetInvoker()->Invoke(
+                BIND(&TNodeShard::FailJob, nodeShard, jobId));
+        }
+
+        for (const auto& jobsToRelease : request->jobs_to_release()) {
+            MasterConnector_->GetCancelableControlInvoker()->Invoke(
+                BIND(
+                    &TImpl::DoReleaseJobs,
+                    MakeStrong(this),
+                    FromProto<TOperationId>(jobsToRelease.operation_id()),
+                    FromProto<std::vector<TJobId>>(jobsToRelease.job_ids()),
+                    jobsToRelease.controller_scheduler_incarnation()));
+        }
+
+        for (const auto& operationAlerts : request->operation_alerts()) {
+            TOperationAlertsMap alerts;
+            for (const auto& alertProto : operationAlerts.alerts()) {
+                auto alertType = EOperationAlertType(alertProto.type());
+                auto alert = FromProto<TError>(alertProto.error());
+                YCHECK(alerts.emplace(alertType, std::move(alert)).second);
+            }
+            MasterConnector_->GetCancelableControlInvoker()->Invoke(
+                BIND(
+                    &TImpl::DoSetOperationAlerts,
+                    MakeStrong(this),
+                    FromProto<TOperationId>(operationAlerts.operation_id()),
+                    alerts));
+        }
+
+        if (request->exec_nodes_requested()) {
+            TExecNodeDescriptorListPtr execNodes;
+            {
+                TReaderGuard guard(ExecNodeDescriptorsLock_);
+                execNodes = CachedExecNodeDescriptors_;
+            }
+
+            for (const auto& execNode : execNodes->Descriptors) {
+                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
+            }
         }
     }
 
@@ -850,13 +911,6 @@ public:
             totalResourceLimits += nodeShard->GetTotalResourceLimits();
         }
         return totalResourceLimits;
-    }
-
-    virtual TJobResources GetMainNodesResourceLimits() override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return GetResourceLimits(Config_->MainNodesFilter);
     }
 
     TJobResources GetTotalResourceUsage()
@@ -902,6 +956,13 @@ public:
         }
     }
 
+    virtual void AbortOperation(const TOperationId& operationId, const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        DoAbortOperation(operationId, error);
+    }
+
     void MaterializeOperation(TOperationPtr operation)
     {
         auto controller = operation->GetController();
@@ -916,7 +977,7 @@ public:
                 }));
         } else {
             operation->SetState(EOperationState::Materializing);
-            BIND(&IOperationController::Materialize, controller)
+            BIND(&IOperationControllerSchedulerHost::Materialize, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run()
                 .Subscribe(BIND([operation] (const TError& error) {
@@ -930,6 +991,19 @@ public:
         }
     }
 
+    virtual std::vector<TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TNodeId> result;
+        for (const auto& pair : NodeIdToTags_) {
+            if (filter.CanSchedule(pair.second)) {
+                result.push_back(pair.first);
+            }
+        }
+
+        return result;
+    }
 
     // IOperationHost implementation
     virtual NControllerAgent::TControllerAgent* GetControllerAgent() override
@@ -989,6 +1063,32 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return nodeId % NodeShards_.size();
+    }
+
+    virtual TFuture<void> RegisterOrUpdateNode(TNodeId nodeId, const yhash_set<TString>& tags) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&TImpl::DoRegisterOrUpdateNodeTags, MakeStrong(this))
+            .AsyncVia(GetControlInvoker())
+            .Run(nodeId, tags);
+    }
+
+    void DoRegisterOrUpdateNodeTags(TNodeId nodeId, const yhash_set<TString>& tags)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Strategy_->ValidateNodeTags(tags);
+        NodeIdToTags_[nodeId] = tags;
+    }
+
+    virtual void UnregisterNode(TNodeId nodeId) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        BIND([this, this_ = MakeStrong(this), nodeId] { YCHECK(NodeIdToTags_.erase(nodeId) == 1); })
+            .AsyncVia(GetControlInvoker())
+            .Run();
     }
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const override
@@ -1062,13 +1162,13 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
+    bool ShouldSendExecNodeDescriptorToControllerAgent_ = false;
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
 
     TProfiler TotalResourceLimitsProfiler_;
-    TProfiler MainNodesResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
 
     TSimpleCounter TotalCompletedJobTimeCounter_;
@@ -1087,6 +1187,8 @@ private:
     TString ServiceAddress_;
 
     std::vector<TNodeShardPtr> NodeShards_;
+
+    yhash<TNodeId, yhash_set<TString>> NodeIdToTags_;
 
     TEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
@@ -1189,7 +1291,6 @@ private:
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
         ProfileResources(TotalResourceLimitsProfiler_, GetTotalResourceLimits());
-        ProfileResources(MainNodesResourceLimitsProfiler_, GetMainNodesResourceLimits());
         ProfileResources(TotalResourceUsageProfiler_, GetTotalResourceUsage());
 
         {
@@ -1212,7 +1313,6 @@ private:
                 .Item("exec_node_count").Value(GetExecNodeCount())
                 .Item("total_node_count").Value(GetTotalNodeCount())
                 .Item("resource_limits").Value(GetTotalResourceLimits())
-                .Item("main_nodes_resource_limits").Value(GetMainNodesResourceLimits())
                 .Item("resource_usage").Value(GetTotalResourceUsage());
         }
     }
@@ -1262,6 +1362,8 @@ private:
             .Run();
         WaitFor(processFuture)
             .ThrowOnError();
+
+        ValidateConfig();
 
         LOG_INFO("Scheduler ready (SchedulerIncarnation: %v)",
             SchedulerIncarnation_);
@@ -1373,12 +1475,11 @@ private:
 
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        static const auto poolConfigTemplate = New<TPoolConfig>();
-        static const auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
+        static const TPoolTreeKeysHolder PoolTreeKeysHolder;
 
         LOG_INFO("Updating pools");
         auto req = TYPathProxy::Get(GetPoolsPath());
-        ToProto(req->mutable_attributes()->mutable_keys(), poolConfigKeys);
+        ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
         batchReq->AddRequest(req, "get_pools");
     }
 
@@ -1487,7 +1588,7 @@ private:
                     operation->SetOwners(newRuntimeParams->Owners);
                 }
                 operation->SetRuntimeParams(newRuntimeParams);
-                Strategy_->UpdateOperationRuntimeParams(operation, newRuntimeParams);
+                Strategy_->UpdateOperationRuntimeParams(operation.Get(), newRuntimeParams);
                 LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
                     operation->GetId());
             }
@@ -1546,16 +1647,11 @@ private:
             LOG_INFO("Scheduler configuration updated");
 
             Config_ = newConfig;
-
-            auto unrecognized = Config_->GetUnrecognizedRecursively();
-            if (unrecognized && unrecognized->GetChildCount() > 0) {
-                LOG_WARNING("New scheduler config contains unrecognized options (Unrecognized: %v)",
-                    ConvertToYsonString(unrecognized, EYsonFormat::Text));
-            }
+            ValidateConfig();
 
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
-                BIND(&IOperationController::UpdateConfig, controller, Config_)
+                BIND(&IOperationControllerSchedulerHost::UpdateConfig, controller, Config_)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
             }
@@ -1633,14 +1729,13 @@ private:
 
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
-
             std::swap(CachedExecNodeDescriptors_, result);
+            ShouldSendExecNodeDescriptorToControllerAgent_ = true;
         }
 
         auto execNodeMemoryDistribution = CalculateMemoryDistribution(EmptySchedulingTagFilter);
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
-
             CachedExecNodeMemoryDistribution_ = execNodeMemoryDistribution;
         }
     }
@@ -1694,13 +1789,16 @@ private:
             auto controller = CreateControllerForOperation(this, operation.Get());
             operation->SetController(controller);
 
-            Strategy_->ValidateOperationCanBeRegistered(operation);
+            Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             RegisterOperation(operation);
+            // Ignore result? (we cannot throw error here)
+            Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
+
             registered = true;
 
             {
-                auto asyncResult = BIND(&IOperationController::Initialize, controller)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Initialize, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 auto error = WaitFor(asyncResult);
@@ -1726,7 +1824,8 @@ private:
         }
 
         LogEventFluently(ELogEventType::OperationStarted)
-            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation));
+            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
+            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, Unretained(operation.Get())));
 
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
@@ -1759,7 +1858,7 @@ private:
             operation->SetState(EOperationState::Preparing);
 
             auto controller = operation->GetController();
-            auto asyncResult = BIND(&IOperationController::Prepare, controller)
+            auto asyncResult = BIND(&IOperationControllerSchedulerHost::Prepare, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
 
@@ -1822,8 +1921,9 @@ private:
         // If the revival fails, we still need to update the node
         // and unregister the operation from Master Connector.
 
+        IOperationControllerPtr controller;
         try {
-            auto controller = CreateControllerForOperation(this, operation.Get());
+            controller = CreateControllerForOperation(this, operation.Get());
             operation->SetController(controller);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
@@ -1836,6 +1936,8 @@ private:
 
         // NB: Should not throw!
         RegisterOperation(operation);
+        // Ignore result? (we cannot throw error here)
+        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
     }
 
     TFuture<void> ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
@@ -1860,7 +1962,7 @@ private:
             auto controller = operation->GetController();
 
             {
-                auto asyncResult = BIND(&IOperationController::InitializeReviving, controller, controllerTransactions)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, controllerTransactions)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 auto error = WaitFor(asyncResult);
@@ -1877,7 +1979,7 @@ private:
             }
 
             {
-                auto asyncResult = BIND(&IOperationController::Revive, controller)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 auto error = WaitFor(asyncResult);
@@ -1946,7 +2048,7 @@ private:
                 .Run(operation->GetId(), operation->GetController());
         }
 
-        Strategy_->RegisterOperation(operation);
+        Strategy_->RegisterOperation(operation.Get());
 
         MasterConnector_->AddOperationWatcherRequester(
             operation,
@@ -1954,9 +2056,6 @@ private:
         MasterConnector_->AddOperationWatcherHandler(
             operation,
             BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
-
-        // Ignore result? (we cannot throw error here)
-        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation->GetController());
 
         LOG_DEBUG("Operation registered (OperationId: %v)",
             operation->GetId());
@@ -1983,7 +2082,7 @@ private:
                 .Run();
         }
 
-        Strategy_->UnregisterOperation(operation);
+        Strategy_->UnregisterOperation(operation.Get());
 
         Bootstrap_->GetControllerAgent()->UnregisterOperation(operation->GetId());
 
@@ -1997,8 +2096,7 @@ private:
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
-            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation));
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -2101,7 +2199,7 @@ private:
 
             {
                 auto controller = operation->GetController();
-                auto asyncResult = BIND(&IOperationController::Commit, controller)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Commit, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 WaitFor(asyncResult)
@@ -2137,7 +2235,7 @@ private:
 
             // Notify controller that it is going to be disposed.
             if (const auto& controller = operation->GetController()) {
-                controller->GetInvoker()->Invoke(BIND(&IOperationController::OnBeforeDisposal, controller));
+                controller->GetInvoker()->Invoke(BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller));
             }
 
             FinishOperation(operation);
@@ -2314,7 +2412,7 @@ private:
         // Notify controller that it is going to be disposed.
         if (const auto& controller = operation->GetController()) {
             auto error = WaitFor(
-                BIND(&IOperationController::OnBeforeDisposal, controller)
+                BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller)
                     .AsyncVia(controller->GetInvoker())
                     .Run());
             YCHECK(error.IsOK() && "OnBeforeDisposal failed");
@@ -2457,7 +2555,6 @@ private:
                 .Item("connected").Value(MasterConnector_->IsConnected())
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(GetTotalResourceLimits())
-                    .Item("main_nodes_resource_limits").Value(GetMainNodesResourceLimits())
                     .Item("resource_usage").Value(GetTotalResourceUsage())
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
@@ -2470,7 +2567,7 @@ private:
                             const auto& operation = pair.second;
                             auto controller = operation->GetController();
                             if (controller) {
-                                asyncResults.push_back(BIND(&IOperationController::BuildSuspiciousJobsYson, controller)
+                                asyncResults.push_back(BIND(&IOperationControllerSchedulerHost::BuildSuspiciousJobsYson, controller)
                                     .AsyncVia(controller->GetInvoker())
                                     .Run());
                             }
@@ -2519,7 +2616,7 @@ private:
                     .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
                             // TODO(ignat): maybe use cached version here?
-                            BIND(&IOperationController::BuildProgress, controller)
+                            BIND(&IOperationControllerSchedulerHost::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(fluent));
                         asyncResult.ThrowOnError();
@@ -2529,7 +2626,7 @@ private:
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
-                            BIND(&IOperationController::BuildBriefProgress, controller)
+                            BIND(&IOperationControllerSchedulerHost::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(fluent));
                         asyncResult.ThrowOnError();
@@ -2541,7 +2638,7 @@ private:
                 .EndAttributes()
                 .BeginMap()
                     .Do([=] (TFluentMap fluent) {
-                        auto future = BIND(&IOperationController::BuildJobsYson, controller)
+                        auto future = BIND(&IOperationControllerSchedulerHost::BuildJobsYson, controller)
                             .AsyncVia(controller->GetCancelableInvoker())
                             .Run();
                         auto jobsYson = WaitFor(future)
@@ -2557,7 +2654,7 @@ private:
                 .BeginMap()
                     .DoIf(hasControllerJobSplitterInfo, BIND([=] (TFluentMap fluent) {
                         auto asyncResult = WaitFor(
-                            BIND(&IOperationController::BuildJobSplitterInfo, controller)
+                            BIND(&IOperationControllerSchedulerHost::BuildJobSplitterInfo, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(fluent));
                         asyncResult.ThrowOnError();
@@ -2565,7 +2662,7 @@ private:
                 .EndMap()
                 .Do([=] (TFluentMap fluent) {
                     auto asyncResult = WaitFor(
-                        BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
+                        BIND(&IOperationControllerSchedulerHost::BuildMemoryDigestStatistics, controller)
                             .AsyncVia(controller->GetInvoker())
                             .Run(fluent));
                     asyncResult.ThrowOnError();
@@ -2579,6 +2676,26 @@ private:
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
         dynamicOrchidService->AddChild("jobs", New<TJobsService>(this));
         return dynamicOrchidService;
+    }
+
+    void ValidateConfig()
+    {
+        // First reset the alert.
+        SetSchedulerAlert(ESchedulerAlertType::UnrecognizedConfigOptions, TError());
+
+        if (!Config_->EnableUnrecognizedAlert) {
+            return;
+        }
+
+        auto unrecognized = Config_->GetUnrecognizedRecursively();
+        if (unrecognized && unrecognized->GetChildCount() > 0) {
+            LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, EYsonFormat::Text));
+            SetSchedulerAlert(
+                ESchedulerAlertType::UnrecognizedConfigOptions,
+                TError("Scheduler config contains unrecognized options")
+                    << TErrorAttribute("unrecognized", unrecognized));
+        }
     }
 
     class TOperationsService
@@ -2689,7 +2806,7 @@ private:
                 return;
             }
 
-            auto jobYsonCallback = BIND(&IOperationController::BuildJobYson, controller, jobId, /* outputStatistics */ true)
+            auto jobYsonCallback = BIND(&IOperationControllerSchedulerHost::BuildJobYson, controller, jobId, /* outputStatistics */ true)
                 .AsyncVia(controller->GetInvoker())
                 .Run();
 

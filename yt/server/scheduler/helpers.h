@@ -19,20 +19,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IJobHost
-    : public TIntrinsicRefCounted
-{
-    virtual TFuture<void> InterruptJob(EInterruptReason reason) = 0;
-
-    virtual TFuture<void> AbortJob(const TError& error) = 0;
-
-    virtual TFuture<void> FailJob() = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IJobHost)
-
-////////////////////////////////////////////////////////////////////////////////
-
 void BuildInitializingOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
 void BuildRunningOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
 void BuildExecNodeAttributes(TExecNodePtr node, NYTree::TFluentMap fluent);

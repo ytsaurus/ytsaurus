@@ -179,7 +179,7 @@ public:
         return Underlying_->GetNeededResources();
     }
 
-    virtual std::vector<TJobResources> GetMinNeededJobResources() const
+    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const
     {
         return Underlying_->GetMinNeededJobResources();
     }
@@ -211,9 +211,10 @@ public:
 
     virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
-        const TJobResources& jobLimits) override
+        const TJobResourcesWithQuota& jobLimits,
+        const TString& treeId) override
     {
-        return Underlying_->ScheduleJob(std::move(context), jobLimits);
+        return Underlying_->ScheduleJob(std::move(context), jobLimits, treeId);
     }
 
     virtual void UpdateConfig(TSchedulerConfigPtr config) override
@@ -304,6 +305,11 @@ public:
     virtual TOperationJobMetrics ExtractJobMetricsDelta() override
     {
         return Underlying_->ExtractJobMetricsDelta();
+    }
+
+    virtual TOperationAlertsMap GetAlerts() override
+    {
+        return Underlying_->GetAlerts();
     }
 
     virtual TYsonString BuildSuspiciousJobsYson() const override

@@ -43,7 +43,6 @@
 #include <yt/ytlib/table_client/value_consumer.h>
 
 #include <yt/ytlib/query_client/public.h>
-#include <yt/ytlib/query_client/range_inferrer.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -169,8 +168,8 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TScheduleJobResultPtr,
         ScheduleJob,
-        (NScheduler::ISchedulingContextPtr context, const TJobResources& jobLimits),
-        (context, jobLimits),
+        (NScheduler::ISchedulingContextPtr context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
+        (context, jobLimits, treeId),
         INVOKER_AFFINITY(CancelableInvoker),
         true,
         New<NScheduler::TScheduleJobResult>())
@@ -226,7 +225,7 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
-    virtual std::vector<TJobResources> GetMinNeededJobResources() const override;
+    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override;
 
     virtual bool IsForgotten() const override;
     virtual bool IsRevivedFromSnapshot() const override;
@@ -353,6 +352,8 @@ public:
 
     virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() override;
 
+    virtual TOperationAlertsMap GetAlerts() override;
+
 protected:
     IOperationHost* Host;
     TControllerAgent* ControllerAgent;
@@ -379,6 +380,9 @@ protected:
     IInvokerPtr Invoker;
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
+
+    //! Invokers that are feasible when calling `ReleaseJobs`.
+    std::vector<IInvokerPtr> ReleaseJobsFeasibleInvokers_;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> Forgotten = {false};
@@ -466,7 +470,6 @@ protected:
     {
         NQueryClient::TQueryPtr Query;
         NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
-        NQueryClient::TRangeInferrer RangeInferrer;
     };
 
     TNullable<TInputQuery> InputQuery;
@@ -512,17 +515,16 @@ protected:
 
     void CheckAvailableExecNodes();
 
-    virtual TFuture<void> AnalyzePartitionHistogram() const;
-    TFuture<void> AnalyzeTmpfsUsage() const;
-    TFuture<void> AnalyzeIntermediateJobsStatistics() const;
-    TFuture<void> AnalyzeInputStatistics() const;
-    TFuture<void> AnalyzeAbortedJobs() const;
-    TFuture<void> AnalyzeJobsIOUsage() const;
-    TFuture<void> AnalyzeJobsDuration() const;
-    TFuture<void> AnalyzeScheduleJobStatistics() const;
+    virtual void AnalyzePartitionHistogram();
+    void AnalyzeTmpfsUsage();
+    void AnalyzeIntermediateJobsStatistics();
+    void AnalyzeInputStatistics();
+    void AnalyzeAbortedJobs();
+    void AnalyzeJobsIOUsage();
+    void AnalyzeJobsDuration();
+    void AnalyzeScheduleJobStatistics();
 
-    void AnalyzeOperationProgess() const;
-    TFuture<void> DoAnalyzeOperationProgress() const;
+    void AnalyzeOperationProgress();
 
     void FlushOperationNode(bool checkFlushResult);
 
@@ -531,17 +533,20 @@ protected:
 
     void DoScheduleJob(
         NScheduler::ISchedulingContext* context,
-        const TJobResources& jobLimits,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const TString& treeId,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
         NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits,
+        const TString& treeId,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
         NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits,
+        const TString& treeId,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
 
@@ -883,6 +888,8 @@ protected:
 
     void FinishTaskInput(const TTaskPtr& task);
 
+    void SetOperationAlert(EOperationAlertType type, const TError& alert);
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -928,9 +935,10 @@ private:
     //! Aggregates job statistics.
     NJobTrackerClient::TStatistics JobStatistics;
 
-    TSpinLock JobMetricsDeltaLock_;
+    TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
-    NScheduler::TJobMetrics JobMetricsDelta_;
+    yhash<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_;
 
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
@@ -1024,6 +1032,9 @@ private:
     int SnapshotIndex_ = 0;
     //! Index of a snapshot that is building right now.
     TNullable<int> RecentSnapshotIndex_ = Null;
+
+    TSpinLock AlertsLock_;
+    TOperationAlertsMap Alerts_;
 
     void BuildAndSaveProgress();
 

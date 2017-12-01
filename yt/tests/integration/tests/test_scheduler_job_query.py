@@ -73,15 +73,21 @@ class TestJobQuery(YTEnvSetup):
 
     def test_query_reader_projection(self):
         create("table", "//tmp/t1", attributes={
-            "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}]
+            "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}],
+            "optimize_for": "scan"
         })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b", "c": "d"})
 
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+        op = map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        attrs = get("//tmp/t1/@")
+        assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") < attrs["uncompressed_data_size"]
+        assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") < attrs["compressed_data_size"]
+        assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") < attrs["data_weight"]
 
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     def test_query_filtering(self, mode):
@@ -195,3 +201,30 @@ class TestJobQuery(YTEnvSetup):
         _test("[9:20]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
         _test("[#2:#4]", "a where a <= 10", [{"a": 2}, {"a": 10}], 2)
         _test("[10]", "a where a > 0", [{"a": 10}], 1)
+
+    def test_query_range_inference_with_computed_columns(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "h", "type": "int64", "sort_order": "ascending", "expression": "k + 100"},
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "a", "type": "int64", "sort_order": "ascending"}]
+        })
+        create("table", "//tmp/t_out")
+        for i in range(3):
+            write_table("<append=%true>//tmp/t", [{"k": i, "a": i*10 + j} for j in xrange(3)])
+        assert get("//tmp/t/@chunk_count") == 3
+
+        def _test(query, rows, chunk_count):
+            op = map(
+                in_="//tmp/t",
+                out="//tmp/t_out",
+                command="cat",
+                spec={"input_query": query})
+
+            assert_items_equal(read_table("//tmp/t_out"), rows)
+            statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+            assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
+
+        _test("a where k = 1", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("a where k = 1 and a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("a where k in (1, 2) and a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)

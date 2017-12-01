@@ -24,6 +24,7 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/core/erasure/codec.h>
@@ -163,6 +164,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletCount())));
+    descriptors->push_back(TAttributeDescriptor("flush_lag_time")
+        .SetPresent(isDynamic && isSorted));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
@@ -395,6 +398,25 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
     if (key == "desired_tablet_count" && static_cast<bool>(trunkTable->GetDesiredTabletCount())) {
         BuildYsonFluently(consumer)
             .Value(*trunkTable->GetDesiredTabletCount());
+        return true;
+    }
+
+    if (key == "flush_lag_time" && isSorted && isDynamic) {
+        auto unflushedTimestamp = table->GetCurrentUnflushedTimestamp(
+            timestampProvider->GetLatestTimestamp());
+        auto lastCommitTimestamp = trunkTable->GetLastCommitTimestamp();
+
+        // NB: Proper order is not guaranteed.
+        auto duration = TDuration::Zero();
+        if (unflushedTimestamp <= lastCommitTimestamp) {
+            duration = NTransactionClient::TimestampDiffToDuration(
+                unflushedTimestamp,
+                lastCommitTimestamp)
+                .second;
+        }
+
+        BuildYsonFluently(consumer)
+            .Value(duration);
         return true;
     }
 

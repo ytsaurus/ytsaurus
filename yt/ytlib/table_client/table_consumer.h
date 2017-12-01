@@ -14,6 +14,47 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonToUnversionedValueConverter
+    : public NYson::TYsonConsumerBase
+{
+public:
+    TYsonToUnversionedValueConverter();
+
+    // `valueConsumer` must not be nullptr.
+    void SetValueConsumer(IValueConsumer* valueConsumer);
+
+    // Set column index of next emitted value.
+    void SetColumnIndex(int columnIndex);
+
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnBooleanScalar(bool value) override;
+    virtual void OnEntity() override;
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& name) override;
+    virtual void OnEndMap() override;
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndList() override;
+    virtual void OnEndAttributes() override;
+
+private:
+    TBlobOutput ValueBuffer_;
+    NYson::TBufferedBinaryYsonWriter ValueWriter_;
+
+    IValueConsumer* ValueConsumer_ = nullptr;
+    int Depth_ = 0;
+    int ColumnIndex_ = 0;
+
+private:
+    void FlushCurrentValueIfCompleted();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETableConsumerControlState,
     (None)
     (ExpectName)
@@ -62,8 +103,6 @@ protected:
     void OnControlInt64Scalar(i64 value);
     void OnControlStringScalar(const TStringBuf& value);
 
-    void FlushCurrentValueIfCompleted();
-
     void SwitchToTable(int tableIndex);
 
 
@@ -76,14 +115,11 @@ protected:
     EControlState ControlState_ = EControlState::None;
     EControlAttribute ControlAttribute_;
 
-    TBlobOutput ValueBuffer_;
-    NYson::TBufferedBinaryYsonWriter ValueWriter_;
+    TYsonToUnversionedValueConverter YsonToUnversionedValueConverter_;
 
     int Depth_ = 0;
-    int ColumnIndex_ = 0;
 
     i64 RowIndex_ = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

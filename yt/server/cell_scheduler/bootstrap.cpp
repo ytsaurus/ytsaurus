@@ -96,15 +96,13 @@ using namespace NHiveClient;
 using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NControllerAgent;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const NLogging::TLogger Logger("Bootstrap");
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TCellSchedulerConfigPtr config, INodePtr configNode)
-    : Config_(std::move(config))
+    : TBootstrapBase(TLogger("Bootstrap"), config)
+    , Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 { }
 

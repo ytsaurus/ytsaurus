@@ -31,6 +31,7 @@ using namespace NYTree;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NEventLog;
+using namespace NProfiling;
 
 static const auto& Logger = ControllerAgentLogger;
 
@@ -53,7 +54,10 @@ public:
             Config_->EventLog,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity)))
-    { }
+        , SchedulerProxy_(Bootstrap_->GetLocalRpcChannel())
+    {
+        SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
+    }
 
     void Disconnect()
     {
@@ -79,6 +83,8 @@ public:
             CancelableInvoker_,
             Config_,
             Bootstrap_);
+
+        HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
 
         CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
             BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
@@ -172,6 +178,7 @@ public:
         Config_ = config;
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
         EventLogWriter_->UpdateConfig(Config_->EventLog);
+        SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
         if (ControllerAgentMasterConnector_) {
             ControllerAgentMasterConnector_->UpdateConfig(config);
         }
@@ -270,6 +277,45 @@ public:
         return CachedExecNodeDescriptors_->Descriptors.size();
     }
 
+    void InterruptJob(const TJobId& jobId, EInterruptReason reason)
+    {
+        TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+        YCHECK(HeartbeatRequest_);
+        auto* jobToInterrupt = HeartbeatRequest_->add_jobs_to_interrupt();
+        ToProto(jobToInterrupt->mutable_job_id(), jobId);
+        jobToInterrupt->set_reason(static_cast<int>(reason));
+    }
+
+    void AbortJob(const TJobId& jobId, const TError& error)
+    {
+        TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+        YCHECK(HeartbeatRequest_);
+        auto* jobToAbort = HeartbeatRequest_->add_jobs_to_abort();
+        ToProto(jobToAbort->mutable_job_id(), jobId);
+        ToProto(jobToAbort->mutable_error(), error);
+    }
+
+    void FailJob(const TJobId& jobId)
+    {
+        TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+        YCHECK(HeartbeatRequest_);
+        auto* jobToFail = HeartbeatRequest_->add_jobs_to_fail();
+        ToProto(jobToFail->mutable_job_id(), jobId);
+    }
+
+    void ReleaseJobs(
+        std::vector<TJobId> jobIds,
+        const TOperationId& operationId,
+        int controllerSchedulerIncarnation)
+    {
+        TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+        YCHECK(HeartbeatRequest_);
+        auto* jobsToRelease = HeartbeatRequest_->add_jobs_to_release();
+        ToProto(jobsToRelease->mutable_job_ids(), jobIds);
+        ToProto(jobsToRelease->mutable_operation_id(), operationId);
+        jobsToRelease->set_controller_scheduler_incarnation(controllerSchedulerIncarnation);
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* Bootstrap_;
@@ -297,6 +343,13 @@ private:
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
+
+    TControllerAgentServiceProxy SchedulerProxy_;
+
+    TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
+
+    TSpinLock HeartbeatRequestLock_;
+    TControllerAgentServiceProxy::TReqHeartbeatPtr HeartbeatRequest_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -326,17 +379,35 @@ private:
 
     void SendHeartbeat()
     {
-        auto proxy = TControllerAgentServiceProxy(Bootstrap_->GetLocalRpcChannel());
-        proxy.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
-
-        auto req = proxy.Heartbeat();
+        TControllerAgentServiceProxy::TReqHeartbeatPtr req;
+        {
+            TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+            req = HeartbeatRequest_;
+            HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
+        }
 
         auto controllers = GetControllers();
         for (const auto& pair : controllers) {
+            const auto& operationId = pair.first;
             const auto& controller = pair.second;
             auto jobMetricsDelta = controller->ExtractJobMetricsDelta();
             ToProto(req->add_job_metrics(), jobMetricsDelta);
+
+            auto* operationAlertsProto = req->add_operation_alerts();
+            ToProto(operationAlertsProto->mutable_operation_id(), operationId);
+            for (const auto& pair : controller->GetAlerts()) {
+                auto alertType = pair.first;
+                const auto& alert = pair.second;
+
+                auto* alertProto = operationAlertsProto->add_alerts();
+                alertProto->set_type(static_cast<int>(alertType));
+                ToProto(alertProto->mutable_error(), alert);
+            }
         }
+
+        auto now = GetCpuInstant();
+        bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
+        req->set_exec_nodes_requested(shouldRequestExecNodes);
 
         auto rspOrError = WaitFor(req->Invoke());
 
@@ -361,6 +432,8 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
+
+            LastExecNodesUpdateTime_ = now;
         }
     }
 
@@ -511,6 +584,29 @@ void TControllerAgent::AttachJobContext(
     const TJobId& jobId)
 {
     Impl_->AttachJobContext(path, chunkId, operationId, jobId);
+}
+
+void TControllerAgent::InterruptJob(const TJobId& jobId, EInterruptReason reason)
+{
+    Impl_->InterruptJob(jobId, reason);
+}
+
+void TControllerAgent::AbortJob(const TJobId& jobId, const TError& error)
+{
+    Impl_->AbortJob(jobId, error);
+}
+
+void TControllerAgent::FailJob(const TJobId& jobId)
+{
+    Impl_->FailJob(jobId);
+}
+
+void TControllerAgent::ReleaseJobs(
+    std::vector<TJobId> jobIds,
+    const TOperationId& operationId,
+    int controllerSchedulerIncarnation)
+{
+    Impl_->ReleaseJobs(std::move(jobIds), operationId, controllerSchedulerIncarnation);
 }
 
 ////////////////////////////////////////////////////////////////////

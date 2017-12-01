@@ -70,9 +70,6 @@ struct IOperationHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 
-DECLARE_REFCOUNTED_STRUCT(IJobHost)
-DECLARE_REFCOUNTED_CLASS(TJobHost)
-
 class TMasterConnector;
 
 using NJobTrackerClient::NProto::TJobResult;
@@ -91,6 +88,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     (UpdateFairShare)
     (UpdateArchiveVersion)
     (SyncClusterDirectory)
+    (UnrecognizedConfigOptions)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +104,6 @@ DEFINE_ENUM(EOperationAlertType,
     (OperationSuspended)
     (ExcessiveJobSpecThrottling)
     (ScheduleJobTimedOut)
-    (SlotIndexCollision)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

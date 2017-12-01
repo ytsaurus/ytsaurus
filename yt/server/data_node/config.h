@@ -50,11 +50,16 @@ public:
     // is subclass-specific).
     TString MediumName;
 
+    //! Controls outcoming location bandwidth used by replication jobs.
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
+
     TStoreLocationConfigBase()
     {
         RegisterParameter("quota", Quota)
             .GreaterThanOrEqual(0)
             .Default(TNullable<i64>());
+        RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
+            .DefaultNew();
     }
 };
 

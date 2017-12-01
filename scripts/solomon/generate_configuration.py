@@ -164,6 +164,18 @@ SERVICES = [
             "-.*",
         ],
     },
+    # --- yp ---
+    {
+        "project": "yp",
+        "type": "yp_master",
+        "solomon_id": "yp_bridge_yp_master",
+        "solomon_name": "yp_master",
+        "yt_port": 9080,
+        "bridge_port": 9020,
+        "bridge_rules": [
+            "+.*"
+        ],
+    },
 ]
 
 CONDUCTOR_GROUPS = {
@@ -330,6 +342,7 @@ class Resource(object):
         logging.debug("Loading resource '%s'", self.api_url_modify)
         rsp = requests.get(self.api_url_modify, headers=self.headers)
         if not rsp.ok:
+            logging.debug("Response: %s", rsp.text)
             rsp.raise_for_status()
         self._remote_data = rsp.json()
         self._local_data = copy.deepcopy(self._remote_data)
@@ -340,6 +353,7 @@ class Resource(object):
         if not rsp.ok:
             if rsp.status_code == 404:
                 return False
+            logging.debug("Response: %s", rsp.text)
             rsp.raise_for_status()
         self._remote_data = rsp.json()
         self._local_data = copy.deepcopy(self._remote_data)
@@ -437,10 +451,11 @@ def bridge_conf():
 
 
 @cli.command()
+@click.option("--token", required=True)
 @click.option("--yes", is_flag=True)
 def check_solomon_services(token, yes):
     for service in SERVICES:
-        resource = Resource("/projects/yt/services/%s" % service["solomon_id"], token)
+        resource = Resource("/projects/%s/services" % service.get("project", "yt"), service["solomon_id"], token)
         resource.load()
 
         def f(key, value):
@@ -511,7 +526,7 @@ def update_cluster_services(token, cluster, type, yes):
             continue
         shard_name = "_".join([solomon_cluster, service_description["solomon_name"].replace("yt_", ""), tag])
         data = {
-            "projectId": "yt",
+            "projectId": service_description.get("project", "yt"),
             "serviceId": service,
             "clusterId": solomon_cluster_type,
             #"quotas": {

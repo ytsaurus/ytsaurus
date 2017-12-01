@@ -167,7 +167,7 @@ private:
     public:
         TPollable(TAsyncDialerSession* owner, const TGuid& id, int socket)
             : Owner_(MakeWeak(owner))
-            , LoggingId_(Format("TAsyncDialerSession:%v:%v", id, socket))
+            , LoggingId_(Format("AsyncDialerSession{%v:%v}", id, socket))
         { }
 
         virtual const TString& GetLoggingId() const override

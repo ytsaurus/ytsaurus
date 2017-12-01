@@ -1185,7 +1185,8 @@ protected:
             }
             LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetId());
             for (const auto& joblet : ActiveJoblets_) {
-                Controller->Host->GetJobHost(joblet->JobId)->AbortJob(
+                Controller->ControllerAgent->AbortJob(
+                    joblet->JobId,
                     TError("Job is aborted due to chunk pool output invalidation")
                         << error);
                 InvalidatedJoblets_.insert(joblet);
@@ -1948,7 +1949,7 @@ protected:
             .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
-    virtual TFuture<void> AnalyzePartitionHistogram() const override
+    void AnalyzePartitionHistogram() override
     {
         TError error;
 
@@ -1967,7 +1968,7 @@ protected:
             }
         }
 
-        return Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
+        SetOperationAlert(EOperationAlertType::IntermediateDataSkew, error);
     }
 
     void InitJobIOConfigs()

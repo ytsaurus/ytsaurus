@@ -25,6 +25,8 @@ class TSchedulerJobSpecExt;
 class TSchedulerJobResultExt;
 class TTableInputSpec;
 class TJobResources;
+class TJobMetrics;
+class TTreeTaggedJobMetrics;
 class TOperationJobMetrics;
 class TReqHeartbeat;
 class TRspHeartbeat;
@@ -182,6 +184,8 @@ DECLARE_REFCOUNTED_CLASS(TMapReduceOperationSpec)
 DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationSpec)
 
 DECLARE_REFCOUNTED_CLASS(TPoolConfig)
+
+DECLARE_REFCOUNTED_CLASS(TExtendedSchedulableConfig)
 
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec)
 

@@ -38,10 +38,11 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/functions_cache.h>
-#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/range_inferrer.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
@@ -213,6 +214,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Invoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
+    , ReleaseJobsFeasibleInvokers_({Invoker, CancelableInvoker})
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
@@ -232,7 +234,7 @@ TOperationControllerBase::TOperationControllerBase(
         Config->AvailableExecNodesCheckPeriod))
     , AnalyzeOperationProgressExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
-        BIND(&TThis::AnalyzeOperationProgess, MakeWeak(this)),
+        BIND(&TThis::AnalyzeOperationProgress, MakeWeak(this)),
         Config->OperationProgressAnalysisPeriod))
     , MinNeededResourcesSanityCheckExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -1768,9 +1770,8 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
             if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
-                auto jobHost = Host->GetJobHost(jobId);
                 LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
-                jobHost->InterruptJob(EInterruptReason::JobSplit);
+                ControllerAgent->InterruptJob(jobId, EInterruptReason::JobSplit);
             }
         }
 
@@ -2191,7 +2192,6 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
                 AsyncSchedulerTransaction,
                 InputTransaction,
                 OutputTransaction,
-                CompletionTransaction,
                 DebugOutputTransaction
             })
         {
@@ -2338,10 +2338,10 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 }
 
-TFuture<void> TOperationControllerBase::AnalyzeTmpfsUsage() const
+void TOperationControllerBase::AnalyzeTmpfsUsage()
 {
     if (!Config->EnableTmpfs) {
-        return VoidFuture;
+        return;
     }
 
     yhash<EJobType, i64> maximumUsedTmfpsSizePerJobType;
@@ -2401,13 +2401,10 @@ TFuture<void> TOperationControllerBase::AnalyzeTmpfsUsage() const
             minUnusedSpaceRatio * 100.0) << innerErrors;
     }
 
-    return Host->SetOperationAlert(
-        OperationId,
-        EOperationAlertType::UnusedTmpfsSpace,
-        error);
+    SetOperationAlert(EOperationAlertType::UnusedTmpfsSpace, error);
 }
 
-TFuture<void> TOperationControllerBase::AnalyzeInputStatistics() const
+void TOperationControllerBase::AnalyzeInputStatistics()
 {
     TError error;
     if (GetUnavailableInputChunkCount() > 0) {
@@ -2416,10 +2413,10 @@ TFuture<void> TOperationControllerBase::AnalyzeInputStatistics() const
             "the relevant parts of computation will be suspended");
     }
 
-    return Host->SetOperationAlert(OperationId, EOperationAlertType::LostInputChunks, error);
+    SetOperationAlert(EOperationAlertType::LostInputChunks, error);
 }
 
-TFuture<void> TOperationControllerBase::AnalyzeIntermediateJobsStatistics() const
+void TOperationControllerBase::AnalyzeIntermediateJobsStatistics()
 {
     TError error;
     if (JobCounter->GetLost() > 0) {
@@ -2428,15 +2425,13 @@ TFuture<void> TOperationControllerBase::AnalyzeIntermediateJobsStatistics() cons
             "operation will take longer than usual");
     }
 
-    return Host->SetOperationAlert(OperationId, EOperationAlertType::LostIntermediateChunks, error);
+    SetOperationAlert(EOperationAlertType::LostIntermediateChunks, error);
 }
 
-TFuture<void> TOperationControllerBase::AnalyzePartitionHistogram() const
-{
-    return VoidFuture;
-}
+void TOperationControllerBase::AnalyzePartitionHistogram()
+{ }
 
-TFuture<void> TOperationControllerBase::AnalyzeAbortedJobs() const
+void TOperationControllerBase::AnalyzeAbortedJobs()
 {
     auto aggregateTimeForJobState = [&] (EJobState state) {
         i64 sum = 0;
@@ -2470,10 +2465,10 @@ TFuture<void> TOperationControllerBase::AnalyzeAbortedJobs() const
                 << TErrorAttribute("aborted_jobs_time_ratio", abortedJobsTimeRatio);
     }
 
-    return Host->SetOperationAlert(OperationId, EOperationAlertType::LongAbortedJobs, error);
+    SetOperationAlert(EOperationAlertType::LongAbortedJobs, error);
 }
 
-TFuture<void> TOperationControllerBase::AnalyzeJobsIOUsage() const
+void TOperationControllerBase::AnalyzeJobsIOUsage()
 {
     std::vector<TError> innerErrors;
 
@@ -2493,13 +2488,13 @@ TFuture<void> TOperationControllerBase::AnalyzeJobsIOUsage() const
             << innerErrors;
     }
 
-    return Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveDiskUsage, error);
+    SetOperationAlert(EOperationAlertType::ExcessiveDiskUsage, error);
 }
 
-TFuture<void> TOperationControllerBase::AnalyzeJobsDuration() const
+void TOperationControllerBase::AnalyzeJobsDuration()
 {
     if (OperationType == EOperationType::RemoteCopy || OperationType == EOperationType::Erase) {
-        return VoidFuture;
+        return;
     }
 
     auto operationDuration = TInstant::Now() - StartTime;
@@ -2541,10 +2536,10 @@ TFuture<void> TOperationControllerBase::AnalyzeJobsDuration() const
             << innerErrors;
     }
 
-    return Host->SetOperationAlert(OperationId, EOperationAlertType::ShortJobsDuration, error);
+    SetOperationAlert(EOperationAlertType::ShortJobsDuration, error);
 }
 
-TFuture<void> TOperationControllerBase::AnalyzeScheduleJobStatistics() const
+void TOperationControllerBase::AnalyzeScheduleJobStatistics()
 {
     auto jobSpecThrottlerActivationCount = ScheduleJobStatistics_->Failed[EScheduleJobFailReason::JobSpecThrottling];
     auto activationCountThreshold = Config->OperationAlertsConfig->JobSpecThrottlingAlertActivationCountThreshold;
@@ -2556,32 +2551,22 @@ TFuture<void> TOperationControllerBase::AnalyzeScheduleJobStatistics() const
             "significatly less than fair share ratio")
                 << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
     }
-    return Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveJobSpecThrottling, error);
+
+    SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
 }
 
-TFuture<void> TOperationControllerBase::DoAnalyzeOperationProgress() const
+void TOperationControllerBase::AnalyzeOperationProgress()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    std::vector<TFuture<void>> analysisFutures = {
-        AnalyzeTmpfsUsage(),
-        AnalyzeInputStatistics(),
-        AnalyzeIntermediateJobsStatistics(),
-        AnalyzePartitionHistogram(),
-        AnalyzeAbortedJobs(),
-        AnalyzeJobsIOUsage(),
-        AnalyzeJobsDuration(),
-        AnalyzeScheduleJobStatistics()
-    };
-
-    return Combine(analysisFutures);
-}
-
-void TOperationControllerBase::AnalyzeOperationProgess() const
-{
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    DoAnalyzeOperationProgress();
+    AnalyzeTmpfsUsage();
+    AnalyzeInputStatistics();
+    AnalyzeIntermediateJobsStatistics();
+    AnalyzePartitionHistogram();
+    AnalyzeAbortedJobs();
+    AnalyzeJobsIOUsage();
+    AnalyzeJobsDuration();
+    AnalyzeScheduleJobStatistics();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
@@ -2611,7 +2596,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
             continue;
         }
 
-        const auto& neededResources = task->GetMinNeededResources();
+        const auto& neededResources = task->GetMinNeededResources().ToJobResources();
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources)) {
             OnOperationFailed(
                 TError("No online node can satisfy the resource demand")
@@ -2624,7 +2609,8 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
-    const TJobResources& jobLimits)
+    const NScheduler::TJobResourcesWithQuota& jobLimits,
+    const TString& treeId)
 {
     if (Spec_->TestingOperationOptions->SchedulingDelay) {
         if (Spec_->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
@@ -2639,7 +2625,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 
     TWallTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
-    DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
+    DoScheduleJob(context.Get(), jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
         JobCounter->Start(1);
     }
@@ -2811,7 +2797,7 @@ bool TOperationControllerBase::CheckJobLimits(
     const TJobResources& jobLimits,
     const TJobResources& nodeResourceLimits)
 {
-    auto neededResources = task->GetMinNeededResources();
+    auto neededResources = task->GetMinNeededResources().ToJobResources();
     if (Dominates(jobLimits, neededResources)) {
         return true;
     }
@@ -2821,7 +2807,8 @@ bool TOperationControllerBase::CheckJobLimits(
 
 void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const NScheduler::TJobResourcesWithQuota& jobLimits,
+    const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -2833,9 +2820,12 @@ void TOperationControllerBase::DoScheduleJob(
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
     } else {
-        DoScheduleLocalJob(context, jobLimits, scheduleJobResult);
+        if (!CanSatisfyDiskRequest(context->DiskLimits(), context->DiskUsage(), jobLimits.GetDiskQuota())) {
+            return;
+        }
+        DoScheduleLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
         if (!scheduleJobResult->JobStartRequest) {
-            DoScheduleNonLocalJob(context, jobLimits, scheduleJobResult);
+            DoScheduleNonLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
         }
     }
 }
@@ -2843,6 +2833,7 @@ void TOperationControllerBase::DoScheduleJob(
 void TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
+    const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
@@ -2923,7 +2914,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 break;
             }
 
-            bestTask->ScheduleJob(context, jobLimits, scheduleJobResult);
+            bestTask->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
             if (scheduleJobResult->JobStartRequest) {
                 UpdateTask(bestTask);
                 break;
@@ -2941,6 +2932,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 void TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
+    const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
     auto now = NProfiling::CpuInstantToInstant(context->GetNow());
@@ -3047,7 +3039,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     break;
                 }
 
-                task->ScheduleJob(context, jobLimits, scheduleJobResult);
+                task->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
                 if (scheduleJobResult->JobStartRequest) {
                     UpdateTask(task);
                     return;
@@ -3178,11 +3170,11 @@ TJobResources TOperationControllerBase::GetNeededResources() const
     return CachedNeededResources;
 }
 
-std::vector<TJobResources> TOperationControllerBase::GetMinNeededJobResources() const
+std::vector<NScheduler::TJobResourcesWithQuota> TOperationControllerBase::GetMinNeededJobResources() const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    yhash<EJobType, TJobResources> minNeededJobResources;
+    yhash<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
 
     for (const auto& task: Tasks) {
         if (task->GetPendingJobCount() == 0) {
@@ -3200,7 +3192,7 @@ std::vector<TJobResources> TOperationControllerBase::GetMinNeededJobResources() 
         }
     }
 
-    std::vector<TJobResources> result;
+    std::vector<NScheduler::TJobResourcesWithQuota> result;
     for (const auto& pair : minNeededJobResources) {
         result.push_back(pair.second);
         LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
@@ -3224,11 +3216,8 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     // Some statistics are reported only on operation end so
     // we need to synchronously check everything and set
     // appropriate alerts before flushing operation node.
-    auto analyzeFuture = BIND(&TOperationControllerBase::DoAnalyzeOperationProgress, MakeStrong(this))
-        .AsyncVia(GetCancelableInvoker())
-        .Run();
-    auto analyzeResult = WaitFor(analyzeFuture);
-    YCHECK(analyzeResult.IsOK());
+    // Flush of newly calculated statistics is guaranteed by OnOperationFailed.
+    AnalyzeOperationProgress();
 
     auto flushResult = WaitFor(MasterConnector->FlushOperationNode(OperationId));
     if (checkFlushResult && !flushResult.IsOK()) {
@@ -3302,9 +3291,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     }
 
     for (const auto& joblet : JobletMap) {
-        auto jobHost = Host->GetJobHost(joblet.first);
-
-        jobHost->FailJob();
+        ControllerAgent->FailJob(joblet.first);
     }
 
     auto error = GetTimeLimitError();
@@ -3593,6 +3580,10 @@ void TOperationControllerBase::FetchInputTables()
 
     LOG_INFO("Started fetching input tables");
 
+    TQueryOptions queryOptions;
+        queryOptions.VerboseLogging = true;
+        queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
+
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto ranges = table.Path.GetRanges();
@@ -3601,12 +3592,20 @@ void TOperationControllerBase::FetchInputTables()
             continue;
         }
 
-        if (InputQuery && InputQuery->Query->OriginalSchema.IsSorted()) {
+        if (InputQuery && table.Schema.IsSorted()) {
+            auto rangeInferrer = CreateRangeInferrer(
+                InputQuery->Query->WhereClause,
+                table.Schema,
+                table.Schema.GetKeyColumns(),
+                ControllerAgent->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
+                BuiltinRangeExtractorMap,
+                queryOptions);
+
             std::vector<TReadRange> inferredRanges;
-            for (const auto& range : table.Path.GetRanges()) {
+            for (const auto& range : ranges) {
                 auto lower = range.LowerLimit().HasKey() ? range.LowerLimit().GetKey() : MinKey();
                 auto upper = range.UpperLimit().HasKey() ? range.UpperLimit().GetKey() : MaxKey();
-                auto result = InputQuery->RangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
+                auto result = rangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
                 for (const auto& inferred : result) {
                     auto inferredRange = range;
                     inferredRange.LowerLimit().SetKey(TOwningKey(inferred.first));
@@ -4432,26 +4431,35 @@ void TOperationControllerBase::ParseInputQuery(
         return InferInputSchema(schemas, false);
     };
 
-    TQueryOptions options;
-    options.VerboseLogging = true;
-    options.RangeExpansionLimit = Config->MaxRangesOnTable;
-
     auto query = PrepareJobQuery(
         queryString,
         schema ? *schema : inferSchema(),
         fetchFunctions);
-    auto rangeInferrer = CreateRangeInferrer(
-        query->WhereClause,
-        query->OriginalSchema,
-        query->GetKeyColumns(),
-        ControllerAgent->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
-        BuiltinRangeExtractorMap,
-        options);
+
+    auto getColumns = [] (const TTableSchema& desiredSchema, const TTableSchema& tableSchema) {
+        std::vector<TString> columns;
+        for (const auto& column : desiredSchema.Columns()) {
+            if (tableSchema.FindColumn(column.Name())) {
+                columns.push_back(column.Name());
+            }
+        }
+
+        return columns.size() == tableSchema.GetColumnCount()
+            ? TNullable<std::vector<TString>>()
+            : MakeNullable(std::move(columns));
+    };
+
+    // Use query column filter for input tables.
+    for (auto table : InputTables) {
+        auto columns = getColumns(query->GetReadSchema(), table.Schema);
+        if (columns) {
+            table.Path.SetColumns(*columns);
+        }
+    }
 
     InputQuery.Emplace();
     InputQuery->Query = std::move(query);
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
-    InputQuery->RangeInferrer = std::move(rangeInferrer);
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(
@@ -5245,7 +5253,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
             jobIdsToRelease.size(),
             snapshotIndex,
             SchedulerIncarnation_);
-        Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
+        ControllerAgent->ReleaseJobs(std::move(jobIdsToRelease), OperationId, SchedulerIncarnation_);
     }
 
     // Stripe lists.
@@ -5277,19 +5285,42 @@ void TOperationControllerBase::OnBeforeDisposal()
         headCookie,
         SchedulerIncarnation_);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
-    Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
+    ControllerAgent->ReleaseJobs(std::move(jobIdsToRelease), OperationId, SchedulerIncarnation_);
 }
 
 NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelta()
 {
+    TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+
     NScheduler::TOperationJobMetrics result;
     result.OperationId = OperationId;
+
+    auto now = NProfiling::GetCpuInstant();
+
+    if (State == EControllerState::Running &&
+        LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsDeltaReportBackoff) > now)
     {
-        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
-        result.JobMetrics = JobMetricsDelta_;
-        JobMetricsDelta_ = TJobMetrics();
+        return result;
     }
+
+    for (auto& pair : JobMetricsDeltaPerTree_) {
+        const auto& treeId = pair.first;
+        auto& delta = pair.second;
+        if (!delta.IsEmpty()) {
+            result.Metrics.push_back({treeId, delta});
+            delta = NScheduler::TJobMetrics();
+        }
+    }
+
+    LastJobMetricsDeltaReportTime_ = now;
+
     return result;
+}
+
+TOperationAlertsMap TOperationControllerBase::GetAlerts()
+{
+    TGuard<TSpinLock> guard(AlertsLock_);
+    return Alerts_;
 }
 
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
@@ -5699,8 +5730,14 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
 {
     auto delta = joblet->UpdateJobMetrics(jobSummary);
     {
-        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
-        JobMetricsDelta_ += delta;
+        TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+
+        auto it = JobMetricsDeltaPerTree_.find(joblet->TreeId);
+        if (it == JobMetricsDeltaPerTree_.end()) {
+            YCHECK(JobMetricsDeltaPerTree_.insert(std::make_pair(joblet->TreeId, delta)).second);
+        } else {
+            it->second += delta;
+        }
     }
 }
 
@@ -6579,6 +6616,12 @@ void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
     task->FinishInput(TDataFlowGraph::TVertexDescriptor::Source);
 }
 
+void TOperationControllerBase::SetOperationAlert(EOperationAlertType type, const TError& alert)
+{
+    TGuard<TSpinLock> guard(AlertsLock_);
+    Alerts_[type] = alert;
+}
+
 bool TOperationControllerBase::IsCompleted() const
 {
     for (const auto& task : AutoMergeTasks) {
@@ -6598,7 +6641,8 @@ NScheduler::TJobPtr TOperationControllerBase::BuildJobFromJoblet(const TJobletPt
         nullptr /* execNode */,
         joblet->StartTime,
         joblet->ResourceLimits,
-        IsJobInterruptible());
+        IsJobInterruptible(),
+        joblet->TreeId);
     job->SetState(EJobState::Running);
     job->SetRevived(true);
     job->RevivedNodeDescriptor() = joblet->NodeDescriptor;

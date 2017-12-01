@@ -2,6 +2,8 @@
 #include "private.h"
 #include "config.h"
 
+#include <limits>
+
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/server/data_node/master_connector.h>
@@ -68,6 +70,8 @@ public:
 
     TNodeResources GetResourceLimits() const;
     TNodeResources GetResourceUsage(bool includeWaiting = false) const;
+    TDiskResources GetDiskLimits() const;
+    TDiskResources GetDiskUsage() const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
 
     void SetDisableSchedulerJobs(bool value);
@@ -267,6 +271,21 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
             result += job->GetResourceUsage();
         }
     }
+    return result;
+}
+
+// temporary fix (until YT-7676 is finished)
+TDiskResources TJobController::TImpl::GetDiskUsage() const
+{
+    TDiskResources result;
+    result.add_disk_usage(0);
+    return result;
+}
+
+TDiskResources TJobController::TImpl::GetDiskLimits() const
+{
+    TDiskResources result;
+    result.add_disk_usage(std::numeric_limits<i64>::max());
     return result;
 }
 
@@ -495,6 +514,9 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     ToProto(request->mutable_node_descriptor(), masterConnector->GetLocalDescriptor());
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
+
+    *request->mutable_disk_usage() = GetDiskUsage();
+    *request->mutable_disk_limits() = GetDiskLimits();
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.

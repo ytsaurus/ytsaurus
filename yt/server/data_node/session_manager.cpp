@@ -136,7 +136,7 @@ ISessionPtr TSessionManager::CreateSession(
                 location,
                 lease);
             break;
-    
+
         default:
             THROW_ERROR_EXCEPTION("Invalid session chunk type %Qlv",
                 chunkType);

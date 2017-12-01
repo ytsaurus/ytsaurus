@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/tablet_client/config.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -49,8 +51,9 @@ public:
         IAttributeDictionary* attributes) override
     {
         auto name = attributes->GetAndRemove<TString>("name");
+        auto options = attributes->GetAndRemove<TTabletCellOptionsPtr>("options");
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return tabletManager->CreateTabletCellBundle(name, hintId);
+        return tabletManager->CreateTabletCellBundle(name, hintId, std::move(options));
     }
 
 private:

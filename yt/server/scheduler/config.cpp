@@ -25,6 +25,9 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
 TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 {
+    RegisterParameter("nodes_filter", NodesFilter)
+        .Default();
+
     RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
         .Default(TDuration::Seconds(15));
     RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
@@ -45,7 +48,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .Default(10);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-        .Alias("max_running_operations")
         .Default(200)
         .GreaterThan(0);
 
@@ -137,6 +139,24 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
         .Default(TDuration::Seconds(3));
+
+    RegisterParameter("max_operation_count", MaxOperationCount)
+        .Default(5000)
+        .GreaterThan(0);
+
+    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+        .Alias("max_running_operations")
+        .Default(1000)
+        .GreaterThan(0);
+
+    RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
+        .Default();
+
+    RegisterParameter("main_nodes_filter", MainNodesFilter)
+        .Default();
+
+    RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -345,6 +365,8 @@ TOperationAlertsConfig::TOperationAlertsConfig()
 
 TSchedulerConfig::TSchedulerConfig()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("control_thread_priority", ControlThreadPriority)
         .Default();
     RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -497,6 +519,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_update_exec_nodes_information_delay", ControllerUpdateExecNodesInformationDelay)
         .Default(TDuration::Seconds(30));
 
+    RegisterParameter("exec_nodes_request_period", ExecNodesRequestPeriod)
+        .Default(TDuration::Seconds(10));
+
     RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
     RegisterParameter("node_shard_exec_nodes_cache_update_period", NodeShardExecNodesCacheUpdatePeriod)
@@ -625,6 +650,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("orchid_keys_update_period", OrchidKeysUpdatePeriod)
+        .Default(TDuration::Seconds(1));
+
     RegisterParameter("iops_threshold", IopsThreshold)
         .Default(Null);
     RegisterParameter("iops_throttler_limit", IopsThrottlerLimit)
@@ -647,13 +675,12 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("operation_alerts", OperationAlertsConfig)
         .DefaultNew();
+    RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
+        .Default(true);
 
     RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
         .Default(64_KB)
         .GreaterThan(0);
-
-    RegisterParameter("main_nodes_filter", MainNodesFilter)
-        .Default();
 
     RegisterParameter("memory_distribution_different_node_types_threshold", MemoryDistributionDifferentNodeTypesThreshold)
         .Default(4);
@@ -664,9 +691,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_spec_codec", JobSpecCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("job_metrics_batch_interval", JobMetricsBatchInterval)
-        .Default(TDuration::Minutes(1));
-
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));
 
@@ -675,6 +699,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
+
+    RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
+        .Default(TDuration::Seconds(15));
 
     RegisterInitializer([&] () {
         ChunkLocationThrottler->Limit = 10000;

@@ -37,7 +37,8 @@ TJob::TJob(
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,
-    bool interruptible)
+    bool interruptible,
+    const TString& treeId)
     : Id_(id)
     , Type_(type)
     , OperationId_(operationId)
@@ -45,6 +46,7 @@ TJob::TJob(
     , StartTime_(startTime)
     , Interruptible_(interruptible)
     , State_(EJobState::None)
+    , TreeId_(treeId)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
 { }

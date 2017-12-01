@@ -338,8 +338,13 @@ class TErasureWriterConfig
 public:
     i64 ErasureWindowSize;
 
+    bool EnableErasureTargetNodeReallocation;
+
     TErasureWriterConfig()
     {
+        RegisterParameter("enable_erasure_target_node_reallocation", EnableErasureTargetNodeReallocation)
+            .Default(false);
+
         RegisterParameter("erasure_window_size", ErasureWindowSize)
             .Default(8_MB)
             .GreaterThan(0);

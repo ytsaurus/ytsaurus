@@ -148,6 +148,12 @@ def distribute(src_file, recipients, dst_file):
     failed_nodes = [r for r in failures if failures[r] >= attempt_threshold]
     print "Ditribution finished. Failed at %s hosts: %s" % (len(failed_nodes), failed_nodes)
 
+def expand_hostlist(nodes):
+    if nodes.startswith("^"):
+        return [node.strip() for node in file(nodes[1:])]
+    else:
+        return hostlist.expand_hostlist(nodes)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("src", type=str, help="Source file")
@@ -157,7 +163,7 @@ def main():
 
     nodelist = []
     for nodes in args.nodes:
-        nodelist += hostlist.expand_hostlist(nodes)
+        nodelist += expand_hostlist(nodes)
     if len(nodes) == 0:
         return
 

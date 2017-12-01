@@ -127,7 +127,7 @@ public:
         , Throttler_(throttler)
         , Networks_(client->GetNativeConnection()->GetNetworks())
         , LocateChunksInvoker_(CreateFixedPriorityInvoker(
-            TDispatcher::Get()->GetCompressionPoolInvoker(),
+            TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             // We locate chunks with batch workload category.
             TWorkloadDescriptor(EWorkloadCategory::UserBatch).GetPriority()))
         , InitialSeedReplicas_(seedReplicas)
@@ -444,7 +444,7 @@ protected:
                 TGuid::Create(),
                 reader->ChunkId_))
         , SessionInvoker_(CreateFixedPriorityInvoker(
-            TDispatcher::Get()->GetCompressionPoolInvoker(),
+            TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             WorkloadDescriptor_.GetPriority()))
     {
         ResetPeerQueue();

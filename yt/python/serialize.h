@@ -104,24 +104,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TListFragmentLexer
-{
-public:
-    TListFragmentLexer();
-    explicit TListFragmentLexer(IInputStream* stream);
-    ~TListFragmentLexer();
-    TListFragmentLexer(TListFragmentLexer&&);
-    TListFragmentLexer& operator=(TListFragmentLexer&&);
-
-    TSharedRef NextItem();
-
-private:
-    class TImpl;
-    std::unique_ptr<TImpl> Impl_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYTree
 
 namespace NPython {

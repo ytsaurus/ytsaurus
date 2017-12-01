@@ -6,6 +6,7 @@
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/profiling/public.h>
 
@@ -25,6 +26,9 @@ struct ISchedulingContext
 
     virtual const TJobResources& ResourceLimits() const = 0;
     virtual TJobResources& ResourceUsage() = 0;
+
+    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskLimits() const = 0;
+    virtual NNodeTrackerClient::NProto::TDiskResources& DiskUsage() = 0;
     //! Used during preemption to allow second-chance scheduling.
     virtual TJobResources& ResourceUsageDiscount() = 0;
 
@@ -36,12 +40,17 @@ struct ISchedulingContext
 
     //! Returns |true| if node has enough resources to start job with given limits.
     virtual bool CanStartJob(const TJobResources& jobResources) const = 0;
+    //! Returns |true| if node has enough resources to start job with given limits.
+    virtual bool CanStartJobWithQuota(const TJobResourcesWithQuota& jobResources) const = 0;
     //! Returns |true| if any more new jobs can be scheduled at this node.
     virtual bool CanStartMoreJobs() const = 0;
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const = 0;
 
-    virtual TJobPtr StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest) = 0;
+    virtual TJobPtr StartJob(
+        const TString& treeId,
+        const TOperationId& operationId,
+        const TJobStartRequest& jobStartRequest) = 0;
 
     virtual void PreemptJob(TJobPtr job) = 0;
 

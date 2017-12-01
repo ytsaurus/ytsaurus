@@ -828,25 +828,19 @@ private:
             EWireProtocolCommand command,
             TUnversionedRow row)
         {
-            DoSubmitRow(
-                &UnversionedSubmittedRows_,
-                TUnversionedSubmittedRow{
-                    command,
-                    row,
-                    static_cast<int>(UnversionedSubmittedRows_.size())
-                });
+            UnversionedSubmittedRows_.push_back({
+                command,
+                row,
+                static_cast<int>(UnversionedSubmittedRows_.size())});
         }
 
         void SubmitRow(
             EWireProtocolCommand command,
             TVersionedRow row)
         {
-            DoSubmitRow(
-                &VersionedSubmittedRows_,
-                TVersionedSubmittedRow{
-                    command,
-                    row
-                });
+            VersionedSubmittedRows_.push_back({
+                command,
+                row});
         }
 
         int Prepare()
@@ -910,6 +904,7 @@ private:
             size_t DataWeight = 0;
         };
 
+        int TotalBatchedRowCount_ = 0;
         std::vector<std::unique_ptr<TBatch>> Batches_;
 
         struct TVersionedSubmittedRow
@@ -932,16 +927,6 @@ private:
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
         TPromise<void> InvokePromise_ = NewPromise<void>();
-
-        template <class TRow>
-        void DoSubmitRow(std::vector<TRow>* rows, const TRow& row)
-        {
-            if (rows->size() >= Config_->MaxRowsPerTransaction) {
-                THROW_ERROR_EXCEPTION("Transaction affects too many rows")
-                    << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
-            }
-            rows->push_back(row);
-        }
 
         void PrepareSortedBatches()
         {
@@ -1025,6 +1010,11 @@ private:
         template <typename TRow>
         void WriteRow(const TRow& submittedRow)
         {
+            if (++TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction) {
+                THROW_ERROR_EXCEPTION("Transaction affects too many rows")
+                    << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
+            }
+
             auto* batch = EnsureBatch();
             auto& writer = batch->Writer;
             writer.WriteCommand(submittedRow.Command);
@@ -1203,7 +1193,7 @@ private:
         TTransactionSignature CurrentSignature_ = InitialTransactionSignature;
         int RequestsRemaining_ = 0;
 
-        NLogging::TLogger Logger;
+        const NLogging::TLogger Logger;
 
 
         TFuture<void> SendTabletActions(const TNativeTransactionPtr& owner, const IChannelPtr& channel)

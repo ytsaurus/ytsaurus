@@ -17,6 +17,8 @@ class TNodeStatistics;
 class TNodeResources;
 class TNodeResourceLimitsOverrides;
 
+class TDiskResources;
+
 class TAddressMap;
 class TNodeAddressMap;
 

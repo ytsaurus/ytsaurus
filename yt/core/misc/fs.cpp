@@ -285,6 +285,34 @@ TFileStatistics GetFileStatistics(const TString& path)
     return statistics;
 }
 
+i64 GetDirectorySize(const TString& path)
+{
+    std::queue<TString> directories;
+    directories.push(path);
+
+    i64 size = 0;
+    while (!directories.empty()) {
+        const auto& directory = directories.front();
+
+        auto subdirectories = EnumerateDirectories(directory);
+        for (const auto& subdirectory : subdirectories) {
+            directories.push(CombinePaths(directory, subdirectory));
+        }
+
+        auto files = EnumerateFiles(directory);
+        for (const auto& file : files) {
+            auto fileStatistics = GetFileStatistics(CombinePaths(directory, file));
+            if (fileStatistics.Size > 0) {
+                size += fileStatistics.Size;
+            }
+        }
+
+        directories.pop();
+    }
+
+    return size;
+}
+
 void Touch(const TString& path)
 {
 #ifdef _unix_

@@ -279,7 +279,7 @@ public:
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
-        : Name_(Format("connection[%v <-> %v]", localAddress, remoteAddress))
+        : Name_(Format("FDConnection{%v<->%v}", localAddress, remoteAddress))
         , LocalAddress_(localAddress)
         , RemoteAddress_(remoteAddress)
         , FD_(fd)

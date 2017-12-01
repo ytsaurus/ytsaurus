@@ -374,7 +374,9 @@ struct TSetNodeOptions
     , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
-{ };
+{
+    bool Recursive = false;
+};
 
 struct TRemoveNodeOptions
     : public TTimeoutOptions

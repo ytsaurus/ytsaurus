@@ -20,6 +20,8 @@
 
 #include <yt/ytlib/hive/cluster_directory.h>
 
+#include <yt/ytlib/query_client/query.h>
+
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 

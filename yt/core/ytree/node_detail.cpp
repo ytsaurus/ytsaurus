@@ -198,7 +198,7 @@ void TCompositeNodeMixin::SetRecursive(
 
     auto factory = CreateFactory();
     auto child = ConvertToNode(TYsonString(request->value()), factory.get());
-    SetChild(factory.get(), "/" + path, child, false);
+    SetChild(factory.get(), "/" + path, child, request->recursive());
     factory->Commit();
 
     context->Reply();
@@ -263,7 +263,6 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
             }
 
             auto suffix = TYPath(tokenizer.GetSuffix());
-            bool lastToken =  tokenizer.Advance() == NYPath::ETokenType::EndOfStream;
 
             auto child = FindChild(key);
             if (!child) {
@@ -271,7 +270,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                     method == "Create" ||
                     method == "Copy" ||
                     method == "Remove" ||
-                    method == "Set" && lastToken)
+                    method == "Set")
                 {
                     return IYPathService::TResolveResultHere{"/" + path};
                 } else {
@@ -351,7 +350,11 @@ void TMapNodeMixin::SetChild(
         tokenizer.ThrowUnexpected();
     }
 
-    auto currentNode = AsMap();
+    IMapNodePtr rootNode = AsMap();
+    INodePtr rootChild;
+    TString rootKey;
+
+    auto currentNode = rootNode;
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
         tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
@@ -388,12 +391,20 @@ void TMapNodeMixin::SetChild(
         }
 
         auto newChild = lastStep ? child : factory->CreateMap();
-        YCHECK(currentNode->AddChild(newChild, key));
+        if (currentNode != rootNode) {
+            YCHECK(currentNode->AddChild(newChild, key));
+        } else {
+            rootChild = newChild;
+            rootKey = key;
+        }
 
         if (!lastStep) {
             currentNode = newChild->AsMap();
         }
     }
+
+    YCHECK(rootKey);
+    rootNode->AddChild(rootChild, rootKey);
 }
 
 int TMapNodeMixin::GetMaxKeyLength() const

@@ -42,4 +42,3 @@ std::unique_ptr<IJobSplitter> CreateJobSplitter(
 
 } // namespace NControllerAgent
 } // namespace NYT
-

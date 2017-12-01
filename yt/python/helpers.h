@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/core/concurrency/async_stream.h>
+
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref.h>
 
@@ -100,6 +102,10 @@ private:
 Py::Callable GetYsonTypeClass(const std::string& name);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool WaitForSettingFuture(TFuture<void> future);
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
 } // namespace NYT

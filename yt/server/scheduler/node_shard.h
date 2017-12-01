@@ -38,6 +38,12 @@ struct INodeShardHost
 
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
 
+    virtual TFuture<void> RegisterOrUpdateNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const yhash_set<TString>& tags) = 0;
+
+    virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
+
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
@@ -102,7 +108,7 @@ public:
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerPtr& operationController);
+    void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerSchedulerHostPtr& operationController);
     void UnregisterOperation(const TOperationId& operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
@@ -224,6 +230,8 @@ private:
 
     int ConcurrentHeartbeatCount_ = 0;
 
+    bool HasOngoingNodesAttributesUpdate_ = false;
+
     std::atomic<int> ActiveJobCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock ResourcesLock_;
@@ -254,12 +262,12 @@ private:
 
     struct TOperationState
     {
-        TOperationState(const NControllerAgent::IOperationControllerPtr& controller)
+        TOperationState(const NControllerAgent::IOperationControllerSchedulerHostPtr& controller)
             : Controller(controller)
         { }
 
         yhash<TJobId, TJobPtr> Jobs;
-        NControllerAgent::IOperationControllerPtr Controller;
+        NControllerAgent::IOperationControllerSchedulerHostPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
     };
@@ -296,7 +304,12 @@ private:
 
     void SubtractNodeResources(TExecNodePtr node);
     void AddNodeResources(TExecNodePtr node);
-    void UpdateNodeResources(TExecNodePtr node, const TJobResources& limits, const TJobResources& usage);
+    void UpdateNodeResources(
+        TExecNodePtr node,
+        const TJobResources& limits,
+        const TJobResources& usage,
+        const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskUsage);
 
     void BeginNodeHeartbeatProcessing(TExecNodePtr node);
     void EndNodeHeartbeatProcessing(TExecNodePtr node);
@@ -349,15 +362,12 @@ private:
 
     void BuildNodeYson(TExecNodePtr node, NYTree::TFluentMap consumer);
 
+    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState);
 };
 
 typedef NYT::TIntrusivePtr<TNodeShard> TNodeShardPtr;
 DEFINE_REFCOUNTED_TYPE(TNodeShard)
 DEFINE_REFCOUNTED_TYPE(TNodeShard::TRevivalState);
-
-////////////////////////////////////////////////////////////////////////////////
-
-IJobHostPtr CreateJobHost(const TJobId& jobId, const TNodeShardPtr& nodeShard);
 
 ////////////////////////////////////////////////////////////////////////////////
 
