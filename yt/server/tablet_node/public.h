@@ -172,6 +172,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
 DEFINE_ENUM(EDynamicTableProfilingMode,
     (Disabled)
     (Path)
+    (Tag)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
