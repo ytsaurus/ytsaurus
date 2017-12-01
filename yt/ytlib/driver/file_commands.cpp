@@ -4,7 +4,7 @@
 #include <yt/ytlib/api/file_reader.h>
 #include <yt/ytlib/api/file_writer.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {
@@ -117,13 +117,30 @@ void TWriteFileCommand::DoExecute(ICommandContextPtr context)
 TGetFileFromCacheCommand::TGetFileFromCacheCommand()
 {
     RegisterParameter("md5", MD5);
-    RegisterParameter("cache_path", CachePath);
+    RegisterParameter("cache_path", Options.CachePath);
 }
 
 void TGetFileFromCacheCommand::DoExecute(ICommandContextPtr context)
 {
-    Options.CachePath = CachePath;
     auto asyncResult = context->GetClient()->GetFileFromCache(MD5, Options);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(result.Path));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPutFileToCacheCommand::TPutFileToCacheCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("md5", MD5);
+    RegisterParameter("cache_path", Options.CachePath);
+}
+
+void TPutFileToCacheCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->PutFileToCache(Path, MD5, Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
     context->ProduceOutputValue(BuildYsonStringFluently()

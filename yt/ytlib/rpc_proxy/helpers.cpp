@@ -112,6 +112,20 @@ void FromProto(
     result->Path = proto.path();
 }
 
+void ToProto(
+    NProto::TPutFileToCacheResult* proto,
+    const NApi::TPutFileToCacheResult& result)
+{
+    proto->set_path(result.Path);
+}
+
+void FromProto(
+    NApi::TPutFileToCacheResult* result,
+    const NProto::TPutFileToCacheResult& proto)
+{
+    result->Path = proto.path();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto

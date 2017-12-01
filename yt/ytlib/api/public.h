@@ -60,6 +60,7 @@ struct TSuppressableAccessTrackingOptions;
 struct TTabletRangeOptions;
 
 struct TGetFileFromCacheResult;
+struct TPutFileToCacheResult;
 
 DECLARE_REFCOUNTED_STRUCT(IConnection)
 DECLARE_REFCOUNTED_STRUCT(IAdmin)

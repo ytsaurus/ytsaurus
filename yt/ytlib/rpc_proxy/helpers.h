@@ -53,6 +53,14 @@ void FromProto(
     NApi::TGetFileFromCacheResult* result,
     const NProto::TGetFileFromCacheResult& proto);
 
+void ToProto(
+    NProto::TPutFileToCacheResult* proto,
+    const NApi::TPutFileToCacheResult& result);
+
+void FromProto(
+    NApi::TPutFileToCacheResult* result,
+    const NProto::TPutFileToCacheResult& proto);
+
 } // namespace NProto
 ////////////////////////////////////////////////////////////////////////////////
 
