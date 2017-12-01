@@ -188,6 +188,10 @@ struct TUserJobSpec
     FLUENT_FIELD_OPTION(i64, ExtraTmpfsSize);
 
     FLUENT_FIELD_OPTION(TString, JobBinary);
+    // Prefix and suffix for specific kind of job
+    // Overrides common prefix and suffix in TOperationOptions
+    FLUENT_FIELD(TString, JobCommandPrefix);
+    FLUENT_FIELD(TString, JobCommandSuffix);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -566,6 +570,8 @@ struct TOperationOptions
     FLUENT_FIELD_OPTION(TNode, Spec);
     FLUENT_FIELD_DEFAULT(bool, Wait, true);
     FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
+    // Prefix and suffix for all kind of jobs (mapper,reducer,combiner)
+    // Can be overridden for the specific job type in the TUserJobSpec
     FLUENT_FIELD(TString, JobCommandPrefix);
     FLUENT_FIELD(TString, JobCommandSuffix);
 
