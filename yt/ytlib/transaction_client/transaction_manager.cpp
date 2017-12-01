@@ -237,6 +237,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        LOG_DEBUG("Transaction abort requested (TransactionId: %v)",
+            Id_);
         DoAbort(TError("Transaction aborted by user request"));
 
         if (Atomicity_ != EAtomicity::Full) {
