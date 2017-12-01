@@ -525,6 +525,16 @@ struct TGetFileFromCacheOptions
     NYPath::TYPath CachePath;
 };
 
+struct TPutFileToCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+    , public TMutatingOptions
+    , public TPrerequisiteOptions
+{
+    NYPath::TYPath CachePath;
+};
+
 struct TJournalReaderOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
@@ -787,6 +797,11 @@ struct TGetFileFromCacheResult
     NYPath::TYPath Path;
 };
 
+struct TPutFileToCacheResult
+{
+    NYPath::TYPath Path;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -1006,6 +1021,11 @@ struct IClient
     virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
         const TString& md5,
         const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) = 0;
+
+    virtual TFuture<TPutFileToCacheResult> PutFileToCache(
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(
