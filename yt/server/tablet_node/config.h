@@ -105,6 +105,7 @@ public:
 
     bool EnableProfiling;
     EDynamicTableProfilingMode ProfilingMode;
+    TString ProfilingTag;
 
     bool EnableCompactionAndPartitioning;
 
@@ -230,6 +231,7 @@ public:
             .Default(false);
         RegisterParameter("profiling_mode", ProfilingMode)
             .Default(EDynamicTableProfilingMode::Path);
+        RegisterParameter("profiling_tag", ProfilingTag);
 
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
             .Default(true);

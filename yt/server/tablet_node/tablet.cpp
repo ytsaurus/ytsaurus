@@ -1152,6 +1152,10 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
             addProfilingTag("table_path", TablePath_);
             break;
 
+        case EDynamicTableProfilingMode::Tag:
+            addProfilingTag("table_tag", Config_->ProfilingTag);
+            break;
+
         default:
             break;
     }
