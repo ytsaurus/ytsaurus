@@ -363,6 +363,7 @@ describe("YtCommand - command descriptors", function() {
             'move',
             'parse_ypath',
             'ping_tx',
+            'put_file_to_cache',
             'read_file',
             'read_journal',
             'read_table',

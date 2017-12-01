@@ -131,7 +131,9 @@ public:
 
         REGISTER(TWriteFileCommand,            "write_file",              Binary,     Null,       true,  true );
         REGISTER(TReadFileCommand,             "read_file",               Null,       Binary,     false, true );
+
         REGISTER(TGetFileFromCacheCommand,     "get_file_from_cache",     Null,       Structured, false, false );
+        REGISTER(TPutFileToCacheCommand,       "put_file_to_cache",       Null,       Structured, true,  false);
 
         REGISTER(TWriteTableCommand,           "write_table",             Tabular,    Null,       true,  true );
         REGISTER(TReadTableCommand,            "read_table",              Null,       Tabular,    false, true );

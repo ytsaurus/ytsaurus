@@ -779,6 +779,12 @@ public:
         const TGetFileFromCacheOptions& options),
         (md5, options))
 
+    IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options),
+        (path, expectedMD5, options))
+
     IMPLEMENT_METHOD(void, AddMember, (
         const TString& group,
         const TString& member,
@@ -2949,6 +2955,153 @@ private:
         return result;
     }
 
+
+    TPutFileToCacheResult DoPutFileToCache(
+        const NYPath::TYPath &path,
+        const TString &expectedMD5,
+        const TPutFileToCacheOptions &options)
+    {
+        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
+        auto Logger = logger;
+
+        TPutFileToCacheResult result;
+
+        // Start transaction.
+        ITransactionPtr transaction;
+        {
+            auto transactionStartOptions = TTransactionStartOptions();
+            transactionStartOptions.ParentId = GetTransactionId(options, true);
+            transactionStartOptions.Sticky = true;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Format("Putting file %v to cache", path));
+            transactionStartOptions.Attributes = std::move(attributes);
+
+            auto asyncTransaction = StartTransaction(ETransactionType::Master, transactionStartOptions);
+            transaction = WaitFor(asyncTransaction)
+                .ValueOrThrow();
+
+            auto transactionAttachOptions = TTransactionAttachOptions();
+            transactionAttachOptions.AutoAbort = true;
+            transactionAttachOptions.PingAncestors = options.PingAncestors;
+            transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
+
+            LOG_DEBUG(
+                "Transaction started (TransactionId: %v)",
+                transaction->GetId());
+        }
+
+        Logger.AddTag("TransactionId: %v", transaction->GetId());
+
+        // Acquire lock.
+        NYPath::TYPath objectIdPath;
+        {
+            TLockNodeOptions lockNodeOptions;
+            lockNodeOptions.TransactionId = transaction->GetId();
+            auto lockResult = DoLockNode(path, ELockMode::Exclusive, lockNodeOptions);
+            objectIdPath = FromObjectId(lockResult.NodeId);
+
+            LOG_DEBUG(
+                "Lock for node acquired (LockId: %v)",
+                lockResult.LockId);
+        }
+
+        // Check permissions.
+        {
+            auto checkPermissionOptions = TCheckPermissionOptions();
+            checkPermissionOptions.TransactionId = transaction->GetId();
+
+            auto readPermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Read, checkPermissionOptions);
+            readPermissionResult.ToError(Options_.User, EPermission::Read)
+                .ThrowOnError();
+
+            auto removePermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Remove, checkPermissionOptions);
+            removePermissionResult.ToError(Options_.User, EPermission::Remove)
+                .ThrowOnError();
+
+            auto usePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Use, checkPermissionOptions);
+            usePermissionResult.ToError(Options_.User, EPermission::Use)
+                .ThrowOnError();
+        }
+
+        // Check that MD5 hash is equal to the original MD5 hash of the file.
+        {
+            auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+            auto req = TYPathProxy::Get(objectIdPath + "/@");
+
+            std::vector<TString> attributeKeys{
+                "md5"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            NCypressClient::SetTransactionId(req, transaction->GetId());
+
+            auto rspOrError = WaitFor(proxy->Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                "Error requesting md5 hash of file %v",
+                path);
+
+            auto rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            auto md5 = attributes->Get<TString>("md5");
+            if (expectedMD5 != md5) {
+                THROW_ERROR_EXCEPTION(
+                    "MD5 mismatch; expected %v, got %v",
+                    expectedMD5,
+                    md5);
+            }
+
+            LOG_DEBUG(
+                "MD5 hash checked (MD5: %v)",
+                expectedMD5);
+        }
+
+        auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
+        auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+
+        // Move file.
+        {
+            auto moveOptions = TMoveNodeOptions();
+            moveOptions.TransactionId = transaction->GetId();
+            moveOptions.Recursive = true;
+            moveOptions.Force = true;
+            moveOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            moveOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+
+            WaitFor(fileCacheClient->MoveNode(objectIdPath, destination, moveOptions))
+                .ValueOrThrow();
+
+            LOG_DEBUG(
+                "File has been moved to cache (Destination: %v)",
+                destination);
+        }
+
+        // Set /@touched attribute.
+        {
+            auto setNodeOptions = TSetNodeOptions();
+            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            setNodeOptions.TransactionId = transaction->GetId();
+
+            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
+            auto rspOrError = WaitFor(asyncResult);
+
+            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
+            }
+
+            LOG_DEBUG(
+                "Attribute /@touched set (Destination: %v)",
+                destination);
+        }
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        result.Path = destination;
+        return result;
+    }
 
     void DoAddMember(
         const TString& group,

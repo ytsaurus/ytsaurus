@@ -48,7 +48,21 @@ public:
 
 private:
     TString MD5;
-    NYPath::TYPath CachePath;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPutFileToCacheCommand
+    : public TTypedCommand<NApi::TPutFileToCacheOptions>
+{
+public:
+    TPutFileToCacheCommand();
+
+private:
+    NYPath::TYPath Path;
+    TString MD5;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
