@@ -221,6 +221,7 @@ private:
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
             protoTabletInfo->set_total_row_count(tabletSnapshot->RuntimeData->TotalRowCount.load());
+            protoTabletInfo->set_trimmed_row_count(tabletSnapshot->RuntimeData->TrimmedRowCount.load());
 
             for (const auto& replicaPair : tabletSnapshot->Replicas) {
                 const auto& replicaId = replicaPair.first;
