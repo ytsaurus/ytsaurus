@@ -201,6 +201,16 @@ struct TGetInSyncReplicasOptions
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
 
+struct TGetTabletsInfoOptions
+    : public TTimeoutOptions
+{ };
+
+struct TTabletInfo
+{
+    i64 TotalRowCount = 0;
+    i64 TrimmedRowCount = 0;
+};
+
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -715,7 +725,8 @@ struct TJob
     TNullable<TString> CoreInfos;
 };
 
-struct TListOperationsResult {
+struct TListOperationsResult
+{
     std::vector<TOperation> Operations;
     TNullable<yhash<TString, i64>> PoolCounts;
     TNullable<yhash<TString, i64>> UserCounts;
@@ -931,6 +942,11 @@ struct IClient
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
         const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
+
+    virtual TFuture<std::vector<TTabletInfo>> GetTabletInfos(
+        const NYPath::TYPath& path,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletsInfoOptions& options = TGetTabletsInfoOptions()) = 0;
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
