@@ -149,6 +149,8 @@ message TRspStartTransaction
     required uint64 start_timestamp = 2;
 }
 
+//------------------------------------------------------------------------------
+
 message TReqPingTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -158,6 +160,8 @@ message TReqPingTransaction
 message TRspPingTransaction
 {
 }
+
+//------------------------------------------------------------------------------
 
 message TReqCommitTransaction
 {
@@ -170,6 +174,8 @@ message TRspCommitTransaction
     optional NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
 }
 
+//------------------------------------------------------------------------------
+
 message TReqAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -179,6 +185,8 @@ message TReqAbortTransaction
 message TRspAbortTransaction
 {
 }
+
+//------------------------------------------------------------------------------
 
 message TReqLookupRows
 {
@@ -198,6 +206,8 @@ message TRspLookupRows
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
+//------------------------------------------------------------------------------
+
 message TReqVersionedLookupRows
 {
     required string path = 1;
@@ -215,6 +225,8 @@ message TRspVersionedLookupRows
 {
     required TRowsetDescriptor rowset_descriptor = 200;
 }
+
+//------------------------------------------------------------------------------
 
 message TReqSelectRows
 {
@@ -237,6 +249,8 @@ message TRspSelectRows
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
+//------------------------------------------------------------------------------
+
 message TReqGetInSyncReplicas
 {
     required string path = 1;
@@ -250,6 +264,8 @@ message TRspGetInSyncReplicas
 {
     repeated NYT.NProto.TGuid replica_ids = 1;
 }
+
+//------------------------------------------------------------------------------
 
 message TReqModifyRows
 {
