@@ -240,7 +240,7 @@ private:
     }
 
 
-    std::vector<TStateTableRow> ReadStateTable(IClientBasePtr client)
+    std::vector<TStateTableRow> ReadStateTable(const IClientBasePtr& client)
     {
         // TODO(babenko): escaping
         auto query = Format(
@@ -833,7 +833,7 @@ TFuture<IPersistentQueueRowsetPtr> TPersistentQueuePoller::Poll()
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> CreatePersistentQueueStateTable(
-    IClientPtr client,
+    const IClientBasePtr& client,
     const TYPath& path)
 {
     TTableSchema schema({
@@ -851,6 +851,150 @@ TFuture<void> CreatePersistentQueueStateTable(
     TCreateNodeOptions options;
     options.Attributes = std::move(attributes);
     return client->CreateNode(path, EObjectType::Table, options).As<void>();
+}
+
+TFuture<yhash<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsState(
+    const IClientBasePtr& client,
+    const NYPath::TYPath& path,
+    const std::vector<int>& tabletIndexes)
+{
+    return
+        BIND([=] {
+            // TODO(babenko): escaping
+            auto query = Format(
+                "[%v], [%v], [%v] from [%v] where [%v] in (%v)",
+                TStateTable::TabletIndexColumnName,
+                TStateTable::RowIndexColumnName,
+                TStateTable::StateColumnName,
+                path,
+                TStateTable::TabletIndexColumnName,
+                JoinToString(tabletIndexes));
+            auto result = WaitFor(client->SelectRows(query))
+                .ValueOrThrow();
+            const auto& rowset = result.Rowset;
+            const auto& schema = rowset->Schema();
+            auto tabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
+            auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
+            auto stateColumnId = schema.GetColumnIndexOrThrow(TStateTable::StateColumnName);
+
+            yhash<int, TPersistentQueueTabletState> tabletMap;
+
+            for (auto row : rowset->GetRows()) {
+                Y_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
+                int tabletIndex = static_cast<int>(row[tabletIndexColumnId].Data.Int64);
+
+                Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+                i64 rowIndex = row[rowIndexColumnId].Data.Int64;
+
+                Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+                auto state = ERowState(row[stateColumnId].Data.Int64);
+
+                auto& tabletState = tabletMap[tabletIndex];
+                if (state == ERowState::ConsumedAndTrimmed) {
+                    tabletState.FirstUntrimmedRowIndex = std::max(tabletState.FirstUntrimmedRowIndex, rowIndex + 1);
+                }
+            }
+
+            for (auto& pair : tabletMap) {
+                auto& tabletState = pair.second;
+                tabletState.ConsumedRowCount = tabletState.FirstUntrimmedRowIndex;
+            }
+
+            for (auto row : rowset->GetRows()) {
+                Y_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
+                int tabletIndex = static_cast<int>(row[tabletIndexColumnId].Data.Int64);
+
+                Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+                i64 rowIndex = row[rowIndexColumnId].Data.Int64;
+
+                auto& tabletState = tabletMap[tabletIndex];
+                if (rowIndex >= tabletState.FirstUntrimmedRowIndex) {
+                    ++tabletState.ConsumedRowCount;
+                }
+            }
+
+            return tabletMap;
+        })
+        .AsyncVia(client->GetConnection()->GetInvoker())
+        .Run();
+}
+
+TFuture<void> UpdatePersistentQueueTabletsState(
+    const IClientBasePtr& client,
+    const NYPath::TYPath& path,
+    const yhash<int, TPersistentQueueTabletUpdate>& tabletMap)
+{
+    return
+        BIND([=] {
+            auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet))
+                .ValueOrThrow();
+
+            // TODO(babenko): escaping
+            auto query = Format(
+                "[%v], [%v], [%v] from [%v] where [%v] in (%v)",
+                TStateTable::TabletIndexColumnName,
+                TStateTable::RowIndexColumnName,
+                TStateTable::StateColumnName,
+                path,
+                TStateTable::TabletIndexColumnName,
+                JoinToString(GetKeys(tabletMap)));
+            auto result = WaitFor(client->SelectRows(query))
+                .ValueOrThrow();
+            const auto& rowset = result.Rowset;
+            const auto& schema = rowset->Schema();
+            auto rowsetTabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
+            auto rowsetRowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
+
+            auto nameTable = New<TNameTable>();
+            auto nameTableTabletIndexColumnId = nameTable->RegisterName(TStateTable::TabletIndexColumnName);
+            auto nameTableRowIndexColumnId = nameTable->RegisterName(TStateTable::RowIndexColumnName);
+            auto nameTableStateColumnId = nameTable->RegisterName(TStateTable::StateColumnName);
+
+            auto rowBuffer = New<TRowBuffer>(TPersistentQueuePollerBufferTag());
+            std::vector<TRowModification> modifications;
+
+            for (auto rowsetRow : rowset->GetRows()) {
+                Y_ASSERT(rowsetRow[rowsetTabletIndexColumnId].Type == EValueType::Int64);
+                int tabletIndex = static_cast<int>(rowsetRow[rowsetTabletIndexColumnId].Data.Int64);
+
+                Y_ASSERT(rowsetRow[rowsetRowIndexColumnId].Type == EValueType::Int64);
+                i64 rowIndex = rowsetRow[rowsetRowIndexColumnId].Data.Int64;
+
+                auto rowToDelete = rowBuffer->AllocateUnversioned(2);
+                rowToDelete[0] = MakeUnversionedInt64Value(tabletIndex, nameTableTabletIndexColumnId);
+                rowToDelete[1] = MakeUnversionedInt64Value(rowIndex, nameTableRowIndexColumnId);
+                modifications.push_back(TRowModification{
+                    ERowModificationType::Delete,
+                    rowToDelete.ToTypeErasedRow()
+                });
+            }
+
+            for (const auto& pair : tabletMap) {
+                int tabletIndex = pair.first;
+                const auto& tabletUpdate = pair.second;
+                Y_ASSERT(tabletUpdate.FirstUnconsumedRowIndex >= 0);
+                if (tabletUpdate.FirstUnconsumedRowIndex > 0) {
+                    auto rowToWrite = rowBuffer->AllocateUnversioned(3);
+                    rowToWrite[0] = MakeUnversionedInt64Value(tabletIndex, nameTableTabletIndexColumnId);
+                    rowToWrite[1] = MakeUnversionedInt64Value(tabletUpdate.FirstUnconsumedRowIndex - 1, nameTableRowIndexColumnId);
+                    rowToWrite[2] = MakeUnversionedInt64Value(static_cast<i64>(ERowState::ConsumedAndTrimmed), nameTableStateColumnId);
+                    modifications.push_back(TRowModification{
+                        ERowModificationType::Write,
+                        rowToWrite.ToTypeErasedRow()
+                    });
+                }
+            }
+
+            transaction->ModifyRows(
+                path,
+                nameTable,
+                MakeSharedRange(modifications, std::move(rowBuffer)));
+
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+        })
+        .AsyncVia(client->GetConnection()->GetInvoker())
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
