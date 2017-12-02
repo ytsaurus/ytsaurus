@@ -109,8 +109,8 @@ public:
         {
             TrimExecutor_ = New<TPeriodicExecutor>(
                 Invoker_,
-                BIND(&TImpl::TrimState, MakeWeak(this)),
-                Config_->DataPollPeriod);
+                BIND(&TImpl::Trim, MakeWeak(this)),
+                Config_->StateTrimPeriod);
             TrimExecutor_->Start();
         }
     }
@@ -368,7 +368,7 @@ private:
         YCHECK(tabletIt != state->TabletMap.end());
         auto& tablet = tabletIt->second;
 
-        int rowLimit = Config_->MaxRowsPerFetch;
+        auto rowLimit = Config_->MaxRowsPerFetch;
         {
             TGuard<TSpinLock> guard(state->SpinLock);
             if (state->BatchesDataWeight > Config_->MaxPrefetchDataWeight) {
@@ -694,13 +694,29 @@ private:
     }
 
 
-    void DoTrimState()
+    void GuardedTrim()
     {
         // NB: Not actually needed, just for a backoff.
         auto state = GetState();
         if (state->Failed) {
             return;
         }
+
+        LOG_DEBUG("Getting tablet infos");
+
+        auto asyncTabletInfos = Client_->GetTabletInfos(
+            DataTablePath_,
+            TabletIndexes_);
+        auto tabletInfos = WaitFor(asyncTabletInfos)
+            .ValueOrThrow();
+
+        yhash<int, const TTabletInfo*> tabletIndexToInfo;
+        YCHECK(TabletIndexes_.size() == tabletInfos.size());
+        for (size_t index = 0; index < TabletIndexes_.size(); ++index) {
+            YCHECK(tabletIndexToInfo.emplace(TabletIndexes_[index], &tabletInfos[index]).second);
+        }
+
+        LOG_DEBUG("Tablet infos received");
 
         LOG_DEBUG("Starting state trim transaction");
 
@@ -720,6 +736,7 @@ private:
         {
             i64 LastTrimmedRowIndex = -1;
             yhash_set<i64> ConsumedRowIndexes;
+            i64 TrimmedRowCountRequest = -1;
         };
 
         yhash<int, TTabletStatistics> tabletStatisticsMap;
@@ -738,20 +755,20 @@ private:
             auto rowIndexColumnId = nameTable->RegisterName(TStateTable::RowIndexColumnName);
             auto stateColumnId = nameTable->RegisterName(TStateTable::StateColumnName);
 
-            for (const auto& pair : tabletStatisticsMap) {
+            for (auto& pair : tabletStatisticsMap) {
                 int tabletIndex = pair.first;
-                const auto& statistics = pair.second;
+                auto& statistics = pair.second;
 
-                i64 trimRowIndex = statistics.LastTrimmedRowIndex;
-                while (statistics.ConsumedRowIndexes.find(trimRowIndex + 1) != statistics.ConsumedRowIndexes.end()) {
-                    ++trimRowIndex;
+                i64 stateTrimRowIndex = statistics.LastTrimmedRowIndex;
+                while (statistics.ConsumedRowIndexes.find(stateTrimRowIndex + 1) != statistics.ConsumedRowIndexes.end()) {
+                    ++stateTrimRowIndex;
                 }
 
-                if (trimRowIndex > statistics.LastTrimmedRowIndex) {
+                if (stateTrimRowIndex > statistics.LastTrimmedRowIndex) {
                     auto rowBuffer = New<TRowBuffer>(TPersistentQueuePollerBufferTag());
 
                     std::vector<TUnversionedRow> deleteKeys;
-                    for (i64 rowIndex = statistics.LastTrimmedRowIndex; rowIndex < trimRowIndex; ++rowIndex) {
+                    for (i64 rowIndex = statistics.LastTrimmedRowIndex; rowIndex < stateTrimRowIndex; ++rowIndex) {
                         auto key = rowBuffer->AllocateUnversioned(2);
                         key[0] = MakeUnversionedInt64Value(tabletIndex, tabletIndexColumnId);
                         key[1] = MakeUnversionedInt64Value(rowIndex, rowIndexColumnId);
@@ -766,7 +783,7 @@ private:
                     {
                         auto row = rowBuffer->AllocateUnversioned(3);
                         row[0] = MakeUnversionedInt64Value(tabletIndex, tabletIndexColumnId);
-                        row[1] = MakeUnversionedInt64Value(trimRowIndex, rowIndexColumnId);
+                        row[1] = MakeUnversionedInt64Value(stateTrimRowIndex, rowIndexColumnId);
                         row[2] = MakeUnversionedInt64Value(static_cast<int>(ERowState::ConsumedAndTrimmed), stateColumnId);
                         writeRows.push_back(row);
                     }
@@ -775,9 +792,19 @@ private:
                         nameTable,
                         MakeSharedRange(std::move(writeRows), rowBuffer));
 
-                    LOG_DEBUG("Tablet state trim scheduled (TabletIndex: %v, TrimRowIndex: %v)",
+                    LOG_DEBUG("Tablet state update scheduled (TabletIndex: %v, TrimRowIndex: %v)",
                         tabletIndex,
-                        trimRowIndex);
+                        stateTrimRowIndex);
+                }
+
+                auto tabletInfoIt = tabletIndexToInfo.find(tabletIndex);
+                YCHECK(tabletInfoIt != tabletIndexToInfo.end());
+                const auto& tabletInfo = tabletInfoIt->second;
+                if (stateTrimRowIndex - tabletInfo->TrimmedRowCount >= Config_->UntrimmedDataRowsHigh) {
+                    statistics.TrimmedRowCountRequest = stateTrimRowIndex - Config_->UntrimmedDataRowsLow;
+                    LOG_DEBUG("Tablet data trim scheduled (TabletIndex: %v, TrimmedRowCount: %v)",
+                        tabletIndex,
+                        statistics.TrimmedRowCountRequest);
                 }
             }
         }
@@ -788,14 +815,33 @@ private:
             .ThrowOnError();
 
         LOG_DEBUG("State trim transaction committed");
+
+        std::vector<TFuture<void>> dataTrimAsyncResults;
+        for (const auto& pair : tabletStatisticsMap) {
+            int tabletIndex = pair.first;
+            const auto& statistics = pair.second;
+            if (statistics.TrimmedRowCountRequest > 0) {
+                dataTrimAsyncResults.push_back(Client_->TrimTable(
+                    DataTablePath_,
+                    tabletIndex,
+                    statistics.TrimmedRowCountRequest));
+            }
+        }
+
+        if (!dataTrimAsyncResults.empty()) {
+            WaitFor(Combine(dataTrimAsyncResults))
+                .ThrowOnError();
+
+            LOG_DEBUG("Tablet data trim completed");
+        }
     }
 
-    void TrimState()
+    void Trim()
     {
         try {
-            DoTrimState();
+            GuardedTrim();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error trimming queue poller state");
+            LOG_ERROR(ex, "Error trimming queue poller");
         }
     }
 
