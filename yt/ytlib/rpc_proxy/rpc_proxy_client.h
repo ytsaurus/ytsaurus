@@ -86,6 +86,11 @@ public:
         const TSharedRange<NTableClient::TKey>& keys,
         const NApi::TGetInSyncReplicasOptions& options) override;
 
+    virtual TFuture<std::vector<NApi::TTabletInfo>> GetTabletInfos(
+        const NYPath::TYPath& path,
+        const std::vector<int>& tabletIndexes,
+        const NApi::TGetTabletsInfoOptions& options) override;
+
     // Security
     virtual TFuture<void> AddMember(
         const TString&,
