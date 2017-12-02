@@ -267,6 +267,25 @@ message TRspGetInSyncReplicas
 
 //------------------------------------------------------------------------------
 
+message TReqGetTabletInfos
+{
+    required string path = 1;
+    repeated int32 tablet_indexes = 2;
+}
+
+message TRspGetTabletInfos
+{
+    message TTabletInfo
+    {
+        required int64 total_row_count = 1;
+        required int64 trimmed_row_count = 2;
+    }
+
+    repeated TTabletInfo tablets = 1;
+}
+
+//------------------------------------------------------------------------------
+
 message TReqModifyRows
 {
     required NYT.NProto.TGuid transaction_id = 1;

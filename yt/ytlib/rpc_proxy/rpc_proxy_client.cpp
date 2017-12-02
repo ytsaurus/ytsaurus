@@ -24,6 +24,9 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 using namespace NApi;
 using namespace NRpc;
 using namespace NTableClient;
@@ -54,8 +57,8 @@ IChannelPtr TRpcProxyClient::GetChannel()
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> TRpcProxyClient::MountTable(
-    const NYPath::TYPath& path,
-    const NApi::TMountTableOptions& options)
+    const TYPath& path,
+    const TMountTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -74,8 +77,8 @@ TFuture<void> TRpcProxyClient::MountTable(
 }
 
 TFuture<void> TRpcProxyClient::UnmountTable(
-    const NYPath::TYPath& path,
-    const NApi::TUnmountTableOptions& options)
+    const TYPath& path,
+    const TUnmountTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -93,8 +96,8 @@ TFuture<void> TRpcProxyClient::UnmountTable(
 }
 
 TFuture<void> TRpcProxyClient::RemountTable(
-    const NYPath::TYPath& path,
-    const NApi::TRemountTableOptions& options)
+    const TYPath& path,
+    const TRemountTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -110,8 +113,8 @@ TFuture<void> TRpcProxyClient::RemountTable(
 }
 
 TFuture<void> TRpcProxyClient::FreezeTable(
-    const NYPath::TYPath& path,
-    const NApi::TFreezeTableOptions& options)
+    const TYPath& path,
+    const TFreezeTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -127,8 +130,8 @@ TFuture<void> TRpcProxyClient::FreezeTable(
 }
 
 TFuture<void> TRpcProxyClient::UnfreezeTable(
-    const NYPath::TYPath& path,
-    const NApi::TUnfreezeTableOptions& options)
+    const TYPath& path,
+    const TUnfreezeTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -144,9 +147,9 @@ TFuture<void> TRpcProxyClient::UnfreezeTable(
 }
 
 TFuture<void> TRpcProxyClient::ReshardTable(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     const std::vector<NTableClient::TOwningKey>& pivotKeys,
-    const NApi::TReshardTableOptions& options)
+    const TReshardTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -171,9 +174,9 @@ TFuture<void> TRpcProxyClient::ReshardTable(
 }
 
 TFuture<void> TRpcProxyClient::ReshardTable(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     int tabletCount,
-    const NApi::TReshardTableOptions& options)
+    const TReshardTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -190,10 +193,10 @@ TFuture<void> TRpcProxyClient::ReshardTable(
 }
 
 TFuture<void> TRpcProxyClient::TrimTable(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     int tabletIndex,
     i64 trimmedRowCount,
-    const NApi::TTrimTableOptions& options)
+    const TTrimTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -208,8 +211,8 @@ TFuture<void> TRpcProxyClient::TrimTable(
 }
 
 TFuture<void> TRpcProxyClient::AlterTable(
-    const NYPath::TYPath& path,
-    const NApi::TAlterTableOptions& options)
+    const TYPath& path,
+    const TAlterTableOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -235,8 +238,8 @@ TFuture<void> TRpcProxyClient::AlterTable(
 }
 
 TFuture<void> TRpcProxyClient::AlterTableReplica(
-    const NTabletClient::TTableReplicaId& replicaId,
-    const NApi::TAlterTableReplicaOptions& options)
+    const TTableReplicaId& replicaId,
+    const TAlterTableReplicaOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -262,16 +265,16 @@ TFuture<void> TRpcProxyClient::AlterTableReplica(
     return req->Invoke().As<void>();
 }
 
-TFuture<std::vector<NTabletClient::TTableReplicaId>> TRpcProxyClient::GetInSyncReplicas(
-    const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
+TFuture<std::vector<TTableReplicaId>> TRpcProxyClient::GetInSyncReplicas(
+    const TYPath& path,
+    TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TKey>& keys,
-    const NApi::TGetInSyncReplicasOptions& options)
+    const TGetInSyncReplicasOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
     auto req = proxy.GetInSyncReplicas();
-    req->SetTimeout(options.Timeout);
+    SetTimeoutOptions(*req, options);
 
     if (options.Timestamp) {
         req->set_timestamp(options.Timestamp);
@@ -280,9 +283,36 @@ TFuture<std::vector<NTabletClient::TTableReplicaId>> TRpcProxyClient::GetInSyncR
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
 
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetInSyncReplicasPtr>& rspOrError) -> std::vector<NTabletClient::TTableReplicaId> {
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetInSyncReplicasPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
-        return FromProto<std::vector<NTabletClient::TTableReplicaId>>(rsp->replica_ids());
+        return FromProto<std::vector<TTableReplicaId>>(rsp->replica_ids());
+    }));
+}
+
+TFuture<std::vector<NApi::TTabletInfo>> TRpcProxyClient::GetTabletInfos(
+    const TYPath& path,
+    const std::vector<int>& tabletIndexes,
+    const TGetTabletsInfoOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.GetTabletInfos();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+    ToProto(req->mutable_tablet_indexes(), tabletIndexes);
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetTabletInfosPtr>& rspOrError) {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        std::vector<NApi::TTabletInfo> tabletInfos;
+        tabletInfos.reserve(rsp->tablets_size());
+        for (const auto& protoTabletInfo : rsp->tablets()) {
+            tabletInfos.emplace_back();
+            auto& result = tabletInfos.back();
+            result.TotalRowCount = protoTabletInfo.total_row_count();
+            result.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
+        }
+        return tabletInfos;
     }));
 }
 

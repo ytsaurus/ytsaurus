@@ -223,6 +223,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
 
@@ -1169,7 +1170,7 @@ private:
             return;
         }
 
-        NTabletClient::TTableReplicaId replicaId;
+        TTableReplicaId replicaId;
         FromProto(&replicaId, request->replica_id());
 
         TAlterTableReplicaOptions options;
@@ -1347,13 +1348,44 @@ private:
 
         CompleteCallWith(
             context,
-            client->GetInSyncReplicas(
+            client->GetTabletInfos(
                 request->path(),
                 TNameTable::FromSchema(rowset->Schema()),
                 MakeSharedRange(rowset->GetRows(), rowset),
                 options),
-            [response] (const std::vector<NTabletClient::TTableReplicaId>& result) {
+            [response] (const std::vector<TTableReplicaId>& result) {
                 ToProto(response->mutable_replica_ids(), result);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetTabletInfos)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& path = request->path();
+        auto tabletIndexes = FromProto<std::vector<int>>(request->tablet_indexes());
+        
+        context->SetRequestInfo("Path: %v, TabletIndexes: %v",
+            path,
+            tabletIndexes);
+        
+        TGetTabletsInfoOptions options;
+
+        CompleteCallWith(
+            std::move(context),
+            client->GetTabletInfos(
+                path,
+                tabletIndexes,
+                options),
+            [response] (const std::vector<TTabletInfo>& tabletInfos) {
+                for (const auto& tabletInfo : tabletInfos) {
+                    auto* protoTabletInfo = response->add_tablets();
+                    protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
+                    protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
+                }
             });
     }
 

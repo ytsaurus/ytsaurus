@@ -576,7 +576,7 @@ public:
         const TSharedRange<NTableClient::TKey>& keys,
         const TGetInSyncReplicasOptions& options),
         (path, nameTable, keys, options))
-    IMPLEMENT_METHOD(TTabletInfo, GetTabletInfos, (
+    IMPLEMENT_METHOD(std::vector<TTabletInfo>, GetTabletInfos, (
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
         const TGetTabletsInfoOptions& options),
@@ -2007,8 +2007,8 @@ private:
         for (size_t subrequestIndex = 0; subrequestIndex < rspsOrErrors.size(); ++subrequestIndex) {
             const auto& subrequest = *subrequests[subrequestIndex];
             const auto& rsp = rspsOrErrors[subrequestIndex];
-            Y_ASSERT(rsp->tablets_size() == subrequest.ResultsIndexes.size());
-            for (size_t resultIndexIndex = 0; resultIndexIndex < subrequest.ResultsIndexes.size(); ++resultIndexIndex) {
+            YCHECK(rsp->tablets_size() == subrequest.ResultIndexes.size());
+            for (size_t resultIndexIndex = 0; resultIndexIndex < subrequest.ResultIndexes.size(); ++resultIndexIndex) {
                 auto& result = results[subrequest.ResultIndexes[resultIndexIndex]];
                 const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
                 result.TotalRowCount = tabletInfo.total_row_count();
@@ -2201,7 +2201,7 @@ private:
         tableInfo->ValidateDynamic();
         tableInfo->ValidateOrdered();
 
-        auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex];
+        auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
 
         auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
