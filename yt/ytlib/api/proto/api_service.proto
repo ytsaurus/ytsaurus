@@ -596,7 +596,7 @@ message TRspLinkNode
 
 message TReqConcatenateNodes
 {
-    repeated string src_path = 1; // ypath
+    repeated string src_paths = 1; // ypath
     required string dst_path = 2; // ypath
 
     optional bool append = 3 [default = false];

@@ -1,5 +1,4 @@
 #include "rpc_proxy_client.h"
-#include "api_service_proxy.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -41,8 +40,6 @@ TRpcProxyClient::TRpcProxyClient(
     : Connection_(std::move(connection))
     , Channel_(CreateRpcProxyChannel(Connection_, options))
 { }
-
-TRpcProxyClient::~TRpcProxyClient() = default;
 
 TRpcProxyConnectionPtr TRpcProxyClient::GetRpcProxyConnection()
 {

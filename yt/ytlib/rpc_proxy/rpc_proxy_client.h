@@ -20,11 +20,10 @@ public:
     TRpcProxyClient(
         TRpcProxyConnectionPtr connection,
         const NApi::TClientOptions& options);
-    ~TRpcProxyClient();
 
     virtual TFuture<void> Terminate() override
     {
-        Y_UNIMPLEMENTED();
+        return VoidFuture;
     }
 
     // Transactions
