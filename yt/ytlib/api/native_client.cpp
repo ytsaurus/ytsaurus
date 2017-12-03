@@ -3005,6 +3005,11 @@ private:
             deadline = options.Timeout->ToDeadLine();
         }
 
+        TNullable<yhash_set<TString>> fields;
+        if (options.Fields) {
+            fields = yhash_set<TString>(options.Fields->begin(), options.Fields->end());
+        }
+
         auto nameTable = New<TNameTable>();
 
         TOrderedByIdTableDescriptor ids(nameTable);
@@ -3054,13 +3059,15 @@ private:
 #define SET_ITEM_INSTANT_VALUE(itemKey, index) \
             SET_ITEM_VALUE(itemKey, index, TInstant(rows[0][index].Data.Int64))
 #define SET_ITEM_VALUE(itemKey, index, operation) \
-            .DoIf(rows[0][index].Type != EValueType::Null, [&] (TFluentMap fluent) { \
-                fluent.Item(#itemKey).Value(operation); \
+            .DoIf((!fields || fields->find(itemKey) != fields->end()) && rows[0][index].Type != EValueType::Null, [&] (TFluentMap fluent) { \
+                fluent.Item(itemKey).Value(operation); \
             })
 
             auto ysonResult = BuildYsonStringFluently()
                 .BeginMap()
-                    .Item("id").Value(TGuid(rows[0][0].Data.Uint64, rows[0][1].Data.Uint64))
+                    .DoIf((!fields || fields->find("id") != fields->end()), [&] (TFluentMap fluent) {
+                        fluent.Item("id").Value(TGuid(rows[0][0].Data.Uint64, rows[0][1].Data.Uint64));
+                    })
                     SET_ITEM_STRING_VALUE("state", 2)
                     SET_ITEM_STRING_VALUE("authenticated_user", 3)
                     SET_ITEM_STRING_VALUE("operation_type", 4)
@@ -3094,18 +3101,23 @@ private:
         }
 
         TGetNodeOptions optionsToCypress;
-        optionsToCypress.Attributes = {
-            "authenticated_user",
-            "brief_progress",
-            "brief_spec",
-            "finish_time",
-            "operation_type",
-            "start_time",
-            "state",
-            "suspended",
-            "title",
-            "weight"
-        };
+        if (options.Fields) {
+            optionsToCypress.Attributes = options.Fields;
+        } else {
+            optionsToCypress.Attributes = {
+                "authenticated_user",
+                "brief_progress",
+                "brief_spec",
+                "finish_time",
+                "operation_type",
+                "start_time",
+                "state",
+                "suspended",
+                "title",
+                "weight",
+                "progress"
+            };
+        }
         if (deadline) {
             optionsToCypress.Timeout = *deadline - Now();
         }
@@ -3127,6 +3139,9 @@ private:
             if (schedulerProgressValueOrError.GetCode() == NYT::EErrorCode::OK) {
                 auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
                 auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
+                if (attrNode->FindChild("progress")) {
+                    attrNode->RemoveChild("progress");
+                }
                 attrNode->AddChild(schedulerProgressNode, "progress");
 
                 attrNodeValue = ConvertToYsonString(attrNode);
@@ -3147,7 +3162,7 @@ private:
             }
 
             try {
-                auto result = DoGetOperationFromArchive(operationId, TGetOperationOptions());
+                auto result = DoGetOperationFromArchive(operationId, options);
                 if (result)
                     return result;
             } catch (const TErrorException& exception) {

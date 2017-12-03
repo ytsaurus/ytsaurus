@@ -306,11 +306,13 @@ public:
   
 private:
     NJobTrackerClient::TOperationId OperationId;
+    TNullable<std::vector<TString>> Fields;
     
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
 
