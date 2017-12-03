@@ -1353,7 +1353,7 @@ if __name__ == "__main__":
 
         old_timeout = yt.config["operation_tracker"]["stderr_download_timeout"]
         old_thread_count = yt.config["operation_tracker"]["stderr_download_thread_count"]
-        yt.config["operation_tracker"]["stderr_download_timeout"] = 100
+        yt.config["operation_tracker"]["stderr_download_timeout"] = 50
         yt.config["operation_tracker"]["stderr_download_thread_count"] = 1
 
         try:
@@ -1637,3 +1637,35 @@ if __name__ == "__main__":
             with pytest.raises(yt.YtError):
                 yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
 
+    def test_get_operation_command(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        with set_config_option("enable_operations_api", True):
+            op = yt.run_map("cat; echo 'AAA' >&2", table, table)
+            check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
+
+            assert op.get_state() == "completed"
+
+            assert op.get_progress()["total"] == 1
+            assert op.get_progress()["completed"] == 1
+
+            op.get_job_statistics()
+
+            stderrs = op.get_stderrs()
+            assert len(stderrs) == 1
+            assert stderrs[0]["stderr"] == b"AAA\n"
+
+    def test_list_operations(self):
+        assert yt.list_operations()["operations"] == []
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}])
+        yt.run_map("cat; echo 'AAA' >&2", table, table)
+
+        operations = yt.list_operations()["operations"]
+        assert len(operations) == 1
+
+        operation = operations[0]
+        assert operation["state"] == "completed"
+        assert operation["type"] == "map"
