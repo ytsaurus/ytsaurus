@@ -3017,24 +3017,52 @@ private:
         keys.push_back(key);
 
         TLookupRowsOptions lookupOptions;
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({
-            ids.IdHi,
-            ids.IdLo,
-            ids.State,
-            ids.AuthenticatedUser,
-            ids.OperationType,
-            ids.Progress,
-            ids.Spec,
-            ids.BriefProgress,
-            ids.BriefSpec,
-            ids.StartTime,
-            ids.FinishTime,
-            ids.Result,
-            ids.Events
-        });
+
+        yhash_set<TString> fields;
+        bool hasId = false;
+        if (options.Attributes) {
+            for (const auto& field : *options.Attributes) {
+                if (field == "id") {
+                    hasId = true;
+                    fields.insert("id_lo");
+                    fields.insert("id_hi");
+                } else {
+                    fields.insert(field);
+                }
+            }
+        } else {
+            hasId = true;
+            fields = {
+                "id_lo",
+                "id_hi",
+                "state",
+                "authenticated_user",
+                "operation_type",
+                "progress",
+                "spec",
+                "brief_progress",
+                "brief_spec",
+                "start_time",
+                "finish_time",
+                "result",
+                "events"
+            };
+        }
+
+        std::vector<int> columnIndexes;
+        yhash<TString, int> fieldToIndex;
+
+        int index = 0;
+        for (const auto& field : fields) {
+            columnIndexes.push_back(nameTable->GetIdOrThrow(field));
+            fieldToIndex[field] = index++;
+        }
+
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
         lookupOptions.KeepMissingRows = true;
-        if (deadline)
+        if (deadline) {
             lookupOptions.Timeout = *deadline - Now();
+        }
 
         auto rowset = WaitFor(LookupRows(
             "//sys/operations_archive/ordered_by_id",
@@ -3047,37 +3075,44 @@ private:
         YCHECK(!rows.Empty());
 
         if (rows[0]) {
-#define SET_ITEM_STRING_VALUE(itemKey, index) \
-            SET_ITEM_VALUE(itemKey, index, TString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_YSON_STRING_VALUE(itemKey, index) \
-            SET_ITEM_VALUE(itemKey, index, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_INSTANT_VALUE(itemKey, index) \
-            SET_ITEM_VALUE(itemKey, index, TInstant(rows[0][index].Data.Int64))
-#define SET_ITEM_VALUE(itemKey, index, operation) \
-            .DoIf(rows[0][index].Type != EValueType::Null, [&] (TFluentMap fluent) { \
-                fluent.Item(#itemKey).Value(operation); \
+#define SET_ITEM_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_YSON_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_INSTANT_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TInstant(rows[0][index].Data.Int64))
+#define SET_ITEM_VALUE(itemKey, operation) \
+            .DoIf(fields.find(itemKey) != fields.end() && rows[0][GET_INDEX(itemKey)].Type != EValueType::Null, [&] (TFluentMap fluent) { \
+                auto index = GET_INDEX(itemKey); \
+                fluent.Item(itemKey).Value(operation); \
             })
+#define GET_INDEX(itemKey) fieldToIndex.find(itemKey)->second
 
-            auto ysonResult = BuildYsonStringFluently()
+            auto ysonResult = BuildYsonStringFluently(NYson::EYsonFormat::Text)
                 .BeginMap()
-                    .Item("id").Value(TGuid(rows[0][0].Data.Uint64, rows[0][1].Data.Uint64))
-                    SET_ITEM_STRING_VALUE("state", 2)
-                    SET_ITEM_STRING_VALUE("authenticated_user", 3)
-                    SET_ITEM_STRING_VALUE("operation_type", 4)
-                    SET_ITEM_YSON_STRING_VALUE("progress", 5)
-                    SET_ITEM_YSON_STRING_VALUE("spec", 6)
-                    SET_ITEM_YSON_STRING_VALUE("brief_progress", 7)
-                    SET_ITEM_YSON_STRING_VALUE("brief_spec", 8)
-                    SET_ITEM_INSTANT_VALUE("start_time", 9)
-                    SET_ITEM_INSTANT_VALUE("finish_time", 10)
-                    SET_ITEM_YSON_STRING_VALUE("result", 11)
-                    SET_ITEM_YSON_STRING_VALUE("events", 12)
+                    .DoIf(hasId, [&] (TFluentMap fluent) {
+                        fluent.Item("id").Value(TGuid(
+                            rows[0][GET_INDEX("id_hi")].Data.Uint64,
+                            rows[0][GET_INDEX("id_lo")].Data.Uint64));
+                    })
+                    SET_ITEM_STRING_VALUE("state")
+                    SET_ITEM_STRING_VALUE("authenticated_user")
+                    SET_ITEM_STRING_VALUE("operation_type")
+                    SET_ITEM_YSON_STRING_VALUE("progress")
+                    SET_ITEM_YSON_STRING_VALUE("spec")
+                    SET_ITEM_YSON_STRING_VALUE("brief_progress")
+                    SET_ITEM_YSON_STRING_VALUE("brief_spec")
+                    SET_ITEM_INSTANT_VALUE("start_time")
+                    SET_ITEM_INSTANT_VALUE("finish_time")
+                    SET_ITEM_YSON_STRING_VALUE("result")
+                    SET_ITEM_YSON_STRING_VALUE("events")
                 .EndMap();
 
 #undef SET_ITEM_STRING_VALUE
 #undef SET_ITEM_YSON_STRING_VALUE
 #undef SET_ITEM_INSTANT_VALUE
 #undef SET_ITEM_VALUE
+#undef GET_INDEX
             return ysonResult;
         }
 
@@ -3094,18 +3129,23 @@ private:
         }
 
         TGetNodeOptions optionsToCypress;
-        optionsToCypress.Attributes = {
-            "authenticated_user",
-            "brief_progress",
-            "brief_spec",
-            "finish_time",
-            "operation_type",
-            "start_time",
-            "state",
-            "suspended",
-            "title",
-            "weight"
-        };
+        if (options.Attributes) {
+            optionsToCypress.Attributes = options.Attributes;
+        } else {
+            optionsToCypress.Attributes = {
+                "authenticated_user",
+                "brief_progress",
+                "brief_spec",
+                "finish_time",
+                "operation_type",
+                "start_time",
+                "state",
+                "suspended",
+                "title",
+                "weight",
+                "progress"
+            };
+        }
         if (deadline) {
             optionsToCypress.Timeout = *deadline - Now();
         }
@@ -3127,7 +3167,8 @@ private:
             if (schedulerProgressValueOrError.GetCode() == NYT::EErrorCode::OK) {
                 auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
                 auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
-                attrNode->AddChild(schedulerProgressNode, "progress");
+                attrNode->RemoveChild("progress");
+                YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
 
                 attrNodeValue = ConvertToYsonString(attrNode);
             } else if (schedulerProgressValueOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
@@ -3147,7 +3188,7 @@ private:
             }
 
             try {
-                auto result = DoGetOperationFromArchive(operationId, TGetOperationOptions());
+                auto result = DoGetOperationFromArchive(operationId, options);
                 if (result)
                     return result;
             } catch (const TErrorException& exception) {
