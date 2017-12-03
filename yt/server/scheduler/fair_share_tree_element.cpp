@@ -985,7 +985,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     }
 
     // If min share sum is larger than one, adjust all children min shares to sum up to one.
-    if (minShareRatioSum > 1.0) {
+    if (minShareRatioSum > 1.0 + RatioComparisonPrecision) {
         UpdateFairShareAlerts_.emplace_back(
             "Total min share ratio of children of %Qv is too large: %v > 1",
             GetId(),
@@ -1007,7 +1007,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         minShareRatioSum += childAttributes.AdjustedMinShareRatio;
     }
 
-    if (minShareRatioSum > Attributes_.GuaranteedResourcesRatio) {
+    if (minShareRatioSum > Attributes_.GuaranteedResourcesRatio + RatioComparisonPrecision) {
         UpdateFairShareAlerts_.emplace_back(
             "Impossible to satisfy resources guarantees for children of %Qv, "
             "given out resources share is greater than guaranteed resources share: %v > %v",
