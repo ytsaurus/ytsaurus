@@ -5,7 +5,7 @@ from yt.environment import YTInstance
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
-from yt.common import which, makedirp
+from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 
@@ -300,6 +300,25 @@ def test_environment_job_archive(request):
 
     return environment
 
+# TODO(ignat): fix this copypaste from yt_env_setup
+def _remove_operations():
+    if yt.get("//sys/scheduler/instances/@count") == 0:
+        return
+
+    operation_from_orchid = []
+    try:
+        operation_from_orchid = yt.list("//sys/scheduler/orchid/scheduler/operations")
+    except yt.YtError as err:
+        print >>sys.stderr, format_error(err)
+
+    for operation_id in operation_from_orchid:
+        try:
+            yt.abort_operation(operation_id)
+        except yt.YtError as err:
+            print >>sys.stderr, format_error(err)
+
+    yt.remove("//sys/operations/*")
+
 def test_method_teardown():
     if yt.config["backend"] == "proxy":
         assert yt.config["proxy"]["url"].startswith("localhost")
@@ -314,6 +333,8 @@ def test_method_teardown():
             pass
 
     yt.remove(TEST_DIR, recursive=True, force=True)
+
+    _remove_operations()
 
 @pytest.fixture(scope="function")
 def yt_env(request, test_environment):

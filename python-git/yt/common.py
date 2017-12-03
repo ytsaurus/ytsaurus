@@ -104,6 +104,10 @@ class YtResponseError(YtError):
         """No such transaction."""
         return self.contains_code(11000)
 
+    def is_no_such_job(self):
+        """No such job."""
+        return self.contains_code(203)
+
     def is_shell_exited(self):
         """Shell exited."""
         return self.contains_code(1800)
