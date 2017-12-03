@@ -278,21 +278,21 @@ private:
         // TODO(sandello): Use a cache here.
         TAuthenticationResult authenticationResult;
         const auto& credentials = header.GetExtension(NProto::TCredentialsExt::credentials_ext);
-        if (!credentials.has_userip()) {
+        if (!credentials.has_user_ip()) {
             replyWithMissingUserIP();
             return nullptr;
         }
-        if (credentials.has_sessionid() || credentials.has_sslsessionid()) {
+        if (credentials.has_session_id() || credentials.has_ssl_session_id()) {
             auto asyncAuthenticationResult = Bootstrap_->GetCookieAuthenticator()->Authenticate(
-                credentials.sessionid(),
-                credentials.sslsessionid(),
+                credentials.session_id(),
+                credentials.ssl_session_id(),
                 credentials.domain(),
-                credentials.userip());
+                credentials.user_ip());
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else if (credentials.has_token()) {
             auto asyncAuthenticationResult = Bootstrap_->GetTokenAuthenticator()->Authenticate(
-                TTokenCredentials{credentials.token(), credentials.userip()});
+                TTokenCredentials{credentials.token(), credentials.user_ip()});
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else {
@@ -353,10 +353,10 @@ private:
     }
 
     template <class T>
-    void CompleteCallWith(IServiceContextPtr&& context, TFuture<T>&& future)
+    void CompleteCallWith(const IServiceContextPtr& context, TFuture<T>&& future)
     {
         future.Subscribe(
-            BIND([context = std::move(context)] (const TErrorOr<T>& valueOrError) {
+            BIND([context = context] (const TErrorOr<T>& valueOrError) {
                 if (valueOrError.IsOK()) {
                     // XXX(sandello): This relies on the typed service context implementation.
                     context->Reply(TError());
@@ -450,7 +450,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        auto attachOptions = TTransactionAttachOptions();
+        TTransactionAttachOptions attachOptions;
         attachOptions.Ping = true;
         attachOptions.PingAncestors = true;
         attachOptions.Sticky = request->sticky();
@@ -478,7 +478,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        auto attachOptions = TTransactionAttachOptions();
+        TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
         attachOptions.Sticky = request->sticky();
@@ -512,7 +512,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        auto attachOptions = TTransactionAttachOptions();
+        TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
         attachOptions.Sticky = request->sticky();
@@ -551,7 +551,6 @@ private:
 
         TNodeExistsOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -587,9 +586,9 @@ private:
         }
 
         const auto& path = request->path();
+
         TGetNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             if (protoAttributes.all()) {
@@ -606,7 +605,6 @@ private:
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -642,7 +640,6 @@ private:
 
         TListNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             if (protoAttributes.all()) {
@@ -650,8 +647,8 @@ private:
             } else {
                 options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
-                for (int i = 0; i < protoAttributes.columns_size(); ++i) {
-                    const auto& protoItem = protoAttributes.columns(i);
+                for (int index = 0; index < protoAttributes.columns_size(); ++index) {
+                    const auto& protoItem = protoAttributes.columns(index);
                     options.Attributes->push_back(protoItem);
                 }
             }
@@ -659,7 +656,6 @@ private:
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -696,12 +692,11 @@ private:
 
         TCreateNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             auto attributes = std::shared_ptr<IAttributeDictionary>(CreateEphemeralAttributes());
-            for (int i = 0; i < protoAttributes.attributes_size(); ++i) {
-                const auto& protoItem = protoAttributes.attributes(i);
+            for (int index = 0; index < protoAttributes.attributes_size(); ++index) {
+                const auto& protoItem = protoAttributes.attributes(index);
                 attributes->SetYson(protoItem.key(), TYsonString(protoItem.value()));
             }
             options.Attributes = std::move(attributes);
@@ -715,7 +710,6 @@ private:
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -752,14 +746,12 @@ private:
 
         TRemoveNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
         if (request->has_force()) {
             options.Force = request->force();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -786,15 +778,13 @@ private:
         }
 
         const auto& path = request->path();
-        TYsonString value(request->value());
+        auto value = TYsonString(request->value());
 
         TSetNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -825,7 +815,6 @@ private:
 
         TLockNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_waitable()) {
             options.Waitable = request->waitable();
         }
@@ -835,7 +824,6 @@ private:
         if (request->has_attribute_key()) {
             options.AttributeKey = request->attribute_key();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -875,7 +863,6 @@ private:
 
         TCopyNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -891,7 +878,6 @@ private:
         if (request->has_preserve_creation_time()) {
             options.PreserveCreationTime = request->preserve_creation_time();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -929,7 +915,6 @@ private:
 
         TMoveNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -942,7 +927,6 @@ private:
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -980,7 +964,6 @@ private:
 
         TLinkNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -990,7 +973,6 @@ private:
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -1031,11 +1013,9 @@ private:
 
         TConcatenateNodesOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_append()) {
             options.Append = request->append();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -1067,7 +1047,6 @@ private:
 
         TMountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_cell_id()) {
             FromProto(&options.CellId, request->cell_id());
         }
@@ -1101,11 +1080,9 @@ private:
 
         TUnmountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_force()) {
             options.Force = request->force();
         }
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1132,7 +1109,6 @@ private:
 
         TRemountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1159,7 +1135,6 @@ private:
 
         TFreezeTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1186,7 +1161,6 @@ private:
 
         TUnfreezeTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1213,7 +1187,6 @@ private:
 
         TReshardTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1290,7 +1263,6 @@ private:
 
         TAlterTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_schema()) {
             options.Schema = ConvertTo<TTableSchema>(TYsonString(request->schema()));
         }
@@ -1298,10 +1270,8 @@ private:
             options.Dynamic = request->dynamic();
         }
         if (request->has_upstream_replica_id()) {
-            options.UpstreamReplicaId.Emplace();
-            FromProto(options.UpstreamReplicaId.GetPtr(), request->upstream_replica_id());
+            options.UpstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
         }
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1324,12 +1294,10 @@ private:
             return;
         }
 
-        TTableReplicaId replicaId;
-        FromProto(&replicaId, request->replica_id());
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
 
         TAlterTableReplicaOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_enabled()) {
             options.Enabled = request->enabled();
         }
@@ -1369,7 +1337,7 @@ private:
     {
         ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NProto::ERowsetKind::UNVERSIONED);
         if (request->Attachments().empty()) {
-            context->Reply(TError("Request is missing data"));
+            context->Reply(TError("Request is missing rowset in attachments"));
             return false;
         }
 
@@ -1379,7 +1347,7 @@ private:
         *nameTable = TNameTable::FromSchema(rowset->Schema());
         *keys = MakeSharedRange(rowset->GetRows(), rowset);
 
-        options->Timeout = context->GetTimeout();
+        SetTimeoutOptions(options, context.Get());
         for (int i = 0; i < request->columns_size(); ++i) {
             options->ColumnFilter.All = false;
             options->ColumnFilter.Indexes.push_back((*nameTable)->GetIdOrRegisterName(request->columns(i)));
@@ -1491,6 +1459,7 @@ private:
         const auto& query = request->query();
 
         TSelectRowsOptions options; // TODO: Fill all options.
+        SetTimeoutOptions(&options, context.Get());
         if (request->has_timestamp()) {
             options.Timestamp = request->timestamp();
         }
@@ -1542,6 +1511,7 @@ private:
         const auto& path = request->path();
 
         TGetInSyncReplicasOptions options;
+        SetTimeoutOptions(&options, context.Get());
         if (request->has_timestamp()) {
             options.Timestamp = request->timestamp();
         }
@@ -1586,6 +1556,7 @@ private:
             tabletIndexes);
         
         TGetTabletsInfoOptions options;
+        SetTimeoutOptions(&options, context.Get());
 
         CompleteCallWith(
             context,
@@ -1606,7 +1577,7 @@ private:
     {
         const auto& path = request->path();
 
-        auto attachOptions = TTransactionAttachOptions{};
+        TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
         attachOptions.Sticky = true; // XXX(sandello): Fix me!
