@@ -18,6 +18,11 @@ TColumnFilter::TColumnFilter(const std::initializer_list<int>& indexes)
     , Indexes(indexes.begin(), indexes.end())
 { }
 
+TColumnFilter::TColumnFilter(const std::vector<int>& indexes)
+    : All(false)
+    , Indexes(indexes.begin(), indexes.end())
+{ }
+
 TColumnFilter::TColumnFilter(int schemaColumnCount)
     : All(false)
 {

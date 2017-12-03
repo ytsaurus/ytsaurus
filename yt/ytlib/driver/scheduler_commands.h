@@ -303,14 +303,15 @@ class TGetOperationCommand
 {
 public:
     TGetOperationCommand();
-  
+
 private:
     NJobTrackerClient::TOperationId OperationId;
-    
+
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
 
