@@ -42,10 +42,10 @@ public:
     //! RPC interface port number.
     int RpcPort;
 
-    //! HTTP monitoring interface port number.
+    // COMPAT(babenko): get rid of this after switching to new HTTP implementation
     int MonitoringPort;
-    NHttp::TServerConfigPtr MonitoringServer;
     bool UseNewHttpServer;
+    NHttp::TServerConfigPtr MonitoringServer;
 
     TServerConfig()
     {
