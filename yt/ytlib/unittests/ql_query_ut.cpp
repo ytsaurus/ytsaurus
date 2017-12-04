@@ -581,8 +581,7 @@ TQueryStatistics DoExecuteQuery(
     }
 
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-
-    return evaluator->RunWithExecutor(
+    return evaluator->Run(
         query,
         readerMock,
         writer,

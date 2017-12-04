@@ -54,12 +54,12 @@ class TEvaluator::TImpl
     : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery>
 {
 public:
-    explicit TImpl(TExecutorConfigPtr config)
-        : TAsyncSlruCacheBase(config->CGCache)
-    { }
-
-    explicit TImpl(TExecutorConfigPtr config, TString profilingPath)
-        : TAsyncSlruCacheBase(config->CGCache, NProfiling::TProfiler(profilingPath + "/cg_cache"))
+    TImpl(
+        TExecutorConfigPtr config,
+        const NProfiling::TProfiler& profiler)
+        : TAsyncSlruCacheBase(
+            config->CGCache,
+            profiler.GetPathPrefix() ? NProfiling::TProfiler(profiler.GetPathPrefix() + "/cg_cache") : NProfiling::TProfiler())
     { }
 
     TQueryStatistics Run(
@@ -229,17 +229,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEvaluator::TEvaluator(TExecutorConfigPtr config)
-    : Impl_(New<TImpl>(std::move(config)))
+TEvaluator::TEvaluator(
+    TExecutorConfigPtr config,
+    const NProfiling::TProfiler& profiler)
+    : Impl_(New<TImpl>(
+        std::move(config),
+        profiler))
 { }
 
-TEvaluator::TEvaluator(TExecutorConfigPtr config, const TString& profilingPath)
-    : Impl_(New<TImpl>(std::move(config), profilingPath))
-{ }
-
-TEvaluator::~TEvaluator() = default;
-
-TQueryStatistics TEvaluator::RunWithExecutor(
+TQueryStatistics TEvaluator::Run(
     TConstBaseQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
@@ -255,24 +253,6 @@ TQueryStatistics TEvaluator::RunWithExecutor(
         std::move(joinProfiler),
         functionProfilers,
         aggregateProfilers,
-        options);
-}
-
-TQueryStatistics TEvaluator::Run(
-    TConstBaseQueryPtr query,
-    ISchemafulReaderPtr reader,
-    ISchemafulWriterPtr writer,
-    TConstFunctionProfilerMapPtr functionProfilers,
-    TConstAggregateProfilerMapPtr aggregateProfilers,
-    const TQueryBaseOptions& options)
-{
-    return RunWithExecutor(
-        std::move(query),
-        std::move(reader),
-        std::move(writer),
-        nullptr,
-        std::move(functionProfilers),
-        std::move(aggregateProfilers),
         options);
 }
 

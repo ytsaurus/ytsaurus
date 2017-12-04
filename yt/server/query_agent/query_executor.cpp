@@ -540,9 +540,10 @@ private:
 
                 auto pipe = New<TSchemafulPipe>();
 
-                auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
+                auto asyncStatistics = BIND(&TEvaluator::Run, Evaluator_)
                     .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-                    .Run(subquery,
+                    .Run(
+                        subquery,
                         mergingReader,
                         pipe->GetWriter(),
                         foreignProfileCallback,
@@ -584,6 +585,7 @@ private:
                     topQuery,
                     std::move(reader),
                     std::move(writer),
+                    nullptr,
                     functionGenerators,
                     aggregateGenerators,
                     Options_);
@@ -1190,7 +1192,7 @@ public:
             config->FunctionImplCache,
             bootstrap->GetMasterClient()))
         , Bootstrap_(bootstrap)
-        , Evaluator_(New<TEvaluator>(Config_, "/query_agent"))
+        , Evaluator_(New<TEvaluator>(Config_, QueryAgentProfiler))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
