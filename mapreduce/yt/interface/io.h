@@ -153,6 +153,11 @@ public:
         const TRichYPath& path,
         const TTableWriterOptions& options = TTableWriterOptions());
 
+    virtual TTableWriterPtr<::google::protobuf::Message> CreateTableWriter(
+        const TRichYPath& path,
+        const ::google::protobuf::Descriptor& descriptor,
+        const TTableWriterOptions& options = TTableWriterOptions()) = 0;
+
     virtual TRawTableReaderPtr CreateRawReader(
         const TRichYPath& path,
         const TFormat& format,

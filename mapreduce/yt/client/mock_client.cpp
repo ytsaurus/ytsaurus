@@ -271,6 +271,10 @@ IFileWriterPtr TMockClient::CreateFileWriter(const TRichYPath&, const TFileWrite
     return new TMockFileWriter();
 }
 
+TTableWriterPtr<::google::protobuf::Message> TMockClient::CreateTableWriter(const TRichYPath&, const ::google::protobuf::Descriptor&, const TTableWriterOptions&) {
+    return new TTableWriter<::google::protobuf::Message>(new TMockProtoTableWriter());
+}
+
 TRawTableReaderPtr TMockClient::CreateRawReader(const TRichYPath&, const TFormat&, const TTableReaderOptions&) {
     return new TMockRawTableReader();
 }

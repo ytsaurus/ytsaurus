@@ -179,6 +179,33 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT(!reader->IsValid());
     }
 
+    SIMPLE_UNIT_TEST(UntypedProtobufWriter)
+    {
+        auto client = CreateTestClient();
+        {
+            TUrlRow row;
+            row.SetHost("http://www.example.com");
+            row.SetPath("/index.php");
+            row.SetHttpCode(200);
+            const Message* ptrWithoutType = &row;
+
+            auto writer = client->CreateTableWriter("//testing/urls", *TUrlRow::descriptor());
+            writer->AddRow(*ptrWithoutType);
+            writer->Finish();
+        }
+
+        auto reader = client->CreateTableReader<TUrlRow>("//testing/urls");
+        UNIT_ASSERT(reader->IsValid());
+        {
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetPath(), "/index.php");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHttpCode(), 200);
+        }
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
+    }
+
     SIMPLE_UNIT_TEST(ProtobufVersions)
     {
         auto client = CreateTestClient();

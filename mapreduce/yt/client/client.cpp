@@ -197,6 +197,13 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     return new TFileWriter(realPath, Auth_, TransactionId_, options);
 }
 
+TTableWriterPtr<::google::protobuf::Message> TClientBase::CreateTableWriter(
+    const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options)
+{
+    const Message* prototype = google::protobuf::MessageFactory::generated_factory()->GetPrototype(&descriptor);
+    return new TTableWriter<::google::protobuf::Message>(CreateProtoWriter(path, options, prototype));
+}
+
 TRawTableReaderPtr TClientBase::CreateRawReader(
     const TRichYPath& path,
     const TFormat& format,
