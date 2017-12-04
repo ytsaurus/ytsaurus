@@ -674,6 +674,52 @@ TEST_F(TErasureMixture, RepairTest5)
     Cleanup(codec);
 }
 
+TEST_F(TErasureMixture, RepairTest6)
+{
+    auto codecId = ECodec::Lrc_12_2_2;
+    auto codec = GetCodec(codecId);
+
+    // Prepare data (in this test we have multiple erasure windows).
+    std::vector<TSharedRef> dataRefs;
+    for (int i = 0; i < 2000; ++i) {
+        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), 20 + (std::rand() % 100));
+        for (int i = 0; i < data.Size(); ++i) {
+            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
+        }
+        dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
+    }
+    WriteErasureChunk(codecId, codec, dataRefs, 256);
+
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
+    }
+
+    TPartIndexList erasedIndices;
+    erasedIndices.push_back(1);
+    erasedIndices.push_back(8);
+    erasedIndices.push_back(13);
+    erasedIndices.push_back(15);
+
+    RemoveErasedParts(erasedIndices);
+
+    std::vector<IChunkReaderPtr> allReaders;
+    std::vector<IChunkReaderPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
+    CheckRepairReader(repairReader, dataRefs, 40);
+
+    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
+    }
+
+    Cleanup(codec);
+}
+
 TEST_F(TErasureMixture, RepairingReaderAllCorrect)
 {
     auto codecId = ECodec::ReedSolomon_6_3;

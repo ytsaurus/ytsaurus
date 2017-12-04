@@ -83,7 +83,7 @@ std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges_)
                 start = range.Begin;
                 end = range.End;
             } else {
-                end = range.End;
+                end = std::max(end, range.End);
             }
         } else {
             opened = true;
