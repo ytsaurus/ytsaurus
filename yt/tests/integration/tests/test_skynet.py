@@ -170,7 +170,7 @@ class TestSkynet(YTEnvSetup):
     def test_http_edge_cases(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
-            "optimize_for": "lookup",
+            "optimize_for": "scan",
             "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
         })
 
