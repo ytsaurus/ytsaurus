@@ -84,6 +84,11 @@ public:
         const TRichYPath& path,
         const TFileWriterOptions& options) override;
 
+    TTableWriterPtr<::google::protobuf::Message> CreateTableWriter(
+        const TRichYPath& path,
+        const ::google::protobuf::Descriptor& descriptor,
+        const TTableWriterOptions& options) override;
+
     TRawTableReaderPtr CreateRawReader(
         const TRichYPath& path,
         const TFormat& format,
