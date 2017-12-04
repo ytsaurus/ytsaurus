@@ -200,7 +200,10 @@ bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs);
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);
 
-void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic = false);
+void ValidateColumnSchema(
+    const TColumnSchema& columnSchema,
+    bool isTableSorted = false,
+    bool isTableDynamic = false);
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn);
 
 void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic = false);

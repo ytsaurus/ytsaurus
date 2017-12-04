@@ -46,7 +46,7 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidation)
     };
 
     for (const auto& columnSchema : invalidSchemas) {
-        EXPECT_THROW(ValidateColumnSchema(columnSchema, true), std::exception);
+        EXPECT_THROW(ValidateColumnSchema(columnSchema, true, true), std::exception);
     }
 
     std::vector<TColumnSchema> validSchemas{
