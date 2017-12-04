@@ -273,11 +273,12 @@ const TBlocksExt& TFileReader::GetBlockExts()
 {
     if (!HasCachedBlocksExt_) {
         TGuard<TMutex> guard(Mutex_);
-
-        CachedBlocksExt_ = DoGetMeta(Null, Null).Apply(BIND([] (const TChunkMeta& meta) {
-            return GetProtoExtension<TBlocksExt>(meta.extensions());
-        }));
-        HasCachedBlocksExt_ = true;
+        if (!CachedBlocksExt_) {
+            CachedBlocksExt_ = DoGetMeta(Null, Null).Apply(BIND([](const TChunkMeta& meta) {
+                return GetProtoExtension<TBlocksExt>(meta.extensions());
+            }));
+            HasCachedBlocksExt_ = true;
+        }
     }
     return CachedBlocksExt_.Get().ValueOrThrow();
 }
