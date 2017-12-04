@@ -369,8 +369,7 @@ size_t TExpressionProfiler::Profile(
         if (emplaced.second || isIsolated) {
             Fold(savedId);
 
-            int index = Variables_->LiteralValues.size();
-            Variables_->LiteralValues.push_back(literalExpr->Value);
+            int index = Variables_->AddLiteralValue(literalExpr->Value);
             Fold(index);
 
             bool nullable = TValue(literalExpr->Value).Type == EValueType::Null;

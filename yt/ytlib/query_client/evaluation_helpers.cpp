@@ -263,5 +263,41 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void* const* TCGVariables::GetOpaqueData() const
+{
+    return OpaquePointers_.data();
+}
+
+void TCGVariables::Clear()
+{
+    OpaquePointers_.clear();
+    OpaqueValues_.clear();
+    OwningLiteralValues_.clear();
+    LiteralValues_.reset();
+}
+
+int TCGVariables::AddLiteralValue(TOwningValue value)
+{
+    Y_ASSERT(!LiteralValues_);
+    int index = static_cast<int>(OwningLiteralValues_.size());
+    OwningLiteralValues_.emplace_back(std::move(value));
+    return index;
+}
+
+TValue* TCGVariables::GetLiteralValues() const
+{
+    if (!LiteralValues_) {
+        LiteralValues_ = std::make_unique<TValue[]>(OwningLiteralValues_.size());
+        size_t index = 0;
+        for (const auto& value : OwningLiteralValues_) {
+            LiteralValues_[index++] = TValue(value);
+        }
+        return LiteralValues_.get();
+    }
+    return LiteralValues_.get();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT
