@@ -503,6 +503,7 @@ private:
                     std::move(topQuery),
                     std::move(reader),
                     std::move(writer),
+                    nullptr,
                     functionGenerators,
                     aggregateGenerators,
                     options);
