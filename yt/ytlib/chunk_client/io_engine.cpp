@@ -139,8 +139,6 @@ private:
             result = buf - (ui8*)data.Begin();
         });
 
-        YCHECK(result >= 0);
-
         return data.Slice(0, result);
     }
 
