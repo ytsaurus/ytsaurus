@@ -49,7 +49,7 @@ class TYPathResolver
     : public TForwardingYsonConsumer
 {
 public:
-    explicit TYPathResolver(const TYPath& path, bool isAny)
+    TYPathResolver(const TYPath& path, bool isAny)
         : Tokenizer_(path)
         , IsAny_(isAny)
     {
@@ -197,7 +197,7 @@ public:
 
 private:
     TTokenizer Tokenizer_;
-    bool IsAny_ = false;
+    const bool IsAny_ = false;
 
     EExpectedItem Expected_ = EExpectedItem::Initial;
     TString Literal_;
@@ -232,8 +232,7 @@ private:
     }
 
     void OnForwardingFinished()
-    {
-    }
+    { }
 
     void NextToken()
     {
@@ -343,6 +342,8 @@ TNullable<TString> TryGetAny(const TStringBuf& yson, const TYPath& ypath)
 {
     return TryGetValue<TString>(yson, ypath, true);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT
