@@ -744,21 +744,49 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic)
+void ValidateColumnSchema(
+    const TColumnSchema& columnSchema,
+    bool isTableSorted,
+    bool isTableDynamic)
 {
-    static const auto allowedAggregates = yhash_set<TString>{"sum", "min", "max", "first"};
+    static const auto allowedAggregates = yhash_set<TString>{
+        "sum",
+        "min",
+        "max",
+        "first"
+    };
+
+    static const auto allowedSortedTablesSystemColumns = yhash<TString, EValueType>{
+    };
+
+    static const auto allowedOrderedTablesSystemColumns = yhash<TString, EValueType>{
+        {TimestampColumnName, EValueType::Uint64}
+    };
+
+    const auto& name = columnSchema.Name();
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Column name cannot be empty");
+    }
 
     try {
-        if (columnSchema.Name().empty()) {
-            THROW_ERROR_EXCEPTION("Column name cannot be empty");
+        if (name.StartsWith(SystemColumnNamePrefix)) {
+            const auto& allowedSystemColumns = isTableSorted
+                ? allowedSortedTablesSystemColumns
+                : allowedOrderedTablesSystemColumns;
+            auto it = allowedSystemColumns.find(name);
+            if (it == allowedSystemColumns.end()) {
+                THROW_ERROR_EXCEPTION("System column name %Qv is not allowed here",
+                    name);
+            }
+            if (columnSchema.GetPhysicalType() != it->second) {
+                THROW_ERROR_EXCEPTION("Invalid type of column name %Qv: expected %Qlv, got %Qlv",
+                    name,
+                    it->second,
+                    columnSchema.GetPhysicalType());
+            }
         }
 
-        if (columnSchema.Name().StartsWith(SystemColumnNamePrefix)) {
-            THROW_ERROR_EXCEPTION("Column name cannot start with prefix %Qv",
-                SystemColumnNamePrefix);
-        }
-
-        if (columnSchema.Name().size() > MaxColumnNameLength) {
+        if (name.size() > MaxColumnNameLength) {
             THROW_ERROR_EXCEPTION("Column name is longer than maximum allowed: %v > %v",
                 columnSchema.Name().size(),
                 MaxColumnNameLength);
@@ -810,8 +838,8 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
-            columnSchema.Name())
-                << ex;
+            name)
+            << ex;
     }
 }
 
@@ -1168,7 +1196,10 @@ void ValidateSchemaAttributes(const TTableSchema& schema)
 void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic)
 {
     for (const auto& column : schema.Columns()) {
-        ValidateColumnSchema(column, isTableDynamic);
+        ValidateColumnSchema(
+            column,
+            schema.IsSorted(),
+            isTableDynamic);
     }
     ValidateColumnUniqueness(schema);
     ValidateLocks(schema);
