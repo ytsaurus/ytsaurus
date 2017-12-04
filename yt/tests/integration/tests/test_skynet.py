@@ -12,6 +12,7 @@ import pytest
 class TestSkynet(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
+    NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
         "use_new_http_server": True,
@@ -169,6 +170,7 @@ class TestSkynet(YTEnvSetup):
     def test_http_edge_cases(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
+            "optimize_for": "lookup",
             "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
         })
 
@@ -209,6 +211,20 @@ class TestSkynet(YTEnvSetup):
                                                   upper_row_index=upper_row_index,
                                                   start_part_index=part_index)
 
+    def test_operation_output(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"sky_share_id": 0, "filename": "test.txt", "part_index": 0, "data": "foobar"})
+
+        create("table", "//tmp/table", attributes={
+            "enable_skynet_sharing": True,
+            "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
+        })
+
+        map(in_="//tmp/input", out="//tmp/table", command="cat")
+        row = read_table("//tmp/table")[0]
+        assert 6 == row["data_size"]
+        assert "sha1" in row
+        assert "md5" in row
 
     def test_skynet_hashes(self):
         create("table", "//tmp/table", attributes={
