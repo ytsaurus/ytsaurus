@@ -122,7 +122,7 @@ public:
 
                 CallCGQueryPtr(
                     cgQuery,
-                    fragmentParams.GetLiteralvalues(),
+                    fragmentParams.GetLiteralValues(),
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
 

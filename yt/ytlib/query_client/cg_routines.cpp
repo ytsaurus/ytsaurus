@@ -125,7 +125,7 @@ void ScanOpHelper(
 
     auto* statistics = context->Statistics;
 
-    auto rowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+    auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
     while (true) {
         bool hasMoreData;
@@ -281,7 +281,7 @@ void StorePrimaryRow(
             closure->ProcessSegment(joinId);
             item.LastKey = key;
             item.Lookup.clear();
-            // Key will be realloacted further.
+            // Key will be reallocated further.
         }
 
         *reinterpret_cast<TSlot*>(key + item.KeySize) = TSlot(0, 0);
@@ -332,7 +332,6 @@ public:
         , ConsumeRows(consumeRows)
         , SelfColumns(selfColumns)
         , ForeignColumns(foreignColumns)
-        , IntermediateBuffer(New<TRowBuffer>(TIntermadiateBufferTag()))
     {
         JoinedRows.reserve(RowsetProcessingSize);
     }
@@ -416,7 +415,7 @@ public:
         const ISchemafulReaderPtr& reader,
         bool isLeft)
     {
-        auto foreignRowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+        auto foreignRowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
         std::vector<TRow> sortedForeignSequence;
         size_t unsortedOffset = 0;
         TRow lastForeignKey;
@@ -588,15 +587,14 @@ public:
     }
 
 private:
-    void** ConsumeRowsClosure;
-    void (*ConsumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size);
+    void** const ConsumeRowsClosure;
+    void (* const ConsumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size);
 
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
 
-    TRowBufferPtr IntermediateBuffer;
+    const TRowBufferPtr IntermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
     std::vector<const TValue*> JoinedRows;
-
 };
 
 void JoinOpHelper(
@@ -694,9 +692,7 @@ void JoinOpHelper(
                 batchState.HashJoin(context, &joinLookup, chainedRows, reader, isLeft);
             }
         } else {
-            NApi::IUnversionedRowsetPtr rowset;
-
-            auto foreignRowsBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+            auto foreignRowsBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
             std::vector<TRow> foreignRows;
             foreignRows.reserve(RowsetProcessingSize);
@@ -940,7 +936,7 @@ void MultiJoinOpHelper(
             sortedForeignSequences.push_back(std::move(sortedForeignSequence));
         }
 
-        auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+        auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
         std::vector<const TValue*> joinedRows;
         auto consumeJoinedRows = [&] () {
             // Consume joined rows.
@@ -1093,7 +1089,7 @@ void GroupOpHelper(
     LOG_DEBUG("Collected %v group rows",
         closure.GroupedRows.size());
 
-    auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+    auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
     for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
@@ -1129,7 +1125,7 @@ void OrderOpHelper(
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows();
 
-    auto rowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+    auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
     for (size_t index = 0; index < rows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, rows.size() - index);
