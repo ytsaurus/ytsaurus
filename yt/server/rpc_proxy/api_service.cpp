@@ -310,7 +310,9 @@ private:
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
         if (Bootstrap_->GetConfig()->ApiService->VerboseLogging) {
-            context->SetRequestInfo("Request: %v", request->ShortDebugString());
+            LOG_DEBUG("RequestId: %v, RequestBody: %v",
+                context->GetRequestId(),
+                request->ShortDebugString());
         }
 
         {
