@@ -366,14 +366,14 @@ private:
             }));
     }
 
-    template <class T, class F>
-    void CompleteCallWith(const IServiceContextPtr& context, TFuture<T>&& future, F&& functor)
+    template <class TContext, class TResult, class F>
+    void CompleteCallWith(const TIntrusivePtr<TContext>& context, TFuture<TResult>&& future, F&& functor)
     {
         future.Subscribe(
-            BIND([context, functor = std::move(functor)] (const TErrorOr<T>& valueOrError) {
+            BIND([context, functor = std::move(functor)] (const TErrorOr<TResult>& valueOrError) {
                 if (valueOrError.IsOK()) {
                     try {
-                        functor(valueOrError.Value());
+                        functor(context, valueOrError.Value());
                         // XXX(sandello): This relies on the typed service context implementation.
                         context->Reply(TError());
                     } catch (const std::exception& ex) {
@@ -401,7 +401,8 @@ private:
         CompleteCallWith(
             context,
             timestampProvider->GenerateTimestamps(count),
-            [&] (const TTimestamp& timestamp) {
+            [] (const auto& context, const TTimestamp& timestamp) {
+                auto* response = &context->Response();
                 response->set_timestamp(timestamp);
 
                 context->SetResponseInfo("Timestamp: %llx",
@@ -436,7 +437,8 @@ private:
         CompleteCallWith(
             context,
             client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options),
-            [&] (const ITransactionPtr& transaction) {
+            [] (const auto& context, const auto& transaction) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_id(), transaction->GetId());
                 response->set_start_timestamp(transaction->GetStartTimestamp());
 
@@ -500,7 +502,8 @@ private:
         CompleteCallWith(
             context,
             transaction->Commit(),
-            [&] (const TTransactionCommitResult& result) {
+            [] (const auto& context, const TTransactionCommitResult& result) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
 
                 context->SetResponseInfo("CommitTimestamps: %v",
@@ -570,7 +573,8 @@ private:
         CompleteCallWith(
             context,
             client->NodeExists(path, options),
-            [&] (const bool& result) {
+            [] (const auto& context, const bool& result) {
+                auto* response = &context->Response();
                 response->set_exists(result);
 
                 context->SetResponseInfo("Exists: %v",
@@ -624,7 +628,8 @@ private:
         CompleteCallWith(
             context,
             client->GetNode(path, options),
-            [&] (const TYsonString& result) {
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
                 response->set_value(result.GetData());
             });
     }
@@ -675,7 +680,8 @@ private:
         CompleteCallWith(
             context,
             client->ListNode(path, options),
-            [&] (const TYsonString& result) {
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
                 response->set_value(result.GetData());
             });
     }
@@ -727,7 +733,8 @@ private:
         CompleteCallWith(
             context,
             client->CreateNode(path, type, options),
-            [&] (const NCypressClient::TNodeId& nodeId) {
+            [] (const auto& context, const NCypressClient::TNodeId& nodeId) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
 
                 context->SetResponseInfo("NodeId: %v",
@@ -841,7 +848,8 @@ private:
         CompleteCallWith(
             context,
             client->LockNode(path, mode, options),
-            [&] (const TLockNodeResult& result) {
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), result.NodeId);
                 ToProto(response->mutable_lock_id(), result.LockId);
 
@@ -895,7 +903,8 @@ private:
         CompleteCallWith(
             context,
             client->CopyNode(srcPath, dstPath, options),
-            [&] (const NCypressClient::TNodeId& nodeId) {
+            [] (const auto& context, const NCypressClient::TNodeId& nodeId) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
 
                 context->SetResponseInfo("NodeId: %v",
@@ -944,7 +953,8 @@ private:
         CompleteCallWith(
             context,
             client->MoveNode(srcPath, dstPath, options),
-            [&] (const NCypressClient::TNodeId& nodeId) {
+            [] (const auto& context, const auto& nodeId) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
 
                 context->SetResponseInfo("NodeId: %v",
@@ -993,7 +1003,8 @@ private:
                 srcPath,
                 dstPath,
                 options),
-            [&] (const NCypressClient::TNodeId& nodeId) {
+            [] (const auto& context, const auto& nodeId) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
 
                 context->SetResponseInfo("NodeId: %v",
@@ -1403,7 +1414,8 @@ private:
                 std::move(nameTable),
                 std::move(keys),
                 options),
-            [&] (const IUnversionedRowsetPtr& rowset) {
+            [] (const auto& context, const auto& rowset) {
+                auto* response = &context->Response();
                 AttachRowset(response, rowset);
 
                 context->SetResponseInfo("RowCount: %v",
@@ -1441,7 +1453,8 @@ private:
                 std::move(nameTable),
                 std::move(keys),
                 options),
-            [&] (const IVersionedRowsetPtr& rowset) {
+            [] (const auto& context, const auto& rowset) {
+                auto* response = &context->Response();
                 AttachRowset(response, rowset);
 
                 context->SetResponseInfo("RowCount: %v",
@@ -1492,7 +1505,8 @@ private:
         CompleteCallWith(
             context,
             client->SelectRows(query, options),
-            [&] (const TSelectRowsResult& result) {
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
                 // TODO(sandello): Statistics?
                 AttachRowset(response, result.Rowset);
 
@@ -1533,7 +1547,8 @@ private:
                 std::move(nameTable),
                 MakeSharedRange(rowset->GetRows(), rowset),
                 options),
-            [&] (const std::vector<TTableReplicaId>& replicaIds) {
+            [] (const auto& context, const std::vector<TTableReplicaId>& replicaIds) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_replica_ids(), replicaIds);
 
                 context->SetResponseInfo("ReplicaIds: %v",
@@ -1564,7 +1579,8 @@ private:
                 path,
                 tabletIndexes,
                 options),
-            [&] (const std::vector<NApi::TTabletInfo>& tabletInfos) {
+            [] (const auto& context, const auto& tabletInfos) {
+                auto* response = &context->Response();
                 for (const auto& tabletInfo : tabletInfos) {
                     auto* protoTabletInfo = response->add_tablets();
                     protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
