@@ -62,7 +62,7 @@ message TUserJobSpec
     required int64 memory_reserve = 9;
 
     // Transaction for creating stderr chunks and input contexts.
-    required NYT.NProto.TGuid async_scheduler_transaction_id = 8;
+    required NYT.NProto.TGuid debug_output_transaction_id = 8;
 
     optional bool use_yamr_descriptors = 10 [default = false];
 
