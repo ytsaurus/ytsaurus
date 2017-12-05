@@ -54,8 +54,6 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                 &column.Variables,
                 profilers)();
 
-            column.Variables.GetLiteralValues();
-
             for (const auto& reference : references) {
                 column.ReferenceIds.push_back(schema.GetColumnIndexOrThrow(reference));
             }
