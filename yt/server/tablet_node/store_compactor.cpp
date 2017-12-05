@@ -699,7 +699,7 @@ private:
 
     void PartitionEden(TTask* task)
     {
-        auto sessionId = TReadSessionId();
+        auto sessionId = TReadSessionId::Create();
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
             task->Tablet,
@@ -1057,7 +1057,7 @@ private:
 
     void CompactPartition(TTask* task)
     {
-        auto sessionId = TReadSessionId();
+        auto sessionId = TReadSessionId::Create();
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
             task->Tablet,
