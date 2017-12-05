@@ -63,7 +63,7 @@ public:
     { }
 
     TQueryStatistics Run(
-        volatile TConstBaseQueryPtr query,
+        TConstBaseQueryPtr query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         TJoinSubqueryProfiler joinProfiler,
@@ -73,7 +73,7 @@ public:
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->Id);
-            volatile TString queryFingerprint = InferName(query, true);
+            auto queryFingerprint = InferName(query, true);
             TRACE_ANNOTATION("query_fingerprint", queryFingerprint);
 
             auto Logger = MakeQueryLogger(query);
