@@ -5995,7 +5995,7 @@ void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransaction->GetId());
+    ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugOutputTransaction->GetId());
 
     i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * *joblet->UserJobMemoryReserveFactor;
     // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).

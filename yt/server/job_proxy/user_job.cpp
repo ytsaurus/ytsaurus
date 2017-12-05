@@ -622,7 +622,7 @@ private:
     {
         std::vector<TChunkId> result;
 
-        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
         for (int index = 0; index < contexts.size(); ++index) {
             TFileChunkOutput contextOutput(
                 JobIOConfig_->ErrorFileWriter,
@@ -709,7 +709,7 @@ private:
                 JobIOConfig_->ErrorFileWriter,
                 CreateFileOptions(),
                 Host_->GetClient(),
-                FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()));
+                FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()));
         }
     }
 
