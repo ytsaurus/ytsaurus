@@ -307,7 +307,7 @@ TFuture<TNullable<TString>> TSlotLocation::MakeSandboxTmpfs(
             WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                 .ThrowOnError();
 
-            TmpfsPaths_.insert(tmpfsPath);
+            YCHECK(TmpfsPaths_.insert(tmpfsPath).second);
 
             return MakeNullable(tmpfsPath);
         } catch (const std::exception& ex) {
@@ -351,7 +351,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         ValidateEnabled();
 
         for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-            const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
+            const auto& sandboxPath = NFS::GetRealPath(GetSandboxPath(slotIndex, sandboxKind));
             try {
                 if (!NFS::Exists(sandboxPath)) {
                     continue;
@@ -369,6 +369,12 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 } else {
                     NFS::RemoveRecursive(sandboxPath);
                 }
+
+                auto it = TmpfsPaths_.lower_bound(sandboxPath);
+                while (it != TmpfsPaths_.end() && it->StartsWith(sandboxPath)) {
+                    it = TmpfsPaths_.erase(it);
+                }
+
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to clean sandbox directory %v", sandboxPath) << ex;
                 Disable(error);
