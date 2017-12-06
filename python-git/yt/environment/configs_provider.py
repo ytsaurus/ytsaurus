@@ -513,15 +513,22 @@ class ConfigsProvider_18(ConfigsProvider):
                 "disable_writes_watermark": 0
             }
 
+            layer_location_config = {
+                "low_watermark" : 1,
+            }
+
             if provision["node"]["chunk_store_quota"] is not None:
                 store_location_config["quota"] = provision["node"]["chunk_store_quota"]
 
             if node_tmpfs_dirs is not None and provision["node"]["allow_chunk_storage_in_tmpfs"]:
                 store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store")
+                layer_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "layers")
             else:
                 store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store")
+                layer_location_config["path"] = os.path.join(node_dirs[index], "layers")
 
             set_at(config, "data_node/store_locations", [store_location_config])
+            set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
             config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
                                              provision["enable_debug_logging"])
