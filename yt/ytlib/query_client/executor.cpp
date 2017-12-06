@@ -147,10 +147,10 @@ public:
     TQueryExecutor(
         INativeConnectionPtr connection,
         INodeChannelFactoryPtr nodeChannelFactory,
-        const TFunctionImplCachePtr& functionImplCache)
+        TFunctionImplCachePtr functionImplCache)
         : Connection_(std::move(connection))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
-        , FunctionImplCache_(functionImplCache)
+        , FunctionImplCache_(std::move(functionImplCache))
     { }
 
     virtual TFuture<TQueryStatistics> Execute(
@@ -676,9 +676,12 @@ DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
 IExecutorPtr CreateQueryExecutor(
     INativeConnectionPtr connection,
     INodeChannelFactoryPtr nodeChannelFactory,
-    const TFunctionImplCachePtr& functionImplCache)
+    TFunctionImplCachePtr functionImplCache)
 {
-    return New<TQueryExecutor>(connection, nodeChannelFactory, functionImplCache);
+    return New<TQueryExecutor>(
+        std::move(connection),
+        std::move(nodeChannelFactory),
+        std::move(functionImplCache));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
