@@ -25,6 +25,7 @@ static const auto& Logger = QueryClientLogger;
 
 static const i64 PoolChunkSize = 32 * 1024;
 static const i64 BufferLimit = 32 * PoolChunkSize;
+static const i64 MaxTopCollectorLimit = 2 * 1024 * 1024;
 
 struct TTopCollectorBufferTag
 { };
@@ -35,6 +36,12 @@ TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer, size_t rowS
     : Comparer_(comparer)
     , RowSize_(rowSize)
 {
+    if (limit > MaxTopCollectorLimit) {
+        THROW_ERROR_EXCEPTION("Maximum ORDER BY limit exceeded")
+            << TErrorAttribute("limit", limit)
+            << TErrorAttribute("max_limit", MaxTopCollectorLimit);
+    }
+
     Rows_.reserve(limit);
 }
 

@@ -62,6 +62,8 @@ message TTabletInfo
     required NYT.NProto.TGuid tablet_id = 1;
     repeated TReplicaInfo replicas = 2;
     required int64 total_row_count = 3;
+    // COMPAT(babenko): make it required in 19.3
+    optional int64 trimmed_row_count = 4;
 }
 
 message TRspGetTabletInfo

@@ -13,6 +13,9 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRpcProxyClientBufferTag
+{ };
+
 class TRpcProxyClientBase
     : public virtual NApi::IClientBase
 {
@@ -23,13 +26,7 @@ protected:
     virtual NRpc::IChannelPtr GetChannel() = 0;
 
 public:
-    TRpcProxyClientBase();
-    ~TRpcProxyClientBase();
-
-    virtual NApi::IConnectionPtr GetConnection() override
-    {
-        return GetRpcProxyConnection();
-    }
+    virtual NApi::IConnectionPtr GetConnection() override;
 
     // Transactions
     virtual TFuture<NApi::ITransactionPtr> StartTransaction(

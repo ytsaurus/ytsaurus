@@ -88,6 +88,11 @@ DEFINE_ENUM(EDirectIOPolicy,
     (ForSyncOnCloseChunks)
 );
 
+DEFINE_ENUM(EIOEngineType,
+    (ThreadPool)
+    (Aio)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDataNode

@@ -49,6 +49,7 @@
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/ast.h>
+#include <yt/ytlib/query_client/query_service.pb.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
@@ -575,6 +576,11 @@ public:
         const TSharedRange<NTableClient::TKey>& keys,
         const TGetInSyncReplicasOptions& options),
         (path, nameTable, keys, options))
+    IMPLEMENT_METHOD(std::vector<TTabletInfo>, GetTabletInfos, (
+        const NYPath::TYPath& path,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletsInfoOptions& options),
+        (path, tabletIndexes, options))
     IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
         const TMountTableOptions& options),
@@ -1953,6 +1959,65 @@ private:
         return replicas;
     }
 
+    std::vector<TTabletInfo> DoGetTabletInfos(
+        const TYPath& path,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletsInfoOptions& options)
+    {
+        const auto& tableMountCache = Connection_->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
+
+        tableInfo->ValidateDynamic();
+
+        struct TSubrequest
+        {
+            TQueryServiceProxy::TReqGetTabletInfoPtr Request;
+            std::vector<size_t> ResultIndexes;
+        };
+
+        yhash<TCellId, TSubrequest> cellIdToSubrequest;
+
+        for (size_t resultIndex = 0; resultIndex < tabletIndexes.size(); ++resultIndex) {
+            auto tabletIndex = tabletIndexes[resultIndex];
+            auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+            auto& subrequest = cellIdToSubrequest[tabletInfo->CellId];
+            if (!subrequest.Request) {
+                auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
+                TQueryServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(options.Timeout);
+                subrequest.Request = proxy.GetTabletInfo();
+            }
+            ToProto(subrequest.Request->add_tablet_ids(), tabletInfo->TabletId);
+            subrequest.ResultIndexes.push_back(resultIndex);
+        }
+
+        std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncRspsOrErrors;
+        std::vector<const TSubrequest*> subrequests;
+        for (const auto& pair : cellIdToSubrequest) {
+            const auto& subrequest = pair.second;
+            subrequests.push_back(&subrequest);
+            asyncRspsOrErrors.push_back(subrequest.Request->Invoke());
+        }
+
+        auto rspsOrErrors = WaitFor(Combine(asyncRspsOrErrors))
+            .ValueOrThrow();
+
+        std::vector<TTabletInfo> results(tabletIndexes.size());
+        for (size_t subrequestIndex = 0; subrequestIndex < rspsOrErrors.size(); ++subrequestIndex) {
+            const auto& subrequest = *subrequests[subrequestIndex];
+            const auto& rsp = rspsOrErrors[subrequestIndex];
+            YCHECK(rsp->tablets_size() == subrequest.ResultIndexes.size());
+            for (size_t resultIndexIndex = 0; resultIndexIndex < subrequest.ResultIndexes.size(); ++resultIndexIndex) {
+                auto& result = results[subrequest.ResultIndexes[resultIndexIndex]];
+                const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
+                result.TotalRowCount = tabletInfo.total_row_count();
+                result.TrimmedRowCount = tabletInfo.trimmed_row_count();
+            }
+        }
+        return results;
+    }
+
     void DoMountTable(
         const TYPath& path,
         const TMountTableOptions& options)
@@ -2136,13 +2201,7 @@ private:
         tableInfo->ValidateDynamic();
         tableInfo->ValidateOrdered();
 
-        if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
-            THROW_ERROR_EXCEPTION("Invalid tablet index: expected in range [0,%v], got %v",
-                tableInfo->Tablets.size() - 1,
-                tabletIndex);
-        }
-
-        const auto& tabletInfo = tableInfo->Tablets[tabletIndex];
+        auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
 
         auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 

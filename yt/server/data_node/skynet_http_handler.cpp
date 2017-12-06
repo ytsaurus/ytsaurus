@@ -121,6 +121,8 @@ public:
             nullptr,
             nullptr);
 
+        *chunkState->ChunkSpec.mutable_chunk_meta() = *chunkMeta;
+
         auto schemalessReaderConfig = New<TChunkReaderConfig>();
         schemalessReaderConfig->WorkloadDescriptor = skynetWorkload;
 

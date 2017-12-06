@@ -40,6 +40,26 @@ TEST(THeapTest, MakeThenExtract)
     EXPECT_EQ(sorted, words);
 }
 
+TEST(THeapTest, MakeThenExtractMoveOnly)
+{
+    srand(0);
+
+    std::vector<std::unique_ptr<TString>> words;
+    for (int i = 0; i < 10000; ++i) {
+        words.push_back(std::make_unique<TString>(GetRandomString(10)));
+    }
+
+    NYT::MakeHeap(words.begin(), words.end(), [] (const auto& lhs, const auto& rhs) { return *lhs > *rhs; });
+    auto end = words.end();
+    while (end != words.begin()) {
+        NYT::ExtractHeap(words.begin(), end, [] (const auto& lhs, const auto& rhs) { return *lhs > *rhs; });
+        --end;
+    }
+
+    EXPECT_TRUE(std::is_sorted(words.begin(), words.end(), [] (const auto& lhs, const auto& rhs) { return *lhs < *rhs; }));
+}
+
+
 TEST(THeapTest, InsertThenExtract)
 {
     srand(0);

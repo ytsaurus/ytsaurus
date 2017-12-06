@@ -355,51 +355,60 @@ void TMapNodeMixin::SetChild(
     TString rootKey;
 
     auto currentNode = rootNode;
-    while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
-        tokenizer.Skip(NYPath::ETokenType::Ampersand);
-        tokenizer.Expect(NYPath::ETokenType::Slash);
+    try {
+        while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+            tokenizer.Skip(NYPath::ETokenType::Ampersand);
+            tokenizer.Expect(NYPath::ETokenType::Slash);
 
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        auto key = tokenizer.GetLiteralValue();
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            auto key = tokenizer.GetLiteralValue();
 
-        int maxKeyLength = GetMaxKeyLength();
-        if (key.length() > maxKeyLength) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::MaxKeyLengthViolation,
-                "Map node %v is not allowed to contain items with keys longer than %v symbols",
-                GetPath(),
-                maxKeyLength);
+            int maxKeyLength = GetMaxKeyLength();
+            if (key.length() > maxKeyLength) {
+                THROW_ERROR_EXCEPTION(
+                    NYTree::EErrorCode::MaxKeyLengthViolation,
+                    "Map node %v is not allowed to contain items with keys longer than %v symbols",
+                    GetPath(),
+                    maxKeyLength);
+            }
+
+            tokenizer.Advance();
+
+            bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
+            if (!recursive && !lastStep) {
+                THROW_ERROR_EXCEPTION("%v has no child %Qv; consider using \"recursive\" option to force its creation",
+                    currentNode->GetPath(),
+                    key);
+            }
+
+            int maxChildCount = GetMaxChildCount();
+            if (currentNode->GetChildCount() >= maxChildCount) {
+                THROW_ERROR_EXCEPTION(
+                    NYTree::EErrorCode::MaxChildCountViolation,
+                    "Map node %v is not allowed to contain more than %v items",
+                    GetPath(),
+                    maxChildCount);
+            }
+
+            auto newChild = lastStep ? child : factory->CreateMap();
+            if (currentNode != rootNode) {
+                YCHECK(currentNode->AddChild(newChild, key));
+            } else {
+                rootChild = newChild;
+                rootKey = key;
+            }
+
+            if (!lastStep) {
+                currentNode = newChild->AsMap();
+            }
         }
-
-        tokenizer.Advance();
-
-        bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
-        if (!recursive && !lastStep) {
-            THROW_ERROR_EXCEPTION("%v has no child %Qv; consider using \"recursive\" option to force its creation",
-                currentNode->GetPath(),
-                key);
-        }
-
-        int maxChildCount = GetMaxChildCount();
-        if (currentNode->GetChildCount() >= maxChildCount) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::MaxChildCountViolation,
-                "Map node %v is not allowed to contain more than %v items",
-                GetPath(),
-                maxChildCount);
-        }
-
-        auto newChild = lastStep ? child : factory->CreateMap();
-        if (currentNode != rootNode) {
-            YCHECK(currentNode->AddChild(newChild, key));
+    } catch (const TErrorException& ex) {
+        if (recursive) {
+            THROW_ERROR_EXCEPTION("Failed to set node recursively")
+                << ex.Error();
         } else {
-            rootChild = newChild;
-            rootKey = key;
-        }
-
-        if (!lastStep) {
-            currentNode = newChild->AsMap();
+            throw;
         }
     }
 
