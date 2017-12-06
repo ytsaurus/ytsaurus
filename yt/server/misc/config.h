@@ -79,7 +79,7 @@ public:
         RegisterParameter("monitoring_server", MonitoringServer)
             .DefaultNew();
         RegisterParameter("use_new_http_server", UseNewHttpServer)
-            .Default(false);
+            .Default(true);
     }
 
     virtual void OnLoaded() override
