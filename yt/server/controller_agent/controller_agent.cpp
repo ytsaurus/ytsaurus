@@ -32,6 +32,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NEventLog;
 using namespace NProfiling;
+using namespace NYson;
 
 static const auto& Logger = ControllerAgentLogger;
 
@@ -239,6 +240,22 @@ public:
         }
 
         return results;
+    }
+
+    void BuildOperationInfo(
+        const TOperationId& operationId,
+        NScheduler::NProto::TRspGetOperationInfo* response)
+    {
+        auto controller = FindController(operationId);
+        if (!controller) {
+            return;
+        }
+
+        auto asyncResult = BIND(&IOperationController::BuildOperationInfo, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run(response);
+        WaitFor(asyncResult)
+            .ThrowOnError();
     }
 
     TFuture<void> GetHeartbeatSentFuture()
@@ -560,6 +577,11 @@ void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
 std::vector<TErrorOr<TSharedRef>> TControllerAgent::GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
 {
     return Impl_->GetJobSpecs(jobSpecRequests);
+}
+
+void TControllerAgent::BuildOperationInfo(const TOperationId& operationId, NScheduler::NProto::TRspGetOperationInfo* response)
+{
+    Impl_->BuildOperationInfo(operationId, response);
 }
 
 TFuture<void> TControllerAgent::GetHeartbeatSentFuture()

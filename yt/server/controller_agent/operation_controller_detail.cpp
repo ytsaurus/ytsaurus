@@ -5322,6 +5322,39 @@ TOperationAlertsMap TOperationControllerBase::GetAlerts()
     return Alerts_;
 }
 
+void TOperationControllerBase::BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response)
+{
+    response->set_progress(
+        BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do(BIND(&TOperationControllerBase::BuildProgress, Unretained(this)))
+        .Finish()
+        .GetData());
+
+    response->set_brief_progress(
+        BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this)))
+        .Finish()
+        .GetData());
+
+    response->set_running_jobs(
+        BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this)))
+        .Finish()
+        .GetData());
+
+    response->set_job_splitter(
+        BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this)))
+        .Finish()
+        .GetData());
+
+    response->set_memory_digest(
+        BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do(BIND(&TOperationControllerBase::BuildMemoryDigestStatistics, Unretained(this)))
+        .Finish()
+        .GetData());
+}
+
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
 {
     std::vector<TJobPtr> jobs;
@@ -5429,11 +5462,6 @@ bool TOperationControllerBase::HasProgress() const
     }
 }
 
-bool TOperationControllerBase::HasJobSplitterInfo() const
-{
-    return IsPrepared() && JobSplitter_;
-}
-
 void TOperationControllerBase::BuildSpec(TFluentAnyWithoutAttributes fluent) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -5466,6 +5494,10 @@ void TOperationControllerBase::BuildOperationAttributes(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 {
+    if (!IsPrepared()) {
+        return;
+    }
+
     fluent
         .Item("build_time").Value(TInstant::Now())
         .Item("jobs").Value(JobCounter)
@@ -5506,6 +5538,10 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 }
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
+    if (!IsPrepared()) {
+        return;
+    }
+
     fluent
         .Item("jobs").Value(JobCounter);
 }
@@ -5516,7 +5552,7 @@ void TOperationControllerBase::BuildAndSaveProgress()
         .BeginMap()
         .Do(BIND([=] (TFluentMap fluent) {
             auto asyncResult = WaitFor(
-                BIND(&IOperationController::BuildProgress, MakeStrong(this))
+                BIND(&TOperationControllerBase::BuildProgress, MakeStrong(this))
                     .AsyncVia(GetInvoker())
                     .Run(fluent));
                 asyncResult
@@ -5528,7 +5564,7 @@ void TOperationControllerBase::BuildAndSaveProgress()
         .BeginMap()
             .Do(BIND([=] (TFluentMap fluent) {
                 auto asyncResult = WaitFor(
-                    BIND(&IOperationController::BuildBriefProgress, MakeStrong(this))
+                    BIND(&TOperationControllerBase::BuildBriefProgress, MakeStrong(this))
                         .AsyncVia(GetInvoker())
                         .Run(fluent));
                 asyncResult
@@ -5598,9 +5634,9 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
         .EndMap();
 }
 
-TYsonString TOperationControllerBase::BuildJobsYson() const
+void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
 {
-    return BuildYsonStringFluently<EYsonType::MapFragment>()
+    fluent
         .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
             const auto& jobId = pair.first;
             const auto& joblet = pair.second;
@@ -5611,7 +5647,7 @@ TYsonString TOperationControllerBase::BuildJobsYson() const
                     })
                 .EndMap();
             }
-        })
+        });
         // NB: Temporaly disabled. We should improve UI to consider completed jobs in orchid.
         // .DoFor(FinishedJobs_, [&] (TFluentMap fluent, const std::pair<TJobId, TFinishedJobInfoPtr>& pair) {
         //     const auto& jobId = pair.first;
@@ -5622,7 +5658,6 @@ TYsonString TOperationControllerBase::BuildJobsYson() const
         //         })
         //     .EndMap();
         // })
-        .Finish();
 }
 
 TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
@@ -5784,9 +5819,10 @@ TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joble
 void TOperationControllerBase::BuildJobSplitterInfo(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(SuspendableInvoker);
-    YCHECK(JobSplitter_);
 
-    JobSplitter_->BuildJobSplitterInfo(fluent);
+    if (IsPrepared() && JobSplitter_) {
+        JobSplitter_->BuildJobSplitterInfo(fluent);
+    }
 }
 
 ui64 TOperationControllerBase::NextJobIndex()

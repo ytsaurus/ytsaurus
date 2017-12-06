@@ -303,30 +303,7 @@ struct IOperationControllerSchedulerHost
     //! Returns |true| when controller can build it's progress.
     virtual bool HasProgress() const = 0;
 
-    /*!
-     *  \note Invoker affinity: Controller invoker
-     */
-    //! Called to construct a YSON representing the current progress.
-    virtual void BuildProgress(NYTree::TFluentMap fluent) const = 0;
-
-    /*!
-     *  \note Invoker affinity: Controller invoker
-     */
-    //! Similar to #BuildProgress but constructs a reduced version to be used by UI.
-    virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const = 0;
-
-    //! Called to construct a YSON representing the current state of memory digests for jobs of each type.
-    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap consumer) const = 0;
-
-    //! Returns |true| when controller can build job splitter info.
-    virtual bool HasJobSplitterInfo() const = 0;
-
-    //! Called to construct a YSON representing job splitter state.
-    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const = 0;
-
-    //! Called to get a YSON string representing current job(s) state.
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
-    virtual NYson::TYsonString BuildJobsYson() const = 0;
 
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
@@ -443,6 +420,12 @@ struct IOperationController
      */
     //! Build operation alerts.
     virtual TOperationAlertsMap GetAlerts() = 0;
+
+    /*!
+     * \note Invoker affinity: controller.
+     */
+    //! Build operation info, used for orchid.
+    virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
