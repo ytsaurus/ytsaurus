@@ -1100,6 +1100,8 @@ def main():
     add_insert_rows_parser(add_parser)
     add_delete_rows_parser(add_parser)
 
+    add_show_spec_parser(add_parser)
+
     add_erase_parser(add_parser)
     add_merge_parser(add_parser)
     add_sort_parser(add_parser)
