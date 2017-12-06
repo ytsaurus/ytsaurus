@@ -224,6 +224,10 @@ public:
 
     TDuration JobProxyHeartbeatPeriod;
 
+    //! This is a special testing option.
+    //! Instead of actually setting root fs, it just provides special environment variable.
+    bool TestRootFS;
+
     int NodeDirectoryPrepareRetryCount;
     TDuration NodeDirectoryPrepareBackoffTime;
 
@@ -252,6 +256,9 @@ public:
 
         RegisterParameter("job_proxy_heartbeat_period", JobProxyHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("test_root_fs", TestRootFS)
+            .Default(false);
 
         RegisterParameter("node_directory_prepare_retry_count", NodeDirectoryPrepareRetryCount)
             .Default(10);

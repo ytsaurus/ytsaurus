@@ -57,6 +57,9 @@ struct IJobHost
     virtual NLogging::TLogger GetLogger() const = 0;
 
     virtual NRpc::IServerPtr GetRpcServer() const = 0;
+
+    virtual TString GetPreparationPath() const = 0;
+    virtual TString GetSlotPath() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

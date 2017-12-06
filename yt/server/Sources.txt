@@ -153,6 +153,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/data_node/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/session_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/session_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/volume.proto
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/volume_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/ytree_integration.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/election/distributed_election_manager.cpp

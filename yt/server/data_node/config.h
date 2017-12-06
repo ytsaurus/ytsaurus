@@ -266,7 +266,7 @@ public:
     {
         RegisterParameter("low_watermark", LowWatermark)
             .Default(1_GB)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(0);
 
         RegisterParameter("quota", Quota)
             .Default(Null);

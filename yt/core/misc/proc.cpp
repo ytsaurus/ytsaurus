@@ -20,6 +20,7 @@
 
 #include <util/system/info.h>
 #include <util/system/yield.h>
+#include <util/system/fs.h>
 #include <util/system/fstat.h>
 #include <util/folder/iterator.h>
 
@@ -61,10 +62,10 @@ std::vector<int> GetPidsByUid(int uid)
 #ifdef _linux_
     std::vector<int> result;
 
-    DIR *dirStream = ::opendir("/proc");
+    DIR* dirStream = ::opendir("/proc");
     YCHECK(dirStream != nullptr);
 
-    struct dirent *ep;
+    struct dirent* ep;
     while ((ep = ::readdir(dirStream)) != nullptr) {
         const char* begin = ep->d_name;
         char* end = nullptr;
@@ -484,7 +485,7 @@ void SetUid(int uid)
             << TError::FromSystem();
     }
 
-    errno  = 0;
+    errno = 0;
 #ifdef _linux_
     const auto* passwd = getpwuid(uid);
     int gid = (passwd && errno == 0)
@@ -553,16 +554,16 @@ void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
 {
 #ifndef YT_IN_ARCADIA
     {
-        struct termios tt = { };
+        struct termios tt = {};
         tt.c_iflag = TTYDEF_IFLAG & ~ISTRIP;
         tt.c_oflag = TTYDEF_OFLAG;
         tt.c_lflag = TTYDEF_LFLAG;
-        tt.c_cflag = (TTYDEF_CFLAG & ~(CS7|PARENB|HUPCL)) | CS8;
+        tt.c_cflag = (TTYDEF_CFLAG & ~(CS7 | PARENB | HUPCL)) | CS8;
         tt.c_cc[VERASE] = '\x7F';
         cfsetispeed(&tt, B38400);
         cfsetospeed(&tt, B38400);
 
-        struct winsize ws = { };
+        struct winsize ws = {};
         struct winsize* wsPtr = nullptr;
         if (height > 0 && width > 0) {
             ws.ws_row = height;
@@ -657,7 +658,7 @@ TString SafeGetUsernameByUid(int uid)
             << TError::FromSystem();
     }
     char buffer[bufferSize];
-    struct passwd pwd, *pwdptr = nullptr;
+    struct passwd pwd, * pwdptr = nullptr;
     int result = getpwuid_r(uid, &pwd, buffer, bufferSize, &pwdptr);
     if (result != 0 || pwdptr == nullptr) {
         // Return #uid in case of absent uid in the system.
@@ -939,6 +940,28 @@ void TChownChmodTool::operator()(TChownChmodConfigPtr config) const
     SafeSetUid(0);
 
     ChownChmodDirectoriesRecursively(config->Path, config->UserId, config->Permissions);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TExtractTarAsRootTool::operator()(const TExtractTarConfigPtr& config) const
+{
+    // Child process
+    SafeSetUid(0);
+    NFs::SetCurrentWorkingDirectory(config->DirectoryPath);
+
+    execl(
+        "/bin/tar",
+        "/bin/tar",
+        "--extract",
+        "--file",
+        config->ArchivePath.c_str(),
+        "--numeric-owner",
+        "--preserve-permissions",
+        (void*) nullptr);
+
+    THROW_ERROR_EXCEPTION("Failed to extract tar archive %Qv: execl failed",
+        config->ArchivePath.c_str()) << TError::FromSystem();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

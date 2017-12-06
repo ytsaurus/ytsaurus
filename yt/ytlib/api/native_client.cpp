@@ -3314,32 +3314,14 @@ private:
         auto locateChunks = BIND([=] {
             std::vector<TChunkSpec*> chunkSpecList;
             for (auto& tableSpec : *schedulerJobSpecExt->mutable_input_table_specs()) {
-                if (tableSpec.chunk_specs_size() == 0) {
-                    // COMPAT(psushin): don't forget to promote job spec version after removing this compat.
-                    for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
-                        for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
-                            chunkSpecList.push_back(&chunkSpec);
-                        }
-                    }
-                } else {
-                    for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
-                        chunkSpecList.push_back(&chunkSpec);
-                    }
+                for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
+                    chunkSpecList.push_back(&chunkSpec);
                 }
             }
 
             for (auto& tableSpec : *schedulerJobSpecExt->mutable_foreign_input_table_specs()) {
-                if (tableSpec.chunk_specs_size() == 0) {
-                    // COMPAT(psushin): don't forget to promote job spec version after removing this compat.
-                    for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
-                        for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
-                            chunkSpecList.push_back(&chunkSpec);
-                        }
-                    }
-                } else {
-                    for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
-                        chunkSpecList.push_back(&chunkSpec);
-                    }
+                for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
+                    chunkSpecList.push_back(&chunkSpec);
                 }
             }
 

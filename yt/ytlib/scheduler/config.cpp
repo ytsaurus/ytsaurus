@@ -209,6 +209,8 @@ TUserJobSpec::TUserJobSpec()
         .NonEmpty();
     RegisterParameter("file_paths", FilePaths)
         .Default();
+    RegisterParameter("layer_paths", LayerPaths)
+        .Default();
     RegisterParameter("format", Format)
         .Default();
     RegisterParameter("input_format", InputFormat)

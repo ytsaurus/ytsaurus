@@ -84,14 +84,10 @@ void RunQuery(
 
 std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSpec& inputTableSpec)
 {
-    if (inputTableSpec.chunk_specs_size() > 0) {
-        return FromProto<std::vector<TDataSliceDescriptor>>(
-            inputTableSpec.chunk_specs(),
-            inputTableSpec.chunk_spec_count_per_data_slice());
-    } else {
-        // COMPAT(psushin).
-        return FromProto<std::vector<TDataSliceDescriptor>>(inputTableSpec.data_slice_descriptors());
-    }
+
+    return FromProto<std::vector<TDataSliceDescriptor>>(
+        inputTableSpec.chunk_specs(),
+        inputTableSpec.chunk_spec_count_per_data_slice());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

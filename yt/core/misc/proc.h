@@ -110,6 +110,29 @@ struct TRemoveDirContentAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TExtractTarConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString ArchivePath;
+    TString DirectoryPath;
+
+    TExtractTarConfig()
+    {
+        RegisterParameter("archive_path", ArchivePath);
+        RegisterParameter("directory_path", DirectoryPath);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TExtractTarConfig)
+
+struct TExtractTarAsRootTool
+{
+    void operator()(const TExtractTarConfigPtr& config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMountTmpfsConfig
     : public NYTree::TYsonSerializable
 {

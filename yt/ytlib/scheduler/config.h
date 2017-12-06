@@ -330,6 +330,7 @@ public:
     TString Command;
 
     std::vector<NYPath::TRichYPath> FilePaths;
+    std::vector<NYPath::TRichYPath> LayerPaths;
 
     TNullable<NFormats::TFormat> Format;
     TNullable<NFormats::TFormat> InputFormat;

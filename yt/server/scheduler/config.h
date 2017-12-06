@@ -742,6 +742,11 @@ public:
     // Backoff to report job metrics from operation to scheduler.
     TDuration JobMetricsDeltaReportBackoff;
 
+    // Cypress path to a special layer containing YT-specific data required to
+    // run jobs with custom rootfs, e.g. statically linked job-satellite.
+    // Is applied on top of user layers if they are used.
+    TNullable<TString> SystemLayerPath;
+
     // Suspicious jobs per operation recalculation period.
     TDuration SuspiciousJobsUpdatePeriod;
 

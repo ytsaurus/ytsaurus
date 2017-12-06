@@ -11,6 +11,8 @@
 #include "user_job_io.h"
 #include "user_job_synchronizer.h"
 
+#include <yt/server/containers/public.h>
+
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/supervisor_service.pb.h>
 
@@ -49,6 +51,11 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <util/system/fs.h>
+#include <util/system/execpath.h>
+
+#include <util/folder/dirut.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -69,8 +76,11 @@ using namespace NConcurrency;
 using namespace NCGroup;
 using namespace NYTree;
 using namespace NYson;
+using namespace NContainers;
 
 using NJobTrackerClient::TStatistics;
+
+const TString SlotBindPath("/slot");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +98,18 @@ TJobProxy::TJobProxy(
     Logger.AddTag("OperationId: %v, JobId: %v",
         OperationId_,
         JobId_);
+}
+
+TString TJobProxy::GetPreparationPath() const
+{
+    return NFs::CurrentWorkingDirectory();
+}
+
+TString TJobProxy::GetSlotPath() const
+{
+    return Config_->RootPath && !Config_->TestRootFS
+       ? SlotBindPath
+       : NFs::CurrentWorkingDirectory();
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
@@ -357,7 +379,29 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 TJobResult TJobProxy::DoRun()
 {
     try {
-        ResourceController = CreateResourceController(Config_->JobEnvironment);
+        // Use everything.
+
+        auto createRootFS = [&] () -> TNullable<TRootFS> {
+            if (!Config_->RootPath) {
+                LOG_DEBUG("Job is not using custom root fs");
+                return Null;
+            }
+
+            if (Config_->TestRootFS) {
+                LOG_DEBUG("Job is running in testing root fs mode");
+                return Null;
+            }
+
+            LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
+
+            TRootFS rootFS;
+            rootFS.RootPath = *Config_->RootPath;
+            rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
+
+            return rootFS;
+        };
+
+        ResourceController = CreateResourceController(Config_->JobEnvironment, createRootFS());
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 

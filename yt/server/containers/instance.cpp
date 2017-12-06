@@ -139,6 +139,30 @@ public:
         }
     }
 
+    virtual void SetRoot(const TRootFS& rootFS) override
+    {
+        HasRoot_ = true;
+        SetProperty("root", rootFS.RootPath);
+        SetProperty("root_readonly", "true");
+
+        TStringBuilder builder;
+        for (const auto& bind : rootFS.Binds) {
+            builder.AppendString(bind.SourcePath);
+            builder.AppendString(" ");
+            builder.AppendString(bind.TargetPath);
+            builder.AppendString(" ");
+            builder.AppendString(bind.IsReadOnly ? "ro" : "rw");
+            builder.AppendString(" ; ");
+        }
+
+        SetProperty("bind", builder.Flush());
+    }
+
+    virtual bool HasRoot() const override
+    {
+        return HasRoot_;
+    }
+
     virtual void Destroy() override
     {
         WaitFor(Executor_->DestroyContainer(Name_))
@@ -292,6 +316,7 @@ private:
     static const std::map<EStatField, TPortoStatRule> StatRules_;
     const NLogging::TLogger Logger;
     bool Destroyed_ = false;
+    bool HasRoot_ = false;
 
     TPortoInstance(
         const TString& name,

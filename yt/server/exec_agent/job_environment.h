@@ -4,9 +4,14 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/server/data_node/artifact.h>
+#include <yt/server/data_node/public.h>
+
 #include <yt/ytlib/cgroup/public.h>
 
 #include <yt/core/actions/signal.h>
+
+#include <yt/server/containers/public.h>
 
 #include <yt/core/misc/error.h>
 
@@ -20,6 +25,8 @@ namespace NExecAgent {
 struct IJobEnvironment
     : public virtual TRefCounted
 {
+    virtual void Init(int slotCount) = 0;
+
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
         const TString& workingDirectory,
@@ -34,6 +41,8 @@ struct IJobEnvironment
     virtual int GetUserId(int slotIndex) const = 0;
 
     virtual bool IsEnabled() const = 0;
+
+    virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(const std::vector<NDataNode::TArtifactKey>& layers) = 0;
 
     virtual TNullable<i64> GetMemoryLimit() const = 0;
 

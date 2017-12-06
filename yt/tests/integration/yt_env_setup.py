@@ -2,7 +2,7 @@ import yt_commands
 
 from yt.environment import YTInstance
 from yt.common import makedirp, update, YtError, format_error
-from yt.environment.porto_helpers import porto_avaliable
+from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 
 import pytest
 
@@ -346,20 +346,34 @@ class YTEnvSetup(object):
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
-            # XXX(dcherednik): Delete named pipes
-            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
-            # XXX(asaitgalin): Unmount everything
-            subprocess.check_call(["find", cls.path_to_run, "-type", "d", "-exec",
+            # XXX(psushin): unlink all porto volumes.
+            remove_all_volumes(cls.path_to_run)
+
+            # XXX(asaitgalin): Unmount everything.
+            subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
                                    "mountpoint", "-q", "{}", ";", "-exec", "sudo",
                                    "umount", "{}", ";"])
 
             # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
             chown_command = ["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run]
+
             p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
             _, stderr = p.communicate()
             if p.returncode != 0:
                 print >>sys.stderr, stderr
                 raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
+
+            # XXX(psushin): porto volume directories may have weirdest permissions ever.
+            chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
+
+            p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)
+            _, stderr = p.communicate()
+            if p.returncode != 0:
+                print >>sys.stderr, stderr
+                raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
+
+            # XXX(dcherednik): Delete named pipes.
+            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):

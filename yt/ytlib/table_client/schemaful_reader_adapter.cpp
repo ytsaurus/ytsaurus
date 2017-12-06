@@ -28,7 +28,6 @@ class TSchemafulReaderAdapter
 public:
     TSchemafulReaderAdapter(
         ISchemalessReaderPtr underlyingReader,
-        TNameTablePtr nameTable,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns)
         : UnderlyingReader_(std::move(underlyingReader))
@@ -166,7 +165,6 @@ ISchemafulReaderPtr CreateSchemafulReaderAdapter(
 
     auto result = New<TSchemafulReaderAdapter>(
         underlyingReader,
-        nameTable,
         schema,
         keyColumns);
 

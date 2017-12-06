@@ -463,6 +463,7 @@ protected:
         NYson::TYsonString Format;
         NTableClient::TTableSchema Schema;
         bool IsDynamic = false;
+        bool IsLayer = false;
 
         void Persist(const TPersistenceContext& context);
     };
@@ -655,6 +656,9 @@ protected:
 
     //! Called to extract file paths from the spec.
     virtual std::vector<TPathWithStage> GetFilePaths() const;
+
+    //! Called to extract layer paths from the spec.
+    virtual std::vector<TPathWithStage> GetLayerPaths() const;
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);

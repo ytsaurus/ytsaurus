@@ -169,6 +169,9 @@ void TOperationControllerBase::TUserFile::Persist(const TPersistenceContext& con
     Persist(context, Format);
     Persist(context, Schema);
     Persist(context, IsDynamic);
+    if (context.GetVersion() >= 201200) {
+        Persist(context, IsLayer);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -488,6 +491,26 @@ void TOperationControllerBase::InitializeStructures()
         file.Path = pair.first;
         file.Stage = pair.second;
         Files.push_back(file);
+    }
+
+    yhash_set<EOperationStage> layeredStages;
+    for (const auto& pair : GetLayerPaths()) {
+        TUserFile file;
+        file.Path = pair.first;
+        file.Stage = pair.second;
+        layeredStages.insert(file.Stage);
+        file.IsLayer = true;
+        Files.push_back(file);
+    }
+
+    if (Config->SystemLayerPath) {
+        for (auto stage : layeredStages) {
+            TUserFile file;
+            file.Path = *Config->SystemLayerPath;
+            file.Stage = stage;
+            file.IsLayer = true;
+            Files.push_back(file);
+        }
     }
 
     if (InputTables.size() > Config->MaxInputTableCount) {
@@ -1371,7 +1394,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 addChunkTree(current->second);
             }
         } else if (auto outputOrder = GetOutputOrder()) {
-            LOG_DEBUG("Sorting output chunk tree ids accroding to a given output order (ChunkTreeCount: %v, Table: %v)",
+            LOG_DEBUG("Sorting output chunk tree ids according to a given output order (ChunkTreeCount: %v, Table: %v)",
                 table->OutputChunkTreeIds.size(),
                 path);
             std::vector<std::pair<TOutputOrder::TEntry, TChunkTreeId>> chunkTreeIds;
@@ -4235,10 +4258,15 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
     for (const auto& file : Files) {
         const auto& path = file.Path.GetPath();
-        if (file.Type != EObjectType::Table && file.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
+        if (!file.IsLayer && file.Type != EObjectType::Table && file.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("User file %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
                 path,
                 EObjectType::Table,
+                EObjectType::File,
+                file.Type);
+        } else if (file.IsLayer && file.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv , actual %Qlv",
+                path,
                 EObjectType::File,
                 file.Type);
         }
@@ -4405,7 +4433,9 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     file.FileName);
             }
 
-            validateUserFileName(file);
+            if (!file.IsLayer) {
+                validateUserFileName(file);
+            }
         }
     }
 }
@@ -5939,6 +5969,11 @@ std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::
     return std::vector<TPathWithStage>();
 }
 
+std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetLayerPaths() const
+{
+    return std::vector<TPathWithStage>();
+}
+
 bool TOperationControllerBase::IsRowCountPreserved() const
 {
     return false;
@@ -6039,8 +6074,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
     for (const auto& file : files) {
-        auto* descriptor = jobSpec->add_files();
-        descriptor->set_file_name(file.FileName);
+        auto* descriptor = file.IsLayer
+            ? jobSpec->add_layers()
+            : jobSpec->add_files();
+
         ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
@@ -6059,15 +6096,18 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             ToProto(descriptor->mutable_data_source(), dataSource);
         }
 
-        switch (file.Type) {
-            case EObjectType::File:
-                descriptor->set_executable(file.Executable);
-                break;
-            case EObjectType::Table:
-                descriptor->set_format(file.Format.GetData());
-                break;
-            default:
-                Y_UNREACHABLE();
+        if (!file.IsLayer) {
+            descriptor->set_file_name(file.FileName);
+            switch (file.Type) {
+                case EObjectType::File:
+                    descriptor->set_executable(file.Executable);
+                    break;
+                case EObjectType::Table:
+                    descriptor->set_format(file.Format.GetData());
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
         }
     }
 }

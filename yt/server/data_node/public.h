@@ -75,6 +75,9 @@ DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
 DECLARE_REFCOUNTED_CLASS(TLayerLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TVolumeManagerConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IVolume)
+DECLARE_REFCOUNTED_STRUCT(IVolumeManager)
+DECLARE_REFCOUNTED_STRUCT(IPlainVolumeManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

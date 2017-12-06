@@ -650,11 +650,6 @@ void TTask::AddChunksToInputSpec(
             }
         }
     }
-
-    if (inputSpec->chunk_specs_size() > 0) {
-        // Make spec incompatible with older nodes.
-        ToProto(inputSpec->add_data_slice_descriptors(), GetIncompatibleDataSliceDescriptor());
-    }
 }
 
 void TTask::UpdateInputSpecTotals(
