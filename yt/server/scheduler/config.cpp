@@ -709,6 +709,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("system_layer_path", SystemLayerPath)
+        .Default(Null);
+
     RegisterInitializer([&] () {
         ChunkLocationThrottler->Limit = 10000;
 

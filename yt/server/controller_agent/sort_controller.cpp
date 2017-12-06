@@ -2962,6 +2962,28 @@ private:
         return result;
     }
 
+    virtual std::vector<TPathWithStage> GetLayerPaths() const override
+    {
+        // Combine mapper and reducer files into a single collection.
+        std::vector<TPathWithStage> result;
+        if (Spec->Mapper) {
+            for (const auto& path : Spec->Mapper->LayerPaths) {
+                result.push_back(std::make_pair(path, EOperationStage::Map));
+            }
+        }
+
+        if (Spec->ReduceCombiner) {
+            for (const auto& path : Spec->ReduceCombiner->LayerPaths) {
+                result.push_back(std::make_pair(path, EOperationStage::ReduceCombiner));
+            }
+        }
+
+        for (const auto& path : Spec->Reducer->LayerPaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Reduce));
+        }
+        return result;
+    }
+
     virtual void CustomPrepare() override
     {
         TSortControllerBase::CustomPrepare();

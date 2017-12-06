@@ -28,9 +28,10 @@
 namespace NYT {
 namespace NExecAgent {
 
-using namespace NJobProberClient;
-using namespace NConcurrency;
 using namespace NBus;
+using namespace NConcurrency;
+using namespace NDataNode;
+using namespace NJobProberClient;
 using namespace NRpc;
 using namespace NTools;
 using namespace NYTree;
@@ -150,6 +151,15 @@ public:
                     JobEnvironment_->GetUserId(SlotIndex_));
             },
             // Quota setting is uncancelable since it includes tool invocation in a separate process.
+            true);
+    }
+
+    virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
+    {
+        return RunPrepareAction<IVolumePtr>([&] () {
+                return JobEnvironment_->PrepareRootVolume(layers);
+            },
+            // Volume preparation is uncancellable since it includes tool invocation in a separate process.
             true);
     }
 

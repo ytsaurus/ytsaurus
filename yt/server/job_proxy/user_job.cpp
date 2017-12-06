@@ -477,7 +477,7 @@ private:
         Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
         Process_->AddArguments({"--config", JobSatelliteConnection_.GetConfigPath()});
         Process_->AddArguments({"--job-id", ToString(JobSatelliteConnection_.GetJobId())});
-        Process_->SetWorkingDirectory(SandboxDirectoryNames[ESandboxKind::User]);
+        Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
 
         if (UserJobSpec_.has_core_table_spec()) {
             Process_->AddArgument("--enable-core-dump");
@@ -491,10 +491,14 @@ private:
         TPatternFormatter formatter;
         formatter.AddProperty(
             "SandboxPath",
-            NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::User]));
+            NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
+        }
+
+        if (Host_->GetConfig()->TestRootFS && Host_->GetConfig()->RootPath) {
+            Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
         }
 
         // Copy environment to process arguments
@@ -752,6 +756,14 @@ private:
         }));
     }
 
+    TString AdjustPath(const TString& path) const
+    {
+        YCHECK(path.StartsWith(Host_->GetPreparationPath()));
+        auto pathSuffix = path.substr(Host_->GetPreparationPath().size() + 1);
+        auto adjustedPath = NFS::CombinePaths(Host_->GetSlotPath(), pathSuffix);
+        return adjustedPath;
+    }
+
     TAsyncReaderPtr PrepareOutputPipe(
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
@@ -761,7 +773,8 @@ private:
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
 
         for (auto jobDescriptor : jobDescriptors) {
-            TNamedPipeConfig pipeId(pipe->GetPath(), jobDescriptor, true);
+            // Since inside job container we see another rootfs, we must adjusst pipe path.
+            TNamedPipeConfig pipeId(AdjustPath(pipe->GetPath()), jobDescriptor, true);
             Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         }
 
@@ -797,7 +810,7 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_);
-        TNamedPipeConfig pipeId(pipe->GetPath(), jobDescriptor, false);
+        TNamedPipeConfig pipeId(AdjustPath(pipe->GetPath()), jobDescriptor, false);
         Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 

@@ -8,9 +8,10 @@
 #include <yt/server/cell_node/config.h>
 
 #include <yt/server/data_node/artifact.h>
+#include <yt/server/data_node/chunk.h>
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/master_connector.h>
-#include <yt/server/data_node/chunk.h>
+#include <yt/server/data_node/volume_manager.h>
 
 #include <yt/server/job_agent/job.h>
 #include <yt/server/job_agent/statistics_reporter.h>
@@ -164,6 +165,7 @@ public:
 
             case EJobPhase::PreparingSandboxDirectories:
             case EJobPhase::PreparingArtifacts:
+            case EJobPhase::PreparingRootVolume:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
                 SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
@@ -543,6 +545,9 @@ private:
     };
 
     std::vector<TArtifact> Artifacts_;
+    std::vector<TArtifactKey> LayerArtifactKeys_;
+
+    IVolumePtr RootVolume_;
 
     TNodeResources ResourceUsage_;
     EJobState JobState_ = EJobState::Waiting;
@@ -722,23 +727,53 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
 
             LOG_INFO("Artifacts prepared");
-
-            ExecTime_ = TInstant::Now();
-            SetJobPhase(EJobPhase::PreparingProxy);
-
-            BIND(
-                &ISlot::RunJobProxy,
-                Slot_,
-                CreateConfig(),
-                Id_,
-                OperationId_)
-            .AsyncVia(Invoker_)
-            .Run()
-            .Subscribe(BIND(
-                &TJob::OnJobProxyFinished,
-                MakeWeak(this))
-            .Via(Invoker_));
+            if (LayerArtifactKeys_.empty()) {
+                RunJobProxy();
+            } else {
+                SetJobPhase(EJobPhase::PreparingRootVolume);
+                LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
+                Slot_->PrepareRootVolume(LayerArtifactKeys_)
+                    .Subscribe(BIND(
+                        &TJob::OnVolumePrepared,
+                        MakeWeak(this))
+                    .Via(Invoker_));
+            }
         });
+    }
+
+    void OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        GuardedAction([&] {
+            ValidateJobPhase(EJobPhase::PreparingRootVolume);
+            if (!volumeOrError.IsOK()) {
+                THROW_ERROR TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
+                    << volumeOrError;
+            }
+
+            RootVolume_ = volumeOrError.Value();
+            RunJobProxy();
+        });
+    }
+
+    void RunJobProxy()
+    {
+        ExecTime_ = TInstant::Now();
+        SetJobPhase(EJobPhase::PreparingProxy);
+
+        BIND(
+            &ISlot::RunJobProxy,
+            Slot_,
+            CreateConfig(),
+            Id_,
+            OperationId_)
+        .AsyncVia(Invoker_)
+        .Run()
+        .Subscribe(BIND(
+            &TJob::OnJobProxyFinished,
+            MakeWeak(this))
+        .Via(Invoker_));
     }
 
     void OnJobProxyFinished(const TError& error)
@@ -889,11 +924,6 @@ private:
 
             auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
                 for (const auto& tableSpec : tableSpecs) {
-                    // COMPAT(psushin).
-                    for (const auto& dataSliceDescriptor : tableSpec.data_slice_descriptors()) {
-                        validateNodeIds(dataSliceDescriptor.chunks(), nodeDirectory, &inputNodeDirectoryBuilder);
-                    }
-
                     validateNodeIds(tableSpec.chunk_specs(), nodeDirectory, &inputNodeDirectoryBuilder);
                 }
             };
@@ -904,6 +934,10 @@ private:
             // NB: No need to add these descriptors to the input node directory.
             for (const auto& artifact : Artifacts_) {
                 validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory, nullptr);
+            }
+
+            for (const auto& artifactKey : LayerArtifactKeys_) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, nullptr);
             }
 
             if (!unresolvedNodeId) {
@@ -932,6 +966,9 @@ private:
         proxyConfig->BusServer = Slot_->GetBusServerConfig();
         proxyConfig->TmpfsPath = TmpfsPath_;
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();
+        if (RootVolume_) {
+            proxyConfig->RootPath = RootVolume_->GetPath();
+        }
 
         return proxyConfig;
     }
@@ -970,6 +1007,10 @@ private:
                     descriptor.executable(),
                     TArtifactKey(descriptor),
                     nullptr});
+            }
+
+            for (const auto& descriptor : userJobSpec.layers()) {
+                LayerArtifactKeys_.push_back(TArtifactKey(descriptor));
             }
         }
 
@@ -1141,6 +1182,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::RootVolumePreparationFailed) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {

@@ -11,12 +11,17 @@
 
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/volume_manager.h>
+
+#include <yt/core/concurrency/action_queue.h>
 
 namespace NYT {
 namespace NExecAgent {
 
 using namespace NCellNode;
+using namespace NDataNode;
 using namespace NConcurrency;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,15 +49,7 @@ void TSlotManager::Initialize()
     JobEnvironment_ = CreateJobEnvironment(
         Config_->JobEnvironment,
         Bootstrap_);
-
-    // First shutdown all possible processes.
-    try {
-        for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-            JobEnvironment_->CleanProcesses(slotIndex);
-        }
-    } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Failed to clean up processes during initialization");
-    }
+    JobEnvironment_->Init(SlotCount_);
 
     if (!JobEnvironment_->IsEnabled()) {
         LOG_INFO("Job environment is disabled");

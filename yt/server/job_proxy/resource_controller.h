@@ -2,10 +2,13 @@
 
 #include "public.h"
 
+#include <yt/server/containers/public.h>
+
+#include <yt/ytlib/cgroup/cgroup.h>
+
 #include <yt/core/ytree/public.h>
 #include <yt/core/misc/process.h>
 
-#include <yt/ytlib/cgroup/cgroup.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -37,7 +40,7 @@ DEFINE_REFCOUNTED_TYPE(IResourceController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IResourceControllerPtr CreateResourceController(NYTree::INodePtr config);
+IResourceControllerPtr CreateResourceController(NYTree::INodePtr config, const TNullable<NContainers::TRootFS>& rootFS);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -627,6 +627,15 @@ private:
         return result;
     }
 
+    virtual std::vector<TPathWithStage> GetLayerPaths() const override
+    {
+        std::vector<TPathWithStage> result;
+        for (const auto& path : Spec->Mapper->LayerPaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Map));
+        }
+        return result;
+    }
+
     virtual void DoInitialize() override
     {
         TUnorderedControllerBase::DoInitialize();

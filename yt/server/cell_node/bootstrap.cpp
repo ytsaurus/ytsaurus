@@ -393,6 +393,7 @@ void TBootstrap::DoRun()
 
     JobProxyConfigTemplate->Logging = Config->ExecAgent->JobProxyLogging;
     JobProxyConfigTemplate->Tracing = Config->ExecAgent->JobProxyTracing;
+    JobProxyConfigTemplate->TestRootFS = Config->ExecAgent->TestRootFS;
 
     JobProxyConfigTemplate->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
 

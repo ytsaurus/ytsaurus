@@ -35,6 +35,7 @@ DEFINE_ENUM(EErrorCode,
     ((NodeDirectoryPreparationFailed)(1108))
     ((SlotLocationDisabled)          (1109))
     ((QuotaSettingFailed)            (1110))
+    ((RootVolumePreparationFailed)   (1111))
 );
 
 DEFINE_ENUM(ESandboxKind,
