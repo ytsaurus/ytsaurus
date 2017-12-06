@@ -246,7 +246,7 @@ private:
             CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Partitioning aborted");
+            LOG_ERROR(ex, "Partition splitting aborted");
             partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
         }
     }
