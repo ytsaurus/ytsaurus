@@ -666,7 +666,6 @@ private:
 
     int LockedGetFutureEffect(TReaderGuard&, const TTabletId& tabletId)
     {
-        TReaderGuard guard(FutureEffectLock_);
         auto it = FutureEffect_.find(tabletId);
         return it != FutureEffect_.end() ? it->second : 0;
     }
