@@ -1470,7 +1470,9 @@ private:
     {
         auto asyncResult = SendRequests();
         asyncResult.Subscribe(BIND([transaction = Transaction_] (const TError& error) {
-            if (!error.IsOK()) {
+            if (error.IsOK()) {
+                transaction->Detach();
+            } else {
                 transaction->Abort();
             }
         }));
