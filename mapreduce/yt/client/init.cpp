@@ -172,7 +172,12 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
     } else {
         jobStateStream = new TBufferStream(0);
     }
-    exit(TJobFactory::Get()->GetJobFunction(~jobName)(outputTableCount, *jobStateStream));
+
+    int ret = TJobFactory::Get()->GetJobFunction(~jobName)(outputTableCount, *jobStateStream);
+    if (options.JobOnExitFunction_) {
+        (*options.JobOnExitFunction_)();
+    }
+    exit(ret);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
