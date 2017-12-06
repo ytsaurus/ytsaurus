@@ -130,10 +130,10 @@ private:
         if (estimatedStoresDelta + *estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
             actualDataSize > config->MaxPartitionDataSize)
         {
-            int splitFactor = std::min(std::min(
+            int splitFactor = std::min({
                 actualDataSize / config->DesiredPartitionDataSize + 1,
-                actualDataSize / config->MinPartitioningDataSize),
-                static_cast<i64>(config->MaxPartitionCount - partitionCount));
+                actualDataSize / config->MinPartitionDataSize,
+                static_cast<i64>(config->MaxPartitionCount - partitionCount)});
             if (splitFactor > 1 && RunSplit(slot, partition, splitFactor)) {
                 *estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
             }
