@@ -18,6 +18,7 @@
 #include <yt/server/misc/private.h>
 
 #include <yt/ytlib/chunk_client/format.h>
+#include <yt/ytlib/chunk_client/io_engine.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -63,6 +64,7 @@ TLocation::TLocation(
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
     , ReplicationOutThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationOutThrottler))
+    , IOEngine_(CreateIOEngine(Config_->IOEngineType, Config_->IOConfig))
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
@@ -101,6 +103,11 @@ TLocation::TLocation(
     };
     initializeCounters("/pending_data_size", &TLocation::GetPendingIOSizeCounter);
     initializeCounters("/blob_block_bytes", &TLocation::GetCompletedIOSizeCounter);
+}
+
+const NChunkClient::IIOEnginePtr& TLocation::GetIOEngine() const
+{
+    return IOEngine_;
 }
 
 ELocationType TLocation::GetType() const

@@ -8,6 +8,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/ytlib/chunk_client/public.h> // TODO: remove me
 
 #include <yt/core/misc/enum.h>
 
@@ -60,6 +61,9 @@ public:
 
     //! Returns string id.
     const TString& GetId() const;
+
+    //! Returns the IO Engine.
+    const NChunkClient::IIOEnginePtr& GetIOEngine() const;
 
     //! Returns the medium name.
     const TString& GetMediumName() const;
@@ -206,6 +210,8 @@ private:
     const IInvokerPtr WritePoolInvoker_;
 
     const NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
+
+    const NChunkClient::IIOEnginePtr IOEngine_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

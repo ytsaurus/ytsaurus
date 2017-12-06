@@ -14,7 +14,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetTimeoutOptions(
-    NRpc::TClientRequest& proto,
+    NRpc::TClientRequest& request,
     const NApi::TTimeoutOptions& options);
 
 void ToProto(

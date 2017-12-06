@@ -3937,7 +3937,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     "primary_medium",
                     "replication_factor",
                     "row_count",
-                    "vital"
+                    "vital",
+                    "enable_skynet_sharing",
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, GetTransactionIdForOutputTable(*table));
@@ -3981,6 +3982,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 table->Options->Account = attributes->Get<TString>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
                 table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
+                table->Options->EnableSkynetSharing = attributes->Get<bool>("enable_skynet_sharing", false);
 
                 // Workaround for YT-5827.
                 if (table->TableUploadOptions.TableSchema.Columns().empty() &&
@@ -5997,7 +5999,7 @@ void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransaction->GetId());
+    ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugOutputTransaction->GetId());
 
     i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * *joblet->UserJobMemoryReserveFactor;
     // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).

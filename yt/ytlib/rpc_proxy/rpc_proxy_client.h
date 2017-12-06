@@ -20,11 +20,10 @@ public:
     TRpcProxyClient(
         TRpcProxyConnectionPtr connection,
         const NApi::TClientOptions& options);
-    ~TRpcProxyClient();
 
     virtual TFuture<void> Terminate() override
     {
-        Y_UNIMPLEMENTED();
+        return VoidFuture;
     }
 
     // Transactions
@@ -85,6 +84,11 @@ public:
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
         const NApi::TGetInSyncReplicasOptions& options) override;
+
+    virtual TFuture<std::vector<NApi::TTabletInfo>> GetTabletInfos(
+        const NYPath::TYPath& path,
+        const std::vector<int>& tabletIndexes,
+        const NApi::TGetTabletsInfoOptions& options) override;
 
     // Security
     virtual TFuture<void> AddMember(

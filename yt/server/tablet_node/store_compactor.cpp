@@ -49,6 +49,7 @@
 #include <yt/core/ytree/helpers.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/heap.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -71,6 +72,12 @@ static const size_t MaxRowsPerWrite = 65536;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ * Ultimately, the goal of the compactor is to control the overlapping store count
+ * by performing compactions and partitionings. A compaction operates within a partition,
+ * replacing a set of stores with a newly baked one. A partitioning operates on the Eden,
+ * replacing a set of Eden stores with a set of partition-bound stores.
+ */
 class TStoreCompactor
     : public TRefCounted
 {
@@ -118,25 +125,72 @@ private:
     {
         TTabletSlotPtr Slot;
         IInvokerPtr Invoker;
+
         TTabletId Tablet;
         TPartitionId Partition;
         std::vector<TStoreId> Stores;
-        ui64 Score;
 
-        TTask() = default;
+        // Overlapping stores slack for the task.
+        // That is, the remaining number of stores in the partition till
+        // the tablet hits MOSC limit.
+        // Small values indicate that the tablet is in a critical state.
+        int Slack = 0;
+        // Guaranteed effect on the slack if this task will be done.
+        // This is a conservative estimate.
+        int Effect = 0;
+        // Future effect on the slack due to concurrent tasks.
+        // This quantity is memoized to provide a valid comparison operator.
+        int FutureEffect = 0;
+        // A random number to deterministically break ties.
+        ui64 Random = RandomNumber<size_t>();
+
+        // These fields are filled upon task invocation.
+        TWeakPtr<TStoreCompactor> Owner;
+        TAsyncSemaphoreGuard SemaphoreGuard;
+
+        TTask() = delete;
         TTask(const TTask&) = delete;
         TTask& operator=(const TTask&) = delete;
-        TTask(TTask&&) = default;
-        TTask& operator=(TTask&&) = default;
+        TTask(TTask&&) = delete;
+        TTask& operator=(TTask&&) = delete;
 
-        void swap(TTask& other)
+        TTask(
+            TTabletSlot* slot,
+            const TTablet* tablet,
+            const TPartition* partition,
+            std::vector<TStoreId> stores)
+            : Slot(slot)
+            , Invoker(tablet->GetEpochAutomatonInvoker())
+            , Tablet(tablet->GetId())
+            , Partition(partition->GetId())
+            , Stores(std::move(stores))
+        { }
+
+        ~TTask()
         {
-            Slot.Swap(other.Slot);
-            Invoker.Swap(other.Invoker);
-            std::swap(Tablet, other.Tablet);
-            std::swap(Partition, other.Partition);
-            Stores.swap(other.Stores);
-            std::swap(Score, other.Score);
+            if (auto owner = Owner.Lock()) {
+                owner->ChangeFutureEffect(Tablet, -Effect);
+            }
+        }
+
+        auto GetOrderingTuple()
+        {
+            return std::make_tuple(Slack + FutureEffect, -Effect, -Stores.size(), Random);
+        }
+
+        void Prepare(TStoreCompactor* owner, TAsyncSemaphoreGuard&& semaphoreGuard)
+        {
+            Owner = MakeWeak(owner);
+            SemaphoreGuard = std::move(semaphoreGuard);
+
+            owner->ChangeFutureEffect(Tablet, Effect);
+        }
+
+        static inline bool Comparer(
+            const std::unique_ptr<TTask>& lhs,
+            const std::unique_ptr<TTask>& rhs)
+        {
+            return lhs->GetOrderingTuple() < rhs->GetOrderingTuple();
         }
     };
 
@@ -144,42 +198,20 @@ private:
     TSpinLock ScanSpinLock_;
     bool ScanForPartitioning_;
     bool ScanForCompactions_;
-    std::vector<TTask> PartitioningCandidates_;
-    std::vector<TTask> CompactionCandidates_;
+    std::vector<std::unique_ptr<TTask>> PartitioningCandidates_;
+    std::vector<std::unique_ptr<TTask>> CompactionCandidates_;
 
-    // Variables below are actually scheduled tasks.
+    // Variables below are actually used during the scheduling.
     TSpinLock TaskSpinLock_;
-    std::vector<TTask> PartitioningTasks_;
-    size_t PartitioningTaskIndex_ = 0; // First unscheduled task.
-    std::vector<TTask> CompactionTasks_;
-    size_t CompactionTaskIndex_ = 0; // First unscheduled task.
+    std::vector<std::unique_ptr<TTask>> PartitioningTasks_; // Min-heap.
+    size_t PartitioningTaskIndex_ = 0; // Heap end boundary.
+    std::vector<std::unique_ptr<TTask>> CompactionTasks_; // Min-heap.
+    size_t CompactionTaskIndex_ = 0; // Heap end boundary.
 
-    static constexpr size_t ScorePartSize = 21;
-    static constexpr size_t ScorePartMask = static_cast<size_t>(1 << ScorePartSize) - 1;
+    // These are for the future accounting.
+    TReaderWriterSpinLock FutureEffectLock_;
+    yhash<TTabletId, int> FutureEffect_;
 
-    static ui64 PackTaskScore(size_t x, size_t y, size_t z)
-    {
-        x &= ScorePartMask;
-        y &= ScorePartMask; y = ScorePartMask + 1 - y; // Negative, for reversed order.
-        z &= ScorePartMask;
-        size_t result = 0;
-        result |= x;
-        result <<= ScorePartSize;
-        result |= y;
-        result <<= ScorePartSize;
-        result |= z;
-        return result;
-    }
-
-    static std::tuple<size_t, size_t, size_t> UnpackTaskScore(ui64 score)
-    {
-        size_t z = score & ScorePartMask;
-        score >>= ScorePartSize;
-        size_t y = score & ScorePartMask; y = ScorePartMask + 1 - y; // Negative, for reversed order.
-        score >>= ScorePartSize;
-        size_t x = score & ScorePartMask;
-        return std::make_tuple(x, y, z);
-    };
 
     void OnBeginSlotScan()
     {
@@ -269,19 +301,14 @@ private:
             return false;
         }
 
-        TTask candidate;
-        candidate.Slot = slot;
-        candidate.Invoker = tablet->GetEpochAutomatonInvoker();
-        candidate.Tablet = tablet->GetId();
-        candidate.Partition = eden->GetId();
-        candidate.Stores = std::move(stores);
+        auto candidate = std::make_unique<TTask>(slot, tablet, eden, std::move(stores));
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
-        const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
-        const int osc = tablet->GetOverlappingStoreCount();
-        const size_t score = static_cast<size_t>(std::max(0, mosc - osc));
-        // Pack score into a single 64-bit integer. This is equivalent to order on (Score, -Stores, Random) tuples.
-        candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
+        const int overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
+        candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
+        candidate->Effect = candidate->Stores.size() - 1;
+        candidate->FutureEffect = GetFutureEffect(tablet->GetId());
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -304,24 +331,24 @@ private:
             return false;
         }
 
-        TTask candidate;
-        candidate.Slot = slot;
-        candidate.Invoker = tablet->GetEpochAutomatonInvoker();
-        candidate.Tablet = tablet->GetId();
-        candidate.Partition = partition->GetId();
-        candidate.Stores = std::move(stores);
+        auto candidate = std::make_unique<TTask>(slot, tablet, partition, std::move(stores));
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
-        const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
-        const int osc = tablet->GetOverlappingStoreCount();
-        const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
-        const int partitionStoreCount = static_cast<int>(partition->Stores().size());
-        // For constrained partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
-        const size_t score = partition->IsEden()
-            ? static_cast<size_t>(std::max(0, mosc - osc))
-            : static_cast<size_t>(std::max(0, mosc - edenStoreCount - partitionStoreCount));
-        // Pack score into a single 64-bit integer.
-        candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
+        const int overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
+        if (partition->IsEden()) {
+            candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
+            candidate->Effect = candidate->Stores.size() - 1;
+        } else {
+            // For critical partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
+            const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
+            const int partitionStoreCount = static_cast<int>(partition->Stores().size());
+            candidate->Slack = std::max(0, overlappingStoreLimit - edenStoreCount - partitionStoreCount);
+            if (tablet->GetCriticalPartitionCount() == 1 && edenStoreCount + partitionStoreCount == overlappingStoreCount) {
+                candidate->Effect = candidate->Stores.size() - 1;
+            }
+        }
+        candidate->FutureEffect = GetFutureEffect(tablet->GetId());
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -528,34 +555,21 @@ private:
     }
 
     void PickMoreTasks(
-        std::vector<TTask>* candidates,
-        std::vector<TTask>* tasks,
+        std::vector<std::unique_ptr<TTask>>* candidates,
+        std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
         NProfiling::TSimpleCounter& counter)
     {
-        if (candidates->empty()) {
-            return;
-        }
-
         Profiler.Update(counter, candidates->size());
 
-        size_t limit = 100;
-        limit = std::min(limit, candidates->size());
+        MakeHeap(candidates->begin(), candidates->end(), TTask::Comparer);
 
-        std::partial_sort(
-            candidates->begin(),
-            candidates->begin() + limit,
-            candidates->end(),
-            [] (const TTask& lhs, const TTask& rhs) -> bool {
-                return lhs.Score < rhs.Score;
-            });
-
-        candidates->resize(limit);
         {
             auto guard = Guard(TaskSpinLock_);
             tasks->swap(*candidates);
-            *index = 0;
+            *index = tasks->size();
         }
+
         candidates->clear();
     }
 
@@ -578,18 +592,18 @@ private:
     }
 
     void ScheduleMoreTasks(
-        std::vector<TTask>* tasks,
+        std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
         const TAsyncSemaphorePtr& semaphore,
         NProfiling::TSimpleCounter& counter,
-        void (TStoreCompactor::*action)(TAsyncSemaphoreGuard, const TTask&))
+        void (TStoreCompactor::*action)(TTask*))
     {
-        auto guard = Guard(TaskSpinLock_);
+        auto taskGuard = Guard(TaskSpinLock_);
 
         size_t scheduled = 0;
 
         while (true) {
-            if (*index >= tasks->size()) {
+            if (*index == 0) {
                 break;
             }
 
@@ -598,12 +612,31 @@ private:
                 break;
             }
 
+            // Check if we have to fix the heap. If the smallest element is okay, we just keep going.
+            // Hopefully, we will rarely decide to operate on the same tablet.
+            {
+                TReaderGuard guard(FutureEffectLock_);
+                auto&& firstTask = tasks->at(0);
+                if (firstTask->FutureEffect != LockedGetFutureEffect(guard, firstTask->Tablet)) {
+                    for (size_t i = 0; i < tasks->size(); ++i) {
+                        auto&& task = (*tasks)[i];
+                        task->FutureEffect = LockedGetFutureEffect(guard, task->Tablet);
+                    }
+                    guard.Release();
+                    MakeHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
+                }
+            }
+
+            // Extract the next task.
+            ExtractHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
+            --(*index);
             auto&& task = tasks->at(*index);
-            ++(*index);
-
-            task.Invoker->Invoke(BIND(action, MakeStrong(this), Passed(std::move(semaphoreGuard)), std::move(task)));
-
+            task->Prepare(this, std::move(semaphoreGuard));
             ++scheduled;
+
+            // TODO(sandello): Better ownership management.
+            auto invoker = task->Invoker;
+            invoker->Invoke(BIND(action, MakeStrong(this), Owned(task.release())));
         }
 
         if (scheduled > 0) {
@@ -631,37 +664,68 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    void PartitionEden(TAsyncSemaphoreGuard guard, const TTask& task)
+    int LockedGetFutureEffect(TReaderGuard&, const TTabletId& tabletId)
     {
-        auto sessionId = TReadSessionId();
+        TReaderGuard guard(FutureEffectLock_);
+        auto it = FutureEffect_.find(tabletId);
+        return it != FutureEffect_.end() ? it->second : 0;
+    }
+
+    int GetFutureEffect(const TTabletId& tabletId)
+    {
+        TReaderGuard guard(FutureEffectLock_);
+        return LockedGetFutureEffect(guard, tabletId);
+    }
+
+    void ChangeFutureEffect(const TTabletId& tabletId, int delta)
+    {
+        if (delta == 0) {
+            return;
+        }
+        TWriterGuard guard(FutureEffectLock_);
+        auto pair = FutureEffect_.insert(std::make_pair(tabletId, delta));
+        if (!pair.second) {
+            pair.first->second += delta;
+        }
+        auto Logger = NLogging::TLogger(TabletNodeLogger);
+        LOG_DEBUG("Accounting for the future effect of the compaction/partitioning (TabletId: %v, FutureEffect: %v -> %v)",
+            tabletId,
+            pair.first->second - delta,
+            pair.first->second);
+        if (pair.first->second == 0) {
+            FutureEffect_.erase(pair.first);
+        }
+    }
+
+    void PartitionEden(TTask* task)
+    {
+        auto sessionId = TReadSessionId::Create();
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
-            task.Tablet,
+            task->Tablet,
             sessionId);
-
-        auto scoreParts = UnpackTaskScore(task.Score);
 
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
         });
 
-        const auto& slot = task.Slot;
+        const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
-        auto* tablet = tabletManager->FindTablet(task.Tablet);
+        auto* tablet = tabletManager->FindTablet(task->Tablet);
         if (!tablet) {
             LOG_DEBUG("Tablet is missing, aborting partitioning");
             return;
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task.Tablet);
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->Tablet);
         if (!tabletSnapshot) {
             LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
         }
 
         auto* eden = tablet->GetEden();
-        if (eden->GetId() != task.Partition) {
+        if (eden->GetId() != task->Partition) {
             LOG_DEBUG("Eden is missing, aborting partitioning");
             return;
         }
@@ -674,8 +738,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TSortedChunkStorePtr> stores;
-        stores.reserve(task.Stores.size());
-        for (const auto& storeId : task.Stores) {
+        stores.reserve(task->Stores.size());
+        for (const auto& storeId : task->Stores) {
             auto store = tablet->FindStore(storeId);
             if (!store || !eden->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
@@ -718,10 +782,10 @@ private:
             auto beginInstant = TInstant::Now();
             eden->SetCompactionTime(beginInstant);
 
-            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
-                std::get<0>(scoreParts),
-                std::get<1>(scoreParts),
-                std::get<2>(scoreParts),
+            LOG_INFO("Eden partitioning started (Slack: %v, Effect: %v, PartitionCount: %v, DataSize: %v, "
+                "ChunkCount: %v, CurrentTimestamp: %llx)",
+                task->Slack,
+                task->Effect,
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
@@ -782,7 +846,7 @@ private:
             auto endInstant = TInstant::Now();
 
             // We can release semaphore, because we are no longer actively using resources.
-            guard.Release();
+            task->SemaphoreGuard.Release();
             doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
@@ -991,38 +1055,36 @@ private:
         return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
     }
 
-    void CompactPartition(TAsyncSemaphoreGuard guard, const TTask& task)
+    void CompactPartition(TTask* task)
     {
-        auto sessionId = TReadSessionId();
+        auto sessionId = TReadSessionId::Create();
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
-            task.Tablet,
+            task->Tablet,
             sessionId);
-
-        auto scoreParts = UnpackTaskScore(task.Score);
 
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
         });
 
-        const auto& slot = task.Slot;
+        const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
-        auto* tablet = tabletManager->FindTablet(task.Tablet);
+        auto* tablet = tabletManager->FindTablet(task->Tablet);
         if (!tablet) {
             LOG_DEBUG("Tablet is missing, aborting compaction");
             return;
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task.Tablet);
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->Tablet);
         if (!tabletSnapshot) {
             LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;
         }
 
-        auto* partition = tablet->GetEden()->GetId() == task.Partition
+        auto* partition = tablet->GetEden()->GetId() == task->Partition
             ? tablet->GetEden()
-            : tablet->FindPartition(task.Partition);
+            : tablet->FindPartition(task->Partition);
         if (!partition) {
             LOG_DEBUG("Partition is missing, aborting compaction");
             return;
@@ -1036,8 +1098,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TSortedChunkStorePtr> stores;
-        stores.reserve(task.Stores.size());
-        for (const auto& storeId : task.Stores) {
+        stores.reserve(task->Stores.size());
+        for (const auto& storeId : task->Stores) {
             auto store = tablet->FindStore(storeId);
             if (!store || !partition->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
@@ -1082,11 +1144,10 @@ private:
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
-            LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, "
+            LOG_INFO("Partition compaction started (Slack: %v, Effect: %v, DataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
-                std::get<0>(scoreParts),
-                std::get<1>(scoreParts),
-                std::get<2>(scoreParts),
+                task->Slack,
+                task->Effect,
                 dataSize,
                 stores.size(),
                 currentTimestamp,
@@ -1147,7 +1208,7 @@ private:
             auto endInstant = TInstant::Now();
 
             // We can release semaphore, because we are no longer actively using resources.
-            guard.Release();
+            task->SemaphoreGuard.Release();
             doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;

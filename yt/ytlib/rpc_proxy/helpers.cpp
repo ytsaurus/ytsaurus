@@ -27,10 +27,10 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetTimeoutOptions(
-    NRpc::TClientRequest& proto,
+    NRpc::TClientRequest& request,
     const TTimeoutOptions& options)
 {
-    proto.SetTimeout(options.Timeout);
+    request.SetTimeout(options.Timeout);
 }
 
 void ToProto(

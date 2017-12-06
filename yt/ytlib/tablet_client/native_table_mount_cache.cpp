@@ -135,6 +135,16 @@ bool TTableMountInfo::IsReplicated() const
     return TypeFromId(TableId) == EObjectType::ReplicatedTable;
 }
 
+TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
+{
+    if (tabletIndex < 0 || tabletIndex >= Tablets.size()) {
+        THROW_ERROR_EXCEPTION("Invalid tablet index: expected in range [0,%v], got %v",
+            Tablets.size() - 1,
+            tabletIndex);
+    }
+    return Tablets[tabletIndex];
+}
+
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(const TRange<TUnversionedValue>& row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();

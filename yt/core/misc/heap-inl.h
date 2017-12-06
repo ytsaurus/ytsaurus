@@ -17,7 +17,7 @@ void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer compa
     size_t size = std::distance(begin, end);
     size_t offset = std::distance(begin, current);
 
-    auto value = begin[offset];
+    auto value = std::move(begin[offset]);
     while (true) {
         size_t left = 2 * offset + 1;
 
@@ -34,32 +34,33 @@ void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer compa
             min = comparer(begin[left], begin[right]) ? left : right;
         }
 
-        auto minValue = begin[min];
+        auto&& minValue = begin[min];
         if (comparer(value, minValue)) {
             break;
         }
 
-        begin[offset] = minValue;
+        begin[offset] = std::move(minValue);
         offset = min;
     }
-    begin[offset] = value;
+    begin[offset] = std::move(value);
 }
 
 template <class TIterator, class TComparer>
 void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer)
 {
-    auto value = *current;
+    auto value = std::move(*current);
     while (current != begin) {
         size_t dist = std::distance(begin, current);
         auto parent = begin + (dist - 1) / 2;
-        auto parentValue = *parent;
-        if (comparer(parentValue, value))
+        auto&& parentValue = *parent;
+        if (comparer(parentValue, value)) {
             break;
+        }
 
-        *current = parentValue;
+        *current = std::move(parentValue);
         current = parent;
     }
-    *current = value;
+    *current = std::move(value);
 }
 
 } // namespace NDetail

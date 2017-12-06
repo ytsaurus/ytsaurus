@@ -25,23 +25,24 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NApi;
+using namespace NYPath;
+using namespace NYson;
 using namespace NTableClient;
 using namespace NTabletClient;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRpcProxyClientBaseBufferTag
-{ };
+IConnectionPtr TRpcProxyClientBase::GetConnection()
+{
+    return GetRpcProxyConnection();
+}
 
-TRpcProxyClientBase::TRpcProxyClientBase()
-{ }
-
-TRpcProxyClientBase::~TRpcProxyClientBase()
-{ }
-
-TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
+TFuture<ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     NTransactionClient::ETransactionType type,
-    const NApi::TTransactionStartOptions& options)
+    const TTransactionStartOptions& options)
 {
     // Keep connection & channel to reuse them in the transaction.
     auto connection = GetRpcProxyConnection();
@@ -73,15 +74,14 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
 
     return req->Invoke().Apply(BIND(
         [connection = std::move(connection), channel = std::move(channel), sticky = sticky]
-        (const TErrorOr<TApiServiceProxy::TRspStartTransactionPtr>& rspOrError) mutable -> NApi::ITransactionPtr {
+        (const TErrorOr<TApiServiceProxy::TRspStartTransactionPtr>& rspOrError) -> ITransactionPtr {
             const auto& rsp = rspOrError.ValueOrThrow();
-            auto transaction = New<TRpcProxyTransaction>(
+            return New<TRpcProxyTransaction>(
                 std::move(connection),
                 std::move(channel),
-                FromProto<TGuid>(rsp->id()),
+                FromProto<NTransactionClient::TTransactionId>(rsp->id()),
                 static_cast<TTimestamp>(rsp->start_timestamp()),
                 sticky);
-            return transaction;
         }));
 }
 
@@ -90,8 +90,8 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<bool> TRpcProxyClientBase::NodeExists(
-    const NYPath::TYPath& path,
-    const NApi::TNodeExistsOptions& options)
+    const TYPath& path,
+    const TNodeExistsOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -99,19 +99,18 @@ TFuture<bool> TRpcProxyClientBase::NodeExists(
     SetTimeoutOptions(*req, options);
 
     req->set_path(path);
-
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_master_read_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspExistsNodePtr& rsp) -> bool {
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspExistsNodePtr& rsp) {
         return rsp->exists();
     }));
 }
 
-TFuture<NYson::TYsonString> TRpcProxyClientBase::GetNode(
-    const NYPath::TYPath& path,
+TFuture<TYsonString> TRpcProxyClientBase::GetNode(
+    const TYPath& path,
     const TGetNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -122,13 +121,13 @@ TFuture<NYson::TYsonString> TRpcProxyClientBase::GetNode(
     req->set_path(path);
 
     auto* protoAttributes = req->mutable_attributes();
-    if (!options.Attributes) {
-        protoAttributes->set_all(true);
-    } else {
+    if (options.Attributes) {
         protoAttributes->set_all(false);
         for (const auto& attribute : *options.Attributes) {
             protoAttributes->add_columns(attribute);
         }
+    } else {
+        protoAttributes->set_all(true);
     }
     if (options.MaxSize) {
         req->set_max_size(*options.MaxSize);
@@ -140,13 +139,13 @@ TFuture<NYson::TYsonString> TRpcProxyClientBase::GetNode(
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetNodePtr& rsp) {
-        return NYson::TYsonString(rsp->value());
+        return TYsonString(rsp->value());
     }));
 }
 
-TFuture<NYson::TYsonString> TRpcProxyClientBase::ListNode(
-    const NYPath::TYPath& path,
-    const NApi::TListNodeOptions& options)
+TFuture<TYsonString> TRpcProxyClientBase::ListNode(
+    const TYPath& path,
+    const TListNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -174,14 +173,14 @@ TFuture<NYson::TYsonString> TRpcProxyClientBase::ListNode(
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListNodePtr& rsp) {
-        return NYson::TYsonString(rsp->value());
+        return TYsonString(rsp->value());
     }));
 }
 
 TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CreateNode(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     NObjectClient::EObjectType type,
-    const NApi::TCreateNodeOptions& options)
+    const TCreateNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -208,13 +207,13 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CreateNode(
     ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCreateNodePtr& rsp) {
-        return FromProto<TGuid>(rsp->node_id());
+        return FromProto<NCypressClient::TNodeId>(rsp->node_id());
     }));
 }
 
 TFuture<void> TRpcProxyClientBase::RemoveNode(
-    const NYPath::TYPath& path,
-    const NApi::TRemoveNodeOptions& options)
+    const TYPath& path,
+    const TRemoveNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -230,13 +229,12 @@ TFuture<void> TRpcProxyClientBase::RemoveNode(
     ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_mutating_options(), options);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspRemoveNodePtr& rsp) {
-    }));
+    return req->Invoke().As<void>();
 }
 
 TFuture<void> TRpcProxyClientBase::SetNode(
-    const NYPath::TYPath& path,
-    const NYson::TYsonString& value,
+    const TYPath& path,
+    const TYsonString& value,
     const TSetNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -252,14 +250,13 @@ TFuture<void> TRpcProxyClientBase::SetNode(
     ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_mutating_options(), options);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspSetNodePtr& rsp) {
-    }));
+    return req->Invoke().As<void>();
 }
 
 TFuture<TLockNodeResult> TRpcProxyClientBase::LockNode(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     NCypressClient::ELockMode mode,
-    const NApi::TLockNodeOptions& options)
+    const TLockNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -290,9 +287,9 @@ TFuture<TLockNodeResult> TRpcProxyClientBase::LockNode(
 }
 
 TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CopyNode(
-    const NYPath::TYPath& srcPath,
-    const NYPath::TYPath& dstPath,
-    const NApi::TCopyNodeOptions& options)
+    const TYPath& srcPath,
+    const TYPath& dstPath,
+    const TCopyNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -313,14 +310,14 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CopyNode(
     ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCopyNodePtr& rsp) {
-        return FromProto<TGuid>(rsp->node_id());
+        return FromProto<NCypressClient::TNodeId>(rsp->node_id());
     }));
 }
 
 TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::MoveNode(
-    const NYPath::TYPath& srcPath,
-    const NYPath::TYPath& dstPath,
-    const NApi::TMoveNodeOptions& options)
+    const TYPath& srcPath,
+    const TYPath& dstPath,
+    const TMoveNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -340,14 +337,14 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::MoveNode(
     ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspMoveNodePtr& rsp) {
-        return FromProto<TGuid>(rsp->node_id());
+        return FromProto<NCypressClient::TNodeId>(rsp->node_id());
     }));
 }
 
 TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::LinkNode(
-    const NYPath::TYPath& srcPath,
-    const NYPath::TYPath& dstPath,
-    const NApi::TLinkNodeOptions& options)
+    const TYPath& srcPath,
+    const TYPath& dstPath,
+    const TLinkNodeOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -366,39 +363,34 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::LinkNode(
     ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspLinkNodePtr& rsp) {
-        return FromProto<TGuid>(rsp->node_id());
+        return FromProto<NCypressClient::TNodeId>(rsp->node_id());
     }));
 }
 
 TFuture<void> TRpcProxyClientBase::ConcatenateNodes(
-    const std::vector<NYPath::TYPath>& srcPaths,
-    const NYPath::TYPath& dstPath,
-    const NApi::TConcatenateNodesOptions& options)
+    const std::vector<TYPath>& srcPaths,
+    const TYPath& dstPath,
+    const TConcatenateNodesOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
     auto req = proxy.ConcatenateNodes();
     SetTimeoutOptions(*req, options);
 
-    for (const auto& srcPath : srcPaths) {
-        req->add_src_path(srcPath);
-    }
+    ToProto(req->mutable_src_paths(), srcPaths);
     req->set_dst_path(dstPath);
-
     req->set_append(options.Append);
-
     ToProto(req->mutable_transactional_options(), options);
     // ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_mutating_options(), options);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspConcatenateNodesPtr& rsp) {
-    }));
+    return req->Invoke().As<void>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NApi::IUnversionedRowsetPtr> TRpcProxyClientBase::LookupRows(
-    const NYPath::TYPath& path,
+TFuture<IUnversionedRowsetPtr> TRpcProxyClientBase::LookupRows(
+    const TYPath& path,
     TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TKey>& keys,
     const TLookupRowsOptions& options)
@@ -419,19 +411,19 @@ TFuture<NApi::IUnversionedRowsetPtr> TRpcProxyClientBase::LookupRows(
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
 
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspLookupRowsPtr>& rspOrError) -> NApi::IUnversionedRowsetPtr {
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspLookupRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
         return DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),
-            MergeRefsToRef<TRpcProxyClientBaseBufferTag>(rsp->Attachments()));
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
     }));
 }
 
-TFuture<NApi::IVersionedRowsetPtr> TRpcProxyClientBase::VersionedLookupRows(
-    const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
+TFuture<IVersionedRowsetPtr> TRpcProxyClientBase::VersionedLookupRows(
+    const TYPath& path,
+    TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TKey>& keys,
-    const NApi::TVersionedLookupRowsOptions& options)
+    const TVersionedLookupRowsOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -449,17 +441,17 @@ TFuture<NApi::IVersionedRowsetPtr> TRpcProxyClientBase::VersionedLookupRows(
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
 
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspVersionedLookupRowsPtr>& rspOrError) -> NApi::IVersionedRowsetPtr {
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspVersionedLookupRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
         return DeserializeRowset<TVersionedRow>(
             rsp->rowset_descriptor(),
-            MergeRefsToRef<TRpcProxyClientBaseBufferTag>(rsp->Attachments()));
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
     }));
 }
 
-TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
+TFuture<TSelectRowsResult> TRpcProxyClientBase::SelectRows(
     const TString& query,
-    const NApi::TSelectRowsOptions& options)
+    const TSelectRowsOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
 
@@ -481,12 +473,12 @@ TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
     req->set_enable_code_cache(options.EnableCodeCache);
     req->set_max_subqueries(options.MaxSubqueries);
 
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) -> NApi::TSelectRowsResult {
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
         TSelectRowsResult result;
         result.Rowset = DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),
-            MergeRefsToRef<TRpcProxyClientBaseBufferTag>(rsp->Attachments()));
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
         return result;
     }));
 }

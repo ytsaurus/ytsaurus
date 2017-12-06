@@ -1007,6 +1007,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->HashTableSize = HashTableSize_;
     snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
+    snapshot->CriticalPartitionCount = CriticalPartitionCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
     snapshot->InMemoryConfigRevision = StoreManager_ ? StoreManager_->GetInMemoryConfigRevision() : 0;
 
@@ -1152,6 +1153,10 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
             addProfilingTag("table_path", TablePath_);
             break;
 
+        case EDynamicTableProfilingMode::Tag:
+            addProfilingTag("table_tag", Config_->ProfilingTag);
+            break;
+
         default:
             break;
     }
@@ -1224,13 +1229,19 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
 void TTablet::UpdateOverlappingStoreCount()
 {
     int overlappingStoreCount = 0;
+    int criticalPartitionCount = 0;
     for (const auto& partition : PartitionList_) {
-        overlappingStoreCount = std::max(
-            overlappingStoreCount ,
-            static_cast<int>(partition->Stores().size()));
+        int storeCount = static_cast<int>(partition->Stores().size());
+        if (storeCount > overlappingStoreCount) {
+            overlappingStoreCount = storeCount;
+            criticalPartitionCount = 1;
+        } else if (storeCount == overlappingStoreCount) {
+            criticalPartitionCount++;
+        }
     }
     overlappingStoreCount += Eden_->Stores().size();
     OverlappingStoreCount_ = overlappingStoreCount;
+    CriticalPartitionCount_ = criticalPartitionCount;
 }
 
 void TTablet::UpdateUnflushedTimestamp() const

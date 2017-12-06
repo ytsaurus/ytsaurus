@@ -6,6 +6,7 @@ option java_multiple_files = true;
 
 import "yt/core/rpc/proto/rpc.proto";
 import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
 import "yt/ytlib/hive/timestamp_map.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,11 +20,11 @@ message TCredentialsExt
         optional TCredentialsExt credentials_ext = 110;
     }
 
-    optional string userip = 1;
+    optional string user_ip = 1;
     optional string token = 2;
     optional string domain = 3;
-    optional string sessionid = 4;
-    optional string sslsessionid = 5;
+    optional string session_id = 4;
+    optional string ssl_session_id = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,18 +63,9 @@ enum EDurability
     ASYNC = 1;
 }
 
-message TAttribute
-{
-    required string key = 1;
-    required bytes value = 2;
-}
-
-message TAttributeDictionary
-{
-    repeated TAttribute attributes = 1;
-}
-
-message TColumnFilter
+// XXX(babenko): this is a very conventional analog of NYT.NYTree.NProto.TAttributeKeys
+// Only sandello@ knows why we need this.
+message TAttributeKeys
 {
     optional bool all = 1;
     repeated string columns = 2;
@@ -149,6 +141,8 @@ message TRspStartTransaction
     required uint64 start_timestamp = 2;
 }
 
+//------------------------------------------------------------------------------
+
 message TReqPingTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -158,6 +152,8 @@ message TReqPingTransaction
 message TRspPingTransaction
 {
 }
+
+//------------------------------------------------------------------------------
 
 message TReqCommitTransaction
 {
@@ -170,6 +166,8 @@ message TRspCommitTransaction
     optional NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
 }
 
+//------------------------------------------------------------------------------
+
 message TReqAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -179,6 +177,8 @@ message TReqAbortTransaction
 message TRspAbortTransaction
 {
 }
+
+//------------------------------------------------------------------------------
 
 message TReqLookupRows
 {
@@ -198,6 +198,8 @@ message TRspLookupRows
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
+//------------------------------------------------------------------------------
+
 message TReqVersionedLookupRows
 {
     required string path = 1;
@@ -215,6 +217,8 @@ message TRspVersionedLookupRows
 {
     required TRowsetDescriptor rowset_descriptor = 200;
 }
+
+//------------------------------------------------------------------------------
 
 message TReqSelectRows
 {
@@ -237,6 +241,8 @@ message TRspSelectRows
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
+//------------------------------------------------------------------------------
+
 message TReqGetInSyncReplicas
 {
     required string path = 1;
@@ -250,6 +256,27 @@ message TRspGetInSyncReplicas
 {
     repeated NYT.NProto.TGuid replica_ids = 1;
 }
+
+//------------------------------------------------------------------------------
+
+message TReqGetTabletInfos
+{
+    required string path = 1;
+    repeated int32 tablet_indexes = 2;
+}
+
+message TRspGetTabletInfos
+{
+    message TTabletInfo
+    {
+        required int64 total_row_count = 1;
+        required int64 trimmed_row_count = 2;
+    }
+
+    repeated TTabletInfo tablets = 1;
+}
+
+//------------------------------------------------------------------------------
 
 message TReqModifyRows
 {
@@ -283,11 +310,13 @@ message TTransactionalOptions
 // 101
 message TPrerequisiteOptions
 {
-    message TTransactionPrerequisite {
+    message TTransactionPrerequisite
+    {
         required NYT.NProto.TGuid transaction_id = 1;
     }
 
-    message TRevisionPrerequisite {
+    message TRevisionPrerequisite
+    {
         required string path = 2; // ypath
         required uint64 revision = 3;
         optional NYT.NProto.TGuid transaction_id = 1; // resolution context
@@ -375,8 +404,8 @@ message TReqGetNode
 {
     required string path = 1; // ypath
 
-    optional TColumnFilter attributes = 2;
-    optional uint32 max_size = 3;
+    optional TAttributeKeys attributes = 2;
+    optional int64 max_size = 3;
 
     // TODO(sandello): What to do with this?
     // std::shared_ptr<const NYTree::IAttributeDictionary> Options;
@@ -398,8 +427,8 @@ message TReqListNode
 {
     required string path = 1; // ypath
 
-    optional TColumnFilter attributes = 2;
-    optional uint32 max_size = 3;
+    optional TAttributeKeys attributes = 2;
+    optional int64 max_size = 3;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
@@ -419,7 +448,7 @@ message TReqCreateNode
     required string path = 1; // ypath
     required int32 type = 2; // NObjectClient::EObjectType
 
-    optional TAttributeDictionary attributes = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
     optional bool recursive = 4 [default = false];
     optional bool force = 5 [default = false];
     optional bool ignore_existing = 6 [default = false];
@@ -561,7 +590,7 @@ message TRspLinkNode
 
 message TReqConcatenateNodes
 {
-    repeated string src_path = 1; // ypath
+    repeated string src_paths = 1; // ypath
     required string dst_path = 2; // ypath
 
     optional bool append = 3 [default = false];
@@ -712,7 +741,8 @@ message TRspAlterTable
 
 message TReqAlterTableReplica
 {
-    enum ETableReplicaMode {
+    enum ETableReplicaMode
+    {
         SYNC = 0;
         ASYNC = 1;
     }

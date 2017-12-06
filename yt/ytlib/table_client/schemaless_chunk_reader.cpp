@@ -224,7 +224,9 @@ protected:
             chunk.set_data_weight_override(dataWeight);
         }
 
-        if (RowCount_ > unreadRows.Size()) {
+        // Sometimes scheduler sends us empty slices (when both, row index and key limits are present).
+        // Such slices should be considered as read, though actual read row count is equal to zero.
+        if (RowCount_ > unreadRows.Size() || rowIndex >= upperRowIndex) {
             readDescriptors.emplace_back(chunkSpec);
             auto& chunk = readDescriptors[0].ChunkSpecs[0];
             chunk.mutable_upper_limit()->set_row_index(rowIndex);
