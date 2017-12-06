@@ -28,6 +28,7 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/ytlib/scheduler/controller_agent_operation_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -2600,73 +2601,52 @@ private:
             .EndMap();
     }
 
-    void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer) const
+    void BuildOperationYson(TOperationPtr operation, TControllerAgentOperationServiceProxy::TErrorOrRspGetOperationInfoPtr response, IYsonConsumer* consumer) const
     {
+        static const auto emptyMapFragment = TYsonString("", EYsonType::MapFragment);
+
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        auto controller = operation->GetController();
+        auto getValue = [] (const TProtoStringType& protoString) {
+            return protoString.empty() ? emptyMapFragment : TYsonString(protoString, EYsonType::MapFragment);
+        };
 
-        bool hasControllerProgress = operation->HasControllerProgress();
-        bool hasControllerJobSplitterInfo = operation->HasControllerJobSplitterInfo();
+        bool isOK = response.IsOK();
+        if (!isOK) {
+            LOG_DEBUG(response, "Failed to get operation info from controller");
+        }
+        auto controllerProgress = isOK ? getValue(response.Value()->progress()) : emptyMapFragment;
+        auto controllerBriefProgress = isOK ? getValue(response.Value()->brief_progress()) : emptyMapFragment;
+        auto controllerRunningJobs = isOK ? getValue(response.Value()->running_jobs()) : emptyMapFragment;
+        auto controllerJobSplitterInfo = isOK ? getValue(response.Value()->job_splitter()) : emptyMapFragment;
+        auto controllerMemoryDigest = isOK ? getValue(response.Value()->memory_digest()) : emptyMapFragment;
+
         BuildYsonFluently(consumer)
             .BeginMap()
-                // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
-                        auto asyncResult = WaitFor(
-                            // TODO(ignat): maybe use cached version here?
-                            BIND(&IOperationControllerSchedulerHost::BuildProgress, controller)
-                                .AsyncVia(controller->GetInvoker())
-                                .Run(fluent));
-                        asyncResult.ThrowOnError();
-                    }))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
+                    .Items(controllerProgress)
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(hasControllerProgress, BIND([=] (TFluentMap fluent) {
-                        auto asyncResult = WaitFor(
-                            BIND(&IOperationControllerSchedulerHost::BuildBriefProgress, controller)
-                                .AsyncVia(controller->GetInvoker())
-                                .Run(fluent));
-                        asyncResult.ThrowOnError();
-                    }))
                     .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
+                    .Items(controllerBriefProgress)
                 .EndMap()
-                .Item("running_jobs").BeginAttributes()
-                    .Item("opaque").Value("true")
-                .EndAttributes()
-                .BeginMap()
-                    .Do([=] (TFluentMap fluent) {
-                        auto future = BIND(&IOperationControllerSchedulerHost::BuildJobsYson, controller)
-                            .AsyncVia(controller->GetCancelableInvoker())
-                            .Run();
-                        auto jobsYson = WaitFor(future)
-                            .ValueOrThrow();
-
-                        auto consumer = fluent.GetConsumer();
-                        consumer->OnRaw(jobsYson);
-                    })
-                .EndMap()
-                .Item("job_splitter").BeginAttributes()
-                    .Item("opaque").Value("true")
-                .EndAttributes()
-                .BeginMap()
-                    .DoIf(hasControllerJobSplitterInfo, BIND([=] (TFluentMap fluent) {
-                        auto asyncResult = WaitFor(
-                            BIND(&IOperationControllerSchedulerHost::BuildJobSplitterInfo, controller)
-                                .AsyncVia(controller->GetInvoker())
-                                .Run(fluent));
-                        asyncResult.ThrowOnError();
-                    }))
-                .EndMap()
-                .Do([=] (TFluentMap fluent) {
-                    auto asyncResult = WaitFor(
-                        BIND(&IOperationControllerSchedulerHost::BuildMemoryDigestStatistics, controller)
-                            .AsyncVia(controller->GetInvoker())
-                            .Run(fluent));
-                    asyncResult.ThrowOnError();
-                })
+                .Item("running_jobs")
+                    .BeginAttributes()
+                        .Item("opaque").Value("true")
+                    .EndAttributes()
+                    .BeginMap()
+                        .Items(controllerRunningJobs)
+                    .EndMap()
+                .Item("job_splitter")
+                    .BeginAttributes()
+                        .Item("opaque").Value("true")
+                    .EndAttributes()
+                    .BeginMap()
+                        .Items(controllerJobSplitterInfo)
+                    .EndMap()
+                .Items(controllerMemoryDigest)
             .EndMap();
     }
 
@@ -2728,13 +2708,26 @@ private:
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
             TOperationId operationId = TOperationId::FromString(key);
+
             auto operation = Scheduler_->FindOperation(operationId);
             if (!operation) {
                 return nullptr;
             }
 
+            auto controller = operation->GetController();
+
+            TControllerAgentOperationServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
+            auto request = proxy.GetOperationInfo();
+            ToProto(request->mutable_operation_id(), operationId);
+            auto response = WaitFor(request->Invoke());
+
+            // Operation can be unregistered, since request to controller agent is asynchronous.
+            if (!Scheduler_->FindOperation(operationId)) {
+                return nullptr;
+            }
+
             return IYPathService::FromProducer(
-                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), operation));
+                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), operation, response));
         }
 
     private:

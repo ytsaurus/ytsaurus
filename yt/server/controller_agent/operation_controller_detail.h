@@ -237,17 +237,18 @@ public:
     virtual bool ShouldUpdateProgress() const override;
 
     virtual bool HasProgress() const override;
-    virtual bool HasJobSplitterInfo() const override;
 
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
 
     virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const override;
     virtual void BuildOperationAttributes(NYTree::TFluentMap fluent) const override;
-    virtual void BuildProgress(NYTree::TFluentMap fluent) const override;
-    virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const override;
-    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap fluent) const override;
-    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const override;
+
+    virtual void BuildProgress(NYTree::TFluentMap fluent) const;
+    virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
+    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap fluent) const;
+    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
+    virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -257,7 +258,6 @@ public:
     virtual NYson::TYsonString GetBriefProgress() const override;
 
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
-    virtual NYson::TYsonString BuildJobsYson() const override;
 
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override;
 
@@ -353,6 +353,8 @@ public:
     virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() override;
 
     virtual TOperationAlertsMap GetAlerts() override;
+
+    virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override;
 
 protected:
     IOperationHost* Host;

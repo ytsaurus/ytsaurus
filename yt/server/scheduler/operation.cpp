@@ -133,20 +133,6 @@ void TOperation::UpdateControllerTimeStatistics(const TStatistics& statistics)
     ControllerTimeStatistics_.Update(statistics);
 }
 
-bool TOperation::HasControllerProgress() const
-{
-    return (State_ == EOperationState::Running || IsFinishedState()) &&
-        Controller_ &&
-        Controller_->HasProgress();
-}
-
-bool TOperation::HasControllerJobSplitterInfo() const
-{
-    return State_ == EOperationState::Running &&
-        Controller_ &&
-        Controller_->HasJobSplitterInfo();
-}
-
 TCodicilGuard TOperation::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);

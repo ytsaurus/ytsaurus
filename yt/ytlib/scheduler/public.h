@@ -30,6 +30,8 @@ class TTreeTaggedJobMetrics;
 class TOperationJobMetrics;
 class TReqHeartbeat;
 class TRspHeartbeat;
+class TReqGetOperationInfo;
+class TRspGetOperationInfo;
 
 } // namespace NProto
 

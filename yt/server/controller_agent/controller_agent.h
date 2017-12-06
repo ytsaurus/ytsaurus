@@ -15,6 +15,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/scheduler/controller_agent_operation_service_proxy.h>
+
 #include <yt/ytlib/event_log/public.h>
 
 #include <yt/ytlib/api/public.h>
@@ -68,6 +70,10 @@ public:
     void UnregisterOperation(const TOperationId& operationId);
 
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests);
+
+    void BuildOperationInfo(
+        const TOperationId& operationId,
+        NScheduler::NProto::TRspGetOperationInfo* response);
 
     TFuture<void> GetHeartbeatSentFuture();
 

@@ -237,11 +237,6 @@ public:
         return Underlying_->HasProgress();
     }
 
-    virtual bool HasJobSplitterInfo() const override
-    {
-        return Underlying_->HasJobSplitterInfo();
-    }
-
     virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const override
     {
         Underlying_->BuildSpec(fluent);
@@ -252,29 +247,9 @@ public:
         Underlying_->BuildOperationAttributes(fluent);
     }
 
-    virtual void BuildProgress(TFluentMap fluent) const override
-    {
-        Underlying_->BuildProgress(fluent);
-    }
-
-    virtual void BuildBriefProgress(TFluentMap fluent) const override
-    {
-        Underlying_->BuildBriefProgress(fluent);
-    }
-
     virtual TString GetLoggingProgress() const override
     {
         return Underlying_->GetLoggingProgress();
-    }
-
-    virtual void BuildMemoryDigestStatistics(TFluentMap fluent) const override
-    {
-        Underlying_->BuildMemoryDigestStatistics(fluent);
-    }
-
-    virtual void BuildJobSplitterInfo(TFluentMap fluent) const override
-    {
-        Underlying_->BuildJobSplitterInfo(fluent);
     }
 
     virtual TYsonString GetProgress() const override
@@ -292,11 +267,6 @@ public:
         return Underlying_->BuildJobYson(jobId, outputStatistics);
     }
 
-    virtual TYsonString BuildJobsYson() const override
-    {
-        return Underlying_->BuildJobsYson();
-    }
-
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override
     {
         return Underlying_->ExtractJobSpec(jobId);
@@ -310,6 +280,11 @@ public:
     virtual TOperationAlertsMap GetAlerts() override
     {
         return Underlying_->GetAlerts();
+    }
+
+    virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override
+    {
+        Underlying_->BuildOperationInfo(response);
     }
 
     virtual TYsonString BuildSuspiciousJobsYson() const override
