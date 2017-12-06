@@ -524,8 +524,8 @@ class YTInstance(object):
         proc.poll()
         if proc.returncode is not None:
             if self._started:
-                logger.warning("%s (pid: %d, working directory: %s) is already terminated with exit code %d",
-                               name, proc.pid, os.path.join(self.path, name), proc.returncode)
+                logger.warning("{0} (pid: {1}, working directory: {2}) is already terminated with exit code {3}".format(
+                               name, proc.pid, os.path.join(self.path, name), proc.returncode))
             return
 
         os.killpg(proc.pid, signal.SIGKILL)
