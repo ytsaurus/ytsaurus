@@ -654,7 +654,14 @@ class ConfigsProvider_19_1(ConfigsProvider_19_0):
     pass
 
 class ConfigsProvider_19_2(ConfigsProvider_19_1):
-    pass
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
+        configs, addresses = super(ConfigsProvider_19_2, self)._build_node_configs(
+                provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
+
+        for config in configs:
+            config["skynet_http_port"] = next(ports_generator)
+
+        return configs, addresses
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     (18, 5): ConfigsProvider_18_5,
