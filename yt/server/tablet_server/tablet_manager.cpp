@@ -1802,7 +1802,7 @@ public:
         int newTabletCount,
         const std::vector<TOwningKey>& pivotKeys)
     {
-        if (!pivotKeys.empty() || !table->IsSorted()) {
+        if (!pivotKeys.empty() || !table->IsPhysicallySorted()) {
             DoReshardTable(
                 table,
                 firstTabletIndex,
