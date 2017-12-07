@@ -7,27 +7,8 @@
 
 #include <library/unittest/registar.h>
 
-#include <util/random/fast.h>
-
 using namespace NYT;
 using namespace NYT::NTesting;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static TString GenerateRandomData(size_t size, ui64 seed = 42) {
-    TReallyFastRng32 rng(seed);
-
-    TString result;
-    result.reserve(size + sizeof(ui64));
-    while (result.size() < size) {
-        ui64 value = rng.GenRand64();
-        result += TStringBuf(reinterpret_cast<const char*>(&value), sizeof(value));
-    }
-
-    result.resize(size);
-
-    return result;
-}
 
 ////////////////////////////////////////////////////////////////////
 

@@ -7,6 +7,8 @@
 
 #include <util/system/env.h>
 
+#include <util/random/fast.h>
+
 ////////////////////////////////////////////////////////////////////
 
 template<>
@@ -43,6 +45,22 @@ IClientPtr CreateTestClient()
     client->Remove("//testing", TRemoveOptions().Recursive(true).Force(true));
     client->Create("//testing", ENodeType::NT_MAP, TCreateOptions());
     return client;
+}
+
+TString GenerateRandomData(size_t size, ui64 seed)
+{
+    TReallyFastRng32 rng(seed);
+
+    TString result;
+    result.reserve(size + sizeof(ui64));
+    while (result.size() < size) {
+        ui64 value = rng.GenRand64();
+        result += TStringBuf(reinterpret_cast<const char*>(&value), sizeof(value));
+    }
+
+    result.resize(size);
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////
