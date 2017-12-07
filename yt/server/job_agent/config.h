@@ -82,6 +82,11 @@ public:
     TDuration GetJobSpecsTimeout;
     TDuration StoredJobsSendPeriod;
 
+    TDuration CpuOverdraftTimeout;
+    TDuration MemoryOverdraftTimeout;
+
+    TDuration ResourceAdjustmentPeriod;
+
     TJobControllerConfig()
     {
         RegisterParameter("resource_limits", ResourceLimits)
@@ -98,6 +103,15 @@ public:
 
         RegisterParameter("stored_jobs_send_period", StoredJobsSendPeriod)
             .Default(TDuration::Minutes(10));
+
+        RegisterParameter("memory_overdrart_timeout", MemoryOverdraftTimeout)
+            .Default(TDuration::Minutes(5));
+
+        RegisterParameter("cpu_overdraft_timeout", CpuOverdraftTimeout)
+            .Default(TDuration::Minutes(10));
+
+        RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
+            .Default(TDuration::Seconds(5));
 
         RegisterInitializer([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to

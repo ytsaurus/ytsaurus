@@ -120,6 +120,21 @@ public:
         return Enabled_;
     }
 
+    virtual TNullable<i64> GetMemoryLimit() const override
+    {
+        return Null;
+    }
+
+    virtual TNullable<i64> GetCpuLimit() const override
+    {
+        return Null;
+    }
+
+    virtual bool ExternalJobMemory() const override
+    {
+        return false;
+    }
+
 protected:
     struct TJobProxyProcess
     {

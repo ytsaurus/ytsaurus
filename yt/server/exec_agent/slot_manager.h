@@ -5,7 +5,10 @@
 #include <yt/server/cell_node/public.h>
 
 #include <yt/core/actions/public.h>
+
 #include <yt/core/concurrency/public.h>
+
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -32,6 +35,12 @@ public:
     int GetSlotCount() const;
 
     bool IsEnabled() const;
+
+    TNullable<i64> GetMemoryLimit() const;
+
+    TNullable<i64> GetCpuLimit() const;
+
+    bool ExternalJobMemory() const;
 
 private:
     const TSlotManagerConfigPtr Config_;

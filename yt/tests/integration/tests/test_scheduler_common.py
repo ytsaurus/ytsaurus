@@ -130,7 +130,7 @@ class TestEventLog(YTEnvSetup):
             if item["event_type"] == "job_started":
                 limits = item["resource_limits"]
                 assert limits["cpu"] > 0
-                assert limits["memory"] > 0
+                assert limits["user_memory"] > 0
                 assert limits["user_slots"] > 0
         assert "operation_started" in event_types
 
@@ -2482,6 +2482,8 @@ class TestPoolMetrics(YTEnvSetup):
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
 
+##################################################################
+
 class TestGetJobSpecFailed(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -2510,3 +2512,73 @@ class TestGetJobSpecFailed(YTEnvSetup):
         assert jobs["aborted"]["scheduled"]["get_spec_failed"] > 0
 
         op.abort()
+
+##################################################################
+
+class TestResourceLimitsOverrides(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "cpu_overdraft_timeout" : 1000,
+                "memory_overdrart_timeout" : 1000,
+                "resource_adjustment_period" : 100,
+            }
+        }
+    }
+
+    def test_cpu_override_with_preemption(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        # first job hangs, second is ok.
+        op = map(
+            command='if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; else cat; fi',
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            dont_track=True)
+
+        _wait_for(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
+                  "Failed waiting for the first job")
+
+        jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        job_id = jobs.keys()[0]
+        address = jobs[job_id]["address"]
+
+        set("//sys/nodes/{0}/@resource_limits_overrides/cpu".format(address), 0)
+        op.track()
+
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 1
+
+    def test_memory_override_with_preemption(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        # first job hangs, second is ok.
+        op = map(
+            command='if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; else cat; fi',
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={"mapper" : {"memory_limit" : 50 * 1024 * 1024}},
+            dont_track=True)
+
+        _wait_for(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
+                  "Failed waiting for the first job")
+
+        jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        job_id = jobs.keys()[0]
+        address = jobs[job_id]["address"]
+
+        set("//sys/nodes/{0}/@resource_limits_overrides/user_memory".format(address), 49 * 1024 * 1024)
+        op.track()
+
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 1
