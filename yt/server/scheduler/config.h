@@ -736,6 +736,9 @@ public:
     // Controller agent-to-scheduler heartbeat timeout.
     TDuration ControllerAgentHeartbeatRpcTimeout;
 
+    // Scheduler scheduler-to-agent operation request timeout.
+    TDuration ControllerAgentOperationRpcTimeout;
+
     // Backoff to report job metrics from operation to scheduler.
     TDuration JobMetricsDeltaReportBackoff;
 

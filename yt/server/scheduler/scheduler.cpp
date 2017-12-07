@@ -2709,7 +2709,7 @@ private:
 
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
-            TOperationId operationId = TOperationId::FromString(key);
+            auto operationId = TOperationId::FromString(key);
 
             auto operation = Scheduler_->FindOperation(operationId);
             if (!operation) {
@@ -2719,6 +2719,7 @@ private:
             auto controller = operation->GetController();
 
             TControllerAgentOperationServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
+            proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);
             auto request = proxy.GetOperationInfo();
             ToProto(request->mutable_operation_id(), operationId);
             auto response = WaitFor(request->Invoke());
@@ -2773,7 +2774,7 @@ private:
 
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
-            TJobId jobId = TJobId::FromString(key);
+            auto jobId = TJobId::FromString(key);
             auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);
             auto jobYPathService = IYPathService::FromProducer(buildJobYsonCallback)
                 ->Via(Scheduler_->GetControlInvoker(EControlQueue::Orchid));
