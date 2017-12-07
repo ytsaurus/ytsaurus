@@ -1937,6 +1937,7 @@ private:
             return;
         }
 
+        // NB: Should not throw!
         RegisterOperation(operation);
         // Ignore result? (we cannot throw error here)
         Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
