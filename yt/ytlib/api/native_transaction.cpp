@@ -1451,6 +1451,15 @@ private:
 
             WaitFor(Combine(asyncRequestResults))
                 .ThrowOnError();
+
+            auto commitResult = WaitFor(Transaction_->Commit(AdjustCommitOptions(options)))
+                .ValueOrThrow();
+
+            for (const auto& transaction : GetForeignTransactions()) {
+                transaction->Detach();
+            }
+
+            return commitResult;
         } catch (const std::exception& ex) {
             // Fire and forget.
             Transaction_->Abort();
@@ -1459,20 +1468,13 @@ private:
             }
             throw;
         }
-
-        auto commitResult = WaitFor(Transaction_->Commit(AdjustCommitOptions(options)))
-            .ValueOrThrow();
-
-        return commitResult;
     }
 
     TTransactionFlushResult DoFlush()
     {
         auto asyncResult = SendRequests();
         asyncResult.Subscribe(BIND([transaction = Transaction_] (const TError& error) {
-            if (error.IsOK()) {
-                transaction->Detach();
-            } else {
+            if (!error.IsOK()) {
                 transaction->Abort();
             }
         }));
