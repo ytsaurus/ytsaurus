@@ -1926,6 +1926,8 @@ private:
         try {
             controller = CreateControllerForOperation(this, operation.Get());
             operation->SetController(controller);
+
+            Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
                 operationId);
@@ -1935,7 +1937,6 @@ private:
             return;
         }
 
-        // NB: Should not throw!
         RegisterOperation(operation);
         // Ignore result? (we cannot throw error here)
         Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
