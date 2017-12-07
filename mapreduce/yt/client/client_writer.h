@@ -26,6 +26,7 @@ public:
     size_t GetStreamCount() const override;
     IOutputStream* GetStream(size_t tableIndex) const override;
     void OnRowFinished(size_t tableIndex) override;
+    void Abort() override;
 
 private:
     ::TIntrusivePtr<TRawTableWriter> RawWriter_;

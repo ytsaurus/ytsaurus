@@ -54,6 +54,11 @@ void TClientWriter::OnRowFinished(size_t)
     RawWriter_->NotifyRowEnd();
 }
 
+void TClientWriter::Abort()
+{
+    RawWriter_->Abort();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -117,6 +117,11 @@ void TProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
     NodeWriter_->AddRow(MakeNodeFromMessage(row), tableIndex);
 }
 
+void TProtoTableWriter::Abort()
+{
+    NodeWriter_->Abort();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLenvalProtoTableWriter::TLenvalProtoTableWriter(
@@ -152,6 +157,11 @@ void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
     stream->Write(&size, sizeof(size));
     bool serializedOk = row.SerializeToStream(stream);
     Y_ENSURE(serializedOk, "Failed to serialize protobuf message");
+}
+
+void TLenvalProtoTableWriter::Abort()
+{
+    Output_->Abort();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

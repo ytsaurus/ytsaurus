@@ -55,6 +55,9 @@ void TRetryfulWriter::DoFinish()
     }
     FlushBuffer(true);
     if (Started_) {
+        NDetail::TWaitProxy::WaitEvent(CanWrite_);
+        Stopped_ = true;
+        HasDataOrStopped_.Signal();
         Thread_.Join();
     }
     if (WriteTransaction_) {
@@ -94,8 +97,7 @@ void TRetryfulWriter::FlushBuffer(bool lastBlock)
     }
 
     SecondaryBuffer_.Swap(Buffer_);
-    Stopped_ = lastBlock;
-    HasData_.Signal();
+    HasDataOrStopped_.Signal();
 }
 
 void TRetryfulWriter::Send(const TBuffer& buffer)
@@ -108,7 +110,7 @@ void TRetryfulWriter::Send(const TBuffer& buffer)
         return new TBufferInput(buffer);
     };
 
-    auto transactionId = (WriteTransaction_ ? WriteTransaction_.GetRef().GetId() : ParentTransactionId_);
+    auto transactionId = (WriteTransaction_ ? WriteTransaction_->GetId() : ParentTransactionId_);
     RetryHeavyWriteRequest(Auth_, transactionId, header, streamMaker);
 
     Parameters_ = SecondaryParameters_; // all blocks except the first one are appended
@@ -116,10 +118,13 @@ void TRetryfulWriter::Send(const TBuffer& buffer)
 
 void TRetryfulWriter::SendThread()
 {
-    while (!Stopped_) {
+    while (true) {
         try {
             CanWrite_.Signal();
-            NDetail::TWaitProxy::WaitEvent(HasData_);
+            NDetail::TWaitProxy::WaitEvent(HasDataOrStopped_);
+            if (Stopped_) {
+                break;
+            }
             Send(SecondaryBuffer_);
             SecondaryBuffer_.Clear();
         } catch (const yexception&) {
@@ -134,6 +139,20 @@ void* TRetryfulWriter::SendThread(void* opaque)
 {
     static_cast<TRetryfulWriter*>(opaque)->SendThread();
     return nullptr;
+}
+
+void TRetryfulWriter::Abort()
+{
+    if (Started_) {
+        NDetail::TWaitProxy::WaitEvent(CanWrite_);
+        Stopped_ = true;
+        HasDataOrStopped_.Signal();
+        Thread_.Join();
+    }
+    if (WriteTransaction_) {
+        WriteTransaction_->Abort();
+    }
+    WriterState_ = Completed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

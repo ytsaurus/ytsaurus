@@ -15,6 +15,8 @@ public:
     virtual size_t GetStreamCount() const = 0;
     virtual IOutputStream* GetStream(size_t tableIndex) const = 0;
     virtual void OnRowFinished(size_t tableIndex) = 0;
+    virtual void Abort()
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

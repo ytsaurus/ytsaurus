@@ -42,11 +42,12 @@ public:
     }
 
     ~TRetrylessWriter() override;
+    void NotifyRowEnd() override;
+    void Abort() override;
 
 protected:
     void DoWrite(const void* buf, size_t len) override;
     void DoFinish() override;
-    void NotifyRowEnd() override;
 
 private:
     bool Running_ = true;
