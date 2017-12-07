@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from yt.common import set_pdeathsig
+from yt.common import set_pdeathsig, YT_NULL_TRANSACTION_ID
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -36,7 +36,11 @@ def main():
             raise
 
         if args.set_address:
-            yt.set(args.path + "/@address", socket.getfqdn())
+            if args.address_path is not None:
+                with yt.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
+                    yt.set(args.address_path, socket.getfqdn())
+            else:
+                yt.set(args.path + "/@address", socket.getfqdn())
 
         def handler():
             tx.__exit__(None, None, None)
