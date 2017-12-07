@@ -90,7 +90,6 @@ public:
 
         TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
         skynetWorkload.Annotations = {"skynet"};
-        auto throttler = Bootstrap_->GetOutThrottler(skynetWorkload);
 
         static std::vector<int> miscExtension = {
             TProtoExtensionTag<TMiscExt>::Value
@@ -144,6 +143,8 @@ public:
             startPartIndex);
 
         rsp->WriteHeaders(EStatusCode::Ok);
+
+        auto throttler = Bootstrap_->GetSkynetOutThrottler();
         while (true) {
             auto blob = WaitFor(stream->Read())
                 .ValueOrThrow();
@@ -151,6 +152,9 @@ public:
             if (blob.Empty()) {
                 break;
             }
+
+            WaitFor(throttler->Throttle(blob.Size()))
+                .ThrowOnError();
 
             WaitFor(rsp->Write(blob))
                 .ThrowOnError();

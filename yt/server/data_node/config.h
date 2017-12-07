@@ -448,6 +448,8 @@ public:
     //! Controls outcoming bandwidth used by Artifact Cache downloads.
     NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheOutThrottler;
 
+    NConcurrency::TThroughputThrottlerConfigPtr SkynetOutThrottler;
+
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
 
@@ -578,6 +580,8 @@ public:
         RegisterParameter("artifact_cache_in_throttler", ArtifactCacheInThrottler)
             .DefaultNew();
         RegisterParameter("artifact_cache_out_throttler", ArtifactCacheOutThrottler)
+            .DefaultNew();
+        RegisterParameter("skynet_out_throttler", SkynetOutThrottler)
             .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)

@@ -174,7 +174,7 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     auto localRpcAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
-    auto localSkynetHttpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort);
+    auto localSkynetHttpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->SkynetHttpPort);
 
     if (!Config->ClusterConnection->Networks) {
         Config->ClusterConnection->Networks = GetLocalNetworks();
@@ -249,6 +249,12 @@ void TBootstrap::DoRun()
         NewHttpServer = NHttp::CreateServer(
             Config->MonitoringServer);
     }
+
+    auto skynetHttpConfig = New<NHttp::TServerConfig>();
+    skynetHttpConfig->Port = Config->SkynetHttpPort;
+    skynetHttpConfig->BindRetryCount = Config->BusServer->BindRetryCount;
+    skynetHttpConfig->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
+    SkynetHttpServer = NHttp::CreateServer(skynetHttpConfig);
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
@@ -345,6 +351,10 @@ void TBootstrap::DoRun()
     ArtifactCacheOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalOutThrottler,
         createThrottler(Config->DataNode->ArtifactCacheOutThrottler, "ArtifactCacheOut")
+    });
+    SkynetOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->SkynetOutThrottler, "SkynetOut")
     });
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
@@ -520,12 +530,12 @@ void TBootstrap::DoRun()
         NewHttpServer->AddHandler(
             "/orchid/",
             NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
+    }
 
-        if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
-            NewHttpServer->AddHandler(
-                "/read_skynet_part",
-                MakeSkynetHttpHandler(this));
-        }
+    if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
+        SkynetHttpServer->AddHandler(
+            "/read_skynet_part",
+            MakeSkynetHttpHandler(this));
     }
 
     RpcServer->RegisterService(CreateOrchidService(
@@ -559,6 +569,7 @@ void TBootstrap::DoRun()
     } else {
         NewHttpServer->Start();
     }
+    SkynetHttpServer->Start();
 }
 
 const TCellNodeConfigPtr& TBootstrap::GetConfig() const
@@ -756,6 +767,11 @@ const IThroughputThrottlerPtr& TBootstrap::GetArtifactCacheInThrottler() const
 const IThroughputThrottlerPtr& TBootstrap::GetArtifactCacheOutThrottler() const
 {
     return ArtifactCacheOutThrottler;
+}
+
+const IThroughputThrottlerPtr& TBootstrap::GetSkynetOutThrottler() const
+{
+    return SkynetOutThrottler;
 }
 
 const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
