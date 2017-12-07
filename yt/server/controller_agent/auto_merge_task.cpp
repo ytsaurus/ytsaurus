@@ -20,10 +20,12 @@ using namespace NJobTrackerClient::NProto;
 TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
     IChunkPoolInput* underlyingInput,
     TAutoMergeTask* task,
-    i64 chunkSizeThreshold)
+    i64 chunkSizeThreshold,
+    i64 maxDataWeightPerJob)
     : TChunkPoolInputAdapterBase(underlyingInput)
     , Task_(task)
     , ChunkSizeThreshold_(chunkSizeThreshold)
+    , MaxDataWeightPerJob_(maxDataWeightPerJob)
 { }
 
 IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
@@ -71,6 +73,12 @@ void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
 
     Persist(context, Task_);
     Persist(context, ChunkSizeThreshold_);
+
+    // COMPAT(max42)
+    if (context.GetVersion() >= 201999) {
+        Persist(context, MaxDataWeightPerJob_);
+    }
+
     Persist(context, CookieChunkCount_);
 }
 
@@ -80,7 +88,9 @@ void TAutoMergeChunkPoolAdapter::ProcessStripe(const TChunkStripePtr& stripe, bo
     int firstUnusedIndex = 0;
     for (auto& slice : stripe->DataSlices) {
         const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
-        if (chunk->IsLargeCompleteChunk(ChunkSizeThreshold_)) {
+        if (chunk->IsLargeCompleteChunk(ChunkSizeThreshold_) ||
+            chunk->GetDataWeight() >= 0.5 * MaxDataWeightPerJob_)
+        {
             if (teleportLargeChunks) {
                 Task_->RegisterTeleportChunk(chunk);
             } else {
@@ -109,6 +119,7 @@ TAutoMergeTask::TAutoMergeTask(
     i64 chunkSizeThreshold,
     i64 desiredChunkSize,
     i64 dataWeightPerJob,
+    i64 maxDataWeightPerJob,
     TEdgeDescriptor edgeDescriptor)
     : TTask(taskHost, {edgeDescriptor})
     , TableIndex_(tableIndex)
@@ -130,7 +141,11 @@ TAutoMergeTask::TAutoMergeTask(
         EUnorderedChunkPoolMode::AutoMerge /* autoMergeMode */);
     ChunkPool_->GetJobCounter()->SetParent(TaskHost_->DataFlowGraph().JobCounter(EJobType::UnorderedMerge));
 
-    ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(ChunkPool_.get(), this, chunkSizeThreshold);
+    ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(
+        ChunkPool_.get(),
+        this,
+        chunkSizeThreshold,
+        maxDataWeightPerJob);
 }
 
 TString TAutoMergeTask::GetId() const
