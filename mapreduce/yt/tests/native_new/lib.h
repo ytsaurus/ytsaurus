@@ -21,6 +21,8 @@ namespace NTesting {
 
 IClientPtr CreateTestClient();
 
+TString GenerateRandomData(size_t size, ui64 seed = 42);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TZeroWaitLockPollIntervalGuard

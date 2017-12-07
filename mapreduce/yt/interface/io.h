@@ -165,12 +165,12 @@ public:
     virtual TRawTableReaderPtr CreateRawReader(
         const TRichYPath& path,
         const TFormat& format,
-        const TTableReaderOptions& options) = 0;
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 
     virtual TRawTableWriterPtr CreateRawWriter(
         const TRichYPath& path,
         const TFormat& format,
-        const TTableWriterOptions& options) = 0;
+        const TTableWriterOptions& options = TTableWriterOptions()) = 0;
 
     //
     // Read blob table.
