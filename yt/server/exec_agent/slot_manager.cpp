@@ -173,6 +173,27 @@ bool TSlotManager::IsEnabled() const
     return isEnabled;
 }
 
+TNullable<i64> TSlotManager::GetMemoryLimit() const
+{
+    return JobEnvironment_ && JobEnvironment_->IsEnabled()
+        ? JobEnvironment_->GetMemoryLimit()
+        : Null;
+}
+
+TNullable<i64> TSlotManager::GetCpuLimit() const
+{
+    return JobEnvironment_ && JobEnvironment_->IsEnabled()
+       ? JobEnvironment_->GetCpuLimit()
+       : Null;
+}
+
+bool TSlotManager::ExternalJobMemory() const
+{
+    return JobEnvironment_ && JobEnvironment_->IsEnabled()
+       ? JobEnvironment_->ExternalJobMemory()
+       : false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

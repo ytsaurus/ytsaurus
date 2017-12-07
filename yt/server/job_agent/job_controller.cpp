@@ -5,6 +5,7 @@
 #include <limits>
 
 #include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
 #include <yt/server/data_node/master_connector.h>
 #include <yt/server/data_node/chunk_cache.h>
@@ -105,13 +106,15 @@ private:
 
     TNodeResourceLimitsOverrides ResourceLimitsOverrides_;
 
-    //std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> ExternalMemoryUsageTracker_;
+    TNullable<TInstant> UserMemoryOverdraftInstant_;
+    TNullable<TInstant> CpuOverdraftInstant_;
 
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
     TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
 
     bool IncludeStoredJobsInNextSchedulerHeartbeat_ = false;
     TInstant LastStoredJobsSendTime_;
@@ -170,6 +173,8 @@ private:
 
     void OnProfiling();
 
+    void AdjustResources();
+
     TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> GetJobsByOrigin() const;
 };
 
@@ -196,6 +201,12 @@ TJobController::TImpl::TImpl(
         BIND(&TImpl::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
     ProfilingExecutor_->Start();
+
+    ResourceAdjustmentExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetControlInvoker(),
+        BIND(&TImpl::AdjustResources, MakeWeak(this)),
+        Config_->ResourceAdjustmentPeriod);
+    ResourceAdjustmentExecutor_->Start();
 }
 
 void TJobController::TImpl::RegisterFactory(EJobType type, TJobFactory factory)
@@ -265,6 +276,11 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
         tracker->GetLimit(EMemoryCategory::SystemJobs),
         tracker->GetUsed(EMemoryCategory::SystemJobs) + tracker->GetTotalFree()));
 
+    auto maybeCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
+    if (maybeCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
+        result.set_cpu(*maybeCpuLimit);
+    }
+
     return result;
 }
 
@@ -278,6 +294,80 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
         }
     }
     return result;
+}
+
+void TJobController::TImpl::AdjustResources()
+{
+    auto maybeMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
+    if (maybeMemoryLimit) {
+        auto memoryLimit = std::min(*maybeMemoryLimit, Bootstrap_->GetConfig()->ResourceLimits->Memory);
+        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        tracker->SetTotalLimit(memoryLimit);
+    }
+
+    auto usage = GetResourceUsage(false);
+    auto limits = GetResourceLimits();
+
+    bool preemptMemoryOverdraft = false;
+    bool preemptCpuOverdraft = false;
+    if (usage.user_memory() > limits.user_memory()) {
+        if (UserMemoryOverdraftInstant_) {
+            preemptMemoryOverdraft = *UserMemoryOverdraftInstant_ + Config_->MemoryOverdraftTimeout <
+                TInstant::Now();
+        } else {
+            UserMemoryOverdraftInstant_ = TInstant::Now();
+        }
+    } else {
+        UserMemoryOverdraftInstant_ = Null;
+    }
+
+    if (usage.cpu() > limits.cpu()) {
+        if (CpuOverdraftInstant_) {
+            preemptCpuOverdraft = *CpuOverdraftInstant_+ Config_->CpuOverdraftTimeout <
+                TInstant::Now();
+        } else {
+            CpuOverdraftInstant_ = TInstant::Now();
+        }
+    } else {
+        CpuOverdraftInstant_ = Null;
+    }
+
+    LOG_DEBUG("Resource adjustment parameters (PreemptMemoryOverdraft: %v, PreemptCpuOverdraft: %v, "
+        "MemoryOverdraftInstant: %v, CpuOverdraftInstant: %v)",
+        preemptMemoryOverdraft,
+        preemptCpuOverdraft,
+        UserMemoryOverdraftInstant_,
+        CpuOverdraftInstant_);
+
+    if (preemptCpuOverdraft || preemptMemoryOverdraft) {
+        std::vector<IJobPtr> schedulerJobs;
+        for (const auto& pair : Jobs_) {
+            if (TypeFromId(pair.first) == EObjectType::SchedulerJob && pair.second->GetState() == EJobState::Running) {
+                schedulerJobs.push_back(pair.second);
+            }
+        }
+
+        std::sort(schedulerJobs.begin(), schedulerJobs.end(), [] (const IJobPtr& lhs, const IJobPtr& rhs) {
+            return lhs->GetStartTime() < rhs->GetStartTime();
+        });
+
+        while ((preemptCpuOverdraft && usage.cpu() > limits.cpu()) ||
+            (preemptMemoryOverdraft && usage.user_memory() > limits.user_memory()))
+        {
+            if (schedulerJobs.empty()) {
+                break;
+            }
+
+            usage -= schedulerJobs.back()->GetResourceUsage();
+            schedulerJobs.back()->Abort(TError(
+                NExecAgent::EErrorCode::ResourceOverdraft,
+                "Resource usage overdraft adjustment"));
+            schedulerJobs.pop_back();
+        }
+
+        UserMemoryOverdraftInstant_ = Null;
+        CpuOverdraftInstant_ = Null;
+    }
 }
 
 // temporary fix (until YT-7676 is finished)
@@ -298,6 +388,14 @@ TDiskResources TJobController::TImpl::GetDiskLimits() const
 void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
 {
     ResourceLimitsOverrides_ = resourceLimits;
+    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    if (ResourceLimitsOverrides_.has_user_memory()) {
+        tracker->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
+    }
+
+    if (ResourceLimitsOverrides_.has_system_memory()) {
+        tracker->SetCategoryLimit(EMemoryCategory::SystemJobs, ResourceLimitsOverrides_.system_memory());
+    }
 }
 
 void TJobController::TImpl::SetDisableSchedulerJobs(bool value)

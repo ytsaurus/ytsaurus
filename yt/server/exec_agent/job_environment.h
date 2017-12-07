@@ -35,6 +35,11 @@ struct IJobEnvironment
 
     virtual bool IsEnabled() const = 0;
 
+    virtual TNullable<i64> GetMemoryLimit() const = 0;
+
+    virtual TNullable<i64> GetCpuLimit() const = 0;
+
+    virtual bool ExternalJobMemory() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobEnvironment)

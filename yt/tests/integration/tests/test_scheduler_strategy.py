@@ -120,7 +120,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         stats = get("//sys/scheduler/orchid/scheduler")
         pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
         for resource, limit in resource_limits.iteritems():
-            assert assert_almost_equal(pool_resource_limits[resource], limit)
+            resource_name = "user_memory" if resource == "memory" else resource
+            assert assert_almost_equal(pool_resource_limits[resource_name], limit)
 
         self._prepare_tables()
         data = [{"foo": i} for i in xrange(3)]
@@ -148,7 +149,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         self._check_running_jobs(op.id, 1)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
-            assert assert_almost_equal(op_limits[resource], limit)
+            resource_name = "user_memory" if resource == "memory" else resource
+            assert assert_almost_equal(op_limits[resource_name], limit)
         op.abort()
 
     def test_resource_limits_runtime(self):

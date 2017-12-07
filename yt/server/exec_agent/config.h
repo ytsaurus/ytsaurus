@@ -95,6 +95,9 @@ public:
     TDuration BlockIOWatchdogPeriod;
     bool UseResourceLimits;
 
+    bool UpdateResourceLimits;
+    TNullable<TString> ExternalJobContainer;
+
     TPortoJobEnvironmentConfig()
     {
         RegisterParameter("porto_wait_time", PortoWaitTime)
@@ -105,6 +108,11 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("use_resource_limits", UseResourceLimits)
             .Default(false);
+
+        RegisterParameter("update_resource_limits", UpdateResourceLimits)
+            .Default(false);
+        RegisterParameter("external_job_container", ExternalJobContainer)
+            .Default(Null);
     }
 };
 
@@ -221,8 +229,6 @@ public:
 
     TDuration CoreForwarderTimeout;
 
-    TNullable<TString> ExternalJobContainer;
-
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -251,9 +257,6 @@ public:
             .Default(10);
         RegisterParameter("node_directory_prepare_backoff_time", NodeDirectoryPrepareBackoffTime)
             .Default(TDuration::Seconds(3));
-
-        RegisterParameter("external_job_container", ExternalJobContainer)
-            .Default(Null);
 
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default(TDuration::Seconds(60))
