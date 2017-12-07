@@ -1026,6 +1026,7 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
                 autoMergeSpec->ChunkSizeThreshold,
                 desiredChunkSize,
                 dataWeightPerJob,
+                Spec_->MaxDataWeightPerJob,
                 edgeDescriptor);
             RegisterTask(task);
             AutoMergeTasks.emplace_back(std::move(task));
