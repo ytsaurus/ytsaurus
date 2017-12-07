@@ -105,6 +105,8 @@ private:
 
     TNodeResourceLimitsOverrides ResourceLimitsOverrides_;
 
+    //std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> ExternalMemoryUsageTracker_;
+
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
     TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
@@ -240,7 +242,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
 {
     TNodeResources result;
 
-    // If chunk cache is disabled, we disable all sheduler jobs.
+    // If chunk cache is disabled, we disable all scheduler jobs.
     result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() && !DisableSchedulerJobs_
         ? Bootstrap_->GetExecSlotManager()->GetSlotCount()
         : 0);
@@ -253,11 +255,15 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     #undef XX
 
     const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    result.set_memory(std::min(
-        tracker->GetLimit(EMemoryCategory::Jobs),
+    result.set_user_memory(std::min(
+        tracker->GetLimit(EMemoryCategory::UserJobs),
         // NB: The sum of per-category limits can be greater than the total memory limit.
         // Therefore we need bound memory limit by actually available memory.
-        tracker->GetUsed(EMemoryCategory::Jobs) + tracker->GetTotalFree()));
+        tracker->GetUsed(EMemoryCategory::UserJobs) + tracker->GetTotalFree()));
+
+    result.set_system_memory(std::min(
+        tracker->GetLimit(EMemoryCategory::SystemJobs),
+        tracker->GetUsed(EMemoryCategory::SystemJobs) + tracker->GetTotalFree()));
 
     return result;
 }
@@ -307,9 +313,15 @@ void TJobController::TImpl::StartWaitingJobs()
 
     {
         auto usedResources = GetResourceUsage();
-        auto memoryToRelease = tracker->GetUsed(EMemoryCategory::Jobs) - usedResources.memory();
+        auto memoryToRelease = tracker->GetUsed(EMemoryCategory::UserJobs) - usedResources.user_memory();
         if (memoryToRelease > 0) {
-            tracker->Release(EMemoryCategory::Jobs, memoryToRelease);
+            tracker->Release(EMemoryCategory::UserJobs, memoryToRelease);
+            resourcesUpdated = true;
+        }
+
+        memoryToRelease = tracker->GetUsed(EMemoryCategory::SystemJobs) - usedResources.system_memory();
+        if (memoryToRelease > 0) {
+            tracker->Release(EMemoryCategory::SystemJobs, memoryToRelease);
             resourcesUpdated = true;
         }
     }
@@ -329,8 +341,17 @@ void TJobController::TImpl::StartWaitingJobs()
             continue;
         }
 
-        if (jobResources.memory() > 0) {
-            auto error = tracker->TryAcquire(EMemoryCategory::Jobs, jobResources.memory());
+        if (jobResources.user_memory() > 0) {
+            auto error = tracker->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
+            if (!error.IsOK()) {
+                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
+                    job->GetId());
+                continue;
+            }
+        }
+
+        if (jobResources.system_memory() > 0) {
+            auto error = tracker->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
                     job->GetId());
@@ -481,9 +502,9 @@ bool TJobController::TImpl::CheckResourceUsageDelta(const TNodeResources& delta)
     ITERATE_NODE_RESOURCES(XX)
     #undef XX
 
-    if (delta.memory() > 0) {
+    if (delta.user_memory() > 0) {
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        auto error = tracker->TryAcquire(EMemoryCategory::Jobs, delta.memory());
+        auto error = tracker->TryAcquire(EMemoryCategory::UserJobs, delta.user_memory());
         if (!error.IsOK()) {
             return false;
         }

@@ -25,7 +25,7 @@ TString FormatResourceUsage(
 {
     return Format(
         "{"
-        "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v, "
+        "UserSlots: %v/%v, Cpu: %v/%v, UserMemory: %v/%v, SystemMemory: %v/%v, Network: %v/%v, "
         "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
         "RemovalSlots: %v/%v, "
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
@@ -37,9 +37,12 @@ TString FormatResourceUsage(
         // Cpu
         usage.cpu(),
         limits.cpu(),
-        // Memory (in MB)
-        usage.memory() / 1_MB,
-        limits.memory() / 1_MB,
+        // User memory (in MB)
+        usage.user_memory() / 1_MB,
+        limits.user_memory() / 1_MB,
+        // System memory (in MB)
+        usage.system_memory() / 1_MB,
+        limits.system_memory() / 1_MB,
         // Network
         usage.network(),
         limits.network(),
@@ -67,7 +70,7 @@ TString FormatResources(const TNodeResources& resources)
 {
     return Format(
         "{"
-        "UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, "
+        "UserSlots: %v, Cpu: %v, UserMemory: %v, SystemMemory: %v, Network: %v, "
         "ReplicationSlots: %v, ReplicationDataSize: %v, "
         "RemovalSlots: %v, "
         "RepairSlots: %v, RepairDataSize: %v, "
@@ -75,7 +78,8 @@ TString FormatResources(const TNodeResources& resources)
         "}",
         resources.user_slots(),
         resources.cpu(),
-        resources.memory() / 1_MB,
+        resources.user_memory() / 1_MB,
+        resources.system_memory() / 1_MB,
         resources.network(),
         resources.replication_slots(),
         resources.replication_data_size() / 1_MB,

@@ -188,7 +188,7 @@ void TBootstrap::DoRun()
     MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
         Config->ResourceLimits->Memory,
         std::vector<std::pair<EMemoryCategory, i64>>{
-            {EMemoryCategory::Jobs, Config->ExecAgent->JobController->ResourceLimits->Memory},
+            {EMemoryCategory::UserJobs, Config->ExecAgent->JobController->ResourceLimits->UserMemory},
             {EMemoryCategory::TabletStatic, Config->TabletNode->ResourceLimits->TabletStaticMemory},
             {EMemoryCategory::TabletDynamic, Config->TabletNode->ResourceLimits->TabletDynamicMemory}
         },

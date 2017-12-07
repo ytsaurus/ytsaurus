@@ -221,6 +221,8 @@ public:
 
     TDuration CoreForwarderTimeout;
 
+    TNullable<TString> ExternalJobContainer;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -249,6 +251,9 @@ public:
             .Default(10);
         RegisterParameter("node_directory_prepare_backoff_time", NodeDirectoryPrepareBackoffTime)
             .Default(TDuration::Seconds(3));
+
+        RegisterParameter("external_job_container", ExternalJobContainer)
+            .Default(Null);
 
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default(TDuration::Seconds(60))

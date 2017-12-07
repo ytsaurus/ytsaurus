@@ -86,7 +86,7 @@ TJobPtr TJob::CreateRepair(
 
     TNodeResources resourceUsage;
     resourceUsage.set_repair_slots(1);
-    resourceUsage.set_memory(memoryUsage);
+    resourceUsage.set_system_memory(memoryUsage);
     resourceUsage.set_repair_data_size(dataSize);
 
     return New<TJob>(
