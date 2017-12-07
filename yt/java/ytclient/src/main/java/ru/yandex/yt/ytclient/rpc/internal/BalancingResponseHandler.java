@@ -8,26 +8,20 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
-
-import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolderImpl;
 
 /**
  * @author aozeritsky
  */
 public class BalancingResponseHandler implements RpcClientResponseHandler {
     // TODO: move somewhere to core
-    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
-    private static final Counter inflight = metrics.counter(MetricRegistry.name(BalancingRpcClient.class, "requests", "inflight"));
-    private static final Counter failover = metrics.counter(MetricRegistry.name(BalancingRpcClient.class,"requests", "failover"));
-    private static final Counter total = metrics.counter(MetricRegistry.name(BalancingRpcClient.class,"requests", "total"));
+    private final BalancingResponseHandlerMetricsHolder metricsHolder;
 
     private final CompletableFuture<List<byte[]>> f;
     private List<BalancingDestination> clients;
@@ -51,6 +45,20 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         RpcClientRequest request,
         List<BalancingDestination> clients)
     {
+        this(executorService, failoverPolicy, globalTimeout, failoverTimeout, f, request, clients,
+                new BalancingResponseHandlerMetricsHolderImpl());
+    }
+
+    public BalancingResponseHandler(
+            ScheduledExecutorService executorService,
+            RpcFailoverPolicy failoverPolicy,
+            Duration globalTimeout,
+            Duration failoverTimeout,
+            CompletableFuture<List<byte[]>> f,
+            RpcClientRequest request,
+            List<BalancingDestination> clients,
+            BalancingResponseHandlerMetricsHolder metricsHolder)
+    {
         this.executorService = executorService;
         this.failoverPolicy = failoverPolicy;
         this.failoverTimeout = failoverTimeout.toMillis();
@@ -59,6 +67,8 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         this.request = request;
         this.isOneWay = request.isOneWay();
         this.clients = clients;
+
+        this.metricsHolder = metricsHolder;
 
         timeout = globalTimeout.toMillis();
 
@@ -85,13 +95,13 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         client = dst.getClient();
 
         if (step > 0) {
-            failover.inc();
+           metricsHolder.failoverInc();
         }
 
         step ++;
 
-        inflight.inc();
-        total.inc();
+        metricsHolder.inflightInc();
+        metricsHolder.totalInc();
 
         request.header().setTimeout(timeout*1000); // in microseconds
         cancelation.add(client.send(request, this));
@@ -122,7 +132,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     public void cancel() {
         synchronized (f) {
             for (RpcClientRequestControl control : cancelation) {
-                inflight.dec();
+                metricsHolder.inflightDec();
                 control.cancel();
             }
         }

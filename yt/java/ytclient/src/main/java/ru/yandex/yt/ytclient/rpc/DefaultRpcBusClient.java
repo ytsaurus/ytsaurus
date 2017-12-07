@@ -17,10 +17,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
 import com.google.protobuf.CodedInputStream;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.ScheduledFuture;
@@ -35,16 +31,14 @@ import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusFactory;
 import ru.yandex.yt.ytclient.bus.BusListener;
 import ru.yandex.yt.ytclient.misc.YtGuid;
+import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolderImpl;
 
 /**
  * Базовая реализация rpc клиента поверх bus
  */
 public class DefaultRpcBusClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(DefaultRpcBusClient.class);
-    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
-    private static final Histogram requestsAckHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", "total"));
-    private static final Histogram requestsResponseHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", "total"));
-    private static final Counter errorCounter = metrics.counter(MetricRegistry.name(DefaultRpcBusClient.class, "error"));
 
     private final BusFactory busFactory;
     private final Lock sessionLock = new ReentrantLock();
@@ -53,23 +47,25 @@ public class DefaultRpcBusClient implements RpcClient {
     private final String destinationName; // for debug
     private final String name; // for debug
 
+    private final DefaultRpcBusClientMetricsHolder metricsHolder;
+
     private final class Statistics {
-        private Histogram requestsAckHistogramLocal;
-        private Histogram requestsResponseHistogramLocal;
+        private final String name;
 
         Statistics(String name) {
-            this.requestsAckHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", name));
-            this.requestsResponseHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", name));
+            this.name = name;
         }
 
         void updateAck(long millis) {
-            requestsAckHistogramLocal.update(millis);
-            requestsAckHistogram.update(millis);
+            metricsHolder.updateAck(name, millis);
         }
 
         void updateResponse(long millis) {
-            requestsResponseHistogramLocal.update(millis);
-            requestsResponseHistogram.update(millis);
+            metricsHolder.updateResponse(name, millis);
+        }
+
+        void incError() {
+            metricsHolder.incError();
         }
     }
 
@@ -376,7 +372,7 @@ public class DefaultRpcBusClient implements RpcClient {
          * Вызывается при каких-либо ошибках в обработке
          */
         public void error(Throwable cause) {
-            errorCounter.inc();
+            stat.incError();
             lock.lock();
             try {
                 if (state == RequestState.FINISHED) {
@@ -435,10 +431,15 @@ public class DefaultRpcBusClient implements RpcClient {
     }
 
     public DefaultRpcBusClient(BusFactory busFactory, String destinationName) {
+        this(busFactory, destinationName, new DefaultRpcBusClientMetricsHolderImpl());
+    }
+
+    public DefaultRpcBusClient(BusFactory busFactory, String destinationName, DefaultRpcBusClientMetricsHolder metricsHolder) {
         this.busFactory = Objects.requireNonNull(busFactory);
         this.destinationName = destinationName;
         this.name = String.format("%s@%d", busFactory.destinationName(), System.identityHashCode(this));
         this.stats = new Statistics(destinationName());
+        this.metricsHolder = metricsHolder;
     }
 
     public String destinationName() {

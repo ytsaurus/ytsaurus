@@ -7,9 +7,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelPromise;
@@ -20,6 +17,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.ytclient.bus.internal.BusOutgoingMessage;
+import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
+import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
@@ -27,8 +26,6 @@ import ru.yandex.yt.ytclient.misc.YtGuid;
  */
 public class DefaultBusChannel implements Bus, BusLifecycle {
     private static final Logger logger = LoggerFactory.getLogger(DefaultBusChannel.class);
-    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
-    private static final Histogram packetsHistogram = metrics.histogram(MetricRegistry.name(DefaultBusChannel.class, "packets", "histogram"));
 
     private static final AttributeKey<DefaultBusChannel> CHANNEL_KEY =
             AttributeKey.valueOf(DefaultBusChannel.class.getName());
@@ -37,12 +34,19 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
     private final ChannelPromise connected;
     private final ChannelPromise disconnected;
 
+    private final DefaultBusChannelMetricsHolder metricsHolder;
+
     public DefaultBusChannel(Channel channel) {
+        this(channel, new DefaultBusChannelMetricsHolderImpl());
+    }
+
+    public DefaultBusChannel(Channel channel, DefaultBusChannelMetricsHolder metricsHolder) {
         this.channel = Objects.requireNonNull(channel);
         this.connected = channel.newPromise();
         this.connected.setUncancellable();
         this.disconnected = channel.newPromise();
         this.disconnected.setUncancellable();
+        this.metricsHolder = metricsHolder;
     }
 
     @Override
@@ -111,7 +115,7 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
         long elapsed = Duration.between(started, Instant.now()).toMillis();
         logger.debug("(DefaultBusChannel({}@{})) message `{}` sent in {} ms",
             channel.remoteAddress(), hashCode(), packetId, elapsed);
-        packetsHistogram.update(elapsed);
+        metricsHolder.updatePacketsHistogram(elapsed);
     }
 
     /**
