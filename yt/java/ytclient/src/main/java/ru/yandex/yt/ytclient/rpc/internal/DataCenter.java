@@ -10,22 +10,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
-import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
 /**
  * @author aozeritsky
  */
 public final class DataCenter {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
-    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
-    private final Histogram pingHistogramDc;
+
+    private final DataCenterMetricsHolder metricsHolder;
 
     private final String dc;
     private final BalancingDestination[] backends;
@@ -37,18 +35,22 @@ public final class DataCenter {
     }
 
     public DataCenter(String dc, BalancingDestination[] backends, double weight) {
+        this(dc, backends, weight, new DataCenterMetricsHolderImpl());
+    }
+
+    public DataCenter(String dc, BalancingDestination[] backends, double weight, DataCenterMetricsHolder metricsHolder) {
         this.dc = dc;
         this.backends = backends;
         this.aliveCount = backends.length;
         this.weight = weight;
-        pingHistogramDc = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
+        this.metricsHolder = metricsHolder;
     }
 
     public double weight() {
         if (weight > 0) {
             return weight;
         } else {
-            return pingHistogramDc.getSnapshot().get99thPercentile();
+            return metricsHolder.getDc99thPercentile(dc);
         }
     }
 

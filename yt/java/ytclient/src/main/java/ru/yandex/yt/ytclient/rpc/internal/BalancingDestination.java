@@ -4,10 +4,6 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
-
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
@@ -16,19 +12,18 @@ import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.proxy.ApiService;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
-import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
 
 /**
  * @author aozeritsky
  */
 public class BalancingDestination {
-    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
-    private final Histogram pingHistogramLocal;
-    private final Histogram pingHistogramDc;
+    private final BalancingDestinationMetricsHolder metricsHolder;
 
     private final String dc;
     private final RpcClient client;
@@ -38,16 +33,22 @@ public class BalancingDestination {
     private final ApiService service;
     private YtGuid transaction = null;
 
+    private final String destinationName;
+
     public BalancingDestination(String dc, RpcClient client, int index) {
+        this(dc, client, index, new BalancingDestinationMetricsHolderImpl());
+    }
+
+    public BalancingDestination(String dc, RpcClient client, int index, BalancingDestinationMetricsHolder metricsHolder) {
         this.dc = dc;
         this.client = Objects.requireNonNull(client);
         this.index = index;
         this.id = String.format("%s/%s", dc, client.toString());
 
-        service = client.getService(ApiService.class);
+        this.destinationName = client.destinationName();
+        this.metricsHolder = metricsHolder;
 
-        pingHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", client.destinationName()));
-        pingHistogramDc = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
+        service = client.getService(ApiService.class);
     }
 
     /* for testing only */
@@ -56,14 +57,15 @@ public class BalancingDestination {
         this.client = null;
         this.id = String.format("%s/%d", dc, index);
         this.index = index;
-        service = null;
 
-        pingHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", "local"));
-        pingHistogramDc = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
+        this.destinationName = "local";
+        this.metricsHolder = new BalancingDestinationMetricsHolderImpl();
+
+        service = null;
     }
 
     public double weight() {
-        return pingHistogramLocal.getSnapshot().get99thPercentile();
+        return metricsHolder.getLocal99thPercentile(destinationName);
     }
 
     public String dataCenter() {
@@ -115,8 +117,8 @@ public class BalancingDestination {
 
             long end = System.nanoTime();
             long interval = (end - start) / 1000000;
-            pingHistogramLocal.update(interval);
-            pingHistogramDc.update(interval);
+            metricsHolder.updateLocal(destinationName, interval);
+            metricsHolder.updateDc(dc, interval);
         });
     }
 
