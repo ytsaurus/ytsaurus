@@ -22,7 +22,8 @@ public:
     TAutoMergeChunkPoolAdapter(
         NChunkPools::IChunkPoolInput* underlyingInput,
         TAutoMergeTask* task,
-        i64 chunkSizeThreshold);
+        i64 chunkSizeThreshold,
+        i64 maxDataWeightPerJob);
 
     virtual NChunkPools::IChunkPoolInput::TCookie AddWithKey(
         NChunkPools::TChunkStripePtr stripe,
@@ -36,6 +37,7 @@ public:
     virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe);
 
     void Persist(const TPersistenceContext& context);
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0xfb888bac);
 
@@ -43,6 +45,7 @@ private:
 
     TAutoMergeTask* Task_;
     i64 ChunkSizeThreshold_;
+    i64 MaxDataWeightPerJob_ = std::numeric_limits<i64>::max();
     std::vector<int> CookieChunkCount_;
 };
 
@@ -64,6 +67,7 @@ public:
         i64 chunkSizeThreshold,
         i64 desiredChunkSize,
         i64 dataWeightPerJob,
+        i64 maxDataWeightPerJob,
         TEdgeDescriptor edgeDescriptor);
 
     virtual TString GetId() const override;
