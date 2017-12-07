@@ -61,7 +61,7 @@ public:
 #define ITERATE_JOB_RESOURCES(XX) \
     XX(user_slots,            UserSlots) \
     XX(cpu,                   Cpu) \
-    XX(memory,                Memory) \
+    XX(user_memory,           Memory) \
     XX(network,               Network)
 
 #define MAKE_JOB_METHODS(Base, Field) \

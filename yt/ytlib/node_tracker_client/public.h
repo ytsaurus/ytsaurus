@@ -86,11 +86,12 @@ DEFINE_ENUM(EMemoryCategory,
     ((Footprint)                   (0))
     ((BlockCache)                  (1))
     ((ChunkMeta)                   (2))
-    ((Jobs)                        (3))
+    ((UserJobs)                    (3))
     ((TabletStatic)                (4))
     ((TabletDynamic)               (5))
     ((BlobSession)                 (6))
     ((CachedVersionedChunkMeta)    (7))
+    ((SystemJobs)                  (8))
 );
 
 using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;

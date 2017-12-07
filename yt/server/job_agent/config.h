@@ -18,7 +18,8 @@ public:
     int UserSlots;
     double Cpu;
     int Network;
-    i64 Memory;
+    i64 UserMemory;
+    i64 SystemMemory;
     int ReplicationSlots;
     i64 ReplicationDataSize;
     int RemovalSlots;
@@ -39,7 +40,11 @@ public:
         RegisterParameter("network", Network)
             .GreaterThanOrEqual(0)
             .Default(100);
-        RegisterParameter("memory", Memory)
+        RegisterParameter("user_memory", UserMemory)
+            .Alias("memory")
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<i64>::max());
+        RegisterParameter("system_memory", SystemMemory)
             .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<i64>::max());
         RegisterParameter("replication_slots", ReplicationSlots)

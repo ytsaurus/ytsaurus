@@ -32,6 +32,9 @@ public:
     i64 GetFree(ECategory category) const;
     bool IsExceeded(ECategory category) const;
 
+    void SetTotalLimit(i64 newLimit) const;
+    void SetCategoryLimit(ECategory category, i64 newLimit) const;
+
     // Always succeeds, can lead to an overcommit.
     void Acquire(ECategory category, i64 size);
     TError TryAcquire(ECategory category, i64 size);

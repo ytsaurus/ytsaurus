@@ -50,7 +50,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 
     auto* jobProxyResources = response->mutable_resource_usage();
     jobProxyResources->set_cpu(resources.cpu());
-    jobProxyResources->set_memory(resources.memory());
+    jobProxyResources->set_memory(resources.user_memory());
     jobProxyResources->set_network(resources.network());
 
     context->Reply();
@@ -139,7 +139,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
     auto job = jobController->GetJobOrThrow(jobId);
 
     auto resourceUsage = job->GetResourceUsage();
-    resourceUsage.set_memory(jobProxyResourceUsage.memory());
+    resourceUsage.set_user_memory(jobProxyResourceUsage.memory());
     resourceUsage.set_cpu(jobProxyResourceUsage.cpu());
     resourceUsage.set_network(jobProxyResourceUsage.network());
 
