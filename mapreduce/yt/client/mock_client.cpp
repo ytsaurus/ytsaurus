@@ -271,6 +271,10 @@ IFileWriterPtr TMockClient::CreateFileWriter(const TRichYPath&, const TFileWrite
     return new TMockFileWriter();
 }
 
+IFileReaderPtr TMockClient::CreateBlobTableReader(const TYPath&, const TKey&, const TBlobTableReaderOptions&) {
+    ythrow yexception() << "not implemented";
+}
+
 TTableWriterPtr<::google::protobuf::Message> TMockClient::CreateTableWriter(const TRichYPath&, const ::google::protobuf::Descriptor&, const TTableWriterOptions&) {
     return new TTableWriter<::google::protobuf::Message>(new TMockProtoTableWriter());
 }

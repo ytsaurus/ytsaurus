@@ -173,6 +173,9 @@ namespace NYT {
 
     using IFileWriterPtr = ::TIntrusivePtr<IFileWriter>;
 
+    class IBlobTableReader;
+    using IBlobTableReaderPtr = ::TIntrusivePtr<IBlobTableReader>;
+
     class TRawTableReader;
 
     using TRawTableReaderPtr = ::TIntrusivePtr<TRawTableReader>;

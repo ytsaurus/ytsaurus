@@ -749,3 +749,93 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 }
+
+SIMPLE_UNIT_TEST_SUITE(BlobTableIo) {
+    SIMPLE_UNIT_TEST(Simple)
+    {
+        const std::vector<TString> testDataParts = {
+            TString(1024 * 1024 * 4, 'a'),
+            TString(1024 * 1024 * 4, 'b'),
+            TString(1024 * 1024 * 4, 'c'),
+            TString(1027, 'd'),
+        };
+
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/table").Schema(TTableSchema()
+                    .AddColumn("filename", VT_STRING, SO_ASCENDING)
+                    .AddColumn("part_index", VT_INT64, SO_ASCENDING)
+                    .AddColumn("data", VT_STRING)));
+
+            for (size_t i = 0; i != testDataParts.size(); ++i) {
+                TNode row;
+                row["filename"] = "myfile_big";
+                row["part_index"] = static_cast<i64>(i);
+                row["data"] = testDataParts[i];
+                writer->AddRow(row);
+            };
+
+            {
+                TNode row;
+                row["filename"] = "myfile_small";
+                row["part_index"] = 0;
+                row["data"] = "small";
+                writer->AddRow(row);
+            }
+
+            writer->Finish();
+        }
+
+        {
+            auto reader = client->CreateBlobTableReader("//testing/table", {"myfile_small"});
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "small");
+        }
+
+        {
+            TString expected;
+            for (const auto& part : testDataParts) {
+                expected += part;
+            }
+            auto reader = client->CreateBlobTableReader("//testing/table", {"myfile_big"});
+            UNIT_ASSERT_EQUAL(reader->ReadAll(), expected);
+        }
+    }
+
+    SIMPLE_UNIT_TEST(WrongPartSize)
+    {
+        const std::vector<TString> testDataParts = {
+            TString(1024 * 1024 * 4, 'a'),
+            TString(1027, 'd'),
+        };
+
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/table").Schema(TTableSchema()
+                    .AddColumn("filename", VT_STRING, SO_ASCENDING)
+                    .AddColumn("part_index", VT_INT64, SO_ASCENDING)
+                    .AddColumn("data", VT_STRING)));
+
+            for (size_t i = 0; i != testDataParts.size(); ++i) {
+                TNode row;
+                row["filename"] = "myfile_big";
+                row["part_index"] = static_cast<i64>(i);
+                row["data"] = testDataParts[i];
+                writer->AddRow(row);
+            };
+
+            writer->Finish();
+        }
+
+
+        auto readFile = [&] (ui64 partSize) {
+            auto reader = client->CreateBlobTableReader("//testing/table", {"myfile_big"}, TBlobTableReaderOptions().PartSize(partSize));
+            reader->ReadAll();
+        };
+        readFile(4 * 1024 * 1024); // no exception
+        UNIT_ASSERT_EXCEPTION(readFile(100500), yexception);
+    }
+}
