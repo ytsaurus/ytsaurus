@@ -93,6 +93,7 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetRepairOutThrottler() const;
     const NConcurrency::IThroughputThrottlerPtr& GetArtifactCacheInThrottler() const;
     const NConcurrency::IThroughputThrottlerPtr& GetArtifactCacheOutThrottler() const;
+    const NConcurrency::IThroughputThrottlerPtr& GetSkynetOutThrottler() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const;
     const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
@@ -127,6 +128,7 @@ private:
     NRpc::IServicePtr MasterCacheService;
     std::unique_ptr<NXHttp::TServer> HttpServer;
     NHttp::IServerPtr NewHttpServer;
+    NHttp::IServerPtr SkynetHttpServer;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
     NJobAgent::TStatisticsReporterPtr StatisticsReporter;
@@ -158,6 +160,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheInThrottler;
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr SkynetOutThrottler;
 
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;
