@@ -657,7 +657,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
     SIMPLE_UNIT_TEST(SimpleRetrylessWriter)
     {
         auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/table1");
+        auto path = TRichYPath("//testing/table");
         const int numRows = 100;
         {
             auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions().SingleHttpRequest(true));
@@ -677,7 +677,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
     SIMPLE_UNIT_TEST(RetrylessWriterAndLockedTable)
     {
         auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/table523" + TInstant::Now().ToString());
+        auto path = TRichYPath("//testing/table");
         auto lockingWriter = client->CreateTableWriter<TNode>(path);
         lockingWriter->AddRow(TNode()("key", "kluch"));
 
@@ -732,4 +732,20 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         TestCompressionCodec(E_GZIP);
     }
 
+    SIMPLE_UNIT_TEST(AbortWriter)
+    {
+        auto client = CreateTestClient();
+        const int numRows = 2117;
+        for (auto singleRequest : {true, false}) {
+            auto path = TRichYPath("//testing/table" + ToString(singleRequest));
+            {
+                auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions().SingleHttpRequest(singleRequest));
+                for (int i = 0; i < numRows; ++i) {
+                    writer->AddRow(TNode()("kluch", i));
+                }
+                writer->Abort();
+            }
+            UNIT_ASSERT(client->Get(path.Path_ + "/@row_count").AsInt64() < numRows); // Not everything was flushed
+        }
+    }
 }

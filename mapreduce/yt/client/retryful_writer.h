@@ -62,9 +62,9 @@ public:
         }
     }
 
-    ~TRetryfulWriter();
-
+    ~TRetryfulWriter() override;
     void NotifyRowEnd() override;
+    void Abort() override;
 
 protected:
     void DoWrite(const void* buf, size_t len) override;
@@ -87,11 +87,11 @@ private:
     TBuffer SecondaryBuffer_;
 
     TThread Thread_;
-    std::atomic<bool> Started_{false};
-    std::atomic<bool> Stopped_{false};
+    bool Started_ = false;
+    bool Stopped_ = false;
     std::exception_ptr Exception_ = nullptr;
 
-    TAutoEvent HasData_;
+    TAutoEvent HasDataOrStopped_;
     TAutoEvent CanWrite_;
 
     enum EWriterState {

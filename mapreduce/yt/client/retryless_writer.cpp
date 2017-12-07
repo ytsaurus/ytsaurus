@@ -36,6 +36,11 @@ void TRetrylessWriter::DoWrite(const void* buf, size_t len)
 void TRetrylessWriter::NotifyRowEnd()
 { }
 
+void TRetrylessWriter::Abort()
+{
+    Running_ = false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

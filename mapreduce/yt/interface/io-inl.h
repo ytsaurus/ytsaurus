@@ -141,6 +141,11 @@ public:
         return Reader_->GetRowIndex();
     }
 
+    void Abort()
+    {
+        Reader_->Abort();
+    }
+
 private:
     ::TIntrusivePtr<IReaderImpl> Reader_;
 };
@@ -371,6 +376,8 @@ struct IWriterImplBase
 {
     virtual size_t GetStreamCount() const = 0;
     virtual IOutputStream* GetStream(size_t tableIndex) const = 0;
+    virtual void Abort()
+    { }
 };
 
 struct INodeWriterImpl
@@ -411,6 +418,11 @@ public:
         if (Locks_.RefCount() == 1) {
             NDetail::FinishOrDie(this, "TTableWriterBase");
         }
+    }
+
+    void Abort()
+    {
+        Writer_->Abort();
     }
 
     void AddRow(const T& row, size_t tableIndex = 0)

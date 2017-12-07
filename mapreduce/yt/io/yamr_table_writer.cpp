@@ -40,6 +40,11 @@ void TYaMRTableWriter::AddRow(const TYaMRRow& row, size_t tableIndex)
     Output_->OnRowFinished(tableIndex);
 }
 
+void TYaMRTableWriter::Abort()
+{
+    Output_->Abort();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

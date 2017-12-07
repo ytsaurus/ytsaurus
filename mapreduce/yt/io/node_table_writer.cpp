@@ -57,6 +57,11 @@ void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
     Output_->OnRowFinished(tableIndex);
 }
 
+void TNodeTableWriter::Abort()
+{
+    Output_->Abort();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -80,6 +80,9 @@ public:
     // NOTE: TRawTableWriter never sends partial records to YT (due to retries).
 
     virtual void NotifyRowEnd() = 0;
+
+    virtual void Abort()
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,6 +120,7 @@ class TTableWriter
     : public TThrRefBase
 {
 public:
+    void Abort(); // stop writing without flushing data (e.g. before aborting parent transaction)
     void AddRow(const T& row); // may be a template function
     void Finish();
 };

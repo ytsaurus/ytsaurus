@@ -22,6 +22,7 @@ public:
 
     size_t GetStreamCount() const override;
     IOutputStream* GetStream(size_t tableIndex) const override;
+    void Abort() override;
 
 private:
     THolder<TNodeTableWriter> NodeWriter_;
@@ -43,6 +44,7 @@ public:
 
     size_t GetStreamCount() const override;
     IOutputStream* GetStream(size_t tableIndex) const override;
+    void Abort() override;
 
 private:
     THolder<TProxyOutput> Output_;
