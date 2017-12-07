@@ -15,6 +15,7 @@
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
 namespace NYT {
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,56 +29,22 @@ static TMaybe<ui64> GetEndOffset(const TFileReaderOptions& options) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileReader::TFileReader(
-    const TRichYPath& path,
+TStreamReaderBase::TStreamReaderBase(
     const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TFileReaderOptions& options)
-    : Path_(path)
-    , Auth_(auth)
-    , FileReaderOptions_(options)
-    , ReadTransaction_(new TPingableTransaction(auth, transactionId))
-    , CurrentOffset_(FileReaderOptions_.Offset_.GetOrElse(0))
-    , EndOffset_(GetEndOffset(FileReaderOptions_))
+    const TTransactionId& transactionId)
+    : Auth_(auth)
+    , ReadTransaction_(MakeHolder<TPingableTransaction>(auth, transactionId))
 {
-    NDetail::Lock(Auth_, ReadTransaction_->GetId(), path.Path_, LM_SNAPSHOT);
-
-    DoRead(nullptr, 0);
 }
 
-TFileReader::~TFileReader()
-{ }
+TStreamReaderBase::~TStreamReaderBase() = default;
 
-void TFileReader::CreateRequest()
+TYPath TStreamReaderBase::Snapshot(const TYPath& path)
 {
-    TString proxyName = GetProxyForHeavyRequest(Auth_);
-
-    THttpHeader header("GET", GetReadFileCommand());
-    header.SetToken(Auth_.Token);
-    header.AddTransactionId(ReadTransaction_->GetId());
-    header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
-
-    if (EndOffset_) {
-        Y_VERIFY(*EndOffset_ >= CurrentOffset_);
-        FileReaderOptions_.Length(*EndOffset_ - CurrentOffset_);
-    }
-    FileReaderOptions_.Offset(CurrentOffset_);
-    header.SetParameters(FormIORequestParameters(Path_, FileReaderOptions_));
-
-    header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
-
-    Request_.Reset(new THttpRequest(proxyName));
-
-    Request_->Connect();
-    Request_->StartRequest(header);
-    Request_->FinishRequest();
-
-    Input_ = Request_->GetResponseStream();
-
-    LOG_DEBUG("RSP %s - file stream", ~Request_->GetRequestId());
+    return NYT::Snapshot(Auth_, ReadTransaction_->GetId(), path);
 }
 
-TString TFileReader::GetActiveRequestId() const
+TString TStreamReaderBase::GetActiveRequestId() const
 {
     if (Request_) {
         return Request_->GetRequestId();
@@ -86,13 +53,14 @@ TString TFileReader::GetActiveRequestId() const
     }
 }
 
-size_t TFileReader::DoRead(void* buf, size_t len)
+size_t TStreamReaderBase::DoRead(void* buf, size_t len)
 {
     const int retryCount = TConfig::Get()->ReadRetryCount;
     for (int attempt = 1; attempt <= retryCount; ++attempt) {
         try {
             if (!Input_) {
-                CreateRequest();
+                Request_ = CreateRequest(Auth_, ReadTransaction_->GetId(), CurrentOffset_);
+                Input_ = Request_->GetResponseStream();
             }
             if (len == 0) {
                 return 0;
@@ -123,4 +91,99 @@ size_t TFileReader::DoRead(void* buf, size_t len)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFileReader::TFileReader(
+    const TRichYPath& path,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TFileReaderOptions& options)
+    : TStreamReaderBase(auth, transactionId)
+    , FileReaderOptions_(options)
+    , Path_(path)
+    , StartOffset_(FileReaderOptions_.Offset_.GetOrElse(0))
+    , EndOffset_(GetEndOffset(FileReaderOptions_))
+{
+    Path_.Path_ = TStreamReaderBase::Snapshot(Path_.Path_);
+}
+
+THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes)
+{
+    const ui64 currentOffset = StartOffset_ + readBytes;
+    TString proxyName = GetProxyForHeavyRequest(auth);
+
+    THttpHeader header("GET", GetReadFileCommand());
+    header.SetToken(auth.Token);
+    header.AddTransactionId(transactionId);
+    header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
+
+    if (EndOffset_) {
+        Y_VERIFY(*EndOffset_ >= currentOffset);
+        FileReaderOptions_.Length(*EndOffset_ - currentOffset);
+    }
+    FileReaderOptions_.Offset(currentOffset);
+    header.SetParameters(FormIORequestParameters(Path_, FileReaderOptions_));
+
+    header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
+
+    auto request = MakeHolder<THttpRequest>(proxyName);
+
+    request->Connect();
+    request->StartRequest(header);
+    request->FinishRequest();
+
+    LOG_DEBUG("RSP %s - file stream", ~request->GetRequestId());
+
+    return request;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBlobTableReader::TBlobTableReader(
+    const TYPath& path,
+    const TKey& key,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TBlobTableReaderOptions& options)
+    : TStreamReaderBase(auth, transactionId)
+    , Key_(key)
+    , Options_(options)
+{
+    Path_ = TStreamReaderBase::Snapshot(path);
+}
+
+THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes)
+{
+    TString proxyName = GetProxyForHeavyRequest(auth);
+
+    THttpHeader header("GET", "read_blob_table");
+    header.SetToken(auth.Token);
+    header.AddTransactionId(transactionId);
+    header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
+
+    const ui64 startPartIndex = readBytes / Options_.PartSize_;
+    const ui64 skipBytes = readBytes - Options_.PartSize_ * startPartIndex;
+    TNode params = PathToParamNode(TRichYPath(Path_).AddRange(TReadRange().Exact(TReadLimit().Key(Key_))));
+    params["start_part_index"] = TNode(startPartIndex);
+    params["offset"] = skipBytes;
+    if (Options_.PartIndexColumnName_) {
+        params["part_index_column_name"] = *Options_.PartIndexColumnName_;
+    }
+    if (Options_.DataColumnName_) {
+        params["data_column_name"] = *Options_.DataColumnName_;
+    }
+    params["part_size"] = Options_.PartSize_;
+    header.SetParameters(params);
+    header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
+
+    auto request = MakeHolder<THttpRequest>(proxyName);
+    request->Connect();
+    request->StartRequest(header);
+    request->FinishRequest();
+
+    LOG_DEBUG("RSP %s - blob table stream", ~request->GetRequestId());
+    return request;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 } // namespace NYT

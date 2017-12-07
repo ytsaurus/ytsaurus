@@ -115,8 +115,31 @@ struct TConcatenateOptions
 {
     using TSelf = TConcatenateOptions;
 
+    //
+    // When false current content of result table is discared and replaced by result of concatenation.
+    // When true result of concatenation is appended to current content of result table.
     FLUENT_FIELD_DEFAULT(bool, Append, false);
 };
+
+// https://wiki.yandex-team.ru/yt/userdoc/api/#readblobtable
+struct TBlobTableReaderOptions
+{
+    using TSelf = TBlobTableReaderOptions;
+
+    //
+    // Name of the part index column. By default it is part_index.
+    FLUENT_FIELD_OPTION(TString, PartIndexColumnName);
+
+    //
+    // Name of the `part index' column. By default it is part_index.
+    FLUENT_FIELD_OPTION(TString, DataColumnName);
+
+    //
+    // Size of each part. All blob parts except the last part of the blob must be of this size
+    // otherwise blob table reader emits error.
+    FLUENT_FIELD_DEFAULT(ui64, PartSize, 4 * 1024 * 1024);
+};
+
 
 template <class TDerived>
 struct TIOOptions
@@ -150,6 +173,7 @@ struct TTableReaderOptions
 {
     FLUENT_FIELD_DEFAULT(size_t, SizeLimit, 4 << 20);
 };
+
 
 struct TTableWriterOptions
     : public TIOOptions<TTableWriterOptions>

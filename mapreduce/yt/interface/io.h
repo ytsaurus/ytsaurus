@@ -172,6 +172,22 @@ public:
         const TFormat& format,
         const TTableWriterOptions& options) = 0;
 
+    //
+    // Read blob table.
+    // https://wiki.yandex-team.ru/yt/userdoc/blob_tables/
+    //
+    // Blob table is a table that stores a number of blobs. Blobs are sliced into parts of the same size (maybe except of last part).
+    // Those parts are stored in the separate rows.
+    //
+    // Blob table have constaints on its schema.
+    //  - There must be columns that identify blob (blob id columns). That columns might be of any type.
+    //  - There must be a column of int64 type that identify part inside the blob (this column is called `part index`).
+    //  - There must be a column of string type that stores actual data (this column is called `data column`).
+    virtual IFileReaderPtr CreateBlobTableReader(
+        const TYPath& path,
+        const TKey& blobId,
+        const TBlobTableReaderOptions& options = TBlobTableReaderOptions()) = 0;
+
 private:
     virtual ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
         const TRichYPath& path, const TTableReaderOptions& options) = 0;

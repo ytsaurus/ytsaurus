@@ -34,6 +34,8 @@ public:
 
     IFileWriterPtr CreateFileWriter(const TRichYPath&, const TFileWriterOptions&) override;
 
+    IFileReaderPtr CreateBlobTableReader(const TYPath&, const TKey&, const TBlobTableReaderOptions&) override;
+
     TTableWriterPtr<::google::protobuf::Message> CreateTableWriter(const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options = TTableWriterOptions()) override;
 
     TRawTableReaderPtr CreateRawReader(const TRichYPath& path, const TFormat& format, const TTableReaderOptions& options) override;

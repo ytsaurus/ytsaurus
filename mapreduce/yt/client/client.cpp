@@ -174,6 +174,19 @@ TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
     return CanonizePath(Auth_, path);
 }
 
+IFileReaderPtr TClientBase::CreateBlobTableReader(
+    const TYPath& path,
+    const TKey& key,
+    const TBlobTableReaderOptions& options)
+{
+    return new TBlobTableReader(
+        path,
+        key,
+        Auth_,
+        TransactionId_,
+        options);
+}
+
 IFileReaderPtr TClientBase::CreateFileReader(
     const TRichYPath& path,
     const TFileReaderOptions& options)

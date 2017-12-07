@@ -99,6 +99,11 @@ public:
         const TFormat& format,
         const TTableWriterOptions& options) override;
 
+    IFileReaderPtr CreateBlobTableReader(
+        const TYPath& path,
+        const TKey& key,
+        const TBlobTableReaderOptions& options) override;
+
     // operations
 
     IOperationPtr DoMap(
