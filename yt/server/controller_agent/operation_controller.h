@@ -424,7 +424,7 @@ struct IOperationController
     /*!
      * \note Invoker affinity: controller.
      */
-    //! Build operation info, used for orchid.
+    //! Builds operation info, used for orchid.
     virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) = 0;
 };
 

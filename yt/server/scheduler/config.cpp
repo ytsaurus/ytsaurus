@@ -700,6 +700,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
+        .Default(TDuration::Seconds(1));
+
     RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
         .Default(TDuration::Seconds(15));
 
