@@ -33,3 +33,7 @@ def execute_batch(requests, concurrency=None, client=None):
     set_param(params, "concurrency", concurrency)
     return make_formatted_request("execute_batch", params=params, format=None, client=client)
 
+def generate_timestamp(client=None):
+    """Generates timestamp."""
+    params = {"output_format": YsonFormat(require_yson_bindings=False).to_yson_type()}
+    return loads(make_request("generate_timestamp", params=params, client=client))

@@ -8,5 +8,6 @@ from .dynamic_table_commands import (mount_table, unmount_table, remount_table,
 from .operation_commands import suspend_operation, resume_operation, get_operation_attributes
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
 from .job_commands import abort_job
+from .etc_commands import generate_timestamp
 
 _batch_commands = [_key for _key in locals().keys() if not _key.startswith("_")]
