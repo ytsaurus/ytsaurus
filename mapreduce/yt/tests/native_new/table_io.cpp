@@ -748,6 +748,21 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
             UNIT_ASSERT(client->Get(path.Path_ + "/@row_count").AsInt64() < numRows); // Not everything was flushed
         }
     }
+
+    SIMPLE_UNIT_TEST(ProtobufWriteAutoflush)
+    {
+        auto client = CreateTestClient();
+
+        auto writer = client->CreateTableWriter<TUrlRow>("//testing/table", TTableWriterOptions().CreateTransaction(false));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/table/@row_count").AsInt64(), 0);
+        TUrlRow row;
+        for (size_t i = 0; i != 128; ++i) {
+            row.SetHost(TString(1024 * 1024, 'a'));
+            writer->AddRow(row);
+        }
+
+        UNIT_ASSERT(client->Get("//testing/table/@row_count").AsInt64() > 0);
+    }
 }
 
 SIMPLE_UNIT_TEST_SUITE(BlobTableIo) {
