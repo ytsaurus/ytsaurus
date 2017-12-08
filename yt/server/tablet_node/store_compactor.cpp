@@ -618,7 +618,7 @@ private:
                 TReaderGuard guard(FutureEffectLock_);
                 auto&& firstTask = tasks->at(0);
                 if (firstTask->FutureEffect != LockedGetFutureEffect(guard, firstTask->Tablet)) {
-                    for (size_t i = 0; i < tasks->size(); ++i) {
+                    for (size_t i = 0; i < *index; ++i) {
                         auto&& task = (*tasks)[i];
                         task->FutureEffect = LockedGetFutureEffect(guard, task->Tablet);
                     }
