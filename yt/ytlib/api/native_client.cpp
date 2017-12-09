@@ -444,6 +444,16 @@ public:
         return Connection_;
     }
 
+    virtual IFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
+    }
+
+    virtual TFunctionImplCachePtr GetFunctionImplCache() override
+    {
+        return FunctionImplCache_;
+    }
+
     virtual const TClientOptions& GetOptions() override
     {
         return Options_;
