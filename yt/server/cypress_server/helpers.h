@@ -71,9 +71,9 @@ void DetachChild(
 
 bool NodeHasKey(const TCypressNodeBase* node);
 
-bool IsParentOf(
-    const TCypressNodeBase* parent,
-    const TCypressNodeBase* descendant);
+bool IsAncestorOf(
+    const TCypressNodeBase* trunkAncestor,
+    const TCypressNodeBase* trunkDescendant);
 
 ////////////////////////////////////////////////////////////////////////////////
 

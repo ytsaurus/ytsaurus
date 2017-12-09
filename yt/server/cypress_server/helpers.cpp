@@ -270,13 +270,15 @@ bool NodeHasKey(const TCypressNodeBase* node)
     return parent->GetNodeType() == ENodeType::Map;
 }
 
-bool IsParentOf(
-    const TCypressNodeBase* parent,
-    const TCypressNodeBase* descendant)
+bool IsAncestorOf(
+    const TCypressNodeBase* trunkAncestor,
+    const TCypressNodeBase* trunkDescendant)
 {
-    auto* current = descendant;
+    Y_ASSERT(trunkAncestor->IsTrunk());
+    Y_ASSERT(trunkDescendant->IsTrunk());
+    auto* current = trunkDescendant;
     while (current) {
-        if (current == parent) {
+        if (current == trunkAncestor) {
             return true;
         }
         current = current->GetParent();
