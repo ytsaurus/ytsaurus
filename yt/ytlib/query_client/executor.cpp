@@ -455,10 +455,10 @@ private:
     }
 
     TQueryStatistics DoCoordinateAndExecute(
-        TConstQueryPtr query,
+        const TConstQueryPtr& query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
-        ISchemafulWriterPtr writer,
+        const ISchemafulWriterPtr& writer,
         int subrangesCount,
         std::function<std::pair<std::vector<TDataRanges>, TString>(int)> getSubsources)
     {
@@ -472,9 +472,9 @@ private:
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
-        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
-        FetchImplementations(
+        MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
+        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+        FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
             externalCGInfo,

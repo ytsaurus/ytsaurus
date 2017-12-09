@@ -677,12 +677,12 @@ protected:
 
         auto bcImplementations = UDF_BC(test_udfs);
 
-        MergeFrom(TypeInferers_.Get(), *BuiltinTypeInferrersMap);
-        MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionCG);
-        MergeFrom(AggregateProfilers_.Get(), *BuiltinAggregateCG);
+        MergeFrom(TypeInferrers_.Get(), *BuiltinTypeInferrersMap);
+        MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionProfilers);
+        MergeFrom(AggregateProfilers_.Get(), *BuiltinAggregateProfilers);
 
         TFunctionRegistryBuilder builder(
-            TypeInferers_.Get(),
+            TypeInferrers_.Get(),
             FunctionProfilers_.Get(),
             AggregateProfilers_.Get());
 
@@ -868,7 +868,7 @@ protected:
         }
 
         auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
-            MergeFrom(typeInferrers.Get(), *TypeInferers_);
+            MergeFrom(typeInferrers.Get(), *TypeInferrers_);
         };
 
         TQueryBaseOptions options;
@@ -946,7 +946,7 @@ protected:
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TActionQueuePtr ActionQueue_;
 
-    TTypeInferrerMapPtr TypeInferers_ = New<TTypeInferrerMap>();
+    TTypeInferrerMapPtr TypeInferrers_ = New<TTypeInferrerMap>();
     TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
     TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
 

@@ -350,9 +350,9 @@ private:
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
-        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
-        FetchImplementations(
+        MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
+        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+        FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
             externalCGInfo,

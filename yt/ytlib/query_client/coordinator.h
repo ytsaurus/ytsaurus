@@ -14,16 +14,16 @@ extern const NLogging::TLogger QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<TConstExpressionPtr(
+using TRefiner = std::function<TConstExpressionPtr(
     TConstExpressionPtr expr,
-    const TKeyColumns& keyColumns)> TRefiner;
+    const TKeyColumns& keyColumns)>;
 
 TRowRanges GetPrunedRanges(
-    TConstExpressionPtr predicate,
+    const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     const NObjectClient::TObjectId& tableId,
-    TSharedRange<TRowRange> ranges,
+    const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
@@ -31,19 +31,21 @@ TRowRanges GetPrunedRanges(
     const NLogging::TLogger& Logger = QueryClientLogger);
 
 TRowRanges GetPrunedRanges(
-    TConstQueryPtr query,
+    const TConstQueryPtr& query,
     const NObjectClient::TObjectId& tableId,
-    TSharedRange<TRowRange> ranges,
+    const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options);
 
-typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
+using TEvaluateResult = std::pair<
+    ISchemafulReaderPtr,
+    TFuture<TQueryStatistics>>;
 
 TQueryStatistics CoordinateAndExecute(
-    TConstQueryPtr query,
-    ISchemafulWriterPtr writer,
+    const TConstQueryPtr& query,
+    const ISchemafulWriterPtr& writer,
     const std::vector<TRefiner>& ranges,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
     std::function<TQueryStatistics(TConstFrontQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop);

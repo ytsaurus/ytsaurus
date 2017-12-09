@@ -142,7 +142,7 @@ TString GetUdfDescriptorPath(const TYPath& registryPath, const TString& function
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     const std::vector<TString>& functionNames,
     const TString& udfRegistryPath,
-    INativeClientPtr client)
+    const INativeClientPtr& client)
 {
     using NObjectClient::TObjectYPathProxy;
     using NApi::EMasterChannelKind;
@@ -257,19 +257,19 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 }
 
 void AppendUdfDescriptors(
-    const TTypeInferrerMapPtr& typers,
+    const TTypeInferrerMapPtr& typeInferrers,
     const TExternalCGInfoPtr& cgInfo,
-    const std::vector<TString>& names,
-    const std::vector<TExternalFunctionSpec>& external)
+    const std::vector<TString>& functionNames,
+    const std::vector<TExternalFunctionSpec>& externalFunctionSpecs)
 {
-    YCHECK(names.size() == external.size());
+    YCHECK(functionNames.size() == externalFunctionSpecs.size());
 
-    LOG_DEBUG("Appending UDF descriptors (Count: %v)", external.size());
+    LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
 
-    for (size_t index = 0; index < external.size(); ++index) {
-        const auto& item = external[index];
+    for (size_t index = 0; index < externalFunctionSpecs.size(); ++index) {
+        const auto& item = externalFunctionSpecs[index];
         const auto& descriptor = item.Descriptor;
-        const auto& name = names[index];
+        const auto& name = functionNames[index];
 
         LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
             name,
@@ -326,7 +326,7 @@ void AppendUdfDescriptors(
                     functionDescriptor->GetArgumentsTypes(),
                     functionDescriptor->ResultType.Type);
 
-            typers->emplace(name, typer);
+            typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
         }
 
@@ -345,7 +345,7 @@ void AppendUdfDescriptors(
                 aggregateDescriptor->ResultType.Type,
                 aggregateDescriptor->StateType.Type);
 
-            typers->emplace(name, typer);
+            typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
         }
     }
@@ -631,11 +631,11 @@ void AppendFunctionImplementation(
 
 } // namespace
 
-void FetchImplementations(
+void FetchFunctionImplementationsFromCypress(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    TFunctionImplCachePtr cache,
+    const TFunctionImplCachePtr& cache,
     const TReadSessionId& sessionId)
 {
     std::vector<TFuture<TFunctionImplCacheEntryPtr>> asyncResults;
@@ -662,22 +662,26 @@ void FetchImplementations(
 
     for (size_t index = 0; index < externalCGInfo->Functions.size(); ++index) {
         const auto& function = externalCGInfo->Functions[index];
-        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, results[index]->File);
+        AppendFunctionImplementation(
+            functionProfilers,
+            aggregateProfilers,
+            function,
+            results[index]->File);
     }
 }
 
-void FetchJobImplementations(
+void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    TString implementationPath)
+    const TString& rootPath)
 {
      for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
         LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
-        auto path = implementationPath + "/" + function.Name;
+        auto path = rootPath + "/" + function.Name;
         auto file = TFileInput(path);
         auto impl = TSharedRef::FromString(file.ReadAll());
 
@@ -718,27 +722,24 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
 
     auto valueNode = mapNode->GetChild("value");
     switch (tag) {
-        case ETypeCategory::TypeArgument:
-            {
-                TTypeArgument type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
-        case ETypeCategory::UnionType:
-            {
-                TUnionType type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
-        case ETypeCategory::ConcreteType:
-            {
-                EValueType type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
+        case ETypeCategory::TypeArgument: {
+            TTypeArgument type;
+            Deserialize(type, valueNode);
+            value.Type = type;
+            break;
+        }
+        case ETypeCategory::UnionType: {
+            TUnionType type;
+            Deserialize(type, valueNode);
+            value.Type = type;
+            break;
+        }
+        case ETypeCategory::ConcreteType: {
+            EValueType type;
+            Deserialize(type, valueNode);
+            value.Type = type;
+            break;
+        }
         default:
             Y_UNREACHABLE();
     }

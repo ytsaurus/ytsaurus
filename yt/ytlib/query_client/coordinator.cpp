@@ -28,7 +28,7 @@ using namespace NObjectClient;
 namespace {
 
 std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
-    TConstQueryPtr query,
+    const TConstQueryPtr& query,
     const std::vector<TRefiner>& refiners)
 {
     auto Logger = MakeQueryLogger(query);
@@ -110,11 +110,11 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 ////////////////////////////////////////////////////////////////////////////////
 
 TRowRanges GetPrunedRanges(
-    TConstExpressionPtr predicate,
+    const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     const TObjectId& tableId,
-    TSharedRange<TRowRange> ranges,
+    const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
@@ -156,9 +156,9 @@ TRowRanges GetPrunedRanges(
 }
 
 TRowRanges GetPrunedRanges(
-    TConstQueryPtr query,
+    const TConstQueryPtr& query,
     const TObjectId& tableId,
-    TSharedRange<TRowRange> ranges,
+    const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
@@ -179,8 +179,8 @@ TRowRanges GetPrunedRanges(
 }
 
 TQueryStatistics CoordinateAndExecute(
-    TConstQueryPtr query,
-    ISchemafulWriterPtr writer,
+    const TConstQueryPtr& query,
+    const ISchemafulWriterPtr& writer,
     const std::vector<TRefiner>& refiners,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
     std::function<TQueryStatistics(TConstFrontQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)

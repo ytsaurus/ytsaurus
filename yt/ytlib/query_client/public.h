@@ -105,8 +105,8 @@ typedef TIntrusivePtr<const TAggregateProfilerMap> TConstAggregateProfilerMapPtr
 
 extern const TConstTypeInferrerMapPtr BuiltinTypeInferrersMap;
 extern const TConstRangeExtractorMapPtr BuiltinRangeExtractorMap;
-extern const TConstFunctionProfilerMapPtr BuiltinFunctionCG;
-extern const TConstAggregateProfilerMapPtr BuiltinAggregateCG;
+extern const TConstFunctionProfilerMapPtr BuiltinFunctionProfilers;
+extern const TConstAggregateProfilerMapPtr BuiltinAggregateProfilers;
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
 DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)
