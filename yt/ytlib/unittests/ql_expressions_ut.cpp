@@ -1348,7 +1348,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto value2 = std::get<3>(param);
     auto expected = std::get<4>(param);
 
-    auto registry = BuiltinAggregateCG;
+    auto registry = BuiltinAggregateProfilers;
     auto aggregate = registry->GetAggregate(aggregateName);
     auto callbacks = CodegenAggregate(
         aggregate->Profile(type, type, type, aggregateName),
