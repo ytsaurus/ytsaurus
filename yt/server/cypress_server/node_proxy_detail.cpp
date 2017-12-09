@@ -1249,7 +1249,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ? LockImpl(trunkSourceImpl, ELockMode::Exclusive, true)
         : GetImpl(trunkSourceImpl);
 
-    if (IsParentOf(sourceImpl, GetThisImpl())) {
+    if (IsAncestorOf(trunkSourceImpl, TrunkNode)) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 

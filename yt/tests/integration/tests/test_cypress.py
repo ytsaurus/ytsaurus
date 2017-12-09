@@ -326,8 +326,14 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/a")
         assert get("//tmp/c/b/@path") == "//tmp/c/b"
 
-    def test_copy_simple6(self):
+    def test_copy_simple6a(self):
         with pytest.raises(YtError): copy("//tmp", "//tmp/a")
+
+    def test_copy_simple6b(self):
+        tx = start_transaction()
+        create("map_node", "//tmp/a", tx=tx)
+        create("map_node", "//tmp/a/b", tx=tx)
+        with pytest.raises(YtError): copy("//tmp/a", "//tmp/a/b/c", tx=tx)
 
     def test_copy_simple7(self):
         tx = start_transaction()
