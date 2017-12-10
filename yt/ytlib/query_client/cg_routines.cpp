@@ -788,7 +788,7 @@ void MultiJoinOpHelper(
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
     TMultiJoinClosure closure;
-    closure.Buffer = New<TRowBuffer>(TPermanentBufferTag());
+    closure.Buffer = New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
     closure.PrimaryRowSize = parameters->PrimaryRowSize;
     closure.BatchSize = parameters->BatchSize;
 
