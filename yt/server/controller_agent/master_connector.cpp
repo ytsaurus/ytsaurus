@@ -398,7 +398,7 @@ private:
         {
             TGuard<TSpinLock> guard(ControllersLock_);
             for (auto pair : ControllerMap_) {
-                const auto& controller = pair.second;
+                auto controller = pair.second;
                 for (const auto& transaction : controller->GetTransactions()) {
                     if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
                         TInverseGuard<TSpinLock> inverseGuard(ControllersLock_);
