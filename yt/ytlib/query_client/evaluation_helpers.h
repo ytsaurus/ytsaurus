@@ -22,6 +22,8 @@
 namespace NYT {
 namespace NQueryClient {
 
+const i64 PoolChunkSize = 64 * 1024;
+const double MaxSmallBlockRatio = 1.0;
 const size_t RowsetProcessingSize = 1024;
 const size_t WriteRowsetSize = 64 * RowsetProcessingSize;
 
