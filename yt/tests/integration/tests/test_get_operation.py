@@ -1,9 +1,17 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
+from yt.wrapper.common import uuid_hash_pair
+from yt.common import date_string_to_timestamp_mcs
 
 from operations_archive import clean_operations
+
+import __builtin__
+import datetime
+import itertools
+import pytest
+import shutil
 
 def id_to_parts(id):
     id_parts = id.split("-")
@@ -12,9 +20,9 @@ def id_to_parts(id):
     return id_hi, id_lo
 
 class TestGetOperation(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1 
+    NUM_NODES = 3 
+    NUM_SCHEDULERS = 1 
     USE_DYNAMIC_TABLES = True
 
     def setup(self):
@@ -23,7 +31,7 @@ class TestGetOperation(YTEnvSetup):
 
     def teardown(self):
         remove("//sys/operations_archive")
-
+    
     def test_get_operation(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -66,7 +74,7 @@ class TestGetOperation(YTEnvSetup):
                 assert key in res_get_operation_progress
 
         op.resume_jobs()
-        op.track()
+        op.track() 
 
         clean_operations(self.Env.create_native_client())
 
@@ -81,40 +89,3 @@ class TestGetOperation(YTEnvSetup):
             else:
                 print key
                 print res_get_operation_archive[key]
-
-    def test_fields(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-
-        op = map(
-            dont_track=True,
-            wait_for_jobs=True,
-            label="get_job_stderr",
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            precommand="echo STDERR-OUTPUT >&2",
-            command="cat",
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            })
-
-        res_get_operation = get_operation(op.id, fields=["progress", "state"])
-        res_cypress = get("//sys/operations/{0}/@".format(op.id), attributes=["progress", "state"])
-
-        assert sorted(list(res_get_operation)) == ["progress", "state"]
-        assert sorted(list(res_cypress)) == ["progress", "state"]
-        assert res_get_operation["state"] == res_cypress["state"]
-
-        op.resume_jobs()
-        op.track()
-
-        clean_operations(self.Env.create_native_client())
-
-        res_get_operation_archive = get_operation(op.id, fields=["progress", "state"])
-        assert sorted(list(res_get_operation_archive)) == ["progress", "state"]
-        assert res_get_operation_archive["state"] == "completed"
-

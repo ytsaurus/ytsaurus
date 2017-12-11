@@ -671,9 +671,7 @@ struct TAbortJobOptions
 
 struct TGetOperationOptions
     : public TTimeoutOptions
-{
-    TNullable<std::vector<TString>> Fields;
-};
+{ };
 
 struct TSelectRowsResult
 {

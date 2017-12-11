@@ -551,13 +551,11 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 TGetOperationCommand::TGetOperationCommand()
 {   
     RegisterParameter("operation_id", OperationId);
-    RegisterParameter("fields", Options.Fields)
-        .Optional();
 }
 
 void TGetOperationCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncResult = context->GetClient()->GetOperation(OperationId, Options);
+    auto asyncResult = context->GetClient()->GetOperation(OperationId);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
