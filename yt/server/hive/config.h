@@ -20,9 +20,6 @@ public:
     //! requests to remote Hive Manager.
     TDuration IdlePostPeriod;
 
-    //! Timeout for all RPC requests exchanged by Hive Managers.
-    TDuration RpcTimeout;
-
     //! Timeout for Ping RPC requests.
     TDuration PingRpcTimeout;
 
