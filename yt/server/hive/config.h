@@ -29,7 +29,7 @@ public:
     //! Timeout for Send RPC requests.
     TDuration SendRpcTimeout;
 
-    //! Timeout for Send RPC requests.
+    //! Timeout for Post RPC requests.
     TDuration PostRpcTimeout;
 
     //! Maximum number of messages to send via a single |PostMessages| request.
