@@ -37,7 +37,7 @@ struct IJobEnvironment
 
     virtual TNullable<i64> GetMemoryLimit() const = 0;
 
-    virtual TNullable<i64> GetCpuLimit() const = 0;
+    virtual TNullable<double> GetCpuLimit() const = 0;
 
     virtual bool ExternalJobMemory() const = 0;
 };

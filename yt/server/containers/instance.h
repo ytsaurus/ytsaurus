@@ -31,6 +31,12 @@ DEFINE_ENUM(EStatField,
 
 using TUsage = TEnumIndexedVector<TErrorOr<ui64>, EStatField>;
 
+struct TResourceLimits
+{
+    double Cpu;
+    i64 Memory;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IInstance
@@ -44,6 +50,7 @@ struct IInstance
     virtual void Kill(int signal) = 0;
     virtual void Destroy() = 0;
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
+    virtual TResourceLimits GetResourceLimits() const = 0;
     virtual void SetCpuLimit(double cores) = 0;
     virtual void SetCpuShare(double cores) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
