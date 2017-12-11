@@ -125,7 +125,7 @@ public:
         return Null;
     }
 
-    virtual TNullable<i64> GetCpuLimit() const override
+    virtual TNullable<double> GetCpuLimit() const override
     {
         return Null;
     }
@@ -371,6 +371,13 @@ public:
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
     {
+        if (Config_->ResourceLimitsUpdatePeriod) {
+            LimitsUpdateExecutor_ = New<TPeriodicExecutor>(
+                ActionQueue_->GetInvoker(),
+                BIND(&TPortoJobEnvironment::UpdateLimits, MakeWeak(this)),
+                *Config_->ResourceLimitsUpdatePeriod);
+        }
+
         auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)] (const TError& error) {
             // We use weak ptr to avoid cyclic references between container manager and job environment.
             auto this_ = weakThis_.Lock();
@@ -425,7 +432,30 @@ public:
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path);
     }
 
+    virtual TNullable<i64> GetMemoryLimit() const override
+    {
+        auto guard = Guard(LimitsLock_);
+        return MemoryLimit_;
+    }
+
+    virtual TNullable<double> GetCpuLimit() const override
+    {
+        auto guard = Guard(LimitsLock_);
+        return CpuLimit_;
+    }
+
 private:
+    const TPortoJobEnvironmentConfigPtr Config_;
+
+    IContainerManagerPtr ContainerManager_;
+    yhash<int, IInstancePtr> PortoInstances_;
+
+    TSpinLock LimitsLock_;
+    TNullable<double> CpuLimit_;
+    TNullable<i64> MemoryLimit_;
+
+    TPeriodicExecutorPtr LimitsUpdateExecutor_;
+
     void InitPortoInstance(int slotIndex)
     {
         if (!PortoInstances_[slotIndex]) {
@@ -439,10 +469,27 @@ private:
         return New<TPortoProcess>(JobProxyProgramName, PortoInstances_.at(slotIndex));
     }
 
-    const TPortoJobEnvironmentConfigPtr Config_;
+    void UpdateLimits()
+    {
+        try {
+            auto self = ContainerManager_->GetSelfInstance();
+            auto limits = self->GetResourceLimits();
 
-    IContainerManagerPtr ContainerManager_;
-    yhash<int, IInstancePtr> PortoInstances_;
+            auto guard = Guard(LimitsLock_);
+            if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {
+                LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)", CpuLimit_, limits.Cpu);
+                CpuLimit_ = limits.Cpu;
+            }
+
+            if (!MemoryLimit_ || *MemoryLimit_ != limits.Memory) {
+                LOG_INFO("Update porto memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v)", MemoryLimit_, limits.Memory);
+                MemoryLimit_ = limits.Memory;
+            }
+
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Failed to update resource limits from porto");
+        }
+    }
 };
 
 #endif

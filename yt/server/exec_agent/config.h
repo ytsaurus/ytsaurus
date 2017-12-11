@@ -95,7 +95,7 @@ public:
     TDuration BlockIOWatchdogPeriod;
     bool UseResourceLimits;
 
-    bool UpdateResourceLimits;
+    TNullable<TDuration> ResourceLimitsUpdatePeriod;
     TNullable<TString> ExternalJobContainer;
 
     TPortoJobEnvironmentConfig()
@@ -109,8 +109,8 @@ public:
         RegisterParameter("use_resource_limits", UseResourceLimits)
             .Default(false);
 
-        RegisterParameter("update_resource_limits", UpdateResourceLimits)
-            .Default(false);
+        RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
+            .Default(Null);
         RegisterParameter("external_job_container", ExternalJobContainer)
             .Default(Null);
     }
