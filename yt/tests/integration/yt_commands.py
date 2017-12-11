@@ -282,8 +282,8 @@ def get(path, is_raw=False, **kwargs):
         raise
     return result if is_raw else yson.loads(result)
 
-def get_operation(operation_id, is_raw=False, **kwargs):
-    kwargs["operation_id"] = operation_id
+def get_operation(operationId, is_raw=False,  **kwargs):
+    kwargs["operation_id"] = operationId
     result = execute_command("get_operation", kwargs)
     return result if is_raw else yson.loads(result)
 
