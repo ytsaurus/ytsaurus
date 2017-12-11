@@ -307,6 +307,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                 "title",
                 Format("Snapshot upload for operation %v", operationId));
             options.Attributes = std::move(attributes);
+            options.Timeout = Config_->SnapshotTimeout;
             auto transactionOrError = WaitFor(
                 Client_->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -337,6 +338,8 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error creating snapshot node");
         }
 
+        i64 snapshotSize = 0;
+
         // Upload new snapshot.
         {
             TFileWriterOptions options;
@@ -352,10 +355,9 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
 
-            i64 totalSize = 0;
             while (true) {
                 size_t bytesRead = checkpointableInput->Read(buffer.Begin(), buffer.Size());
-                totalSize += bytesRead;
+                snapshotSize += bytesRead;
                 if (bytesRead == 0) {
                     break;
                 }
@@ -367,25 +369,30 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Close())
                 .ThrowOnError();
 
-            LOG_INFO("Snapshot uploaded successfully (Size: %v)", totalSize);
+            LOG_INFO("Snapshot uploaded successfully (Size: %v)", snapshotSize);
         }
 
-        // Commit outer transaction.
-        WaitFor(transaction->Commit())
-            .ThrowOnError();
-
-        LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
-            job->SnapshotIndex);
-
-        auto controller = job->Controller;
-
-        if (controller->IsRunning()) {
-            // Safely remove jobs that we do not need any more.
-            WaitFor(
-                BIND(&IOperationController::OnSnapshotCompleted, controller)
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run(job->SnapshotIndex))
+        if (snapshotSize == 0) {
+            LOG_WARNING("Empty snapshot found, skipping it");
+            transaction->Abort();
+        } else {
+            // Commit outer transaction.
+            WaitFor(transaction->Commit())
                 .ThrowOnError();
+
+            LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
+                job->SnapshotIndex);
+
+            auto controller = job->Controller;
+
+            if (controller->IsRunning()) {
+                // Safely remove jobs that we do not need any more.
+                WaitFor(
+                    BIND(&IOperationController::OnSnapshotCompleted, controller)
+                        .AsyncVia(controller->GetCancelableInvoker())
+                        .Run(job->SnapshotIndex))
+                    .ThrowOnError();
+            }
         }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error uploading snapshot");
