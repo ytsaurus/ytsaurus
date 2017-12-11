@@ -212,9 +212,9 @@ void TSnapshotBuilder::RunParent()
     }
 }
 
-void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> Jobs_)
+void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> jobs)
 {
-    for (const auto& job : Jobs_) {
+    for (const auto& job : jobs) {
         TFileOutput outputStream(*job.OutputFile);
 
         auto checkpointableOutput = CreateCheckpointableOutputStream(&outputStream);
@@ -253,11 +253,16 @@ void TSnapshotBuilder::RunChild()
             snapshotJob.OutputFile = std::move(job->OutputFile);
             jobs.push_back(std::move(snapshotJob));
 
-            if (jobs.size() >= jobsPerBuilder || jobIndex + 1 == Jobs_.size()) {
+            if (jobs.size() >= jobsPerBuilder) {
                 builderThreads.emplace_back(
                     DoSnapshotJobs, std::move(jobs));
                 jobs.clear();
             }
+        }
+
+        if (jobs.size() > 0) {
+            builderThreads.emplace_back(
+                DoSnapshotJobs, std::move(jobs));
         }
         Jobs_.clear();
     }
