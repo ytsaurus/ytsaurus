@@ -2977,6 +2977,13 @@ private:
             .ThrowOnError();
     }
 
+    bool IsArchiveExists()
+    {
+        // NB: we suppose that archive should exist and work correctly if this map node is presented.
+        return WaitFor(NodeExists("//sys/operations_archive", TNodeExistsOptions()))
+            .ValueOrThrow();
+    }
+
     int DoGetOperationsArchiveVersion()
     {
         auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
@@ -3733,7 +3740,7 @@ private:
 
         std::vector<TOperation> archiveData;
 
-        if (options.IncludeArchive) {
+        if (options.IncludeArchive && IsArchiveExists()) {
             int version = DoGetOperationsArchiveVersion();
 
             if (options.Pool && version < 15) {
@@ -4070,7 +4077,7 @@ private:
             });
         };
 
-        if (options.IncludeArchive) {
+        if (options.IncludeArchive && IsArchiveExists()) {
             TString conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
                 operationId.Parts64[0], operationId.Parts64[1]);
 
