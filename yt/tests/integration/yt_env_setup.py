@@ -27,6 +27,17 @@ SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 
 ##################################################################
 
+
+try:
+    from yt.environment.helpers import wait
+except ImportError:
+    def wait(predicate, iter=100, sleep_backoff=0.3):
+        for _ in xrange(iter):
+            if predicate():
+                return
+            sleep(sleep_backoff)
+        pytest.fail("wait failed")
+
 def patch_subclass(parent, skip_condition, reason=""):
     """Work around a pytest.mark.skipif bug
     https://github.com/pytest-dev/pytest/issues/568
@@ -118,13 +129,6 @@ def resolve_test_paths(name):
     path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)
     path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
-
-def wait(predicate, iter=100, sleep_backoff=0.3):
-    for _ in xrange(iter):
-        if predicate():
-            return
-        sleep(sleep_backoff)
-    pytest.fail("wait failed")
 
 def _pytest_finalize_func(environment, process_call_args):
     print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
