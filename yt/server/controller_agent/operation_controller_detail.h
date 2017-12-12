@@ -257,8 +257,6 @@ public:
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
 
-    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
-
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override;
 
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const override;
@@ -355,6 +353,8 @@ public:
     virtual TOperationAlertsMap GetAlerts() override;
 
     virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override;
+
+    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 
 protected:
     IOperationHost* Host;

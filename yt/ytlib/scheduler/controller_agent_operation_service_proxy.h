@@ -20,6 +20,7 @@ public:
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetOperationInfo);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetJobInfo);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

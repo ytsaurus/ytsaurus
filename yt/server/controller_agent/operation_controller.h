@@ -303,8 +303,6 @@ struct IOperationControllerSchedulerHost
     //! Returns |true| when controller can build it's progress.
     virtual bool HasProgress() const = 0;
 
-    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
-
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
 
@@ -426,6 +424,12 @@ struct IOperationController
      */
     //! Builds operation info, used for orchid.
     virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) = 0;
+
+    /*!
+     * \note Invoker affinity: controller.
+     */
+    //! Builds job info, used for orchid.
+    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

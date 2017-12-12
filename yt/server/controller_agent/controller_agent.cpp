@@ -258,6 +258,23 @@ public:
             .ThrowOnError();
     }
 
+    TYsonString BuildJobInfo(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        auto controller = FindController(operationId);
+        if (!controller) {
+            THROW_ERROR_EXCEPTION("Operation %v is missing", operationId);
+        }
+
+        auto asyncResult = BIND(&IOperationController::BuildJobYson, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run(jobId, /* outputStatistics */ true);
+
+        return WaitFor(asyncResult)
+            .ValueOrThrow();
+    }
+
     TFuture<void> GetHeartbeatSentFuture()
     {
         // In the a bit more far future this function will become unnecessary
@@ -582,6 +599,13 @@ std::vector<TErrorOr<TSharedRef>> TControllerAgent::GetJobSpecs(const std::vecto
 void TControllerAgent::BuildOperationInfo(const TOperationId& operationId, NScheduler::NProto::TRspGetOperationInfo* response)
 {
     Impl_->BuildOperationInfo(operationId, response);
+}
+
+TYsonString TControllerAgent::BuildJobInfo(
+    const TOperationId& operationId,
+    const TJobId& jobId)
+{
+    return Impl_->BuildJobInfo(operationId, jobId);
 }
 
 TFuture<void> TControllerAgent::GetHeartbeatSentFuture()

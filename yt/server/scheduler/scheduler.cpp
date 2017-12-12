@@ -2807,14 +2807,15 @@ private:
                 return;
             }
 
-            auto jobYsonCallback = BIND(&IOperationControllerSchedulerHost::BuildJobYson, controller, jobId, /* outputStatistics */ true)
-                .AsyncVia(controller->GetInvoker())
-                .Run();
-
-            auto jobYsonString = WaitFor(jobYsonCallback)
+            TControllerAgentOperationServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
+            proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);
+            auto request = proxy.GetJobInfo();
+            ToProto(request->mutable_operation_id(), operationId);
+            ToProto(request->mutable_job_id(), jobId);
+            auto response = WaitFor(request->Invoke())
                 .ValueOrThrow();
 
-            consumer->OnRaw(jobYsonString);
+            consumer->OnRaw(TYsonString(response->info()));
         }
 
         const TScheduler::TImpl* Scheduler_;
