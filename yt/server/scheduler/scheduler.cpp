@@ -966,6 +966,11 @@ public:
 
     void MaterializeOperation(TOperationPtr operation)
     {
+        if (operation->GetState() != EOperationState::Pending) {
+            // Operation can be in finishing state already.
+            return;
+        }
+
         auto controller = operation->GetController();
         if (controller->IsRevivedFromSnapshot()) {
             operation->SetState(EOperationState::RevivingJobs);
