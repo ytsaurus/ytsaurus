@@ -406,6 +406,10 @@ def get_token(token=None, client=None):
     if token is not None:
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
+
+    if token is None and get_config(client)["check_token"]:
+        raise YtTokenError("Token must be specified, to disable this check set 'check_token' option to False")
+
     return token
 
 def get_user_name(token=None, headers=None, client=None):

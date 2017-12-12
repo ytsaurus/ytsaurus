@@ -33,6 +33,7 @@ class Config(types.ModuleType, client_state.ClientState):
             "http.TOKEN": "token",
             "http.TOKEN_PATH": "token_path",
             "http.USE_TOKEN": "enable_token",
+            "http.CHECK_TOKEN": "check_token",
             "http.ACCEPT_ENCODING": "proxy/accept_encoding",
             "http.CONTENT_ENCODING": "proxy/content_encoding",
             "http.FORCE_IPV4": "proxy/force_ipv4",
