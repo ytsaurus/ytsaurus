@@ -4,6 +4,21 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUserJobSpec& TUserJobSpec::AddLocalFile(
+    const TLocalFilePath& path,
+    const TAddLocalFileOptions& options)
+{
+    LocalFiles_.emplace_back(path, options);
+    return *this;
+}
+
+TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> TUserJobSpec::GetLocalFiles() const
+{
+    return LocalFiles_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IOperationPtr IOperationClient::Map(
     const TMapOperationSpec& spec,
     ::TIntrusivePtr<IMapperBase> mapper,
