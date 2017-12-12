@@ -75,6 +75,10 @@ public:
         const TOperationId& operationId,
         NScheduler::NProto::TRspGetOperationInfo* response);
 
+    NYson::TYsonString BuildJobInfo(
+        const TOperationId& operationId,
+        const TJobId& jobId);
+
     TFuture<void> GetHeartbeatSentFuture();
 
     //! Returns the total number of online exec nodes.

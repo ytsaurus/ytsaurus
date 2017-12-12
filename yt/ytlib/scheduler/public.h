@@ -32,6 +32,8 @@ class TReqHeartbeat;
 class TRspHeartbeat;
 class TReqGetOperationInfo;
 class TRspGetOperationInfo;
+class TReqGetJobInfo;
+class TRspGetJobInfo;
 
 } // namespace NProto
 

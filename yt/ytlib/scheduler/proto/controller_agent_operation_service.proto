@@ -5,7 +5,7 @@ import "yt/core/misc/proto/guid.proto";
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetOperationInfo
-{ 
+{
     required NYT.NProto.TGuid operation_id = 1;
 }
 
@@ -20,3 +20,15 @@ message TRspGetOperationInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetJobInfo
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+message TRspGetJobInfo
+{
+    required bytes info = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
