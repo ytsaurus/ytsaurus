@@ -1987,12 +1987,10 @@ private:
         const auto& handler = GetHandler(branchedNode);
 
         auto* trunkNode = branchedNode->GetTrunkNode();
-        auto branchedId = branchedNode->GetVersionedId();
-        auto* parentTransaction = transaction->GetParent();
-        auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
-
+        auto branchedNodeId = branchedNode->GetVersionedId();
+        
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
-            auto* originatingNode = NodeMap_.Get(originatingId);
+            auto* originatingNode = branchedNode->GetOriginator();
 
             // Merge changes back.
             handler->Merge(originatingNode, branchedNode);
@@ -2002,7 +2000,7 @@ private:
             // (We don't have any mutation context at hand to provide a synchronized timestamp.)
             // Later on, Cypress is initialized and filled with nodes.
             // At this point we set the root's creation time.
-            if (trunkNode == RootNode_ && !parentTransaction) {
+            if (trunkNode == RootNode_ && !transaction->GetParent()) {
                 originatingNode->SetCreationTime(originatingNode->GetModificationTime());
             }
 
@@ -2012,16 +2010,16 @@ private:
             // Destroy the branched copy.
             handler->Destroy(branchedNode);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedId);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
 
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
         // Remove the branched copy.
-        NodeMap_.Remove(branchedId);
+        NodeMap_.Remove(branchedNodeId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedId);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
     void MergeNodes(TTransaction* transaction)
@@ -2042,16 +2040,13 @@ private:
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
-
+        
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
             // Cleanup the branched node.
-            auto branchedId = branchedNode->GetVersionedId();
-            auto* parentTransaction = transaction->GetParent();
-            auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
-            auto* originatingNode = NodeMap_.Get(originatingId);
+            auto* originatingNode = branchedNode->GetOriginator();
             handler->Unbranch(originatingNode, branchedNode);
         }
 
