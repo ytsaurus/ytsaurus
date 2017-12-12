@@ -376,6 +376,7 @@ public:
                 ActionQueue_->GetInvoker(),
                 BIND(&TPortoJobEnvironment::UpdateLimits, MakeWeak(this)),
                 *Config_->ResourceLimitsUpdatePeriod);
+            LimitsUpdateExecutor_->Start();
         }
 
         auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)] (const TError& error) {
