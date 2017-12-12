@@ -144,6 +144,8 @@ default_config = {
 
     # This option allows to disable token.
     "enable_token": True,
+    # This option enables checking that token is specified.
+    "check_token": False,
     # This option allows to cache token value in client state.
     "cache_token": True,
     # If token specified than token_path ignored,
