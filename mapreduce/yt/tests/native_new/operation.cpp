@@ -756,6 +756,31 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["TEST_ENV"], "mapperreducer");
         }
     }
+
+    SIMPLE_UNIT_TEST(AddLocalFile)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        {
+            TOFStream localFile("localPath");
+            localFile << "Some data\n";
+            localFile.Finish();
+        }
+
+        // Expect operation to complete successfully
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .MapperSpec(TUserJobSpec().AddLocalFile("localPath", TAddLocalFileOptions().PathInJob("path/in/job"))),
+            new TMapperThatChecksFile("path/in/job"));
+    }
 }
 
 SIMPLE_UNIT_TEST_SUITE(OperationWatch)

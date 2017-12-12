@@ -162,11 +162,22 @@ struct TIntermediateTablesHintSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAddLocalFileOptions
+{
+    using TSelf = TAddLocalFileOptions;
+
+    // Path by which job will see the uploaded file.
+    // Defaults to basename of the local path.
+    FLUENT_FIELD_OPTION(TString, PathInJob);
+};
+
 struct TUserJobSpec
 {
     using TSelf = TUserJobSpec;
 
-    FLUENT_VECTOR_FIELD(TLocalFilePath, LocalFile);
+    TSelf&  AddLocalFile(const TLocalFilePath& path, const TAddLocalFileOptions& options = TAddLocalFileOptions());
+    TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> GetLocalFiles() const;
+
     FLUENT_VECTOR_FIELD(TRichYPath, File);
 
     //
@@ -192,6 +203,9 @@ struct TUserJobSpec
     // Overrides common prefix and suffix in TOperationOptions
     FLUENT_FIELD(TString, JobCommandPrefix);
     FLUENT_FIELD(TString, JobCommandSuffix);
+
+private:
+    TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> LocalFiles_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

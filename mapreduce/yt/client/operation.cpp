@@ -336,18 +336,20 @@ private:
 
         Files_ = Spec_.Files_;
 
-        for (const auto& localFile : Spec_.LocalFiles_) {
-            TFsPath path(localFile);
-            path.CheckExists();
+        for (const auto& localFileEntry : Spec_.GetLocalFiles()) {
+            const auto& localPath = std::get<0>(localFileEntry);
+            const auto& options = std::get<1>(localFileEntry);
+            TFsPath fsPath(localPath);
+            fsPath.CheckExists();
 
             TFileStat stat;
-            path.Stat(stat);
+            fsPath.Stat(stat);
             bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
 
-            auto cachePath = UploadToCache(localFile);
+            auto cachePath = UploadToCache(localPath);
 
             TRichYPath cypressPath(cachePath);
-            cypressPath.FileName(path.Basename());
+            cypressPath.FileName(options.PathInJob_.GetOrElse(fsPath.Basename()));
             if (isExecutable) {
                 cypressPath.Executable(true);
             }
