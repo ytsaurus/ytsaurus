@@ -161,11 +161,11 @@ bool TNode::IsUndefined() const
 bool TNode::Empty() const
 {
     switch (GetType()) {
-        case STRING:
+        case String:
             return Value_.As<TString>().empty();
-        case LIST:
+        case List:
             return Value_.As<TListType>().empty();
-        case MAP:
+        case Map:
             return Value_.As<TMapType>().empty();
         default:
             ythrow TTypeError() << "Empty() called for type " << TypeToString(GetType());
@@ -175,11 +175,11 @@ bool TNode::Empty() const
 size_t TNode::Size() const
 {
     switch (GetType()) {
-        case STRING:
+        case String:
             return Value_.As<TString>().size();
-        case LIST:
+        case List:
             return Value_.As<TListType>().size();
-        case MAP:
+        case Map:
             return Value_.As<TMapType>().size();
         default:
             ythrow TTypeError() << "Size() called for type " << TypeToString(GetType());
@@ -213,55 +213,55 @@ TNode::EType TNode::GetType() const
 
 const TString& TNode::AsString() const
 {
-    CheckType(STRING);
+    CheckType(String);
     return Value_.As<TString>();
 }
 
 i64 TNode::AsInt64() const
 {
-    CheckType(INT64);
+    CheckType(Int64);
     return Value_.As<i64>();
 }
 
 ui64 TNode::AsUint64() const
 {
-    CheckType(UINT64);
+    CheckType(Uint64);
     return Value_.As<ui64>();
 }
 
 double TNode::AsDouble() const
 {
-    CheckType(DOUBLE);
+    CheckType(Double);
     return Value_.As<double>();
 }
 
 bool TNode::AsBool() const
 {
-    CheckType(BOOL);
+    CheckType(Bool);
     return Value_.As<bool>();
 }
 
 const TNode::TListType& TNode::AsList() const
 {
-    CheckType(LIST);
+    CheckType(List);
     return Value_.As<TListType>();
 }
 
 const TNode::TMapType& TNode::AsMap() const
 {
-    CheckType(MAP);
+    CheckType(Map);
     return Value_.As<TMapType>();
 }
 
 TNode::TListType& TNode::AsList()
 {
-    CheckType(LIST);
+    CheckType(List);
     return Value_.As<TListType>();
 }
 
 TNode::TMapType& TNode::AsMap()
 {
-    CheckType(MAP);
+    CheckType(Map);
     return Value_.As<TMapType>();
 }
 
@@ -333,13 +333,13 @@ TNode TNode::CreateEntity()
 
 const TNode& TNode::operator[](size_t index) const
 {
-    CheckType(LIST);
+    CheckType(List);
     return Value_.As<TListType>()[index];
 }
 
 TNode& TNode::operator[](size_t index)
 {
-    CheckType(LIST);
+    CheckType(List);
     return Value_.As<TListType>()[index];
 }
 
@@ -380,7 +380,7 @@ TNode TNode::Add(TNode&& node) &&
 
 bool TNode::HasKey(const TStringBuf key) const
 {
-    CheckType(MAP);
+    CheckType(Map);
     return Value_.As<TMapType>().has(key);
 }
 
@@ -410,7 +410,7 @@ TNode TNode::operator()(const TString& key, TNode&& value) &&
 
 const TNode& TNode::operator[](const TStringBuf key) const
 {
-    CheckType(MAP);
+    CheckType(Map);
     static TNode notFound;
     const auto& map = Value_.As<TMapType>();
     TMapType::const_iterator i = map.find(key);
@@ -508,7 +508,7 @@ void TNode::AssureMap()
     if (Value_.Is<TUndefined>()) {
         Value_ = TMapType();
     } else {
-        CheckType(MAP);
+        CheckType(Map);
     }
 }
 
@@ -517,7 +517,7 @@ void TNode::AssureList()
     if (Value_.Is<TUndefined>()) {
         Value_ = TListType();
     } else {
-        CheckType(LIST);
+        CheckType(List);
     }
 }
 
