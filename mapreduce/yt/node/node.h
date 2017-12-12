@@ -36,17 +36,6 @@ public:
         List = 6    /*"list_node"*/,
         Map = 7     /*"map_node"*/,
         Null = 8    /*"null"*/,
-
-        // Backward compatibility part
-        // TODO: exterminate
-        UNDEFINED = Undefined,
-        STRING = String,
-        INT64 = Int64,
-        UINT64 = Uint64,
-        DOUBLE = Double,
-        BOOL = Bool,
-        LIST = List,
-        MAP = Map,
     };
 
     using TListType = TVector<TNode>;
