@@ -104,7 +104,7 @@ public:
         RegisterParameter("stored_jobs_send_period", StoredJobsSendPeriod)
             .Default(TDuration::Minutes(10));
 
-        RegisterParameter("memory_overdrart_timeout", MemoryOverdraftTimeout)
+        RegisterParameter("memory_overdraft_timeout", MemoryOverdraftTimeout)
             .Default(TDuration::Minutes(5));
 
         RegisterParameter("cpu_overdraft_timeout", CpuOverdraftTimeout)

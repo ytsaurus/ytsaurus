@@ -2524,7 +2524,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         "exec_agent": {
             "job_controller": {
                 "cpu_overdraft_timeout" : 1000,
-                "memory_overdrart_timeout" : 1000,
+                "memory_overdraft_timeout" : 1000,
                 "resource_adjustment_period" : 100,
             }
         }
