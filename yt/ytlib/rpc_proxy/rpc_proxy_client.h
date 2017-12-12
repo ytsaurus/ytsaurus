@@ -189,7 +189,7 @@ public:
         Y_UNIMPLEMENTED();
     }
 
-    virtual TFuture<std::vector<NApi::TJob>> ListJobs(
+    virtual TFuture<NApi::TListJobsResult> ListJobs(
         const NJobTrackerClient::TOperationId&,
         const NApi::TListJobsOptions&) override
     {

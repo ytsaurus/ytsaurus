@@ -194,6 +194,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("address", Options.Address)
         .Optional();
+    RegisterParameter("has_stderr", Options.HasStderr)
+        .Optional();
 
     RegisterParameter("sort_field", Options.SortField)
         .Optional();
@@ -205,134 +207,57 @@ TListJobsCommand::TListJobsCommand()
     RegisterParameter("offset", Options.Offset)
         .Optional();
 
-    RegisterParameter("has_stderr", Options.HasStderr)
-        .Optional();
-
     RegisterParameter("include_cypress", Options.IncludeCypress)
         .Optional();
-    RegisterParameter("include_runtime", Options.IncludeRuntime)
+    RegisterParameter("include_scheduler", Options.IncludeScheduler)
         .Optional();
     RegisterParameter("include_archive", Options.IncludeArchive)
         .Optional();
 }
 
-struct TListJobsSchema
-{
-    template <class TColumnAdder>
-    explicit TListJobsSchema(TColumnAdder columnAdder)
-        : JobId(columnAdder("job_id", EValueType::String))
-        , JobType(columnAdder("job_type", EValueType::String))
-        , JobState(columnAdder("job_state", EValueType::String))
-        , StartTime(columnAdder("start_time", EValueType::String))
-        , FinishTime(columnAdder("finish_time", EValueType::String))
-        , Address(columnAdder("address", EValueType::String))
-        , Error(columnAdder("error", EValueType::Any))
-        , Statistics(columnAdder("statistics", EValueType::Any))
-        , StderrSize(columnAdder("stderr_size", EValueType::Uint64))
-        , Progress(columnAdder("progress", EValueType::Double))
-        , CoreInfos(columnAdder("core_infos", EValueType::Any))
-    { }
-
-    const int JobId;
-    const int JobType;
-    const int JobState;
-    const int StartTime;
-    const int FinishTime;
-    const int Address;
-    const int Error;
-    const int Statistics;
-    const int StderrSize;
-    const int Progress;
-    const int CoreInfos;
-};
-
-TUnversionedValue ToUnversionedValue(const TYsonString& value)
-{
-    if (value) {
-        return MakeUnversionedStringValue(value.GetData());
-    } else {
-        return MakeUnversionedSentinelValue(EValueType::Null);
-    }
-}
-
-template <class T>
-TUnversionedValue ToUnversionedValue(const T& value)
-{
-    return MakeUnversionedStringValue(ToString(value));
-}
-
-TUnversionedValue ToUnversionedValue(const double& value)
-{
-    return MakeUnversionedDoubleValue(value);
-}
-
-TUnversionedValue ToUnversionedValue(const i64& value)
-{
-    return MakeUnversionedInt64Value(value);
-}
-
-TUnversionedValue ToUnversionedValue(const ui64& value)
-{
-    return MakeUnversionedUint64Value(value);
-}
-
-template <class T>
-TUnversionedValue ToUnversionedValue(TNullable<T> value)
-{
-    if (value) {
-        return ToUnversionedValue(*value);
-    } else {
-        return MakeUnversionedSentinelValue(EValueType::Null);
-    }
-}
-
 void TListJobsCommand::DoExecute(ICommandContextPtr context)
 {
-    std::vector<TColumnSchema> columns;
-    auto addColumn = [&] (const TString& name, EValueType type) {
-        size_t id = columns.size();
-        columns.emplace_back(name, type);
-        return id;
-    };
-
-    TListJobsSchema ids(addColumn);
-    TTableSchema schema(columns);
-
-    auto buffer = New<TRowBuffer>();
-
     auto result = WaitFor(context->GetClient()->ListJobs(OperationId, Options))
         .ValueOrThrow();
  
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
             .Item("jobs").BeginList()
-                .DoFor(result, [] (TFluentList fluent, const TJob& job) {
+                .DoFor(result.Jobs, [] (TFluentList fluent, const TJob& job) {
                     fluent
                         .Item().BeginMap()
                             .Item("id").Value(job.JobId)
                             .Item("type").Value(job.JobType)
                             .Item("state").Value(job.JobState)
-                            .Item("start_time").Value(job.StartTime)
-                            .Item("finish_time").Value(job.FinishTime)
                             .Item("address").Value(job.Address)
+                            .Item("start_time").Value(job.StartTime)
+                            .DoIf(job.FinishTime.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("finish_time").Value(*job.FinishTime);
+                            })
+                            .DoIf(job.Progress.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("progress").Value(*job.Progress);
+                            })
+                            .DoIf(job.StderrSize.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("stderr_size").Value(*job.StderrSize);
+                            })
                             .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("error").Value(job.Error);
                             })
-                            .DoIf(job.Statistics.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("statistics").Value(job.Statistics);
-                            }) 
-                            .DoIf(job.StderrSize.HasValue(), [&] (TFluentMap fluent) {
-                                fluent.Item("stderr_size").Value(job.StderrSize);
+                            .DoIf(job.BriefStatistics.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("statistics").Value(job.BriefStatistics);
                             })
-                            .DoIf(job.Progress.HasValue(), [&] (TFluentMap fluent) {
-                                fluent.Item("progress").Value(job.Progress);
+                            .DoIf(job.InputPaths.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("input_paths").Value(job.InputPaths);
                             })
-                            .DoIf(job.CoreInfos.HasValue(), [&] (TFluentMap fluent) {
+                            .DoIf(job.CoreInfos.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("core_infos").Value(job.CoreInfos);
                             })
                         .EndMap();
                 })
             .EndList()
+            .Item("cypress_count").Value(result.CypressCount)
+            .Item("scheduler_count").Value(result.SchedulerCount)
+            .Item("archive_count").Value(result.ArchiveCount)
         .EndMap());
 }
 

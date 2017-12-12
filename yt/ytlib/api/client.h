@@ -621,6 +621,8 @@ DEFINE_ENUM(EJobSortField,
     ((StartTime)  (3))
     ((FinishTime) (4))
     ((Address)    (5))
+    ((Duration)   (6))
+    ((Progress)   (7))
 );
 
 DEFINE_ENUM(EJobSortDirection,
@@ -642,8 +644,8 @@ struct TListJobsOptions
     i64 Limit = 1000;
     i64 Offset = 0;
 
-    bool IncludeCypress = false;
-    bool IncludeRuntime = false;
+    bool IncludeCypress = true;
+    bool IncludeScheduler = true;
     bool IncludeArchive = true;
 };
 
@@ -731,16 +733,20 @@ struct TJob
     TInstant StartTime;
     TNullable<TInstant> FinishTime;
     TString Address;
-    NYson::TYsonString Error;
-    NYson::TYsonString Statistics;
-    TNullable<ui64> StderrSize;
     TNullable<double> Progress;
-    TNullable<TString> CoreInfos;
+    TNullable<ui64> StderrSize;
+    NYson::TYsonString Error;
+    NYson::TYsonString BriefStatistics;
+    NYson::TYsonString InputPaths;
+    NYson::TYsonString CoreInfos;
 };
 
 struct TListJobsResult
 {
     std::vector<TJob> Jobs;
+    int CypressCount = -1;
+    int SchedulerCount = -1;
+    int ArchiveCount = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1020,7 +1026,7 @@ struct IClient
     virtual TFuture<TListOperationsResult> ListOperations(
         const TListOperationsOptions& options = TListOperationsOptions()) = 0;
 
-    virtual TFuture<std::vector<TJob>> ListJobs(
+    virtual TFuture<TListJobsResult> ListJobs(
         const NJobTrackerClient::TOperationId& operationId,
         const TListJobsOptions& options = TListJobsOptions()) = 0;
 
