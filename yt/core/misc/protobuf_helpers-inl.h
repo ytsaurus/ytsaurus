@@ -60,6 +60,18 @@ inline void FromProto(TInstant* original, ::google::protobuf::int64 serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline void ToProto(::google::protobuf::uint64* serialized, TInstant original)
+{
+    *serialized = original.MicroSeconds();
+}
+
+inline void FromProto(TInstant* original, ::google::protobuf::uint64 serialized)
+{
+    *original = TInstant::MicroSeconds(serialized);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
     T* serialized,
