@@ -283,7 +283,7 @@ ICompositeNodePtr TNontemplateCypressNodeProxyBase::GetParent() const
     return parent ? GetProxy(parent)->AsComposite() : nullptr;
 }
 
-void TNontemplateCypressNodeProxyBase::SetParent(ICompositeNodePtr parent)
+void TNontemplateCypressNodeProxyBase::SetParent(const ICompositeNodePtr& parent)
 {
     auto* impl = LockThisImpl();
     impl->SetParent(parent ? ICypressNodeProxy::FromNode(parent.Get())->GetTrunkNode() : nullptr);
@@ -1019,7 +1019,7 @@ bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
 void TNontemplateCypressNodeProxyBase::SetChildNode(
     INodeFactory* /*factory*/,
     const TYPath& /*path*/,
-    INodePtr /*child*/,
+    const INodePtr& /*child*/,
     bool /*recursive*/)
 {
     Y_UNREACHABLE();
@@ -1464,7 +1464,7 @@ INodePtr TMapNodeProxy::FindChild(const TString& key) const
     return childTrunkNode ? GetProxy(childTrunkNode) : nullptr;
 }
 
-bool TMapNodeProxy::AddChild(INodePtr child, const TString& key)
+bool TMapNodeProxy::AddChild(const INodePtr& child, const TString& key)
 {
     Y_ASSERT(!key.empty());
 
@@ -1507,7 +1507,7 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
     return true;
 }
 
-void TMapNodeProxy::RemoveChild(INodePtr child)
+void TMapNodeProxy::RemoveChild(const INodePtr& child)
 {
     auto key = GetChildKey(child);
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
@@ -1519,7 +1519,7 @@ void TMapNodeProxy::RemoveChild(INodePtr child)
     SetModified();
 }
 
-void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
+void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
 {
     if (oldChild == newChild) {
         return;
@@ -1550,7 +1550,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     SetModified();
 }
 
-TString TMapNodeProxy::GetChildKey(IConstNodePtr child)
+TString TMapNodeProxy::GetChildKey(const IConstNodePtr& child)
 {
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
@@ -1577,7 +1577,7 @@ bool TMapNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
 void TMapNodeProxy::SetChildNode(
     INodeFactory* factory,
     const TYPath& path,
-    INodePtr child,
+    const INodePtr& child,
     bool recursive)
 {
     TMapNodeMixin::SetChild(
@@ -1760,7 +1760,7 @@ INodePtr TListNodeProxy::FindChild(int index) const
     return index >= 0 && index < indexToChild.size() ? GetProxy(indexToChild[index]) : nullptr;
 }
 
-void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
+void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
 {
     auto* impl = LockThisImpl();
     auto& list = impl->IndexToChild();
@@ -1813,13 +1813,13 @@ bool TListNodeProxy::RemoveChild(int index)
     return true;
 }
 
-void TListNodeProxy::RemoveChild(INodePtr child)
+void TListNodeProxy::RemoveChild(const INodePtr& child)
 {
     int index = GetChildIndex(child);
     YCHECK(RemoveChild(index));
 }
 
-void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
+void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
 {
     if (oldChild == newChild)
         return;
@@ -1848,7 +1848,7 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     SetModified();
 }
 
-int TListNodeProxy::GetChildIndex(IConstNodePtr child)
+int TListNodeProxy::GetChildIndex(const IConstNodePtr& child)
 {
     const auto* impl = GetThisImpl();
 
@@ -1863,7 +1863,7 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
 void TListNodeProxy::SetChildNode(
     INodeFactory* factory,
     const TYPath& path,
-    INodePtr child,
+    const INodePtr& child,
     bool recursive)
 {
     TListNodeMixin::SetChild(
