@@ -677,6 +677,12 @@ struct TGetOperationOptions
     TNullable<std::vector<TString>> Attributes;
 };
 
+struct TGetJobOptions
+    : public TTimeoutOptions
+{
+    // TODO(sandello): Support attributes filter.
+};
+
 struct TSelectRowsResult
 {
     IUnversionedRowsetPtr Rowset;
@@ -1029,6 +1035,11 @@ struct IClient
     virtual TFuture<TListJobsResult> ListJobs(
         const NJobTrackerClient::TOperationId& operationId,
         const TListJobsOptions& options = TListJobsOptions()) = 0;
+
+    virtual TFuture<NYson::TYsonString> GetJob(
+        const NScheduler::TOperationId& operationId,
+        const NJobTrackerClient::TJobId& jobId,
+        const TGetJobOptions& options = TGetJobOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,

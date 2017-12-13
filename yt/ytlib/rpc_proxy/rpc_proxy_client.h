@@ -196,6 +196,14 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual TFuture<NYson::TYsonString> GetJob(
+        const NJobTrackerClient::TOperationId&,
+        const NJobTrackerClient::TJobId&,
+        const NApi::TGetJobOptions&) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId&,
         const NApi::TStraceJobOptions&) override

@@ -80,6 +80,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetJobCommand
+    : public TTypedCommand<NApi::TGetJobOptions>
+{
+public:
+    TGetJobCommand();
+
+private:
+    NJobTrackerClient::TOperationId OperationId;
+    NJobTrackerClient::TJobId JobId;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStraceJobCommand
     : public TTypedCommand<NApi::TStraceJobOptions>
 {
