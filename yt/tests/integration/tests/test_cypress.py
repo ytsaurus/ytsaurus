@@ -1271,6 +1271,14 @@ class TestCypress(YTEnvSetup):
         time.sleep(0.1)
         assert not exists("//tmp/t2")
 
+    def test_expire_orphaned_node_yt_8064(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        node_id = create("table", "//tmp/t", attributes={"expiration_time": str(self._now() + timedelta(seconds=2.0))}, tx=tx1)
+        lock("#" + node_id, tx=tx2, mode="snapshot")
+        abort_transaction(tx1)
+        time.sleep(2.0)
+
     def test_copy_preserve_creation_time(self):
         create("table", "//tmp/t1")
         creation_time = get("//tmp/t1/@creation_time")
