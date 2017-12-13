@@ -1296,7 +1296,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "suspicious_inactivity_timeout": 2000,  # 2 sec
-            "running_jobs_update_period": 100  # 100 msec
+            "running_jobs_update_period": 100,  # 100 msec
+            "suspicious_jobs_update_period": 100,  # 100 msec
         }
     }
 

@@ -291,9 +291,6 @@ struct IOperationControllerSchedulerHost
     //! Called to construct a YSON representing the current progress.
     virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const = 0;
 
-    //! Called to get a YSON string representing suspicious jobs of operation.
-    virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
-
     //! Build scheduler jobs from the joblets. Used during revival pipeline.
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;
 
@@ -431,6 +428,9 @@ struct IOperationController
      */
     //! Builds job info, used for orchid.
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
+
+    //! Called to get a YSON string representing suspicious jobs of operation.
+    virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

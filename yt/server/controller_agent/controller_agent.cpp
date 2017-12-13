@@ -21,6 +21,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <util/string/join.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -447,6 +449,16 @@ private:
         auto now = GetCpuInstant();
         bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
         req->set_exec_nodes_requested(shouldRequestExecNodes);
+
+        // TODO(ignat): add some backoff.
+        {
+            std::vector<TString> suspiciousJobsYsons;
+            for (const auto& pair : controllers) {
+                const auto& controller = pair.second;
+                suspiciousJobsYsons.push_back(controller->GetSuspiciousJobsYson().GetData());
+            }
+            req->set_suspicious_jobs(JoinSeq("", suspiciousJobsYsons));
+        }
 
         auto rspOrError = WaitFor(req->Invoke());
 

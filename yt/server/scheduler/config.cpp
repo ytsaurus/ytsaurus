@@ -703,6 +703,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("suspicious_jobs_update_period", SuspiciousJobsUpdatePeriod)
+        .Default(TDuration::Seconds(5));
+
     RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
         .Default(TDuration::Seconds(15));
 

@@ -223,6 +223,10 @@ TOperationControllerBase::TOperationControllerBase(
     , Spec_(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
+    , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::UpdateSuspiciousJobsYson, MakeWeak(this)),
+        Config->SuspiciousJobsUpdatePeriod))
     , ScheduleJobStatistics_(New<TScheduleJobStatistics>())
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -653,6 +657,7 @@ void TOperationControllerBase::SafeMaterialize()
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
+        SuspiciousJobsYsonUpdater_->Start();
         AnalyzeOperationProgressExecutor->Start();
         MinNeededResourcesSanityCheckExecutor->Start();
         MaxAvailableExecNodeResourcesUpdateExecutor->Start();
@@ -723,6 +728,7 @@ void TOperationControllerBase::Revive()
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
+    SuspiciousJobsYsonUpdater_->Start();
     AnalyzeOperationProgressExecutor->Start();
     MinNeededResourcesSanityCheckExecutor->Start();
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
@@ -5675,9 +5681,19 @@ TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
     return result;
 }
 
-TYsonString TOperationControllerBase::BuildSuspiciousJobsYson() const
+TYsonString TOperationControllerBase::GetSuspiciousJobsYson() const
 {
-    return BuildYsonStringFluently<EYsonType::MapFragment>()
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(CachedSuspiciousJobsYsonLock_);
+    return CachedSuspiciousJobsYson_;
+}
+
+void TOperationControllerBase::UpdateSuspiciousJobsYson()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    auto yson = BuildYsonStringFluently<EYsonType::MapFragment>()
         .DoFor(
             JobletMap,
             [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
@@ -5694,6 +5710,11 @@ TYsonString TOperationControllerBase::BuildSuspiciousJobsYson() const
                 }
             })
         .Finish();
+
+    {
+        TWriterGuard guard(CachedSuspiciousJobsYsonLock_);
+        CachedSuspiciousJobsYson_ = yson;
+    }
 }
 
 void TOperationControllerBase::AnalyzeBriefStatistics(
