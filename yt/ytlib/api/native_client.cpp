@@ -3632,6 +3632,10 @@ private:
         for (const auto& item : items->GetChildren()) {
             const auto& attributes = item->Attributes();
 
+            if (item->AsString()->GetValue().Size() == 2) {
+                continue;
+            }
+
             TOperation operation;
             operation.OperationId = TGuid::FromString(item->AsString()->GetValue());
             operation.OperationType = ParseEnum<NScheduler::EOperationType>(attributes.Get<TString>("operation_type"));
