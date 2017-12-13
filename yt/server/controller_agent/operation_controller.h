@@ -297,12 +297,6 @@ struct IOperationControllerSchedulerHost
     //! Called to construct a YSON representing the current progress.
     virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const = 0;
 
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    //! Returns |true| when controller can build it's progress.
-    virtual bool HasProgress() const = 0;
-
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
 
@@ -418,6 +412,13 @@ struct IOperationController
      */
     //! Build operation alerts.
     virtual TOperationAlertsMap GetAlerts() = 0;
+
+    // TODO(ignat): remake it to method that returns attributes that should be updated in cypress.
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    //! Returns |true| when controller can build it's progress.
+    virtual bool HasProgress() const = 0;
 
     /*!
      * \note Invoker affinity: controller.
