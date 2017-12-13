@@ -257,7 +257,11 @@ default_config = {
         # Enable using function name as operation title.
         "use_function_name_as_title": True,
         # Enable modules filtering if client and server OS/python versions are different.
-        "enable_modules_compatibility_filter": False
+        "enable_modules_compatibility_filter": False,
+        # Compression level of archive with modules (from 1 to 9)
+        "modules_archive_compression_level": 6,
+        # Compression codec for archive with modules
+        "modules_archive_compression_codec": "gzip"
     },
 
     # Enables special behavior if client works with local mode cluster.
