@@ -1655,13 +1655,6 @@ private:
             Config_ = newConfig;
             ValidateConfig();
 
-            for (const auto& operation : GetOperations()) {
-                auto controller = operation->GetController();
-                BIND(&IOperationControllerSchedulerHost::UpdateConfig, controller, Config_)
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run();
-            }
-
             for (auto& nodeShard : NodeShards_) {
                 BIND(&TNodeShard::UpdateConfig, nodeShard, Config_)
                     .AsyncVia(nodeShard->GetInvoker())
