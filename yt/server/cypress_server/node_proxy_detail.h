@@ -405,7 +405,7 @@ public:
     virtual bool RemoveChild(const TString& key) override;
     virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual TString GetChildKey(const NYTree::IConstNodePtr& child) override;
+    virtual TNullable<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
@@ -460,7 +460,7 @@ public:
     virtual bool RemoveChild(int index) override;
     virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual int GetChildIndex(const NYTree::IConstNodePtr& child) override;
+    virtual TNullable<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
