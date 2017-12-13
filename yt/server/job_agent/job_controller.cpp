@@ -119,6 +119,8 @@ private:
     bool IncludeStoredJobsInNextSchedulerHeartbeat_ = false;
     TInstant LastStoredJobsSendTime_;
 
+    std::unique_ptr<TMemoryUsageTracker<EMemoryCategory>> ExternalMemoryUsageTracker_;
+
     //! Starts a new job.
     IJobPtr CreateJob(
         const TJobId& jobId,
@@ -175,6 +177,12 @@ private:
 
     void AdjustResources();
 
+    TMemoryUsageTracker<EMemoryCategory>* GetUserMemoryUsageTracker();
+    TMemoryUsageTracker<EMemoryCategory>* GetSystemMemoryUsageTracker();
+
+    const TMemoryUsageTracker<EMemoryCategory>* GetUserMemoryUsageTracker() const;
+    const TMemoryUsageTracker<EMemoryCategory>* GetSystemMemoryUsageTracker() const;
+
     TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> GetJobsByOrigin() const;
 };
 
@@ -195,6 +203,18 @@ TJobController::TImpl::TImpl(
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
         JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", FormatEnum(origin));
     }
+
+    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
+        ExternalMemoryUsageTracker_ = std::make_unique<TNodeMemoryTracker>(
+            0,
+            std::vector<std::pair<EMemoryCategory, i64>>{},
+            Logger,
+            TProfiler("/exec_agent/external_memory_usage"));
+    }
+
+    GetSystemMemoryUsageTracker()->SetCategoryLimit(
+        EMemoryCategory::UserJobs,
+        Config_->ResourceLimits->UserMemory);
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
@@ -265,16 +285,17 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 
-    const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto* userTracker = GetUserMemoryUsageTracker();
     result.set_user_memory(std::min(
-        tracker->GetLimit(EMemoryCategory::UserJobs),
+        userTracker->GetLimit(EMemoryCategory::UserJobs),
         // NB: The sum of per-category limits can be greater than the total memory limit.
         // Therefore we need bound memory limit by actually available memory.
-        tracker->GetUsed(EMemoryCategory::UserJobs) + tracker->GetTotalFree()));
+        userTracker->GetUsed(EMemoryCategory::UserJobs) + userTracker->GetTotalFree()));
 
+    const auto* systemTracker = GetSystemMemoryUsageTracker();
     result.set_system_memory(std::min(
-        tracker->GetLimit(EMemoryCategory::SystemJobs),
-        tracker->GetUsed(EMemoryCategory::SystemJobs) + tracker->GetTotalFree()));
+        systemTracker->GetLimit(EMemoryCategory::SystemJobs),
+        systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree()));
 
     auto maybeCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
     if (maybeCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
@@ -300,9 +321,8 @@ void TJobController::TImpl::AdjustResources()
 {
     auto maybeMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
     if (maybeMemoryLimit) {
-        auto memoryLimit = std::min(*maybeMemoryLimit, Bootstrap_->GetConfig()->ResourceLimits->Memory);
-        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        tracker->SetTotalLimit(memoryLimit);
+        auto* tracker = GetUserMemoryUsageTracker();
+        tracker->SetTotalLimit(*maybeMemoryLimit);
     }
 
     auto usage = GetResourceUsage(false);
@@ -952,6 +972,38 @@ void TJobController::TImpl::OnProfiling()
     ProfileResources(ResourceUsageProfiler_, GetResourceUsage());
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
 }
+
+TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetUserMemoryUsageTracker()
+{
+    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
+        return ExternalMemoryUsageTracker_.get();
+    } else {
+        return Bootstrap_->GetMemoryUsageTracker();
+    }
+}
+
+
+TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetSystemMemoryUsageTracker()
+{
+    return Bootstrap_->GetMemoryUsageTracker();
+}
+
+const TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetUserMemoryUsageTracker() const
+{
+    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
+        return ExternalMemoryUsageTracker_.get();
+    } else {
+        return Bootstrap_->GetMemoryUsageTracker();
+    }
+}
+
+
+const TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetSystemMemoryUsageTracker() const
+{
+    return Bootstrap_->GetMemoryUsageTracker();
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
