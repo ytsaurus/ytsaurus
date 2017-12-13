@@ -835,6 +835,10 @@ public:
                     continue;
                 }
 
+                if (!IsObjectAlive(tablet->GetTable())) {
+                    continue;
+                }
+
                 switch (tablet->GetState()) {
                     case ETabletState::Mounted:
                         break;
