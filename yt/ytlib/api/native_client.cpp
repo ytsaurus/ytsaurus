@@ -809,6 +809,11 @@ public:
         const TOperationId& operationId,
         const TListJobsOptions& options),
         (operationId, options))
+    IMPLEMENT_METHOD(TYsonString, GetJob, (
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobOptions& options),
+        (operationId, jobId, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
         const TStraceJobOptions& options),
@@ -4652,16 +4657,146 @@ private:
                 Y_UNREACHABLE();
         }
 
-        std::sort(resultJobs.begin(), resultJobs.end(), comparer);
+        std::sort(result.Jobs.begin(), result.Jobs.end(), comparer);
 
-        auto beginIt = resultJobs.begin() + std::min(options.Offset,
-            std::distance(resultJobs.begin(), resultJobs.end()));
+        auto beginIt = result.Jobs.begin() + std::min(options.Offset,
+            std::distance(result.Jobs.begin(), result.Jobs.end()));
 
         auto endIt = beginIt + std::min(options.Limit,
-            std::distance(beginIt, resultJobs.end()));
+            std::distance(beginIt, result.Jobs.end()));
 
-        return std::vector<TJob>(beginIt, endIt);
+        result.Jobs = std::vector<TJob>(beginIt, endIt);
+
+        return result;
     }
+
+    TYsonString DoGetJob(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobOptions& options)
+    {
+        TNullable<TInstant> deadline;
+        if (options.Timeout) {
+            deadline = options.Timeout->ToDeadLine();
+        }
+
+        int archiveVersion = DoGetOperationsArchiveVersion();
+
+        TJobTableDescriptor table;
+        auto rowBuffer = New<TRowBuffer>();
+
+        std::vector<TUnversionedRow> keys;
+        auto key = rowBuffer->AllocateUnversioned(4);
+        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], table.Ids.OperationIdHi);
+        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], table.Ids.OperationIdLo);
+        key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], table.Ids.JobIdHi);
+        key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], table.Ids.JobIdLo);
+        keys.push_back(key);
+
+        TLookupRowsOptions lookupOptions;
+
+        yhash_set<TString> fields = {
+            "operation_id_hi",
+            "operation_id_lo",
+            "job_id_hi",
+            "job_id_lo",
+            "type",
+            "state",
+            "start_time",
+            "finish_time",
+            "address",
+            "error",
+            "statistics",
+            "events"
+        };
+
+        if (archiveVersion >= 16) {
+            fields.insert("transient_state");
+        }
+
+        std::vector<int> columnIndexes;
+        yhash<TString, int> fieldToIndex;
+
+        int index = 0;
+        for (const auto& field : fields) {
+            columnIndexes.push_back(table.NameTable->GetIdOrThrow(field));
+            fieldToIndex[field] = index++;
+        }
+
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
+        lookupOptions.KeepMissingRows = true;
+        if (deadline) {
+            lookupOptions.Timeout = *deadline - Now();
+        }
+
+        auto rowset = WaitFor(LookupRows(
+            GetOperationsArchiveJobsPath(),
+            table.NameTable,
+            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+            lookupOptions))
+            .ValueOrThrow();
+
+        auto rows = rowset->GetRows();
+        YCHECK(!rows.Empty());
+
+        if (rows[0]) {
+#define SET_ITEM_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_YSON_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_INSTANT_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TInstant(rows[0][index].Data.Int64))
+#define SET_ITEM_VALUE(itemKey, operation) \
+            .DoIf(fields.find(itemKey) != fields.end() && rows[0][GET_INDEX(itemKey)].Type != EValueType::Null, [&] (TFluentMap fluent) { \
+                auto index = GET_INDEX(itemKey); \
+                fluent.Item(itemKey).Value(operation); \
+            })
+#define GET_INDEX(itemKey) fieldToIndex.find(itemKey)->second
+
+            auto resultOperationId = TGuid(
+                rows[0][GET_INDEX("operation_id_hi")].Data.Uint64,
+                rows[0][GET_INDEX("operation_id_lo")].Data.Uint64);
+            auto resultJobId = TGuid(
+                rows[0][GET_INDEX("job_id_hi")].Data.Uint64,
+                rows[0][GET_INDEX("job_id_lo")].Data.Uint64);
+            auto resultState = TString();
+            if (resultState.empty()) {
+                auto index = GET_INDEX("state");
+                if (rows[0][index].Type != EValueType::Null) {
+                    resultState = TString(rows[0][index].Data.String, rows[0][index].Length);
+                }
+            }
+            if (resultState.empty() && archiveVersion >= 16) {
+                auto index = GET_INDEX("transient_state");
+                if (rows[0][index].Type != EValueType::Null) {
+                    resultState = TString(rows[0][index].Data.String, rows[0][index].Length);
+                }
+            }
+            auto ysonResult = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("operation_id").Value(resultOperationId)
+                    .Item("job_id").Value(resultJobId)
+                    .DoIf(!resultState.empty(), [&] (TFluentMap fluent) {
+                        fluent.Item("state").Value(resultState);
+                    })
+                    SET_ITEM_INSTANT_VALUE("start_time")
+                    SET_ITEM_INSTANT_VALUE("finish_time")
+                    SET_ITEM_STRING_VALUE("address")
+                    SET_ITEM_YSON_STRING_VALUE("error")
+                    SET_ITEM_YSON_STRING_VALUE("statistics")
+                    SET_ITEM_YSON_STRING_VALUE("events")
+                .EndMap();
+#undef SET_ITEM_STRING_VALUE
+#undef SET_ITEM_YSON_STRING_VALUE
+#undef SET_ITEM_INSTANT_VALUE
+#undef SET_ITEM_VALUE
+#undef GET_INDEX
+            return ysonResult;
+        }
+
+        THROW_ERROR_EXCEPTION("No such job %v", jobId);
+    }
+
 
     TYsonString DoStraceJob(
         const TJobId& jobId,

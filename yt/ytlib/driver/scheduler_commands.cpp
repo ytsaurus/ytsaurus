@@ -263,6 +263,24 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetJobCommand::TGetJobCommand()
+{
+    RegisterParameter("operation_id", OperationId);
+    RegisterParameter("job_id", JobId);
+}
+
+void TGetJobCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->GetJob(OperationId, JobId, Options);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStraceJobCommand::TStraceJobCommand()
 {
     RegisterParameter("job_id", JobId);
