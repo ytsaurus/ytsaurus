@@ -183,6 +183,11 @@ public:
         if (ControllerAgentMasterConnector_) {
             ControllerAgentMasterConnector_->UpdateConfig(config);
         }
+        for (auto pair : GetControllers()) {
+            const auto& controller = pair.second;
+            controller->GetCancelableInvoker()->Invoke(
+                BIND(&IOperationController::UpdateConfig, controller, config));
+        }
     }
 
     void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller)

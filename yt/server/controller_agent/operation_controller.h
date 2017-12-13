@@ -282,12 +282,6 @@ struct IOperationControllerSchedulerHost
     //! Called during heartbeat processing to notify the controller that a job is still running.
     virtual void OnJobRunning(std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary) = 0;
 
-    /*!
-     *  \note Invoker affinity: Controller invoker
-     */
-    //! Updates internal copy of scheduler config used by controller.
-    virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
-
     //! Called to construct a YSON representing the controller part of operation attributes.
     virtual void BuildOperationAttributes(NYTree::TFluentMap fluent) const = 0;
 
@@ -412,6 +406,12 @@ struct IOperationController
      */
     //! Build operation alerts.
     virtual TOperationAlertsMap GetAlerts() = 0;
+
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
+    //! Updates internal copy of scheduler config used by controller.
+    virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
 
     // TODO(ignat): remake it to method that returns attributes that should be updated in cypress.
     /*!
