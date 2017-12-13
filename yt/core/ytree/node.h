@@ -229,10 +229,17 @@ struct IMapNode
 
     //! Returns the key for a given child.
     /*!
-     *  \param child A node that must be a child.
+     *  \param child A possible child.
+     *  \return Child's key or null if the node is not a child.
+     */
+    virtual TNullable<TString> FindChildKey(const IConstNodePtr& child) = 0;
+
+    //! Returns the key for a given child or throws if the node is not a child.
+    /*!
+     *  \param child A possible child.
      *  \return Child's key.
      */
-    virtual TString GetChildKey(const IConstNodePtr& child) = 0;
+    TString GetChildKeyOrThrow(const IConstNodePtr& child);
 };
 
 DEFINE_REFCOUNTED_TYPE(IMapNode)
@@ -274,15 +281,22 @@ struct IListNode
      */
     virtual bool RemoveChild(int index) = 0;
 
-    //! Similar to #FindChild but fails if the index is not valid.
+    //! Similar to #FindChild but throws if the index is not valid.
     INodePtr GetChild(int index) const;
 
-    //! Returns the index for a given child.
+    //! Returns the index for a given child or null if the node is not a child.
+    /*!
+     *  \param child A node that must be a child.
+     *  \return Child's index or null if the node is not a child.
+     */
+    virtual TNullable<int> FindChildIndex(const IConstNodePtr& child) = 0;
+
+    //! Returns the index for a given child or throws if the node is not a child.
     /*!
      *  \param child A node that must be a child.
      *  \return Child's index.
      */
-    virtual int GetChildIndex(const IConstNodePtr& child) = 0;
+    int GetChildIndexOrThrow(const IConstNodePtr& child);
 
     //! Normalizes negative indexes (by adding child count).
     //! Throws if the index is invalid.
@@ -291,7 +305,6 @@ struct IListNode
      *  \returns Adjusted (valid non-negative) index.
      */
     int AdjustChildIndex(int index) const;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IListNode)

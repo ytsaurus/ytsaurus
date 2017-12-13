@@ -577,8 +577,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     }
 
     if (hasKey && key == "key") {
+        static const TString NullKey("?");
         BuildYsonFluently(consumer)
-            .Value(GetParent()->AsMap()->GetChildKey(this));
+            .Value(GetParent()->AsMap()->FindChildKey(this).Get(NullKey));
         return true;
     }
 
@@ -1509,7 +1510,12 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
 
 void TMapNodeProxy::RemoveChild(const INodePtr& child)
 {
-    auto key = GetChildKey(child);
+    auto maybeKey = FindChildKey(child);
+    if (!maybeKey) {
+        THROW_ERROR_EXCEPTION("Node is not a child");
+    }
+    const auto& key = *maybeKey;
+
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
@@ -1525,7 +1531,11 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
         return;
     }
 
-    auto key = GetChildKey(oldChild);
+    auto maybeKey = FindChildKey(oldChild);
+    if (!maybeKey) {
+        THROW_ERROR_EXCEPTION("Node is not a child");
+    }
+    const auto& key = *maybeKey;
 
     auto* oldTrunkChildImpl = ICypressNodeProxy::FromNode(oldChild.Get())->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl, ELockMode::Exclusive, true);
@@ -1550,7 +1560,7 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
     SetModified();
 }
 
-TString TMapNodeProxy::GetChildKey(const IConstNodePtr& child)
+TNullable<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
 {
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
@@ -1565,7 +1575,7 @@ TString TMapNodeProxy::GetChildKey(const IConstNodePtr& child)
         }
     }
 
-    return "?";
+    return Null;
 }
 
 bool TMapNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
@@ -1815,7 +1825,7 @@ bool TListNodeProxy::RemoveChild(int index)
 
 void TListNodeProxy::RemoveChild(const INodePtr& child)
 {
-    int index = GetChildIndex(child);
+    int index = GetChildIndexOrThrow(child);
     YCHECK(RemoveChild(index));
 }
 
@@ -1848,16 +1858,14 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
     SetModified();
 }
 
-int TListNodeProxy::GetChildIndex(const IConstNodePtr& child)
+TNullable<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child)
 {
     const auto* impl = GetThisImpl();
 
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto it = impl->ChildToIndex().find(trunkChildImpl);
-    YCHECK(it != impl->ChildToIndex().end());
-
-    return it->second;
+    return it == impl->ChildToIndex().end() ? Null : MakeNullable(it->second);
 }
 
 void TListNodeProxy::SetChildNode(

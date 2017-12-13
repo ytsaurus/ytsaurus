@@ -277,13 +277,12 @@ public:
         YCHECK(ChildToKey_.insert(std::make_pair(newChild, key)).second);
     }
 
-    virtual TString GetChildKey(const IConstNodePtr& child) override
+    virtual TNullable<TString> FindChildKey(const IConstNodePtr& child) override
     {
         Y_ASSERT(child);
 
         auto it = ChildToKey_.find(const_cast<INode*>(child.Get()));
-        Y_ASSERT(it != ChildToKey_.end());
-        return it->second;
+        return it == ChildToKey_.end() ? Null : MakeNullable(it->second);
     }
 
 private:
@@ -402,17 +401,16 @@ public:
     {
         Y_ASSERT(child);
 
-        int index = GetChildIndex(child);
+        int index = GetChildIndexOrThrow(child);
         YCHECK(RemoveChild(index));
     }
 
-    virtual int GetChildIndex(const IConstNodePtr& child) override
+    virtual TNullable<int> FindChildIndex(const IConstNodePtr& child) override
     {
         Y_ASSERT(child);
 
         auto it = ChildToIndex_.find(const_cast<INode*>(child.Get()));
-        Y_ASSERT(it != ChildToIndex_.end());
-        return it->second;
+        return it == ChildToIndex_.end() ? Null : MakeNullable(it->second);
     }
 
 private:
