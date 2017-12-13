@@ -90,11 +90,11 @@ void TNodeBase::GetKeySelf(
     TString key;
     switch (parent->GetType()) {
         case ENodeType::Map:
-            key = parent->AsMap()->GetChildKey(this);
+            key = parent->AsMap()->GetChildKeyOrThrow(this);
             break;
 
         case ENodeType::List:
-            key = ToString(parent->AsList()->GetChildIndex(this));
+            key = ToString(parent->AsList()->GetChildIndexOrThrow(this));
             break;
 
         default:
@@ -160,12 +160,12 @@ TYPath TNodeBase::GetPath() const
         TString token;
         switch (parent->GetType()) {
             case ENodeType::List: {
-                auto index = parent->AsList()->GetChildIndex(current);
+                auto index = parent->AsList()->GetChildIndexOrThrow(current);
                 token = ToYPathLiteral(index);
                 break;
             }
             case ENodeType::Map: {
-                auto key = parent->AsMap()->GetChildKey(current);
+                auto key = parent->AsMap()->GetChildKeyOrThrow(current);
                 token = ToYPathLiteral(key);
                 break;
             }

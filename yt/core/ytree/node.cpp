@@ -33,6 +33,17 @@ INodePtr IMapNode::GetChild(const TString& key) const
     return child;
 }
 
+TString IMapNode::GetChildKeyOrThrow(const IConstNodePtr& child)
+{
+    auto maybeKey = FindChildKey(child);
+    if (!maybeKey) {
+        THROW_ERROR_EXCEPTION("Node is not a child");
+    }
+    return *maybeKey;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 INodePtr IListNode::GetChild(int index) const
 {
     auto child = FindChild(index);
@@ -40,6 +51,15 @@ INodePtr IListNode::GetChild(int index) const
         ThrowNoSuchChildIndex(this, index);
     }
     return child;
+}
+
+int IListNode::GetChildIndexOrThrow(const IConstNodePtr& child)
+{
+    auto maybeIndex = FindChildIndex(child);
+    if (!maybeIndex) {
+        THROW_ERROR_EXCEPTION("Node is not a child");
+    }
+    return *maybeIndex;
 }
 
 int IListNode::AdjustChildIndex(int index) const
