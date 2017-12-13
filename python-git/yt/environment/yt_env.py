@@ -830,7 +830,7 @@ class YTInstance(object):
         try:
             import yt_driver_bindings
         except ImportError:
-            guessed_version = self._binaries.items()[0][1].literal
+            guessed_version = list(self._binaries.items())[0][1].literal
             raise YtError("YT driver bindings not found. Make sure you have installed "
                           "yandex-yt-python-driver package (appropriate version: {0})"
                           .format(guessed_version))
