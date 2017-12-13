@@ -960,41 +960,54 @@ TEST_P(TExpressionTest, ConstantFolding)
 TEST_F(TExpressionTest, FunctionNullArgument)
 {
     auto schema = GetSampleTableSchema();
-
-    auto expr = PrepareExpression("int64(null)", schema);
-
-    EXPECT_EQ(expr->Type, EValueType::Int64);
-
-    TUnversionedValue result;
-    TCGVariables variables;
-
-    auto callback = Profile(expr, schema, nullptr, &variables)();
+    auto buffer = New<TRowBuffer>();
 
     TUnversionedOwningRow row;
-    auto buffer = New<TRowBuffer>();
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
 
-    EXPECT_EQ(result, MakeNull());
+    {
+        auto expr = PrepareExpression("int64(null)", schema);
+
+        EXPECT_EQ(expr->Type, EValueType::Int64);
+
+        TUnversionedValue result;
+        TCGVariables variables;
+
+        auto callback = Profile(expr, schema, nullptr, &variables)();
+
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+
+        EXPECT_EQ(result, MakeNull());
+    }
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression("if(null, null, null)", schema); },
         HasSubstr("Type inference failed"));
 
-    expr = PrepareExpression("if(null, 1, 2)", schema);
-    EXPECT_EQ(expr->Type, EValueType::Int64);
+    {
+        auto expr = PrepareExpression("if(null, 1, 2)", schema);
+        EXPECT_EQ(expr->Type, EValueType::Int64);
 
-    callback = Profile(expr, schema, nullptr, &variables)();
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+        TUnversionedValue result;
+        TCGVariables variables;
 
-    EXPECT_EQ(result, MakeNull());
+        auto callback = Profile(expr, schema, nullptr, &variables)();
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
 
-    expr = PrepareExpression("if(false, 1, null)", schema);
-    EXPECT_EQ(expr->Type, EValueType::Int64);
+        EXPECT_EQ(result, MakeNull());
+    }
 
-    callback = Profile(expr, schema, nullptr, &variables)();
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+    {
+        auto expr = PrepareExpression("if(false, 1, null)", schema);
+        EXPECT_EQ(expr->Type, EValueType::Int64);
 
-    EXPECT_EQ(result, MakeNull());
+        TUnversionedValue result;
+        TCGVariables variables;
+
+        auto callback = Profile(expr, schema, nullptr, &variables)();
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+
+        EXPECT_EQ(result, MakeNull());
+    }
 }
 
 TEST_P(TExpressionTest, Evaluate)
