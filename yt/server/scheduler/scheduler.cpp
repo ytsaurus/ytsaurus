@@ -900,6 +900,8 @@ public:
                 ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
             }
         }
+
+        SuspiciousJobsYson_ = TYsonString(request->suspicious_jobs(), EYsonType::MapFragment);
     }
 
     // ISchedulerStrategyHost implementation
@@ -1200,6 +1202,8 @@ private:
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
 
     std::atomic<int> OperationArchiveVersion_ = {-1};
+
+    TYsonString SuspiciousJobsYson_ = TYsonString("", EYsonType::MapFragment);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -2562,28 +2566,7 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
-                    .Do([=] (TFluentMap fluent) {
-                        std::vector<TFuture<TYsonString>> asyncResults;
-                        for (const auto& pair : IdToOperation_) {
-                            const auto& operation = pair.second;
-                            auto controller = operation->GetController();
-                            if (controller) {
-                                asyncResults.push_back(BIND(&IOperationControllerSchedulerHost::BuildSuspiciousJobsYson, controller)
-                                    .AsyncVia(controller->GetInvoker())
-                                    .Run());
-                            }
-                        }
-                        auto results = WaitFor(Combine(asyncResults))
-                            .ValueOrThrow();
-
-                        // Suspicious jobs are received as a bunch of YSON strings defining map fragments
-                        // that should be simply concatenated, so we have to work with a bare consumer here.
-                        auto* consumer = fluent.GetConsumer();
-
-                        for (const auto& ysonString : results) {
-                            consumer->OnRaw(ysonString);
-                        }
-                    })
+                    .Items(SuspiciousJobsYson_)
                 .EndMap()
                 .Item("nodes").BeginMap()
                     .Do([=] (TFluentMap fluent) {

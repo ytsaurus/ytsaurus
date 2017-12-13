@@ -287,9 +287,9 @@ public:
         Underlying_->BuildOperationInfo(response);
     }
 
-    virtual TYsonString BuildSuspiciousJobsYson() const override
+    virtual TYsonString GetSuspiciousJobsYson() const override
     {
-        return Underlying_->BuildSuspiciousJobsYson();
+        return Underlying_->GetSuspiciousJobsYson();
     }
 
     virtual int OnSnapshotStarted() override

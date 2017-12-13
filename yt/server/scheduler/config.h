@@ -742,6 +742,9 @@ public:
     // Backoff to report job metrics from operation to scheduler.
     TDuration JobMetricsDeltaReportBackoff;
 
+    // Suspicious jobs per operation recalculation period.
+    TDuration SuspiciousJobsUpdatePeriod;
+
     TSchedulerConfig();
 
     virtual void OnLoaded() override;

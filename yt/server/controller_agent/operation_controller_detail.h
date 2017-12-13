@@ -259,7 +259,7 @@ public:
 
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override;
 
-    virtual NYson::TYsonString BuildSuspiciousJobsYson() const override;
+    virtual NYson::TYsonString GetSuspiciousJobsYson() const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
 
@@ -916,6 +916,10 @@ private:
     TJobResources CachedNeededResources;
     NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
 
+    NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
+    NConcurrency::TReaderWriterSpinLock CachedSuspiciousJobsYsonLock_;
+    NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
+
     //! Maps an intermediate chunk id to its originating completed job.
     yhash<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
@@ -1113,6 +1117,8 @@ private:
         i64 suspiciousCpuUsageThreshold,
         double suspiciousInputPipeIdleTimeFraction,
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
+
+    void UpdateSuspiciousJobsYson();
 
     NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
 
