@@ -44,7 +44,7 @@ public:
     virtual TCypressNodeBase* GetTrunkNode() const override;
 
     virtual NYTree::ICompositeNodePtr GetParent() const override;
-    virtual void SetParent(NYTree::ICompositeNodePtr parent) override;
+    virtual void SetParent(const NYTree::ICompositeNodePtr& parent) override;
 
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
@@ -187,7 +187,7 @@ protected:
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr child,
+        const NYTree::INodePtr& child,
         bool recursive);
 
     NSecurityServer::TClusterResources GetResourceUsage() const;
@@ -401,11 +401,11 @@ public:
     virtual std::vector< std::pair<TString, NYTree::INodePtr> > GetChildren() const override;
     virtual std::vector<TString> GetKeys() const override;
     virtual NYTree::INodePtr FindChild(const TString& key) const override;
-    virtual bool AddChild(NYTree::INodePtr child, const TString& key) override;
+    virtual bool AddChild(const NYTree::INodePtr& child, const TString& key) override;
     virtual bool RemoveChild(const TString& key) override;
-    virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild) override;
-    virtual void RemoveChild(NYTree::INodePtr child) override;
-    virtual TString GetChildKey(NYTree::IConstNodePtr child) override;
+    virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
+    virtual void RemoveChild(const NYTree::INodePtr& child) override;
+    virtual TString GetChildKey(const NYTree::IConstNodePtr& child) override;
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
@@ -415,7 +415,7 @@ private:
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr child,
+        const NYTree::INodePtr& child,
         bool recursive) override;
 
     virtual int GetMaxChildCount() const override;
@@ -456,11 +456,11 @@ public:
     virtual int GetChildCount() const override;
     virtual std::vector<NYTree::INodePtr> GetChildren() const override;
     virtual NYTree::INodePtr FindChild(int index) const override;
-    virtual void AddChild(NYTree::INodePtr child, int beforeIndex = -1) override;
+    virtual void AddChild(const NYTree::INodePtr& child, int beforeIndex = -1) override;
     virtual bool RemoveChild(int index) override;
-    virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild) override;
-    virtual void RemoveChild(NYTree::INodePtr child) override;
-    virtual int GetChildIndex(NYTree::IConstNodePtr child) override;
+    virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
+    virtual void RemoveChild(const NYTree::INodePtr& child) override;
+    virtual int GetChildIndex(const NYTree::IConstNodePtr& child) override;
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
@@ -468,7 +468,7 @@ private:
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr child,
+        const NYTree::INodePtr& child,
         bool recursive) override;
 
     virtual int GetMaxChildCount() const override;
@@ -476,7 +476,6 @@ private:
     virtual TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
