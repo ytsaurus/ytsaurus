@@ -63,12 +63,15 @@ class TThreadedIOEngineConfig
 {
 public:
     int Threads;
+    bool UseDirectIO;
 
     TThreadedIOEngineConfig()
     {
         RegisterParameter("threads", Threads)
             .GreaterThanOrEqual(1)
             .Default(1);
+        RegisterParameter("use_direct_io", UseDirectIO)
+            .Default(false);
     }
 };
 
@@ -80,10 +83,15 @@ public:
 
     explicit TThreadedIOEngine(const TConfigType& config)
         : ThreadPool_(config.Threads, "DiskIO")
+        , UseDirectIO_(config.UseDirectIO)
     { }
 
     virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
     {
+        if (UseDirectIO_) {
+            oMode |= DirectAligned;
+        }
+
         auto fh = std::make_shared<TFileHandle>(fName, oMode);
         if (!fh->IsOpen()) {
             THROW_ERROR_EXCEPTION("Cannot open %Qv with mode %v",
@@ -108,15 +116,33 @@ public:
     }
 
 private:
+    const size_t MaxPortion_ = size_t(1 << 30);
+    NConcurrency::TThreadPool ThreadPool_;
+
+    bool UseDirectIO_;
+    const i64 Alignment_ = 512;
+
     TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& fh, size_t numBytes, i64 offset)
     {
-        auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(numBytes, false);
+        auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(numBytes + UseDirectIO_ * 3 * Alignment_, false);
+        i64 from = offset;
+        i64 to = offset + numBytes;
+
+        if (UseDirectIO_) {
+            data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
+            from = ::AlignDown(offset, Alignment_);
+            to = ::AlignUp(to, Alignment_);
+        }
+
+        size_t readPortion = to - from;
+        auto delta = offset - from;
+
         size_t result;
         ui8* buf = reinterpret_cast<ui8*>(data.Begin());
 
         NFS::ExpectIOErrors([&]() {
             while (numBytes) {
-                const i32 toRead = static_cast<i32>(Min(MaxPortion_, numBytes));
+                const i32 toRead = static_cast<i32>(Min(MaxPortion_, readPortion));
                 const i32 reallyRead = fh->Pread(buf, toRead, offset);
 
                 if (reallyRead < 0) {
@@ -136,10 +162,10 @@ private:
                 numBytes -= reallyRead;
             }
 
-            result = buf - (ui8*)data.Begin();
+            result = buf - reinterpret_cast<ui8*>(data.Begin());
         });
 
-        return data.Slice(0, result);
+        return data.Slice(delta, delta + result);
     }
 
     void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
@@ -162,9 +188,6 @@ private:
             }
         });
     }
-
-    const size_t MaxPortion_ = size_t(1 << 30);
-    NConcurrency::TThreadPool ThreadPool_;
 };
 
 #ifdef _linux_
