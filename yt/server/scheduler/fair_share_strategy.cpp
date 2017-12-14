@@ -918,7 +918,7 @@ private:
         TAggregateCounter TotalControllerScheduleJobTimeCounter;
         TAggregateCounter ExecControllerScheduleJobTimeCounter;
         TAggregateCounter StrategyScheduleJobTimeCounter;
-        TAggregateCounter ScheduleJobCallCounter;
+        TSimpleCounter ScheduleJobCallCounter;
 
         TEnumIndexedVector<TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFailCounter;
     };
@@ -1190,7 +1190,7 @@ private:
                 counters.ExecControllerScheduleJobTimeCounter,
                 context.ExecScheduleJobDuration.MicroSeconds());
 
-            Profiler.Update(counters.ScheduleJobCallCounter, scheduleJobCount);
+            Profiler.Increment(counters.ScheduleJobCallCounter, scheduleJobCount);
 
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
                 Profiler.Increment(
