@@ -115,11 +115,12 @@ void ScanOpHelper(
 {
     auto& reader = context->Reader;
 
-
     std::vector<TRow> rows;
-    rows.reserve(context->IsOrdered && context->Limit < RowsetProcessingSize
-        ? context->Limit
-        : RowsetProcessingSize);
+    size_t rowsCapacity = context->IsOrdered ? context->Limit : RowsetProcessingSize;
+    rowsCapacity = std::max(static_cast<size_t>(1), rowsCapacity);
+    rowsCapacity = std::min(RowsetProcessingSize, rowsCapacity);
+    rows.reserve(rowsCapacity);
+
     std::vector<const TValue*> values;
     values.reserve(rows.capacity());
 
