@@ -253,7 +253,13 @@ def share_packages(options, version):
 
                 task_id = cli.create_task("REMOTE_COPY_RESOURCE", "YT_ROBOT", task_description, sandbox_ctx)
                 teamcity_message("Created sandbox upload task: package: {0}, task_id: {1}, torrent_id: {2}".format(pkg, task_id, torrent_id))
-                rows.append({"package" : pkg, "version" : version, "torrent_id" : torrent_id, "task_id" : task_id, "build_time" : build_time})
+                rows.append({
+                    "package" : pkg,
+                    "version" : version,
+                    "ubuntu_codename" : options.codename,
+                    "torrent_id" : torrent_id,
+                    "task_id" : task_id,
+                    "build_time" : build_time})
 
         # Add to locke.
         src_root = os.path.dirname(os.path.dirname(__file__))
