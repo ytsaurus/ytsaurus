@@ -1,4 +1,4 @@
-#include "rpc_proxy_client.h"
+#include "client_impl.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -34,26 +34,34 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcProxyClient::TRpcProxyClient(
-    TRpcProxyConnectionPtr connection,
+TClient::TClient(
+    TConnectionPtr connection,
     const TClientOptions& options)
     : Connection_(std::move(connection))
-    , Channel_(CreateRpcProxyChannel(Connection_, options))
+    , Channel_(CreateDiscoveringChannel(Connection_, options))
 { }
 
-TRpcProxyConnectionPtr TRpcProxyClient::GetRpcProxyConnection()
+TFuture<void> TClient::Terminate()
+{
+    return VoidFuture;
+}
+
+TConnectionPtr TClient::GetRpcProxyConnection()
 {
     return Connection_;
 }
 
-IChannelPtr TRpcProxyClient::GetChannel()
+TClientPtr TClient::GetRpcProxyClient()
+{
+    return this;
+}
+
+IChannelPtr TClient::GetChannel()
 {
     return Channel_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<void> TRpcProxyClient::MountTable(
+TFuture<void> TClient::MountTable(
     const TYPath& path,
     const TMountTableOptions& options)
 {
@@ -73,7 +81,7 @@ TFuture<void> TRpcProxyClient::MountTable(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClient::UnmountTable(
+TFuture<void> TClient::UnmountTable(
     const TYPath& path,
     const TUnmountTableOptions& options)
 {
@@ -92,7 +100,7 @@ TFuture<void> TRpcProxyClient::UnmountTable(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClient::RemountTable(
+TFuture<void> TClient::RemountTable(
     const TYPath& path,
     const TRemountTableOptions& options)
 {
@@ -109,7 +117,7 @@ TFuture<void> TRpcProxyClient::RemountTable(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClient::FreezeTable(
+TFuture<void> TClient::FreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
@@ -126,7 +134,7 @@ TFuture<void> TRpcProxyClient::FreezeTable(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClient::UnfreezeTable(
+TFuture<void> TClient::UnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
@@ -143,7 +151,7 @@ TFuture<void> TRpcProxyClient::UnfreezeTable(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClient::ReshardTable(
+TFuture<void> TClient::ReshardTable(
     const TYPath& path,
     const std::vector<NTableClient::TOwningKey>& pivotKeys,
     const TReshardTableOptions& options)
@@ -170,7 +178,7 @@ TFuture<void> TRpcProxyClient::ReshardTable(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClient::ReshardTable(
+TFuture<void> TClient::ReshardTable(
     const TYPath& path,
     int tabletCount,
     const TReshardTableOptions& options)
@@ -189,7 +197,7 @@ TFuture<void> TRpcProxyClient::ReshardTable(
     return req->Invoke().As<void>();;
 }
 
-TFuture<void> TRpcProxyClient::TrimTable(
+TFuture<void> TClient::TrimTable(
     const TYPath& path,
     int tabletIndex,
     i64 trimmedRowCount,
@@ -207,7 +215,7 @@ TFuture<void> TRpcProxyClient::TrimTable(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClient::AlterTable(
+TFuture<void> TClient::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)
 {
@@ -234,7 +242,7 @@ TFuture<void> TRpcProxyClient::AlterTable(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClient::AlterTableReplica(
+TFuture<void> TClient::AlterTableReplica(
     const TTableReplicaId& replicaId,
     const TAlterTableReplicaOptions& options)
 {
@@ -262,7 +270,7 @@ TFuture<void> TRpcProxyClient::AlterTableReplica(
     return req->Invoke().As<void>();
 }
 
-TFuture<std::vector<TTableReplicaId>> TRpcProxyClient::GetInSyncReplicas(
+TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
     const TYPath& path,
     TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TKey>& keys,
@@ -286,7 +294,7 @@ TFuture<std::vector<TTableReplicaId>> TRpcProxyClient::GetInSyncReplicas(
     }));
 }
 
-TFuture<std::vector<NApi::TTabletInfo>> TRpcProxyClient::GetTabletInfos(
+TFuture<std::vector<NApi::TTabletInfo>> TClient::GetTabletInfos(
     const TYPath& path,
     const std::vector<int>& tabletIndexes,
     const TGetTabletsInfoOptions& options)

@@ -1,7 +1,8 @@
-#include "rpc_proxy_channel.h"
-#include "rpc_proxy_connection.h"
+#include "discovering_channel.h"
+#include "connection_impl.h"
 
 #include <yt/core/rpc/client.h>
+#include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/roaming_channel.h>
 
 #include <yt/core/ytree/convert.h>
@@ -21,7 +22,7 @@ class TProxyChannelProvider
 {
 public:
     TProxyChannelProvider(
-        TRpcProxyConnectionPtr connection,
+        TConnectionPtr connection,
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
@@ -76,7 +77,7 @@ public:
     }
 
 private:
-    const TRpcProxyConnectionPtr Connection_;
+    const TConnectionPtr Connection_;
     const TClientOptions Options_;
     const TString EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
@@ -95,22 +96,25 @@ private:
 
     IChannelPtr CreateChannel() const
     {
-        return Connection_->CreateChannelAndRegister(Options_, const_cast<TProxyChannelProvider*>(this));
+        return Connection_->CreateChannelAndRegisterProvider(
+            Options_,
+            const_cast<TProxyChannelProvider*>(this));
     }
 
     void DestroyChannel() const
     {
-        Connection_->Unregister(const_cast<TProxyChannelProvider*>(this));
+        Connection_->UnregisterProvider(const_cast<TProxyChannelProvider*>(this));
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChannelPtr CreateRpcProxyChannel(TRpcProxyConnectionPtr connection, const TClientOptions& options)
+IChannelPtr CreateDiscoveringChannel(
+    TConnectionPtr connection,
+    const TClientOptions& options)
 {
     auto provider = New<TProxyChannelProvider>(std::move(connection), options);
-    auto channel = CreateRoamingChannel(std::move(provider));
-    return channel;
+    return CreateRoamingChannel(std::move(provider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

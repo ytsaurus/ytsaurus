@@ -1,8 +1,9 @@
-#include "rpc_proxy_client_base.h"
-#include "rpc_proxy_transaction.h"
+#include "client_base.h"
+#include "transaction.h"
 #include "credentials_injecting_channel.h"
 #include "api_service_proxy.h"
 #include "helpers.h"
+#include "config.h"
 #include "private.h"
 
 #include <yt/core/net/address.h>
@@ -29,32 +30,38 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IConnectionPtr TRpcProxyClientBase::GetConnection()
+IConnectionPtr TClientBase::GetConnection()
 {
     return GetRpcProxyConnection();
 }
 
-TFuture<ITransactionPtr> TRpcProxyClientBase::StartTransaction(
-    NTransactionClient::ETransactionType type,
+TFuture<ITransactionPtr> TClientBase::StartTransaction(
+    ETransactionType type,
     const TTransactionStartOptions& options)
 {
-    // Keep connection & channel to reuse them in the transaction.
+    // Keep some stuff to reuse it in the transaction.
     auto connection = GetRpcProxyConnection();
+    auto client = GetRpcProxyClient();
     auto channel = GetChannel();
+    const auto& config = connection->GetConfig();
+
+    auto timeout = options.Timeout.Get(config->DefaultTransactionTimeout);
+    auto pingPeriod = options.PingPeriod.Get(config->DefaultPingPeriod);
 
     TApiServiceProxy proxy(channel);
 
     auto req = proxy.StartTransaction();
-    req->set_type(NProto::ETransactionType(type));
-    if (options.Timeout) {
-        req->set_timeout(NYT::ToProto<i64>(*options.Timeout));
-    }
+    req->SetTimeout(config->RpcTimeout);
+
+    req->set_type(static_cast<NProto::ETransactionType>(type));
+    req->set_timeout(NYT::ToProto<i64>(timeout));
     if (options.Id) {
         ToProto(req->mutable_id(), options.Id);
     }
@@ -63,7 +70,7 @@ TFuture<ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     }
     // XXX(sandello): Better? Remove these fields from the protocol at all?
     req->set_auto_abort(false);
-    bool sticky = type == NTransactionClient::ETransactionType::Tablet
+    bool sticky = type == ETransactionType::Tablet
         ? true
         : options.Sticky;
     req->set_sticky(sticky);
@@ -73,14 +80,32 @@ TFuture<ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     req->set_durability(static_cast<NProto::EDurability>(options.Durability));
 
     return req->Invoke().Apply(BIND(
-        [connection = std::move(connection), channel = std::move(channel), sticky = sticky]
+        [
+            connection = std::move(connection),
+            client = std::move(client),
+            channel = std::move(channel),
+            type = type,
+            atomicity = options.Atomicity,
+            durability = options.Durability,
+            timeout,
+            pingPeriod,
+            sticky
+        ]
         (const TErrorOr<TApiServiceProxy::TRspStartTransactionPtr>& rspOrError) -> ITransactionPtr {
             const auto& rsp = rspOrError.ValueOrThrow();
-            return New<TRpcProxyTransaction>(
+            auto transactionId = FromProto<TTransactionId>(rsp->id());
+            auto startTimestamp = static_cast<TTimestamp>(rsp->start_timestamp());
+            return CreateTransaction(
                 std::move(connection),
+                std::move(client),
                 std::move(channel),
-                FromProto<NTransactionClient::TTransactionId>(rsp->id()),
-                static_cast<TTimestamp>(rsp->start_timestamp()),
+                transactionId,
+                startTimestamp,
+                type,
+                atomicity,
+                durability,
+                timeout,
+                pingPeriod,
                 sticky);
         }));
 }
@@ -89,7 +114,7 @@ TFuture<ITransactionPtr> TRpcProxyClientBase::StartTransaction(
 // CYPRESS
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<bool> TRpcProxyClientBase::NodeExists(
+TFuture<bool> TClientBase::NodeExists(
     const TYPath& path,
     const TNodeExistsOptions& options)
 {
@@ -109,7 +134,7 @@ TFuture<bool> TRpcProxyClientBase::NodeExists(
     }));
 }
 
-TFuture<TYsonString> TRpcProxyClientBase::GetNode(
+TFuture<TYsonString> TClientBase::GetNode(
     const TYPath& path,
     const TGetNodeOptions& options)
 {
@@ -143,7 +168,7 @@ TFuture<TYsonString> TRpcProxyClientBase::GetNode(
     }));
 }
 
-TFuture<TYsonString> TRpcProxyClientBase::ListNode(
+TFuture<TYsonString> TClientBase::ListNode(
     const TYPath& path,
     const TListNodeOptions& options)
 {
@@ -177,7 +202,7 @@ TFuture<TYsonString> TRpcProxyClientBase::ListNode(
     }));
 }
 
-TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CreateNode(
+TFuture<NCypressClient::TNodeId> TClientBase::CreateNode(
     const TYPath& path,
     NObjectClient::EObjectType type,
     const TCreateNodeOptions& options)
@@ -211,7 +236,7 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CreateNode(
     }));
 }
 
-TFuture<void> TRpcProxyClientBase::RemoveNode(
+TFuture<void> TClientBase::RemoveNode(
     const TYPath& path,
     const TRemoveNodeOptions& options)
 {
@@ -232,7 +257,7 @@ TFuture<void> TRpcProxyClientBase::RemoveNode(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TRpcProxyClientBase::SetNode(
+TFuture<void> TClientBase::SetNode(
     const TYPath& path,
     const TYsonString& value,
     const TSetNodeOptions& options)
@@ -253,7 +278,7 @@ TFuture<void> TRpcProxyClientBase::SetNode(
     return req->Invoke().As<void>();
 }
 
-TFuture<TLockNodeResult> TRpcProxyClientBase::LockNode(
+TFuture<TLockNodeResult> TClientBase::LockNode(
     const TYPath& path,
     NCypressClient::ELockMode mode,
     const TLockNodeOptions& options)
@@ -286,7 +311,7 @@ TFuture<TLockNodeResult> TRpcProxyClientBase::LockNode(
     }));
 }
 
-TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CopyNode(
+TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     const TYPath& srcPath,
     const TYPath& dstPath,
     const TCopyNodeOptions& options)
@@ -314,7 +339,7 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CopyNode(
     }));
 }
 
-TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::MoveNode(
+TFuture<NCypressClient::TNodeId> TClientBase::MoveNode(
     const TYPath& srcPath,
     const TYPath& dstPath,
     const TMoveNodeOptions& options)
@@ -341,7 +366,7 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::MoveNode(
     }));
 }
 
-TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::LinkNode(
+TFuture<NCypressClient::TNodeId> TClientBase::LinkNode(
     const TYPath& srcPath,
     const TYPath& dstPath,
     const TLinkNodeOptions& options)
@@ -367,7 +392,7 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::LinkNode(
     }));
 }
 
-TFuture<void> TRpcProxyClientBase::ConcatenateNodes(
+TFuture<void> TClientBase::ConcatenateNodes(
     const std::vector<TYPath>& srcPaths,
     const TYPath& dstPath,
     const TConcatenateNodesOptions& options)
@@ -389,7 +414,7 @@ TFuture<void> TRpcProxyClientBase::ConcatenateNodes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IUnversionedRowsetPtr> TRpcProxyClientBase::LookupRows(
+TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TKey>& keys,
@@ -419,7 +444,7 @@ TFuture<IUnversionedRowsetPtr> TRpcProxyClientBase::LookupRows(
     }));
 }
 
-TFuture<IVersionedRowsetPtr> TRpcProxyClientBase::VersionedLookupRows(
+TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TKey>& keys,
@@ -449,7 +474,7 @@ TFuture<IVersionedRowsetPtr> TRpcProxyClientBase::VersionedLookupRows(
     }));
 }
 
-TFuture<TSelectRowsResult> TRpcProxyClientBase::SelectRows(
+TFuture<TSelectRowsResult> TClientBase::SelectRows(
     const TString& query,
     const TSelectRowsOptions& options)
 {

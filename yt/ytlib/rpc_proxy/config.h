@@ -11,52 +11,47 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcProxyConnectionConfig
+class TConnectionConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Domain;
     std::vector<TString> Addresses;
     TDuration PingPeriod;
-    TDuration UpdatePeriod;
-    int UpdateAttempts;
-    TDuration TimestampProviderRpcTimeout;
+    TDuration ProxyListUpdatePeriod;
+    int MaxProxyListUpdateAttempts;
+    TDuration RpcTimeout;
     TDuration TimestampProviderUpdatePeriod;
+    TDuration DefaultTransactionTimeout;
+    TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
 
-    TRpcProxyConnectionConfig()
+    TConnectionConfig()
     {
+        RegisterParameter("domain", Domain)
+            .Default("yt.yandex-team.ru");
         RegisterParameter("addresses", Addresses)
             .NonEmpty();
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(3));
-        RegisterParameter("update_period", UpdatePeriod)
+        RegisterParameter("proxy_list_update_period", ProxyListUpdatePeriod)
             .Default(TDuration::Seconds(5));
-        RegisterParameter("update_attempts", UpdateAttempts)
+        RegisterParameter("max_proxy_list_update_attempts", MaxProxyListUpdateAttempts)
             .Default(7);
-        RegisterParameter("timestamp_provider_rpc_timeout", TimestampProviderRpcTimeout)
-            .Default(TDuration::Seconds(5));
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(30));
         RegisterParameter("timestamp_provider_update_period", TimestampProviderUpdatePeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("default_ping_period", DefaultPingPeriod)
+            .Default(TDuration::Seconds(5));
         RegisterParameter("bus_client", BusClient)
             .DefaultNew();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyConnectionConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRpcProxyClientConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    TRpcProxyClientConfig()
-    {
-        // This constructor intentionally left blank.
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TRpcProxyClientConfig)
+DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,16 +2,15 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/connection.h>
-
-#include <yt/core/rpc/channel.h>
+#include <yt/ytlib/api/public.h>
 
 namespace NYT {
 namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IChannelPtr CreateRpcProxyChannel(TRpcProxyConnectionPtr connection, const NApi::TClientOptions& options);
+NApi::IProxyConnectionPtr CreateRpcProxyConnection(
+    TConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

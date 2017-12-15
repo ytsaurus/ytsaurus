@@ -1,13 +1,17 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include "private.h"
+
+#include <yt/ytlib/transaction_client/public.h>
 
 namespace NYT {
 namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
+NTransactionClient::ITimestampProviderPtr CreateTimestampProvider(
+    TWeakPtr<TConnection> connection,
+    TDuration rpcTimeout);
 
 ////////////////////////////////////////////////////////////////////////////////
 
