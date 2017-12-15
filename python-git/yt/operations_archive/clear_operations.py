@@ -27,7 +27,10 @@ BY_START_TIME_ARCHIVE_PATH = "{}/ordered_by_start_time".format(OPERATIONS_ARCHIV
 STDERRS_PATH = "{}/stderrs".format(OPERATIONS_ARCHIVE_PATH)
 JOBS_PATH = "{}/jobs".format(OPERATIONS_ARCHIVE_PATH)
 
-Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state"])
+STORAGE_MODE_COMPATIBLE = 0
+STORAGE_MODE_HASH_BUCKETS = 1
+
+Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "storage_mode"])
 
 def iter_chunks(iterable, size):
    chunk = []
@@ -78,6 +81,11 @@ def get_op_path(op_id):
 def get_op_new_path(op_id):
     return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
 
+def format_op_path(op):
+    if op.storage_mode == STORAGE_MODE_COMPATIBLE:
+        return get_op_path(op.id)
+    return get_op_new_path(op.id)
+
 class NullMetrics(object):
     def add(self, *args):
         pass
@@ -91,7 +99,7 @@ class JobsCountGetter(object):
         responses = self.yt.execute_batch(requests=[{
                 "command": "get",
                 "parameters": {
-                    "path": "//sys/operations/{}/jobs/@count".format(op.id)
+                    "path": format_op_path(op) + "/jobs/@count",
                 }
             } for op in operations])
 
@@ -174,7 +182,8 @@ class OperationArchiver(object):
 
         return by_id_row, by_start_time_row
 
-    def get_insert_rows(self, op_id, jobs):
+    def get_insert_rows(self, op, jobs):
+        op_id = op.id
         op_id_hi, op_id_lo = id_to_parts(op_id, self.version)
         rows = []
         for job_id, value in jobs.iteritems():
@@ -194,7 +203,7 @@ class OperationArchiver(object):
             row["finish_time"] = date_string_to_timestamp_mcs(attributes["finish_time"])
 
             if "stderr" in value:
-                self.stderr_queue.put((op_id, job_id))
+                self.stderr_queue.put((op, job_id))
                 stderr = value["stderr"]
                 if self.version >= 4:
                     row["stderr_size"] = yson.YsonUint64(stderr.attributes["uncompressed_data_size"])
@@ -207,25 +216,25 @@ class OperationArchiver(object):
         atomicity = "none" if self.version >= 16 else "full"
         self.yt.insert_rows(path, rows, update=True, atomicity=atomicity)
 
-    def do_archive_jobs(self, op_ids):
+    def do_archive_jobs(self, ops):
         responses = self.yt.execute_batch(requests=[{
                 "command": "get",
                 "parameters": {
-                    "path": "//sys/operations/{}/jobs".format(op_id),
+                    "path": format_op_path(op) + "/jobs",
                     "attributes": self.ATTRIBUTES
                 }
-            } for op_id in op_ids])
+            } for op in ops])
 
-        archived_op_ids = []
+        archived_ops = []
         rows = []
         failed_count = 0
-        for op_id, rsp in zip(op_ids, responses):
+        for op, rsp in zip(ops, responses):
             if "error" in rsp:
                 failed_count += 1
-                logger.info("Failed to get jobs for operations %s", op_id)
+                logger.info("Failed to get jobs for operations %s", op.id)
             else:
-                archived_op_ids.append(op_id)
-                rows.extend(self.get_insert_rows(op_id, rsp["output"]))
+                archived_ops.append(op)
+                rows.extend(self.get_insert_rows(op, rsp["output"]))
 
         logger.info("Inserting %d jobs", len(rows))
 
@@ -238,29 +247,29 @@ class OperationArchiver(object):
             self.metrics.add("failed_to_archive_job_count", failed_count)
 
         self.metrics.add("archived_job_count", len(rows))
-        self.clean_queue.put_many(archived_op_ids)
+        self.clean_queue.put_many([op.id for op in archived_ops])
 
-    def __call__(self, op_ids):
+    def __call__(self, ops):
         responses = self.yt.execute_batch(requests=[{
                 "command": "get",
                 "parameters": {
-                    "path": "//sys/operations/{}/@".format(op_id)
+                    "path": format_op_path(op) + "/@"
                 }
-            } for op_id in op_ids])
+            } for op in ops])
 
         by_id_rows = []
         by_start_time_rows = []
-        archived_op_ids = []
+        archived_ops = []
         failed_count = 0
-        for op_id, rsp in zip(op_ids, responses):
+        for op, rsp in zip(ops, responses):
             if "error" in rsp:
                 failed_count += 1
-                logger.info("Failed to get attributes of operations %s", op_id)
+                logger.info("Failed to get attributes of operations %s", op.id)
             else:
-                by_id_row, by_start_time_row = self.get_archive_rows(op_id, rsp["output"])
+                by_id_row, by_start_time_row = self.get_archive_rows(op.id, rsp["output"])
                 by_id_rows.append(by_id_row)
                 by_start_time_rows.append(by_start_time_row)
-                archived_op_ids.append(op_id)
+                archived_ops.append(op)
 
         try:
             self.yt.insert_rows(BY_ID_ARCHIVE_PATH, by_id_rows, update=True)
@@ -271,12 +280,12 @@ class OperationArchiver(object):
         finally:
             self.metrics.add("failed_to_archive_count", failed_count)
 
-        self.metrics.add("archived_count", len(archived_op_ids))
+        self.metrics.add("archived_count", len(archived_ops))
 
         if self.archive_jobs:
-            self.do_archive_jobs(archived_op_ids)
+            self.do_archive_jobs(archived_ops)
         else:
-            self.clean_queue.put_many(archived_op_ids)
+            self.clean_queue.put_many([op.id for op in archived_ops])
 
 class StderrDownloader(object):
     def __init__(self, client, insert_queue, version, metrics=NullMetrics()):
@@ -286,13 +295,14 @@ class StderrDownloader(object):
         self.yt = client
 
     def __call__(self, element):
-        op_id, job_id = element
+        op, job_id = element
         token = get_token()
         proxy_url = get_proxy_url(self.yt.config["proxy"]["url"])
         stderr = ""
+        path = format_op_path(op)
 
         if proxy_url is not None:
-            path = "http://{}/api/v3/read_file?path=//sys/operations/{}/jobs/{}/stderr".format(proxy_url, op_id, job_id)
+            path = "http://{}/api/v3/read_file?path={}/jobs/{}/stderr".format(proxy_url, path, job_id)
 
             rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
 
@@ -301,9 +311,9 @@ class StderrDownloader(object):
 
             stderr = rsp.content
         else:
-            stderr = self.yt.read_file("//sys/operations/{}/jobs/{}/stderr".format(op_id, job_id)).read()
+            stderr = self.yt.read_file("{}/jobs/{}/stderr".format(path, job_id)).read()
 
-        op_id_hi, op_id_lo = id_to_parts(op_id, self.version)
+        op_id_hi, op_id_lo = id_to_parts(op.id, self.version)
         id_hi, id_lo = id_to_parts(job_id, self.version)
 
         row = {}
@@ -363,7 +373,7 @@ class OperationCleaner(object):
         if errors:
             raise yt.YtError("Failed to remove operations", inner_errors=errors)
 
-class OperationNewCleaner(object):
+class SimpleHashBucketOperationsCleaner(object):
     def __init__(self, client):
         self.yt = client
 
@@ -427,15 +437,27 @@ def push_to_solomon(values_map, cluster, ts):
     except:
         logger.exception("Failed to push metrics to Solomon")
 
+def create_operation_from_node(node, storage_mode):
+    maybe_parse_time = lambda value: parse(value).replace(tzinfo=None) if value is not None else None
+
+    return Operation(maybe_parse_time(node.attributes.get("start_time", None)),
+        maybe_parse_time(node.attributes.get("finish_time", None)),
+        str(node),
+        node.attributes["authenticated_user"],
+        node.attributes["state"],
+        storage_mode)
+
 def request_operations_recursive(yt_client, root_operation_ids, prefixes):
     candidates_to_remove = []
+    operations = []
 
     for prefixes_to_request in iter_chunks(prefixes, 32):
         list_responses = yt_client.execute_batch([
             {
                 "command": "list",
                 "parameters": {
-                    "path": "//sys/operations/{}".format(prefix)
+                    "path": "//sys/operations/{}".format(prefix),
+                    "attributes": ["state", "authenticated_user", "start_time", "finish_time"]
                 }
             }
             for prefix in prefixes_to_request])
@@ -447,10 +469,13 @@ def request_operations_recursive(yt_client, root_operation_ids, prefixes):
                     raise
             else:
                 for op in response["output"]:
-                    # It is important to make additional existance check due to possible races.
-                    if op not in root_operation_ids:
-                        candidates_to_remove.append((prefix, op))
+                    if str(op) not in root_operation_ids:
+                        if "state" in op.attributes:
+                            operations.append(create_operation_from_node(op, STORAGE_MODE_HASH_BUCKETS))
+                        else:
+                            candidates_to_remove.append((prefix, op))
 
+    # It is important to make additional existance check due to possible races.
     exists_responses = []
     for exists_requests in iter_chunks(candidates_to_remove, 200):
         exists_responses += yt_client.execute_batch([
@@ -469,7 +494,7 @@ def request_operations_recursive(yt_client, root_operation_ids, prefixes):
         if not response["output"]:
             to_remove.append("/".join(candidate))
 
-    return NonBlockingQueue(to_remove)
+    return operations, NonBlockingQueue(to_remove)
 
 def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, execution_timeout,
                      max_operations_per_user, robots, archive, archive_jobs, thread_count,
@@ -482,12 +507,6 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
     #
     # Step 1: Fetch data from Cypress.
     #
-
-    def maybe_parse_time(value):
-        if value is None:
-            return None
-        else:
-            return parse(value).replace(tzinfo=None)
 
     metrics = Counter({name: 0 for name in [
         "failed_to_archive_count",
@@ -507,33 +526,49 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         "archiving_operations",
         "archiving_stderrs",
         "removing_operations",
-        "removing_new_operations"]}
+        "removing_simple_hash_bucket_operations"]}
 
     with timers["getting_operations_list"]:
         prefixes = set(["%02x" % prefix for prefix in xrange(256)])
 
-        operations = client.list(
+        operations = []
+        root_operation_set = set()
+
+        operation_list = client.list(
             "//sys/operations",
             max_size=100000,
             attributes=["state", "start_time", "finish_time", "authenticated_user"])
-        operations = [Operation(
-            maybe_parse_time(op.attributes.get("start_time", None)),
-            maybe_parse_time(op.attributes.get("finish_time", None)),
-            str(op),
-            op.attributes["authenticated_user"],
-            op.attributes["state"])
-            for op in operations if str(op) not in prefixes]
+
+        for operation in operation_list:
+            # This is hash-bucket, just skip it.
+            if str(operation) in prefixes:
+                continue
+
+            op = create_operation_from_node(operation, STORAGE_MODE_COMPATIBLE)
+            operations.append(op)
+            root_operation_set.add(op.id)
+
+        bucket_operations, simple_hash_bucket_operations_to_remove_queue = \
+            request_operations_recursive(client, root_operation_set, prefixes)
+
+        operations.extend(bucket_operations)
         operations.sort(key=lambda op: op.start_time, reverse=True)
 
-        remove_new_queue = request_operations_recursive(client, set(op.id for op in operations), prefixes)
-
     failed_to_remove_stale = []
-    remove_count_stale = len(remove_new_queue)
+    remove_count_stale = len(simple_hash_bucket_operations_to_remove_queue)
 
     logger.info("Removing %d stale operation nodes", remove_count_stale)
-    with timers["removing_new_operations"]:
-        run_batching_queue_workers(remove_new_queue, OperationNewCleaner, thread_count, args=(client,), batch_size=8, failed_items=failed_to_remove_stale)
-        failed_to_remove_stale.extend(wait_for_queue(remove_new_queue, "remove_operations_new", end_time_limit))
+    with timers["removing_simple_hash_bucket_operations"]:
+        run_batching_queue_workers(
+            simple_hash_bucket_operations_to_remove_queue,
+            SimpleHashBucketOperationsCleaner,
+            thread_count,
+            args=(client,),
+            batch_size=8,
+            failed_items=failed_to_remove_stale)
+
+        failed_to_remove_stale.extend(
+            wait_for_queue(simple_hash_bucket_operations_to_remove_queue, "simple_hash_buckets_operation_queue", end_time_limit))
 
     metrics["initial_count"] = len(operations)
 
@@ -583,7 +618,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
     for op, job_count in operations_with_job_counts:
         user_counts[op.user] += 1
         if can_archive(op, job_count):
-            operations_to_archive.append(op.id)
+            operations_to_archive.append(op)
         else:
             number_of_retained_operations += 1
 
