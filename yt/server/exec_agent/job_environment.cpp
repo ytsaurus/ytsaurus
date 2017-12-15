@@ -459,6 +459,11 @@ public:
         return CpuLimit_;
     }
 
+    virtual bool ExternalJobMemory() const override
+    {
+        return Config_->ExternalJobContainer.HasValue();
+    }
+
 private:
     const TPortoJobEnvironmentConfigPtr Config_;
 
@@ -493,8 +498,9 @@ private:
 
         ContainerManager_ = CreatePortoManager(
             "yt_job-proxy_",
+            Config_->ExternalJobContainer,
             portoFatalErrorHandler,
-            {ECleanMode::All, Config_->PortoWaitTime, Config_->PortoPollPeriod});
+            { ECleanMode::All, Config_->PortoWaitTime, Config_->PortoPollPeriod });
 
         TProcessJobEnvironmentBase::DoInit(slotCount);
 
@@ -509,6 +515,16 @@ private:
     {
         if (!PortoInstances_[slotIndex]) {
             PortoInstances_[slotIndex] = ContainerManager_->CreateInstance();
+            if (Config_->ExternalJobRootVolume) {
+                TRootFS rootFS;
+                rootFS.RootPath = *Config_->ExternalJobRootVolume;
+
+                for (const auto& pair : Config_->ExternalBinds) {
+                    rootFS.Binds.push_back(TBind{pair.first, pair.second, false});
+                }
+
+                PortoInstances_[slotIndex]->SetRoot(rootFS);
+            }
         }
     }
 

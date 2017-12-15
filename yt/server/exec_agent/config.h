@@ -97,6 +97,8 @@ public:
 
     TNullable<TDuration> ResourceLimitsUpdatePeriod;
     TNullable<TString> ExternalJobContainer;
+    TNullable<TString> ExternalJobRootVolume;
+    yhash<TString, TString> ExternalBinds;
 
     TPortoJobEnvironmentConfig()
     {
@@ -113,6 +115,10 @@ public:
             .Default(Null);
         RegisterParameter("external_job_container", ExternalJobContainer)
             .Default(Null);
+        RegisterParameter("external_job_root_volume", ExternalJobRootVolume)
+            .Default(Null);
+        RegisterParameter("external_binds", ExternalBinds)
+            .Default();
     }
 };
 
