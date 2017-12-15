@@ -1,4 +1,5 @@
 #include "skiff_writer.h"
+#include "config.h"
 
 #include "skiff_schema_match.h"
 
@@ -40,10 +41,10 @@ DEFINE_ENUM(ESkiffWriterColumnType,
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-void ResizeToContainIndex(std::vector<T>& vec, size_t idx)
+void ResizeToContainIndex(std::vector<T>* vec, size_t index)
 {
-    if (vec.size() < idx + 1) {
-        vec.resize(idx + 1);
+    if (vec->size() < index + 1) {
+        vec->resize(index + 1);
     }
 }
 
@@ -51,7 +52,6 @@ void ResizeToContainIndex(std::vector<T>& vec, size_t idx)
 
 struct TSkiffEncodingInfo
 {
-public:
     ESkiffWriterColumnType EncodingPart = ESkiffWriterColumnType::Unknown;
 
     EWireType WireType = EWireType::Nothing;
@@ -59,7 +59,6 @@ public:
     ui32 FieldIndex = 0; // index inside sparse / dense part of the row
     bool Required = false;
 
-public:
     TSkiffEncodingInfo() = default;
 
     static TSkiffEncodingInfo Skip()
@@ -114,32 +113,28 @@ public:
 
 struct TSparseFieldInfo
 {
-public:
+    NSkiff::EWireType WireType;
+    ui32 SparseFieldIndex;
+    ui32 ValueIndex;
+
     TSparseFieldInfo(EWireType wireType, ui32 sparseFieldIndex, ui32 valueIndex)
         : WireType(wireType)
         , SparseFieldIndex(sparseFieldIndex)
         , ValueIndex(valueIndex)
     { }
-
-public:
-    NSkiff::EWireType WireType;
-    ui32 SparseFieldIndex;
-    ui32 ValueIndex;
 };
 
 struct TDenseFieldWriterInfo
 {
-public:
+    NSkiff::EWireType WireType;
+    ui16 ColumnId;
+    bool Required = false;
+
     TDenseFieldWriterInfo(NSkiff::EWireType type, ui16 columnId, bool required)
         : WireType(type)
         , ColumnId(columnId)
         , Required(required)
     { }
-
-public:
-    NSkiff::EWireType WireType;
-    ui16 ColumnId;
-    bool Required = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,24 +192,24 @@ public:
             for (size_t i = 0; i < denseFieldDescriptionList.size(); ++i) {
                 const auto& denseField = denseFieldDescriptionList[i];
                 const auto id = NameTable_->GetIdOrRegisterName(denseField.Name);
-                ResizeToContainIndex(knownFields, id);
+                ResizeToContainIndex(&knownFields, id);
                 YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
                 knownFields[id] = TSkiffEncodingInfo::Dense(
                     denseField.DeoptionalizedSchema,
-                    denseField.IsRequired,
+                    denseField.Required,
                     i);
 
                 denseFieldWriterInfos.emplace_back(
                     denseField.DeoptionalizedSchema->GetWireType(),
                     id,
-                    denseField.IsRequired);
+                    denseField.Required);
             }
 
             const auto& sparseFieldDescriptionList = commonTableDescription.SparseFieldDescriptionList;
             for (size_t i = 0; i < sparseFieldDescriptionList.size(); ++i) {
                 const auto& sparseField = sparseFieldDescriptionList[i];
                 auto id = NameTable_->GetIdOrRegisterName(sparseField.Name);
-                ResizeToContainIndex(knownFields, id);
+                ResizeToContainIndex(&knownFields, id);
                 YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
                 knownFields[id] = TSkiffEncodingInfo::Sparse(
                     sparseField.DeoptionalizedSchema,
@@ -222,7 +217,7 @@ public:
             }
 
             const auto systemColumnMaxId = Max(Max(GetTableIndexColumnId(), GetRangeIndexColumnId()), GetRowIndexColumnId());
-            ResizeToContainIndex(knownFields, systemColumnMaxId);
+            ResizeToContainIndex(&knownFields, systemColumnMaxId);
             knownFields[GetTableIndexColumnId()] = TSkiffEncodingInfo::Skip();
             knownFields[GetRangeIndexColumnId()] = TSkiffEncodingInfo::Skip();
             if (commonTableDescription.RangeIndexFieldIndex) {
@@ -238,6 +233,7 @@ public:
         }
     }
 
+private:
     virtual void DoWrite(const TRange<TUnversionedRow>& rows) override
     {
         const auto rowCount = rows.Size();
@@ -253,7 +249,7 @@ public:
                 }
             }
             if (tableIndex >= TableDescriptionList_.size()) {
-                THROW_ERROR_EXCEPTION("Table %v is not described by skiff schema",
+                THROW_ERROR_EXCEPTION("Table #%v is not described by skiff schema",
                     tableIndex);
             }
 
@@ -306,7 +302,7 @@ public:
                         break;
                     case ESkiffWriterColumnType::Unknown:
                         if (!hasOtherColumns) {
-                            THROW_ERROR_EXCEPTION("Column %Qv is not described by skiff schema and there is no %Qv column",
+                            THROW_ERROR_EXCEPTION("Column %Qv is not described by Skiff schema and there is no %Qv column",
                                 NameTable_->GetName(columnId),
                                 OtherColumnsName);
                         }
@@ -329,7 +325,7 @@ public:
                     }
                     RangeIndex_ = rangeIndex;
                 } else if (rowIndexFieldIndex != MissingSystemColumn) {
-                    THROW_ERROR_EXCEPTION("Range index requested but reader didnot return it");
+                    THROW_ERROR_EXCEPTION("Range index requested but reader did not return it");
                 }
                 if (rowIndexValueId != static_cast<ui32>(-1)) {
                     YCHECK(row[rowIndexValueId].Type == EValueType::Int64);
@@ -342,7 +338,7 @@ public:
                     }
                     RowIndex_ = rowIndex;
                 } else if (rowIndexFieldIndex != MissingSystemColumn) {
-                    THROW_ERROR_EXCEPTION("Range index requested but reader didnot return it");
+                    THROW_ERROR_EXCEPTION("Row index requested but reader did not return it");
                 }
                 TableIndex_ = tableIndex;
             }
@@ -408,7 +404,6 @@ public:
         TryFlushBuffer(true);
     }
 
-private:
     Y_FORCE_INLINE void WriteValue(NSkiff::EWireType wireType, const TUnversionedValue& value)
     {
         switch (wireType) {
@@ -432,22 +427,21 @@ private:
                 ValidateType(EValueType::String, value.Type, value.Id);
                 SkiffWriter_->WriteString32(TStringBuf(value.Data.String, value.Length));
                 break;
-            case EWireType::Yson32:
-                {
-                    YsonBuffer_.clear();
-                    TStringOutput out(YsonBuffer_);
+            case EWireType::Yson32: {
+                YsonBuffer_.clear();
+                TStringOutput out(YsonBuffer_);
 
-                    NYson::TYsonWriter writer(&out);
-                    WriteYsonValue(&writer, value);
-                    SkiffWriter_->WriteYson32(YsonBuffer_);
-                }
+                NYson::TYsonWriter writer(&out);
+                WriteYsonValue(&writer, value);
+                SkiffWriter_->WriteYson32(YsonBuffer_);
                 break;
+            }
             default:
                 Y_UNREACHABLE();
         }
     }
 
-    inline void ValidateType(EValueType expected, EValueType actual, ui16 columnId)
+    Y_FORCE_INLINE void ValidateType(EValueType expected, EValueType actual, ui16 columnId)
     {
         if (expected != actual) {
             THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected: %Qv actual %Qv",

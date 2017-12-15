@@ -10,6 +10,8 @@ namespace NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IValidatorNode)
+
 using TValidatorNodeList = std::vector<IValidatorNodePtr>;
 using TSkiffSchemaList = std::vector<TSkiffSchemaPtr>;
 
@@ -21,25 +23,24 @@ static TValidatorNodeList CreateUsageValidatorNodeList(const TSkiffSchemaList& s
 template <typename T>
 inline void ThrowUnexpectedParseWrite(T wireType)
 {
-    THROW_ERROR_EXCEPTION("Unexpeceted parse/write of %Qv token",
+    THROW_ERROR_EXCEPTION("Unexpeceted parse/write of %Qlv token",
         wireType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IValidatorNode
+struct IValidatorNode
     : public TRefCounted
 {
-public:
-    virtual void OnBegin(TValidatorNodeStack* /*context*/)
+    virtual void OnBegin(TValidatorNodeStack* /*validatorNodeStack*/)
     { }
 
-    virtual void OnChildDone(TValidatorNodeStack* /*context*/)
+    virtual void OnChildDone(TValidatorNodeStack* /*validatorNodeStack*/)
     {
         Y_UNREACHABLE();
     }
 
-    virtual void OnSimpleType(TValidatorNodeStack* /*context*/, EWireType wireType)
+    virtual void OnSimpleType(TValidatorNodeStack* /*validatorNodeStack*/, EWireType wireType)
     {
         ThrowUnexpectedParseWrite(wireType);
     }
@@ -49,7 +50,7 @@ public:
         ThrowUnexpectedParseWrite(EWireType::Variant8);
     }
 
-    virtual void OnVariant8Tag(TValidatorNodeStack* /*context*/, ui8 /*tag*/)
+    virtual void OnVariant8Tag(TValidatorNodeStack* /*validatorNodeStack*/, ui8 /*tag*/)
     {
         IValidatorNode::BeforeVariant8Tag();
     }
@@ -59,7 +60,7 @@ public:
         ThrowUnexpectedParseWrite(EWireType::Variant16);
     }
 
-    virtual void OnVariant16Tag(TValidatorNodeStack* /*context*/, ui16 /*tag*/)
+    virtual void OnVariant16Tag(TValidatorNodeStack* /*validatorNodeStack*/, ui16 /*tag*/)
     {
         IValidatorNode::BeforeVariant16Tag();
     }
@@ -110,8 +111,8 @@ public:
     }
 
 private:
+    const IValidatorNodePtr RootValidator_;
     std::stack<IValidatorNode*> ValidatorStack_;
-    IValidatorNodePtr RootValidator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,12 +121,9 @@ class TNothingTypeValidator
     : public IValidatorNode
 {
 public:
-    TNothingTypeValidator()
-    { }
-
-    void OnBegin(TValidatorNodeStack* context) override
+    virtual void OnBegin(TValidatorNodeStack* validatorNodeStack) override
     {
-        context->PopValidator();
+        validatorNodeStack->PopValidator();
     }
 };
 
@@ -139,12 +137,12 @@ public:
         : Type_(type)
     { }
 
-    virtual void OnSimpleType(TValidatorNodeStack* context, EWireType type) override
+    virtual void OnSimpleType(TValidatorNodeStack* validatorNodeStack, EWireType type) override
     {
         if (type != Type_) {
             ThrowUnexpectedParseWrite(type);
         }
-        context->PopValidator();
+        validatorNodeStack->PopValidator();
     }
 
 private:
@@ -161,26 +159,26 @@ public:
         : Children_(children)
     { }
 
-    void BeforeVariant8Tag() override
+    virtual void BeforeVariant8Tag() override
     { }
 
-    void OnVariant8Tag(TValidatorNodeStack* context, ui8 tag) override
+    virtual void OnVariant8Tag(TValidatorNodeStack* validatorNodeStack, ui8 tag) override
     {
         if (tag >= Children_.size()) {
-            THROW_ERROR_EXCEPTION("Tag %Qv exceeds number of children: %Qv",
+            THROW_ERROR_EXCEPTION("Variant tag %Qv exceeds number of children %Qv",
                 tag,
                 Children_.size());
         }
-        context->PushValidator(Children_[tag].Get());
+        validatorNodeStack->PushValidator(Children_[tag].Get());
     }
 
-    virtual void OnChildDone(TValidatorNodeStack* context) override
+    virtual void OnChildDone(TValidatorNodeStack* validatorNodeStack) override
     {
-        context->PopValidator();
+        validatorNodeStack->PopValidator();
     }
 
 private:
-    TValidatorNodeList Children_;
+    const TValidatorNodeList Children_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,26 +191,26 @@ public:
         : Children_(children)
     { }
 
-    void BeforeVariant16Tag() override
+    virtual void BeforeVariant16Tag() override
     { }
 
-    void OnVariant16Tag(TValidatorNodeStack* context, ui16 tag) override
+    virtual void OnVariant16Tag(TValidatorNodeStack* validatorNodeStack, ui16 tag) override
     {
         if (tag >= Children_.size()) {
-            THROW_ERROR_EXCEPTION("Tag %Qv exceeds number of children: %Qv",
+            THROW_ERROR_EXCEPTION("Variant tag %Qv exceeds number of children %Qv",
                 tag,
                 Children_.size());
         }
-        context->PushValidator(Children_[tag].Get());
+        validatorNodeStack->PushValidator(Children_[tag].Get());
     }
 
-    virtual void OnChildDone(TValidatorNodeStack* context) override
+    virtual void OnChildDone(TValidatorNodeStack* validatorNodeStack) override
     {
-        context->PopValidator();
+        validatorNodeStack->PopValidator();
     }
 
 private:
-    TValidatorNodeList Children_;
+    const TValidatorNodeList Children_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,27 +223,27 @@ public:
         : Children_(children)
     { }
 
-    void BeforeVariant16Tag() override
+    virtual void BeforeVariant16Tag() override
     { }
 
-    void OnVariant16Tag(TValidatorNodeStack* context, ui16 tag) override
+    virtual void OnVariant16Tag(TValidatorNodeStack* validatorNodeStack, ui16 tag) override
     {
         if (tag == EndOfSequenceTag<ui16>()) {
-            context->PopValidator();
+            validatorNodeStack->PopValidator();
         } else if (tag >= Children_.size()) {
-            THROW_ERROR_EXCEPTION("Tag %Qv exceeds number of children: %Qv",
+            THROW_ERROR_EXCEPTION("Variant tag %Qv exceeds number of children %Qv",
                 tag,
                 Children_.size());
         } else {
-            context->PushValidator(Children_[tag].Get());
+            validatorNodeStack->PushValidator(Children_[tag].Get());
         }
     }
 
-    virtual void OnChildDone(TValidatorNodeStack* /*context*/) override
+    virtual void OnChildDone(TValidatorNodeStack* /*validatorNodeStack*/) override
     { }
 
 private:
-    TValidatorNodeList Children_;
+    const TValidatorNodeList Children_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,31 +257,31 @@ public:
         : Children_(children)
     { }
 
-    virtual void OnBegin(TValidatorNodeStack* context) override
+    virtual void OnBegin(TValidatorNodeStack* validatorNodeStack) override
     {
         Position_ = 0;
-        context->PushValidator(Children_[0].Get());
+        validatorNodeStack->PushValidator(Children_[0].Get());
     }
 
-    virtual void OnChildDone(TValidatorNodeStack* context) override
+    virtual void OnChildDone(TValidatorNodeStack* validatorNodeStack) override
     {
         Position_++;
         if (Position_ < Children_.size()) {
-            context->PushValidator(Children_[Position_].Get());
+            validatorNodeStack->PushValidator(Children_[Position_].Get());
         } else {
-            context->PopValidator();
+            validatorNodeStack->PopValidator();
         }
     }
 
 private:
-    TValidatorNodeList Children_;
+    const TValidatorNodeList Children_;
     ui32 Position_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSkiffValidator::TSkiffValidator(TSkiffSchemaPtr skiffSchema)
-    : Context_(std::make_unique<TValidatorNodeStack>(CreateUsageValidatorNode(skiffSchema)))
+    : Context_(std::make_unique<TValidatorNodeStack>(CreateUsageValidatorNode(std::move(skiffSchema))))
 { }
 
 TSkiffValidator::~TSkiffValidator()
@@ -351,13 +349,13 @@ IValidatorNodePtr CreateUsageValidatorNode(TSkiffSchemaPtr skiffSchema)
         case EWireType::Nothing:
             return New<TNothingTypeValidator>();
         case EWireType::Tuple:
-            return New<TTupleTypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->AsTupleSchema()->GetChildren()));
+            return New<TTupleTypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         case EWireType::Variant8:
-            return New<TVariant8TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->AsVariant8Schema()->GetChildren()));
+            return New<TVariant8TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         case EWireType::Variant16:
-            return New<TVariant16TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->AsVariant16Schema()->GetChildren()));
+            return New<TVariant16TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         case EWireType::RepeatedVariant16:
-            return New<TRepeatedVariant16TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->AsRepeatedVariant16Schema()->GetChildren()));
+            return New<TRepeatedVariant16TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         default:
             Y_UNREACHABLE();
     }

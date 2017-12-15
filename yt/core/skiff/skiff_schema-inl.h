@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef SKIFF_SCHEMA_H
-#error "Direct inclusion of this file is not allowed, include skiff_schema-inl.h"
+#error "Direct inclusion of this file is not allowed, include skiff_schema.h"
 #endif
 #undef SKIFF_SCHEMA_H
 

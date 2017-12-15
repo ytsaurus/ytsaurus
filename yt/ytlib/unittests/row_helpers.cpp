@@ -12,15 +12,17 @@ using namespace NTableClient;
 static void EnsureTypesMatch(EValueType expected, EValueType actual)
 {
     if (expected != actual) {
-        THROW_ERROR_EXCEPTION("Expected: %v actual: %v", expected, actual);
+        THROW_ERROR_EXCEPTION("Unexpected type of TUnversionedValue: expected %Qlv, actual %Qlv",
+            expected,
+            actual);
     }
 }
 
-TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& rows)
+TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& values)
 {
     TUnversionedOwningRowBuilder builder;
-    for (const auto& r : rows) {
-        builder.AddValue(r);
+    for (const auto& v : values) {
+        builder.AddValue(v);
     }
     return builder.FinishRow();
 }

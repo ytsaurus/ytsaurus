@@ -25,7 +25,7 @@ class TUncheckedSkiffParser
 {
 public:
     explicit TUncheckedSkiffParser(IInputStream* stream);
-    TUncheckedSkiffParser(TSkiffSchemaPtr schema, IInputStream* stream);
+    TUncheckedSkiffParser(const TSkiffSchemaPtr& schema, IInputStream* stream);
 
     i64 ParseInt64();
     ui64 ParseUint64();
@@ -53,7 +53,7 @@ private:
     T ParseSimple();
 
 private:
-    IInputStream* Slave_;
+    IInputStream* const Underlying_;
 
     TBuffer Buffer_;
     size_t RemainingBytes_ = 0;
@@ -66,7 +66,7 @@ private:
 class TCheckedSkiffParser
 {
 public:
-    TCheckedSkiffParser(TSkiffSchemaPtr schema, IInputStream* stream);
+    TCheckedSkiffParser(const TSkiffSchemaPtr& schema, IInputStream* stream);
     ~TCheckedSkiffParser();
 
     i64 ParseInt64();
@@ -99,7 +99,7 @@ class TUncheckedSkiffWriter
 {
 public:
     explicit TUncheckedSkiffWriter(IOutputStream* slave);
-    TUncheckedSkiffWriter(TSkiffSchemaPtr schema, IOutputStream* slave);
+    TUncheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* slave);
 
     ~TUncheckedSkiffWriter();
 
@@ -127,7 +127,7 @@ private:
     void WriteSimple(T data);
 
 private:
-    IOutputStream* Slave_;
+    IOutputStream* const Underlying_;
     TBuffer Buffer_;
     size_t RemainingBytes_;
     char* Position_;
@@ -138,7 +138,7 @@ private:
 class TCheckedSkiffWriter
 {
 public:
-    TCheckedSkiffWriter(TSkiffSchemaPtr schema, IOutputStream* slave);
+    TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* slave);
 
     ~TCheckedSkiffWriter();
 

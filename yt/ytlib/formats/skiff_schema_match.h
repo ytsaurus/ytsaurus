@@ -21,7 +21,7 @@ struct TDenseFieldDescription
 {
     TString Name;
     NSkiff::TSkiffSchemaPtr DeoptionalizedSchema;
-    bool IsRequired = false;
+    bool Required = false;
 
     TDenseFieldDescription(TString name, const NSkiff::TSkiffSchemaPtr& deoptionalizedSchema, bool isRequired);
 };
@@ -33,7 +33,7 @@ struct TSparseFieldDescription
     TString Name;
     NSkiff::TSkiffSchemaPtr DeoptionalizedSchema;
 
-    TSparseFieldDescription(TString name, NSkiff::TSkiffSchemaPtr deoptionalizedSchema);
+    TSparseFieldDescription(TString name, const NSkiff::TSkiffSchemaPtr& deoptionalizedSchema);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +59,7 @@ struct TSkiffTableDescription
 
 std::vector<TSkiffTableDescription> CreateTableDescriptionList(const std::vector<NSkiff::TSkiffSchemaPtr>& skiffSchema);
 
-std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(TSkiffFormatConfigPtr config);
+std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(const TSkiffFormatConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

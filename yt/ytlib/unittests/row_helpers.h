@@ -14,19 +14,18 @@ class TCollectingValueConsumer
     : public NTableClient::IValueConsumer
 {
 public:
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual bool GetAllowUnknownColumns() const
+    virtual bool GetAllowUnknownColumns() const override
     {
         return true;
     }
 
     virtual void OnBeginRow() override
-    {
-    }
+    { }
 
     virtual void OnValue(const NTableClient::TUnversionedValue& value) override
     {
@@ -46,8 +45,7 @@ public:
     TNullable<NTableClient::TUnversionedValue> FindRowValue(size_t rowIndex, TStringBuf columnName) const
     {
         NTableClient::TUnversionedRow row = RowList_.at(rowIndex);
-        auto nameTable = GetNameTable();
-        auto id = nameTable->GetIdOrThrow(columnName);
+        auto id = GetNameTable()->GetIdOrThrow(columnName);
 
         for (const auto& value : row) {
             if (value.Id == id) {
@@ -61,7 +59,7 @@ public:
     {
         auto row = FindRowValue(rowIndex, columnName);
         if (!row) {
-            THROW_ERROR_EXCEPTION("Can not find column %Qv", columnName);
+            THROW_ERROR_EXCEPTION("Cannot find column %Qv", columnName);
         }
         return *row;
     }
@@ -72,14 +70,14 @@ public:
     }
 
 private:
-    NTableClient::TNameTablePtr NameTable_ = New<NTableClient::TNameTable>();
+    const NTableClient::TNameTablePtr NameTable_ = New<NTableClient::TNameTable>();
     NTableClient::TUnversionedOwningRowBuilder Builder_;
     std::vector<NTableClient::TUnversionedOwningRow> RowList_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::TUnversionedOwningRow MakeRow(const std::vector<NTableClient::TUnversionedValue>& rows);
+NTableClient::TUnversionedOwningRow MakeRow(const std::vector<NTableClient::TUnversionedValue>& values);
 
 i64 GetInt64(const NTableClient::TUnversionedValue& row);
 ui64 GetUint64(const NTableClient::TUnversionedValue& row);

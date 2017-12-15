@@ -6,7 +6,10 @@
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/core/concurrency/public.h>
+
 #include <yt/core/skiff/public.h>
+
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NFormats {
@@ -14,7 +17,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
-    const NYTree::IAttributeDictionary&  attributes,
+    const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,

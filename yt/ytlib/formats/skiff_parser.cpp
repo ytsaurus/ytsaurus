@@ -28,10 +28,10 @@ class TOtherColumnsConsumer
     , private IValueConsumer
 {
 public:
-    TOtherColumnsConsumer(IValueConsumer* consumer)
+    explicit TOtherColumnsConsumer(IValueConsumer* consumer)
         : Consumer_(consumer)
-        , NameTable_(consumer->GetNameTable())
         , AllowUnknownColumns_(consumer->GetAllowUnknownColumns())
+        , NameTable_(consumer->GetNameTable())
     {
         ColumnConsumer_.SetValueConsumer(this);
     }
@@ -46,7 +46,7 @@ public:
         if (InsideValue_) {
             ColumnConsumer_.OnStringScalar(value);
         } else {
-            THROW_ERROR_EXCEPTION("$other_columns must be a map");
+            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
         }
     }
 
@@ -55,7 +55,7 @@ public:
         if (InsideValue_) {
             ColumnConsumer_.OnInt64Scalar(value);
         } else {
-            THROW_ERROR_EXCEPTION("$other_columns must be a map");
+            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
         }
     }
 
@@ -64,7 +64,7 @@ public:
         if (InsideValue_) {
             ColumnConsumer_.OnUint64Scalar(value);
         } else {
-            THROW_ERROR_EXCEPTION("$other_columns must be a map");
+            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
         }
     }
 
@@ -73,7 +73,7 @@ public:
         if (InsideValue_) {
             ColumnConsumer_.OnDoubleScalar(value);
         } else {
-            THROW_ERROR_EXCEPTION("$other_columns must be a map");
+            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
         }
     }
 
@@ -82,7 +82,7 @@ public:
         if (InsideValue_) {
             ColumnConsumer_.OnBooleanScalar(value);
         } else {
-            THROW_ERROR_EXCEPTION("$other_columns must be a map");
+            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
         }
     }
 
@@ -91,7 +91,7 @@ public:
         if (InsideValue_) {
             ColumnConsumer_.OnEntity();
         } else {
-            THROW_ERROR_EXCEPTION("$other_columns must be a map");
+            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
         }
     }
 
@@ -100,7 +100,7 @@ public:
         if (InsideValue_) {
             ColumnConsumer_.OnBeginList();
         } else {
-            THROW_ERROR_EXCEPTION("$other_columns must be a map");
+            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
         }
     }
 
@@ -146,7 +146,7 @@ public:
         if (InsideValue_) {
             ColumnConsumer_.OnBeginAttributes();
         } else {
-            THROW_ERROR_EXCEPTION("$other_columns cannot have attributes");
+            THROW_ERROR_EXCEPTION("\"$other_columns\" cannot have attributes");
         }
     }
 
@@ -169,45 +169,48 @@ public:
     }
 
 private:
-    const TNameTablePtr& GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         Y_UNREACHABLE();
     }
 
-    bool GetAllowUnknownColumns() const override
+    virtual bool GetAllowUnknownColumns() const override
     {
         Y_UNREACHABLE();
     }
 
-    void OnBeginRow() override
+    virtual void OnBeginRow() override
     {
         Y_UNREACHABLE();
     }
 
-    void OnValue(const TUnversionedValue& value)
+    virtual void OnValue(const TUnversionedValue& value) override
     {
         InsideValue_ = false;
         Consumer_->OnValue(value);
     }
 
-    void OnEndRow() override
+    virtual void OnEndRow() override
     {
         Y_UNREACHABLE();
     }
 
 private:
-    IValueConsumer* Consumer_ = nullptr;
+    IValueConsumer* const Consumer_ = nullptr;
+    const bool AllowUnknownColumns_;
     TNameTablePtr NameTable_;
     TYsonToUnversionedValueConverter ColumnConsumer_;
     bool InsideValue_ = false;
-    const bool AllowUnknownColumns_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TParserFieldInfo
 {
-public:
+    ui16 ColumnId;
+    EWireType WireType;
+    bool Required;
+
     TParserFieldInfo(
         ui16 columnId,
         EWireType wireType,
@@ -216,11 +219,6 @@ public:
         , WireType(wireType)
         , Required(required)
     { }
-
-public:
-    ui16 ColumnId;
-    EWireType WireType;
-    bool Required;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -237,10 +235,14 @@ struct TParserTableDescription
 class TSkiffPullParser
 {
 public:
-    TSkiffPullParser(IInputStream* input, TParserTableDescription rowDescription, const TSkiffSchemaPtr& skiffSchema, IValueConsumer* consumer)
-        : Parser_(skiffSchema, input)
-        , RowDescription_(rowDescription)
-        , Consumer_(consumer)
+    TSkiffPullParser(
+        IInputStream* input,
+        TParserTableDescription rowDescription,
+        const TSkiffSchemaPtr& skiffSchema,
+        IValueConsumer* consumer)
+        : Consumer_(consumer)
+        , Parser_(skiffSchema, input)
+        , RowDescription_(std::move(rowDescription))
         , OtherColumnsConsumer_(consumer)
     {
         YsonToUnversionedValueConverter_.SetValueConsumer(consumer);
@@ -255,7 +257,8 @@ public:
                 return;
             } else if (tag > 1) {
                 THROW_ERROR_EXCEPTION("Found bad variant8 tag %Qv when parsing optional field %Qv",
-                    tag, Consumer_->GetNameTable()->GetName(fieldInfo.ColumnId));
+                    tag,
+                    Consumer_->GetNameTable()->GetName(fieldInfo.ColumnId));
             }
         }
         switch (fieldInfo.WireType) {
@@ -295,7 +298,7 @@ public:
             auto tag = Parser_.ParseVariant16Tag();
             if (tag > 0) {
                 THROW_ERROR_EXCEPTION(
-                    "Unkwnown table index varint16 tag: %v",
+                    "Unkwnown table index varint16 tag %v",
                     tag);
             }
             Consumer_->OnBeginRow();
@@ -311,7 +314,8 @@ public:
                 {
                     if (sparseFieldIdx > RowDescription_.SparseFields.size()) {
                         THROW_ERROR_EXCEPTION("Bad sparse field index %Qv, total sparse field count %Qv",
-                            sparseFieldIdx, RowDescription_.SparseFields.size());
+                            sparseFieldIdx,
+                            RowDescription_.SparseFields.size());
                     }
                     ParseField(RowDescription_.SparseFields[sparseFieldIdx]);
                 }
@@ -330,9 +334,9 @@ public:
     }
 
 private:
+    IValueConsumer* const Consumer_;
     TCheckedInDebugSkiffParser Parser_;
     TParserTableDescription RowDescription_;
-    IValueConsumer* Consumer_;
 
     // String that we parse string32 into.
     TString String_;
@@ -370,8 +374,8 @@ public:
                 return 0;
             }
         }
-        *ptr = ~PendingData_;
-        len = Min(len, +PendingData_);
+        *ptr = PendingData_.Data();
+        len = Min(len, PendingData_.Size());
         PendingData_.Skip(len);
         return len;
     }
@@ -381,13 +385,13 @@ public:
         if (!Finished_) {
             const void* ptr;
             if (!PendingData_.Empty() || DoNext(&ptr, 1)) {
-                THROW_ERROR_EXCEPTION("Data stream is not exhausted");
+                THROW_ERROR_EXCEPTION("Stray data in stream");
             }
         }
     }
 
 private:
-    TSkiffParserCoroutine* Coroutine_;
+    TSkiffParserCoroutine* const Coroutine_;
     TStringBuf PendingData_;
     bool Finished_ = false;
 };
@@ -400,7 +404,11 @@ class TSkiffPushParser
 public:
     TSkiffPushParser(TParserTableDescription rowDescription, TSkiffSchemaPtr skiffSchema, IValueConsumer* consumer)
         : Coroutine_(
-            BIND([skiffSchema=skiffSchema, rowDescription=std::move(rowDescription), consumer=consumer] (TSkiffParserCoroutine& self, TStringBuf data) {
+            BIND([
+                skiffSchema = skiffSchema,
+                rowDescription = std::move(rowDescription),
+                consumer = consumer
+            ] (TSkiffParserCoroutine& self, TStringBuf data) {
                 ParseProc(rowDescription, skiffSchema, consumer, self, data);
             }))
     { }
@@ -461,7 +469,7 @@ static TParserTableDescription CreateParserRowDescription(const TSkiffTableDescr
         result.DenseFields.emplace_back(
             nameTable->GetIdOrRegisterName(field.Name),
             field.DeoptionalizedSchema->GetWireType(),
-            field.IsRequired);
+            field.Required);
     }
 
     for (const auto& field : commonDescription.SparseFieldDescriptionList) {
@@ -496,7 +504,7 @@ std::unique_ptr<IParser> CreateParserForSkiff(
 {
     auto tableDescriptionList = CreateTableDescriptionList({skiffSchema});
     if (tableDescriptionList.size() != 1) {
-        THROW_ERROR_EXCEPTION("Expected to have signle table, actual table description count: %v",
+        THROW_ERROR_EXCEPTION("Expected to have signle table, actual table description count %Qv",
             tableDescriptionList.size());
     }
 
@@ -504,8 +512,7 @@ std::unique_ptr<IParser> CreateParserForSkiff(
     return std::make_unique<TSkiffPushParser>(
         parserTableDescription,
         CreateVariant16Schema({skiffSchema}),
-        consumer
-    );
+        consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,7 +27,7 @@ static const TSkiffSchemaPtr OptionalInt64 = CreateVariant8Schema({
 
 static bool IsOptionalInt64(TSkiffSchemaPtr skiffSchema);
 static bool IsSkiffSpecialColumn(TStringBuf columnName);
-static TSkiffTableDescription CreateTableDescription(NSkiff::TSkiffSchemaPtr skiffSchema);
+static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaPtr& skiffSchema);
 static void MatchSkiffColumnSchema(const TColumnSchema& tableSchema, NSkiff::TSkiffSchemaPtr skiffSchema);
 static void MatchSkiffDenseColumnSchema(const TColumnSchema& tableSchema, NSkiff::TSkiffSchemaPtr skiffSchema);
 
@@ -35,7 +35,7 @@ static void MatchSkiffDenseColumnSchema(const TColumnSchema& tableSchema, NSkiff
 
 static bool ThrowInvalidSkiffTypeError(const TString& columnName, TSkiffSchemaPtr expectedType, TSkiffSchemaPtr actualType)
 {
-    THROW_ERROR_EXCEPTION("%Qv column must have %Qv skiff type, actual type %Qv",
+    THROW_ERROR_EXCEPTION("Column %Qv has unexpected Skiff type: expected %Qv, found type %Qv",
         columnName,
         GetShortDebugString(expectedType),
         GetShortDebugString(actualType));
@@ -109,7 +109,7 @@ static void ValidateColumnSchema(const TString& columnName, TSkiffSchemaPtr skif
     }
 }
 
-static TSkiffTableDescription CreateTableDescription(NSkiff::TSkiffSchemaPtr skiffSchema)
+static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaPtr& skiffSchema)
 {
     TSkiffTableDescription result;
     yhash_set<TString> topLevelNames;;
@@ -117,7 +117,7 @@ static TSkiffTableDescription CreateTableDescription(NSkiff::TSkiffSchemaPtr ski
     TSkiffSchemaPtr sparseColumnsField;
 
     if (skiffSchema->GetWireType() != EWireType::Tuple) {
-        THROW_ERROR_EXCEPTION("Table row must be described by %Qv type; found type: %Qv",
+        THROW_ERROR_EXCEPTION("Invalid wire type for table row: expected %Qv, found %Qv",
             EWireType::Tuple,
             skiffSchema->GetWireType());
     }
@@ -132,9 +132,10 @@ static TSkiffTableDescription CreateTableDescription(NSkiff::TSkiffSchemaPtr ski
         children.pop_back();
 
         if (otherColumnsField->GetWireType() != EWireType::Yson32) {
-            THROW_ERROR_EXCEPTION("Skiff type of %Qv field must be %Qv",
+            THROW_ERROR_EXCEPTION("Invalid wire type for column %Qv: expected %Qlv, found %Qlv",
                 OtherColumnsName,
-                EWireType::Yson32);
+                EWireType::Yson32,
+                otherColumnsField->GetWireType());
         }
     }
 
@@ -142,9 +143,10 @@ static TSkiffTableDescription CreateTableDescription(NSkiff::TSkiffSchemaPtr ski
         sparseColumnsField = children.back();
         children.pop_back();
         if (sparseColumnsField->GetWireType() != EWireType::RepeatedVariant16) {
-            THROW_ERROR_EXCEPTION("Skiff type of %Qv must be %Qv",
+            THROW_ERROR_EXCEPTION("Invalid wire type for column %Qv: expected %Qlv, found %Qlv",
                 SparseColumnsName,
-                EWireType::RepeatedVariant16);
+                EWireType::RepeatedVariant16,
+                sparseColumnsField->GetWireType());
         }
     }
 
@@ -153,10 +155,10 @@ static TSkiffTableDescription CreateTableDescription(NSkiff::TSkiffSchemaPtr ski
         const auto& child = children[i];
         const auto& childName = child->GetName();
         if (childName.empty()) {
-            THROW_ERROR_EXCEPTION("Element #%v of row skiff schema must have a name",
+            THROW_ERROR_EXCEPTION("Element #%v of row Skiff schema must have a name",
                 i);
         } else if (childName == OtherColumnsName || childName == SparseColumnsName) {
-            THROW_ERROR_EXCEPTION("Column %Qv is out of place",
+            THROW_ERROR_EXCEPTION("Invalid placement of special column %Qv",
                 childName);
         }
         auto res = topLevelNames.emplace(childName);
@@ -205,7 +207,7 @@ static TSkiffTableDescription CreateTableDescription(NSkiff::TSkiffSchemaPtr ski
                     SparseColumnsName);
             }
             if (IsSkiffSpecialColumn(name)) {
-                THROW_ERROR_EXCEPTION("Skiff special column %Qv cannot be child of %Qv",
+                THROW_ERROR_EXCEPTION("Skiff special column %Qv cannot be a child of %Qv",
                     name,
                     SparseColumnsName);
             }
@@ -234,7 +236,7 @@ std::vector<TSkiffTableDescription> CreateTableDescriptionList(const std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr char REFERENCE_PREFIX = '$';
+static constexpr char ReferencePrefix = '$';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,17 +265,19 @@ DEFINE_REFCOUNTED_TYPE(TSkiffSchemaRepresentation);
 ////////////////////////////////////////////////////////////////////////////////
 
 NSkiff::TSkiffSchemaPtr ParseSchema(
-    const INodePtr& schemaNode, const IMapNodePtr& registry,
-    yhash<TString, TSkiffSchemaPtr>* parsedRegistry, yhash_set<TString>* parseInProgressNames)
+    const INodePtr& schemaNode,
+    const IMapNodePtr& registry,
+    yhash<TString, TSkiffSchemaPtr>* parsedRegistry,
+    yhash_set<TString>* parseInProgressNames)
 {
     auto schemaNodeType = schemaNode->GetType();
     if (schemaNodeType == ENodeType::String) {
         auto name = schemaNode->AsString()->GetValue();
-        if (!name.StartsWith(REFERENCE_PREFIX)) {
+        if (!name.StartsWith(ReferencePrefix)) {
             THROW_ERROR_EXCEPTION(
-                "Invalid reference: %Qv; reference must start with %Qv",
+                "Invalid reference %Qv: reference must start with %Qv",
                 name,
-                REFERENCE_PREFIX);
+                ReferencePrefix);
         }
         name = name.substr(1);
         auto it = parsedRegistry->find(name);
@@ -281,7 +285,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
             return it->second;
         } else if (parseInProgressNames->has(name)) {
             THROW_ERROR_EXCEPTION(
-                "Type %Qv is recursive; recursive types are forbiden",
+                "Type %Qv is recursive, recursive types are forbiden",
                 name);
         } else {
             auto schemaFromRegistry = registry->FindChild(name);
@@ -304,7 +308,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
         } else {
             if (!schemaRepresentation->Children) {
                 THROW_ERROR_EXCEPTION(
-                    "Chilren must be defined for complex type: %Qv",
+                    "Complex type %Qv lacks children",
                     schemaRepresentation->WireType);
             }
             std::vector<TSkiffSchemaPtr> childSchemaList;
@@ -334,7 +338,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
     }
 }
 
-std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(TSkiffFormatConfigPtr config)
+std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(const TSkiffFormatConfigPtr& config)
 {
     yhash<TString, TSkiffSchemaPtr> parsedRegistry;
     auto skiffSchemaRegistry = config->SkiffSchemaRegistry;
@@ -351,15 +355,15 @@ std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(TSkiffFormatConfigPtr con
 ////////////////////////////////////////////////////////////////////////////////
 
 TDenseFieldDescription::TDenseFieldDescription(TString name, const NSkiff::TSkiffSchemaPtr& deoptionalizedSchema, bool isRequired)
-    : Name(name)
+    : Name(std::move(name))
     , DeoptionalizedSchema(deoptionalizedSchema)
-    , IsRequired(isRequired)
+    , Required(isRequired)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSparseFieldDescription::TSparseFieldDescription(TString name, NSkiff::TSkiffSchemaPtr deoptionalizedSchema)
-    : Name(name)
+TSparseFieldDescription::TSparseFieldDescription(TString name, const NSkiff::TSkiffSchemaPtr& deoptionalizedSchema)
+    : Name(std::move(name))
     , DeoptionalizedSchema(deoptionalizedSchema)
 { }
 
