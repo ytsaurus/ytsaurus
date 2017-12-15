@@ -1619,7 +1619,7 @@ private:
         auto rowsetSize = rowset->GetRows().Size();
 
         if (rowsetSize != request->row_modification_types_size()) {
-            THROW_ERROR_EXCEPTION("Row count mismatch: %v != !v",
+            THROW_ERROR_EXCEPTION("Row count mismatch: %v != %v",
                 rowsetSize,
                 request->row_modification_types_size());
         }
