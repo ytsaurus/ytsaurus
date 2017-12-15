@@ -44,25 +44,25 @@ static void VerifyNonemptyChildren(const TSkiffSchemaList& children, EWireType w
 TTupleSchemaPtr CreateTupleSchema(TSkiffSchemaList children)
 {
     VerifyNonemptyChildren(children, EWireType::Tuple);
-    return New<TTupleSchema>(children);
+    return New<TTupleSchema>(std::move(children));
 }
 
 TVariant8SchemaPtr CreateVariant8Schema(TSkiffSchemaList children)
 {
     VerifyNonemptyChildren(children, EWireType::Variant8);
-    return New<TVariant8Schema>(children);
+    return New<TVariant8Schema>(std::move(children));
 }
 
 TVariant16SchemaPtr CreateVariant16Schema(TSkiffSchemaList children)
 {
     VerifyNonemptyChildren(children, EWireType::Variant16);
-    return New<TVariant16Schema>(children);
+    return New<TVariant16Schema>(std::move(children));
 }
 
 TRepeatedVariant16SchemaPtr CreateRepeatedVariant16Schema(TSkiffSchemaList children)
 {
     VerifyNonemptyChildren(children, EWireType::RepeatedVariant16);
-    return New<TRepeatedVariant16Schema>(children);
+    return New<TRepeatedVariant16Schema>(std::move(children));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,33 +82,9 @@ TSkiffSchemaPtr TSkiffSchema::SetName(TString name)
     return this;
 }
 
-const TString TSkiffSchema::GetName()
+const TString& TSkiffSchema::GetName() const
 {
     return Name_;
-}
-
-TTupleSchemaPtr TSkiffSchema::AsTupleSchema()
-{
-    YCHECK(GetWireType() == EWireType::Tuple);
-    return reinterpret_cast<TTupleSchema*>(this);
-}
-
-TVariant8SchemaPtr TSkiffSchema::AsVariant8Schema()
-{
-    YCHECK(GetWireType() == EWireType::Variant8);
-    return reinterpret_cast<TVariant8Schema*>(this);
-}
-
-TVariant16SchemaPtr TSkiffSchema::AsVariant16Schema()
-{
-    YCHECK(GetWireType() == EWireType::Variant16);
-    return reinterpret_cast<TVariant16Schema*>(this);
-}
-
-TRepeatedVariant16SchemaPtr TSkiffSchema::AsRepeatedVariant16Schema()
-{
-    YCHECK(GetWireType() == EWireType::RepeatedVariant16);
-    return reinterpret_cast<TRepeatedVariant16Schema*>(this);
 }
 
 TSkiffSchemaList TSkiffSchema::GetChildren() const

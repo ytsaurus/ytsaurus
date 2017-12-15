@@ -31,16 +31,12 @@ using TRepeatedVariant16SchemaPtr = TIntrusivePtr<TRepeatedVariant16Schema>;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffSchema
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     EWireType GetWireType() const;
     TSkiffSchemaPtr SetName(TString name);
-    const TString GetName();
-    TTupleSchemaPtr AsTupleSchema();
-    TVariant8SchemaPtr AsVariant8Schema();
-    TVariant16SchemaPtr AsVariant16Schema();
-    TRepeatedVariant16SchemaPtr AsRepeatedVariant16Schema();
+    const TString& GetName() const;
 
     virtual TSkiffSchemaList GetChildren() const;
 
@@ -77,12 +73,12 @@ public:
     virtual TSkiffSchemaList GetChildren() const override;
 
 private:
-    TSkiffSchemaList Elements_;
+    const TSkiffSchemaList Elements_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool IsSimpleType(EWireType type);
+bool IsSimpleType(EWireType type);
 TString GetShortDebugString(const TSkiffSchemaPtr& schema);
 void PrintShortDebugString(const TSkiffSchemaPtr& schema, IOutputStream* out);
 

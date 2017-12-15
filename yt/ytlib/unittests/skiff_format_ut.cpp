@@ -30,7 +30,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString ConvertToSkiffSchemaShortDebugString(INodePtr node)
+TString ConvertToSkiffSchemaShortDebugString(INodePtr node)
 {
     auto skiffFormatConfig = ConvertTo<TSkiffFormatConfigPtr>(node);
     auto skiffSchemas = ParseSkiffSchemas(skiffFormatConfig);
@@ -46,7 +46,7 @@ static TString ConvertToSkiffSchemaShortDebugString(INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString ConvertToYsonTextStringStable(INodePtr node)
+TString ConvertToYsonTextStringStable(INodePtr node)
 {
     TStringStream out;
     TYsonWriter writer(&out, EYsonFormat::Text);
@@ -229,7 +229,7 @@ TEST(TSkiffSchemaDescription, TestKeySwitchColumn)
             auto tableDescriptionList = CreateTableDescriptionList({schema});
             ADD_FAILURE();
         } catch (const std::exception& e) {
-            EXPECT_THAT(e.what(), testing::HasSubstr("\"$key_switch\" column must have \"Boolean\" skiff type"));
+            EXPECT_THAT(e.what(), testing::HasSubstr("Column \"$key_switch\" has unexpected Skiff type"));
         }
     }
 }
@@ -260,7 +260,7 @@ TEST(TSkiffSchemaDescription, TestWrongRowType)
         CreateTableDescriptionList({schema});
         ADD_FAILURE();
     } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("Table row must be described by \"Tuple\" type;"));
+        EXPECT_THAT(e.what(), testing::HasSubstr("Invalid wire type for table row"));
     }
 }
 
@@ -289,7 +289,7 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsWrongType)
         CreateTableDescriptionList({schema});
         ADD_FAILURE();
     } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("type of \"$other_columns\" field must be \"Yson32\""));
+        EXPECT_THAT(e.what(), testing::HasSubstr("Invalid wire type for column \"$other_columns\""));
     }
 }
 
@@ -305,13 +305,13 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsWrongPlace)
         CreateTableDescriptionList({schema});
         ADD_FAILURE();
     } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("\"$other_columns\" is out of place"));
+        EXPECT_THAT(e.what(), testing::HasSubstr("Invalid placement of special column \"$other_columns\""));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static ISchemalessFormatWriterPtr CreateSkiffWriter(
+ISchemalessFormatWriterPtr CreateSkiffWriter(
     NSkiff::TSkiffSchemaPtr skiffSchema,
     TNameTablePtr nameTable,
     IOutputStream* outputStream,
@@ -332,7 +332,7 @@ static ISchemalessFormatWriterPtr CreateSkiffWriter(
 
 TEST(TSkiffWriter, TestAllWireTypes)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("int64"),
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("uint64"),
         CreateSimpleTypeSchema(EWireType::Double)->SetName("double"),
@@ -360,7 +360,7 @@ TEST(TSkiffWriter, TestAllWireTypes)
             CreateSimpleTypeSchema(EWireType::String32),
         })->SetName("opt_string32"),
     });
-    TNameTablePtr nameTable = New<TNameTable>();
+    auto nameTable = New<TNameTable>();
     TString result;
     {
         TStringOutput resultStream(result);
@@ -451,7 +451,7 @@ TEST(TSkiffWriter, TestAllWireTypes)
 
 TEST(TSkiffWriter, TestYsonWireType)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson32"),
 
         CreateVariant8Schema({
@@ -459,7 +459,7 @@ TEST(TSkiffWriter, TestYsonWireType)
             CreateSimpleTypeSchema(EWireType::Yson32),
         })->SetName("opt_yson32"),
     });
-    TNameTablePtr nameTable = New<TNameTable>();
+    auto nameTable = New<TNameTable>();
     TString result;
     {
         TStringOutput resultStream(result);
@@ -617,7 +617,7 @@ TEST(TSkiffWriter, TestYsonWireType)
 
 TEST(TSkiffWriter, TestRearrange)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("number"),
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
@@ -628,7 +628,7 @@ TEST(TSkiffWriter, TestRearrange)
             CreateSimpleTypeSchema(EWireType::String32),
         })->SetName("rus"),
     });
-    TNameTablePtr nameTable = New<TNameTable>();
+    auto nameTable = New<TNameTable>();
     TString result;
     {
         TStringOutput resultStream(result);
@@ -698,11 +698,11 @@ TEST(TSkiffWriter, TestRearrange)
 
 TEST(TSkiffWriter, TestMissingRequiredField)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("number"),
         CreateSimpleTypeSchema(EWireType::String32)->SetName("eng"),
     });
-    TNameTablePtr nameTable = New<TNameTable>();
+    auto nameTable = New<TNameTable>();
     TString result;
     try {
         TStringOutput resultStream(result);
@@ -725,7 +725,7 @@ TEST(TSkiffWriter, TestMissingRequiredField)
 
 TEST(TSkiffWriter, TestSparse)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateRepeatedVariant16Schema({
             CreateSimpleTypeSchema(EWireType::Int64)->SetName("int64"),
             CreateSimpleTypeSchema(EWireType::Uint64)->SetName("uint64"),
@@ -733,7 +733,7 @@ TEST(TSkiffWriter, TestSparse)
         })->SetName("$sparse_columns"),
     });
 
-    TNameTablePtr nameTable = New<TNameTable>();
+    auto nameTable = New<TNameTable>();
     TString result;
     TStringOutput resultStream(result);
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream);
@@ -796,13 +796,13 @@ TEST(TSkiffWriter, TestSparse)
 
 TEST(TSkiffWriter, TestMissingFields)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
     });
 
     try {
         TStringStream resultStream;
-        TNameTablePtr nameTable = New<TNameTable>();
+        auto nameTable = New<TNameTable>();
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream);
 
         writer->Write({
@@ -816,12 +816,12 @@ TEST(TSkiffWriter, TestMissingFields)
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("Column \"unknown_column\" is not described by skiff schema"));
+        EXPECT_THAT(e.what(), testing::HasSubstr("Column \"unknown_column\" is not described by Skiff schema"));
     }
 
     try {
         TStringStream resultStream;
-        TNameTablePtr nameTable = New<TNameTable>();
+        auto nameTable = New<TNameTable>();
         auto unknownColumnId = nameTable->RegisterName("unknown_column");
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream);
 
@@ -838,13 +838,13 @@ TEST(TSkiffWriter, TestMissingFields)
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("Column \"unknown_column\" is not described by skiff schema"));
+        EXPECT_THAT(e.what(), testing::HasSubstr("Column \"unknown_column\" is not described by Skiff schema"));
     }
 }
 
 TEST(TSkiffWriter, TestOtherColumns)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
             CreateSimpleTypeSchema(EWireType::Int64)
@@ -853,7 +853,7 @@ TEST(TSkiffWriter, TestOtherColumns)
     });
 
     TStringStream resultStream;
-    TNameTablePtr nameTable = New<TNameTable>();
+    auto nameTable = New<TNameTable>();
     nameTable->RegisterName("string_column");
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream);
 
@@ -915,13 +915,13 @@ TEST(TSkiffWriter, TestOtherColumns)
 
 TEST(TSkiffWriter, TestKeySwitch)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
         CreateSimpleTypeSchema(EWireType::Boolean)->SetName("$key_switch"),
     });
 
     TStringStream resultStream;
-    TNameTablePtr nameTable = New<TNameTable>();
+    auto nameTable = New<TNameTable>();
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, 1);
 
     writer->Write({
@@ -976,7 +976,7 @@ TEST(TSkiffWriter, TestKeySwitch)
 
 TEST(TSkiffWriter, TestRowRangeIndex)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
@@ -990,7 +990,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
 
     {
         TStringStream resultStream;
-        TNameTablePtr nameTable = New<TNameTable>();
+        auto nameTable = New<TNameTable>();
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, 1);
 
         // Row 0.
@@ -1058,7 +1058,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
 
 TEST(TSkiffParser, Simple)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("int64"),
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("uint64"),
         CreateSimpleTypeSchema(EWireType::Double)->SetName("double"),
@@ -1128,7 +1128,7 @@ TEST(TSkiffParser, Simple)
 
 TEST(TSkiffParser, TestSparse)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateRepeatedVariant16Schema({
             CreateSimpleTypeSchema(EWireType::Int64)->SetName("int64"),
             CreateSimpleTypeSchema(EWireType::Uint64)->SetName("uint64"),
@@ -1176,7 +1176,7 @@ TEST(TSkiffParser, TestSparse)
 
 TEST(TSkiffParser, TestYsonWireType)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson"),
     });
 
@@ -1226,7 +1226,7 @@ TEST(TSkiffParser, TestYsonWireType)
 
 TEST(TSkiffParser, TestBadYsonWireType)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson"),
     });
 
@@ -1289,7 +1289,7 @@ TEST(TSkiffParser, TestSpecialColumns)
 
 TEST(TSkiffParser, TestOtherColumns)
 {
-    TSkiffSchemaPtr skiffSchema = CreateTupleSchema({
+    auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("name"),
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("$other_columns"),
     });

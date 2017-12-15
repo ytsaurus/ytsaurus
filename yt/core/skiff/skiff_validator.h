@@ -33,7 +33,7 @@ public:
     void ValidateFinished();
 
 private:
-    std::unique_ptr<TValidatorNodeStack> Context_;
+    const std::unique_ptr<TValidatorNodeStack> Context_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,13 +10,13 @@ namespace NSkiff {
 ////////////////////////////////////////////////////////////////////////////////
 
 TUncheckedSkiffParser::TUncheckedSkiffParser(IInputStream* slave)
-    : Slave_(slave)
-    , Buffer_(512 * 1024)
+    : Underlying_(slave)
+    , Buffer_(512_KB)
     , RemainingBytes_(0)
     , Position_(Buffer_.Data())
 { }
 
-TUncheckedSkiffParser::TUncheckedSkiffParser(TSkiffSchemaPtr /*schema*/, IInputStream* slave)
+TUncheckedSkiffParser::TUncheckedSkiffParser(const TSkiffSchemaPtr& /*schema*/, IInputStream* slave)
     : TUncheckedSkiffParser(slave)
 { }
 
@@ -39,7 +39,7 @@ bool TUncheckedSkiffParser::ParseBoolean()
 {
     ui8 result = ParseSimple<ui8>();
     if (result > 1) {
-        THROW_ERROR_EXCEPTION("Invalid boolean representation: %v",
+        THROW_ERROR_EXCEPTION("Invalid boolean value %Qv",
             result);
     }
     return result;
@@ -110,11 +110,11 @@ void TUncheckedSkiffParser::RefillBuffer(size_t minSize)
     Position_ = Buffer_.Data();
     do {
         size_t toRead = Buffer_.Capacity() - RemainingBytes_;
-        size_t read = Slave_->Read(Position_ + RemainingBytes_, toRead);
+        size_t read = Underlying_->Read(Position_ + RemainingBytes_, toRead);
         if (read == 0) {
             Exhausted_ = true;
             if (RemainingBytes_ < minSize) {
-                THROW_ERROR_EXCEPTION("Stream exhausted unexpectedly");
+                THROW_ERROR_EXCEPTION("Premature end of stream while parsing Skiff");
             }
         }
         RemainingBytes_ += read;
@@ -145,7 +145,7 @@ void TUncheckedSkiffParser::ValidateFinished()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCheckedSkiffParser::TCheckedSkiffParser(TSkiffSchemaPtr schema, IInputStream* stream)
+TCheckedSkiffParser::TCheckedSkiffParser(const TSkiffSchemaPtr& schema, IInputStream* stream)
     : Parser_(stream)
     , Validator_(std::make_unique<TSkiffValidator>(schema))
 { }
@@ -230,13 +230,13 @@ void TCheckedSkiffParser::ValidateFinished()
 ////////////////////////////////////////////////////////////////////////////////
 
 TUncheckedSkiffWriter::TUncheckedSkiffWriter(IOutputStream* slave)
-    : Slave_(slave)
-    , Buffer_(1024)
+    : Underlying_(slave)
+    , Buffer_(1_KB)
     , RemainingBytes_(Buffer_.Capacity())
     , Position_(Buffer_.Data())
 { }
 
-TUncheckedSkiffWriter::TUncheckedSkiffWriter(TSkiffSchemaPtr /*schema*/, IOutputStream* slave)
+TUncheckedSkiffWriter::TUncheckedSkiffWriter(const TSkiffSchemaPtr& /*schema*/, IOutputStream* slave)
     : TUncheckedSkiffWriter(slave)
 { }
 
@@ -304,7 +304,7 @@ void TUncheckedSkiffWriter::WriteVariant16Tag(ui16 tag)
 
 void TUncheckedSkiffWriter::DoFlush()
 {
-    Slave_->Write(Buffer_.Data(), Position_ - Buffer_.Data());
+    Underlying_->Write(Buffer_.Data(), Position_ - Buffer_.Data());
     Position_ = Buffer_.Data();
     RemainingBytes_ = Buffer_.Capacity();
 }
@@ -314,7 +314,7 @@ void TUncheckedSkiffWriter::DoWrite(const void* data, size_t size)
     if (size > RemainingBytes_) {
         DoFlush();
         if (size >= RemainingBytes_) {
-            Slave_->Write(data, size);
+            Underlying_->Write(data, size);
             return;
         }
     }
@@ -330,7 +330,7 @@ void TUncheckedSkiffWriter::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCheckedSkiffWriter::TCheckedSkiffWriter(TSkiffSchemaPtr schema, IOutputStream* slave)
+TCheckedSkiffWriter::TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* slave)
     : Writer_(slave)
     , Validator_(std::make_unique<TSkiffValidator>(schema))
 { }
