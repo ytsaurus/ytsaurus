@@ -1496,7 +1496,7 @@ public:
                 hiveManager->PostMessage(mailbox, req);
             }
 
-            for (auto& pair  : tablet->Replicas()) {
+            for (auto& pair : GetPairsSortedByKey(tablet->Replicas())) {
                 auto* replica = pair.first;
                 auto& replicaInfo = pair.second;
                 if (replica->GetState() != ETableReplicaState::Enabled) {
