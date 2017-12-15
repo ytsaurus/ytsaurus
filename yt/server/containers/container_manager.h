@@ -45,6 +45,7 @@ struct TPortoManagerConfig
 
 IContainerManagerPtr CreatePortoManager(
     const TString& prefix,
+    const TNullable<TString>& rootContainer,
     TCallback<void(const TError&)> errorHandler,
     const TPortoManagerConfig& portoManagerConfig);
 

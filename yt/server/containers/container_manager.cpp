@@ -82,6 +82,7 @@ public:
 
     static IContainerManagerPtr Create(
         const TString& prefix,
+        const TNullable<TString>& rootContainer,
         TCallback<void(const TError&)> errorHandler,
         const TPortoManagerConfig& portoManagerConfig)
     {
@@ -90,11 +91,9 @@ public:
             portoManagerConfig.PollPeriod);
         executor->SubscribeFailed(errorHandler);
 
-        auto relativeName = GetRelativeName(executor);
-
         auto manager = New<TPortoManager>(
             prefix,
-            relativeName,
+            rootContainer ? *rootContainer : GetRelativeName(executor),
             portoManagerConfig,
             executor);
         manager->CleanContainers();
@@ -187,10 +186,11 @@ private:
 
 IContainerManagerPtr CreatePortoManager(
     const TString& prefix,
+    const TNullable<TString>& rootContainer,
     TCallback<void(const TError&)> errorHandler,
     const TPortoManagerConfig& portoManagerConfig)
 {
-    return TPortoManager::Create(prefix, errorHandler, portoManagerConfig);
+    return TPortoManager::Create(prefix, rootContainer, errorHandler, portoManagerConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

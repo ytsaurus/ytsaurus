@@ -380,6 +380,7 @@ private:
         auto errorHandler = BIND(&TPortoResourceController::OnFatalError, MakeStrong(this));
         ContainerManager_ = CreatePortoManager(
             "",
+            Null,
             errorHandler,
             { ECleanMode::None,
             waitTime,
