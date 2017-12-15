@@ -1,13 +1,17 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include "private.h"
+
+#include <yt/ytlib/api/connection.h>
 
 namespace NYT {
 namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
+NRpc::IChannelPtr CreateDiscoveringChannel(
+    TConnectionPtr connection,
+    const NApi::TClientOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

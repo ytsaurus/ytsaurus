@@ -1,7 +1,7 @@
 #pragma once
 
-#include "rpc_proxy_client_base.h"
-#include "rpc_proxy_channel.h"
+#include "client_base.h"
+#include "discovering_channel.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -12,19 +12,16 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcProxyClient
+class TClient
     : public NApi::IClient
-    , public TRpcProxyClientBase
+    , public TClientBase
 {
 public:
-    TRpcProxyClient(
-        TRpcProxyConnectionPtr connection,
+    TClient(
+        TConnectionPtr connection,
         const NApi::TClientOptions& options);
 
-    virtual TFuture<void> Terminate() override
-    {
-        return VoidFuture;
-    }
+    virtual TFuture<void> Terminate() override;
 
     // Transactions
     virtual NApi::ITransactionPtr AttachTransaction(
@@ -32,7 +29,7 @@ public:
         const NApi::TTransactionAttachOptions&) override
     {
         Y_UNIMPLEMENTED();
-    };
+    }
 
     // Tables
     virtual TFuture<void> MountTable(
@@ -256,14 +253,15 @@ public:
     }
 
 private:
-    const TRpcProxyConnectionPtr Connection_;
+    const TConnectionPtr Connection_;
     const NRpc::IChannelPtr Channel_;
 
-    virtual TRpcProxyConnectionPtr GetRpcProxyConnection() override;
+    virtual TConnectionPtr GetRpcProxyConnection() override;
+    virtual TClientPtr GetRpcProxyClient() override;
     virtual NRpc::IChannelPtr GetChannel() override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyClient)
+DEFINE_REFCOUNTED_TYPE(TClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 

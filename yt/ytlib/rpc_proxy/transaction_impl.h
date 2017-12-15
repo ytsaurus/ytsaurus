@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rpc_proxy_client_base.h"
+#include "client_base.h"
 
 #include <yt/ytlib/api/transaction.h>
 
@@ -11,87 +11,53 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcProxyTransaction
+DEFINE_ENUM(ETransactionState,
+    (Active)
+    (Aborted)
+    (Committing)
+    (Committed)
+    (Detached)
+);
+
+class TTransaction
     : public NApi::ITransaction
 {
 public:
-    TRpcProxyTransaction(
-        TRpcProxyConnectionPtr connection,
+    TTransaction(
+        TConnectionPtr connection,
+        TClientPtr client,
         NRpc::IChannelPtr channel,
-        NTransactionClient::TTransactionId transactionId,
+        const NTransactionClient::TTransactionId& id,
         NTransactionClient::TTimestamp startTimestamp,
+        NTransactionClient::ETransactionType type,
+        NTransactionClient::EAtomicity atomicity,
+        NTransactionClient::EDurability durability,
+        TDuration timeout,
+        TDuration pingPeriod,
         bool sticky);
-    ~TRpcProxyTransaction();
 
-    // Implementation of ITransaction
+    // ITransaction implementation
+    virtual NApi::IConnectionPtr GetConnection() override;
+    virtual NApi::IClientPtr GetClient() const override;
 
-    virtual NApi::IConnectionPtr GetConnection() override
-    {
-        return Connection_;
-    }
-
-    virtual NApi::IClientPtr GetClient() const override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual NTransactionClient::ETransactionType GetType() const override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
+    virtual NTransactionClient::ETransactionType GetType() const override;
     virtual const NTransactionClient::TTransactionId& GetId() const override;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const override;
-
-    virtual NTransactionClient::EAtomicity GetAtomicity() const override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual NTransactionClient::EDurability GetDurability() const override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual TDuration GetTimeout() const override
-    {
-        Y_UNIMPLEMENTED();
-    }
+    virtual NTransactionClient::EAtomicity GetAtomicity() const override;
+    virtual NTransactionClient::EDurability GetDurability() const override;
+    virtual TDuration GetTimeout() const override;
 
     virtual TFuture<void> Ping() override;
     virtual TFuture<NApi::TTransactionCommitResult> Commit(const NApi::TTransactionCommitOptions& options) override;
     virtual TFuture<void> Abort(const NApi::TTransactionAbortOptions& options) override;
+    virtual void Detach() override;
+    virtual TFuture<NApi::TTransactionFlushResult> Flush() override;
 
-    virtual void Detach() override
-    {
-        Y_UNIMPLEMENTED();
-    }
+    virtual void SubscribeCommitted(const TClosure&) override;
+    virtual void UnsubscribeCommitted(const TClosure&) override;
 
-    virtual TFuture<NApi::TTransactionFlushResult> Flush() override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual void SubscribeCommitted(const TClosure&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual void UnsubscribeCommitted(const TClosure&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual void SubscribeAborted(const TClosure&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual void UnsubscribeAborted(const TClosure&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
+    virtual void SubscribeAborted(const TClosure&) override;
+    virtual void UnsubscribeAborted(const TClosure&) override;
 
     virtual void WriteRows(
         const NYPath::TYPath& path,
@@ -103,10 +69,7 @@ public:
         const NYPath::TYPath&,
         NTableClient::TNameTablePtr,
         TSharedRange<NTableClient::TVersionedRow>,
-        const NApi::TModifyRowsOptions&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TModifyRowsOptions&) override;
 
     virtual void DeleteRows(
         const NYPath::TYPath& path,
@@ -120,8 +83,7 @@ public:
         TSharedRange<NApi::TRowModification> modifications,
         const NApi::TModifyRowsOptions& options) override;
 
-    // Implementation of IClientBase.
-
+    // IClientBase implementation
     virtual TFuture<NApi::ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
         const NApi::TTransactionStartOptions& options) override;
@@ -220,23 +182,61 @@ public:
         const NApi::TJournalWriterOptions& options) override;
 
 private:
-    const TRpcProxyConnectionPtr Connection_;
+    const TConnectionPtr Connection_;
+    const TClientPtr Client_;
     const NRpc::IChannelPtr Channel_;
-
-    const NTransactionClient::TTransactionId TransactionId_;
+    const NTransactionClient::TTransactionId Id_;
     const NTransactionClient::TTimestamp StartTimestamp_;
+    const NTransactionClient::ETransactionType Type_;
+    const NTransactionClient::EAtomicity Atomicity_;
+    const NTransactionClient::EDurability Durability_;
+    const TDuration Timeout_;
+    const TDuration PingPeriod_;
     const bool Sticky_;
 
-    class TClient;
-    const TIntrusivePtr<TClient> Client_;
+    TSpinLock SpinLock_;
+    TError Error_;
+    ETransactionState State_ = ETransactionState::Active;
 
-    std::vector<TFuture<void>> AsyncRequests_;
+    std::vector<TFuture<void>> AsyncResults_;
+
+    TSingleShotCallbackList<void()> Committed_;
+    TSingleShotCallbackList<void()> Aborted_;
+
+    ETransactionState GetState();
+
+    TFuture<void> SendPing();
+    void RunPeriodicPings();
+    bool IsPingableState();
+
+    void FireCommitted();
+    void FireAborted();
+
+    void SetCommitted(const NApi::TTransactionCommitResult& result);
+    void SetAborted(const TError& error);
+    void OnFailure(const TError& error);
+
+    TFuture<void> SendAbort();
+
+    void ValidateActive();
+    void ValidateActive(TGuard<TSpinLock>&);
+
+    template <class T>
+    T PatchTransactionId(const T& options);
+    NApi::TTransactionStartOptions PatchTransactionId(
+        const NApi::TTransactionStartOptions& options);
+    template <class T>
+    T PatchTransactionTimestamp(const T& options);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyTransaction)
+DEFINE_REFCOUNTED_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpcProxy
 } // namespace NYT
+
+#define TRANSACTION_IMPL_INL_H_
+#include "transaction_impl-inl.h"
+#undef TRANSACTION_IMPL_INL_H_
 

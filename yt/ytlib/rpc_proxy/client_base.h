@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "rpc_proxy_connection.h"
+#include "connection_impl.h"
 #include "api_service_proxy.h"
 
 #include <yt/ytlib/api/client.h>
@@ -16,12 +16,14 @@ namespace NRpcProxy {
 struct TRpcProxyClientBufferTag
 { };
 
-class TRpcProxyClientBase
+class TClientBase
     : public virtual NApi::IClientBase
 {
 protected:
     // Must return a bound RPC proxy connection for this interface.
-    virtual TRpcProxyConnectionPtr GetRpcProxyConnection() = 0;
+    virtual TConnectionPtr GetRpcProxyConnection() = 0;
+    // Must return a bound RPC proxy client for this interface.
+    virtual TClientPtr GetRpcProxyClient() = 0;
     // Must return an RPC channel to use for API call.
     virtual NRpc::IChannelPtr GetChannel() = 0;
 
@@ -161,7 +163,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyClientBase)
+DEFINE_REFCOUNTED_TYPE(TClientBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
