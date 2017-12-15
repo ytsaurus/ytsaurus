@@ -87,14 +87,14 @@ public:
 
     static IInstancePtr GetSelf(IPortoExecutorPtr executor)
     {
-        return New<TPortoInstance>("self", executor);
+        return New<TPortoInstance>("self", executor, true);
     }
 
     ~TPortoInstance()
     {
         // We can't wait here, but even if this request fails
         // it is not a big issue - porto has its own GC.
-        if (!Destroyed_) {
+        if (!Destroyed_ && !IsSelf_) {
             Executor_->DestroyContainer(Name_);
         }
     }
@@ -315,16 +315,19 @@ private:
     std::vector<TFuture<void>> Actions_;
     static const std::map<EStatField, TPortoStatRule> StatRules_;
     const NLogging::TLogger Logger;
+    const bool IsSelf_;
     bool Destroyed_ = false;
     bool HasRoot_ = false;
 
     TPortoInstance(
         const TString& name,
-        IPortoExecutorPtr executor)
+        IPortoExecutorPtr executor,
+        bool isSelf = false)
         : Name_(name)
         , Executor_(executor)
         , Logger(NLogging::TLogger(ContainersLogger)
             .AddTag("Container: %v", Name_))
+        , IsSelf_(isSelf)
     { }
 
     void SetProperty(const TString& key, const TString& value)
