@@ -1511,7 +1511,8 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         "scheduler": {
             # Unrecognized alert often interferes with the alerts that
             # are tested in this test suite.
-            "enable_unrecognized_alert": False
+            "enable_unrecognized_alert": False,
+            "alerts_update_period": 100
         }
     }
 
