@@ -186,6 +186,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("auto_merge", AutoMerge)
         .DefaultNew();
 
+    RegisterParameter("started_by", StartedBy)
+        .Default();
+
     RegisterValidator([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)

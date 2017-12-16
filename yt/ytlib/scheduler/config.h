@@ -312,6 +312,10 @@ public:
 
     TAutoMergeConfigPtr AutoMerge;
 
+    //! This field is not used in scheduler any more, but specified in order
+    //! to not appear in unrecognized spec.
+    NYTree::IMapNodePtr StartedBy;
+
     TOperationSpecBase();
 
 private:
