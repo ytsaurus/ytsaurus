@@ -101,12 +101,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             "timestamp_provider" : {
                 "update_period": 100
             }
-        },
-        "tablet_node" : {
-            "tablet_manager": {
-                "error_backoff_time" : 0,
-            },
-        },
+        }
     }
 
     DELTA_MASTER_CONFIG = {
@@ -2082,7 +2077,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
                 "tablet_static_memory": 20000
             },
             "tablet_manager": {
-                "error_backoff_time": 1000*5,
+                "preload_backoff_time": 5000
             },
         },
     }

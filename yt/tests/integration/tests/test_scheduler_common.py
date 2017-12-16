@@ -239,12 +239,6 @@ class TestJobStderr(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "tablet_manager": {
-            "error_backoff_time": 0
-        }
-    }
-
     def test_stderr_ok(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -459,12 +453,6 @@ class TestUserFiles(YTEnvSetup):
                     "max_jobs_per_split": 3,
                 },
             },
-        }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "tablet_manager": {
-            "error_backoff_time": 0
         }
     }
 

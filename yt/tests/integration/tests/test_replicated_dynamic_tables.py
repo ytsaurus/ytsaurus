@@ -29,11 +29,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             "timestamp_provider": {
                 "update_period": 500,
             }
-        },
-        "tablet_node": {
-            "tablet_manager": {
-                "replicator_soft_backoff_time": 100
-            }
         }
     }
 
