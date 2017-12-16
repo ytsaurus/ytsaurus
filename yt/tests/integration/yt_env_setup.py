@@ -31,6 +31,7 @@ SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 try:
     from yt.environment.helpers import wait
 except ImportError:
+    # COMPAT(ignat)
     def wait(predicate, iter=100, sleep_backoff=0.3):
         for _ in xrange(iter):
             if predicate():
