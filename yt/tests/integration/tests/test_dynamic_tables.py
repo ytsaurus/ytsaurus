@@ -936,9 +936,6 @@ class TestTabletActions(TestDynamicTablesBase):
             "incremental_heartbeat_period": 100
         },
         "tablet_node": {
-            "tablet_manager": {
-                "error_backoff_time": 100
-            },
             "security_manager": {
                 "resource_limits_cache": {
                     "expire_after_access_time": 0,

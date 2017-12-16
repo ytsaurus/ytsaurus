@@ -49,12 +49,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "tablet_manager": {
-            "error_backoff_time": 0
-        }
-    }
-
     def test_empty_table(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1199,12 +1193,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "tablet_manager": {
-            "error_backoff_time": 0
-        }
-    }
-
     def _create_simple_dynamic_table(self, path, sort_order="ascending", optimize_for="lookup"):
         create("table", path,
             attributes={
@@ -1508,12 +1496,6 @@ class TestInputOutputFormats(YTEnvSetup):
                     "max_jobs_per_split": 3,
                 },
             },
-        }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "tablet_manager": {
-            "error_backoff_time": 0
         }
     }
 
