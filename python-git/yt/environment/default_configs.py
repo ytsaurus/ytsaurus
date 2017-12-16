@@ -293,11 +293,13 @@ b"""
     tablet_node = {
         slot_scan_period = 100;
         
-        preload_backoff_time = 100;
-        compaction_backoff_time = 100;
-        flush_backoff_time = 100;
-        replicator_soft_backoff_time = 100;
-        replicator_hard_backoff_time = 100;
+        tablet_manager = {
+            preload_backoff_time = 100;
+            compaction_backoff_time = 100;
+            flush_backoff_time = 100;
+            replicator_soft_backoff_time = 100;
+            replicator_hard_backoff_time = 100;
+        };
         
         hive_manager = {
             ping_period = 1000;
