@@ -749,7 +749,7 @@ bool TChunkStoreBase::IsPreloadAllowed() const
 
 void TChunkStoreBase::UpdatePreloadAttempt()
 {
-    AllowedPreloadTimestamp_ = Now() + Config_->ErrorBackoffTime;
+    AllowedPreloadTimestamp_ = Now() + Config_->PreloadBackoffTime;
 }
 
 bool TChunkStoreBase::IsCompactionAllowed() const
@@ -759,7 +759,7 @@ bool TChunkStoreBase::IsCompactionAllowed() const
 
 void TChunkStoreBase::UpdateCompactionAttempt()
 {
-    AllowedCompactionTimestamp_ = Now() + Config_->ErrorBackoffTime;
+    AllowedCompactionTimestamp_ = Now() + Config_->CompactionBackoffTime;
 }
 
 EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
