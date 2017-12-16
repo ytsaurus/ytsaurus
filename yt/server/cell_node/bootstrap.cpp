@@ -517,6 +517,10 @@ void TBootstrap::DoRun()
         CreateVirtualNode(TabletSlotManager->GetOrchidService()));
     SetNodeByYPath(
         OrchidRoot,
+        "/chunk_blocks",
+        CreateVirtualNode(ChunkBlockManager->GetOrchidService()));
+    SetNodeByYPath(
+        OrchidRoot,
         "/job_controller",
         CreateVirtualNode(JobController->GetOrchidService()
             ->Via(GetControlInvoker())));

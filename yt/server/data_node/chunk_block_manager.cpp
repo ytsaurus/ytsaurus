@@ -18,6 +18,11 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_service.h>
+
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -25,6 +30,9 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
+using namespace NConcurrency;
+using namespace NYTree;
+using namespace NYson;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TBlocksExt;
@@ -32,6 +40,7 @@ using NChunkClient::NProto::TBlocksExt;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
+static const auto& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +70,7 @@ public:
                 FormatEnum(EBlockType::CompressedData)))
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildOrchid, MakeWeak(this))))
     { }
 
     TCachedBlockPtr FindCachedBlock(const TBlockId& blockId)
@@ -132,15 +142,21 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto updateRecentlyReadBlockQueueCallback = BIND(
+            &TImpl::UpdateRecentlyReadBlockQueue,
+            MakeStrong(this),
+            chunkId,
+            blockIndexes);
+
         try {
             auto chunkRegistry = Bootstrap_->GetChunkRegistry();
             auto chunk = chunkRegistry->FindChunk(chunkId);
+            auto type = TypeFromId(DecodeChunkId(chunkId).Id);
             if (!chunk) {
                 std::vector<TBlock> blocks;
                 // During block peering, data nodes exchange individual blocks.
                 // Thus the cache may contain a block not bound to any chunk in the registry.
                 // We must look for these blocks.
-                auto type = TypeFromId(DecodeChunkId(chunkId).Id);
                 if (options.BlockCache &&
                     options.FetchFromCache &&
                     (type == EObjectType::Chunk || type == EObjectType::ErasureChunk))
@@ -151,22 +167,65 @@ public:
                         blocks.push_back(block);
                     }
                 }
-                return MakeFuture(blocks);
+                return MakeFuture(blocks)
+                    .Apply(updateRecentlyReadBlockQueueCallback);
             }
 
             auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
             auto asyncBlocks = chunk->ReadBlockSet(blockIndexes, options);
+
             // Hold the read guard.
-            return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
+            auto asyncResult = asyncBlocks
+                .Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
+
+            if (type == EObjectType::Chunk || type == EObjectType::ErasureChunk) {
+                asyncResult = asyncResult.Apply(updateRecentlyReadBlockQueueCallback);
+            }
+
+            return asyncResult;
         } catch (const std::exception& ex) {
             return MakeFuture<std::vector<TBlock>>(TError(ex));
         }
+    }
+
+    struct TReadBlock
+    {
+        TBlockId BlockId;
+        i64 Size;
+        TInstant Time;
+
+        TReadBlock(TBlockId blockId, i64 size, TInstant time)
+            : BlockId(blockId)
+            , Size(size)
+            , Time(time)
+        { }
+    };
+
+    std::vector<TReadBlock> GetRecentlyReadBlocks() const
+    {
+        // Note that after acquiring this lock we are effectively blocking the ReadBlockSet requests.
+        TReaderGuard guard(RecentlyReadBlockQueueLock_);
+
+        const auto& Profiler = NDataNode::Profiler;
+        PROFILE_TIMING("/recently_read_block_request_time") {
+            return std::vector<TReadBlock>(RecentlyReadBlockQueue_.begin(), RecentlyReadBlockQueue_.end());
+        }
+    }
+
+    IYPathServicePtr GetOrchidService()
+    {
+        return OrchidService_;
     }
 
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
+    IYPathServicePtr OrchidService_;
+
+    TReaderWriterSpinLock RecentlyReadBlockQueueLock_;
+    // This queue stores pairs <blockId, blockSize>.
+    std::deque<TReadBlock> RecentlyReadBlockQueue_;
 
     virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
@@ -180,6 +239,51 @@ private:
         const std::vector<TBlock>& blocks)
     {
         return blocks;
+    }
+
+    std::vector<TBlock> UpdateRecentlyReadBlockQueue(
+        const TChunkId& chunkId,
+        const std::vector<int>& blockIndexes,
+        const std::vector<TBlock>& blocks)
+    {
+        std::vector<TReadBlock> readBlocks;
+        auto now = NProfiling::GetInstant();
+        for (int listIndex = 0; listIndex < blockIndexes.size(); ++listIndex) {
+            const auto& block = blocks[listIndex];
+            if (block && RandomNumber<double>() < Config_->RecentlyReadBlockQueueSampleRate) {
+                int blockIndex = blockIndexes[listIndex];
+                readBlocks.emplace_back(TBlockId(chunkId, blockIndex), block.Size(), now);
+            }
+        }
+
+        if (!readBlocks.empty()) {
+            TWriterGuard guard(RecentlyReadBlockQueueLock_);
+            RecentlyReadBlockQueue_.insert(RecentlyReadBlockQueue_.end(), readBlocks.begin(), readBlocks.end());
+            if (RecentlyReadBlockQueue_.size() > Config_->RecentlyReadBlockQueueSize) {
+                RecentlyReadBlockQueue_.erase(
+                    RecentlyReadBlockQueue_.begin(),
+                    RecentlyReadBlockQueue_.end() - Config_->RecentlyReadBlockQueueSize);
+            }
+        }
+
+        return blocks;
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("recently_read_blocks")
+                    .DoListFor(GetRecentlyReadBlocks(), [] (TFluentList fluent, const TReadBlock& readBlock) {
+                        fluent.Item()
+                            .BeginMap()
+                                .Item("chunk_id").Value(readBlock.BlockId.ChunkId)
+                                .Item("block_index").Value(readBlock.BlockId.BlockIndex)
+                                .Item("size").Value(readBlock.Size)
+                                .Item("time").Value(readBlock.Time)
+                            .EndMap();
+                    })
+            .EndMap();
     }
 };
 
@@ -239,6 +343,11 @@ TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockSet(
 std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocks() const
 {
     return Impl_->GetAll();
+}
+
+IYPathServicePtr TChunkBlockManager::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
