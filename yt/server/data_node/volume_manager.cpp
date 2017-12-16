@@ -1,3 +1,5 @@
+#ifdef __linux__
+
 #include "volume_manager.h"
 
 #include "artifact.h"
@@ -1121,3 +1123,5 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 
 } // namespace NDataNode
 } // namespace NYT
+
+#endif

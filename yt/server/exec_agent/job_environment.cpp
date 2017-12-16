@@ -15,7 +15,6 @@
 #ifdef _linux_
 #include <yt/server/containers/container_manager.h>
 #include <yt/server/containers/instance.h>
-#include <yt/server/data_node/volume_manager.h>
 
 #include <yt/server/misc/process.h>
 #endif
@@ -439,12 +438,20 @@ public:
 
     virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
     {
+#ifdef __linux__
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path);
+#else
+        return nullptr;
+#endif
     }
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
     {
+#ifdef __linux__
         return RootVolumeManager_->PrepareVolume(layers);
+#else
+        return VoidFuture;
+#endif
     }
 
     virtual TNullable<i64> GetMemoryLimit() const override
@@ -504,11 +511,13 @@ private:
 
         TProcessJobEnvironmentBase::DoInit(slotCount);
 
+#ifdef __linux__
         // To these moment all old processed must have been killed, so we can safely clean up old volumes
         // during root volume manager initialization.
         RootVolumeManager_ = CreatePortoVolumeManager(
             Bootstrap_->GetConfig()->DataNode->VolumeManager,
             Bootstrap_);
+#endif
     }
 
     void InitPortoInstance(int slotIndex)
