@@ -6,7 +6,6 @@ from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
 from yt.common import which, makedirp
-import yt.logger as logger
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 
@@ -62,7 +61,6 @@ class YtTestEnvironment(object):
         has_proxy = config["backend"] != "native"
 
         logging.getLogger("Yt.local").setLevel(logging.INFO)
-        logger.LOGGER.setLevel(logging.WARNING)
 
         run_id = uuid.uuid4().hex[:8]
         uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
