@@ -165,16 +165,20 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
      * <p>
      * Создаёт и ассоциирует объект при первом вызове
      */
-    public static DefaultBusChannel getOrCreateInstance(Channel channel) {
+    public static DefaultBusChannel getOrCreateInstance(Channel channel, DefaultBusChannelMetricsHolder metricsHolder) {
         Attribute<DefaultBusChannel> attr = channel.attr(CHANNEL_KEY);
         DefaultBusChannel bus = attr.get();
         if (bus == null) {
-            bus = new DefaultBusChannel(channel);
+            bus = new DefaultBusChannel(channel, metricsHolder);
             DefaultBusChannel old = attr.setIfAbsent(bus);
             if (old != null) {
                 bus = old;
             }
         }
         return bus;
+    }
+
+    public static DefaultBusChannel getOrCreateInstance(Channel channel) {
+        return getOrCreateInstance(channel, DefaultBusChannelMetricsHolderImpl.instance);
     }
 }

@@ -21,6 +21,12 @@ import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.rpc.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.rpc.internal.BalancingResponseHandler;
 import ru.yandex.yt.ytclient.rpc.internal.DataCenter;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolderImpl;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
 import static java.lang.Integer.min;
 
@@ -39,6 +45,10 @@ public class BalancingRpcClient implements RpcClient {
     final private Random rnd = new Random();
     final private ScheduledExecutorService executorService;
     final private RpcFailoverPolicy failoverPolicy;
+
+    final private BalancingDestinationMetricsHolder balancingDestinationMetricsHolder;
+    final private BalancingResponseHandlerMetricsHolder balancingResponseHandlerMetricsHolder;
+    final private DataCenterMetricsHolder dataCenterMetricsHolder;
 
     public BalancingRpcClient(
         Duration failoverTimeout,
@@ -68,6 +78,28 @@ public class BalancingRpcClient implements RpcClient {
             ImmutableMap.of("unknown", Arrays.stream(destinations).collect(Collectors.toList()))
         );
     }
+    public BalancingRpcClient(
+            Duration failoverTimeout,
+            Duration globalTimeout,
+            Duration pingTimeout,
+            BusConnector connector,
+            RpcFailoverPolicy failoverPolicy,
+            String dataCenter,
+            Map<String, List<RpcClient>> dataCenters)
+    {
+        this(
+                failoverTimeout,
+                globalTimeout,
+                pingTimeout,
+                connector,
+                failoverPolicy,
+                dataCenter,
+                dataCenters,
+                BalancingDestinationMetricsHolderImpl.instance,
+                BalancingResponseHandlerMetricsHolderImpl.instance,
+                DataCenterMetricsHolderImpl.instance
+        );
+    }
 
     public BalancingRpcClient(
         Duration failoverTimeout,
@@ -76,9 +108,16 @@ public class BalancingRpcClient implements RpcClient {
         BusConnector connector,
         RpcFailoverPolicy failoverPolicy,
         String dataCenter,
-        Map<String, List<RpcClient>> dataCenters)
+        Map<String, List<RpcClient>> dataCenters,
+        BalancingDestinationMetricsHolder balancingDestinationMetricsHolder,
+        BalancingResponseHandlerMetricsHolder balancingResponseHandlerMetricsHolder,
+        DataCenterMetricsHolder dataCenterMetricsHolder)
     {
         assert failoverTimeout.compareTo(globalTimeout) <= 0;
+
+        this.balancingDestinationMetricsHolder = balancingDestinationMetricsHolder;
+        this.balancingResponseHandlerMetricsHolder = balancingResponseHandlerMetricsHolder;
+        this.dataCenterMetricsHolder = dataCenterMetricsHolder;
 
         this.dataCenterName = dataCenter;
         this.failoverPolicy = failoverPolicy;
@@ -100,10 +139,9 @@ public class BalancingRpcClient implements RpcClient {
 
             for (RpcClient client : clients) {
                 index = j++;
-                destinations[index] = new BalancingDestination(dcName, client, index);
+                destinations[index] = new BalancingDestination(dcName, client, index, balancingDestinationMetricsHolder);
             }
-            DataCenter dc = new DataCenter(dcName, destinations);
-
+            DataCenter dc = new DataCenter(dcName, destinations, dataCenterMetricsHolder);
 
             index = i++;
             this.dataCenters[index] = dc;
@@ -216,7 +254,8 @@ public class BalancingRpcClient implements RpcClient {
             failoverTimeout,
             f,
             request,
-            destinations);
+            destinations,
+            balancingResponseHandlerMetricsHolder);
 
         f.whenComplete((result, error) -> {
             h.cancel();

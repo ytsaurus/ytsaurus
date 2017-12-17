@@ -10,6 +10,8 @@ import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
  * @author dkondra
  */
 public class BalancingDestinationMetricsHolderImpl implements BalancingDestinationMetricsHolder {
+    public static final BalancingDestinationMetricsHolderImpl instance = new BalancingDestinationMetricsHolderImpl();
+
     private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
 
     @Override

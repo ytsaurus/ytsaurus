@@ -10,6 +10,8 @@ import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
  * @author dkondra
  */
 public class DataCenterMetricsHolderImpl implements DataCenterMetricsHolder {
+    public static final DataCenterMetricsHolderImpl instance = new DataCenterMetricsHolderImpl();
+
     private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
 
     @Override
