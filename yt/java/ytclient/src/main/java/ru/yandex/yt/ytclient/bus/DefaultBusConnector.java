@@ -15,6 +15,9 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
+import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
+import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
+
 public class DefaultBusConnector implements BusConnector {
     private final NioEventLoopGroup group;
     private final boolean groupOwner;
@@ -22,6 +25,7 @@ public class DefaultBusConnector implements BusConnector {
     private Duration writeTimeout = Duration.ofMinutes(2);
     private boolean verifyChecksums = false;
     private boolean calculateChecksums = false;
+    private DefaultBusChannelMetricsHolder metricsHolder;
 
     public DefaultBusConnector() {
         this(new NioEventLoopGroup(1), true);
@@ -32,8 +36,13 @@ public class DefaultBusConnector implements BusConnector {
     }
 
     public DefaultBusConnector(NioEventLoopGroup group, boolean groupOwner) {
+        this(group, groupOwner, new DefaultBusChannelMetricsHolderImpl());
+    }
+
+    public DefaultBusConnector(NioEventLoopGroup group, boolean groupOwner, DefaultBusChannelMetricsHolder metricsHolder) {
         this.group = Objects.requireNonNull(group);
         this.groupOwner = groupOwner;
+        this.metricsHolder = metricsHolder;
     }
 
     public NioEventLoopGroup getGroup() {
@@ -82,7 +91,7 @@ public class DefaultBusConnector implements BusConnector {
                 .channel(NioSocketChannel.class)
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.TCP_NODELAY, true)
-                .handler(new DefaultBusInitializer(listener)
+                .handler(new DefaultBusInitializer(listener, metricsHolder)
                         .setReadTimeout(readTimeout)
                         .setWriteTimeout(writeTimeout)
                         .setVerifyChecksums(verifyChecksums)
@@ -93,7 +102,7 @@ public class DefaultBusConnector implements BusConnector {
     public Bus connect(SocketAddress address, BusListener listener) {
         ChannelFuture f = newBootstrap(listener).connect(address);
         try {
-            DefaultBusChannel bus = DefaultBusChannel.getOrCreateInstance(f.channel());
+            DefaultBusChannel bus = DefaultBusChannel.getOrCreateInstance(f.channel(), metricsHolder);
             f.addListener((ChannelFuture ready) -> {
                 if (ready.isSuccess()) {
                     bus.channelConnected();
@@ -118,7 +127,7 @@ public class DefaultBusConnector implements BusConnector {
                 .channel(NioServerSocketChannel.class)
                 .childOption(ChannelOption.SO_KEEPALIVE, true)
                 .childOption(ChannelOption.TCP_NODELAY, true)
-                .childHandler(new DefaultBusInitializer(listener)
+                .childHandler(new DefaultBusInitializer(listener, metricsHolder)
                         .setReadTimeout(readTimeout)
                         .setWriteTimeout(writeTimeout));
     }

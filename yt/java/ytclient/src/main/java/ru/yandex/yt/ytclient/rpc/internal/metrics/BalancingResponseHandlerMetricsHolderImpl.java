@@ -10,6 +10,8 @@ import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
  * @author dkondra
  */
 public class BalancingResponseHandlerMetricsHolderImpl implements BalancingResponseHandlerMetricsHolder {
+    public static final BalancingResponseHandlerMetricsHolderImpl instance = new BalancingResponseHandlerMetricsHolderImpl();
+
     private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
     private static final Counter inflight = metrics.counter(MetricRegistry.name(BalancingRpcClient.class, "requests", "inflight"));
     private static final Counter failover = metrics.counter(MetricRegistry.name(BalancingRpcClient.class,"requests", "failover"));

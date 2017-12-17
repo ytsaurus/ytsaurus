@@ -34,8 +34,12 @@ public final class DataCenter {
         this(dc, backends, -1.0);
     }
 
+    public DataCenter(String dc, BalancingDestination[] backends, DataCenterMetricsHolder metricsHolder) {
+        this(dc, backends, -1.0, metricsHolder);
+    }
+
     public DataCenter(String dc, BalancingDestination[] backends, double weight) {
-        this(dc, backends, weight, new DataCenterMetricsHolderImpl());
+        this(dc, backends, weight, DataCenterMetricsHolderImpl.instance);
     }
 
     public DataCenter(String dc, BalancingDestination[] backends, double weight, DataCenterMetricsHolder metricsHolder) {

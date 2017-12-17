@@ -13,6 +13,8 @@ import io.netty.handler.timeout.WriteTimeoutHandler;
 import ru.yandex.yt.ytclient.bus.internal.BusPacketDecoder;
 import ru.yandex.yt.ytclient.bus.internal.BusPacketEncoder;
 import ru.yandex.yt.ytclient.bus.internal.BusProtocolHandler;
+import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
+import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
 
 /**
  * Класс для инициализации каналов для работы с bus протоколом
@@ -24,8 +26,15 @@ public class DefaultBusInitializer extends ChannelInitializer<Channel> {
     private boolean verifyChecksums = false;
     private boolean calculateChecksums = false;
 
+    private final DefaultBusChannelMetricsHolder metricsHolder;
+
     public DefaultBusInitializer(BusListener listener) {
+        this(listener, DefaultBusChannelMetricsHolderImpl.instance);
+    }
+
+    public DefaultBusInitializer(BusListener listener, DefaultBusChannelMetricsHolder metricsHolder) {
         this.listener = listener;
+        this.metricsHolder = metricsHolder;
     }
 
     public DefaultBusInitializer setReadTimeout(Duration readTimeout) {
@@ -50,7 +59,7 @@ public class DefaultBusInitializer extends ChannelInitializer<Channel> {
 
     @Override
     protected void initChannel(Channel channel) throws Exception {
-        DefaultBusChannel bus = DefaultBusChannel.getOrCreateInstance(channel);
+        DefaultBusChannel bus = DefaultBusChannel.getOrCreateInstance(channel, metricsHolder);
         ChannelPipeline pipeline = channel.pipeline();
         long readTimeoutNanos = readTimeout.toNanos();
         if (readTimeoutNanos > 0) {

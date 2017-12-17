@@ -10,6 +10,8 @@ import ru.yandex.yt.ytclient.bus.DefaultBusChannel;
  * @author dkondra
  */
 public class DefaultBusChannelMetricsHolderImpl implements DefaultBusChannelMetricsHolder {
+    public static final DefaultBusChannelMetricsHolderImpl instance = new DefaultBusChannelMetricsHolderImpl();
+
     private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
     private static final Histogram packetsHistogram = metrics.histogram(MetricRegistry.name(DefaultBusChannel.class, "packets", "histogram"));
 
