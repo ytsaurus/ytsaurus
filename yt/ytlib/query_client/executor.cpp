@@ -127,7 +127,9 @@ private:
             Schema_,
             false,
             Logger);
-        return FromProto(response->query_statistics());
+        TQueryStatistics statistics;
+        FromProto(&statistics, response->query_statistics());
+        return statistics;
     }
 };
 

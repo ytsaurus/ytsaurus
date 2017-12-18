@@ -570,7 +570,7 @@ private:
                         ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
                             for (const auto& subqueryResult : subqueryResults) {
                                 LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
-                                statistics += subqueryResult;
+                                statistics.AddInnerStatistics(subqueryResult);
                             }
                             return statistics;
                         }));
