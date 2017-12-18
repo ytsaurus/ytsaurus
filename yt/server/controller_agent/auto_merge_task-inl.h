@@ -27,9 +27,9 @@ public:
         }
     }
 
-    virtual bool CanScheduleJob(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override
+    virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override
     {
-        return CanScheduleJob_;
+        return MakeNullable(!CanScheduleJob_, NScheduler::EScheduleJobFailReason::TaskRefusal);
     }
 
     virtual void OnTaskCompleted() override

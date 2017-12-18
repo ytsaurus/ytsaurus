@@ -135,7 +135,7 @@ protected:
     //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
     ITaskHost* TaskHost_;
 
-    virtual bool CanScheduleJob(
+    virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(
         NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits);
 
