@@ -4125,12 +4125,12 @@ private:
             operationId.Parts64[1]);
         builder.AddWhereExpression(operationIdExpression);
 
-        if (options.JobType) {
-            builder.AddWhereExpression(Format("job_type = %Qv", FormatEnum(*options.JobType)));
+        if (options.Type) {
+            builder.AddWhereExpression(Format("job_type = %Qv", FormatEnum(*options.Type)));
         }
 
-        if (options.JobState) {
-            builder.AddWhereExpression(Format("job_state = %Qv", FormatEnum(*options.JobState)));
+        if (options.State) {
+            builder.AddWhereExpression(Format("job_state = %Qv", FormatEnum(*options.State)));
         }
 
         if (options.Address) {
@@ -4147,10 +4147,10 @@ private:
 
         if (options.SortField != EJobSortField::None) {
             switch (options.SortField) {
-                case EJobSortField::JobType:
+                case EJobSortField::Type:
                     builder.SetOrderByExpression("job_type");
                     break;
-                case EJobSortField::JobState:
+                case EJobSortField::State:
                     builder.SetOrderByExpression("job_state");
                     break;
                 case EJobSortField::StartTime:
@@ -4209,18 +4209,18 @@ private:
                 checkIsNotNull(row[jobIdHiIndex], "job_id_hi", TGuid());
                 checkIsNotNull(row[jobIdLoIndex], "job_id_lo", TGuid());
 
-                TGuid jobId(row[jobIdHiIndex].Data.Uint64, row[jobIdLoIndex].Data.Uint64);
+                TGuid id(row[jobIdHiIndex].Data.Uint64, row[jobIdLoIndex].Data.Uint64);
 
                 jobs.emplace_back();
                 auto& job = jobs.back();
 
-                job.JobId = jobId;
+                job.Id = id;
 
-                checkIsNotNull(row[typeIndex], "type", jobId);
-                job.JobType = ParseEnum<EJobType>(TString(row[typeIndex].Data.String, row[typeIndex].Length));
+                checkIsNotNull(row[typeIndex], "type", id);
+                job.Type = ParseEnum<EJobType>(TString(row[typeIndex].Data.String, row[typeIndex].Length));
 
-                checkIsNotNull(row[stateIndex], "state", jobId);
-                job.JobState = ParseEnum<EJobState>(TString(row[stateIndex].Data.String, row[stateIndex].Length));
+                checkIsNotNull(row[stateIndex], "state", id);
+                job.State = ParseEnum<EJobState>(TString(row[stateIndex].Data.String, row[stateIndex].Length));
 
                 if (row[startTimeIndex].Type != EValueType::Null) {
                     job.StartTime = TInstant(row[startTimeIndex].Data.Int64);
@@ -4366,13 +4366,15 @@ private:
                 const auto& attributes = item.second->Attributes();
                 auto children = item.second->AsMap();
 
-                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<TString>("job_type"));
-                if (options.JobType && jobType != *options.JobType) {
+                auto id = TGuid::FromString(item.first);
+
+                auto type = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<TString>("job_type"));
+                if (options.Type && type != *options.Type) {
                     continue;
                 }
 
-                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<TString>("state"));
-                if (options.JobState && jobState != *options.JobState) {
+                auto state = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<TString>("state"));
+                if (options.State && state != *options.State) {
                     continue;
                 }
 
@@ -4395,14 +4397,12 @@ private:
                     }
                 }
 
-                TGuid jobId = TGuid::FromString(item.first);
-
                 jobs.emplace_back();
                 auto& job = jobs.back();
 
-                job.JobId = jobId;
-                job.JobType = jobType;
-                job.JobState = jobState;
+                job.Id = id;
+                job.Type = type;
+                job.State = state;
                 job.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
                 job.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
                 job.Address = address;
@@ -4443,16 +4443,17 @@ private:
             for (const auto& item : items->GetChildren()) {
                 auto values = item.second->AsMap();
 
-                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(
-                    values->GetChild("job_type")->AsString()->GetValue());
+                auto id = TGuid::FromString(item.first);
 
-                if (options.JobType && jobType != *options.JobType) {
+                auto type = ParseEnum<NJobTrackerClient::EJobType>(
+                    values->GetChild("job_type")->AsString()->GetValue());
+                if (options.Type && type != *options.Type) {
                     continue;
                 }
 
-                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(
+                auto state = ParseEnum<NJobTrackerClient::EJobState>(
                     values->GetChild("state")->AsString()->GetValue());
-                if (options.JobState && jobState != *options.JobState) {
+                if (options.State && state != *options.State) {
                     continue;
                 }
 
@@ -4471,14 +4472,12 @@ private:
                     }
                 }
 
-                TGuid jobId = TGuid::FromString(item.first);
-
                 jobs.emplace_back();
                 auto& job = jobs.back();
 
-                job.JobId = jobId;
-                job.JobType = jobType;
-                job.JobState = jobState;
+                job.Id = id;
+                job.Type = type;
+                job.State = state;
                 job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
                 job.Address = address;
                 job.Progress = values->GetChild("progress")->AsDouble()->GetValue();
@@ -4510,8 +4509,8 @@ private:
             if (source.name) { \
                 target->name = source.name; \
             }
-            MERGE_FIELD(JobType);
-            MERGE_FIELD(JobState);
+            MERGE_FIELD(Type);
+            MERGE_FIELD(State);
             MERGE_FIELD(StartTime);
             MERGE_NULLABLE_FIELD(FinishTime);
             MERGE_FIELD(Address);
@@ -4535,12 +4534,12 @@ private:
             auto end2 = source2.end();
 
             while (it1 != end1 && it2 != end2) {
-                if (it1->JobId == it2->JobId) {
+                if (it1->Id == it2->Id) {
                     result.push_back(*it1);
                     mergeJob(&result.back(), *it2);
                     ++it1;
                     ++it2;
-                } else if (it1->JobId < it2->JobId) {
+                } else if (it1->Id < it2->Id) {
                     result.push_back(*it1);
                     ++it1;
                 } else {
@@ -4561,7 +4560,7 @@ private:
                 sortedDelta.begin(),
                 sortedDelta.end(),
                 [] (const TJob& lhs, const TJob& rhs) {
-                    return lhs.JobId < rhs.JobId;
+                    return lhs.Id < rhs.Id;
                 });
             result.Jobs = mergeJobs(result.Jobs, sortedDelta);
         };
@@ -4584,7 +4583,7 @@ private:
         if (options.IncludeArchive) {
             auto archiveJobs = WaitFor(archiveJobsFuture)
                 .ValueOrThrow();
-            result.ArchiveCount = archiveJobs.second;
+            result.ArchiveJobCount = archiveJobs.second;
             updateResultJobs(archiveJobs.first);
         }
 
@@ -4592,11 +4591,11 @@ private:
             auto cypressJobsOrError = WaitFor(cypressJobsFuture);
             if (cypressJobsOrError.IsOK()) {
                 const auto& pair = cypressJobsOrError.Value();
-                result.CypressCount = pair.second;
+                result.CypressJobCount = pair.second;
                 updateResultJobs(pair.first);
             } else if (cypressJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in Cypress.
-                result.CypressCount = 0;
+                result.CypressJobCount = 0;
             } else {
                 cypressJobsOrError.ThrowOnError();
             }
@@ -4606,11 +4605,11 @@ private:
             auto schedulerJobsOrError = WaitFor(schedulerJobsFuture);
             if (schedulerJobsOrError.IsOK()) {
                 const auto& pair = schedulerJobsOrError.Value();
-                result.SchedulerCount = pair.second;
+                result.SchedulerJobCount = pair.second;
                 updateResultJobs(pair.first);
             } else if (schedulerJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in the scheduler.
-                result.SchedulerCount = 0;
+                result.SchedulerJobCount = 0;
             } else {
                 schedulerJobsOrError.ThrowOnError();
             }
@@ -4634,8 +4633,8 @@ private:
                 } \
                 break;
 
-            XX(JobType);
-            XX(JobState);
+            XX(Type);
+            XX(State);
             XX(StartTime);
             XX(FinishTime);
             XX(Address);
@@ -4646,12 +4645,12 @@ private:
                 switch (options.SortOrder) {
                     case EJobSortDirection::Ascending:
                         comparer = [] (const TJob& lhs, const TJob& rhs) {
-                            return lhs.JobId < rhs.JobId;
+                            return lhs.Id < rhs.Id;
                         };
                         break;
                     case EJobSortDirection::Descending:
                         comparer = [] (const TJob& lhs, const TJob& rhs) {
-                            return !(lhs.JobId < rhs.JobId || lhs.JobId == rhs.JobId);
+                            return !(lhs.Id < rhs.Id || lhs.Id == rhs.Id);
                         };
                         break;
                 }
