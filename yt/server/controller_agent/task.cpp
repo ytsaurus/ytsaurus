@@ -216,8 +216,8 @@ void TTask::ScheduleJob(
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
-    if (!CanScheduleJob(context, jobLimits)) {
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::TaskRefusal);
+    if (auto failReason = GetScheduleFailReason(context, jobLimits)) {
+        scheduleJobResult->RecordFail(*failReason);
         return;
     }
 
@@ -536,11 +536,11 @@ void TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed");
 }
 
-bool TTask::CanScheduleJob(
+TNullable<EScheduleJobFailReason> TTask::GetScheduleFailReason(
     ISchedulingContext* /*context*/,
     const TJobResources& /*jobLimits*/)
 {
-    return true;
+    return Null;
 }
 
 void TTask::DoCheckResourceDemandSanity(

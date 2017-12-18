@@ -215,6 +215,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((TaskRefusal)                   (11))
     ((JobSpecThrottling)             (12))
     ((IntermediateChunkLimitExceeded)(13))
+    ((DataBalancingViolation)        (14))
 );
 
 struct TScheduleJobResult
