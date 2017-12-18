@@ -491,7 +491,7 @@ class UserJobSpecBuilder(object):
                 disk_size += round_up_to(file_disk_size, 4 * 1024)
             tmpfs_size += disk_size
             tmpfs_size += additional_tmpfs_size
-            if "tmpfs_size" not in spec:
+            if "tmpfs_size" not in spec and tmpfs_size > 0:
                 spec["tmpfs_size"] = tmpfs_size
                 spec["copy_files"] = True
                 spec["tmpfs_path"] = "."
