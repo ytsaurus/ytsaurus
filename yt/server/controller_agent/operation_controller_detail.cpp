@@ -169,7 +169,7 @@ void TOperationControllerBase::TUserFile::Persist(const TPersistenceContext& con
     Persist(context, Format);
     Persist(context, Schema);
     Persist(context, IsDynamic);
-    if (context.GetVersion() >= 201200) {
+    if (context.GetVersion() >= 202000) {
         Persist(context, IsLayer);
     }
 }
