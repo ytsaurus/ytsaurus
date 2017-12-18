@@ -649,8 +649,8 @@ private:
                     // Neither //sys/operations/<id> node nor //sys/operations/<hash>/<id> has
                     // "state" attribute.
                     if (!state && stateIt == operationIdToState.end()) {
-                        THROW_ERROR_EXCEPTION("Operation %v does not have \"state\" attribute",
-                            id);
+                        LOG_WARNING("Operation %v does not have \"state\" attribute, skipping it", id);
+                        continue;
                     }
 
                     if (!state) {
