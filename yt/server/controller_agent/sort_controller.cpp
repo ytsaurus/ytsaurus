@@ -16,6 +16,7 @@
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/server/scheduler/helpers.h>
+#include <yt/server/scheduler/job.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -437,23 +438,23 @@ protected:
             return Controller->Spec->EnableIntermediateOutputRecalculation;
         }
 
-        virtual bool CanScheduleJob(
+        virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
             ISchedulingContext* context,
             const TJobResources& /*jobLimits*/) override
         {
             if (!Controller->Spec->EnablePartitionedDataBalancing ||
                 Controller->TotalEstimatedInputDataWeight < Controller->Spec->MinLocalityInputDataWeight)
             {
-                return true;
+                return Null;
             }
 
             auto ioWeight = context->GetNodeDescriptor().IOWeight;
             if (ioWeight == 0) {
-                return false;
+                return EScheduleJobFailReason::DataBalancingViolation;
             }
 
             if (NodeIdToAdjustedDataWeight.empty()) {
-                return true;
+                return Null;
             }
 
             // We don't have a job at hand here, let's make a guess.
@@ -463,9 +464,11 @@ protected:
             auto newAdjustedScheduledDataWeight = AdjustedScheduledDataWeight + adjustedJobDataWeight;
             auto newAvgAdjustedScheduledDataWeight = newAdjustedScheduledDataWeight / NodeIdToAdjustedDataWeight.size();
             auto newAdjustedNodeDataWeight = NodeIdToAdjustedDataWeight[nodeId] + adjustedJobDataWeight;
-            return
+            auto result =
                 newAdjustedNodeDataWeight <=
                 newAvgAdjustedScheduledDataWeight + Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataWeight;
+
+            return MakeNullable(!result, EScheduleJobFailReason::DataBalancingViolation);
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override

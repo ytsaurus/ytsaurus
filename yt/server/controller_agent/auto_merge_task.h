@@ -86,7 +86,7 @@ public:
 
     virtual int GetPendingJobCount() const override;
 
-    virtual bool CanScheduleJob(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override;
+    virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
     virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override;
