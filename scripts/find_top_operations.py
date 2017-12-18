@@ -123,7 +123,7 @@ class Operation(object):
         return {
             "operation_type": self._attrs["operation_type"],
             "authenticated_user": self._attrs["authenticated_user"],
-            "pool": self._attrs["pool"],
+            "pool": self._attrs.get("pool", "<unknown>"),
             "title": self._attrs["spec"].get("title", "")
         }
 
