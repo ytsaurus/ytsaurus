@@ -228,15 +228,15 @@ TQueryStatistics CoordinateAndExecute(
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (int index = 0; index < subqueryHolders.size(); ++index) {
-        auto subQueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
-        if (subQueryStatisticsOrError.IsOK()) {
-            const auto& subQueryStatistics = subQueryStatisticsOrError.ValueOrThrow();
+        auto subqueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
+        if (subqueryStatisticsOrError.IsOK()) {
+            const auto& subqueryStatistics = subqueryStatisticsOrError.ValueOrThrow();
             LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
                 subqueries[index]->Id,
-                subQueryStatistics);
-            queryStatistics += subQueryStatistics;
+                subqueryStatistics);
+            queryStatistics.AddInnerStatistics(subqueryStatistics);
         } else {
-            LOG_DEBUG(subQueryStatisticsOrError, "Subquery failed (SubqueryId: %v)",
+            LOG_DEBUG(subqueryStatisticsOrError, "Subquery failed (SubqueryId: %v)",
                 subqueries[index]->Id);
         }
     }
