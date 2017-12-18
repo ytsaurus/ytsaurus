@@ -16,7 +16,7 @@ void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
     using NYT::Persist;
     using NYT::Load;
 
-    if (context.IsLoad() && context.GetVersion() < 201958) {
+    if (context.IsLoad() && context.GetVersion() < 202000) {
         LivePreviewTableIds = {
             Load<NCypressClient::TNodeId>(context.LoadContext())
         };
