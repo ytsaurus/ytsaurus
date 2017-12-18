@@ -13,6 +13,12 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EBlockOrigin,
+    (Unknown)
+    (Cache)
+    (Disk)
+);
+
 /*!
  * Block == data + optional checksum.
  *
@@ -27,6 +33,10 @@ struct TBlock
 
     TSharedRef Data;
     TChecksum Checksum = NullChecksum;
+    //! Origin of a compressed block read from cache or from the disk.
+    //! NB: This field is not used for uncompressed blocks nor it is
+    //! used when writing blocks.
+    EBlockOrigin BlockOrigin = EBlockOrigin::Unknown;
 
     operator bool() const;
 

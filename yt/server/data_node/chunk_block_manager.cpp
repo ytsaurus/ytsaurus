@@ -193,11 +193,13 @@ public:
         TBlockId BlockId;
         i64 Size;
         TInstant Time;
+        EBlockOrigin BlockOrigin;
 
-        TReadBlock(TBlockId blockId, i64 size, TInstant time)
+        TReadBlock(TBlockId blockId, i64 size, TInstant time, EBlockOrigin blockOrigin)
             : BlockId(blockId)
             , Size(size)
             , Time(time)
+            , BlockOrigin(blockOrigin)
         { }
     };
 
@@ -252,7 +254,7 @@ private:
             const auto& block = blocks[listIndex];
             if (block && RandomNumber<double>() < Config_->RecentlyReadBlockQueueSampleRate) {
                 int blockIndex = blockIndexes[listIndex];
-                readBlocks.emplace_back(TBlockId(chunkId, blockIndex), block.Size(), now);
+                readBlocks.emplace_back(TBlockId(chunkId, blockIndex), block.Size(), now, block.BlockOrigin);
             }
         }
 
@@ -281,6 +283,7 @@ private:
                                 .Item("block_index").Value(readBlock.BlockId.BlockIndex)
                                 .Item("size").Value(readBlock.Size)
                                 .Item("time").Value(readBlock.Time)
+                                .Item("block_origin").Value(readBlock.BlockOrigin)
                             .EndMap();
                     })
             .EndMap();
