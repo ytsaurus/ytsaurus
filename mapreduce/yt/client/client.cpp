@@ -95,9 +95,10 @@ TNode TClientBase::Get(
 
 void TClientBase::Set(
     const TYPath& path,
-    const TNode& value)
+    const TNode& value,
+    const TSetOptions& options)
 {
-    NDetail::Set(Auth_, TransactionId_, path, value);
+    NDetail::Set(Auth_, TransactionId_, path, value, options);
 }
 
 TNode::TListType TClientBase::List(

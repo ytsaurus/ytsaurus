@@ -25,11 +25,12 @@ TNode SerializeParamsForExists(
 TNode SerializeParamsForGet(
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TGetOptions& getOptions);
+    const TGetOptions& options);
 
 TNode SerializeParamsForSet(
     const TTransactionId& transactionId,
-    const TYPath& path);
+    const TYPath& path,
+    const TSetOptions& options);
 
 TNode SerializeParamsForList(
     const TTransactionId& transactionId,

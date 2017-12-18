@@ -48,7 +48,8 @@ public:
 
     void Set(
         const TYPath& path,
-        const TNode& value) override;
+        const TNode& value,
+        const TSetOptions& options) override;
 
     TNode::TListType List(
         const TYPath& path,

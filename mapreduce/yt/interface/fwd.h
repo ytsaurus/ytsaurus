@@ -77,6 +77,8 @@ namespace NYT {
 
     struct TGetOptions;
 
+    struct TSetOptions;
+
     struct TListOptions;
 
     struct TCopyOptions;

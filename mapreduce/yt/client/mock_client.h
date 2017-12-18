@@ -16,7 +16,7 @@ public:
 
     TNode Get(const TYPath&, const TGetOptions&) override final;
 
-    void Set(const TYPath&, const TNode&) override;
+    void Set(const TYPath&, const TNode&, const TSetOptions&) override;
 
     TNode::TListType List(const TYPath&, const TListOptions&) override;
 

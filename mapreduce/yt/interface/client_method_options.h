@@ -61,6 +61,15 @@ struct TGetOptions
     FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
 };
 
+// https://wiki.yandex-team.ru/yt/userdoc/api/#set
+struct TSetOptions
+{
+    using TSelf = TSetOptions;
+
+    // Create all nonexistent intermediate nodes in the path.
+    FLUENT_FIELD_DEFAULT(bool, Recursive, false);
+};
+
 // https://wiki.yandex-team.ru/yt/userdoc/api/#list
 struct TListOptions
 {

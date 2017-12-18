@@ -240,7 +240,7 @@ TNode TMockClient::Get(const TYPath&, const TGetOptions&) {
     return TNode();
 }
 
-void TMockClient::Set(const TYPath&, const TNode&) {
+void TMockClient::Set(const TYPath&, const TNode&, const TSetOptions&) {
 }
 
 TNode::TListType TMockClient::List(const TYPath&, const TListOptions&) {

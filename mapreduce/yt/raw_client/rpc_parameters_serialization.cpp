@@ -101,11 +101,13 @@ TNode SerializeParamsForGet(
 
 TNode SerializeParamsForSet(
     const TTransactionId& transactionId,
-    const TYPath& path)
+    const TYPath& path,
+    const TSetOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
+    result["recursive"] = options.Recursive_;
     return result;
 }
 
