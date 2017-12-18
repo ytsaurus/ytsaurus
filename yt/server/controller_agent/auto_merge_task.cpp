@@ -185,9 +185,9 @@ EJobType TAutoMergeTask::GetJobType() const
     return EJobType::UnorderedMerge;
 }
 
-bool TAutoMergeTask::CanScheduleJob(ISchedulingContext* /* context */, const TJobResources& /* jobLimits */)
+TNullable<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */, const TJobResources& /* jobLimits */)
 {
-    return CanScheduleJob_;
+    return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
 }
 
 int TAutoMergeTask::GetPendingJobCount() const
