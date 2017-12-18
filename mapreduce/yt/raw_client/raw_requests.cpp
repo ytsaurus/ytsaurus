@@ -70,11 +70,12 @@ void Set(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TNode& value)
+    const TNode& value,
+    const TSetOptions& options)
 {
     THttpHeader header("PUT", "set");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForSet(transactionId, path));
+    header.SetParameters(NDetail::SerializeParamsForSet(transactionId, path, options));
     RetryRequest(auth, header, NodeToYsonString(value));
 }
 

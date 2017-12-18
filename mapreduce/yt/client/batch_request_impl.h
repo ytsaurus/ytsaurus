@@ -53,7 +53,8 @@ public:
 
     virtual NThreading::TFuture<void> Set(
         const TYPath& path,
-        const TNode& node) override;
+        const TNode& node,
+        const TSetOptions& options = TSetOptions()) override;
 
     virtual NThreading::TFuture<TNode::TListType> List(
         const TYPath& path,

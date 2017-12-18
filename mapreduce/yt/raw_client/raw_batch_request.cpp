@@ -304,11 +304,12 @@ TFuture<TNode> TRawBatchRequest::Get(
 TFuture<void> TRawBatchRequest::Set(
     const TTransactionId& transaction,
     const TYPath& path,
-    const TNode& node)
+    const TNode& node,
+    const TSetOptions& options)
 {
     return AddRequest<TVoidResponseParser>(
         "set",
-        SerializeParamsForSet(transaction, path),
+        SerializeParamsForSet(transaction, path, options),
         node);
 }
 

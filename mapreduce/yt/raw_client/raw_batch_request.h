@@ -79,7 +79,8 @@ public:
     NThreading::TFuture<void> Set(
         const TTransactionId& transaction,
         const TYPath& path,
-        const TNode& value);
+        const TNode& value,
+        const TSetOptions& options);
     NThreading::TFuture<TNode::TListType> List(
         const TTransactionId& transaction,
         const TYPath& path,

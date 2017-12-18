@@ -41,7 +41,8 @@ void Set(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TNode& value);
+    const TNode& value,
+    const TSetOptions& options = TSetOptions());
 
 bool Exists(
     const TAuth& auth,

@@ -139,6 +139,13 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
             UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/node"), node);
         }
 
+        // TODO(levysotsky) Uncomment after next YT <-> Arcadia sync
+        //{
+        //    TNode node("Recursive");
+        //    UNIT_ASSERT_EXCEPTION(client->Set("//testing/node/with/some/path", node), yexception);
+        //    client->Set("//testing/node/with/some/path", node, TSetOptions().Recursive(true));
+        //    UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/node/with/some/path"), node);
+        //}
 
         auto tx = client->StartTransaction();
         tx->Set("//testing/tx_node", TNode(10050));

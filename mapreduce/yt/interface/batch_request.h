@@ -34,7 +34,8 @@ public:
 
     virtual NThreading::TFuture<void> Set(
         const TYPath& path,
-        const TNode& node) = 0;
+        const TNode& node,
+        const TSetOptions& options = TSetOptions()) = 0;
 
     virtual NThreading::TFuture<TNode::TListType> List(
         const TYPath& path,

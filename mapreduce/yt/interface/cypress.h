@@ -32,7 +32,8 @@ public:
 
     virtual void Set(
         const TYPath& path,
-        const TNode& value) = 0;
+        const TNode& value,
+        const TSetOptions& options = TSetOptions()) = 0;
 
     virtual TNode::TListType List(
         const TYPath& path,
