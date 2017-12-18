@@ -616,8 +616,8 @@ struct TListOperationsOptions
 
 DEFINE_ENUM(EJobSortField,
     ((None)       (0))
-    ((JobType)    (1))
-    ((JobState)   (2))
+    ((Type)       (1))
+    ((State)      (2))
     ((StartTime)  (3))
     ((FinishTime) (4))
     ((Address)    (5))
@@ -633,12 +633,12 @@ DEFINE_ENUM(EJobSortDirection,
 struct TListJobsOptions
     : public TTimeoutOptions
 {
-    TNullable<NJobTrackerClient::EJobType> JobType;
-    TNullable<NJobTrackerClient::EJobState> JobState;
+    TNullable<NJobTrackerClient::EJobType> Type;
+    TNullable<NJobTrackerClient::EJobState> State;
     TNullable<TString> Address;
     TNullable<bool> HasStderr;
 
-    EJobSortField SortField = EJobSortField::StartTime;
+    EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 
     i64 Limit = 1000;
@@ -733,9 +733,9 @@ struct TListOperationsResult
 
 struct TJob
 {
-    NJobTrackerClient::TJobId JobId;
-    NJobTrackerClient::EJobType JobType;
-    NJobTrackerClient::EJobState JobState;
+    NJobTrackerClient::TJobId Id;
+    NJobTrackerClient::EJobType Type;
+    NJobTrackerClient::EJobState State;
     TInstant StartTime;
     TNullable<TInstant> FinishTime;
     TString Address;
@@ -750,9 +750,9 @@ struct TJob
 struct TListJobsResult
 {
     std::vector<TJob> Jobs;
-    int CypressCount = -1;
-    int SchedulerCount = -1;
-    int ArchiveCount = -1;
+    int CypressJobCount = -1;
+    int SchedulerJobCount = -1;
+    int ArchiveJobCount = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

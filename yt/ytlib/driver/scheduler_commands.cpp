@@ -188,9 +188,11 @@ TListJobsCommand::TListJobsCommand()
 {
     RegisterParameter("operation_id", OperationId);
 
-    RegisterParameter("job_type", Options.JobType)
+    RegisterParameter("type", Options.Type)
+        .Alias("job_type")
         .Optional();
-    RegisterParameter("job_state", Options.JobState)
+    RegisterParameter("state", Options.State)
+        .Alias("job_state")
         .Optional();
     RegisterParameter("address", Options.Address)
         .Optional();
@@ -210,6 +212,7 @@ TListJobsCommand::TListJobsCommand()
     RegisterParameter("include_cypress", Options.IncludeCypress)
         .Optional();
     RegisterParameter("include_scheduler", Options.IncludeScheduler)
+        .Alias("include_runtime")
         .Optional();
     RegisterParameter("include_archive", Options.IncludeArchive)
         .Optional();
@@ -226,9 +229,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                 .DoFor(result.Jobs, [] (TFluentList fluent, const TJob& job) {
                     fluent
                         .Item().BeginMap()
-                            .Item("id").Value(job.JobId)
-                            .Item("type").Value(job.JobType)
-                            .Item("state").Value(job.JobState)
+                            .Item("id").Value(job.Id)
+                            .Item("type").Value(job.Type)
+                            .Item("state").Value(job.State)
                             .Item("address").Value(job.Address)
                             .Item("start_time").Value(job.StartTime)
                             .DoIf(job.FinishTime.operator bool(), [&] (TFluentMap fluent) {
@@ -244,7 +247,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                                 fluent.Item("error").Value(job.Error);
                             })
                             .DoIf(job.BriefStatistics.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("statistics").Value(job.BriefStatistics);
+                                fluent.Item("brief_statistics").Value(job.BriefStatistics);
                             })
                             .DoIf(job.InputPaths.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("input_paths").Value(job.InputPaths);
@@ -255,9 +258,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                         .EndMap();
                 })
             .EndList()
-            .Item("cypress_count").Value(result.CypressCount)
-            .Item("scheduler_count").Value(result.SchedulerCount)
-            .Item("archive_count").Value(result.ArchiveCount)
+            .Item("cypress_job_count").Value(result.CypressJobCount)
+            .Item("scheduler_job_count").Value(result.SchedulerJobCount)
+            .Item("archive_job_count").Value(result.ArchiveJobCount)
         .EndMap());
 }
 
