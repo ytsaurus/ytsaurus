@@ -307,6 +307,8 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkR
         }
     }
 
+    LOG_DEBUG("Loading versioned chunk meta");
+
     // TODO(babenko): do we need to make this workload descriptor configurable?
     auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
         chunkReader,
@@ -315,6 +317,9 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkR
         MemoryTracker_);
     auto cachedMeta = WaitFor(asyncCachedMeta)
         .ValueOrThrow();
+
+    LOG_DEBUG("Got versioned chunk meta");
+
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
 
