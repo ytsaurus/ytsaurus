@@ -938,7 +938,7 @@ private:
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
     //! Scrapes chunks of dynamic tables during data slice fetching.
-    NChunkClient::IFetcherChunkScraperPtr DataSliceFetcherChunkScraper;
+    std::vector<NChunkClient::IFetcherChunkScraperPtr> DataSliceFetcherChunkScrapers;
 
     NProfiling::TCpuInstant TaskUpdateDeadline_ = 0;
 
