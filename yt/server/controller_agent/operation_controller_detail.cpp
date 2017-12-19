@@ -4659,15 +4659,22 @@ std::pair<i64, i64> TOperationControllerBase::CalculatePrimaryVersionedChunksSta
 
 std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
-    if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-        DataSliceFetcherChunkScraper = CreateFetcherChunkScraper(
-            Config->ChunkScraper,
-            GetCancelableInvoker(),
-            ControllerAgent->GetChunkLocationThrottlerManager(),
-            AuthenticatedInputMasterClient,
-            InputNodeDirectory_,
-            Logger);
-    }
+    auto createScraperForFetcher = [&] () -> IFetcherChunkScraperPtr {
+        if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
+            auto scraper = CreateFetcherChunkScraper(
+                Config->ChunkScraper,
+                GetCancelableInvoker(),
+                ControllerAgent->GetChunkLocationThrottlerManager(),
+                AuthenticatedInputMasterClient,
+                InputNodeDirectory_,
+                Logger);
+            DataSliceFetcherChunkScrapers.push_back(scraper);
+            return scraper;
+
+        } else {
+            return IFetcherChunkScraperPtr();
+        }
+    };
 
     std::vector<TFuture<void>> asyncResults;
     std::vector<TDataSliceFetcherPtr> fetchers;
@@ -4681,7 +4688,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 true,
                 InputNodeDirectory_,
                 GetCancelableInvoker(),
-                DataSliceFetcherChunkScraper,
+                createScraperForFetcher(),
                 ControllerAgent->GetMasterClient(),
                 RowBuffer,
                 Logger);
@@ -4710,7 +4717,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
         }
     }
 
-    DataSliceFetcherChunkScraper.Reset();
+    DataSliceFetcherChunkScrapers.clear();
 
     return result;
 }
@@ -5981,8 +5988,12 @@ bool TOperationControllerBase::IsRowCountPreserved() const
 
 i64 TOperationControllerBase::GetUnavailableInputChunkCount() const
 {
-    if (DataSliceFetcherChunkScraper && State == EControllerState::Preparing) {
-        return DataSliceFetcherChunkScraper->GetUnavailableChunkCount();
+    if (!DataSliceFetcherChunkScrapers.empty() && State == EControllerState::Preparing) {
+        i64 result = 0;
+        for (const auto& fetcher : DataSliceFetcherChunkScrapers) {
+            result += fetcher->GetUnavailableChunkCount();
+        }
+        return result;
     }
     return UnavailableInputChunkCount;
 }
