@@ -161,6 +161,7 @@ TFormat::TFormat(EFormatType type, const TNode& config)
     Y_VERIFY(type != EFormatType::Protobuf, "Use Protobuf<TYourProtoMessage>() for this");
 
     if (Config.IsUndefined()) {
+        Y_VERIFY(type != EFormatType::Custom, "Cannot create custom format without config");
         Config = GetDefaultFormatConfig(type);
     }
 }
