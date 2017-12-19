@@ -3180,7 +3180,7 @@ private:
             attrNodeOrError = WaitFor(asyncAttrResultOld);
         }
 
-        if (attrNodeOrError.GetCode() == NYT::EErrorCode::OK) {
+        if (attrNodeOrError.IsOK()) {
             auto attrNodeValue = attrNodeOrError.Value();
 
             TGetNodeOptions optionsToScheduler;
@@ -3191,21 +3191,21 @@ private:
             auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), optionsToScheduler);
             auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
 
-            if (schedulerProgressValueOrError.GetCode() == NYT::EErrorCode::OK) {
+            if (schedulerProgressValueOrError.IsOK()) {
                 auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
                 auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
                 attrNode->RemoveChild("progress");
                 YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
 
                 attrNodeValue = ConvertToYsonString(attrNode);
-            } else if (schedulerProgressValueOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+            } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 LOG_DEBUG("No such operation %v in the scheduler", operationId);
             } else {
                 THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId);
             }
 
             return attrNodeValue;
-        } else if (attrNodeOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+        } else if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             LOG_DEBUG("No such operation %v in Cypress", operationId);
 
             int version = DoGetOperationsArchiveVersion();
