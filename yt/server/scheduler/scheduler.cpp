@@ -1428,7 +1428,7 @@ private:
             LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
             if (!operation->IsFinishedState()) {
                 operation->Cancel();
-                operation->GetController()->Forget();
+                operation->SetForgotten(true);
                 SetOperationFinalState(
                     operation,
                     EOperationState::Aborted,
@@ -2230,7 +2230,7 @@ private:
                     .Run();
                 WaitFor(asyncResult)
                     .ThrowOnError();
-                if (controller->IsForgotten()) {
+                if (operation->GetForgotten()) {
                     // Master disconnected happend while committing controller.
                     return;
                 }
@@ -2241,7 +2241,7 @@ private:
 
                 if (Config_->TestingOptions->FinishOperationTransitionDelay) {
                     Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
-                    if (controller->IsForgotten()) {
+                    if (operation->GetForgotten()) {
                         // Master disconnected happend while committing controller.
                         return;
                     }
@@ -2405,7 +2405,7 @@ private:
         if (Config_->TestingOptions->FinishOperationTransitionDelay) {
             auto controller = operation->GetController();
             Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
-            if (controller->IsForgotten()) {
+            if (operation->GetForgotten()) {
                 // Master disconnect happened while committing controller.
                 return;
             }

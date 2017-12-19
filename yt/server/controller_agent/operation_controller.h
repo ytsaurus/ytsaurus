@@ -232,13 +232,6 @@ struct IOperationControllerSchedulerHost
      */
     virtual void Abort() = 0;
 
-    //! Notifies the controller that its current scheduling decisions should be discarded.
-    /*!
-     *  Happens when current scheduler gets disconnected from master and
-     *  the negotiation between scheduler and controller becomes no longer valid.
-     */
-    virtual void Forget() = 0;
-
     //! Notifies the controller that the operation has been completed.
     /*!
      *  All running jobs are aborted automatically.
@@ -251,9 +244,6 @@ struct IOperationControllerSchedulerHost
      *  Most of const controller methods are expected to be run in this invoker.
      */
     virtual IInvokerPtr GetInvoker() const = 0;
-
-    //! Returns whether controller was forgotten or not.
-    virtual bool IsForgotten() const = 0;
 
     //! Returns whether controller was revived from snapshot.
     virtual bool IsRevivedFromSnapshot() const = 0;
@@ -342,6 +332,13 @@ struct IOperationController
      *  \note Invoker affinity: Control invoker
      */
     virtual void Resume() = 0;
+
+    //! Notifies the controller that its current scheduling decisions should be discarded.
+    /*!
+     *  Happens when current scheduler gets disconnected from master and
+     *  the negotiation between scheduler and controller becomes no longer valid.
+     */
+    virtual void Forget() = 0;
 
     //! Returns the total number of jobs to be run during the operation.
     virtual int GetTotalJobCount() const = 0;

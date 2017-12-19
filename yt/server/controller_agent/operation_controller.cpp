@@ -159,11 +159,6 @@ public:
         return Underlying_->GetTotalJobCount();
     }
 
-    virtual bool IsForgotten() const override
-    {
-        return Underlying_->IsForgotten();
-    }
-
     virtual bool IsRunning() const override
     {
         return Underlying_->IsRunning();

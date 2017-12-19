@@ -66,6 +66,14 @@ public:
     {
         Connected_.store(false);
 
+        for (auto pair : GetControllers()) {
+            const auto& operationId = pair.first;
+            const auto& controller = pair.second;
+
+            LOG_INFO("Forgetting operation (OperationId: %v)", operationId);
+            controller->Forget();
+        }
+
         CancelableContext_->Cancel();
 
         CachedExecNodeDescriptorsByTags_->Stop();
