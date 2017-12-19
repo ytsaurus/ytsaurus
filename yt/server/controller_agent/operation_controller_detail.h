@@ -227,7 +227,6 @@ public:
 
     virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override;
 
-    virtual bool IsForgotten() const override;
     virtual bool IsRevivedFromSnapshot() const override;
 
     //! Returns |true| as long as the operation can schedule new jobs.
