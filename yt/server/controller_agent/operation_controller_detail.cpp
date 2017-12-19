@@ -1139,7 +1139,7 @@ void TOperationControllerBase::StartCompletionTransaction()
         OutputTransaction->GetId()))
         .ValueOrThrow();
 
-    // Set transaction id to cypress.
+    // Set transaction id to Cypress.
     {
         const auto& client = ControllerAgent->GetMasterClient();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);

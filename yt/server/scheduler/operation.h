@@ -144,7 +144,7 @@ public:
     //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
-    //! Mark that operation attributes should be flushed to cypress.
+    //! Mark that operation attributes should be flushed to Cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
     //! Scheduler incarnation that spawned this operation.
