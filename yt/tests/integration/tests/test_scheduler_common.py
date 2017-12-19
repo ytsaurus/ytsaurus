@@ -2493,11 +2493,30 @@ class TestPoolMetrics(YTEnvSetup):
 
         set("//sys/operations/{0}/@owners/end".format(op.id), "u")
         set("//sys/operations/{0}/@weight".format(op.id), 3)
-
         time.sleep(1.0)
 
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
+
+        set("//sys/operations/{0}/@owners/end".format(op.id), "missing_user")
+        time.sleep(1.0)
+
+        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
+        assert alerts.keys() == ["invalid_acl"]
+
+        self.Env.kill_schedulers()
+        time.sleep(1)
+        self.Env.start_schedulers()
+
+        time.sleep(1)
+
+        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
+        assert alerts.keys() == ["invalid_acl"]
+
+        remove("//sys/operations/{0}/@owners/-1".format(op.id))
+        time.sleep(1.0)
+
+        assert not get("//sys/operations/{0}/@alerts".format(op.id))
 
 class TestGetJobSpecFailed(YTEnvSetup):
     NUM_MASTERS = 1
