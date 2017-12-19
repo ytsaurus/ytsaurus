@@ -4567,8 +4567,10 @@ private:
 
         TFuture<std::pair<std::vector<TJob>, int>> archiveJobsFuture, cypressJobsFuture, schedulerJobsFuture;
 
+        bool isArchiveExists = IsArchiveExists();
+
         // Issue the requests in parallel.
-        if (options.IncludeArchive) {
+        if (options.IncludeArchive && isArchiveExists) {
             archiveJobsFuture = DoListJobsFromArchive(operationId, deadline, options);
         }
 
@@ -4580,7 +4582,7 @@ private:
             schedulerJobsFuture = DoListJobsFromScheduler(operationId, deadline, options);
         }
 
-        if (options.IncludeArchive) {
+        if (options.IncludeArchive && isArchiveExists) {
             auto archiveJobs = WaitFor(archiveJobsFuture)
                 .ValueOrThrow();
             result.ArchiveJobCount = archiveJobs.second;
