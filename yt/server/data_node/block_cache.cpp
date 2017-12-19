@@ -66,7 +66,7 @@ public:
             if (auto cachedBlock = chunkBlockManager->FindCachedBlock(id)) {
                 auto block = cachedBlock->GetData();
                 block.BlockOrigin = EBlockOrigin::Cache;
-                return std::move(block);
+                return block;
             } else {
                 return TBlock();
             }
