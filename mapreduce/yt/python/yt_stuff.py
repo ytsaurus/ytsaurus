@@ -9,6 +9,8 @@ import signal
 import fcntl
 
 import pytest
+from _pytest.fixtures import FixtureLookupError
+
 import yatest.common
 
 import devtools.swag.daemon
@@ -526,8 +528,8 @@ class YtStuff(object):
 @pytest.fixture(scope="module")
 def yt_stuff(request):
     try:
-        yt_config = request.getfuncargvalue("yt_config")
-    except Exception:
+        yt_config = request.getfixturevalue("yt_config")
+    except FixtureLookupError:
         yt_config = None
     yt = YtStuff(yt_config)
     yt.start_local_yt()
