@@ -1240,11 +1240,28 @@ private:
 
             // Set operation acl.
             {
+                auto aclBatchReq = StartObjectBatchRequest();
                 auto req = TYPathProxy::Set(operationPath + "/@acl");
                 req->set_value(BuildYsonStringFluently()
                     .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
                     .GetData());
-                batchReq->AddRequest(req, "update_op_node");
+                aclBatchReq->AddRequest(req, "set_acl");
+
+                auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(aclBatchRspOrError);
+
+                auto rsp = aclBatchRspOrError.Value()->GetResponse("set_acl");
+                if (!rsp.IsOK()) {
+                    auto error = TError("Failed to set operation acl")
+                        << TErrorAttribute("operation_id", operation->GetId())
+                        << rsp;
+                    operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = error;
+                    LOG_INFO(error);
+                } else {
+                    if (!operation->Alerts()[EOperationAlertType::InvalidAcl].IsOK()) {
+                        operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = TError();
+                    }
+                }
             }
         }
 
