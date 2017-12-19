@@ -1380,9 +1380,7 @@ void TMapNodeProxy::SetRecursive(
     const TCtxSetPtr& context)
 {
     context->SetRequestInfo();
-    if (Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand) {
-        THROW_ERROR_EXCEPTION("Command 'set' is disabled in cypress, use 'create' instead");
-    }
+    ValidateSetCommand();
     TMapNodeMixin::SetRecursive(path, request, response, context);
 }
 
@@ -1749,13 +1747,12 @@ void TListNodeProxy::SetRecursive(
     tokenizer.Advance();
     auto token = tokenizer.GetToken();
 
-    if (Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand &&
-        !token.StartsWith(ListBeginToken) &&
+    if (!token.StartsWith(ListBeginToken) &&
         !token.StartsWith(ListEndToken) &&
         !token.StartsWith(ListBeforeToken) &&
         !token.StartsWith(ListAfterToken))
     {
-        THROW_ERROR_EXCEPTION("Command 'set' is disabled in cypress, use 'create' instead");
+        ValidateSetCommand();
     }
     TListNodeMixin::SetRecursive(path, request, response, context);
 }

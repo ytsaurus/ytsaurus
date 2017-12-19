@@ -269,6 +269,13 @@ protected:
     {
         return TNontemplateCypressNodeProxyBase::LockThisImpl<TActualImpl>(request, recursive);
     }
+
+    void ValidateSetCommand() const
+    {
+        if (TBase::Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand) {
+            THROW_ERROR_EXCEPTION("Command \"set\" is forbidden in Cypress, use \"create\" instead");
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,9 +329,7 @@ private:
     { \
         Y_UNUSED(response); \
         context->SetRequestInfo(); \
-        if (Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand) { \
-            THROW_ERROR_EXCEPTION("Command 'set' is disabled in cypress, use 'create' instead"); \
-        } \
+        ValidateSetCommand(); \
         DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
         context->Reply(); \
     }
