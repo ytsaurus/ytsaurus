@@ -2483,6 +2483,26 @@ class TestPoolMetrics(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
 
+        set("//sys/operations/{0}/@owners/end".format(op.id), "missing_user")
+        time.sleep(1.0)
+
+        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
+        assert alerts.keys() == ["invalid_acl"]
+
+        self.Env.kill_schedulers()
+        time.sleep(1)
+        self.Env.start_schedulers()
+
+        time.sleep(1)
+
+        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
+        assert alerts.keys() == ["invalid_acl"]
+
+        remove("//sys/operations/{0}/@owners/-1".format(op.id))
+        time.sleep(1.0)
+
+        assert not get("//sys/operations/{0}/@alerts".format(op.id))
+
 ##################################################################
 
 class TestGetJobSpecFailed(YTEnvSetup):
