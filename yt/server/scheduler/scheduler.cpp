@@ -346,6 +346,13 @@ public:
         }
     }
 
+    void Disconnect()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MasterConnector_->Disconnect();
+    }
+
     virtual TInstant GetConnectionTime() const override
     {
         return ConnectionTime_;
@@ -2862,6 +2869,11 @@ void TScheduler::ValidateConnected()
 void TScheduler::ValidateAcceptsHeartbeats()
 {
     Impl_->ValidateAcceptsHeartbeats();
+}
+
+void TScheduler::Disconnect()
+{
+    Impl_->Disconnect();
 }
 
 TOperationPtr TScheduler::FindOperation(const TOperationId& id) const

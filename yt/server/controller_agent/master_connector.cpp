@@ -6,6 +6,7 @@
 #include "serialize.h"
 
 #include <yt/server/scheduler/config.h>
+#include <yt/server/scheduler/scheduler.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
@@ -202,9 +203,17 @@ public:
 
     TFuture<void> RemoveSnapshot(const TOperationId& operationId)
     {
-        return BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
+        auto future = BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
             .AsyncVia(Invoker_)
             .Run();
+        future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (!error.IsOK()) {
+                Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
+                    .AsyncVia(Bootstrap_->GetControlInvoker())
+                    .Run()));
+            }
+        }));
+        return future;
     }
 
     void AddChunksToUnstageList(std::vector<TChunkId> chunkIds)
@@ -339,7 +348,7 @@ private:
         {
             TGuard<TSpinLock> guard(ControllersLock_);
             for (auto pair : ControllerMap_) {
-                const auto& controller = pair.second;
+                auto controller = pair.second;
                 for (const auto& transaction : controller->GetTransactions()) {
                     watchSet.insert(transaction->GetId());
                 }
