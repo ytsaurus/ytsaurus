@@ -61,6 +61,8 @@ public:
         TJobControllerConfigPtr config,
         TBootstrap* bootstrap);
 
+    void Initialize();
+
     void RegisterFactory(
         EJobType type,
         TJobFactory factory);
@@ -199,12 +201,16 @@ TJobController::TImpl::TImpl(
 {
     YCHECK(config);
     YCHECK(bootstrap);
+}
 
+void TJobController::TImpl::Initialize()
+{
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
         JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", FormatEnum(origin));
     }
 
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
+        LOG_INFO("Using external user job memory");
         ExternalMemoryUsageTracker_ = std::make_unique<TNodeMemoryTracker>(
             0,
             std::vector<std::pair<EMemoryCategory, i64>>{},
@@ -212,7 +218,7 @@ TJobController::TImpl::TImpl(
             TProfiler("/exec_agent/external_memory_usage"));
     }
 
-    GetSystemMemoryUsageTracker()->SetCategoryLimit(
+    GetUserMemoryUsageTracker()->SetCategoryLimit(
         EMemoryCategory::UserJobs,
         Config_->ResourceLimits->UserMemory);
 
@@ -1014,6 +1020,12 @@ TJobController::TJobController(
         config,
         bootstrap))
 { }
+
+void TJobController::Initialize()
+{
+    Impl_->Initialize();
+}
+
 
 void TJobController::RegisterFactory(
     EJobType type,

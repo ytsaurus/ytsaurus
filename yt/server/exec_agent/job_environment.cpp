@@ -487,14 +487,6 @@ private:
 
     virtual void DoInit(int slotCount) override
     {
-       if (Config_->ResourceLimitsUpdatePeriod) {
-            LimitsUpdateExecutor_ = New<TPeriodicExecutor>(
-                ActionQueue_->GetInvoker(),
-                BIND(&TPortoJobEnvironment::UpdateLimits, MakeWeak(this)),
-                *Config_->ResourceLimitsUpdatePeriod);
-            LimitsUpdateExecutor_->Start();
-        }
-
         auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)](const TError& error) {
             // We use weak ptr to avoid cyclic references between container manager and job environment.
             auto this_ = weakThis_.Lock();
@@ -517,6 +509,14 @@ private:
         RootVolumeManager_ = CreatePortoVolumeManager(
             Bootstrap_->GetConfig()->DataNode->VolumeManager,
             Bootstrap_);
+
+        if (Config_->ResourceLimitsUpdatePeriod) {
+            LimitsUpdateExecutor_ = New<TPeriodicExecutor>(
+                ActionQueue_->GetInvoker(),
+                BIND(&TPortoJobEnvironment::UpdateLimits, MakeWeak(this)),
+                *Config_->ResourceLimitsUpdatePeriod);
+            LimitsUpdateExecutor_->Start();
+        }
 #endif
     }
 
@@ -546,8 +546,11 @@ private:
     void UpdateLimits()
     {
         try {
-            auto self = ContainerManager_->GetSelfInstance();
-            auto limits = self->GetResourceLimits();
+            auto container = Config_->ExternalJobContainer
+                ? ContainerManager_->GetInstance(*Config_->ExternalJobContainer)
+                : ContainerManager_->GetSelfInstance();
+
+            auto limits = container->GetResourceLimits();
 
             auto guard = Guard(LimitsLock_);
             if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {

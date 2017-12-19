@@ -25,36 +25,17 @@ static NLogging::TLogger& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString GetRelativeName(IPortoExecutorPtr executor)
+static TString GetSelfAbsoluteName(IPortoExecutorPtr executor)
 {
     auto properties = WaitFor(executor->GetProperties(
         "self",
-        std::vector<TString>{"absolute_name", "absolute_namespace"}))
+        std::vector<TString>{"absolute_name"}))
             .ValueOrThrow();
 
     auto absoluteName = properties.at("absolute_name")
         .ValueOrThrow();
-    auto absoluteNameSpace = properties.at("absolute_namespace")
-        .ValueOrThrow();
 
-    // Container without porto_namespace:
-    // absolute_name = /porto/foo
-    // absolute_namespace = /porto/
-    //
-    // Container with porto_namespace:
-    // absolute_name = /porto/foo
-    // absolute_namespace = /porto/foo/
-    //
-    // Root container (host):
-    // absolute_name = /
-    // absolute_namespace = /porto/
-    //
-    // root container is a special case - return empty string
-
-    if (absoluteNameSpace.size() > absoluteName.size()) {
-        return {};
-    }
-    return absoluteName.substr(absoluteNameSpace.size()) + "/";
+    return absoluteName + "/";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,16 +44,22 @@ class TPortoManager
     : public IContainerManager
 {
 public:
-    virtual IInstancePtr CreateInstance() override
+    virtual IInstancePtr CreateInstance(bool autoDestroy) override
     {
         return CreatePortoInstance(
-            RelativeName_ + Prefix_ + '_' + ToString(InstanceId_++),
-            Executor_);
+            BaseName_ + Prefix_ + '_' + ToString(InstanceId_++),
+            Executor_,
+            autoDestroy);
     }
 
     virtual IInstancePtr GetSelfInstance() override
     {
         return GetSelfPortoInstance(Executor_);
+    }
+
+    virtual IInstancePtr GetInstance(const TString& name) override
+    {
+        return GetPortoInstance(Executor_, name);
     }
 
     virtual TFuture<std::vector<TString>> GetInstanceNames() const override
@@ -91,9 +78,18 @@ public:
             portoManagerConfig.PollPeriod);
         executor->SubscribeFailed(errorHandler);
 
+        auto getRootContainer = [&] () {
+            if (rootContainer) {
+                // Name of root container must end with "/".
+                return *rootContainer + (rootContainer->EndsWith('/') ? "" : "/");
+            } else {
+                return GetSelfAbsoluteName(executor);
+            }
+        };
+
         auto manager = New<TPortoManager>(
             prefix,
-            rootContainer ? *rootContainer : GetRelativeName(executor),
+            getRootContainer(),
             portoManagerConfig,
             executor);
         manager->CleanContainers();
@@ -102,7 +98,7 @@ public:
 
 private:
     const TString Prefix_;
-    const TString RelativeName_;
+    const TString BaseName_;
     const TPortoManagerConfig PortoManagerConfig_;
 
     mutable IPortoExecutorPtr Executor_;
@@ -110,17 +106,17 @@ private:
 
     TPortoManager(
         const TString& prefix,
-        const TString& relativeName,
+        const TString& baseName,
         const TPortoManagerConfig& portoManagerConfig,
         IPortoExecutorPtr executor)
         : Prefix_(prefix)
-        , RelativeName_(relativeName)
+        , BaseName_(baseName)
         , PortoManagerConfig_(portoManagerConfig)
         , Executor_(executor)
     {
-        LOG_DEBUG("Porto manager initialized (Prefix: %v, RelativeName: %v)",
+        LOG_DEBUG("Porto manager initialized (Prefix: %v, BaseName: %v)",
             Prefix_,
-            RelativeName_);
+            BaseName_);
     }
 
     TString GetState(const TString& name) const
@@ -144,17 +140,17 @@ private:
 
         const auto containers = WaitFor(GetInstanceNames())
             .ValueOrThrow();
-        LOG_DEBUG("Cleaning requested (Prefix: %v, Containers: %v, RelativeName: %v)",
+        LOG_DEBUG("Cleaning requested (Prefix: %v, Containers: %v, BaseName: %v)",
             Prefix_,
             containers,
-            RelativeName_);
+            BaseName_);
 
         std::vector<TFuture<void>> actions;
         for (const auto& name : containers) {
             if (name == "/") {
                 continue;
             }
-            if (!name.StartsWith(RelativeName_ + Prefix_)) {
+            if (!name.StartsWith(BaseName_ + Prefix_)) {
                 continue;
             }
             if (PortoManagerConfig_.CleanMode == ECleanMode::Dead) {

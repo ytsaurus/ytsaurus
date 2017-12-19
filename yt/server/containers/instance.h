@@ -73,8 +73,9 @@ DEFINE_REFCOUNTED_TYPE(IInstance)
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
-IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor);
+IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor, bool autoDestroy = true);
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name);
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
