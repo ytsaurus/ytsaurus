@@ -3153,13 +3153,6 @@ int TOperationControllerBase::GetTotalJobCount() const
     return JobCounter->GetTotal();
 }
 
-bool TOperationControllerBase::IsForgotten() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Forgotten;
-}
-
 bool TOperationControllerBase::IsRevivedFromSnapshot() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
