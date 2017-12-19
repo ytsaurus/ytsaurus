@@ -358,6 +358,7 @@ public:
     TCoroStream(TStringBuf data, TSkiffParserCoroutine* coroutine)
         : Coroutine_(coroutine)
         , PendingData_(data)
+        , Finished_(data.empty())
     { }
 
     size_t DoNext(const void** ptr, size_t len) override

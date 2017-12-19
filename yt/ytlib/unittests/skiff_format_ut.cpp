@@ -1327,5 +1327,35 @@ TEST(TSkiffParser, TestOtherColumns)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TSkiffParser, TestEmptyInput)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::String32)->SetName("column"),
+    });
+
+    TCollectingValueConsumer collectedRows;
+
+    {
+        auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+        parser->Finish();
+        ASSERT_EQ(collectedRows.Size(), 0);
+    }
+    {
+        auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+        parser->Read("");
+        parser->Finish();
+        ASSERT_EQ(collectedRows.Size(), 0);
+    }
+    {
+        auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+        parser->Read("");
+        parser->Read("");
+        parser->Finish();
+        ASSERT_EQ(collectedRows.Size(), 0);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace // anonymous
 } // namespace NYT
