@@ -428,7 +428,7 @@ private:
     std::vector<std::unique_ptr<IOutputStream>> TableOutputs_;
     std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
 
-    // Writes stderr data to cypress file.
+    // Writes stderr data to Cypress file.
     std::unique_ptr<TStderrWriter> ErrorOutput_;
 
     // StderrCombined_ is set only if stderr table is specified.

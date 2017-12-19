@@ -352,13 +352,13 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: any.
      */
-    //! Marks that progress was dumped to cypress.
+    //! Marks that progress was dumped to Cypress.
     virtual void SetProgressUpdated() = 0;
 
     /*!
      *  \note Invoker affinity: any.
      */
-    //! Check that progress has changed and should be dumped to the cypress.
+    //! Check that progress has changed and should be dumped to the Cypress.
     virtual bool ShouldUpdateProgress() const = 0;
 
     /*!
@@ -410,7 +410,7 @@ struct IOperationController
     //! Updates internal copy of scheduler config used by controller.
     virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
 
-    // TODO(ignat): remake it to method that returns attributes that should be updated in cypress.
+    // TODO(ignat): remake it to method that returns attributes that should be updated in Cypress.
     /*!
      *  \note Invoker affinity: any.
      */
