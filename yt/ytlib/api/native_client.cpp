@@ -133,6 +133,7 @@ using NTableClient::TColumnSchema;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
 using NNodeTrackerClient::TNetworkPreferenceList;
+using NNodeTrackerClient::TNodeDescriptor;
 
 using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplicaCount>;
 
@@ -3266,9 +3267,54 @@ private:
             .ThrowOnError();
     }
 
-    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
-        const TJobId& jobId,
-        const TGetJobInputOptions& /*options*/)
+    void ValidateJobSpecVersion(const TJobId& jobId, const NYT::NJobTrackerClient::NProto::TJobSpec& jobSpec)
+    {
+        if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
+            THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("found_version", jobSpec.version())
+                << TErrorAttribute("supported_version", GetJobSpecVersion());
+        }
+    }
+
+    TNodeDescriptor GetJobNodeDescriptor(const TJobId& jobId)
+    {
+        TNodeDescriptor jobNodeDescriptor;
+        auto req = JobProberProxy_->GetJobNode();
+        ToProto(req->mutable_job_id(), jobId);
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+        FromProto(&jobNodeDescriptor, rsp->node_descriptor());
+        return jobNodeDescriptor;
+    }
+
+    TNullable<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(const TJobId& jobId)
+    {
+        try {
+            TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
+
+            auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
+            NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+
+            auto req = jobProberServiceProxy.GetSpec();
+            ToProto(req->mutable_job_id(), jobId);
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
+
+            ValidateJobSpecVersion(jobId, rsp->spec());
+            return rsp->spec();
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob);
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job spec from job node")
+                    << TErrorAttribute("job_id", jobId)
+                    << exception;
+            }
+        }
+        return Null;
+    }
+
+    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(const TJobId& jobId)
     {
         int version = DoGetOperationsArchiveVersion();
 
@@ -3321,12 +3367,20 @@ private:
             THROW_ERROR_EXCEPTION("Cannot parse job spec")
                 << TErrorAttribute("job_id", jobId);
         }
+        ValidateJobSpecVersion(jobId, jobSpec);
 
-        if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
-            THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("found_version", jobSpec.version())
-                << TErrorAttribute("supported_version", GetJobSpecVersion());
+        return jobSpec;
+    }
+
+    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
+        const TJobId& jobId,
+        const TGetJobInputOptions& /*options*/)
+    {
+        NJobTrackerClient::NProto::TJobSpec jobSpec;
+        if (auto jobSpecFromProxy = GetJobSpecFromJobNode(jobId)) {
+            jobSpec.Swap(jobSpecFromProxy.GetPtr());
+        } else {
+            jobSpec = GetJobSpecFromArchive(jobId);
         }
 
         auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -3370,7 +3424,7 @@ private:
             jobSpecHelper,
             MakeStrong(this),
             GetConnection()->GetInvoker(),
-            NNodeTrackerClient::TNodeDescriptor(),
+            TNodeDescriptor(),
             BIND([] { }),
             Null);
 
@@ -3384,14 +3438,7 @@ private:
         const TJobId& jobId)
     {
         try {
-            NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
-            {
-                auto req = JobProberProxy_->GetJobNode();
-                ToProto(req->mutable_job_id(), jobId);
-                auto rsp = WaitFor(req->Invoke())
-                    .ValueOrThrow();
-                FromProto(&jobNodeDescriptor, rsp->node_descriptor());
-            }
+            TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
 
             auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
             NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);

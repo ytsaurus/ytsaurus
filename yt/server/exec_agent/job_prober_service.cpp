@@ -33,6 +33,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStderr));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSpec));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
@@ -64,6 +65,17 @@ private:
         auto stderrData = job->GetStderr();
 
         response->set_stderr_data(stderrData);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetSpec)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        response->mutable_spec()->CopyFrom(job->GetSpec());
+
         context->Reply();
     }
 
