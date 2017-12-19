@@ -41,6 +41,8 @@ public:
     void ValidateConnected();
     void ValidateAcceptsHeartbeats();
 
+    void Disconnect();
+
     TOperationPtr FindOperation(const TOperationId& id) const;
     TOperationPtr GetOperationOrThrow(const TOperationId& id) const;
 
