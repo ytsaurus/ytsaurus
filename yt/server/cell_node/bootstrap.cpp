@@ -554,6 +554,7 @@ void TBootstrap::DoRun()
     ChunkStore->Initialize();
     ChunkCache->Initialize();
     ExecSlotManager->Initialize();
+    JobController->Initialize();
     MonitoringManager_->Start();
     PeerBlockUpdater->Start();
     MasterConnector->Start();

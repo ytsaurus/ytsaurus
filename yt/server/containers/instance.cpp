@@ -78,23 +78,28 @@ class TPortoInstance
     : public IInstance
 {
 public:
-    static IInstancePtr Create(const TString& name, IPortoExecutorPtr executor)
+    static IInstancePtr Create(const TString& name, IPortoExecutorPtr executor, bool autoDestroy)
     {
         auto error = WaitFor(executor->CreateContainer(name));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to create container");
-        return New<TPortoInstance>(name, executor);
+        return New<TPortoInstance>(name, executor, autoDestroy);
     }
 
     static IInstancePtr GetSelf(IPortoExecutorPtr executor)
     {
-        return New<TPortoInstance>("self", executor, true);
+        return New<TPortoInstance>("self", executor, false);
+    }
+
+    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name)
+    {
+        return New<TPortoInstance>(name, executor, false);
     }
 
     ~TPortoInstance()
     {
         // We can't wait here, but even if this request fails
         // it is not a big issue - porto has its own GC.
-        if (!Destroyed_ && !IsSelf_) {
+        if (!Destroyed_ && AutoDestroy_) {
             Executor_->DestroyContainer(Name_);
         }
     }
@@ -289,7 +294,6 @@ public:
         SetProperty("command", command);
         SetProperty("isolate", "true");
         SetProperty("enable_porto", "true");
-        SetProperty("porto_namespace", Name_ + "/");
 
         for (auto arg : env) {
             SetProperty("env", TString(arg) + ";");
@@ -315,19 +319,19 @@ private:
     std::vector<TFuture<void>> Actions_;
     static const std::map<EStatField, TPortoStatRule> StatRules_;
     const NLogging::TLogger Logger;
-    const bool IsSelf_;
+    const bool AutoDestroy_;
     bool Destroyed_ = false;
     bool HasRoot_ = false;
 
     TPortoInstance(
         const TString& name,
         IPortoExecutorPtr executor,
-        bool isSelf = false)
+        bool autoDestroy)
         : Name_(name)
         , Executor_(executor)
         , Logger(NLogging::TLogger(ContainersLogger)
             .AddTag("Container: %v", Name_))
-        , IsSelf_(isSelf)
+        , AutoDestroy_(autoDestroy)
     { }
 
     void SetProperty(const TString& key, const TString& value)
@@ -370,14 +374,19 @@ const std::map<EStatField, TPortoStatRule> TPortoInstance::StatRules_ = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor)
+IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor, bool autoDestroy)
 {
-    return TPortoInstance::Create(name, executor);
+    return TPortoInstance::Create(name, executor, autoDestroy);
 }
 
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)
 {
     return TPortoInstance::GetSelf(executor);
+}
+
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name)
+{
+    return TPortoInstance::GetInstance(executor, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
