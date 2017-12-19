@@ -420,8 +420,9 @@ public:
             if (replica->GetClusterName() == clusterName &&
                 replica->GetReplicaPath() == replicaPath)
             {
-                THROW_ERROR_EXCEPTION("Replica table %v at cluster %Qv already exists",
+                THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::TableReplicaAlreadyExists,
+                    "Replica table %v at cluster %Qv already exists",
                     replicaPath,
                     clusterName);
             }
