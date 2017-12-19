@@ -12,7 +12,9 @@ enum class EFormatType : int {
     YsonText,
     YsonBinary,
     YaMRLenval,
-    Protobuf
+    Protobuf,
+
+    Custom, // Allows to specify arbitrary format
 };
 
 ////////////////////////////////////////////////////////////////////////////////
