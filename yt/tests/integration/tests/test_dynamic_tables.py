@@ -579,6 +579,13 @@ class TestDynamicTables(TestDynamicTablesBase):
         self.sync_unmount_table("//tmp/t")
         _verify(3, 0, 0)
 
+    def test_tablet_table_path_attribute(self):
+        self.sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert get("#" + tablet_id + "/@table_path") == "//tmp/t"
+
 ##################################################################
 
 class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
