@@ -560,6 +560,12 @@ class Operation(object):
         self._tmpdir = ""
         self._poll_frequency = 0.1
 
+    def _get_new_operation_path(self):
+        return "//sys/operations/{0:02x}/{1}".format(int(self.id.split("-")[-1], 16) % 256, self.id)
+
+    def _get_operation_path(self):
+        return "//sys/operations/" + self.id
+
     def get_job_phase(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
         node = get(job_path + "/address", verbose=False)
@@ -669,7 +675,13 @@ class Operation(object):
         return get(path, verbose=False)
 
     def get_state(self, **kwargs):
-        return get("//sys/operations/{0}/@state".format(self.id), **kwargs)
+        try:
+            return get(self._get_operation_path() + "/@state", verbose_error=False, **kwargs)
+        except YtResponseError as err:
+            if not err.is_resolve_error():
+                raise
+
+        return get(self._get_new_operation_path() + "/@state", **kwargs)
 
     def track(self):
         def build_progress():

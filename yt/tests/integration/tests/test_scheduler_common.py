@@ -4,6 +4,10 @@ from yt_commands import *
 from yt.yson import *
 from yt.wrapper import JsonFormat
 
+import yt.environment.init_operation_archive as init_operation_archive
+
+from operations_archive import clean_operations
+
 from flaky import flaky
 
 import pprint
@@ -2844,3 +2848,74 @@ fi
         assert not exists(get_fail_context_path(op, jobs[0]))
         assert not exists(get_stderr_path(op, jobs[0]))
         assert read_file(get_stderr_path_new(op, jobs[0])) == "Oh no!\n"
+
+##################################################################
+
+class TestSchedulerDifferentOperationStorageModesArchivation(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    def setup(self):
+        self.sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+
+    def teardown(self):
+        remove("//sys/operations_archive")
+
+    def _get_new_operation_path(self, op_id):
+        return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
+
+    def _get_operation_path(self, op_id):
+        return "//sys/operations/" + op_id
+
+    def _run_op(self, mode, fail=False):
+        create("table", "//tmp/t1", ignore_existing=True)
+        create("table", "//tmp/t2", ignore_existing=True)
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            command="echo STDERR-OUTPUT >&2; " + ("true" if not fail else "false"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "testing": {
+                    "cypress_storage_mode": mode
+                },
+            })
+
+        return op
+
+    def test_operation_attributes(self):
+        def _check_attributes(op):
+            res_get_operation_archive = get_operation(op.id)
+            for key in ("state", "start_time", "finish_time"):
+                assert key in res_get_operation_archive
+
+        client = self.Env.create_native_client()
+
+        for mode in ("compatible", "simple_hash_buckets", "hash_buckets"):
+            op = self._run_op(mode)
+            clean_operations(client)
+            assert not exists(self._get_operation_path(op.id))
+            assert not exists(self._get_new_operation_path(op.id))
+            _check_attributes(op)
+
+    def test_get_job_stderr(self):
+        client = self.Env.create_native_client()
+
+        for mode in ("compatible", "simple_hash_buckets", "hash_buckets"):
+            op = self._run_op(mode)
+            if mode == "compatible":
+                jobs_old = ls(self._get_operation_path(op.id) + "/jobs")
+                jobs_new = ls(self._get_new_operation_path(op.id) + "/jobs")
+                assert __builtin__.set(jobs_old) == __builtin__.set(jobs_new)
+                job_id = jobs_new[-1]
+            elif mode == "simple_hash_buckets":
+                job_id = ls(self._get_operation_path(op.id) + "/jobs")[-1]
+            else:  # mode == "hash_buckets"
+                job_id = ls(self._get_new_operation_path(op.id) + "/jobs")[-1]
+
+            clean_operations(client)
+            assert get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n"
