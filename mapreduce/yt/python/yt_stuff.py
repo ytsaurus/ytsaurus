@@ -322,7 +322,7 @@ class YtStuff(object):
                     raise Exception("yt_local process failed.")
                 time.sleep(SLEEP_TIME)
             else:
-                self._log("Can't find 'started' file for %d seconds.", MAX_WAIT_TIME)
+                self._log("Cannot find 'started' file for %d seconds.", MAX_WAIT_TIME)
                 yt_daemon.stop()
                 return False
             if self.config.proxy_port is None:
@@ -427,7 +427,7 @@ class YtStuff(object):
                 time.sleep(time_to_sleep)
         else:
             self._save_logs(save_yt_all=True)
-            raise Exception("Can't start local YT with id %s for %d attempts." % (self.yt_id, max_retries))
+            raise Exception("Cannot start local YT with id %s for %d attempts." % (self.yt_id, max_retries))
 
     def suspend_local_yt(self):
         try:
