@@ -3188,20 +3188,30 @@ private:
                 optionsToScheduler.Timeout = *deadline - Now();
             }
 
-            auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), optionsToScheduler);
-            auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
-
-            if (schedulerProgressValueOrError.IsOK()) {
-                auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
-                auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
-                attrNode->RemoveChild("progress");
-                YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
-
-                attrNodeValue = ConvertToYsonString(attrNode);
-            } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                LOG_DEBUG("No such operation %v in the scheduler", operationId);
+            bool shouldRequestProgress = false;
+            if (options.Attributes) {
+                const auto& attributes = *options.Attributes;
+                shouldRequestProgress = std::find(attributes.begin(), attributes.end(), "progress") != attributes.end();
             } else {
-                THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId);
+                shouldRequestProgress = true;
+            }
+
+            if (shouldRequestProgress) {
+                auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), optionsToScheduler);
+                auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
+
+                if (schedulerProgressValueOrError.IsOK()) {
+                    auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
+                    auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
+                    attrNode->RemoveChild("progress");
+                    YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
+
+                    attrNodeValue = ConvertToYsonString(attrNode);
+                } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    LOG_DEBUG("No such operation %v in the scheduler", operationId);
+                } else {
+                    THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId);
+                }
             }
 
             return attrNodeValue;

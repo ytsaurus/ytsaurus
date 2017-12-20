@@ -104,6 +104,8 @@ class TestGetOperation(YTEnvSetup):
                 }
             })
 
+        assert list(get_operation(op.id, attributes=["state"])) == ["state"]
+
         res_get_operation = get_operation(op.id, attributes=["progress", "state"])
         res_cypress = get("//sys/operations/{0}/@".format(op.id), attributes=["progress", "state"])
 
