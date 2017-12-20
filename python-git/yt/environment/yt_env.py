@@ -127,7 +127,8 @@ def _get_cgroup_path(cgroup_type, *args):
 
 class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
-                 node_count=1, scheduler_count=1, has_proxy=False, cell_tag=0, proxy_port=None,
+                 node_count=1, scheduler_count=1, has_proxy=False, proxy_port=None, has_rpc_proxy=False,
+                 rpc_proxy_port=None, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
@@ -216,6 +217,8 @@ class YTInstance(object):
         self.node_count = node_count
         self.scheduler_count = scheduler_count
         self.has_proxy = has_proxy
+        self.has_rpc_proxy = has_rpc_proxy
+        self.skynet_manager_count = skynet_manager_count
         self._enable_debug_logging = enable_debug_logging
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
@@ -227,8 +230,8 @@ class YTInstance(object):
         self.watcher_config = watcher_config
 
         self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                                  node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port,
-                                  modify_configs_func)
+                                  node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start,
+                                  proxy_port, rpc_proxy_port, modify_configs_func)
 
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
@@ -279,10 +282,17 @@ class YTInstance(object):
         proxy_dir = os.path.join(self.runtime_data_path, "proxy")
         makedirp(proxy_dir)
 
-        return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir
+        rpc_proxy_dir = os.path.join(self.runtime_data_path, "rpc_proxy")
+        makedirp(rpc_proxy_dir)
+
+        skynet_manager_dirs = [os.path.join(self.runtime_data_path, "skynet_manager", str(i)) for i in xrange(self.skynet_manager_count)]
+        for dir_ in skynet_manager_dirs:
+            makedirp(dir_)
+
+        return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port,
+                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port, rpc_proxy_port,
                              modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  masters          %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
@@ -293,6 +303,8 @@ class YTInstance(object):
             logger.info("  secondary cells  %d", self.secondary_master_cell_count)
 
         logger.info("  proxies          %d", int(self.has_proxy))
+        logger.info("  rpc proxies      %d", int(self.has_rpc_proxy))
+        logger.info("  skynet managers  %d", self.skynet_manager_count)
         logger.info("  working dir      %s", self.path)
 
         if self.master_count == 0:
@@ -319,10 +331,13 @@ class YTInstance(object):
         provision["node"]["allow_chunk_storage_in_tmpfs"] = allow_chunk_storage_in_tmpfs
         provision["proxy"]["enable"] = self.has_proxy
         provision["proxy"]["http_port"] = proxy_port
+        provision["rpc_proxy"]["enable"] = self.has_rpc_proxy
+        provision["rpc_proxy"]["rpc_port"] = rpc_proxy_port
+        provision["skynet_manager"]["count"] = self.skynet_manager_count
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
 
-        master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir = self._prepare_directories()
+        master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs = self._prepare_directories()
         cluster_configuration = configs_provider.build_configs(
             self._get_ports_generator(port_range_start),
             master_dirs,
@@ -331,6 +346,8 @@ class YTInstance(object):
             node_dirs,
             node_tmpfs_dirs,
             proxy_dir,
+            rpc_proxy_dir,
+            skynet_manager_dirs,
             self.logs_path,
             provision)
 
@@ -347,6 +364,10 @@ class YTInstance(object):
             self._prepare_schedulers(cluster_configuration["scheduler"], scheduler_dirs)
         if self.has_proxy:
             self._prepare_proxy(cluster_configuration["proxy"], cluster_configuration["ui"], proxy_dir)
+        if self.has_rpc_proxy:
+            self._prepare_rpc_proxy(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], rpc_proxy_dir)
+        if self.skynet_manager_count > 0:
+            self._prepare_skynet_managers(cluster_configuration["skynet_manager"], skynet_manager_dirs)
         self._prepare_driver(cluster_configuration["driver"], cluster_configuration["master"])
         # COMPAT. Will be removed eventually.
         self._prepare_console_driver()
@@ -388,6 +409,10 @@ class YTInstance(object):
                 self.start_nodes(sync=False)
             if self.scheduler_count > 0:
                 self.start_schedulers(sync=False)
+            if self.has_rpc_proxy:
+                self.start_rpc_proxy(sync=False)
+            if self.skynet_manager_count > 0:
+                self.start_skynet_managers(sync=False)
 
             for func in self._wait_functions:
                 func()
@@ -415,7 +440,7 @@ class YTInstance(object):
         self.kill_service("watcher")
         killed_services.add("watcher")
 
-        for name in ["proxy", "node", "scheduler", "master"]:
+        for name in ["proxy", "node", "scheduler", "master", "rpc_proxy", "skynet_manager"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -920,6 +945,25 @@ class YTInstance(object):
             if not os.path.isfile(ui_config_path):
                 logger.warning("Failed to configure UI, file {0} not found".format(ui_config_path))
 
+    def _prepare_rpc_proxy(self, rpc_proxy_config, rpc_client_config, rpc_proxy_dir):
+        config_path = os.path.join(self.configs_path, "rpc-proxy.yson")
+        write_config(rpc_proxy_config, config_path)
+        self.configs["rpc_proxy"].append(rpc_proxy_config)
+        self.config_paths["rpc_proxy"].append(config_path)
+
+        rpc_client_config_path = os.path.join(self.configs_path, "rpc-client.yson")
+        write_config(rpc_client_config, rpc_client_config_path)
+
+    def _prepare_skynet_managers(self, skynet_manager_configs, skynet_manager_dirs):
+        self.configs["skynet_manager"] = []
+        self.config_paths["skynet_manager"] = []
+
+        for i in xrange(len(skynet_manager_dirs)):
+            config_path = os.path.join(self.configs_path, "skynet-manager-{}.yson".format(i))
+            write_config(skynet_manager_configs[i], config_path)
+            self.configs["skynet_manager"].append(skynet_manager_configs[i])
+            self.config_paths["skynet_manager"].append(config_path)
+
     def _start_proxy_from_package(self):
         node_path = list(ifilter(lambda x: x != "", os.environ.get("NODE_PATH", "").split(":")))
         for path in node_path + ["/usr/lib/node_modules"]:
@@ -967,6 +1011,31 @@ class YTInstance(object):
             return True
 
         self._wait_or_skip(lambda: self._wait_for(proxy_ready, "proxy", max_wait_time=20), sync)
+
+    def start_rpc_proxy(self, sync=True):
+        self._run_yt_component("proxy", name="rpc_proxy")
+
+        native_client = self.create_client()
+
+        def rpc_proxy_ready():
+            self._validate_processes_is_running("rpc_proxy")
+
+            return len(native_client.list("//sys/rpc_proxies")) == 1
+
+        self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
+
+    def start_skynet_managers(self, sync=True):
+        self._run_yt_component("skynet-manager", name="skynet_manager")
+
+        native_client = self.create_client()
+
+        def skynet_manager_ready():
+            self._validate_processes_is_running("skynet_manager")
+
+            return ("skynet_manager" in native_client.list("//sys") and
+                len(native_client.list("//sys/skynet_manager/managers")) == self.skynet_manager_count)
+
+        self._wait_or_skip(lambda: self._wait_for(skynet_manager_ready, "skynet_manager", max_wait_time=20), sync)
 
     def _validate_process_is_running(self, process, name, number=None):
         if number is not None:
