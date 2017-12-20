@@ -141,11 +141,11 @@ TFuture<TChangelogInfo> DiscoverChangelog(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComputeQuorumQuorumInfoSession
+class TComputeQuorumInfoSession
     : public TRefCounted
 {
 public:
-    TComputeQuorumQuorumInfoSession(
+    TComputeQuorumInfoSession(
         TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
         int changelogId)
@@ -163,7 +163,7 @@ public:
 
     TFuture<TChangelogQuorumInfo> Run()
     {
-        BIND(&TComputeQuorumQuorumInfoSession::DoRun, MakeStrong(this))
+        BIND(&TComputeQuorumInfoSession::DoRun, MakeStrong(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
         return Promise_;
@@ -202,11 +202,11 @@ private:
             auto req = proxy.LookupChangelog();
             req->set_changelog_id(ChangelogId_);
             asyncResults.push_back(req->Invoke().Apply(
-                BIND(&TComputeQuorumQuorumInfoSession::OnResponse, MakeStrong(this), peerId)));
+                BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), peerId)));
         }
 
         Combine(asyncResults).Subscribe(
-            BIND(&TComputeQuorumQuorumInfoSession::OnComplete, MakeStrong(this)));
+            BIND(&TComputeQuorumInfoSession::OnComplete, MakeStrong(this)));
     }
 
     void OnResponse(
@@ -256,7 +256,7 @@ TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
     TCellManagerPtr cellManager,
     int changelogId)
 {
-    auto session = New<TComputeQuorumQuorumInfoSession>(
+    auto session = New<TComputeQuorumInfoSession>(
         std::move(config),
         std::move(cellManager),
         changelogId);
