@@ -36,15 +36,15 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
     const TTableSchema& schema,
     TNodeMemoryTracker* memoryTracker)
 {
-    auto cachedMeta = New<TCachedVersionedChunkMeta>();
     try {
+        auto cachedMeta = New<TCachedVersionedChunkMeta>();
         cachedMeta->Init(chunkId, chunkMeta, schema, memoryTracker);
+        return cachedMeta;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
             chunkId)
             << ex;
     }
-    return cachedMeta;
 }
 
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
@@ -53,30 +53,11 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     const TTableSchema& schema,
     TNodeMemoryTracker* memoryTracker)
 {
-    auto cachedMeta = New<TCachedVersionedChunkMeta>();
-    return BIND(&TCachedVersionedChunkMeta::DoLoad, cachedMeta)
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run(chunkReader, workloadDescriptor, schema, memoryTracker);
-}
-
-TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
-    IChunkReaderPtr chunkReader,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
-{
-    try {
-        auto asyncChunkMeta = chunkReader->GetMeta(workloadDescriptor);
-        auto chunkMeta = WaitFor(asyncChunkMeta)
-            .ValueOrThrow();
-
-        Init(chunkReader->GetChunkId(), chunkMeta, schema, memoryTracker);
-        return this;
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
-            chunkReader->GetChunkId())
-            << ex;
-    }
+    auto chunkId = chunkReader->GetChunkId();
+    return chunkReader->GetMeta(workloadDescriptor)
+        .Apply(BIND([=] (const NChunkClient::NProto::TChunkMeta& chunkMeta) {
+            return TCachedVersionedChunkMeta::Create(chunkId, chunkMeta, schema, memoryTracker);
+        }));
 }
 
 void TCachedVersionedChunkMeta::Init(
