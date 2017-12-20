@@ -2007,7 +2007,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         }
     }
 
-    LOG_DEBUG("Chunk chunk properties update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
+    LOG_DEBUG("Chunk properties update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
         totalCount,
         aliveCount,
         request.updates_size());
