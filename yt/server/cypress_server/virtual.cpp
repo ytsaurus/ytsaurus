@@ -411,6 +411,9 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
         .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
             YCHECK(aliveKeys.size() == attributes.size());
             for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
+                if (session->Items.size() >= session->Limit) {
+                    break;
+                }
                 session->Items.push_back(TFetchItem{ToString(aliveKeys[index]), attributes[index]});
             }
         }).AsyncVia(session->Invoker));
@@ -430,7 +433,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionP
 
     auto path = GetWellKnownPath();
     auto req = TCypressYPathProxy::Enumerate(path);
-    req->set_limit(session->Limit - session->Items.size());
+    req->set_limit(session->Limit);
     if (session->AttributeKeys) {
         ToProto(req->mutable_attributes()->mutable_keys(), *session->AttributeKeys);
     }
@@ -453,6 +456,9 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionP
 
             session->Incomplete |= rsp->incomplete();
             for (const auto& protoItem : rsp->items()) {
+                if (session->Items.size() >= session->Limit) {
+                    break;
+                }
                 TFetchItem item;
                 item.Key = protoItem.key();
                 if (protoItem.has_attributes()) {
