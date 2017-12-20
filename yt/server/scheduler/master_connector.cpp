@@ -1168,10 +1168,12 @@ private:
 
     void OnOperationUpdateFailed(const TError& error)
     {
-        YCHECK(Connected);
         YCHECK(!error.IsOK());
         LOG_ERROR(error, "Failed to update operation node");
-        Disconnect();
+
+        if (!Connected) {
+            Disconnect();
+        }
     }
 
     void UpdateOperationNodeAttributes(TOperationPtr operation)

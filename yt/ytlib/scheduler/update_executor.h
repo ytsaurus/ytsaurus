@@ -62,6 +62,7 @@ private:
     TFuture<void> DoExecuteUpdate(TUpdateRecord* updateRecord);
     void ExecuteUpdates(IInvokerPtr invoker);
     void OnUpdateExecuted(const TKey& key);
+    TCallback<TFuture<void>()> CreateUpdateAction(const TKey& key, TUpdateParameters* updateParameters);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

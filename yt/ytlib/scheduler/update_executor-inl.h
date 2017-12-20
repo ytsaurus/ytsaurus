@@ -126,14 +126,6 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates(IInvokerPtr invoke
         return;
     }
 
-    for (size_t i = 0; i < requestKeys.size(); ++i) {
-        const auto& error = result.Value()[i];
-        if (!error.IsOK()) {
-            OnUpdateFailed_(TError("Update of item failed (Key: %v)", requestKeys[i]) << error);
-            return;
-        }
-    }
-
     LOG_INFO("Update completed");
 }
 
@@ -159,12 +151,28 @@ typename TUpdateExecutor<TKey, TUpdateParameters>::TUpdateRecord* TUpdateExecuto
 }
 
 template <class TKey, class TUpdateParameters>
+TCallback<TFuture<void>()> TUpdateExecutor<TKey, TUpdateParameters>::CreateUpdateAction(const TKey& key, TUpdateParameters* updateParameters)
+{
+    return BIND([key, this, updateAction = CreateUpdateAction_(key, updateParameters), this_ = MakeStrong(this)] () {
+            return updateAction().Apply(
+                BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                    if (!error.IsOK()) {
+                        OnUpdateFailed_(TError("Update of item failed (Key: %v)", key) << error);
+                    }
+                })
+                .AsyncVia(GetCurrentInvoker())
+            );
+        })
+        .AsyncVia(GetCurrentInvoker());
+}
+
+template <class TKey, class TUpdateParameters>
 TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::DoExecuteUpdate(TUpdateRecord* updateRecord)
 {
     VERIFY_THREAD_AFFINITY(UpdateThread);
 
     auto lastUpdateFuture = updateRecord->LastUpdateFuture.Apply(
-        CreateUpdateAction_(updateRecord->Key, &updateRecord->UpdateParameters));
+        CreateUpdateAction(updateRecord->Key, &updateRecord->UpdateParameters));
     updateRecord->LastUpdateFuture = std::move(lastUpdateFuture);
     return updateRecord->LastUpdateFuture;
 }
