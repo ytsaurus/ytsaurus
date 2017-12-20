@@ -2488,9 +2488,10 @@ class TestPoolMetrics(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
 
         set("//sys/operations/{0}/@owners/end".format(op.id), "missing_user")
-        time.sleep(1.0)
 
-        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
+        get_alerts = lambda: get("//sys/operations/{0}/@alerts".format(op.id))
+        wait(get_alerts)
+        alerts = get_alerts()
         assert alerts.keys() == ["invalid_acl"]
 
         self.Env.kill_schedulers()
@@ -2499,13 +2500,13 @@ class TestPoolMetrics(YTEnvSetup):
 
         time.sleep(1)
 
-        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
+        alerts = get_alerts()
         assert alerts.keys() == ["invalid_acl"]
 
         remove("//sys/operations/{0}/@owners/-1".format(op.id))
         time.sleep(1.0)
 
-        assert not get("//sys/operations/{0}/@alerts".format(op.id))
+        wait(lambda: not get_alerts())
 
 ##################################################################
 
