@@ -216,7 +216,7 @@ private:
         try {
             GuardedSealChunk(chunk);
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error sealing journal chunk %v, backing off",
+            LOG_DEBUG(ex, "Error sealing journal chunk %v; backing off",
                 chunkId);
             TDelayedExecutor::Submit(
                 BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunkId)
@@ -227,19 +227,21 @@ private:
 
     void GuardedSealChunk(TChunk* chunk)
     {
-        const auto& chunkId = chunk->GetId();
-        LOG_INFO("Sealing journal chunk (ChunkId: %v)",
-            chunkId);
-
+        // NB: Copy all the needed properties into locals. The subsequent code involves yields
+        // and the chunk may expire. See YT-8120.
+        auto chunkId = chunk->GetId();
+        auto readQuorum = chunk->GetReadQuorum();
         auto mediumIndex = ComputeChunkMediumIndex(chunk);
         auto replicas = GetChunkReplicas(chunk);
+        LOG_DEBUG("Sealing journal chunk (ChunkId: %v)",
+            chunkId);
 
         {
             auto asyncResult = AbortSessionsQuorum(
-                TSessionId(chunk->GetId(), mediumIndex),
+                TSessionId(chunkId, mediumIndex),
                 replicas,
                 Config_->JournalRpcTimeout,
-                chunk->GetReadQuorum(),
+                readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
             WaitFor(asyncResult)
                 .ThrowOnError();
@@ -248,10 +250,10 @@ private:
         TMiscExt miscExt;
         {
             auto asyncMiscExt = ComputeQuorumInfo(
-                chunk->GetId(),
+                chunkId,
                 replicas,
                 Config_->JournalRpcTimeout,
-                chunk->GetReadQuorum(),
+                readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
             miscExt = WaitFor(asyncMiscExt)
                 .ValueOrThrow();
@@ -276,8 +278,8 @@ private:
                 chunkId);
         }
 
-        LOG_INFO("Journal chunk sealed (ChunkId: %v)",
-            chunk->GetId());
+        LOG_DEBUG("Journal chunk sealed (ChunkId: %v)",
+            chunkId);
     }
 
     int ComputeChunkMediumIndex(TChunk* chunk)
