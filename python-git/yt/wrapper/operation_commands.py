@@ -72,12 +72,14 @@ def complete_operation(operation, client=None):
         return
     make_request("complete_op", {"operation_id": operation}, client=client)
 
-def get_operation(operation_id, client=None):
+def get_operation(operation_id, attributes=None, client=None):
     """Get operation attributes through API.
     """
+    params={"operation_id": operation_id}
+    set_param(params, "attributes", attributes)
     return make_formatted_request(
         "get_operation",
-        params={"operation_id": operation_id},
+        params,
         format=None,
         client=client)
 
@@ -198,8 +200,7 @@ def get_operation_attributes(operation, fields=None, client=None):
     :rtype: dict
     """
     if get_config(client)["enable_operations_api"]:
-        # TODO(ignat): use fields when it will be deployed on clusters.
-        return get_operation(operation, client=client)
+        return get_operation(operation, attributes=fields, client=client)
     else:
         operation_path = ypath_join(OPERATIONS_PATH, operation)
         return get(operation_path + "/@", attributes=fields, client=client)
