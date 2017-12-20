@@ -198,7 +198,7 @@ class TestLocalMode(object):
         scheduler_count = 4
         with local_yt(id="test_configs", master_count=master_count,
                       node_count=node_count, scheduler_count=scheduler_count,
-                      start_proxy=True):
+                      start_proxy=True, start_rpc_proxy=True):
             pass
 
         assert os.path.exists(config_path)
@@ -217,6 +217,7 @@ class TestLocalMode(object):
             assert os.path.exists(os.path.join(config_path, name))
 
         assert os.path.exists(os.path.join(config_path, "proxy.json"))
+        assert os.path.exists(os.path.join(config_path, "rpc-client.yson"))
 
     def test_watcher(self):
         watcher_config = {
@@ -434,6 +435,19 @@ class TestLocalMode(object):
             tablet_cells = client.list("//sys/tablet_cells")
             assert len(tablet_cells) == 1
             assert client.get("//sys/tablet_cells/{0}/@health".format(tablet_cells[0])) == "good"
+
+    def test_rpc_proxy_is_starting(self):
+        with local_yt(start_rpc_proxy=True) as environment:
+            client = environment.create_client()
+
+            for _ in range(6):
+                time.sleep(5)
+
+                if len(client.list("//sys/rpc_proxies")) == 1:
+                    break
+            else:
+                assert False, "RPC proxy failed to start in 30 seconds"
+        
 
     @pytest.mark.skipif(True, reason="st/YT-6227")
     def test_all_processes_are_killed(self):

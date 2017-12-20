@@ -217,7 +217,7 @@ _START_DEFAULTS = {
     "node_chunk_store_quota": 7 * GB
 }
 
-def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True,
+def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True, start_rpc_proxy=False,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
@@ -250,6 +250,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
 
     environment = YTInstance(sandbox_path,
                              has_proxy=start_proxy,
+                             has_rpc_proxy=start_rpc_proxy,
                              proxy_port=proxy_port,
                              enable_debug_logging=enable_debug_logging,
                              port_range_start=port_range_start,
