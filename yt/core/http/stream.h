@@ -150,6 +150,7 @@ public:
 
     virtual const THeadersPtr& GetHeaders() override;
     void SetHeaders(const THeadersPtr& headers);
+    void SetHost(TStringBuf host, TStringBuf port);
     bool IsHeadersFlushed() const;
 
     virtual const THeadersPtr& GetTrailers() override;
@@ -176,6 +177,7 @@ private:
     THeadersPtr Headers_;
     TNullable<EStatusCode> Status_;
     TNullable<EMethod> Method_;
+    TNullable<TString> HostHeader_;
     TString Path_;
     bool HeadersFlushed_ = false;
     bool MessageFinished_ = false;

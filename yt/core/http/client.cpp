@@ -43,6 +43,7 @@ public:
             auto address = GetAddress(urlRef);
             std::tie(request, response) = OpenHttp(address);
 
+            request->SetHost(urlRef.Host, urlRef.PortStr);
             if (headers) {
                 request->SetHeaders(headers);
             }
@@ -72,6 +73,7 @@ public:
             auto address = GetAddress(urlRef);
             std::tie(request, response) = OpenHttp(address);
 
+            request->SetHost(urlRef.Host, urlRef.PortStr);
             if (headers) {
                 request->SetHeaders(headers);
             }

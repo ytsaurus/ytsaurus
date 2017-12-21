@@ -169,6 +169,9 @@ class YTEnvSetup(object):
     ENABLE_MULTICELL_TEARDOWN = True
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
+    ENABLE_PROXY = False
+    ENABLE_RPC_PROXY = False
+    NUM_SKYNET_MANAGERS = 0
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
@@ -222,6 +225,9 @@ class YTEnvSetup(object):
             secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             node_count=cls.get_param("NUM_NODES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
+            has_proxy=cls.get_param("ENABLE_PROXY", index),
+            has_rpc_proxy=cls.get_param("ENABLE_RPC_PROXY", index),
+            skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
@@ -271,7 +277,7 @@ class YTEnvSetup(object):
         yt_commands.path_to_run_tests = cls.path_to_run
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)
 
-        cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
+        cls.Env.start(use_proxy_from_package=False, start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
         for index, env in enumerate(cls.remote_envs):
             env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
 
