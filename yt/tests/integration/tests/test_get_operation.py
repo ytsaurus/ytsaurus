@@ -12,10 +12,10 @@ def id_to_parts(id):
     return id_hi, id_lo
 
 def get_operation_path(op_id, storage_mode):
-    if storage_mode == "compatible":
-        return "//sys/operations/" + op_id
-    else:
+    if storage_mode == "hash_buckets":
         return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+    else:
+        return "//sys/operations/" + op_id
 
 class TestGetOperation(YTEnvSetup):
     NUM_MASTERS = 1
@@ -30,7 +30,7 @@ class TestGetOperation(YTEnvSetup):
     def teardown(self):
         remove("//sys/operations_archive")
 
-    @pytest.mark.parametrize("storage_mode", ["hash_buckets", "compatible"])
+    @pytest.mark.parametrize("storage_mode", ["simple_hash_buckets", "hash_buckets", "compatible"])
     def test_get_operation(self, storage_mode):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -94,7 +94,7 @@ class TestGetOperation(YTEnvSetup):
                 print key
                 print res_get_operation_archive[key]
 
-    @pytest.mark.parametrize("storage_mode", ["hash_buckets", "compatible"])
+    @pytest.mark.parametrize("storage_mode", ["simple_hash_buckets", "hash_buckets", "compatible"])
     def test_attributes(self, storage_mode):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
