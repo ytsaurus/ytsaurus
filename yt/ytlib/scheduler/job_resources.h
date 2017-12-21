@@ -195,8 +195,7 @@ void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
 const TJobResources& MinSpareNodeResources();
 
 bool CanSatisfyDiskRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskUsage,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
     i64 diskRequest);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -72,9 +72,15 @@ message TNodeResources
     optional int64 system_memory = 11;
 }
 
+message TDiskResourcesInfo
+{
+    required int64 usage = 1;
+    required int64 limit = 2;
+}
+
 message TDiskResources
 {
-    repeated int64 disk_usage = 1;
+    repeated TDiskResourcesInfo disk_reports = 1;
 }
 
 // Limits overrides pushed from master to node.

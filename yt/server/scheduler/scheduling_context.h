@@ -27,8 +27,7 @@ struct ISchedulingContext
     virtual const TJobResources& ResourceLimits() const = 0;
     virtual TJobResources& ResourceUsage() = 0;
 
-    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskLimits() const = 0;
-    virtual NNodeTrackerClient::NProto::TDiskResources& DiskUsage() = 0;
+    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const = 0;
     //! Used during preemption to allow second-chance scheduling.
     virtual TJobResources& ResourceUsageDiscount() = 0;
 

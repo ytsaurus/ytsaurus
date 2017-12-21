@@ -17,8 +17,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsageDiscount);
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TDiskResources, DiskUsage);
-    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TDiskResources, DiskLimits);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TDiskResources, DiskInfo);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);

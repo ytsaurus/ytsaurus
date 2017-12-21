@@ -191,6 +191,26 @@ bool TSlotManager::ExternalJobMemory() const
        : false;
 }
 
+NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()
+{
+    UpdateAliveLocations();
+    NNodeTrackerClient::NProto::TDiskResources result;
+    for (auto& location : AliveLocations_) {
+        try {
+            auto info = location->GetDiskInfo();
+            auto *pair = result.add_disk_reports();
+            pair->set_usage(info.usage());
+            pair->set_limit(info.limit());
+        } catch (const std::exception& ex) {
+            auto alert = TError("Failed to get disk info of location")
+                << ex;
+            location->Disable(alert);
+        }
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

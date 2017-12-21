@@ -128,7 +128,21 @@ DEFINE_REFCOUNTED_TYPE(TPortoJobEnvironmentConfig)
 
 class TSlotLocationConfig
     : public TDiskLocationConfig
-{ };
+{
+public:
+    TNullable<i64> DiskQuota;
+    i64 DiskUsageWatermark;
+
+    TSlotLocationConfig()
+    {
+        RegisterParameter("disk_quota", DiskQuota)
+            .Default(Null)
+            .GreaterThan(0);
+        RegisterParameter("disk_usage_watermark", DiskUsageWatermark)
+            .Default(10_GB)
+            .GreaterThanOrEqual(0);
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocationConfig)
 

@@ -2853,7 +2853,8 @@ void TOperationControllerBase::DoScheduleJob(
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
     } else {
-        if (!CanSatisfyDiskRequest(context->DiskLimits(), context->DiskUsage(), jobLimits.GetDiskQuota())) {
+        if (!CanSatisfyDiskRequest(context->DiskInfo(), jobLimits.GetDiskQuota())) {
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             return;
         }
         DoScheduleLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
