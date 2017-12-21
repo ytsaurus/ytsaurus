@@ -1831,6 +1831,7 @@ private:
         queryOptions.OutputRowLimit = outputRowLimit;
         queryOptions.UseMultijoin = options.UseMultijoin;
         queryOptions.AllowFullScan = options.AllowFullScan;
+        queryOptions.ReadSessionId = TReadSessionId::Create();
 
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;

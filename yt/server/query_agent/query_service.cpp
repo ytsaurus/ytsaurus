@@ -90,7 +90,6 @@ private:
         auto options = FromProto<TQueryOptions>(request->options());
         options.InputRowLimit = request->query().input_row_limit();
         options.OutputRowLimit = request->query().output_row_limit();
-        options.ReadSessionId = TReadSessionId::Create();
 
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
