@@ -11,6 +11,12 @@ def id_to_parts(id):
     id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
     return id_hi, id_lo
 
+def get_operation_path(op_id, storage_mode):
+    if storage_mode == "compatible":
+        return "//sys/operations/" + op_id
+    else:
+        return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
 class TestGetOperation(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -24,7 +30,8 @@ class TestGetOperation(YTEnvSetup):
     def teardown(self):
         remove("//sys/operations_archive")
 
-    def test_get_operation(self):
+    @pytest.mark.parametrize("storage_mode", ["hash_buckets", "compatible"])
+    def test_get_operation(self, storage_mode):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
@@ -41,7 +48,10 @@ class TestGetOperation(YTEnvSetup):
                 "mapper": {
                     "input_format": "json",
                     "output_format": "json"
-                }
+                },
+                "testing": {
+                    "cypress_storage_mode": storage_mode,
+                },
             })
 
         def check(res1, res2):
@@ -54,7 +64,7 @@ class TestGetOperation(YTEnvSetup):
                     assert res1[key] == res2[key]
 
         res_get_operation = get_operation(op.id)
-        res_cypress = get("//sys/operations/{0}/@".format(op.id))
+        res_cypress = get(get_operation_path(op.id, storage_mode) + "/@")
         res_orchid_progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op.id))
 
         check(res_get_operation, res_cypress)
@@ -68,7 +78,7 @@ class TestGetOperation(YTEnvSetup):
         op.resume_jobs()
         op.track()
 
-        res_cypress_finished = get("//sys/operations/{0}/@".format(op.id))
+        res_cypress_finished = get(get_operation_path(op.id, storage_mode) + "/@")
 
         clean_operations(self.Env.create_native_client())
 
@@ -84,7 +94,8 @@ class TestGetOperation(YTEnvSetup):
                 print key
                 print res_get_operation_archive[key]
 
-    def test_attributes(self):
+    @pytest.mark.parametrize("storage_mode", ["hash_buckets", "compatible"])
+    def test_attributes(self, storage_mode):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
@@ -101,13 +112,16 @@ class TestGetOperation(YTEnvSetup):
                 "mapper": {
                     "input_format": "json",
                     "output_format": "json"
-                }
+                },
+                "testing": {
+                    "cypress_storage_mode": storage_mode,
+                },
             })
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
 
         res_get_operation = get_operation(op.id, attributes=["progress", "state"])
-        res_cypress = get("//sys/operations/{0}/@".format(op.id), attributes=["progress", "state"])
+        res_cypress = get(get_operation_path(op.id, storage_mode) + "/@", attributes=["progress", "state"])
 
         assert sorted(list(res_get_operation)) == ["progress", "state"]
         assert sorted(list(res_cypress)) == ["progress", "state"]

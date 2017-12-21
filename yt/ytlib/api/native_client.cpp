@@ -3171,13 +3171,13 @@ private:
             optionsToCypress.Timeout = *deadline - Now();
         }
 
-        auto asyncAttrResult = GetNode(GetNewOperationPath(operationId) + "/@", optionsToCypress);
-        auto attrNodeOrError = WaitFor(asyncAttrResult);
 
-        // COMPAT
+        auto attrNodeOrError = WaitFor(GetNode(GetNewOperationPath(operationId) + "/@", optionsToCypress));
+        auto attrOldNodeOtError = WaitFor(GetNode(GetOperationPath(operationId) + "/@", optionsToCypress));
         if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            auto asyncAttrResultOld = GetNode(GetOperationPath(operationId) + "/@", optionsToCypress);
-            attrNodeOrError = WaitFor(asyncAttrResultOld);
+            attrNodeOrError = attrOldNodeOtError;
+        } else if (attrNodeOrError.IsOK() && attrOldNodeOtError.IsOK()) {
+            attrNodeOrError.Value() = ConvertToYsonString(PatchNode(ConvertToNode(attrNodeOrError.Value()), ConvertToNode(attrOldNodeOtError.Value())));
         }
 
         if (attrNodeOrError.IsOK()) {
