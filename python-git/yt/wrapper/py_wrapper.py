@@ -256,6 +256,8 @@ class Zip(object):
         self.hash = merge_md5(self.hash, calc_md5_from_string(hex_md5(hash_pair)))
 
     def __exit__(self, type, value, traceback):
+        if type is not None:
+            logger.error("Failed to write zip file %s", self.filename)
         self.zip.__exit__(type, value, traceback)
         if type is None:
             self.md5 = hex_md5(self.hash)
