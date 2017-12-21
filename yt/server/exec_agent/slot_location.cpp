@@ -10,6 +10,8 @@
 
 #include <yt/server/misc/disk_health_checker.h>
 
+#include <yt/ytlib/scheduler/proto/job.pb.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/fs.h>
@@ -218,6 +220,16 @@ TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
         ValidateEnabled();
 
         auto path = GetSandboxPath(slotIndex, ESandboxKind::User);
+        auto stat = GetDiskInfo();
+
+        if (stat.usage() + diskSpaceLimit.Get(0) >= stat.limit()) {
+            THROW_ERROR_EXCEPTION("Not enough disk space to run job.");
+        }
+
+        {
+            TWriterGuard guard(SlotsLock_);
+            YCHECK(OccupiedSlotToDiskLimit_.emplace(slotIndex, diskSpaceLimit).second);
+        }
 
         try {
             auto properties = TJobDirectoryProperties {diskSpaceLimit, inodeLimit, userId};
@@ -350,6 +362,14 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
 
+        {
+            TWriterGuard guard(SlotsLock_);
+
+            // There may be no slotIndex in this map
+            // (e.g. during SlotMananager::Initialize)
+            OccupiedSlotToDiskLimit_.erase(slotIndex);
+        }
+
         for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
             const auto& sandboxPath = NFS::GetRealPath(GetSandboxPath(slotIndex, sandboxKind));
             try {
@@ -476,6 +496,41 @@ void TSlotLocation::Disable(const TError& error)
 
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
+}
+
+NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() const
+{
+    auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
+    i64 diskLimit = locationStatistics.TotalSpace;
+    if (Config_->DiskQuota) {
+        diskLimit = Min(diskLimit, *Config_->DiskQuota);
+    }
+
+    i64 diskUsage = 0;
+    {
+        TReaderGuard guard(SlotsLock_);
+        for (const auto& pair : OccupiedSlotToDiskLimit_) {
+            auto slotIndex = pair.first;
+            const auto& slotDiskLimit = pair.second;
+            if (!slotDiskLimit) {
+                auto path = GetSlotPath(slotIndex);
+                auto dirSize = NFS::GetDirectorySize(path);
+                diskUsage += dirSize;
+            } else {
+                diskUsage += *slotDiskLimit;
+            }
+        }
+    }
+
+    auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace, diskLimit - diskUsage));
+    diskLimit = Min(diskLimit, diskUsage + availableSpace);
+
+    diskLimit -= Config_->DiskUsageWatermark;
+
+    NNodeTrackerClient::NProto::TDiskResourcesInfo result;
+    result.set_usage(diskUsage);
+    result.set_limit(diskLimit);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

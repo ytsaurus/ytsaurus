@@ -478,20 +478,16 @@ const TJobResources& MinSpareNodeResources()
 }
 
 bool CanSatisfyDiskRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskUsage,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
     i64 diskRequest)
 {
-    auto limits = diskLimits.disk_usage();
-    auto usage = diskUsage.disk_usage();
-    auto limitsIt = limits.begin();
-    auto usageIt = usage.begin();
-    while (limitsIt != limits.end() && usageIt != usage.end()) {
-        if (diskRequest <= *limitsIt - *usageIt) {
+    auto info = diskInfo.disk_reports();
+    auto it = info.begin();
+    while (it != info.end()) {
+        if (diskRequest < it->limit() - it->usage()) {
             return true;
         }
-        ++limitsIt;
-        ++usageIt;
+        ++it;
     }
     return false;
 }

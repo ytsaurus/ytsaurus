@@ -4,11 +4,14 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/server/job_agent/job.h>
+
 #include <yt/core/actions/public.h>
 
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/misc/nullable.h>
+#include <yt/core/misc/fs.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -41,6 +44,8 @@ public:
     TNullable<i64> GetCpuLimit() const;
 
     bool ExternalJobMemory() const;
+
+    NNodeTrackerClient::NProto::TDiskResources GetDiskInfo();
 
 private:
     const TSlotManagerConfigPtr Config_;
