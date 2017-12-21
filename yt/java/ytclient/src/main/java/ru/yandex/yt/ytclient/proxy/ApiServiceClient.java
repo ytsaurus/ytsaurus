@@ -85,6 +85,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
+import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 import ru.yandex.yt.ytclient.ytree.YTreeNode;
@@ -402,20 +403,21 @@ public class ApiServiceClient {
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
-    public CompletableFuture<List<YtGuid>> getInSyncReplicas(String path, YtTimestamp timestamp) {
+    public CompletableFuture<List<YtGuid>> getInSyncReplicas(String path, YtTimestamp timestamp, TableSchema schema) {
         RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, RpcClientResponse<TRspGetInSyncReplicas>> builder =
                 service.getInSyncReplicas();
 
         builder.body().setPath(path);
         builder.body().setTimestamp(timestamp.getValue());
+        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(schema));
 
         return RpcUtil.apply(builder.invoke(),
                 response ->
                         response.body().getReplicaIdsList().stream().map(YtGuid::fromProto).collect(Collectors.toList()));
     }
 
-    public CompletableFuture<List<YtGuid>> getInSyncReplicas(String path) {
-        return getInSyncReplicas(path, YtTimestamp.NULL);
+    public CompletableFuture<List<YtGuid>> getInSyncReplicas(String path, TableSchema schema) {
+        return getInSyncReplicas(path, YtTimestamp.NULL, schema);
     }
 
     /* tables */
