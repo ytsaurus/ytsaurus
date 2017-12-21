@@ -985,6 +985,8 @@ private:
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
 
+    bool AvailableNodesHaveSeen_ = false;
+
     TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
 
     const std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
