@@ -719,8 +719,13 @@ void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
     }
 }
 
-void TNodeShard::RegisterRevivedJobs(const std::vector<TJobPtr>& jobs)
+void TNodeShard::RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
 {
+    auto* operationState = FindOperationState(operationId);
+    if (!operationState || operationState->JobsAborted) {
+        return;
+    }
+
     for (auto& job : jobs) {
         job->SetNode(GetOrRegisterNode(
             job->RevivedNodeDescriptor().Id,
