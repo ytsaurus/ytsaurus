@@ -194,13 +194,6 @@ public:
         i64 Size;
         TInstant Time;
         EBlockOrigin BlockOrigin;
-
-        TReadBlock(TBlockId blockId, i64 size, TInstant time, EBlockOrigin blockOrigin)
-            : BlockId(blockId)
-            , Size(size)
-            , Time(time)
-            , BlockOrigin(blockOrigin)
-        { }
     };
 
     std::vector<TReadBlock> GetRecentlyReadBlocks() const
@@ -250,11 +243,16 @@ private:
     {
         std::vector<TReadBlock> readBlocks;
         auto now = NProfiling::GetInstant();
-        for (int listIndex = 0; listIndex < blockIndexes.size(); ++listIndex) {
+        // NB: blocks may contain less elements than blockIndexes.
+        for (int listIndex = 0; listIndex < std::min(blockIndexes.size(), blocks.size()); ++listIndex) {
             const auto& block = blocks[listIndex];
             if (block && RandomNumber<double>() < Config_->RecentlyReadBlockQueueSampleRate) {
                 int blockIndex = blockIndexes[listIndex];
-                readBlocks.emplace_back(TBlockId(chunkId, blockIndex), block.Size(), now, block.BlockOrigin);
+                readBlocks.emplace_back(TReadBlock{
+                    TBlockId(chunkId, blockIndex),
+                    static_cast<i64>(block.Size()),
+                    now,
+                    block.BlockOrigin});
             }
         }
 
