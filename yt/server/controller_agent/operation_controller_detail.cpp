@@ -2367,6 +2367,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 << TErrorAttribute("scheduling_tag_filter", Spec_->SchedulingTagFilter));
         }
     } else {
+        AvailableNodesHaveSeen_ = true;
         AvaialableNodesLastSeenTime_ = GetCpuInstant();
     }
 }
@@ -6341,6 +6342,10 @@ const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDes
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()
 {
+    if (AvailableNodesHaveSeen_) {
+        return true;
+    }
+
     auto nodeCount = GetExecNodeCount();
     if (nodeCount < Config->SafeOnlineNodeCount) {
         return true;
@@ -6613,6 +6618,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, unrecognizedSpecYson);
     if (context.IsLoad()) {
         UnrecognizedSpec_ = ConvertTo<IMapNodePtr>(unrecognizedSpecYson);
+    }
+
+    // COMPAT(ignat)
+    if (context.GetVersion() >= 202001) {
+        Persist(context, AvailableNodesHaveSeen_);
     }
 
     // NB: Keep this at the end of persist as it requires some of the previous
