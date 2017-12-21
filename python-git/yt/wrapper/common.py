@@ -30,6 +30,12 @@ EMPTY_GENERATOR = (i for i in [])
 MB = 1024 * 1024
 GB = 1024 * MB
 
+
+class YtDeprecationWarning(DeprecationWarning):
+    """ Custom warnings category, because built-in category is ignored by default. """
+
+warnings.simplefilter("default", category=YtDeprecationWarning)
+
 DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release"
 
 def compose(*args):
@@ -40,14 +46,14 @@ def compose(*args):
 def declare_deprecated(functional_name, condition=None, message=None):
     if condition or condition is None:
         message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name))
-        warnings.warn(message, DeprecationWarning)
+        warnings.warn(message, YtDeprecationWarning)
 
 def deprecated(message=None):
     def function_decorator(func):
         warn_message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(func.__name__))
         @wraps(func)
         def deprecated_function(*args, **kwargs):
-            warnings.warn(warn_message, DeprecationWarning)
+            warnings.warn(warn_message, YtDeprecationWarning)
             return func(*args, **kwargs)
         return deprecated_function
     return function_decorator

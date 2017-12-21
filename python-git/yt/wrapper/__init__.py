@@ -50,6 +50,3 @@ except ImportError:
     import config
 
 from .config import update_config
-
-import warnings
-warnings.simplefilter("default", category=DeprecationWarning)
