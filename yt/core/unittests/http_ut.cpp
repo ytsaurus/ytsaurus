@@ -250,6 +250,18 @@ TEST(THttpOutputTest, Full)
         },
         TTestCase{
             EMessageType::Response,
+            "HTTP/1.1 400 Bad Request\r\n"
+            "Content-Length: 0\r\n"
+            "X-YT-Response-Code: 500\r\n"
+            "\r\n",
+            [] (THttpOutput* out) {
+                out->WriteHeaders(EStatusCode::BadRequest);
+                out->GetTrailers()->Add("X-YT-Response-Code", "500");
+                FinishBody(out);
+            }
+        },
+        TTestCase{
+            EMessageType::Response,
             "HTTP/1.1 500 Internal Server Error\r\n"
             "Content-Length: 4\r\n"
             "\r\n"

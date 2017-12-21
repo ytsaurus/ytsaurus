@@ -284,6 +284,10 @@ void TRpcProxyConnection::OnProxyListUpdated()
         }
         auto asyncProxies = DiscoverProxies(DiscoveryChannel_);
         auto proxies = WaitFor(asyncProxies).ValueOrThrow();
+        if (proxies.empty()) {
+            LOG_DEBUG("Empty proxy list returned, skipping proxy list update");
+            return;
+        }
 
         FailedAttempts_ = 0;
 
@@ -314,7 +318,7 @@ void TRpcProxyConnection::OnProxyListUpdated()
                 }
                 LOG_DEBUG("Resetting operable channels (Address: %v)", unavailableAddress);
                 for (auto* operable : it->second) {
-                    terminated.push_back(operable->Terminate(TError(NRpc::EErrorCode::Unavailable, "Channel is not unavailable")));
+                    terminated.push_back(operable->Terminate(TError(NRpc::EErrorCode::Unavailable, "Channel is unavailable")));
                 }
             }
         }

@@ -165,7 +165,7 @@ class TestSkynet(YTEnvSetup):
             assert False, "Node not found: {}, {}".format(chunk["replicas"], str(info["nodes"]))
 
         assert "abc" == self.get_skynet_part(node_id, info["nodes"], chunk_id=chunk_id,
-                                             lower_row_index=0, upper_row_index=2, start_part_index=0)
+                                             lower_row_index=0, upper_row_index=1, start_part_index=0)
 
     def test_http_edge_cases(self):
         create("table", "//tmp/table", attributes={

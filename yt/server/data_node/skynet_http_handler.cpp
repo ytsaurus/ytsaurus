@@ -65,6 +65,12 @@ void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TReadRange* readRange,
     }
 
     *partIndex = FromString<i64>(params.Get("start_part_index"));
+
+    if (*partIndex < 0 || readRange->LowerLimit().GetRowIndex() < 0 || readRange->UpperLimit().GetRowIndex() < 0) {
+        THROW_ERROR_EXCEPTION("Parameter is negative")
+            << TErrorAttribute("part_index", *partIndex)
+            << TErrorAttribute("read_range", *readRange);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +109,14 @@ public:
         if (!miscExt.shared_to_skynet()) {
             THROW_ERROR_EXCEPTION("Chunk access not allowed")
                 << TErrorAttribute("chunk_id", chunkId);
+        }
+        if (readRange.LowerLimit().GetRowIndex() >= miscExt.row_count() ||
+            readRange.UpperLimit().GetRowIndex() >= miscExt.row_count() + 1 ||
+            readRange.LowerLimit().GetRowIndex() >= readRange.UpperLimit().GetRowIndex())
+        {
+            THROW_ERROR_EXCEPTION("Requested rows are out of bound")
+                << TErrorAttribute("read_range", readRange)
+                << TErrorAttribute("row_count", miscExt.row_count());
         }
 
         auto readerConfig = New<TReplicationReaderConfig>();

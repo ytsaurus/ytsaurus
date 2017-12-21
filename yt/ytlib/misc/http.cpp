@@ -22,8 +22,6 @@ using namespace NConcurrency;
 
 void FillYtErrorResponse(const IResponseWriterPtr& rsp, const TError& error)
 {
-    rsp->WriteHeaders(EStatusCode::InternalServerError);
-
     TString errorJson;
     TStringOutput errorJsonOutput(errorJson);
     auto jsonWriter = CreateJsonConsumer(&errorJsonOutput);
