@@ -2057,7 +2057,7 @@ private:
             }
             auto registerFuture = BIND(&TNodeShard::RegisterRevivedJobs, NodeShards_[shardId])
                 .AsyncVia(NodeShards_[shardId]->GetInvoker())
-                .Run(std::move(jobsByShardId[shardId]));
+                .Run(operation->GetId(), std::move(jobsByShardId[shardId]));
             registrationFutures.emplace_back(std::move(registerFuture));
         }
         return Combine(registrationFutures);

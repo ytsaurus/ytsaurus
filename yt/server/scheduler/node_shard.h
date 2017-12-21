@@ -148,7 +148,7 @@ public:
 
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
-    void RegisterRevivedJobs(const std::vector<TJobPtr>& jobs);
+    void RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
 
     void PrepareReviving();
     void StartReviving();
