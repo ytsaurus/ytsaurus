@@ -947,6 +947,17 @@ public:
         for (auto& nodeShard : NodeShards_) {
             resourceLimits += nodeShard->GetResourceLimits(filter);
         }
+
+        {
+            auto value = std::make_pair(GetCpuInstant(), resourceLimits);
+            auto it = CachedResourceLimitsByTags_.find(filter);
+            if (it == CachedResourceLimitsByTags_.end()) {
+                CachedResourceLimitsByTags_.emplace(filter, std::move(value));
+            } else {
+                it->second = std::move(value);
+            }
+        }
+
         return resourceLimits;
     }
 
@@ -1209,6 +1220,8 @@ private:
     std::vector<TNodeShardPtr> NodeShards_;
 
     yhash<TNodeId, yhash_set<TString>> NodeIdToTags_;
+
+    yhash<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
     TEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
@@ -2579,9 +2592,27 @@ private:
         }
     }
 
+    void RemoveExpiredResourceLimitsTags()
+    {
+        std::vector<TSchedulingTagFilter> toRemove;
+        for (const auto& pair : CachedResourceLimitsByTags_) {
+            const auto& filter = pair.first;
+            const auto& record = pair.second;
+            if (record.first + DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout) < GetCpuInstant()) {
+                toRemove.push_back(filter);
+            }
+        }
+
+        for (const auto& filter : toRemove) {
+            YCHECK(CachedResourceLimitsByTags_.erase(filter) == 1);
+        }
+    }
+
     void BuildStaticOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        RemoveExpiredResourceLimitsTags();
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -2592,6 +2623,14 @@ private:
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
+                    .Item("resource_limits_by_tags")
+                        .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
+                            const auto& filter = pair.first;
+                            const auto& record = pair.second;
+                            if (!filter.IsEmpty()) {
+                                fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
+                            }
+                        })
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
                     .Items(SuspiciousJobsYson_)
