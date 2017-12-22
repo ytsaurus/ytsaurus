@@ -985,7 +985,7 @@ private:
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
 
-    bool AvailableNodesHaveSeen_ = false;
+    bool AvailableNodesSeen_ = false;
 
     TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
 
