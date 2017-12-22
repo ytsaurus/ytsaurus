@@ -197,14 +197,11 @@ class ConfigsProvider(object):
     def _build_ui_config(self, provision, master_connection_configs, proxy_address):
         pass
 
-    @abc.abstractmethod
     def _build_rpc_proxy_config(self, provision, master_connection_configs, ports_generator):
-        pass
+        raise NotImplementedError("RPC proxy is not supported for this yt version")
 
-    @abc.abstractmethod
     def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_address, ports_generator):
-        pass
-
+        raise NotImplementedError("Skynet manager is not supported for this yt version")
 
 def init_logging(node, path, name, enable_debug_logging):
     if not node:
