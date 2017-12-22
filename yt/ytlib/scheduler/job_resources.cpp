@@ -96,12 +96,12 @@ void TJobResources::Persist(const TStreamPersistenceContext& context)
     #undef XX
 }
 
-TString FormatResourceUsage(
+TString FormatResource(
     const TJobResources& usage,
     const TJobResources& limits)
 {
     return Format(
-        "{UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v}",
+        "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v",
         // User slots
         usage.GetUserSlots(),
         limits.GetUserSlots(),
@@ -114,6 +114,21 @@ TString FormatResourceUsage(
         // Network
         usage.GetNetwork(),
         limits.GetNetwork());
+}
+
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits)
+{
+    return Format("{%v}", FormatResource(usage, limits));
+}
+
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
+{
+    return Format("{%v, DiskInfo: %v}", FormatResource(usage, limits), NNodeTrackerClient::ToString(diskInfo));
 }
 
 TString FormatResources(const TJobResources& resources)

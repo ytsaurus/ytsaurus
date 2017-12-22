@@ -172,7 +172,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
     context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v, JobCount: %v, StoredJobsIncluded: %v",
         nodeId,
         descriptor.GetDefaultAddress(),
-        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits)),
+        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits), request->disk_info()),
         request->jobs().size(),
         request->stored_jobs_included());
 

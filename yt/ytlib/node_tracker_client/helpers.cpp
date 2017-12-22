@@ -19,18 +19,16 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatResourceUsage(
+TString FormatResources(
     const TNodeResources& usage,
     const TNodeResources& limits)
 {
     return Format(
-        "{"
         "UserSlots: %v/%v, Cpu: %v/%v, UserMemory: %v/%v, SystemMemory: %v/%v, Network: %v/%v, "
         "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
         "RemovalSlots: %v/%v, "
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
-        "SealSlots: %v/%v"
-        "}",
+        "SealSlots: %v/%v",
         // User slots
         usage.user_slots(),
         limits.user_slots(),
@@ -64,6 +62,31 @@ TString FormatResourceUsage(
         // Seal slots
         usage.seal_slots(),
         limits.seal_slots());
+}
+
+TString FormatResourceUsage(
+    const TNodeResources& usage,
+    const TNodeResources& limits)
+{
+    return Format("{%v}", FormatResources(usage, limits));
+}
+
+TString ToString(const NProto::TDiskResources& diskInfo)
+{
+    std::vector<TString> disk;
+    disk.reserve(diskInfo.disk_reports().size());
+    for (const auto& report : diskInfo.disk_reports()) {
+        disk.emplace_back(Format("{usage %v, limit %v}", report.usage(), report.limit()));
+    }
+    return Format("%v", disk);
+}
+
+TString FormatResourceUsage(
+    const TNodeResources& usage,
+    const TNodeResources& limits,
+    const TDiskResources& diskInfo)
+{
+    return Format("{%v, DiskInfo: %v}", FormatResources(usage, limits), ToString(diskInfo));
 }
 
 TString FormatResources(const TNodeResources& resources)
