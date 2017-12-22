@@ -57,7 +57,12 @@ DEFINE_ENUM(EResourceType,
 );
 
 TString FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);
+TString FormatResourceUsage(
+    const NProto::TNodeResources& usage,
+    const NProto::TNodeResources& limits,
+    const NProto::TDiskResources& diskInfo);
 TString FormatResources(const NProto::TNodeResources& resources);
+TString ToString(const NProto::TDiskResources& diskInfo);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);
 

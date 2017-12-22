@@ -122,6 +122,10 @@ public:
 using TJobResourcesWithQuota = TResourcesWithQuota<TJobResources>;
 
 TString FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo);
 TString FormatResources(const TJobResources& resources);
 TString FormatResources(const TJobResourcesWithQuota& resources);
 TString FormatResources(const TExtendedJobResources& resources);
