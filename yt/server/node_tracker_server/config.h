@@ -17,7 +17,8 @@ public:
     int MaxConcurrentNodeUnregistrations;
     int MaxConcurrentFullHeartbeats;
     int MaxConcurrentIncrementalHeartbeats;
-    TDuration NodeStatesGossipPeriod;
+    TDuration IncrementalNodeStatesGossipPeriod;
+    TDuration FullNodeStatesGossipPeriod;
 
     TNodeTrackerConfig()
     {
@@ -33,8 +34,10 @@ public:
         RegisterParameter("max_concurrent_incremental_heartbeats", MaxConcurrentIncrementalHeartbeats)
             .Default(10)
             .GreaterThan(0);
-        RegisterParameter("node_states_gossip_period", NodeStatesGossipPeriod)
+        RegisterParameter("incremental_node_states_gossip_period", IncrementalNodeStatesGossipPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("full_node_states_gossip_period", FullNodeStatesGossipPeriod)
+            .Default(TDuration::Minutes(1));
     }
 };
 

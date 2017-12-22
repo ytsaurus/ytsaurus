@@ -124,12 +124,12 @@ public:
         return 0;
     }
 
-    virtual int GetMultiplexingBand() const override
+    virtual EMultiplexingBand GetMultiplexingBand() const override
     {
-        return MinMultiplexingBand;
+        return EMultiplexingBand::Default;
     }
 
-    virtual void SetMultiplexingBand(int band) override
+    virtual void SetMultiplexingBand(EMultiplexingBand /*band*/) override
     {
         Y_UNREACHABLE();
     }

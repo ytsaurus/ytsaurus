@@ -636,7 +636,7 @@ private:
             proxy.SetDefaultTimeout(config->QueryTimeout);
 
             auto req = proxy.Execute();
-            req->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
+            req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
 
             TDuration serializationTime;
             {

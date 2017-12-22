@@ -124,14 +124,14 @@ private:
     TReaderWriterSpinLock SpinLock_;
     bool Terminated_ = false;
     TError TerminationError_;
-    std::array<TSessionPtr, MaxMultiplexingBand - MinMultiplexingBand + 1> Sessions_;
+    TEnumIndexedVector<TSessionPtr, EMultiplexingBand> Sessions_;
 
-    TSessionPtr* GetPerBandSession(int band)
+    TSessionPtr* GetPerBandSession(EMultiplexingBand band)
     {
-        return &Sessions_[MinMultiplexingBand + band];
+        return &Sessions_[band];
     }
 
-    TSessionPtr GetOrCreateSession(int band)
+    TSessionPtr GetOrCreateSession(EMultiplexingBand band)
     {
         auto* perBandSession = GetPerBandSession(band);
 
@@ -175,7 +175,7 @@ private:
         return session;
     }
 
-    void OnBusTerminated(const TWeakPtr<TSession>& session, int band, const TError& error)
+    void OnBusTerminated(const TWeakPtr<TSession>& session, EMultiplexingBand band, const TError& error)
     {
         auto session_ = session.Lock();
         if (!session_) {

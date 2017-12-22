@@ -1175,7 +1175,7 @@ private:
             const auto& batch = Batches_[InvokeBatchIndex_];
 
             auto req = InvokeProxy_->Read();
-            req->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
+            req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
             req->set_mount_revision(batch->TabletInfo->MountRevision);
             req->set_timestamp(Options_.Timestamp);
@@ -3387,7 +3387,7 @@ private:
             NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
 
             auto req = jobProberServiceProxy.GetStderr();
-            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             ToProto(req->mutable_job_id(), jobId);
             auto rsp = WaitFor(req->Invoke())
                 .ValueOrThrow();

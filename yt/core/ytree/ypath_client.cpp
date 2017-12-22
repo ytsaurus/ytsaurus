@@ -114,12 +114,12 @@ size_t TYPathRequest::GetHash() const
     return 0;
 }
 
-int TYPathRequest::GetMultiplexingBand() const
+EMultiplexingBand TYPathRequest::GetMultiplexingBand() const
 {
-    return MinMultiplexingBand;
+    return EMultiplexingBand::Default;
 }
 
-void TYPathRequest::SetMultiplexingBand(int band)
+void TYPathRequest::SetMultiplexingBand(EMultiplexingBand /*band*/)
 {
     Y_UNREACHABLE();
 }
