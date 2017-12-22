@@ -2359,7 +2359,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 
     if (GetExecNodeDescriptors().empty()) {
         auto timeout = DurationToCpuDuration(Spec_->AvailableNodesMissingTimeout);
-        if (AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
+        if (!AvailableNodesSeen_ && AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
                 << TErrorAttribute("operation_id", OperationId)
                 << TErrorAttribute("scheduling_tag_filter", Spec_->SchedulingTagFilter));
@@ -6340,10 +6340,6 @@ const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDes
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()
 {
-    if (AvailableNodesSeen_) {
-        return true;
-    }
-
     auto nodeCount = GetExecNodeCount();
     if (nodeCount < Config->SafeOnlineNodeCount) {
         return true;
