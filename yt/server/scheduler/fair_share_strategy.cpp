@@ -2232,31 +2232,47 @@ public:
             GetTree(*DefaultFairShareTree_)->BuildPoolsInformation(fluent);
         }
 
+
+        yhash<TString, std::vector<TExecNodeDescriptor>> descriptorsPerPoolTree;
+        for (const auto& pair : FairShareTrees_) {
+            const auto& treeId = pair.first;
+            descriptorsPerPoolTree.emplace(treeId, std::vector<TExecNodeDescriptor>{});
+        }
+
+        auto descriptors = Host->CalculateExecNodeDescriptors(TSchedulingTagFilter());
+        for (const auto& descriptor : descriptors->Descriptors) {
+            for (const auto& pair : FairShareTrees_) {
+                const auto& treeId = pair.first;
+                const auto& tree = pair.second;
+
+                if (tree->GetNodesFilter().CanSchedule(descriptor.Tags)) {
+                    descriptorsPerPoolTree[treeId].push_back(descriptor);
+                    break;
+                }
+            }
+        }
+
         fluent
-            .Item("user_to_ephemeral_pools_per_pool_tree")
-                .DoMapFor(FairShareTrees_, [&] (TFluentMap fluent, const TFairShareTreeMap::value_type& value) {
-                    const auto& treeId = value.first;
-                    const auto& tree = value.second;
-                    fluent
-                        .Item(treeId).Do(BIND(&TFairShareTree::BuildUserToEphemeralPools, tree));
-                })
-            // COMPAT(asaitgalin): Remove it when UI will use fair_share_info_per_pool_tree
             .DoIf(DefaultFairShareTree_.HasValue(), [&] (TFluentMap fluent) {
                 fluent
+                    // COMPAT(asaitgalin): Remove it when UI will use fair_share_info_per_pool_tree
                     .Item("fair_share_info").BeginMap()
                         .Do(BIND(&TFairShareTree::BuildFairShareInfo, GetTree(*DefaultFairShareTree_)))
                     .EndMap()
                     .Item("default_fair_share_tree").Value(*DefaultFairShareTree_);
             })
-            .Item("fair_share_info_per_pool_tree")
-                .DoMapFor(FairShareTrees_, [&] (TFluentMap fluent, const TFairShareTreeMap::value_type& value) {
-                    const auto& treeId = value.first;
-                    const auto& tree = value.second;
+            .Item("scheduling_info_per_pool_tree").DoMapFor(FairShareTrees_, [&] (TFluentMap fluent, const auto& pair) {
+                    const auto& treeId = pair.first;
+                    const auto& tree = pair.second;
+
+                    auto it = descriptorsPerPoolTree.find(treeId);
+                    YCHECK(it != descriptorsPerPoolTree.end());
+
                     fluent
                         .Item(treeId).BeginMap()
-                            .Do(BIND(&TFairShareTree::BuildFairShareInfo, tree))
+                            .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, tree, it->second))
                         .EndMap();
-                });
+            });
     }
 
     virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& operationJobMetrics) override
@@ -2835,6 +2851,31 @@ private:
                     TError("No suitable fair-share trees to schedule operation"));
             }
         }
+    }
+
+    static void BuildTreeOrchid(
+        const TFairShareTreePtr& tree,
+        const std::vector<TExecNodeDescriptor>& descriptors,
+        TFluentMap fluent)
+    {
+        TJobResources resources = ZeroJobResources();
+        for (const auto& descriptor : descriptors) {
+            resources += descriptor.ResourceLimits;
+        }
+
+        fluent
+            .Item("user_to_ephemeral_pools").Do(BIND(&TFairShareTree::BuildUserToEphemeralPools, tree))
+            .Item("fair_share_info").BeginMap()
+                .Do(BIND(&TFairShareTree::BuildFairShareInfo, tree))
+            .EndMap()
+            .Item("resource_limits").Value(resources)
+            .Item("node_count").Value(descriptors.size())
+            .Item("node_addresses").BeginList()
+                .DoFor(descriptors, [&] (TFluentList fluent, const auto& descriptor) {
+                    fluent
+                        .Item().Value(descriptor.Address);
+                })
+            .EndList();
     }
 };
 

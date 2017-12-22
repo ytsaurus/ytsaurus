@@ -1797,14 +1797,22 @@ private:
         }
     }
 
-    TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(ExecNodeDescriptorsLock_);
+        TExecNodeDescriptorListPtr descriptors;
+        {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+            descriptors = CachedExecNodeDescriptors_;
+        }
+
+        if (filter.IsEmpty()) {
+            return descriptors;
+        }
 
         auto result = New<TExecNodeDescriptorList>();
-        for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
+        for (const auto& descriptor : descriptors->Descriptors) {
             if (filter.CanSchedule(descriptor.Tags)) {
                 result->Descriptors.push_back(descriptor);
             }
