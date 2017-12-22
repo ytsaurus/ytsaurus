@@ -73,11 +73,11 @@ extern const TMutationId NullMutationId;
 
 extern const TString RootUserName;
 
-constexpr int MinMultiplexingBand = 0;
-constexpr int MaxMultiplexingBand = 1;
-
-constexpr int DefaultLightMultiplexingBand = 0;
-constexpr int DefaultHeavyMultiplexingBand = 1;
+DEFINE_ENUM(EMultiplexingBand,
+    ((Default)               (0))
+    ((Control)               (1))
+    ((Heavy)                 (2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

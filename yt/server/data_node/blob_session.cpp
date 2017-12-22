@@ -248,7 +248,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();
-    req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+    req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     ToProto(req->mutable_session_id(), SessionId_);
     req->set_first_block_index(firstBlockIndex);
 

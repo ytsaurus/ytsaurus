@@ -80,7 +80,7 @@ public:
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto outerRequest = proxy.Execute();
-        outerRequest->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+        outerRequest->SetMultiplexingBand(EMultiplexingBand::Heavy);
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
         LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",

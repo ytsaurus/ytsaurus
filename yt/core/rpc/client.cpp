@@ -151,14 +151,14 @@ size_t TClientRequest::GetHash() const
     return *Hash_;
 }
 
-int TClientRequest::GetMultiplexingBand() const
+EMultiplexingBand TClientRequest::GetMultiplexingBand() const
 {
     return MultiplexingBand_;
 }
 
-void TClientRequest::SetMultiplexingBand(int band)
+void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 {
-    MultiplexingBand_ = ClampVal(band, MinMultiplexingBand, MaxMultiplexingBand);
+    MultiplexingBand_ = band;
 }
 
 TClientContextPtr TClientRequest::CreateClientContext()

@@ -75,7 +75,7 @@ void TPeerBlockUpdater::Update()
                 auto channel = channelFactory->CreateChannel(sourceAddress);
                 TProxy proxy(channel);
                 request = proxy.UpdatePeer();
-                request->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
+                request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
                 ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());
                 requests.insert(std::make_pair(sourceAddress, request));

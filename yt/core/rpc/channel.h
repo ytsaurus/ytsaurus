@@ -37,7 +37,7 @@ struct TSendOptions
     TNullable<TDuration> Timeout;
     bool RequestAck = true;
     bool GenerateAttachmentChecksums = true;
-    int MultiplexingBand = DefaultLightMultiplexingBand;
+    EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
 };
 
 //! An interface for exchanging request-response pairs.

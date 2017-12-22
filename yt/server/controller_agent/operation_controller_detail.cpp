@@ -107,6 +107,8 @@ using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
 using NScheduler::TExecNodeDescriptor;
 
+using std::placeholders::_1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -437,7 +439,7 @@ TOperationControllerInitializeResult TOperationControllerBase::GetInitializeResu
 {
     TOperationControllerInitializeResult result;
     result.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do(BIND(&TOperationControllerBase::BuildBriefSpec, MakeStrong(this)))
+        .Do(std::bind(&TOperationControllerBase::BuildBriefSpec, this, _1))
         .Finish();
     return result;
 }
@@ -5385,31 +5387,31 @@ void TOperationControllerBase::BuildOperationInfo(NScheduler::NProto::TRspGetOpe
 {
     response->set_progress(
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(BIND(&TOperationControllerBase::BuildProgress, Unretained(this)))
+            .Do(std::bind(&TOperationControllerBase::BuildProgress, this, _1))
         .Finish()
         .GetData());
 
     response->set_brief_progress(
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this)))
+            .Do(std::bind(&TOperationControllerBase::BuildBriefProgress, this, _1))
         .Finish()
         .GetData());
 
     response->set_running_jobs(
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this)))
+            .Do(std::bind(&TOperationControllerBase::BuildJobsYson, this, _1))
         .Finish()
         .GetData());
 
     response->set_job_splitter(
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this)))
+            .Do(std::bind(&TOperationControllerBase::BuildJobSplitterInfo, this, _1))
         .Finish()
         .GetData());
 
     response->set_memory_digest(
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(BIND(&TOperationControllerBase::BuildMemoryDigestStatistics, Unretained(this)))
+            .Do(std::bind(&TOperationControllerBase::BuildMemoryDigestStatistics, this, _1))
         .Finish()
         .GetData());
 }
@@ -5609,26 +5611,26 @@ void TOperationControllerBase::BuildAndSaveProgress()
 {
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
-        .Do(BIND([=] (TFluentMap fluent) {
+        .Do([=] (TFluentMap fluent) {
             auto asyncResult = WaitFor(
                 BIND(&TOperationControllerBase::BuildProgress, MakeStrong(this))
                     .AsyncVia(GetInvoker())
                     .Run(fluent));
                 asyncResult
                     .ThrowOnError();
-            }))
+            })
         .EndMap();
 
     auto briefProgressString = BuildYsonStringFluently()
         .BeginMap()
-            .Do(BIND([=] (TFluentMap fluent) {
+            .Do([=] (TFluentMap fluent) {
                 auto asyncResult = WaitFor(
                     BIND(&TOperationControllerBase::BuildBriefProgress, MakeStrong(this))
                         .AsyncVia(GetInvoker())
                         .Run(fluent));
                 asyncResult
                     .ThrowOnError();
-            }))
+            })
         .EndMap();
 
     {
