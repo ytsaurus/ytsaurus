@@ -2365,7 +2365,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 << TErrorAttribute("scheduling_tag_filter", Spec_->SchedulingTagFilter));
         }
     } else {
-        AvailableNodesHaveSeen_ = true;
+        AvailableNodesSeen_ = true;
         AvaialableNodesLastSeenTime_ = GetCpuInstant();
     }
 }
@@ -6340,7 +6340,7 @@ const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDes
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()
 {
-    if (AvailableNodesHaveSeen_) {
+    if (AvailableNodesSeen_) {
         return true;
     }
 
@@ -6620,7 +6620,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     // COMPAT(ignat)
     if (context.GetVersion() >= 202001) {
-        Persist(context, AvailableNodesHaveSeen_);
+        Persist(context, AvailableNodesSeen_);
     }
 
     // NB: Keep this at the end of persist as it requires some of the previous
