@@ -101,7 +101,7 @@ private:
             return true;
         }
 
-        if (key == "table_path") {
+        if (key == "table_path" && IsObjectAlive(tablet->GetTable())) {
             BuildYsonFluently(consumer)
                 .Value(cypressManager->GetNodePath(
                     tablet->GetTable()->GetTrunkNode(),
