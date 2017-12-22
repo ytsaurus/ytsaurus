@@ -63,7 +63,14 @@ struct TSchedulerStrategyHostMock
         return result;
     }
 
-    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& /* filter */) const override
+    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(
+        const TSchedulingTagFilter& /* filter */) const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
+        const TSchedulingTagFilter& /* filter */) const override
     {
         return {};
     }
