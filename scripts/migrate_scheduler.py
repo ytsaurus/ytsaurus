@@ -37,7 +37,12 @@ def main():
             "preemptive_scheduling_backoff"]
 
     orchid_config = yt.get("//sys/scheduler/orchid/scheduler/config")
-    patch = yt.get("//sys/scheduler/config")
+
+    if yt.exists("//sys/scheduler/config"):
+        patch = yt.get("//sys/scheduler/config")
+    else:
+        patch = {}
+
     config = yt.common.update(orchid_config, patch)
 
     for key in keys:
