@@ -80,19 +80,7 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 TNode::TNode(const TObjectId& objectId)
     : TObjectBase(objectId)
-    , IOWeights_{}
-    , FillFactorIterators_{}
-    , LoadFactorIterators_{}
-    , VisitMarks_{}
 {
-    Banned_ = false;
-    Decommissioned_ = false;
-    DisableWriteSessions_ = false;
-    Rack_ = nullptr;
-    DisableSchedulerJobs_ = false;
-    LeaseTransaction_ = nullptr;
-    LocalStatePtr_ = nullptr;
-    AggregatedState_ = ENodeState::Offline;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     std::transform(
         Replicas_.begin(),
@@ -582,6 +570,7 @@ void TNode::ShrinkHashTables()
 
 void TNode::Reset()
 {
+    LastGossipState_ = ENodeState::Unknown;
     ClearSessionHints();
     Jobs_.clear();
     ChunkRemovalQueue_.clear();
