@@ -474,6 +474,8 @@ void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
     #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
+            // COMPAT(psushin): fix for a web-face.
+            .Item("memory").Value(resources.GetMemory())
         .EndMap();
 }
 
