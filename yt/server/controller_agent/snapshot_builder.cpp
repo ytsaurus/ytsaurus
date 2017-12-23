@@ -385,13 +385,24 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             {
                 TCopyNodeOptions options;
                 options.Recursive = false;
-                options.Force = false;
+                options.Force = true;
 
-                // Intentionally ignoring result, intermediate nodes can be missing.
-                Y_UNUSED(WaitFor(transaction->CopyNode(
+                auto rspOrError = WaitFor(transaction->CopyNode(
                     snapshotPath,
                     GetSnapshotPath(operationId),
-                    options)));
+                    options));
+
+                if (!rspOrError.IsOK()) {
+                    // COMPAT: Remove message check when masters are updated and will set ResolveError
+                    // if intermediate node is missing.
+                    auto isIntermediateNodeMissing = rspOrError.FindMatching(NYTree::EErrorCode::ResolveError) ||
+                        rspOrError.GetMessage().Contains("has no child");
+
+                    // Intermediate nodes can be missing in new operations storage mode.
+                    if (!isIntermediateNodeMissing) {
+                        THROW_ERROR rspOrError;
+                    }
+                }
             }
 
             // Commit outer transaction.

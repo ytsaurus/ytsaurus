@@ -377,7 +377,8 @@ void TMapNodeMixin::SetChild(
 
             bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
             if (!recursive && !lastStep) {
-                THROW_ERROR_EXCEPTION("%v has no child %Qv; consider using \"recursive\" option to force its creation",
+                THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+                    "%v has no child %Qv; consider using \"recursive\" option to force its creation",
                     currentNode->GetPath(),
                     key);
             }
