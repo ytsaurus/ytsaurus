@@ -348,7 +348,7 @@ private:
     {
         ServerSocket_ = CreateTcpServerSocket();
 
-        TNetworkAddress serverAddress = TNetworkAddress::CreateIPv6Any(Config_->Port.Get());
+        auto serverAddress = TNetworkAddress::CreateIPv6Any(Config_->Port.Get());
         BindSocket(serverAddress, Format("Failed to bind a server socket to port %v", Config_->Port));
     }
 
