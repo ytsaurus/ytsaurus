@@ -32,25 +32,16 @@ TSnapshotDownloader::TSnapshotDownloader(
     YCHECK(bootstrap);
 }
 
-TSharedRef TSnapshotDownloader::Run()
+TSharedRef TSnapshotDownloader::Run(const NYTree::TYPath& snapshotPath)
 {
     LOG_INFO("Starting downloading snapshot");
 
     auto client = Bootstrap_->GetMasterClient();
 
-    auto createReader = [&] (const NYPath::TYPath& path) {
-        TFileReaderOptions options;
-        options.Config = Config_->SnapshotReader;
+    TFileReaderOptions options;
+    options.Config = Config_->SnapshotReader;
 
-        return WaitFor(client->CreateFileReader(path, options));
-    };
-
-    auto readerOrError = createReader(GetNewSnapshotPath(OperationId_));
-    // COMPAT
-    if (readerOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-        readerOrError = createReader(GetSnapshotPath(OperationId_));
-    }
-
+    auto readerOrError = WaitFor(client->CreateFileReader(snapshotPath, options));
     auto reader = readerOrError.ValueOrThrow();
 
     LOG_INFO("Snapshot reader opened");

@@ -798,11 +798,13 @@ private:
 
     TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
     {
-        using NScheduler::GetSnapshotPath;
-        using NScheduler::GetNewSnapshotPath;
+        std::vector<NYTree::TYPath> paths = {
+            NScheduler::GetNewSnapshotPath(operationId),
+            NScheduler::GetSnapshotPath(operationId)
+        };
 
         auto batchReq = StartObjectBatchRequest();
-        for (const auto& path : {GetSnapshotPath(operationId), GetNewSnapshotPath(operationId)}) {
+        for (const auto& path : paths) {
             auto req = TYPathProxy::Get(path + "/@version");
             batchReq->AddRequest(req, "get_version");
         }
@@ -811,17 +813,19 @@ private:
         const auto& batchRsp = batchRspOrError.ValueOrThrow();
 
         auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_version");
+        YCHECK(rsps.size() == paths.size());
 
         TNullable<int> version;
+        NYTree::TYPath snapshotPath;
 
-        for (const auto& rsp : rsps) {
-            if (version) {
-                break;
-            }
+        for (int index = 0; index < paths.size(); ++index) {
+            const auto& rsp = rsps[index];
 
             if (rsp.IsOK()) {
                 const auto& versionRsp = rsp.Value();
                 version = ConvertTo<int>(TYsonString(versionRsp->value()));
+                snapshotPath = paths[index];
+                break;
             } else {
                 if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION("Error getting snapshot version")
@@ -834,9 +838,10 @@ private:
             THROW_ERROR_EXCEPTION("Snapshot does not exist");
         }
 
-        LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
+        LOG_INFO("Snapshot found (OperationId: %v, Version: %v, Path: %v)",
             operationId,
-            *version);
+            *version,
+            snapshotPath);
 
         if (!ValidateSnapshotVersion(*version)) {
             THROW_ERROR_EXCEPTION("Snapshot version validation failed");
@@ -849,7 +854,7 @@ private:
                 Config_,
                 Bootstrap_,
                 operationId);
-            snapshot.Data = downloader->Run();
+            snapshot.Data = downloader->Run(snapshotPath);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
         }

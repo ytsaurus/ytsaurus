@@ -22,7 +22,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap,
         const TOperationId& operationId);
 
-    TSharedRef Run();
+    TSharedRef Run(const NYTree::TYPath& snapshotPath);
 
 private:
     const TSchedulerConfigPtr Config_;
