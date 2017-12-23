@@ -32,7 +32,7 @@ GB = 1024 * MB
 
 
 class YtDeprecationWarning(DeprecationWarning):
-    """ Custom warnings category, because built-in category is ignored by default. """
+    """Custom warnings category, because built-in category is ignored by default."""
 
 warnings.simplefilter("default", category=YtDeprecationWarning)
 
