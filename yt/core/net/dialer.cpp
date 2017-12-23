@@ -135,7 +135,7 @@ public:
         , OnFinished_(std::move(onFinished))
         , Id_(TGuid::Create())
         , Logger(NLogging::TLogger(logger)
-            .AddTag("TAsyncDialerSession: %v", Id_))
+            .AddTag("AsyncDialerSession: %v", Id_))
         , Timeout_(Config_->MinRto * GetRandomVariation())
     { }
 
