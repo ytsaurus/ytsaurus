@@ -150,6 +150,9 @@ private:
             return VoidFuture;
         }
 
+        virtual void SetTosLevel(TTosLevel /*tosLevel*/) override
+        { }
+
         virtual void Terminate(const TError& /*error*/) override
         { }
 

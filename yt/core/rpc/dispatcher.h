@@ -5,6 +5,7 @@
 #include <yt/core/actions/public.h>
 
 #include <yt/core/misc/shutdownable.h>
+#include <yt/core/bus/public.h>
 
 namespace NYT {
 namespace NRpc {
@@ -23,9 +24,11 @@ public:
 
     static void StaticShutdown();
 
-    void Configure(int poolSize);
+    void Configure(const TDispatcherConfigPtr& config);
 
     virtual void Shutdown() override;
+
+    NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band);
 
     //! Returns the invoker for the single thread used to dispatch light callbacks
     //! (e.g. discovery or request cancelation).

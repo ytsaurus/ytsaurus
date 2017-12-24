@@ -31,6 +31,7 @@ public:
     // Singletons.
     yhash<TString, int> FiberStackPoolSizes;
     NNet::TAddressResolverConfigPtr AddressResolver;
+    NRpc::TDispatcherConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NLogging::TLogConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;
@@ -52,6 +53,8 @@ public:
         RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
             .Default({});
         RegisterParameter("address_resolver", AddressResolver)
+            .DefaultNew();
+        RegisterParameter("rpc_dispatcher", RpcDispatcher)
             .DefaultNew();
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
@@ -112,7 +115,7 @@ public:
             .NonEmpty();
         RegisterParameter("min_disk_space", MinDiskSpace)
             .GreaterThanOrEqual(0)
-            .Default(TNullable<i64>());
+            .Default();
     }
 };
 

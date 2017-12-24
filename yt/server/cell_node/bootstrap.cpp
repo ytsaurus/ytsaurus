@@ -362,9 +362,15 @@ void TBootstrap::DoRun()
 
     JobProxyConfigTemplate = New<NJobProxy::TJobProxyConfig>();
 
+    // Singletons.
+    JobProxyConfigTemplate->FiberStackPoolSizes = Config->FiberStackPoolSizes;
+    JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
+    JobProxyConfigTemplate->RpcDispatcher = Config->RpcDispatcher;
+    JobProxyConfigTemplate->ChunkClientDispatcher = Config->ChunkClientDispatcher;
+
     JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
-    auto patchMasterConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
+    auto patchMasterConnectionConfig = [&] (const TMasterConnectionConfigPtr& config) {
         config->Addresses = {localAddress};
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
@@ -379,14 +385,11 @@ void TBootstrap::DoRun()
     }
 
     JobProxyConfigTemplate->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
-    // TODO(babenko): consider making this priority configurable
-    JobProxyConfigTemplate->SupervisorConnection->Priority = 6;
+    JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
     JobProxyConfigTemplate->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
 
-    JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
     JobProxyConfigTemplate->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
 
     JobProxyConfigTemplate->JobEnvironment = Config->ExecAgent->SlotManager->JobEnvironment;

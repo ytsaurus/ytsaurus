@@ -159,6 +159,7 @@ EMultiplexingBand TClientRequest::GetMultiplexingBand() const
 void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 {
     MultiplexingBand_ = band;
+    Header_.set_tos_level(TDispatcher::Get()->GetTosLevelForBand(band));
 }
 
 TClientContextPtr TClientRequest::CreateClientContext()

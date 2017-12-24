@@ -15,7 +15,6 @@ class TDialerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    int Priority;
     bool EnableNoDelay;
     bool EnableAggressiveReconnect;
 
@@ -25,9 +24,6 @@ public:
 
     TDialerConfig()
     {
-        RegisterParameter("priority", Priority)
-            .InRange(0, 6)
-            .Default(0);
         RegisterParameter("enable_no_delay", EnableNoDelay)
             .Default(true);
         RegisterParameter("enable_aggressive_reconnect", EnableAggressiveReconnect)

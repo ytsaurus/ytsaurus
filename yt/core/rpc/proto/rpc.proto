@@ -25,6 +25,8 @@ message TRequestHeader
 
     optional string user = 12;
 
+    optional int32 tos_level = 14;
+
     extensions 100 to max;
 }
 

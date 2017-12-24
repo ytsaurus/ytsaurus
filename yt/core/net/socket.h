@@ -35,10 +35,10 @@ int GetSocketError(SOCKET socket);
 TNetworkAddress GetSocketName(SOCKET socket);
 TNetworkAddress GetSocketPeer(SOCKET socket);
 
-void SetSocketPriority(SOCKET socket, int priority);
-void SetSocketNoDelay(SOCKET socket);
-void SetSocketKeepAlive(SOCKET socket);
-void SetSocketEnableQuickAck(SOCKET socket);
+bool TrySetSocketNoDelay(SOCKET socket);
+bool TrySetSocketKeepAlive(SOCKET socket);
+bool TrySetSocketEnableQuickAck(SOCKET socket);
+bool TrySetSocketTosLevel(SOCKET socket, int tosLevel);
 
 ////////////////////////////////////////////////////////////////////////////////
 

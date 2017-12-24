@@ -1,7 +1,9 @@
 #include "dispatcher.h"
+#include "config.h"
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
@@ -10,15 +12,36 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NConcurrency;
+using namespace NBus;
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+// To avoid "undefined reference" errors during linking.
+constexpr int TDispatcherConfig::DefaultHeavyPoolSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcher::TImpl
 {
 public:
-    void Configure(int poolSize)
+    TImpl()
     {
-        HeavyPool_->Configure(poolSize);
+        std::fill(BandToTosLevel_.begin(), BandToTosLevel_.end(), DefaultTosLevel);
+    }
+
+    void Configure(const TDispatcherConfigPtr& config)
+    {
+        HeavyPool_->Configure(config->HeavyPoolSize);
+        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+            const auto& bandConfig = config->MultiplexingBands[band];
+            BandToTosLevel_[band].store(bandConfig ? bandConfig->TosLevel : DefaultTosLevel);
+        }
+    }
+
+    TTosLevel GetTosLevelForBand(EMultiplexingBand band)
+    {
+        return BandToTosLevel_[band].load();
     }
 
     const IInvokerPtr& GetLightInvoker()
@@ -39,8 +62,9 @@ public:
 
 private:
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
-    const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(16, "RpcHeavy");
+    const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(TDispatcherConfig::DefaultHeavyPoolSize, "RpcHeavy");
 
+    TEnumIndexedVector<std::atomic<int>, EMultiplexingBand> BandToTosLevel_;
 };
 
 TDispatcher::TDispatcher()
@@ -59,9 +83,14 @@ void TDispatcher::StaticShutdown()
     Get()->Shutdown();
 }
 
-void TDispatcher::Configure(int poolSize)
+void TDispatcher::Configure(const TDispatcherConfigPtr& config)
 {
-    Impl_->Configure(poolSize);
+    Impl_->Configure(config);
+}
+
+TTosLevel TDispatcher::GetTosLevelForBand(EMultiplexingBand band)
+{
+    return Impl_->GetTosLevelForBand(band);
 }
 
 void TDispatcher::Shutdown()

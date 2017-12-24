@@ -85,6 +85,7 @@ private:
         const auto& methodName = header->method();
         auto realmId = FromProto<TRealmId>(header->realm_id());
         auto timeout = header->has_timeout() ? MakeNullable(FromProto<TDuration>(header->timeout())) : Null;
+        auto tosLevel = header->has_tos_level() ? header->tos_level() : DefaultTosLevel;
         auto startTime = header->has_start_time() ? MakeNullable(FromProto<TInstant>(header->start_time())) : Null;
         bool isRetry = header->retry();
 
@@ -96,38 +97,44 @@ private:
         }
 
         LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, User: %v, "
-            "Timeout: %v, Endpoint: %v, StartTime: %v, Retry: %v)",
+            "Timeout: %v, TosLevel: %x, Endpoint: %v, StartTime: %v, Retry: %v)",
             serviceName,
             methodName,
             realmId,
             requestId,
             header->has_user() ? header->user() : RootUserName,
             timeout,
+            tosLevel,
             replyBus->GetEndpointDescription(),
             startTime,
             isRetry);
 
-        if (!Started_) {
-            auto error = TError(NRpc::EErrorCode::Unavailable, "Server is not started");
+        auto replyWithError = [&] (const TError& error) {
             LOG_DEBUG(error);
             auto response = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(response, TSendOptions(EDeliveryTrackingLevel::None));
+            replyBus->Send(std::move(response), TSendOptions(EDeliveryTrackingLevel::None));
+        };
+
+        if (!Started_) {
+            replyWithError(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Server is not started")
+                << TErrorAttribute("realm_id", realmId));
             return;
         }
 
         TServiceId serviceId(serviceName, realmId);
         auto service = FindService(serviceId);
         if (!service) {
-            auto error = TError(
+            replyWithError(TError(
                 EErrorCode::NoSuchService,
                 "Service is not registered")
                  << TErrorAttribute("service", serviceName)
-                 << TErrorAttribute("realm_id", realmId);
-            LOG_WARNING(error);
-            auto response = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(std::move(response), TSendOptions(EDeliveryTrackingLevel::None));
+                 << TErrorAttribute("realm_id", realmId));
             return;
         }
+
+        replyBus->SetTosLevel(tosLevel);
 
         service->HandleRequest(
             std::move(header),

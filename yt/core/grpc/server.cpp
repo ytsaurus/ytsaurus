@@ -240,6 +240,9 @@ private:
             return TFuture<void>();
         }
 
+        virtual void SetTosLevel(TTosLevel /*tosLevel*/) override
+        { }
+
         virtual void Terminate(const TError& error) override
         { }
 

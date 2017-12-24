@@ -360,12 +360,12 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
     DialerSession_->Dial();
 }
 
-void TTcpConnection::OnDialerFinished(SOCKET socket, TError error)
+void TTcpConnection::OnDialerFinished(SOCKET socket, const TError& error)
 {
     if (socket != INVALID_SOCKET) {
         OnSocketConnected(socket);
     } else {
-        Abort(std::move(error));
+        Abort(error);
     }
     DialerSession_.Reset();
 }
@@ -401,6 +401,22 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     ArmPollerForWrite();
 
     return queuedMessage.Promise;
+}
+
+void TTcpConnection::SetTosLevel(TTosLevel tosLevel)
+{
+    if (TosLevel_.load() == tosLevel) {
+        return;
+    }
+
+    {
+        NConcurrency::TWriterGuard guard(ControlSpinLock_);
+        if (Socket_ != INVALID_SOCKET) {
+            InitSocketTosLevel(tosLevel);
+        }
+    }
+
+    TosLevel_.store(tosLevel);
 }
 
 void TTcpConnection::Terminate(const TError& error)
@@ -498,7 +514,7 @@ void TTcpConnection::OnShutdown()
     Terminated_.Fire(CloseError_);
 }
 
-void TTcpConnection::OnSocketConnected(int socket)
+void TTcpConnection::OnSocketConnected(SOCKET socket)
 {
     Y_ASSERT(State_ == EState::Opening);
 
@@ -518,7 +534,13 @@ void TTcpConnection::OnSocketConnected(int socket)
     UpdateConnectionCount(true);
 
     {
-        NConcurrency::TReaderGuard guard(ControlSpinLock_);
+        NConcurrency::TWriterGuard guard(ControlSpinLock_);
+
+        auto tosLevel = TosLevel_.load();
+        if (tosLevel != DefaultTosLevel) {
+            InitSocketTosLevel(tosLevel);
+        }
+
         DoArmPoller();
     }
 }
@@ -617,7 +639,9 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     LOG_TRACE("Socket read (BytesRead: %v)", *bytesRead);
 
     if (Config_->EnableQuickAck) {
-        SetSocketEnableQuickAck(Socket_);
+        if (!TrySetSocketEnableQuickAck(Socket_)) {
+            LOG_TRACE("Failed to set socket quick ack option");
+        }
     }
 
     return true;
@@ -1155,6 +1179,16 @@ bool TTcpConnection::IsSocketError(ssize_t result)
         result != EWOULDBLOCK &&
         result != EAGAIN &&
         result != EINPROGRESS;
+}
+
+void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
+{
+    if (TrySetSocketTosLevel(Socket_, tosLevel)) {
+        LOG_DEBUG("Socket TOS level set (TosLevel: %x)",
+            tosLevel);
+    } else {
+        LOG_DEBUG("Failed to set socket TOS level");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

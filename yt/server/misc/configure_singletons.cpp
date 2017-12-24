@@ -13,11 +13,10 @@
 #include <yt/core/misc/lfalloc_helpers.h>
 
 #include <yt/core/net/local_address.h>
-#include <yt/core/net/address.h>
+
+#include <yt/core/rpc/dispatcher.h>
 
 namespace NYT {
-
-using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,10 +30,12 @@ void ConfigureServerSingletons(const TServerConfigPtr& config)
 
     NLogging::TLogManager::Get()->Configure(config->Logging);
 
-    TAddressResolver::Get()->Configure(config->AddressResolver);
-    if (!TAddressResolver::Get()->IsLocalHostNameOK()) {
+    NNet::TAddressResolver::Get()->Configure(config->AddressResolver);
+    if (!NNet::TAddressResolver::Get()->IsLocalHostNameOK()) {
         THROW_ERROR_EXCEPTION("Could not determine local host FQDN");
     }
+
+    NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher);
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
 
