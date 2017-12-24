@@ -358,7 +358,25 @@ struct TServiceDescriptor
 #define RPC_PROXY_DESC(name) \
     NYT::NRpc::TServiceDescriptor(#name)
 
-#define DEFINE_RPC_PROXY_METHOD(ns, method) \
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMethodDescriptor
+{
+    TString MethodName;
+    EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
+
+    explicit TMethodDescriptor(const TString& methodName)
+        : MethodName(methodName)
+    { }
+
+    TMethodDescriptor& SetMultiplexingBand(EMultiplexingBand value)
+    {
+        MultiplexingBand = value;
+        return *this;
+    }
+};
+
+#define DEFINE_RPC_PROXY_METHOD(ns, method, ...) \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
     typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
@@ -367,8 +385,8 @@ struct TServiceDescriptor
     \
     TReq##method##Ptr method() \
     { \
-        static TString MethodName(#method); \
-        return CreateRequest<TReq##method>(MethodName); \
+        static const auto Descriptor = ::NYT::NRpc::TMethodDescriptor(#method) __VA_ARGS__; \
+        return CreateRequest<TReq##method>(Descriptor); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -383,22 +401,23 @@ public:
 
 protected:
     const IChannelPtr Channel_;
-    const TServiceDescriptor Descriptor_;
+    const TServiceDescriptor ServiceDescriptor_;
 
     TProxyBase(
         IChannelPtr channel,
         const TServiceDescriptor& descriptor);
 
     template <class T>
-    TIntrusivePtr<T> CreateRequest(const TString& methodName)
+    TIntrusivePtr<T> CreateRequest(const TMethodDescriptor& methodDescriptor)
     {
         auto request = New<T>(
             Channel_,
-            Descriptor_.ServiceName,
-            methodName,
-            Descriptor_.ProtocolVersion);
+            ServiceDescriptor_.ServiceName,
+            methodDescriptor.MethodName,
+            ServiceDescriptor_.ProtocolVersion);
         request->SetTimeout(DefaultTimeout_);
         request->SetRequestAck(DefaultRequestAck_);
+        request->SetMultiplexingBand(methodDescriptor.MultiplexingBand);
         return request;
     }
 };
