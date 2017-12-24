@@ -1,6 +1,6 @@
 #include "bootstrap.h"
 
-    #include <yt/core/ytree/yson_serializable.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 
@@ -10,7 +10,9 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrapBase::TBootstrapBase(TLogger logger, const TYsonSerializablePtr& config)
+TBootstrapBase::TBootstrapBase(
+    const TLogger& logger,
+    const TYsonSerializablePtr& config)
     : Logger(logger)
 {
     auto unrecognized = config->GetUnrecognizedRecursively();
