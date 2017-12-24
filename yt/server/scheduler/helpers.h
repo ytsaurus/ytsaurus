@@ -19,8 +19,8 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildInitializingOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
-void BuildRunningOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
+void BuildFullOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
+void BuildMutableOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
 void BuildExecNodeAttributes(TExecNodePtr node, NYTree::TFluentMap fluent);
 
 ////////////////////////////////////////////////////////////////////////////////

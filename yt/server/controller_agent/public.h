@@ -26,7 +26,6 @@ using NScheduler::TOperationOptionsPtr;
 using NScheduler::EOperationAlertType;
 
 struct IOperationHost;
-struct TOperationControllerInitializeResult;
 
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 

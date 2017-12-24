@@ -130,7 +130,7 @@ public:
             .EndList();
     }
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
+    TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -155,9 +155,9 @@ public:
         auto operationYson = BuildYsonStringFluently()
             .BeginAttributes()
                 .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
-                .Do(BIND(&BuildInitializingOperationAttributes, operation))
+                .Do(BIND(&BuildFullOperationAttributes, operation))
                 .Item("brief_spec").BeginMap()
-                    .Items(initializeResult.BriefSpec)
+                    .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
                     .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
                 .EndMap()
                 .Item("progress").BeginMap().EndMap()
@@ -220,7 +220,7 @@ public:
 
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Do(BIND(&BuildRunningOperationAttributes, operation))
+                .Do(BIND(&BuildMutableOperationAttributes, operation))
                 .Item("progress").BeginMap().EndMap()
                 .Item("brief_progress").BeginMap().EndMap()
             .EndMap());
@@ -1499,9 +1499,9 @@ IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
     return Impl->GetCancelableControlInvoker();
 }
 
-TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
+TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation)
 {
-    return Impl->CreateOperationNode(operation, initializeResult);
+    return Impl->CreateOperationNode(operation);
 }
 
 TFuture<void> TMasterConnector::ResetRevivingOperationNode(TOperationPtr operation)

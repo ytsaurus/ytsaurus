@@ -64,14 +64,9 @@ public:
         Underlying_->Initialize();
     }
 
-    virtual TOperationControllerInitializeResult GetInitializeResult() const override
+    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override
     {
-        return Underlying_->GetInitializeResult();
-    }
-
-    virtual void InitializeReviving(TControllerTransactionsPtr controllerTransactions) override
-    {
-        Underlying_->InitializeReviving(controllerTransactions);
+        Underlying_->InitializeReviving(std::move(operationTransactions));
     }
 
     virtual void Prepare() override
@@ -107,6 +102,16 @@ public:
     virtual void Forget() override
     {
         Underlying_->Forget();
+    }
+
+    virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const override
+    {
+        return Underlying_->GetInitializationAttributes();
+    }
+
+    virtual NYson::TYsonString GetAttributes() const override
+    {
+        return Underlying_->GetAttributes();
     }
 
     virtual void OnTransactionAborted(const TTransactionId& transactionId) override
@@ -232,16 +237,6 @@ public:
         return Underlying_->HasProgress();
     }
 
-    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const override
-    {
-        Underlying_->BuildSpec(fluent);
-    }
-
-    virtual void BuildOperationAttributes(TFluentMap fluent) const override
-    {
-        Underlying_->BuildOperationAttributes(fluent);
-    }
-
     virtual TString GetLoggingProgress() const override
     {
         return Underlying_->GetLoggingProgress();
@@ -305,11 +300,6 @@ public:
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override
     {
         return Underlying_->BuildJobsFromJoblets();
-    }
-
-    virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const override
-    {
-        return Underlying_->GetUnrecognizedSpec();
     }
 
 private:
