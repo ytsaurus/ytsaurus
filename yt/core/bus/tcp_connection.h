@@ -47,7 +47,7 @@ public:
         EConnectionType connectionType,
         const TString& networkName,
         const TConnectionId& id,
-        int socket,
+        SOCKET socket,
         const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
         const TNullable<TString>& address,
@@ -72,6 +72,7 @@ public:
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     virtual TTcpDispatcherStatistics GetStatistics() const override;
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
+    virtual void SetTosLevel(TTosLevel tosLevel) override;
     virtual void Terminate(const TError& error) override;
 
     DECLARE_SIGNAL(void(const TError&), Terminated);
@@ -162,7 +163,7 @@ private:
 
     TError TerminateError_;
     bool TerminateRequested_ = false;
-    int Socket_;
+    SOCKET Socket_ = INVALID_SOCKET;
 
     bool Unregistered_ = false;
     TError CloseError_;
@@ -195,6 +196,9 @@ private:
 
     TRingQueue<TUnackedMessage> UnackedMessages_;
 
+    std::atomic<TTosLevel> TosLevel_ = {DefaultTosLevel};
+
+
     void Cleanup();
 
     void Open();
@@ -206,7 +210,7 @@ private:
     int GetSocketPort();
 
     void ConnectSocket(const NNet::TNetworkAddress& address);
-    void OnDialerFinished(SOCKET socket, TError error);
+    void OnDialerFinished(SOCKET socket, const TError& error);
     void CloseSocket();
 
     void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);
@@ -216,7 +220,7 @@ private:
     int GetSocketError() const;
     bool IsSocketError(ssize_t result);
 
-    void OnSocketConnected(int socket);
+    void OnSocketConnected(SOCKET socket);
 
     void OnSocketRead();
     bool HasUnreadData() const;
@@ -257,6 +261,7 @@ private:
     void UpdateConnectionCount(bool increment);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
 
+    void InitSocketTosLevel(int tosLevel);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpConnection)

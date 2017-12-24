@@ -160,10 +160,13 @@ private:
                     << TerminationError_;
             }
 
-            session = New<TSession>();
+            session = New<TSession>(band);
+
             auto messageHandler = New<TMessageHandler>(session);
             bus = Client_->CreateBus(messageHandler);
+
             session->Initialize(bus);
+
             *perBandSession = session;
         }
 
@@ -224,10 +227,15 @@ private:
         : public IMessageHandler
     {
     public:
+        explicit TSession(EMultiplexingBand band)
+            : TosLevel_(TDispatcher::Get()->GetTosLevelForBand(band))
+        { }
+
         void Initialize(IBusPtr bus)
         {
-            YCHECK(bus);
+            Y_ASSERT(bus);
             Bus_ = std::move(bus);
+            Bus_->SetTosLevel(TosLevel_);
         }
 
         void Terminate(const TError& error)
@@ -507,6 +515,8 @@ private:
         }
 
     private:
+        const TTosLevel TosLevel_;
+
         IBusPtr Bus_;
 
         TSpinLock SpinLock_;
@@ -608,13 +618,14 @@ private:
                 requestId));
 
             LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
-                "ChecksummedPartCount: %v, Endpoint: %v)",
+                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
                 requestControl->GetTimeout(),
                 busOptions.TrackingLevel,
                 busOptions.ChecksummedPartCount,
+                options.MultiplexingBand,
                 bus->GetEndpointDescription());
         }
 

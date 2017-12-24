@@ -354,31 +354,46 @@ TNetworkAddress GetSocketPeerName(SOCKET socket)
     return address;
 }
 
-void SetSocketPriority(SOCKET socket, int priority)
-{
-#ifdef _linux_
-    setsockopt(socket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
-#endif
-}
-
-void SetSocketNoDelay(SOCKET socket)
+bool TrySetSocketNoDelay(SOCKET socket)
 {
     int value = 1;
-    setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value));
+    if (setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
+        return false;
+    }
+    return true;
 }
 
-void SetSocketKeepAlive(SOCKET socket)
-{
-    int value = 1;
-    setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value));
-}
-
-void SetSocketEnableQuickAck(SOCKET socket)
+bool TrySetSocketKeepAlive(SOCKET socket)
 {
 #ifdef _linux_
     int value = 1;
-    setsockopt(socket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));
+    if (setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
+        return false;
+    }
 #endif
+    return true;
+}
+
+bool TrySetSocketEnableQuickAck(SOCKET socket)
+{
+#ifdef _linux_
+    int value = 1;
+    if (setsockopt(socket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value)) != 0) {
+        return false;
+    }
+#endif
+    return true;
+}
+
+bool TrySetSocketTosLevel(SOCKET socket, int tosLevel)
+{
+    if (setsockopt(socket, IPPROTO_IP, IP_TOS, &tosLevel, sizeof(tosLevel)) != 0) {
+        return false;
+    }
+    if (setsockopt(socket, IPPROTO_IPV6, IPV6_TCLASS, &tosLevel, sizeof(tosLevel)) != 0) {
+        return false;
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -145,10 +145,14 @@ protected:
     virtual void InitClientSocket(SOCKET clientSocket)
     {
         if (Config_->EnableNoDelay) {
-            SetSocketNoDelay(clientSocket);
+            if (!TrySetSocketNoDelay(clientSocket)) {
+                LOG_DEBUG("Failed to set socket no delay option");
+            }
         }
 
-        SetSocketKeepAlive(clientSocket);
+        if (!TrySetSocketKeepAlive(clientSocket)) {
+            LOG_DEBUG("Failed to set socket keep alive option");
+        }
     }
 
 
@@ -350,13 +354,6 @@ private:
 
         auto serverAddress = TNetworkAddress::CreateIPv6Any(Config_->Port.Get());
         BindSocket(serverAddress, Format("Failed to bind a server socket to port %v", Config_->Port));
-    }
-
-    virtual void InitClientSocket(SOCKET clientSocket) override
-    {
-        TTcpBusServerBase::InitClientSocket(clientSocket);
-
-        SetSocketPriority(clientSocket, Config_->Priority);
     }
 };
 

@@ -11,7 +11,9 @@ namespace NYT {
 class TBootstrapBase
 {
 public:
-    TBootstrapBase(NLogging::TLogger logger, const NYTree::TYsonSerializablePtr& config);
+    TBootstrapBase(
+        const NLogging::TLogger& logger,
+        const NYTree::TYsonSerializablePtr& config);
 
 protected:
     const NLogging::TLogger Logger;
