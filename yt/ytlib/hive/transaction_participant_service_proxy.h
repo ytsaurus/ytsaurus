@@ -18,9 +18,12 @@ public:
     DEFINE_RPC_PROXY(TTransactionParticipantServiceProxy, RPC_PROXY_DESC(TransactionParticipantService)
         .SetProtocolVersion(0));
 
-    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, PrepareTransaction);
-    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, CommitTransaction);
-    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, AbortTransaction);
+    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, PrepareTransaction,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, CommitTransaction,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, AbortTransaction,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
