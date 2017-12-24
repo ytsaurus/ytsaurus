@@ -312,7 +312,7 @@ TProxyBase::TProxyBase(
     const TServiceDescriptor& descriptor)
     : DefaultRequestAck_(true)
     , Channel_(std::move(channel))
-    , Descriptor_(descriptor)
+    , ServiceDescriptor_(descriptor)
 {
     Y_ASSERT(Channel_);
 }
