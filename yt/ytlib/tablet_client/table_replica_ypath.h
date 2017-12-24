@@ -12,7 +12,7 @@ namespace NTabletClient {
 struct TTableReplicaYPathProxy
     : public NYTree::TYPathProxy
 {
-    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(TableReplica));
+    DEFINE_YPATH_PROXY(TableReplica);
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Alter);
 };

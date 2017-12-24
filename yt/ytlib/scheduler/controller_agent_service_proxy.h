@@ -15,7 +15,7 @@ class TControllerAgentServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TControllerAgentServiceProxy, RPC_PROXY_DESC(ControllerAgentService)
+    DEFINE_RPC_PROXY(TControllerAgentServiceProxy, ControllerAgentService,
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);

@@ -15,7 +15,7 @@ class TElectionServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TElectionServiceProxy, RPC_PROXY_DESC(ElectionService)
+    DEFINE_RPC_PROXY(TElectionServiceProxy, ElectionService,
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower,

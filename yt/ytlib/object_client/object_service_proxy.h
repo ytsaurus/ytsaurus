@@ -19,7 +19,7 @@ class TObjectServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TObjectServiceProxy, RPC_PROXY_DESC(ObjectService)
+    DEFINE_RPC_PROXY(TObjectServiceProxy, ObjectService,
         .SetProtocolVersion(12));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);

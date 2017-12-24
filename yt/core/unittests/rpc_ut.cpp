@@ -38,7 +38,7 @@ class TMyProxy
     : public TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TMyProxy, RPC_PROXY_DESC(MyService)
+    DEFINE_RPC_PROXY(TMyProxy, MyService,
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
@@ -57,7 +57,7 @@ class TNonExistingServiceProxy
     : public TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TNonExistingServiceProxy, RPC_PROXY_DESC(NonExistingService));
+    DEFINE_RPC_PROXY(TNonExistingServiceProxy, NonExistingService);
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
 };
@@ -66,7 +66,7 @@ class TMyIncorrectProtocolVersionProxy
     : public TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TMyIncorrectProtocolVersionProxy, RPC_PROXY_DESC(MyService)
+    DEFINE_RPC_PROXY(TMyIncorrectProtocolVersionProxy, MyService,
         .SetProtocolVersion(2));
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);

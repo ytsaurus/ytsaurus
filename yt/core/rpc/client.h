@@ -344,19 +344,16 @@ struct TServiceDescriptor
     }
 };
 
-#define DEFINE_RPC_PROXY(type, descriptor) \
+#define DEFINE_RPC_PROXY(type, name, ...) \
     static const ::NYT::NRpc::TServiceDescriptor& GetDescriptor() \
     { \
-        static const ::NYT::NRpc::TServiceDescriptor result = (descriptor); \
-        return result; \
+        static const auto Descriptor = ::NYT::NRpc::TServiceDescriptor(#name) __VA_ARGS__; \
+        return Descriptor; \
     } \
     \
     explicit type(::NYT::NRpc::IChannelPtr channel) \
         : ::NYT::NRpc::TProxyBase(std::move(channel), GetDescriptor()) \
     { }
-
-#define RPC_PROXY_DESC(name) \
-    NYT::NRpc::TServiceDescriptor(#name)
 
 ////////////////////////////////////////////////////////////////////////////////
 

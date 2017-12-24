@@ -16,7 +16,7 @@ class TControllerAgentOperationServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TControllerAgentOperationServiceProxy, RPC_PROXY_DESC(ControllerAgentOperationService)
+    DEFINE_RPC_PROXY(TControllerAgentOperationServiceProxy, ControllerAgentOperationService,
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetOperationInfo);

@@ -15,7 +15,7 @@ class TDiscoveryServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TDiscoveryServiceProxy, RPC_PROXY_DESC(DiscoveryService)
+    DEFINE_RPC_PROXY(TDiscoveryServiceProxy, DiscoveryService,
         .SetProtocolVersion(0));
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DiscoverProxies,

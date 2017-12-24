@@ -11,7 +11,7 @@ namespace NObjectClient {
 
 struct TMasterYPathProxy
 {
-    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(Master));
+    DEFINE_YPATH_PROXY(Master);
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, CreateObject);
     DEFINE_YPATH_PROXY_METHOD(NProto, GetClusterMeta);

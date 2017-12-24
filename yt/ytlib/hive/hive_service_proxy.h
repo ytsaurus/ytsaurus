@@ -15,7 +15,7 @@ class THiveServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(THiveServiceProxy, RPC_PROXY_DESC(HiveService)
+    DEFINE_RPC_PROXY(THiveServiceProxy, HiveService,
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Ping,
