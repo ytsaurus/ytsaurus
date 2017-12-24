@@ -4,6 +4,7 @@
 #include <yt/core/ytree/serialize.h>
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/format.h>

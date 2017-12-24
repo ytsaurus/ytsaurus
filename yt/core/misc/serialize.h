@@ -16,9 +16,6 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
-#include <contrib/libs/protobuf/message.h>
-#include <contrib/libs/protobuf/repeated_field.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
