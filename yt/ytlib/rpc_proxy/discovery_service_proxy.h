@@ -18,7 +18,8 @@ public:
     DEFINE_RPC_PROXY(TDiscoveryServiceProxy, RPC_PROXY_DESC(DiscoveryService)
         .SetProtocolVersion(0));
 
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DiscoverProxies);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DiscoverProxies,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

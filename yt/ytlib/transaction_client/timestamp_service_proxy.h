@@ -17,7 +17,8 @@ class TTimestampServiceProxy
 public:
     DEFINE_RPC_PROXY(TTimestampServiceProxy, RPC_PROXY_DESC(TimestampService));
 
-    DEFINE_RPC_PROXY_METHOD(NProto, GenerateTimestamps);
+    DEFINE_RPC_PROXY_METHOD(NProto, GenerateTimestamps,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
