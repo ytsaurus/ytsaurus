@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <yt/core/ytree/yson_serializable.h>
+#include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/finally.h>
