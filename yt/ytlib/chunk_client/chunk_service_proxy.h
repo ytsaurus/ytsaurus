@@ -15,7 +15,7 @@ class TChunkServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TChunkServiceProxy, RPC_PROXY_DESC(ChunkService)
+    DEFINE_RPC_PROXY(TChunkServiceProxy, ChunkService,
         .SetProtocolVersion(6));
 
     DEFINE_RPC_PROXY_METHOD(NProto, LocateChunks);

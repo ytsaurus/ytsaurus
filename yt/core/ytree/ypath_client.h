@@ -130,11 +130,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_YPATH_PROXY(descriptor) \
+#define DEFINE_YPATH_PROXY(name) \
     static const ::NYT::NRpc::TServiceDescriptor& GetDescriptor() \
     { \
-        static const ::NYT::NRpc::TServiceDescriptor result = (descriptor); \
-        return result; \
+        static const auto Descriptor = ::NYT::NRpc::TServiceDescriptor(#name); \
+        return Descriptor; \
     }
 
 #define DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, isMutating) \

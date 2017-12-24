@@ -15,7 +15,7 @@ class TApiServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TApiServiceProxy, RPC_PROXY_DESC(ApiService)
+    DEFINE_RPC_PROXY(TApiServiceProxy, ApiService,
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GenerateTimestamps);

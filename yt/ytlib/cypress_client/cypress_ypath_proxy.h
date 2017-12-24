@@ -14,7 +14,7 @@ namespace NCypressClient {
 struct TCypressYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
-    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(Cypress));
+    DEFINE_YPATH_PROXY(Cypress);
 
     // User-facing.
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Create);

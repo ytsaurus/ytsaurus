@@ -15,7 +15,7 @@ class TTransactionParticipantServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TTransactionParticipantServiceProxy, RPC_PROXY_DESC(TransactionParticipantService)
+    DEFINE_RPC_PROXY(TTransactionParticipantServiceProxy, TransactionParticipantService,
         .SetProtocolVersion(0));
 
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, PrepareTransaction,

@@ -14,7 +14,7 @@ namespace NJournalClient {
 struct TJournalYPathProxy
     : public NChunkClient::TChunkOwnerYPathProxy
 {
-    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(Journal));
+    DEFINE_YPATH_PROXY(Journal);
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Seal);
 };

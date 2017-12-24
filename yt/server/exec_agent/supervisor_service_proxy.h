@@ -15,7 +15,7 @@ class TSupervisorServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TSupervisorServiceProxy, RPC_PROXY_DESC(SupervisorService)
+    DEFINE_RPC_PROXY(TSupervisorServiceProxy, SupervisorService,
         .SetProtocolVersion(2));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpec);

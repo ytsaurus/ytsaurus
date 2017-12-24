@@ -13,7 +13,7 @@ class TTraceServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TTraceServiceProxy, RPC_PROXY_DESC(TraceService));
+    DEFINE_RPC_PROXY(TTraceServiceProxy, TraceService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, SendBatch);
 };

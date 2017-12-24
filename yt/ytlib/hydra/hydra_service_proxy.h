@@ -15,7 +15,7 @@ class THydraServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(THydraServiceProxy, RPC_PROXY_DESC(HydraService)
+    DEFINE_RPC_PROXY(THydraServiceProxy, HydraService,
         .SetProtocolVersion(2));
 
     DEFINE_RPC_PROXY_METHOD(NProto, ReadChangeLog);

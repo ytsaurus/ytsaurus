@@ -13,7 +13,7 @@ class TCoreProcessorServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TCoreProcessorServiceProxy, RPC_PROXY_DESC(CoreProcessorService));
+    DEFINE_RPC_PROXY(TCoreProcessorServiceProxy, CoreProcessorService);
 
     DEFINE_RPC_PROXY_METHOD(NCoreDump::NProto, StartCoreDump);
 };
