@@ -5,6 +5,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/core/misc/protobuf_helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 

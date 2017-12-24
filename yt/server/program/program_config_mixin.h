@@ -2,8 +2,8 @@
 
 #include "program.h"
 
-#include <yt/core/ytree/public.h>
 #include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 #include <util/stream/file.h>
 

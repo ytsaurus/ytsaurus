@@ -9,6 +9,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/tree_visitor.h>
 #include <yt/core/ytree/ypath_detail.h>
+#include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
 namespace NMonitoring {

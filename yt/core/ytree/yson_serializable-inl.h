@@ -4,6 +4,7 @@
 #endif
 
 #include "convert.h"
+#include "serialize.h"
 #include "tree_visitor.h"
 
 #include <yt/core/yson/consumer.h>
@@ -325,28 +326,6 @@ inline void InvokeForComposites(const Map<T...>* parameter, const F& func)
     for (const auto& pair : *parameter) {
         InvokeForComposites(&pair.second, func);
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// all
-inline bool HasValue(const void* /* parameter */)
-{
-    return true;
-}
-
-// TIntrusivePtr
-template <class T>
-inline bool HasValue(TIntrusivePtr<T>* parameter)
-{
-    return (bool) (*parameter);
-}
-
-// TNullable
-template <class T>
-inline bool HasValue(TNullable<T>* parameter)
-{
-    return parameter->HasValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

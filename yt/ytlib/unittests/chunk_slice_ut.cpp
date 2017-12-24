@@ -11,6 +11,7 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/yson/string.h>
 

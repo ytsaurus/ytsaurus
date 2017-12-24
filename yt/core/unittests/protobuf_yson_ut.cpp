@@ -6,8 +6,10 @@
 #include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
