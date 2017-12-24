@@ -37,23 +37,23 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildInitializingOperationAttributes(TOperationPtr operation, TFluentMap fluent)
+void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
     fluent
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpec())
-        .Item("full_spec")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Do(BIND(&IOperationControllerSchedulerHost::BuildSpec, operation->GetController()))
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
-        .Do(BIND(&BuildRunningOperationAttributes, operation));
+        .Items(operation->ControllerAttributes().InitializationAttributes->Immutable)
+        .DoIf(static_cast<bool>(operation->ControllerAttributes().Attributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(*operation->ControllerAttributes().Attributes);
+        })
+        .Do(BIND(&BuildMutableOperationAttributes, operation));
 }
 
-void BuildRunningOperationAttributes(TOperationPtr operation, TFluentMap fluent)
+void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
     auto controller = operation->GetController();
     fluent
@@ -61,13 +61,7 @@ void BuildRunningOperationAttributes(TOperationPtr operation, TFluentMap fluent)
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
         .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
-        .DoIf(static_cast<bool>(controller), BIND([=] (TFluentMap fluent) {
-            auto asyncResult = BIND(&NControllerAgent::IOperationControllerSchedulerHost::BuildOperationAttributes, controller)
-                .AsyncVia(controller->GetInvoker())
-                .Run(fluent);
-            WaitFor(asyncResult)
-                .ThrowOnError();
-        }));
+        .Items(operation->ControllerAttributes().InitializationAttributes->Mutable);
 }
 
 void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)

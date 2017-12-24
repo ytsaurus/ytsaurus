@@ -402,6 +402,8 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         SyncPrepare();
     }
 
+    FinishInitialization();
+
     MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
 
     LOG_INFO("Operation initialized");
@@ -428,20 +430,25 @@ void TOperationControllerBase::Initialize()
     WaitFor(initializeFuture)
         .ThrowOnError();
 
-    MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
+    FinishInitialization();
 
-    UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
+    MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
 
     LOG_INFO("Operation initialized");
 }
 
-TOperationControllerInitializeResult TOperationControllerBase::GetInitializeResult() const
+TOperationControllerInitializationAttributes TOperationControllerBase::GetInitializationAttributes() const
 {
-    TOperationControllerInitializeResult result;
-    result.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do(std::bind(&TOperationControllerBase::BuildBriefSpec, this, _1))
-        .Finish();
-    return result;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return InitializationAttributes_;
+}
+
+TYsonString TOperationControllerBase::GetAttributes() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Attributes_;
 }
 
 void TOperationControllerBase::InitializeStructures()
@@ -521,6 +528,22 @@ void TOperationControllerBase::InitializeStructures()
     }
 
     DoInitialize();
+}
+
+void TOperationControllerBase::FinishInitialization()
+{
+    UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
+
+    InitializationAttributes_.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Do(BIND(&TOperationControllerBase::BuildInitializeImmutableAttributes, Unretained(this)))
+        .Finish();
+    InitializationAttributes_.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
+        .Finish();
+    InitializationAttributes_.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Do(BIND(&TOperationControllerBase::BuildBriefSpec, Unretained(this)))
+        .Finish();
+    InitializationAttributes_.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
 }
 
 void TOperationControllerBase::InitUpdatingTables()
@@ -616,6 +639,8 @@ void TOperationControllerBase::SafePrepare()
 
         LockOutputTablesAndGetAttributes();
     }
+
+    FinishPrepare();
 
     InitializeStandardEdgeDescriptors();
 }
@@ -767,6 +792,8 @@ void TOperationControllerBase::Revive()
     AnalyzeOperationProgressExecutor->Start();
     MinNeededResourcesSanityCheckExecutor->Start();
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
+
+    FinishPrepare();
 
     State = EControllerState::Running;
 }
@@ -4598,6 +4625,13 @@ void TOperationControllerBase::CollectTotals()
 void TOperationControllerBase::CustomPrepare()
 { }
 
+void TOperationControllerBase::FinishPrepare()
+{
+    Attributes_ = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Do(BIND(&TOperationControllerBase::BuildAttributes, Unretained(this)))
+        .Finish();
+}
+
 void TOperationControllerBase::ClearInputChunkBoundaryKeys()
 {
     for (auto& pair : InputChunkMap) {
@@ -5437,13 +5471,6 @@ std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
     return jobs;
 }
 
-const NYTree::IMapNodePtr& TOperationControllerBase::GetUnrecognizedSpec() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return UnrecognizedSpec_;
-}
-
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
 {
     for (const auto& pair : CellTagToRequiredChunkLists) {
@@ -5534,14 +5561,20 @@ bool TOperationControllerBase::HasProgress() const
     }
 }
 
-void TOperationControllerBase::BuildSpec(TFluentAnyWithoutAttributes fluent) const
+void TOperationControllerBase::BuildInitializeImmutableAttributes(TFluentMap fluent) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
-    fluent.Value(Spec_);
+    fluent
+        .Item("unrecognized_spec").Value(UnrecognizedSpec_)
+        .Item("full_spec")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(Spec_);
 }
 
-void TOperationControllerBase::BuildOperationAttributes(TFluentMap fluent) const
+void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
 
@@ -5550,18 +5583,32 @@ void TOperationControllerBase::BuildOperationAttributes(TFluentMap fluent) const
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
         .Item("debug_output_transaction_id").Value(DebugOutputTransaction ? DebugOutputTransaction->GetId() : NullTransactionId)
-        .Item("user_transaction_id").Value(UserTransactionId)
+        .Item("user_transaction_id").Value(UserTransactionId);
+}
+
+void TOperationControllerBase::BuildAttributes(TFluentMap fluent) const
+{
+    VERIFY_INVOKER_AFFINITY(Invoker);
+
+    fluent
         .DoIf(static_cast<bool>(AutoMergeDirector_), [&] (TFluentMap fluent) {
             fluent
                 .Item("auto_merge").BeginMap()
                     .Item("max_intermediate_chunk_count").Value(AutoMergeDirector_->GetMaxIntermediateChunkCount())
                     .Item("chunk_count_per_merge_job").Value(AutoMergeDirector_->GetChunkCountPerMergeJob())
                 .EndMap();
-        })
-        .DoIf(static_cast<bool>(UnrecognizedSpec_), [&] (TFluentMap fluent) {
-            fluent
-                .Item("unrecognized_spec").Value(GetUnrecognizedSpec());
         });
+}
+
+void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
+{
+    fluent
+        .DoIf(Spec_->Title.HasValue(), [&] (TFluentMap fluent) {
+            fluent
+                .Item("title").Value(*Spec_->Title);
+        })
+        .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
+        .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
 void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
@@ -5873,19 +5920,6 @@ void TOperationControllerBase::LogProgress(bool force)
         NextLogProgressDeadline = now + LogProgressBackoff;
         LOG_DEBUG("Progress: %v", GetLoggingProgress());
     }
-}
-
-void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    fluent
-        .DoIf(Spec_->Title.HasValue(), [&] (TFluentMap fluent) {
-            fluent
-                .Item("title").Value(*Spec_->Title);
-        })
-        .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
-        .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
 TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joblet) const
@@ -6618,13 +6652,16 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobSplitter_);
     Persist(context, DataFlowGraph_);
 
-    TYsonString unrecognizedSpecYson("{}");
-    if (context.IsSave() && UnrecognizedSpec_) {
-        unrecognizedSpecYson = ConvertToYsonString(UnrecognizedSpec_);
-    }
-    Persist(context, unrecognizedSpecYson);
-    if (context.IsLoad()) {
-        UnrecognizedSpec_ = ConvertTo<IMapNodePtr>(unrecognizedSpecYson);
+    // COMPAT(ignat)
+    if (context.GetVersion() <= 202001) {
+        TYsonString unrecognizedSpecYson("{}");
+        if (context.IsSave() && UnrecognizedSpec_) {
+            unrecognizedSpecYson = ConvertToYsonString(UnrecognizedSpec_);
+        }
+        Persist(context, unrecognizedSpecYson);
+        if (context.IsLoad()) {
+            UnrecognizedSpec_ = ConvertTo<IMapNodePtr>(unrecognizedSpecYson);
+        }
     }
 
     // COMPAT(ignat)

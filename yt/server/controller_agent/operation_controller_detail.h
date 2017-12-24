@@ -208,9 +208,11 @@ public:
     virtual void Revive() override;
 
     virtual void Initialize() override;
-    virtual TOperationControllerInitializeResult GetInitializeResult() const override;
 
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
+
+    virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const override;
+    virtual NYson::TYsonString GetAttributes() const override;
 
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) override;
 
@@ -239,9 +241,6 @@ public:
 
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
-
-    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const override;
-    virtual void BuildOperationAttributes(NYTree::TFluentMap fluent) const override;
 
     virtual void BuildProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
@@ -340,8 +339,6 @@ public:
     virtual NTableClient::TRowBufferPtr GetRowBuffer() override;
 
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override;
-
-    virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const override;
 
     virtual int OnSnapshotStarted() override;
 
@@ -564,6 +561,7 @@ protected:
     virtual void InitializeTransactions();
     virtual void InitializeStructures();
     virtual void SyncPrepare();
+    virtual void FinishInitialization();
     void InitUpdatingTables();
 
 
@@ -586,6 +584,7 @@ protected:
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
     void InitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
+    void FinishPrepare();
 
     void ParseInputQuery(
         const TString& queryString,
@@ -881,6 +880,9 @@ protected:
     void ValidateOutputSchemaOrdered() const;
     void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
 
+    virtual void BuildInitializeImmutableAttributes(NYTree::TFluentMap fluent) const;
+    virtual void BuildInitializeMutableAttributes(NYTree::TFluentMap fluent) const;
+    virtual void BuildAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
 
     virtual NScheduler::TJobSplitterConfigPtr GetJobSplitterConfig() const;
@@ -1049,6 +1051,9 @@ private:
 
     TSpinLock AlertsLock_;
     TOperationAlertsMap Alerts_;
+
+    TOperationControllerInitializationAttributes InitializationAttributes_;
+    NYson::TYsonString Attributes_;
 
     void BuildAndSaveProgress();
 

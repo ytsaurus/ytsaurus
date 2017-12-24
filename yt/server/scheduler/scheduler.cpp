@@ -1861,9 +1861,10 @@ private:
                 auto error = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
-            auto initializeResult = controller->GetInitializeResult();
 
-            WaitFor(MasterConnector_->CreateOperationNode(operation, initializeResult))
+            operation->ControllerAttributes().InitializationAttributes = controller->GetInitializationAttributes();
+
+            WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
 
             if (operation->GetState() != EOperationState::Initializing) {
@@ -1926,6 +1927,8 @@ private:
 
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
+            operation->ControllerAttributes().Attributes = controller->GetAttributes();
+
             if (operation->GetState() != EOperationState::Preparing) {
                 throw TFiberCanceledException();
             }
@@ -1946,7 +1949,7 @@ private:
 
         LogEventFluently(ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId)
-            .Item("unrecognized_spec").Value(operation->GetController()->GetUnrecognizedSpec());
+            .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializationAttributes->UnrecognizedSpec);
 
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or
@@ -2026,6 +2029,8 @@ private:
                     .Run();
                 auto error = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
+                operation->ControllerAttributes().InitializationAttributes = controller->GetInitializationAttributes();
             }
 
             if (operation->GetState() != EOperationState::Reviving) {
@@ -2043,6 +2048,8 @@ private:
                     .Run();
                 auto error = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
+                operation->ControllerAttributes().Attributes = controller->GetAttributes();
             }
 
             if (operation->GetState() != EOperationState::Reviving) {
@@ -2702,7 +2709,7 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
+                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
                     .Items(controllerProgress)

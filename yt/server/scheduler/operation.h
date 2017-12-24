@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/server/controller_agent/public.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/ytlib/hydra/public.h>
 
@@ -37,6 +38,14 @@ struct TOperationEvent
 
 void Serialize(const TOperationEvent& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TControllerAttributes
+{
+    TNullable<NControllerAgent::TOperationControllerInitializationAttributes> InitializationAttributes;
+    TNullable<NYson::TYsonString> Attributes;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,6 +130,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+
+    DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
 
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain

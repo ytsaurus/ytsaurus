@@ -56,7 +56,7 @@ public:
 
     void Disconnect();
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult);
+    TFuture<void> CreateOperationNode(TOperationPtr operation);
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 

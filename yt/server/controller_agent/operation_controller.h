@@ -65,9 +65,12 @@ using TOperationAlertsMap = yhash<EOperationAlertType, TError>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationControllerInitializeResult
+struct TOperationControllerInitializationAttributes
 {
+    NYson::TYsonString Immutable;
+    NYson::TYsonString Mutable;
     NYson::TYsonString BriefSpec;
+    NYson::TYsonString UnrecognizedSpec;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,9 +191,6 @@ struct IOperationControllerSchedulerHost
      */
     virtual void Initialize() = 0;
 
-    //! Returns controller initialization result. Scheduler uses it to build operation attributes in Cypress.
-    virtual TOperationControllerInitializeResult GetInitializeResult() const = 0;
-
     //! Performs controller inner state initialization for reviving operation.
     /*
      *  If an exception is thrown then the operation fails immediately.
@@ -239,6 +239,12 @@ struct IOperationControllerSchedulerHost
      */
     virtual void Complete() = 0;
 
+    //! Returns controller attributes that determined during initialization.
+    virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const = 0;
+
+    //! Returns controller attributes that determined after operation is prepared.
+    virtual NYson::TYsonString GetAttributes() const = 0;
+
     /*!
      *  Returns the operation controller invoker.
      *  Most of const controller methods are expected to be run in this invoker.
@@ -272,23 +278,8 @@ struct IOperationControllerSchedulerHost
     //! Called during heartbeat processing to notify the controller that a job is still running.
     virtual void OnJobRunning(std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary) = 0;
 
-    //! Called to construct a YSON representing the controller part of operation attributes.
-    virtual void BuildOperationAttributes(NYTree::TFluentMap fluent) const = 0;
-
-    /*!
-     *  \note Invoker affinity: any;
-     */
-    //! Called to construct a YSON representing the current progress.
-    virtual void BuildSpec(NYTree::TFluentAnyWithoutAttributes fluent) const = 0;
-
     //! Build scheduler jobs from the joblets. Used during revival pipeline.
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;
-
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    //! Return a map node containing all unrecognized spec options.
-    virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const = 0;
 
     /*!
      *  \note Invoker affinity: controller invoker.

@@ -7,7 +7,7 @@ namespace NControllerAgent {
 
 int GetCurrentSnapshotVersion()
 {
-    return 202001;
+    return 202002;
 }
 
 bool ValidateSnapshotVersion(int version)
