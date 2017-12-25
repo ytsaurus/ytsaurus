@@ -338,6 +338,10 @@ IOperationPtr TMockClient::DoMap(const TMapOperationSpec&, IJob*, const TOperati
     return nullptr;
 }
 
+IOperationPtr TMockClient::RawMap(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) {
+    return nullptr;
+}
+
 IOperationPtr TMockClient::DoReduce(const TReduceOperationSpec&, IJob*, const TOperationOptions&) {
     return nullptr;
 }

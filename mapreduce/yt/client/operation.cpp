@@ -198,6 +198,30 @@ TSimpleOperationIo CreateSimpleOperationIo(
     };
 }
 
+template <class T>
+TSimpleOperationIo CreateSimpleOperationIo(
+    const TAuth& auth,
+    const TSimpleRawOperationIoSpec<T>& spec)
+{
+    auto getFormatOrDefault = [&] (const TMaybe<TFormat>& maybeFormat, const char* formatName) {
+        if (maybeFormat) {
+            return *maybeFormat;
+        } else if (spec.Format_) {
+            return *spec.Format_;
+        } else {
+            ythrow TApiUsageError() << "Neither " << formatName << "format nor default format is specified for raw operation";
+        }
+    };
+    return TSimpleOperationIo {
+        CanonizePaths(auth, spec.GetInputs()),
+        CanonizePaths(auth, spec.GetOutputs()),
+
+        getFormatOrDefault(spec.InputFormat_, "input"),
+        getFormatOrDefault(spec.OutputFormat_, "output"),
+    };
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IItemToUpload
@@ -1012,12 +1036,13 @@ void LogYPath(const TOperationId& opId, const TRichYPath& output, const char* ty
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
 TOperationId DoExecuteMap(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TSimpleOperationIo& operationIo,
     const TVector<TSmallJobFile>& smallFileList,
-    const TMapOperationSpecBase<TMapOperationSpec>& spec,
+    const TMapOperationSpecBase<T>& spec,
     IJob* mapper,
     const TOperationOptions& options)
 {
@@ -1092,6 +1117,25 @@ TOperationId ExecuteMap(
         mapper,
         options);
 }
+
+TOperationId ExecuteRawMap(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRawMapOperationSpec& spec,
+    IRawJob* mapper,
+    const TOperationOptions& options)
+{
+    return DoExecuteMap(
+        auth,
+        transactionId,
+        CreateSimpleOperationIo(auth, spec),
+        TVector<TSmallJobFile>{},
+        spec,
+        mapper,
+        options);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperationId DoExecuteReduce(
     const TAuth& auth,

@@ -67,6 +67,7 @@ public:
     EOperationStatus CheckOperation(const TOperationId&) override;
 
     IOperationPtr DoMap(const TMapOperationSpec&, IJob*, const TOperationOptions&) override;
+    IOperationPtr RawMap(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) override;
 
     IOperationPtr DoReduce(const TReduceOperationSpec&, IJob*, const TOperationOptions&) override;
 

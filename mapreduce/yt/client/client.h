@@ -112,6 +112,11 @@ public:
         IJob* mapper,
         const TOperationOptions& options) override;
 
+    IOperationPtr RawMap(
+        const TRawMapOperationSpec& spec,
+        ::TIntrusivePtr<IRawJob> mapper,
+        const TOperationOptions& options) override;
+
     IOperationPtr DoReduce(
         const TReduceOperationSpec& spec,
         IJob* reducer,

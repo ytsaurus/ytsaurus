@@ -18,6 +18,60 @@
 
 namespace NYT {
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+void Assign(TVector<T>& array, size_t idx, const T& value) {
+    array.resize(std::max(array.size(), idx + 1));
+    array[idx] = value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TDerived>
+TDerived& TRawOperationIoTableSpec<TDerived>::AddInput(const TRichYPath& path)
+{
+    Inputs_.push_back(path);
+    return static_cast<TDerived&>(*this);
+}
+
+template <typename TDerived>
+TDerived& TRawOperationIoTableSpec<TDerived>::SetInput(size_t tableIndex, const TRichYPath& path)
+{
+    NDetail::Assign(Inputs_, tableIndex, path);
+}
+
+template <typename TDerived>
+TDerived& TRawOperationIoTableSpec<TDerived>::AddOutput(const TRichYPath& path)
+{
+    Outputs_.push_back(path);
+    return static_cast<TDerived&>(*this);
+}
+
+template <typename TDerived>
+TDerived& TRawOperationIoTableSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYPath& path)
+{
+    NDetail::Assign(Outputs_, tableIndex, path);
+}
+
+template <typename TDerived>
+const TVector<TRichYPath>& TRawOperationIoTableSpec<TDerived>::GetInputs() const
+{
+    return Inputs_;
+}
+
+template <typename TDerived>
+const TVector<TRichYPath>& TRawOperationIoTableSpec<TDerived>::GetOutputs() const
+{
+    return Outputs_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader();
@@ -164,12 +218,6 @@ struct TOperationIOSpecBase::TFormatAdder
 //template<>
 //struct TOperationIOSpecBase::TFormatAdder<Message>;
 
-template<class T>
-void Assign(TVector<T>& array, size_t idx, const T& value) {
-    array.resize(std::max(array.size(), idx + 1));
-    array[idx] = value;
-}
-
 template <class T>
 struct TOperationIOSpecBase::TFormatAdder<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 {
@@ -182,7 +230,7 @@ struct TOperationIOSpecBase::TFormatAdder<T, std::enable_if_t<TIsBaseOf<Message,
     static void Set(size_t idx, TMultiFormatDesc& desc)
     {
         SetFormat<T>(desc);
-        Assign(desc.ProtoDescriptors, idx, T::descriptor());
+        NDetail::Assign(desc.ProtoDescriptors, idx, T::descriptor());
     }
 };
 
@@ -197,7 +245,7 @@ template <class T>
 void TOperationIOSpecBase::SetInput(size_t tableIndex, const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, InputDesc_);
-    Assign(Inputs_, tableIndex, path);
+    NDetail::Assign(Inputs_, tableIndex, path);
 }
 
 
@@ -212,7 +260,7 @@ template <class T>
 void TOperationIOSpecBase::SetOutput(size_t tableIndex, const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, OutputDesc_);
-    Assign(Outputs_, tableIndex, path);
+    NDetail::Assign(Outputs_, tableIndex, path);
 }
 
 template <class TDerived>
@@ -266,7 +314,7 @@ template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::SetProtobufInput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<Message>::Set(tableIndex, InputDesc_);
-    Assign(Inputs_, tableIndex, path);
+    NDetail::Assign(Inputs_, tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
 
@@ -282,7 +330,7 @@ template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::SetProtobufOutput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<Message>::Set(tableIndex, OutputDesc_);
-    Assign(Outputs_, tableIndex, path);
+    NDetail::Assign(Outputs_, tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
 
@@ -397,6 +445,17 @@ void FeedJobInput(
     reducer->Do(rangesReader.Get(), writer);
 }
 
+template <class TRawJob>
+int RunRawJob(size_t outputTableCount, IInputStream& jobStateStream)
+{
+    TRawJobContext context(outputTableCount);
+
+    TRawJob job;
+    job.Load(jobStateStream);
+    job.Do(context);
+    return 0;
+}
+
 template <class TJob>
 int RunJob(size_t outputTableCount, IInputStream& jobStateStream)
 {
@@ -465,6 +524,15 @@ public:
         CheckNotRegistered(typeInfoPtr, name);
         JobNames[typeInfoPtr] = name;
         JobFunctions[name] = RunJob<TJob>;
+    }
+
+    template <class TRawJob>
+    void RegisterRawJob(const char* name)
+    {
+        const auto* typeInfoPtr = &typeid(TRawJob);
+        CheckNotRegistered(typeInfoPtr, name);
+        JobNames[typeInfoPtr] = name;
+        JobFunctions[name] = RunRawJob<TRawJob>;
     }
 
     TString GetJobName(IJob* job)
@@ -544,6 +612,19 @@ struct TReducerRegistrator
     }
 };
 
+template <class TRawJob>
+struct TRawJobRegistrator
+{
+    TRawJobRegistrator(const char* name)
+    {
+        static_assert(TRawJob::JobType == IJob::EType::RawJob,
+            "REGISTER_RAW_JOB is not compatible with this job class");
+        NYT::TJobFactory::Get()->RegisterRawJob<TRawJob>(name);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline TString YtRegistryTypeName(const TString& name) {
     TString res = name;
 #ifdef _win_
@@ -551,6 +632,8 @@ inline TString YtRegistryTypeName(const TString& name) {
 #endif
     return res;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_MAPPER(...) \
 static NYT::TMapperRegistrator<__VA_ARGS__> \
@@ -567,6 +650,13 @@ Y_GENERATE_UNIQUE_ID(TJobRegistrator)(~NYT::YtRegistryTypeName(TypeName<__VA_ARG
 #define REGISTER_NAMED_REDUCER(name, ...) \
 static NYT::TReducerRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
+
+#define REGISTER_NAMED_RAW_JOB(name, className) \
+static NYT::TRawJobRegistrator<className> \
+Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
+
+#define REGISTER_RAW_JOB(className) \
+REGISTER_NAMED_RAW_JOB((~NYT::YtRegistryTypeName(TypeName<className>())), className)
 
 ////////////////////////////////////////////////////////////////////////////////
 
