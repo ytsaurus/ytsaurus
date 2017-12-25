@@ -661,7 +661,6 @@ private:
                         continue;
                     } else if (stateIt == operationIdToState.end()) {
                         operations.emplace_back(*state, TReviveOperationInfo{id, EOperationCypressStorageMode::HashBuckets});
-                        operationIdToState.erase(stateIt);
                     } else {
                         if (stateIt->second != *state) {
                             LOG_WARNING("Operation has two operation nodes with different states "
