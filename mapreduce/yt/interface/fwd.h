@@ -243,6 +243,8 @@ namespace NYT {
 
     struct TMapOperationSpec;
 
+    struct TRawMapOperationSpec;
+
     struct TReduceOperationSpec;
 
     struct TMapReduceOperationSpec;
@@ -252,6 +254,8 @@ namespace NYT {
     struct TSortOperationSpec;
 
     class IJob;
+
+    class IRawJob;
 
     enum EMergeMode : int;
 

@@ -4,6 +4,26 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRawJobContext::TRawJobContext(size_t outputTableCount)
+    : InputFile_(Duplicate(0))
+{
+    for (size_t i = 0; i != outputTableCount; ++i) {
+        OutputFileList_.emplace_back(Duplicate(3 * i + 1));
+    }
+}
+
+const TFile& TRawJobContext::GetInputFile() const
+{
+    return InputFile_;
+}
+
+const TVector<TFile>& TRawJobContext::GetOutputFileList() const
+{
+    return OutputFileList_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUserJobSpec& TUserJobSpec::AddLocalFile(
     const TLocalFilePath& path,
     const TAddLocalFileOptions& options)

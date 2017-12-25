@@ -50,6 +50,13 @@ TOperationId ExecuteMap(
     IJob* mapper,
     const TOperationOptions& options);
 
+TOperationId ExecuteRawMap(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRawMapOperationSpec& spec,
+    IRawJob* mapper,
+    const TOperationOptions& options);
+
 TOperationId ExecuteReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,

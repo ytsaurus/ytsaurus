@@ -4,6 +4,8 @@
 #include "job_statistics.h"
 
 #include <library/threading/future/future.h>
+
+#include <util/system/file.h>
 #include <util/generic/vector.h>
 
 #ifdef __clang__
@@ -27,6 +29,59 @@ struct TMultiFormatDesc
 
     EFormat Format = F_NONE;
     TVector<const ::google::protobuf::Descriptor*> ProtoDescriptors;
+};
+
+template <class TDerived>
+class TRawOperationIoTableSpec
+{
+public:
+    using TSelf = TDerived;
+
+    TDerived& AddInput(const TRichYPath& path);
+    TDerived& SetInput(size_t tableIndex, const TRichYPath& path);
+
+    TDerived& AddOutput(const TRichYPath& path);
+    TDerived& SetOutput(size_t tableIndex, const TRichYPath& path);
+
+    const TVector<TRichYPath>& GetInputs() const;
+    const TVector<TRichYPath>& GetOutputs() const;
+
+private:
+    TVector<TRichYPath> Inputs_;
+    TVector<TRichYPath> Outputs_;
+};
+
+template <class TDerived>
+struct TSimpleRawOperationIoSpec
+    : public TRawOperationIoTableSpec<TDerived>
+{
+    using TSelf = TDerived;
+
+    // Describes format for both input and output. `Format' is overriden by `InputFormat' and `OutputFormat'.
+    FLUENT_FIELD_OPTION(TFormat, Format);
+    FLUENT_FIELD_OPTION(TFormat, InputFormat);
+    FLUENT_FIELD_OPTION(TFormat, OutputFormat);
+};
+
+template <class TDerived>
+struct TMapReduceFormatDescription
+{
+    using TSelf = TDerived;
+
+    FLUENT_FIELD_OPTION(TFormat, Format);
+
+    // Describes format for both input and output. `Format' is overriden by `InputFormat' and `OutputFormat'.
+    FLUENT_FIELD_OPTION(TFormat, MapperFormat);
+    FLUENT_FIELD_OPTION(TFormat, MapperInputFormat);
+    FLUENT_FIELD_OPTION(TFormat, MapperOutputFormat);
+
+    FLUENT_FIELD_OPTION(TFormat, ReduceCombinerFormat);
+    FLUENT_FIELD_OPTION(TFormat, ReduceCombinerInputFormat);
+    FLUENT_FIELD_OPTION(TFormat, ReduceCombinerOutputFormat);
+
+    FLUENT_FIELD_OPTION(TFormat, ReducerFormat);
+    FLUENT_FIELD_OPTION(TFormat, ReducerInputFormat);
+    FLUENT_FIELD_OPTION(TFormat, ReducerOutputFormat);
 };
 
 class TOperationIOSpecBase
@@ -227,8 +282,13 @@ struct TMapOperationSpecBase
 };
 
 struct TMapOperationSpec
-    : TMapOperationSpecBase<TMapOperationSpec>
+    : public TMapOperationSpecBase<TMapOperationSpec>
     , public TOperationIOSpec<TMapOperationSpec>
+{ };
+
+struct TRawMapOperationSpec
+    : public TMapOperationSpecBase<TRawMapOperationSpec>
+    , public TSimpleRawOperationIoSpec<TRawMapOperationSpec>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,6 +419,21 @@ const TNode& GetJobSecureVault();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRawJobContext
+{
+public:
+    TRawJobContext(size_t outputTableCount);
+
+    const TFile& GetInputFile() const;
+    const TVector<TFile>& GetOutputFileList() const;
+
+private:
+    TFile InputFile_;
+    TVector<TFile> OutputFileList_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Interface for classes that can be Saved/Loaded.
 // Can be used with Y_SAVELOAD_JOB
 class ISerializableForJob
@@ -370,21 +445,17 @@ public:
     virtual void Load(IInputStream& stream) = 0;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class IJob
     : public TThrRefBase
 {
-private:
-    friend struct IOperationClient;
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) = 0;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) = 0;
-    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) = 0;
-    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) = 0;
-
 public:
     enum EType {
         Mapper,
         Reducer,
         ReducerAggregator,
+        RawJob,
     };
 
     virtual void Save(IOutputStream& stream) const
@@ -407,8 +478,23 @@ public:
     virtual void Load(IInputStream& stream) override { Load(&stream); } \
     Y_PASS_VA_ARGS(Y_SAVELOAD_DEFINE(__VA_ARGS__));
 
-class IMapperBase
+////////////////////////////////////////////////////////////////////////////////
+
+class IFormatAwareJob
     : public IJob
+{
+private:
+    friend struct IOperationClient;
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) = 0;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) = 0;
+    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) = 0;
+    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class IMapperBase
+    : public IFormatAwareJob
 { };
 
 template <class TR, class TW>
@@ -439,9 +525,11 @@ private:
     virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 // Common base for IReducer and IAggregatorReducer
 class IReducerBase
-    : public IJob
+    : public IFormatAwareJob
 { };
 
 template <class TR, class TW>
@@ -476,6 +564,8 @@ private:
     virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
     virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //
 // IAggregatorReducer jobs are used inside reduce operations.
@@ -512,6 +602,17 @@ private:
     virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
     virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
     virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class IRawJob
+    : public IJob
+{
+public:
+    static constexpr EType JobType = EType::RawJob;
+
+    virtual void Do(const TRawJobContext& jobContext) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -639,6 +740,11 @@ struct IOperationClient
         const TMapOperationSpec& spec,
         ::TIntrusivePtr<IMapperBase> mapper,
         const TOperationOptions& options = TOperationOptions());
+
+    virtual IOperationPtr RawMap(
+        const TRawMapOperationSpec& spec,
+        ::TIntrusivePtr<IRawJob> rawJob,
+        const TOperationOptions& options = TOperationOptions()) = 0;
 
     IOperationPtr Reduce(
         const TReduceOperationSpec& spec,

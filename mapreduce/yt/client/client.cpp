@@ -255,6 +255,20 @@ IOperationPtr TClientBase::DoMap(
     return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
+IOperationPtr TClientBase::RawMap(
+    const TRawMapOperationSpec& spec,
+    ::TIntrusivePtr<IRawJob> mapper,
+    const TOperationOptions& options)
+{
+    auto operationId = ExecuteRawMap(
+        Auth_,
+        TransactionId_,
+        spec,
+        mapper.Get(),
+        options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+}
+
 IOperationPtr TClientBase::DoReduce(
     const TReduceOperationSpec& spec,
     IJob* reducer,
