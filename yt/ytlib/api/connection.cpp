@@ -28,7 +28,7 @@ IConnectionPtr CreateConnection(INodePtr config)
         }
         case EConnectionType::Rpc: {
             auto typedConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(config);
-            return CreateRpcProxyConnection(typedConfig);
+            return NRpcProxy::CreateConnection(typedConfig);
         }
         default:
             Y_UNREACHABLE();

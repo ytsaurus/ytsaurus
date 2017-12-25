@@ -6,7 +6,7 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::IProxyConnectionPtr CreateRpcProxyConnection(TConnectionConfigPtr config)
+NApi::IProxyConnectionPtr CreateConnection(TConnectionConfigPtr config)
 {
     return New<TConnection>(std::move(config));
 }
