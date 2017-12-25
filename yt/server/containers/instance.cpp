@@ -257,6 +257,11 @@ public:
         SetProperty("cpu_guarantee", ToString(cores) + "c");
     }
 
+    virtual void SetIOWeight(double weight) override
+    {
+        SetProperty("io_weight", ToString(weight));
+    }
+
     virtual void SetIOThrottle(i64 operations) override
     {
         SetProperty("io_ops_limit", ToString(operations));
