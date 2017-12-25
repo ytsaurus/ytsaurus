@@ -15,7 +15,7 @@ DECLARE_REFCOUNTED_STRUCT(IValidatorNode)
 using TValidatorNodeList = std::vector<IValidatorNodePtr>;
 using TSkiffSchemaList = std::vector<TSkiffSchemaPtr>;
 
-static IValidatorNodePtr CreateUsageValidatorNode(TSkiffSchemaPtr skiffSchema);
+static IValidatorNodePtr CreateUsageValidatorNode(const TSkiffSchemaPtr& skiffSchema);
 static TValidatorNodeList CreateUsageValidatorNodeList(const TSkiffSchemaList& skiffSchemaList);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +74,7 @@ class TValidatorNodeStack
 {
 public:
     explicit TValidatorNodeStack(IValidatorNodePtr validator)
-        : RootValidator_(validator)
+        : RootValidator_(std::move(validator))
     { }
 
     void PushValidator(IValidatorNode* validator)
@@ -156,7 +156,7 @@ class TVariant8TypeUsageValidator
 {
 public:
     explicit TVariant8TypeUsageValidator(TValidatorNodeList children)
-        : Children_(children)
+        : Children_(std::move(children))
     { }
 
     virtual void BeforeVariant8Tag() override
@@ -188,7 +188,7 @@ class TVariant16TypeUsageValidator
 {
 public:
     explicit TVariant16TypeUsageValidator(TValidatorNodeList children)
-        : Children_(children)
+        : Children_(std::move(children))
     { }
 
     virtual void BeforeVariant16Tag() override
@@ -220,7 +220,7 @@ class TRepeatedVariant16TypeUsageValidator
 {
 public:
     explicit TRepeatedVariant16TypeUsageValidator(TValidatorNodeList children)
-        : Children_(children)
+        : Children_(std::move(children))
     { }
 
     virtual void BeforeVariant16Tag() override
@@ -252,9 +252,8 @@ class TTupleTypeUsageValidator
     : public IValidatorNode
 {
 public:
-
     explicit TTupleTypeUsageValidator(TValidatorNodeList children)
-        : Children_(children)
+        : Children_(std::move(children))
     { }
 
     virtual void OnBegin(TValidatorNodeStack* validatorNodeStack) override
@@ -329,14 +328,14 @@ void TSkiffValidator::ValidateFinished()
 TValidatorNodeList CreateUsageValidatorNodeList(const TSkiffSchemaList& skiffSchemaList)
 {
     TValidatorNodeList result;
-    for (const auto& skiffSchema : skiffSchemaList)
-    {
+    result.reserve(skiffSchemaList.size());
+    for (const auto& skiffSchema : skiffSchemaList) {
         result.push_back(CreateUsageValidatorNode(skiffSchema));
     }
     return result;
 }
 
-IValidatorNodePtr CreateUsageValidatorNode(TSkiffSchemaPtr skiffSchema)
+IValidatorNodePtr CreateUsageValidatorNode(const TSkiffSchemaPtr& skiffSchema)
 {
     switch (skiffSchema->GetWireType()) {
         case EWireType::Yson32:

@@ -92,7 +92,6 @@ struct TSkiffEncodingInfo
         result.SkiffType = schema;
         result.FieldIndex = fieldIndex;
         result.Required = required;
-
         return result;
     }
 
@@ -104,7 +103,6 @@ struct TSkiffEncodingInfo
         result.SkiffType = schema;
         result.FieldIndex = fieldIndex;
         result.Required = true;
-
         return result;
     }
 };
@@ -162,7 +160,7 @@ public:
         TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount)
         : TSchemalessFormatWriterBase(
-            nameTable,
+            std::move(nameTable),
             output,
             enableContextSaving,
             controlAttributesConfig,
@@ -249,7 +247,7 @@ private:
                 }
             }
             if (tableIndex >= TableDescriptionList_.size()) {
-                THROW_ERROR_EXCEPTION("Table #%v is not described by skiff schema",
+                THROW_ERROR_EXCEPTION("Table #%v is not described by Skiff schema",
                     tableIndex);
             }
 
@@ -444,7 +442,7 @@ private:
     Y_FORCE_INLINE void ValidateType(EValueType expected, EValueType actual, ui16 columnId)
     {
         if (expected != actual) {
-            THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected: %Qv actual %Qv",
+            THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected %Qlv found %Qlv",
                 NameTable_->GetName(columnId),
                 expected,
                 actual);
@@ -454,7 +452,7 @@ private:
 private:
     using TSkiffEncodingInfoList = std::vector<TSkiffEncodingInfo>;
 
-    NSkiff::TSkiffSchemaPtr SkiffSchema_;
+    const NSkiff::TSkiffSchemaPtr SkiffSchema_;
     TNullable<NSkiff::TCheckedInDebugSkiffWriter> SkiffWriter_;
 
     std::vector<ui16> DenseIndexes_;

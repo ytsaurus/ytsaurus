@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 
 #include <yt/ytlib/table_client/public.h>
 

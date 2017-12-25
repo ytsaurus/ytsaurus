@@ -98,8 +98,8 @@ class TUncheckedSkiffWriter
     : private IOutputStream
 {
 public:
-    explicit TUncheckedSkiffWriter(IOutputStream* slave);
-    TUncheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* slave);
+    explicit TUncheckedSkiffWriter(IOutputStream* underlying);
+    TUncheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* underlying);
 
     ~TUncheckedSkiffWriter();
 
@@ -138,7 +138,7 @@ private:
 class TCheckedSkiffWriter
 {
 public:
-    TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* slave);
+    TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* underlying);
 
     ~TCheckedSkiffWriter();
 
