@@ -57,6 +57,37 @@ namespace NDetail {
 
 namespace {
 
+struct TSmallJobFile
+{
+    TString FileName;
+    TString Data;
+};
+
+struct TSimpleOperationIo
+{
+    TVector<TRichYPath> Inputs;
+    TVector<TRichYPath> Outputs;
+
+    TFormat InputFormat;
+    TFormat OutputFormat;
+};
+
+struct TMapReduceOperationIo
+{
+    TVector<TRichYPath> Inputs;
+    TVector<TRichYPath> MapOutputs;
+    TVector<TRichYPath> Outputs;
+
+    TMaybe<TFormat> MapperInputFormat;
+    TMaybe<TFormat> MapperOutputFormat;
+
+    TMaybe<TFormat> ReduceCombinerInputFormat;
+    TMaybe<TFormat> ReduceCombinerOutputFormat;
+
+    TFormat ReducerInputFormat = TFormat::YsonBinary();
+    TFormat ReducerOutputFormat = TFormat::YsonBinary();
+};
+
 ui64 RoundUpFileSize(ui64 size)
 {
     constexpr ui64 roundUpTo = 4ull << 10;
@@ -91,7 +122,144 @@ bool IsLocalMode(const TAuth& auth)
     return isLocalMode;
 }
 
+TString CreateProtoConfig(const TMultiFormatDesc& desc)
+{
+    Y_VERIFY(desc.Format == TMultiFormatDesc::F_PROTO);
+
+    TString result;
+    TStringOutput messageTypeList(result);
+    for (const auto& descriptor : desc.ProtoDescriptors) {
+        messageTypeList << descriptor->full_name() << Endl;
+    }
+    messageTypeList.Finish();
+
+    return result;
+}
+
+TVector<TSmallJobFile> CreateFormatConfig(const TMultiFormatDesc& input, const TMultiFormatDesc& output)
+{
+    TVector<TSmallJobFile> result;
+    if (input.Format == TMultiFormatDesc::F_PROTO) {
+        result.push_back({"proto_input", CreateProtoConfig(input)});
+    }
+    if (output.Format == TMultiFormatDesc::F_PROTO) {
+        result.push_back({"proto_output", CreateProtoConfig(output)});
+    }
+    return result;
+}
+
+TFormat FormatFromDescription(const TMultiFormatDesc& desc, const TMaybe<TNode>& formatFromTableAttribute)
+{
+    if (desc.Format == TMultiFormatDesc::F_YSON) {
+        return TFormat::YsonBinary();
+    } else if (desc.Format == TMultiFormatDesc::F_YAMR) {
+        if (formatFromTableAttribute) {
+            return TFormat(EFormatType::Custom, *formatFromTableAttribute);
+        } else {
+            TNode format("yamr");
+            format.Attributes()["lenval"] = true;
+            format.Attributes()["has_subkey"] = true;
+            format.Attributes()["enable_table_index"] = true;
+            return TFormat(EFormatType::Custom, format);
+        }
+    } else if (desc.Format == TMultiFormatDesc::F_PROTO) {
+        if (TConfig::Get()->UseClientProtobuf) {
+            return TFormat::YsonBinary();
+        } else {
+            if (desc.ProtoDescriptors.empty()) {
+                ythrow TApiUsageError() << "messages for proto format are unknown (empty ProtoDescriptors)";
+            }
+            return TFormat(desc.ProtoDescriptors);
+        }
+    } else {
+        Y_FAIL("Unknown format type: %d", desc.Format);
+    }
+}
+
+TSimpleOperationIo CreateSimpleOperationIo(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TOperationIOSpecBase& spec,
+    const TOperationOptions& options)
+{
+    TMaybe<TNode> formatFromTableAttribute;
+    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
+        options.UseTableFormats_)
+    {
+        formatFromTableAttribute = GetTableFormats(auth, transactionId, spec.Inputs_);
+    }
+
+    return TSimpleOperationIo {
+        CanonizePaths(auth, spec.Inputs_),
+        CanonizePaths(auth, spec.Outputs_),
+
+        FormatFromDescription(spec.GetInputDesc(), formatFromTableAttribute),
+        FormatFromDescription(spec.GetOutputDesc(), Nothing()),
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+struct IItemToUpload
+{
+    virtual ~IItemToUpload() = default;
+
+    virtual TString CalculateMD5() const = 0;
+    virtual THolder<IInputStream> CreateInputStream() const = 0;
+};
+
+class TFileToUpload
+    : public IItemToUpload
+{
+public:
+    TFileToUpload(const TString& fileName)
+        : FileName_(fileName)
+    { }
+
+    virtual TString CalculateMD5() const override
+    {
+        constexpr size_t md5Size = 32;
+        TString result;
+        result.ReserveAndResize(md5Size);
+        MD5::File(~FileName_, result.Detach());
+        return result;
+    }
+
+    virtual THolder<IInputStream> CreateInputStream() const override
+    {
+        return MakeHolder<TFileInput>(FileName_);
+    }
+
+private:
+    TString FileName_;
+};
+
+class TDataToUpload
+    : public IItemToUpload
+{
+public:
+    TDataToUpload(const TStringBuf& data)
+        : Data_(data)
+    { }
+
+    virtual TString CalculateMD5() const override
+    {
+        constexpr size_t md5Size = 32;
+        TString result;
+        result.ReserveAndResize(md5Size);
+        MD5::Data(reinterpret_cast<const unsigned char*>(Data_.Data()), Data_.Size(), result.Detach());
+        return result;
+    }
+
+    virtual THolder<IInputStream> CreateInputStream() const override
+    {
+        return MakeHolder<TMemoryInput>(Data_.Data(), Data_.Size());
+    }
+
+private:
+    TStringBuf Data_;
+};
+
 
 class TJobPreparer
     : private TNonCopyable
@@ -104,37 +272,46 @@ public:
         const TUserJobSpec& spec,
         IJob* job,
         size_t outputTableCount,
-        const TMultiFormatDesc& inputDesc,
-        const TMultiFormatDesc& outputDesc,
+        const TVector<TSmallJobFile>& smallFileList,
         const TOperationOptions& options)
         : Auth_(auth)
         , TransactionId_(transactionId)
         , Spec_(spec)
         , Options_(options)
     {
-        BinaryPath_ = GetExecPath();
+        auto binaryPath = GetExecPath();
         if (TConfig::Get()->JobBinary) {
-            BinaryPath_ = TConfig::Get()->JobBinary;
+            binaryPath = TConfig::Get()->JobBinary;
         }
         if (Spec_.JobBinary_) {
-            BinaryPath_ = *Spec_.JobBinary_;
+            binaryPath = *Spec_.JobBinary_;
         }
-        if (BinaryPath_ == GetExecPath() && GetInitStatus() == IS_NOT_INITIALIZED) {
+        if (binaryPath == GetExecPath() && GetInitStatus() == IS_NOT_INITIALIZED) {
             ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
         }
 
         CreateStorage();
-        UploadFilesFromSpec();
-        UploadJobState(job);
-        UploadProtoConfig("proto_input", inputDesc);
-        UploadProtoConfig("proto_output", outputDesc);
+        auto cypressFileList = CanonizePaths(auth, spec.Files_);
+        for (const auto& file : cypressFileList) {
+            UseFileInCypress(file);
+        }
+        for (const auto& localFile : spec.GetLocalFiles()) {
+            UploadLocalFile(std::get<0>(localFile), std::get<1>(localFile));
+        }
+        auto jobStateSmallFile = GetJobState(job);
+        if (jobStateSmallFile) {
+            UploadSmallFile(*jobStateSmallFile);
+        }
+        for (const auto& smallFile : smallFileList) {
+            UploadSmallFile(smallFile);
+        }
 
-        TString jobBinaryPath;
+        TString binaryPathInsideJob;
         if (!IsLocalMode(auth)) {
-            UploadBinary();
-            jobBinaryPath = "./cppbinary";
+            UploadBinary(binaryPath);
+            binaryPathInsideJob = "./cppbinary";
         } else {
-            jobBinaryPath = BinaryPath_;
+            binaryPathInsideJob = binaryPath;
         }
 
         TString jobCommandPrefix = options.JobCommandPrefix_;
@@ -151,11 +328,11 @@ public:
         Command_ = TStringBuilder() <<
             jobCommandPrefix <<
             (TConfig::Get()->UseClientProtobuf ? "" : "YT_USE_CLIENT_PROTOBUF=0 ") <<
-            jobBinaryPath << " " <<
+            binaryPathInsideJob << " " <<
             commandLineName << " " <<
             "\"" << ClassName_ << "\" " <<
             outputTableCount << " " <<
-            HasState_ <<
+            jobStateSmallFile.Defined() <<
             jobCommandSuffix;
     }
 
@@ -195,32 +372,10 @@ private:
     TUserJobSpec Spec_;
     TOperationOptions Options_;
 
-    TString BinaryPath_;
     TVector<TRichYPath> Files_;
-    bool HasState_ = false;
     TString ClassName_;
     TString Command_;
     ui64 TotalFileSize_ = 0;
-
-    static void CalculateMD5(const TString& localFileName, char* buf)
-    {
-        MD5::File(~localFileName, buf);
-    }
-
-    static void CalculateMD5(const TBuffer& buffer, char* buf)
-    {
-        MD5::Data(reinterpret_cast<const unsigned char*>(buffer.Data()), buffer.Size(), buf);
-    }
-
-    static THolder<IInputStream> CreateStream(const TString& localPath)
-    {
-        return new TMappedFileInput(localPath);
-    }
-
-    static THolder<IInputStream> CreateStream(const TBuffer& buffer)
-    {
-        return new TBufferInput(buffer);
-    }
 
     TString GetFileStorage() const
     {
@@ -241,17 +396,16 @@ private:
         }
     }
 
-    template <class TSource>
-    TString UploadToCache(const TSource& source) const
+    TString UploadToCache(const IItemToUpload& itemToUpload) const
     {
-        constexpr size_t md5Size = 32;
-        char buf[md5Size + 1];
-        CalculateMD5(source, buf);
+        auto md5Signature = itemToUpload.CalculateMD5();
+        Y_VERIFY(md5Signature.size() == 32);
 
-        TString twoDigits(buf + md5Size - 2, 2);
+        TString twoDigits = md5Signature.substr(md5Signature.size() - 2);
+        Y_VERIFY(twoDigits.size() == 2);
 
         TString symlinkPath = TStringBuilder() << GetFileStorage() <<
-            "/hash/" << twoDigits << "/" << buf;
+            "/hash/" << twoDigits << "/" << md5Signature;
 
         TString uniquePath = TStringBuilder() << GetFileStorage() <<
             "/" << twoDigits << "/cpp_" << CreateGuidAsString();
@@ -273,7 +427,7 @@ private:
             }
 
             try {
-                if (linkAttrs.GetType() != TNode::Undefined) {
+                if (!linkAttrs.IsUndefined()) {
                     if (linkAttrs["type"] == "link" &&
                         (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
                     {
@@ -290,14 +444,18 @@ private:
                     TCreateOptions()
                         .IgnoreExisting(true)
                         .Recursive(true)
-                        .Attributes(TNode()("hash", buf)("touched", true)));
+                        .Attributes(
+                            TNode()
+                            ("hash", md5Signature)
+                            ("touched", true)));
 
                 {
+                    // TODO: use file writer
                     THttpHeader header("PUT", GetWriteFileCommand());
                     header.SetToken(Auth_.Token);
                     header.AddPath(uniquePath);
-                    auto streamMaker = [&source] () {
-                        return CreateStream(source);
+                    auto streamMaker = [&itemToUpload] () {
+                        return itemToUpload.CreateInputStream();
                     };
                     RetryHeavyWriteRequest(Auth_, Options_.FileStorageTransactionId_, header, streamMaker);
                 }
@@ -320,94 +478,79 @@ private:
         return symlinkPath;
     }
 
-    void UploadFilesFromSpec()
+    void UseFileInCypress(const TRichYPath& file)
     {
-        for (const auto& file : Spec_.Files_) {
-            if (!Exists(Auth_, TransactionId_, file.Path_)) {
-                ythrow yexception() << "File " << file.Path_ << " does not exist";
-            }
-
-            if (ShouldMountSandbox()) {
-                auto size = Get(Auth_, TransactionId_, file.Path_ + "/@uncompressed_data_size").AsInt64();
-
-                TotalFileSize_ += RoundUpFileSize(static_cast<ui64>(size));
-            }
+        if (!Exists(Auth_, TransactionId_, file.Path_)) {
+            ythrow yexception() << "File " << file.Path_ << " does not exist";
         }
 
-        Files_ = Spec_.Files_;
+        if (ShouldMountSandbox()) {
+            auto size = Get(Auth_, TransactionId_, file.Path_ + "/@uncompressed_data_size").AsInt64();
 
-        for (const auto& localFileEntry : Spec_.GetLocalFiles()) {
-            const auto& localPath = std::get<0>(localFileEntry);
-            const auto& options = std::get<1>(localFileEntry);
-            TFsPath fsPath(localPath);
-            fsPath.CheckExists();
-
-            TFileStat stat;
-            fsPath.Stat(stat);
-            bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
-
-            auto cachePath = UploadToCache(localPath);
-
-            TRichYPath cypressPath(cachePath);
-            cypressPath.FileName(options.PathInJob_.GetOrElse(fsPath.Basename()));
-            if (isExecutable) {
-                cypressPath.Executable(true);
-            }
-
-            if (ShouldMountSandbox()) {
-                TotalFileSize_ += RoundUpFileSize(stat.Size);
-            }
-
-            Files_.push_back(cypressPath);
+            TotalFileSize_ += RoundUpFileSize(static_cast<ui64>(size));
         }
+        Files_.push_back(file);
     }
 
-    void UploadBinary()
+    void UploadLocalFile(const TLocalFilePath& localPath, const TAddLocalFileOptions& options)
+    {
+        TFsPath fsPath(localPath);
+        fsPath.CheckExists();
+
+        TFileStat stat;
+        fsPath.Stat(stat);
+        bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
+
+        auto cachePath = UploadToCache(TFileToUpload(localPath));
+
+        TRichYPath cypressPath(cachePath);
+        cypressPath.FileName(options.PathInJob_.GetOrElse(fsPath.Basename()));
+        if (isExecutable) {
+            cypressPath.Executable(true);
+        }
+
+        if (ShouldMountSandbox()) {
+            TotalFileSize_ += RoundUpFileSize(stat.Size);
+        }
+
+        Files_.push_back(cypressPath);
+    }
+
+    void UploadBinary(const TString& binaryPath)
     {
         if (ShouldMountSandbox()) {
-            TFsPath path(BinaryPath_);
+            TFsPath path(binaryPath);
             TFileStat stat;
             path.Stat(stat);
             TotalFileSize_ += RoundUpFileSize(stat.Size);
         }
 
-        auto cachePath = UploadToCache(BinaryPath_);
+        auto cachePath = UploadToCache(TFileToUpload(binaryPath));
         Files_.push_back(TRichYPath(cachePath)
             .FileName("cppbinary")
             .Executable(true));
     }
 
-    void UploadJobState(IJob* job)
+    TMaybe<TSmallJobFile> GetJobState(IJob* job)
     {
-        TBufferOutput output(1 << 20);
-        job->Save(output);
-
-        if (output.Buffer().Size()) {
-            auto cachePath = UploadToCache(output.Buffer());
-            Files_.push_back(TRichYPath(cachePath).FileName("jobstate"));
-            HasState_ = true;
-
-            if (ShouldMountSandbox()) {
-                TotalFileSize_ += RoundUpFileSize(output.Buffer().Size());
-            }
+        TString result;
+        {
+            TStringOutput output(result);
+            job->Save(output);
+            output.Finish();
+        }
+        if (result.empty()) {
+            return Nothing();
+        } else {
+            return TSmallJobFile{"jobstate", result};
         }
     }
 
-    void UploadProtoConfig(const TString& fileName, const TMultiFormatDesc& desc) {
-        if (desc.Format != TMultiFormatDesc::F_PROTO) {
-            return;
-        }
-
-        TBufferOutput messageTypeList;
-        for (const auto& descriptor : desc.ProtoDescriptors) {
-            messageTypeList << descriptor->full_name() << Endl;
-        }
-
-        auto cachePath = UploadToCache(messageTypeList.Buffer());
-        Files_.push_back(TRichYPath(cachePath).FileName(fileName));
-
+    void UploadSmallFile(const TSmallJobFile& smallFile) {
+        auto cachePath = UploadToCache(TDataToUpload(smallFile.Data));
+        Files_.push_back(TRichYPath(cachePath).FileName(smallFile.FileName));
         if (ShouldMountSandbox()) {
-            TotalFileSize_ += RoundUpFileSize(messageTypeList.Buffer().Size());
+            TotalFileSize_ += RoundUpFileSize(smallFile.Data.Size());
         }
     }
 };
@@ -429,6 +572,7 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
         return {};
     }
 
+    // TODO: use raw request
     THttpHeader header("GET", "list");
     header.AddPath(jobsPath);
     header.SetParameters(AttributeFilterToYsonString(
@@ -482,7 +626,7 @@ void DumpJobInfoForException(
     IOutputStream& output,
     const TVector<TFailedJobInfo>& failedJobInfoList)
 {
-    // Exceptions has limit to contain 65508 bytes of text, so we also limit stderr text
+    // Exceptions have limit to contain 65508 bytes of text, so we also limit stderr text
     constexpr size_t MAX_SIZE = 65508 / 2;
 
     size_t written = 0;
@@ -661,12 +805,10 @@ void AbortOperation(
 
 namespace {
 
-// TODO: we have inputDesc and outputDesc in TJobPreparer
-void BuildUserJobFluently(
+void BuildUserJobFluently1(
     const TJobPreparer& preparer,
-    TMaybe<TNode> format,
-    const TMultiFormatDesc& inputDesc,
-    const TMultiFormatDesc& outputDesc,
+    const TFormat& inputFormat,
+    const TFormat& outputFormat,
     TFluentMap fluent)
 {
     TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
@@ -682,79 +824,10 @@ void BuildUserJobFluently(
         memoryLimit = memoryLimit.GetOrElse(512ll << 20) + tmpfsSize;
     }
 
-    // TODO: tables as files
-
     fluent
     .Item("file_paths").List(preparer.GetFiles())
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluentMap)
-    {
-        fluentMap
-        .Item("input_format").BeginAttributes()
-            .Item("format").Value("binary")
-        .EndAttributes()
-        .Value("yson");
-    })
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YAMR, [&] (TFluentMap fluentMap) {
-        if (!format) {
-            fluentMap
-            .Item("input_format").BeginAttributes()
-                .Item("lenval").Value(true)
-                .Item("has_subkey").Value(true)
-                .Item("enable_table_index").Value(true)
-            .EndAttributes()
-            .Value("yamr");
-        } else {
-            fluentMap.Item("input_format").Value(format.GetRef());
-        }
-    })
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_PROTO, [&] (TFluentMap fluentMap)
-    {
-        if (TConfig::Get()->UseClientProtobuf) {
-            fluentMap
-            .Item("input_format").BeginAttributes()
-                .Item("format").Value("binary")
-            .EndAttributes()
-            .Value("yson");
-        } else {
-            if (inputDesc.ProtoDescriptors.empty()) {
-                ythrow TApiUsageError() << "messages for input_format are unknown (empty ProtoDescriptors)";
-            }
-            TFormat format(inputDesc.ProtoDescriptors);
-            fluentMap.Item("input_format").Value(format.Config);
-        }
-    })
-    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluentMap)
-    {
-        fluentMap
-        .Item("output_format").BeginAttributes()
-            .Item("format").Value("binary")
-        .EndAttributes()
-        .Value("yson");
-    })
-    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YAMR, [] (TFluentMap fluentMap) {
-        fluentMap
-        .Item("output_format").BeginAttributes()
-            .Item("lenval").Value(true)
-            .Item("has_subkey").Value(true)
-        .EndAttributes()
-        .Value("yamr");
-    })
-    .DoIf(outputDesc.Format == TMultiFormatDesc::F_PROTO, [&] (TFluentMap fluentMap)
-    {
-        if (TConfig::Get()->UseClientProtobuf) {
-            fluentMap
-            .Item("output_format").BeginAttributes()
-                .Item("format").Value("binary")
-            .EndAttributes()
-            .Value("yson");
-        } else {
-            if (outputDesc.ProtoDescriptors.empty()) {
-                ythrow TApiUsageError() << "messages for output_format are unknown (empty ProtoDescriptors)";
-            }
-            TFormat format(outputDesc.ProtoDescriptors);
-            fluentMap.Item("output_format").Value(format.Config);
-        }
-    })
+    .Item("input_format").Value(inputFormat.Config)
+    .Item("output_format").Value(outputFormat.Config)
     .Item("command").Value(preparer.GetCommand())
     .Item("class_name").Value(preparer.GetClassName())
     .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluentMap) {
@@ -939,30 +1012,20 @@ void LogYPath(const TOperationId& opId, const TRichYPath& output, const char* ty
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationId ExecuteMap(
+TOperationId DoExecuteMap(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TMapOperationSpec& uncanonizedSpec,
+    const TSimpleOperationIo& operationIo,
+    const TVector<TSmallJobFile>& smallFileList,
+    const TMapOperationSpecBase<TMapOperationSpec>& spec,
     IJob* mapper,
     const TOperationOptions& options)
 {
-    auto spec = uncanonizedSpec;
-    spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
-    spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
-    spec.MapperSpec_.Files_ = CanonizePaths(auth, spec.MapperSpec_.Files_);
-
-    TMaybe<TNode> format;
-    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
-        options.UseTableFormats_)
-    {
-        format = GetTableFormats(auth, transactionId, spec.Inputs_);
-    }
-
     if (spec.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
     if (spec.CreateOutputTables_) {
-        CreateOutputTables(auth, transactionId, spec.Outputs_);
+        CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
     TJobPreparer map(
@@ -971,36 +1034,31 @@ TOperationId ExecuteMap(
         "--yt-map",
         spec.MapperSpec_,
         mapper,
-        spec.Outputs_.size(),
-        spec.GetInputDesc(),
-        spec.GetOutputDesc(),
+        operationIo.Outputs.size(),
+        smallFileList,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("mapper").DoMap(std::bind(
-            BuildUserJobFluently,
+            BuildUserJobFluently1,
             std::cref(map),
-            format,
-            spec.GetInputDesc(),
-            spec.GetOutputDesc(),
+            operationIo.InputFormat,
+            operationIo.OutputFormat,
             std::placeholders::_1))
-        .Item("input_table_paths").List(spec.Inputs_)
-        .Item("output_table_paths").List(spec.Outputs_)
-        .Item("job_io").BeginMap()
-            .Item("control_attributes").BeginMap()
-                .Item("enable_row_index").Value(true)
-            .EndMap()
-            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
-                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
-            })
-        .EndMap()
+        .Item("input_table_paths").List(operationIo.Inputs)
+        .Item("output_table_paths").List(operationIo.Outputs)
         .DoIf(spec.Ordered_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("ordered").Value(spec.Ordered_.GetRef());
         })
-        .Item("title").Value(map.GetClassName())
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
+
+    specNode["spec"]["job_io"]["control_attributes"]["enable_row_index"] = TNode(true);
+    if (!TConfig::Get()->TableWriter.Empty()) {
+        specNode["spec"]["job_io"]["table_writer"] = TConfig::Get()->TableWriter;
+    }
+    specNode["spec"]["title"] = TNode(map.GetClassName());
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
@@ -1012,36 +1070,43 @@ TOperationId ExecuteMap(
         MergeSpec(specNode, options));
 
     LogJob(operationId, mapper, "mapper");
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPaths(operationId, spec.Outputs_, "output");
+    LogYPaths(operationId, operationIo.Inputs, "input");
+    LogYPaths(operationId, operationIo.Outputs, "output");
 
     return operationId;
 }
 
-TOperationId ExecuteReduce(
+TOperationId ExecuteMap(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TReduceOperationSpec& uncanonizedSpec,
+    const TMapOperationSpec& spec,
+    IJob* mapper,
+    const TOperationOptions& options)
+{
+    return DoExecuteMap(
+        auth,
+        transactionId,
+        CreateSimpleOperationIo(auth, transactionId, spec, options),
+        CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc()),
+        spec,
+        mapper,
+        options);
+}
+
+TOperationId DoExecuteReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TSimpleOperationIo& operationIo,
+    const TVector<TSmallJobFile>& smallFileList,
+    const TReduceOperationSpecBase<TReduceOperationSpec>& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
-    auto spec = uncanonizedSpec;
-    spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
-    spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
-    spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
-
-    TMaybe<TNode> format;
-    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
-        options.UseTableFormats_)
-    {
-        format = GetTableFormats(auth, transactionId, spec.Inputs_);
-    }
-
     if (spec.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
     if (spec.CreateOutputTables_) {
-        CreateOutputTables(auth, transactionId, spec.Outputs_);
+        CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
     TJobPreparer reduce(
@@ -1050,27 +1115,25 @@ TOperationId ExecuteReduce(
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        spec.Outputs_.size(),
-        spec.GetInputDesc(),
-        spec.GetOutputDesc(),
+        operationIo.Outputs.size(),
+        smallFileList,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("reducer").DoMap(std::bind(
-            BuildUserJobFluently,
+            BuildUserJobFluently1,
             std::cref(reduce),
-            format,
-            spec.GetInputDesc(),
-            spec.GetOutputDesc(),
+            operationIo.InputFormat,
+            operationIo.OutputFormat,
             std::placeholders::_1))
         .Item("sort_by").Value(spec.SortBy_)
         .Item("reduce_by").Value(spec.ReduceBy_)
         .DoIf(spec.JoinBy_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("join_by").Value(spec.JoinBy_.GetRef());
         })
-        .Item("input_table_paths").List(spec.Inputs_)
-        .Item("output_table_paths").List(spec.Outputs_)
+        .Item("input_table_paths").List(operationIo.Inputs)
+        .Item("output_table_paths").List(operationIo.Outputs)
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
@@ -1094,36 +1157,45 @@ TOperationId ExecuteReduce(
         MergeSpec(specNode, options));
 
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPaths(operationId, spec.Outputs_, "output");
+    LogYPaths(operationId, operationIo.Inputs, "input");
+    LogYPaths(operationId, operationIo.Outputs, "output");
 
     return operationId;
 }
 
-TOperationId ExecuteJoinReduce(
+TOperationId ExecuteReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TJoinReduceOperationSpec& uncanonizedSpec,
+    const TReduceOperationSpec& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
-    auto spec = uncanonizedSpec;
-    spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
-    spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
-    spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
+    return DoExecuteReduce(
+        auth,
+        transactionId,
+        CreateSimpleOperationIo(auth, transactionId, spec, options),
+        CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc()),
+        spec,
+        reducer,
+        options);
+}
 
-    TMaybe<TNode> format;
-    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
-        options.UseTableFormats_)
-    {
-        format = GetTableFormats(auth, transactionId, spec.Inputs_);
-    }
+////////////////////////////////////////////////////////////////////////////////
 
+TOperationId DoExecuteJoinReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TSimpleOperationIo& operationIo,
+    const TVector<TSmallJobFile>& smallFileList,
+    const TJoinReduceOperationSpecBase<TJoinReduceOperationSpec>& spec,
+    IJob* reducer,
+    const TOperationOptions& options)
+{
     if (spec.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
     if (spec.CreateOutputTables_) {
-        CreateOutputTables(auth, transactionId, spec.Outputs_);
+        CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
     TJobPreparer reduce(
@@ -1132,23 +1204,21 @@ TOperationId ExecuteJoinReduce(
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        spec.Outputs_.size(),
-        spec.GetInputDesc(),
-        spec.GetOutputDesc(),
+        operationIo.Outputs.size(),
+        smallFileList,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("reducer").DoMap(std::bind(
-            BuildUserJobFluently,
+            BuildUserJobFluently1,
             std::cref(reduce),
-            format,
-            spec.GetInputDesc(),
-            spec.GetOutputDesc(),
+            operationIo.InputFormat,
+            operationIo.OutputFormat,
             std::placeholders::_1))
         .Item("join_by").Value(spec.JoinBy_)
-        .Item("input_table_paths").List(spec.Inputs_)
-        .Item("output_table_paths").List(spec.Outputs_)
+        .Item("input_table_paths").List(operationIo.Inputs)
+        .Item("output_table_paths").List(operationIo.Outputs)
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
@@ -1172,43 +1242,47 @@ TOperationId ExecuteJoinReduce(
         MergeSpec(specNode, options));
 
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPaths(operationId, spec.Outputs_, "output");
+    LogYPaths(operationId, operationIo.Inputs, "input");
+    LogYPaths(operationId, operationIo.Outputs, "output");
 
     return operationId;
 }
 
-TOperationId ExecuteMapReduce(
+TOperationId ExecuteJoinReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TMapReduceOperationSpec& uncanonizedSpec,
-    IJob* mapper,
-    IJob* reduceCombiner,
+    const TJoinReduceOperationSpec& spec,
     IJob* reducer,
-    const TMultiFormatDesc& mapperClassOutputDesc,
-    const TMultiFormatDesc& reduceCombinerClassInputDesc,
-    const TMultiFormatDesc& reduceCombinerClassOutputDesc,
-    const TMultiFormatDesc& reducerClassInputDesc,
     const TOperationOptions& options)
 {
-    auto spec = uncanonizedSpec;
-    spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
-    spec.MapOutputs_ = CanonizePaths(auth, spec.MapOutputs_);
-    spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
-    spec.MapperSpec_.Files_ = CanonizePaths(auth, spec.MapperSpec_.Files_);
-    spec.ReduceCombinerSpec_.Files_ = CanonizePaths(auth, spec.ReduceCombinerSpec_.Files_);
-    spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
+    return DoExecuteJoinReduce(
+        auth,
+        transactionId,
+        CreateSimpleOperationIo(auth, transactionId, spec, options),
+        CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc()),
+        spec,
+        reducer,
+        options);
+}
 
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationId DoExecuteMapReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TMapReduceOperationIo& operationIo,
+    const TMapReduceOperationSpecBase<TMapReduceOperationSpec>& spec,
+    IJob* mapper,
+    const TVector<TSmallJobFile>& mapperJobFiles,
+    IJob* reduceCombiner,
+    const TVector<TSmallJobFile>& reduceCombinerJobFiles,
+    IJob* reducer,
+    const TVector<TSmallJobFile>& reducerJobFiles,
+    const TOperationOptions& options)
+{
     TVector<TRichYPath> allOutputs;
-    allOutputs.insert(allOutputs.end(), spec.MapOutputs_.begin(), spec.MapOutputs_.end());
-    allOutputs.insert(allOutputs.end(), spec.Outputs_.begin(), spec.Outputs_.end());
-
-    TMaybe<TNode> format;
-    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
-        options.UseTableFormats_)
-    {
-        format = GetTableFormats(auth, transactionId, spec.Inputs_);
-    }
+    allOutputs.insert(allOutputs.end(), operationIo.MapOutputs.begin(), operationIo.MapOutputs.end());
+    allOutputs.insert(allOutputs.end(), operationIo.Outputs.begin(), operationIo.Outputs.end());
 
     if (spec.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
@@ -1217,63 +1291,15 @@ TOperationId ExecuteMapReduce(
         CreateOutputTables(auth, transactionId, allOutputs);
     }
 
-    TKeyColumns sortBy(spec.SortBy_);
-    TKeyColumns reduceBy(spec.ReduceBy_);
+    TKeyColumns sortBy = spec.SortBy_;
+    TKeyColumns reduceBy = spec.ReduceBy_;
 
     if (sortBy.Parts_.empty()) {
         sortBy = reduceBy;
     }
 
-    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR && format && !mapper) {
-        auto& attrs = format.Get()->Attributes();
-       auto& keyColumns = attrs["key_column_names"].AsList();
-
-        sortBy.Parts_.clear();
-        reduceBy.Parts_.clear();
-
-        for (auto& column : keyColumns) {
-            sortBy.Parts_.push_back(column.AsString());
-            reduceBy.Parts_.push_back(column.AsString());
-        }
-
-        if (attrs.HasKey("subkey_column_names")) {
-            auto& subkeyColumns = attrs["subkey_column_names"].AsList();
-            for (auto& column : subkeyColumns) {
-                sortBy.Parts_.push_back(column.AsString());
-            }
-        }
-    }
-
-    const auto& reduceOutputDesc = spec.GetOutputDesc();
-
-    auto reduceInputDesc = MergeIntermediateDesc(reducerClassInputDesc, spec.ReduceInputHintDesc_,
-        "spec from reducer CLASS input", "spec from HINT for reduce input");
-
-    auto reduceCombinerOutputDesc = MergeIntermediateDesc(reduceCombinerClassOutputDesc, spec.ReduceCombinerOutputHintDesc_,
-        "spec derived from reduce combiner CLASS output", "spec from HINT for reduce combiner output");
-
-    auto reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerClassInputDesc, spec.ReduceCombinerInputHintDesc_,
-        "spec from reduce combiner CLASS input", "spec from HINT for reduce combiner input");
-
-    auto mapOutputDesc = MergeIntermediateDesc(mapperClassOutputDesc, spec.MapOutputDesc_,
-        "spec from mapper CLASS output", "spec from HINT for map output");
-
-    const auto& mapInputDesc = spec.GetInputDesc();
-
     const bool hasMapper = mapper != nullptr;
     const bool hasCombiner = reduceCombiner != nullptr;
-
-    if (!hasMapper) {
-        //request identity desc only for no mapper cases
-        const auto& identityMapInputDesc = IdentityDesc(mapInputDesc);
-        if (hasCombiner) {
-            reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerInputDesc, identityMapInputDesc,
-                "spec derived from reduce combiner CLASS input", "identity spec from mapper CLASS input");
-        } else {
-            reduceInputDesc = MergeIntermediateDesc(reduceInputDesc, identityMapInputDesc,
-                "spec derived from reduce CLASS input", "identity spec from mapper CLASS input" );
-        }
-    }
 
     TJobPreparer reduce(
         auth,
@@ -1281,9 +1307,8 @@ TOperationId ExecuteMapReduce(
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        spec.Outputs_.size(),
-        reduceInputDesc,
-        reduceOutputDesc,
+        operationIo.Outputs.size(),
+        reducerJobFiles,
         options);
 
     TString title;
@@ -1297,17 +1322,15 @@ TOperationId ExecuteMapReduce(
                 "--yt-map",
                 spec.MapperSpec_,
                 mapper,
-                1 + spec.MapOutputs_.size(),
-                mapInputDesc,
-                mapOutputDesc,
+                1 + operationIo.MapOutputs.size(),
+                mapperJobFiles,
                 options);
 
             fluent.Item("mapper").DoMap(std::bind(
-                BuildUserJobFluently,
+                BuildUserJobFluently1,
                 std::cref(map),
-                format,
-                mapInputDesc,
-                mapOutputDesc,
+                *operationIo.MapperInputFormat,
+                *operationIo.MapperOutputFormat,
                 std::placeholders::_1));
 
             title = "mapper:" + map.GetClassName() + " ";
@@ -1320,31 +1343,28 @@ TOperationId ExecuteMapReduce(
                 spec.ReduceCombinerSpec_,
                 reduceCombiner,
                 1,
-                reduceCombinerInputDesc,
-                reduceCombinerOutputDesc,
+                reduceCombinerJobFiles,
                 options);
 
             fluent.Item("reduce_combiner").DoMap(std::bind(
-                BuildUserJobFluently,
+                BuildUserJobFluently1,
                 std::cref(combine),
-                mapper ? TMaybe<TNode>() : format,
-                reduceCombinerInputDesc,
-                reduceCombinerOutputDesc,
+                *operationIo.ReduceCombinerInputFormat,
+                *operationIo.ReduceCombinerOutputFormat,
                 std::placeholders::_1));
             title += "combiner:" + combine.GetClassName() + " ";
         })
         .Item("reducer").DoMap(std::bind(
-            BuildUserJobFluently,
+            BuildUserJobFluently1,
             std::cref(reduce),
-            (mapper || reduceCombiner) ? TMaybe<TNode>() : format,
-            reduceInputDesc,
-            reduceOutputDesc,
+            operationIo.ReducerInputFormat,
+            operationIo.ReducerOutputFormat,
             std::placeholders::_1))
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
-        .Item("input_table_paths").List(spec.Inputs_)
+        .Item("input_table_paths").List(operationIo.Inputs)
         .Item("output_table_paths").List(allOutputs)
-        .Item("mapper_output_table_count").Value(spec.MapOutputs_.size())
+        .Item("mapper_output_table_count").Value(operationIo.MapOutputs.size())
         .Item("map_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
@@ -1386,12 +1406,117 @@ TOperationId ExecuteMapReduce(
     LogJob(operationId, mapper, "mapper");
     LogJob(operationId, reduceCombiner, "reduce_combiner");
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPaths(operationId, spec.Outputs_, "output");
+    LogYPaths(operationId, operationIo.Inputs, "input");
+    LogYPaths(operationId, allOutputs, "output");
 
     return operationId;
 }
 
+TOperationId ExecuteMapReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TMapReduceOperationSpec& spec_,
+    IJob* mapper,
+    IJob* reduceCombiner,
+    IJob* reducer,
+    const TMultiFormatDesc& mapperClassOutputDesc,
+    const TMultiFormatDesc& reduceCombinerClassInputDesc,
+    const TMultiFormatDesc& reduceCombinerClassOutputDesc,
+    const TMultiFormatDesc& reducerClassInputDesc,
+    const TOperationOptions& options)
+{
+    TMapReduceOperationSpec spec = spec_;
+
+    TMaybe<TNode> formatFromTableAttribute;
+    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
+        options.UseTableFormats_)
+    {
+        formatFromTableAttribute = GetTableFormats(auth, transactionId, spec.Inputs_);
+    }
+
+    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR && formatFromTableAttribute && !mapper) {
+        auto& attrs = formatFromTableAttribute.Get()->Attributes();
+        auto& keyColumns = attrs["key_column_names"].AsList();
+
+        spec.SortBy_.Parts_.clear();
+        spec.ReduceBy_.Parts_.clear();
+
+        for (auto& column : keyColumns) {
+            spec.SortBy_.Parts_.push_back(column.AsString());
+            spec.ReduceBy_.Parts_.push_back(column.AsString());
+        }
+
+        if (attrs.HasKey("subkey_column_names")) {
+            auto& subkeyColumns = attrs["subkey_column_names"].AsList();
+            for (auto& column : subkeyColumns) {
+                spec.SortBy_.Parts_.push_back(column.AsString());
+            }
+        }
+    }
+
+    const auto& reduceOutputDesc = spec.GetOutputDesc();
+    auto reduceInputDesc = MergeIntermediateDesc(reducerClassInputDesc, spec.ReduceInputHintDesc_,
+        "spec from reducer CLASS input", "spec from HINT for reduce input");
+
+    auto reduceCombinerOutputDesc = MergeIntermediateDesc(reduceCombinerClassOutputDesc, spec.ReduceCombinerOutputHintDesc_,
+        "spec derived from reduce combiner CLASS output", "spec from HINT for reduce combiner output");
+    auto reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerClassInputDesc, spec.ReduceCombinerInputHintDesc_,
+        "spec from reduce combiner CLASS input", "spec from HINT for reduce combiner input");
+    auto mapOutputDesc = MergeIntermediateDesc(mapperClassOutputDesc, spec.MapOutputDesc_,
+        "spec from mapper CLASS output", "spec from HINT for map output");
+    const auto& mapInputDesc = spec.GetInputDesc();
+
+    const bool hasMapper = mapper != nullptr;
+    const bool hasCombiner = reduceCombiner != nullptr;
+
+    if (!hasMapper) {
+        //request identity desc only for no mapper cases
+        const auto& identityMapInputDesc = IdentityDesc(mapInputDesc);
+        if (hasCombiner) {
+            reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerInputDesc, identityMapInputDesc,
+                "spec derived from reduce combiner CLASS input", "identity spec from mapper CLASS input");
+        } else {
+            reduceInputDesc = MergeIntermediateDesc(reduceInputDesc, identityMapInputDesc,
+                "spec derived from reduce CLASS input", "identity spec from mapper CLASS input" );
+        }
+    }
+
+    TMapReduceOperationIo operationIo;
+    operationIo.Inputs = CanonizePaths(auth, spec.Inputs_);
+    operationIo.MapOutputs = CanonizePaths(auth, spec.MapOutputs_);
+    operationIo.Outputs = CanonizePaths(auth, spec.Outputs_);
+
+    TVector<TSmallJobFile> mapperFiles;
+    if (mapper) {
+        mapperFiles = CreateFormatConfig(mapInputDesc, mapOutputDesc);
+        operationIo.MapperInputFormat = FormatFromDescription(mapInputDesc, formatFromTableAttribute);
+        operationIo.MapperOutputFormat = FormatFromDescription(mapOutputDesc, Nothing());
+    }
+
+    TVector<TSmallJobFile> reduceCombinerFiles;
+    if (reduceCombiner) {
+        reduceCombinerFiles = CreateFormatConfig(reduceCombinerInputDesc, reduceCombinerOutputDesc);
+        operationIo.ReduceCombinerInputFormat = FormatFromDescription(reduceCombinerInputDesc, mapper ? Nothing() : formatFromTableAttribute);
+        operationIo.ReduceCombinerOutputFormat = FormatFromDescription(reduceCombinerOutputDesc, Nothing());
+    }
+
+    TVector<TSmallJobFile> reducerFiles = CreateFormatConfig(reduceInputDesc, reduceOutputDesc);
+    operationIo.ReducerInputFormat = FormatFromDescription(reduceInputDesc, (mapper || reduceCombiner) ? Nothing() : formatFromTableAttribute);
+    operationIo.ReducerOutputFormat = FormatFromDescription(reduceOutputDesc, Nothing());
+
+    return DoExecuteMapReduce(
+        auth,
+        transactionId,
+        operationIo,
+        spec,
+        mapper,
+        mapperFiles,
+        reduceCombiner,
+        reduceCombinerFiles,
+        reducer,
+        reducerFiles,
+        options);
+}
 
 TOperationId ExecuteSort(
     const TAuth& auth,
