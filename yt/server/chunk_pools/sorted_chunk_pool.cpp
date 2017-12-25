@@ -161,7 +161,7 @@ public:
             leftEndpoint = {
                 EEndpointType::Left,
                 dataSlice,
-                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
+                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
                 leftRowIndex
             };
 
@@ -177,24 +177,24 @@ public:
                 rightRowIndex
             };
         } else {
-            // COMPAT(psushin): old behaviour for join reduce.
+            // COMPAT(psushin): old behaviour for join reduce and sorted merge (faulty around YT-8156).
             int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
             leftEndpoint = {
                 EEndpointType::Left,
                 dataSlice,
-                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Max),
+                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
                 leftRowIndex
             };
 
             int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
-                dataSlice->Type == EDataSourceType::UnversionedTable
-                ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
-                : 0);
+                    dataSlice->Type == EDataSourceType::UnversionedTable
+                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                    : 0);
 
             rightEndpoint = {
                 EEndpointType::Right,
                 dataSlice,
-                GetStrictKeySuccessor(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
+                GetStrictKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
                 rightRowIndex
             };
         }
