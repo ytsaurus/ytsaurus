@@ -716,6 +716,15 @@ void TOperationControllerBase::SaveSnapshot(IOutputStream* output)
     Save(context, this);
 }
 
+void TOperationControllerBase::SleepInRevive()
+{
+    auto delay = Spec_->TestingOperationOptions->DelayInsideRevive;
+
+    if (delay) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+}
+
 void TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -724,6 +733,8 @@ void TOperationControllerBase::Revive()
         Prepare();
         return;
     }
+
+    SleepInRevive();
 
     DoLoadSnapshot(Snapshot);
     Snapshot = TOperationSnapshot();
@@ -1176,7 +1187,7 @@ void TOperationControllerBase::CommitCompletionTransaction()
     CommitFinished = true;
 }
 
-void TOperationControllerBase::SleepInStage(EDelayInsideOperationCommitStage desiredStage)
+void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitStage desiredStage)
 {
     auto delay = Spec_->TestingOperationOptions->DelayInsideOperationCommit;
     auto stage = Spec_->TestingOperationOptions->DelayInsideOperationCommitStage;
@@ -1204,15 +1215,15 @@ void TOperationControllerBase::SafeCommit()
 {
     StartCompletionTransaction();
 
-    SleepInStage(EDelayInsideOperationCommitStage::Stage1);
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Stage1);
     BeginUploadOutputTables(UpdatingTables);
-    SleepInStage(EDelayInsideOperationCommitStage::Stage2);
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Stage2);
     TeleportOutputChunks();
-    SleepInStage(EDelayInsideOperationCommitStage::Stage3);
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Stage3);
     AttachOutputChunks(UpdatingTables);
-    SleepInStage(EDelayInsideOperationCommitStage::Stage4);
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Stage4);
     EndUploadOutputTables(UpdatingTables);
-    SleepInStage(EDelayInsideOperationCommitStage::Stage5);
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Stage5);
 
     CustomCommit();
 
@@ -1247,7 +1258,7 @@ void TOperationControllerBase::SafeCommit()
     }
 
     CommitCompletionTransaction();
-    SleepInStage(EDelayInsideOperationCommitStage::Stage6);
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
     CommitTransactions();
 
     MasterConnector->UnregisterOperation(OperationId);
@@ -1266,7 +1277,7 @@ void TOperationControllerBase::CommitTransactions()
     CommitTransaction(InputTransaction);
     CommitTransaction(OutputTransaction);
 
-    SleepInStage(EDelayInsideOperationCommitStage::Stage7);
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Stage7);
 
     CommitTransaction(DebugOutputTransaction);
 
