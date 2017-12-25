@@ -218,6 +218,7 @@ public:
                 AuxQueue_->GetInvoker(),
                 BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
                 ResourceController_->GetBlockIOWatchdogPeriod());
+            ResourceController_->SetRestrictedIOWeight();
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
