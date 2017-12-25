@@ -93,10 +93,6 @@ struct TOperationIOSpec
     TDerived& SetProtobufInput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path);
     TDerived& AddProtobufOutput_VerySlow_Deprecated(const TRichYPath& path);
     TDerived& SetProtobufOutput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path);
-
-    // Ensure output tables exist before starting operation.
-    // If set to false, it is caller's responsibility to ensure output tables exist.
-    FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
 };
 
 template <class TDerived>
@@ -118,6 +114,10 @@ struct TUserOperationSpecBase
     // Ensure stderr, core tables exist before starting operation.
     // If set to false, it is caller's responsibility to ensure these tables exist.
     FLUENT_FIELD_DEFAULT(bool, CreateDebugOutputTables, true);
+
+    // Ensure output tables exist before starting operation.
+    // If set to false, it is caller's responsibility to ensure output tables exist.
+    FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
 };
 
 template <class TDerived>
@@ -210,9 +210,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMapOperationSpec
-    : public TOperationIOSpec<TMapOperationSpec>
-    , public TUserOperationSpecBase<TMapOperationSpec>
+template <typename TDerived>
+struct TMapOperationSpecBase
+    : public TUserOperationSpecBase<TMapOperationSpec>
 {
     using TSelf = TMapOperationSpec;
 
@@ -226,11 +226,18 @@ struct TMapOperationSpec
     FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
-struct TReduceOperationSpec
-    : public TOperationIOSpec<TReduceOperationSpec>
-    , public TUserOperationSpecBase<TReduceOperationSpec>
+struct TMapOperationSpec
+    : TMapOperationSpecBase<TMapOperationSpec>
+    , public TOperationIOSpec<TMapOperationSpec>
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TDerived>
+struct TReduceOperationSpecBase
+    : public TUserOperationSpecBase<TReduceOperationSpec>
 {
-    using TSelf = TReduceOperationSpec;
+    using TSelf = TDerived;
 
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
     FLUENT_FIELD(TKeyColumns, SortBy);
@@ -242,12 +249,41 @@ struct TReduceOperationSpec
     FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
-struct TMapReduceOperationSpec
-    : public TOperationIOSpec<TMapReduceOperationSpec>
-    , public TUserOperationSpecBase<TMapReduceOperationSpec>
-    , public TIntermediateTablesHintSpec<TMapReduceOperationSpec>
+struct TReduceOperationSpec
+    : public TReduceOperationSpecBase<TReduceOperationSpec>
+    , public TOperationIOSpec<TReduceOperationSpec>
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TDerived>
+struct TJoinReduceOperationSpecBase
+    : public TUserOperationSpecBase<TDerived>
 {
-    using TSelf = TMapReduceOperationSpec;
+    using TSelf = TDerived;
+
+    FLUENT_FIELD(TUserJobSpec, ReducerSpec);
+    FLUENT_FIELD(TKeyColumns, JoinBy);
+
+    // Similar to corresponding options in `TMapOperationSpec'.
+    FLUENT_FIELD_OPTION(ui32, JobCount);
+    FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJoinReduceOperationSpec
+    : public TJoinReduceOperationSpecBase<TJoinReduceOperationSpec>
+    , public TOperationIOSpec<TJoinReduceOperationSpec>
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TDerived>
+struct TMapReduceOperationSpecBase
+    : public TUserOperationSpecBase<TMapReduceOperationSpec>
+{
+    using TSelf = TDerived;
 
     FLUENT_FIELD(TUserJobSpec, MapperSpec);
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
@@ -263,19 +299,11 @@ struct TMapReduceOperationSpec
     FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
 };
 
-struct TJoinReduceOperationSpec
-    : public TOperationIOSpec<TJoinReduceOperationSpec>
-    , public TUserOperationSpecBase<TJoinReduceOperationSpec>
-{
-    using TSelf = TJoinReduceOperationSpec;
-
-    FLUENT_FIELD(TUserJobSpec, ReducerSpec);
-    FLUENT_FIELD(TKeyColumns, JoinBy);
-
-    // Similar to corresponding options in `TMapOperationSpec'.
-    FLUENT_FIELD_OPTION(ui32, JobCount);
-    FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
-};
+struct TMapReduceOperationSpec
+    : public TMapReduceOperationSpecBase<TMapReduceOperationSpec>
+    , public TOperationIOSpec<TMapReduceOperationSpec>
+    , public TIntermediateTablesHintSpec<TMapReduceOperationSpec>
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
