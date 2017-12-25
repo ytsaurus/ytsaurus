@@ -3004,16 +3004,18 @@ private:
     {
         auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
         auto versionNodeOrError = WaitFor(asyncVersionResult);
-        int version = 0;
 
-        if (versionNodeOrError.IsOK()) {
-            try {
-                version = ConvertTo<int>(versionNodeOrError.Value());
-            } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to parse operations archive version");
-            }
-        } else {
-            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
+        if (!versionNodeOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to get operations archive version")
+                << versionNodeOrError;
+        }
+
+        int version = 0;
+        try {
+            version = ConvertTo<int>(versionNodeOrError.Value());
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to parse operations archive version")
+                << ex;
         }
 
         return version;
@@ -3216,7 +3218,7 @@ private:
             }
 
             return attrNodeValue;
-        } else if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        } else if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError) && IsArchiveExists()) {
             LOG_DEBUG("No such operation %v in Cypress", operationId);
 
             int version = DoGetOperationsArchiveVersion();
