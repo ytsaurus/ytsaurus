@@ -81,9 +81,9 @@ def configure_ip(session, force_ipv4=False, force_ipv6=False):
                                                                  **kwargs)
         session.mount("http://", HTTPAdapter())
 
-def parse_error_from_headers(headers):
+def get_error_from_headers(headers):
     if int(headers.get("x-yt-response-code", 0)) != 0:
-        return json.loads(headers["x-yt-error"])
+        return headers["x-yt-error"]
     return None
 
 def get_header_format(client):
@@ -102,7 +102,10 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
 
-def create_response(response, request_info, client):
+def create_response(response, request_info, error_format, client):
+    if error_format is None:
+        error_format = "json"
+
     def loads(str):
         header_format = get_header_format(client)
         if header_format == "json":
@@ -116,11 +119,17 @@ def create_response(response, request_info, client):
         raise YtError("Incorrect header format: {0}".format(header_format))
 
     def get_error():
-        if not str(response.status_code).startswith("2"):
-            check_response_is_decodable(response, format="json")
-            return response.json()
-        else:
-            return parse_error_from_headers(response.headers)
+        error_content = get_error_from_headers(response.headers)
+        if error_content is None and not str(response.status_code).startswith("2"):
+            error_content = response.content
+        if error_content is not None:
+            if error_format == "json":
+                error_content = json.loads(error_content)
+            elif error_format == "yson":
+                error_content = yson.loads(error_content)
+            else:
+                raise YtError("Incorrect error format: {0}".format(error_format))
+        return error_content
 
     def error(self):
         return self._error
@@ -162,13 +171,14 @@ def _raise_for_status(response, request_info):
 
 
 class RequestRetrier(Retrier):
-    def __init__(self, method, url=None, make_retries=True, response_format=None,
+    def __init__(self, method, url=None, make_retries=True, response_format=None, error_format=None,
                  params=None, timeout=None, retry_action=None, log_body=True, is_ping=False,
                  proxy_provider=None, client=None, **kwargs):
         self.method = method
         self.url = url
         self.make_retries = make_retries
         self.response_format = response_format
+        self.error_format = error_format
         self.params = params
         self.retry_action = retry_action
         self.log_body = log_body
@@ -229,7 +239,7 @@ class RequestRetrier(Retrier):
             else:
                 timeout = self.requests_timeout / 1000.0
             response = create_response(session.request(self.method, url, timeout=timeout, **self.kwargs),
-                                       request_info, self.client)
+                                       request_info, self.error_format, self.client)
 
         except requests.ConnectionError as error:
             # Module requests patched to process response from YT proxy
@@ -240,7 +250,7 @@ class RequestRetrier(Retrier):
                 try:
                     # We should perform it under try..except due to response may be incomplete.
                     # See YT-4053.
-                    rsp = create_response(error.response, request_info, self.client)
+                    rsp = create_response(error.response, request_info, self.error_format, self.client)
                 except:
                     reraise(*exc_info)
                 _raise_for_status(rsp, request_info)
