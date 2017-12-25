@@ -196,7 +196,7 @@ private:
     }
 
 private:
-    IValueConsumer* const Consumer_ = nullptr;
+    IValueConsumer* const Consumer_;
     const bool AllowUnknownColumns_;
     TNameTablePtr NameTable_;
     TYsonToUnversionedValueConverter ColumnConsumer_;
@@ -403,7 +403,7 @@ class TSkiffPushParser
     : public IParser
 {
 public:
-    TSkiffPushParser(TParserTableDescription rowDescription, TSkiffSchemaPtr skiffSchema, IValueConsumer* consumer)
+    TSkiffPushParser(TParserTableDescription rowDescription, const TSkiffSchemaPtr& skiffSchema, IValueConsumer* consumer)
         : Coroutine_(
             BIND([
                 skiffSchema = skiffSchema,
@@ -505,7 +505,7 @@ std::unique_ptr<IParser> CreateParserForSkiff(
 {
     auto tableDescriptionList = CreateTableDescriptionList({skiffSchema});
     if (tableDescriptionList.size() != 1) {
-        THROW_ERROR_EXCEPTION("Expected to have signle table, actual table description count %Qv",
+        THROW_ERROR_EXCEPTION("Expected to have single table, actual table description count %Qv",
             tableDescriptionList.size());
     }
 

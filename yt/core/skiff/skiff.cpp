@@ -9,15 +9,15 @@ namespace NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUncheckedSkiffParser::TUncheckedSkiffParser(IInputStream* slave)
-    : Underlying_(slave)
+TUncheckedSkiffParser::TUncheckedSkiffParser(IInputStream* underlying)
+    : Underlying_(underlying)
     , Buffer_(512_KB)
     , RemainingBytes_(0)
     , Position_(Buffer_.Data())
 { }
 
-TUncheckedSkiffParser::TUncheckedSkiffParser(const TSkiffSchemaPtr& /*schema*/, IInputStream* slave)
-    : TUncheckedSkiffParser(slave)
+TUncheckedSkiffParser::TUncheckedSkiffParser(const TSkiffSchemaPtr& /*schema*/, IInputStream* underlying)
+    : TUncheckedSkiffParser(underlying)
 { }
 
 i64 TUncheckedSkiffParser::ParseInt64()
@@ -229,15 +229,15 @@ void TCheckedSkiffParser::ValidateFinished()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUncheckedSkiffWriter::TUncheckedSkiffWriter(IOutputStream* slave)
-    : Underlying_(slave)
+TUncheckedSkiffWriter::TUncheckedSkiffWriter(IOutputStream* underlying)
+    : Underlying_(underlying)
     , Buffer_(1_KB)
     , RemainingBytes_(Buffer_.Capacity())
     , Position_(Buffer_.Data())
 { }
 
-TUncheckedSkiffWriter::TUncheckedSkiffWriter(const TSkiffSchemaPtr& /*schema*/, IOutputStream* slave)
-    : TUncheckedSkiffWriter(slave)
+TUncheckedSkiffWriter::TUncheckedSkiffWriter(const TSkiffSchemaPtr& /*schema*/, IOutputStream* underlying)
+    : TUncheckedSkiffWriter(underlying)
 { }
 
 TUncheckedSkiffWriter::~TUncheckedSkiffWriter()
@@ -330,8 +330,8 @@ void TUncheckedSkiffWriter::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCheckedSkiffWriter::TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* slave)
-    : Writer_(slave)
+TCheckedSkiffWriter::TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* underlying)
+    : Writer_(underlying)
     , Validator_(std::make_unique<TSkiffValidator>(schema))
 { }
 

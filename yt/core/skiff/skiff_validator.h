@@ -19,7 +19,6 @@ class TSkiffValidator
 {
 public:
     explicit TSkiffValidator(TSkiffSchemaPtr skiffSchema);
-    TSkiffValidator(const TSkiffValidator&) = delete;
     ~TSkiffValidator();
 
     void BeforeVariant8Tag();

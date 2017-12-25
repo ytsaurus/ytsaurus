@@ -101,7 +101,7 @@ static void ValidateColumnSchema(const TString& columnName, TSkiffSchemaPtr skif
         case EWireType::Tuple:
         case EWireType::Variant8:
         case EWireType::RepeatedVariant16:
-            THROW_ERROR_EXCEPTION("Column %Qv cannot be encoded as %Qv",
+            THROW_ERROR_EXCEPTION("Column %Qv cannot be encoded as %Qlv",
                 columnName,
                 skiffSchema->GetWireType());
         default:
@@ -117,7 +117,7 @@ static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaP
     TSkiffSchemaPtr sparseColumnsField;
 
     if (skiffSchema->GetWireType() != EWireType::Tuple) {
-        THROW_ERROR_EXCEPTION("Invalid wire type for table row: expected %Qv, found %Qv",
+        THROW_ERROR_EXCEPTION("Invalid wire type for table row: expected %Qlv, found %Qlv",
             EWireType::Tuple,
             skiffSchema->GetWireType());
     }
@@ -275,7 +275,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
         auto name = schemaNode->AsString()->GetValue();
         if (!name.StartsWith(ReferencePrefix)) {
             THROW_ERROR_EXCEPTION(
-                "Invalid reference %Qv: reference must start with %Qv",
+                "Invalid reference %Qv, reference must start with %Qv",
                 name,
                 ReferencePrefix);
         }
@@ -308,7 +308,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
         } else {
             if (!schemaRepresentation->Children) {
                 THROW_ERROR_EXCEPTION(
-                    "Complex type %Qv lacks children",
+                    "Complex type %Qlv lacks children",
                     schemaRepresentation->WireType);
             }
             std::vector<TSkiffSchemaPtr> childSchemaList;
@@ -330,7 +330,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
         }
     } else {
         THROW_ERROR_EXCEPTION(
-            "Invalid type for skiff schema description; expected %Qv or %Qv, found %Qv",
+            "Invalid type for Skiff schema description; expected %Qlv or %Qlv, found %Qlv",
             ENodeType::Map,
             ENodeType::String,
             schemaNodeType

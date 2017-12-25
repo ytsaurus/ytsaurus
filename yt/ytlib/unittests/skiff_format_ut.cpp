@@ -910,7 +910,6 @@ TEST(TSkiffWriter, TestOtherColumns)
     // end
     ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
     checkedSkiffParser.ValidateFinished();
-
 }
 
 TEST(TSkiffWriter, TestKeySwitch)
@@ -1357,5 +1356,5 @@ TEST(TSkiffParser, TestEmptyInput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace // anonymous
+} // namespace
 } // namespace NYT
