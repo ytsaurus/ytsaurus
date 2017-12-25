@@ -1655,7 +1655,7 @@ if __name__ == "__main__":
 
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
-            assert stderrs[0]["stderr"] == b"AAA\n"
+            assert stderrs[0]["stderr"] == "AAA\n"
 
     def test_list_operations(self):
         assert yt.list_operations()["operations"] == []
