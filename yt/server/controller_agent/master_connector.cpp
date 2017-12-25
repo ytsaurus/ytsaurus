@@ -207,12 +207,13 @@ public:
             .AsyncVia(Invoker_)
             .Run();
         future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-            if (!error.IsOK()) {
-                Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
-                    .AsyncVia(Bootstrap_->GetControlInvoker())
-                    .Run()));
-            }
-        }));
+                if (!error.IsOK()) {
+                    Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
+                        .AsyncVia(Bootstrap_->GetControlInvoker())
+                        .Run()));
+                }
+            })
+            .AsyncVia(Bootstrap_->GetControlInvoker()));
         return future;
     }
 
