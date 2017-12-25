@@ -507,18 +507,26 @@ NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() cons
     }
 
     i64 diskUsage = 0;
+    yhash<int, TNullable<i64>> occupiedSlotToDiskLimit;
+
     {
         TReaderGuard guard(SlotsLock_);
-        for (const auto& pair : OccupiedSlotToDiskLimit_) {
-            auto slotIndex = pair.first;
-            const auto& slotDiskLimit = pair.second;
-            if (!slotDiskLimit) {
-                auto path = GetSlotPath(slotIndex);
-                auto dirSize = NFS::GetDirectorySize(path);
-                diskUsage += dirSize;
-            } else {
-                diskUsage += *slotDiskLimit;
+        occupiedSlotToDiskLimit = OccupiedSlotToDiskLimit_;
+    }
+
+    for (const auto& pair : occupiedSlotToDiskLimit) {
+        auto slotIndex = pair.first;
+        const auto& slotDiskLimit = pair.second;
+        if (!slotDiskLimit) {
+            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                auto path = GetSandboxPath(slotIndex, sandboxKind);
+                if (NFS::Exists(path)) {
+                    auto dirSize = NFS::GetDirectorySize(path);
+                    diskUsage += dirSize;
+                }
             }
+        } else {
+            diskUsage += *slotDiskLimit;
         }
     }
 
