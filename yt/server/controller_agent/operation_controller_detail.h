@@ -1093,7 +1093,8 @@ private:
 
     TCodicilGuard MakeCodicilGuard() const;
 
-    void SleepInStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
+    void SleepInCommitStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
+    void SleepInRevive();
 
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.

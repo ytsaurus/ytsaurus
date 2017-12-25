@@ -208,6 +208,8 @@ public:
     TNullable<TDuration> DelayInsideOperationCommit;
     TNullable<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
 
+    TNullable<TDuration> DelayInsideRevive;
+
     TNullable<TDuration> DelayInsideSuspend;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
