@@ -1,6 +1,6 @@
 #include "blob_table.h"
 
-#include <mapreduce/yt/common/serialize.h>
+#include <mapreduce/yt/interface/serialize.h>
 
 #include <util/generic/hash_set.h>
 
