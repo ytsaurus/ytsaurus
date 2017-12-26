@@ -93,11 +93,6 @@ TNode TTableSchema::ToNode() const
     return result;
 }
 
-bool IsTrivial(const TReadLimit& readLimit)
-{
-    return !readLimit.Key_ && !readLimit.RowIndex_ && !readLimit.Offset_;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

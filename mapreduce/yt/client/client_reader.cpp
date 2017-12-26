@@ -5,7 +5,7 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/log.h>
-#include <mapreduce/yt/node/serialize.h>
+#include <mapreduce/yt/common/serialize.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/io/helpers.h>

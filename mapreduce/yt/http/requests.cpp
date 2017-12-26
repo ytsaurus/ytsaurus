@@ -9,10 +9,10 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/node_builder.h>
+#include <mapreduce/yt/common/serialize.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/interface/errors.h>
-#include <mapreduce/yt/interface/serialize.h>
 
 #include <library/json/json_reader.h>
 
