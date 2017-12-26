@@ -10,6 +10,8 @@ import yt.yson as yson
 
 import yt.wrapper as yt
 
+from flaky import flaky
+
 import sys
 import time
 import pytest
@@ -363,6 +365,7 @@ class TestCypressCommands(object):
         assert yt.get(TEST_DIR + "/ttt/@expiration_time") == yt.get(TEST_DIR + "/ttt_copied/@expiration_time")
         assert yt.get(TEST_DIR + "/ttt/@creation_time") == yt.get(TEST_DIR + "/ttt_copied/@creation_time")
 
+    @flaky(max_runs=5)
     def test_transactions(self):
         table = TEST_DIR + "/transaction_test_table"
 
