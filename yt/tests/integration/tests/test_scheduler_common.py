@@ -1886,6 +1886,24 @@ class TestSchedulerConfig(YTEnvSetup):
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
         op.abort()
 
+    def test_unrecognized_spec(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
+        assert get("//sys/operations/{0}/@unrecognized_spec".format(op.id)) == {"xxx": "yyy"}
+        op.abort()
+
+    def test_brief_progress(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
+
+        get_brief_progress = lambda: get("//sys/operations/{0}/@brief_progress".format(op.id))
+        wait(get_brief_progress)
+        assert list(get_brief_progress()) == ["jobs"]
+
+        op.abort()
+
     def test_cypress_config(self):
         create("table", "//tmp/t_in")
         write_table("<append=true>//tmp/t_in", {"foo": "bar"})
