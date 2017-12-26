@@ -1126,7 +1126,8 @@ def create_format(yson_name, attributes=None, **kwargs):
     :param attributes: Deprecated! Don't use it! It will be removed!
     """
 
-    declare_deprecated('option "attributes"', attributes is not None)
+    declare_deprecated('option "attributes"', "attributes in format name (format name is an arbitrary yson string)",
+                       attributes is not None)
     attributes = get_value(attributes, {})
 
     yson_string = yson._loads_from_native_str(yson_name)

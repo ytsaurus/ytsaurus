@@ -267,7 +267,8 @@ class UserJobSpecBuilder(object):
     def file_paths(self, paths):
         return _set_spec_value(self, "file_paths", paths)
 
-    @deprecated()
+    @deprecated(alternative='file_paths with local paths wrapped with LocalFile object '
+                            '(e.g. .file_paths([yt.LocalFile("/home/user/file")]))')
     def local_files(self, files):
         return _set_spec_value(self, "local_files", files)
 
