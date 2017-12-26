@@ -122,9 +122,19 @@ public:
         IJob* reducer,
         const TOperationOptions& options) override;
 
+    IOperationPtr RawReduce(
+        const TRawReduceOperationSpec& spec,
+        ::TIntrusivePtr<IRawJob> mapper,
+        const TOperationOptions& options) override;
+
     IOperationPtr DoJoinReduce(
         const TJoinReduceOperationSpec& spec,
         IJob* reducer,
+        const TOperationOptions& options) override;
+
+    IOperationPtr RawJoinReduce(
+        const TRawJoinReduceOperationSpec& spec,
+        ::TIntrusivePtr<IRawJob> mapper,
         const TOperationOptions& options) override;
 
     IOperationPtr DoMapReduce(

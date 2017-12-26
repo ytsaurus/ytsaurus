@@ -346,7 +346,15 @@ IOperationPtr TMockClient::DoReduce(const TReduceOperationSpec&, IJob*, const TO
     return nullptr;
 }
 
+IOperationPtr TMockClient::RawReduce(const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) {
+    return nullptr;
+}
+
 IOperationPtr TMockClient::DoJoinReduce(const TJoinReduceOperationSpec&, IJob*, const TOperationOptions&) {
+    return nullptr;
+}
+
+IOperationPtr TMockClient::RawJoinReduce(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) {
     return nullptr;
 }
 

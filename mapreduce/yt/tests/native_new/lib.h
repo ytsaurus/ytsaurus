@@ -23,6 +23,8 @@ IClientPtr CreateTestClient();
 
 TString GenerateRandomData(size_t size, ui64 seed = 42);
 
+TVector<TNode> ReadTable(const IClientBasePtr& client, const TString& tablePath);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TZeroWaitLockPollIntervalGuard

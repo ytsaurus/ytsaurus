@@ -63,6 +63,16 @@ TString GenerateRandomData(size_t size, ui64 seed)
     return result;
 }
 
+TVector<TNode> ReadTable(const IClientBasePtr& client, const TString& tablePath)
+{
+    TVector<TNode> result;
+    auto reader = client->CreateTableReader<TNode>(tablePath);
+    for (; reader->IsValid(); reader->Next()) {
+        result.push_back(reader->GetRow());
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TZeroWaitLockPollIntervalGuard::TZeroWaitLockPollIntervalGuard()

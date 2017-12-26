@@ -70,8 +70,10 @@ public:
     IOperationPtr RawMap(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) override;
 
     IOperationPtr DoReduce(const TReduceOperationSpec&, IJob*, const TOperationOptions&) override;
+    IOperationPtr RawReduce(const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) override;
 
     IOperationPtr DoJoinReduce(const TJoinReduceOperationSpec&, IJob*, const TOperationOptions&) override;
+    IOperationPtr RawJoinReduce(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) override;
 
     IOperationPtr DoMapReduce(const TMapReduceOperationSpec&, IJob*, IJob*, IJob*, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&) override;
 
