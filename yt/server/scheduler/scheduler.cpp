@@ -1361,11 +1361,16 @@ private:
         LOG_INFO("Preparing new incarnation of scheduler (SchedulerIncarnation: %v)",
             SchedulerIncarnation_);
 
-        auto registerFuture = BIND(&TImpl::RegisterRevivingOperations, MakeStrong(this), result.OperationReports)
-            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
-            .Run();
-        WaitFor(registerFuture)
-            .ThrowOnError();
+        {
+            auto registerFuture = BIND(&TImpl::RegisterRevivingOperations, MakeStrong(this), result.OperationReports)
+                .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+                .Run();
+            auto error = WaitFor(registerFuture);
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to register reviving operations")
+                    << error;
+            }
+        }
 
         {
             std::vector<TFuture<void>> nodeShardFutures;
@@ -1374,8 +1379,11 @@ private:
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
-            WaitFor(Combine(nodeShardFutures))
-                .ThrowOnError();
+            auto error = WaitFor(Combine(nodeShardFutures));
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Node shards failed to connect")
+                    << error;
+            }
         }
 
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -1392,11 +1400,16 @@ private:
 
         Strategy_->StartPeriodicActivity();
 
-        auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
-            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
-            .Run();
-        WaitFor(processFuture)
-            .ThrowOnError();
+        {
+            auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
+                .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+                .Run();
+            auto error = WaitFor(processFuture);
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to process operation reports")
+                    << error;
+            }
+        }
 
         ValidateConfig();
 
@@ -2526,15 +2539,20 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Prepare reviving process on node shards.
-        std::vector<TFuture<void>> prepareFutures;
-        for (auto& shard : NodeShards_) {
-            auto prepareFuture = BIND(&TNodeShard::PrepareReviving, shard)
-                .AsyncVia(shard->GetInvoker())
-                .Run();
-            prepareFutures.emplace_back(std::move(prepareFuture));
+        {
+            std::vector<TFuture<void>> prepareFutures;
+            for (auto& shard : NodeShards_) {
+                auto prepareFuture = BIND(&TNodeShard::PrepareReviving, shard)
+                    .AsyncVia(shard->GetInvoker())
+                    .Run();
+                prepareFutures.emplace_back(std::move(prepareFuture));
+            }
+            auto error = WaitFor(Combine(prepareFutures));
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to prepare node shard for revive")
+                    << error;
+            }
         }
-        WaitFor(Combine(prepareFutures))
-            .ThrowOnError();
 
         std::vector<TFuture<void>> reviveFutures;
         for (const auto& operationReport : operationReports) {
@@ -2557,19 +2575,30 @@ private:
 
             reviveFutures.emplace_back(ReviveOperation(operation, operationReport.ControllerTransactions));
         }
-        WaitFor(CombineAll(reviveFutures))
-            .ThrowOnError();
+
+        {
+            auto error = WaitFor(CombineAll(reviveFutures));
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to revive operations")
+                    << error;
+            }
+        }
 
         // Start reviving process on node shards.
-        std::vector<TFuture<void>> startFutures;
-        for (auto& shard : NodeShards_) {
-            auto startFuture = BIND(&TNodeShard::StartReviving, shard)
-                .AsyncVia(shard->GetInvoker())
-                .Run();
-            startFutures.emplace_back(std::move(startFuture));
+        {
+            std::vector<TFuture<void>> startFutures;
+            for (auto& shard : NodeShards_) {
+                auto startFuture = BIND(&TNodeShard::StartReviving, shard)
+                    .AsyncVia(shard->GetInvoker())
+                    .Run();
+                startFutures.emplace_back(std::move(startFuture));
+            }
+            auto error = WaitFor(Combine(startFutures));
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to start reviving on node shards")
+                    << error;
+            }
         }
-        WaitFor(Combine(startFutures))
-            .ThrowOnError();
     }
 
     void RegisterRevivingOperations(const std::vector<TOperationReport>& operationReports)
