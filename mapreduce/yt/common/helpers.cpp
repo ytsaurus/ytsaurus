@@ -2,9 +2,6 @@
 
 #include "config.h"
 
-#include <mapreduce/yt/interface/serialize.h>
-#include <mapreduce/yt/interface/fluent.h>
-
 #include <mapreduce/yt/node/node_builder.h>
 #include <mapreduce/yt/node/node_visitor.h>
 
@@ -14,6 +11,9 @@
 
 #include <library/json/json_reader.h>
 #include <library/json/json_value.h>
+
+#include "serialize.h"
+#include "fluent.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -121,6 +121,11 @@ TString GetWriteFileCommand()
 TString GetReadFileCommand()
 {
     return TConfig::Get()->ApiVersion == "v2" ? "download" : "read_file";
+}
+
+bool IsTrivial(const TReadLimit& readLimit)
+{
+    return !readLimit.Key_ && !readLimit.RowIndex_ && !readLimit.Offset_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

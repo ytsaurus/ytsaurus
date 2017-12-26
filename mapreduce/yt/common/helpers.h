@@ -30,6 +30,8 @@ TString GetReadTableCommand();
 TString GetWriteFileCommand();
 TString GetReadFileCommand();
 
+bool IsTrivial(const TReadLimit& readLimit);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

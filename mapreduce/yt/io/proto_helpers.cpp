@@ -1,8 +1,8 @@
 #include "proto_helpers.h"
 
 #include <mapreduce/yt/interface/io.h>
-#include <mapreduce/yt/interface/fluent.h>
 #include <mapreduce/yt/interface/protos/extension.pb.h>
+#include <mapreduce/yt/common/fluent.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
