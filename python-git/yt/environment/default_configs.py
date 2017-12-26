@@ -138,7 +138,7 @@ b"""
 
     scheduler = {
         snapshot_period = 100000000;
-        lock_transaction_timeout = 5000;
+        lock_transaction_timeout = 10000;
         transactions_refresh_period = 500;
         operations_update_period = 500;
         fair_share_update_period = 500;
