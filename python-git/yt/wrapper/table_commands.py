@@ -72,7 +72,7 @@ def _create_table(path, recursive=None, ignore_existing=False, attributes=None, 
     create("table", table, recursive=recursive, ignore_existing=ignore_existing,
            attributes=attributes, client=client)
 
-@deprecated()
+@deprecated(alternative='"create" with "table" type')
 def create_table(path, recursive=None, ignore_existing=False,
                  attributes=None, client=None):
     """Creates empty table. Shortcut for `create("table", ...)`.

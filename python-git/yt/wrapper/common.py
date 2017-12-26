@@ -36,26 +36,32 @@ class YtDeprecationWarning(DeprecationWarning):
 
 warnings.simplefilter("default", category=YtDeprecationWarning)
 
-DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release"
+DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release, " \
+                              "use {1} instead"
 
 def compose(*args):
     def compose_two(f, g):
         return lambda x: f(g(x))
     return reduce(compose_two, args)
 
-def declare_deprecated(functional_name, condition=None, message=None):
+def declare_deprecated(functional_name, alternative_name, condition=None, message=None):
     if condition or condition is None:
-        message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name))
+        message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name, alternative_name))
         warnings.warn(message, YtDeprecationWarning)
 
-def deprecated(message=None):
+def deprecated_with_message(message):
     def function_decorator(func):
-        warn_message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(func.__name__))
         @wraps(func)
         def deprecated_function(*args, **kwargs):
-            warnings.warn(warn_message, YtDeprecationWarning)
+            warnings.warn(message, YtDeprecationWarning)
             return func(*args, **kwargs)
         return deprecated_function
+    return function_decorator
+
+def deprecated(alternative):
+    def function_decorator(func):
+        warn_message = DEFAULT_DEPRECATION_MESSAGE.format(func.__name__, alternative)
+        return deprecated_with_message(warn_message)(func)
     return function_decorator
 
 def parse_bool(word):
