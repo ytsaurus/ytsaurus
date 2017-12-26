@@ -460,7 +460,7 @@ TServiceBase::TServiceBase(
     const TRealmId& realmId)
     : Logger(logger)
     , DefaultInvoker_(std::move(defaultInvoker))
-    , ServiceId_(descriptor.ServiceName, realmId)
+    , ServiceId_(descriptor.GetFullServiceName(), realmId)
     , ProtocolVersion_(descriptor.ProtocolVersion)
 {
     YCHECK(DefaultInvoker_);
