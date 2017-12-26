@@ -13,7 +13,8 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-class TJsonKvSwapper : public IRawJob
+class TJsonKvSwapper
+    : public IRawJob
 {
 public:
     virtual void Do(const TRawJobContext& context) override
@@ -42,6 +43,50 @@ public:
 };
 REGISTER_RAW_JOB(TJsonKvSwapper);
 
+class TJsonValueJoin
+    : public IRawJob
+{
+public:
+    virtual void Do(const TRawJobContext& context) override
+    {
+        TUnbufferedFileInput inf(context.GetInputFile());
+        TUnbufferedFileOutput outf(context.GetOutputFileList()[0]);
+
+        bool exhausted = false;
+        while (!exhausted) {
+            TString key;
+            TString value;
+            while (true) {
+                TString line;
+                inf.ReadLine(line);
+                line = Strip(line);
+                if (line.empty()) {
+                    exhausted = true;
+                    break;
+                }
+                NJson::TJsonValue val;
+                Y_VERIFY(NJson::ReadJsonTree(line, &val));
+                if (val.Has("$attributes")) {
+                    if (val.GetMap().at("$attributes").Has("key_switch")) {
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
+
+                key = val.GetMap().at("key").GetString();
+                value += val.GetMap().at("value").GetString() + ";";
+            }
+            if (!key.empty()) {
+                NJson::TJsonValue result;
+                result.InsertValue("key", key);
+                result.InsertValue("value", value);
+                NJson::WriteJson(&outf, &result);
+            }
+        }
+    }
+};
+REGISTER_RAW_JOB(TJsonValueJoin);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,19 +111,45 @@ SIMPLE_UNIT_TEST_SUITE(RawOperations)
             .Format(TFormat(EFormatType::Custom, TNode("json"))),
             new TJsonKvSwapper);
 
-        TVector<TNode> actual;
-        {
-            // TODO: factorize this code
-            auto reader = client->CreateTableReader<TNode>("//testing/output");
-            for (; reader->IsValid(); reader->Next()) {
-                actual.emplace_back(reader->GetRow());
-            }
-        }
+        TVector<TNode> actual = ReadTable(client, "//testing/output");
 
         const TVector<TNode> expected = {
             TNode()("1", "one")("2", "two"),
             TNode()("5", "five")("8", "eight"),
             TNode()("42", "forty two"),
+        };
+        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    }
+
+    SIMPLE_UNIT_TEST(RawReducer)
+    {
+        auto client = CreateTestClient();
+
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/input").SortedBy({"key"}));
+        {
+            writer->AddRow(TNode()("key", "1")("value", "one"));
+            writer->AddRow(TNode()("key", "1")("value", "two"));
+            writer->AddRow(TNode()("key", "2")("value", "three"));
+            writer->AddRow(TNode()("key", "3")("value", "four"));
+            writer->AddRow(TNode()("key", "3")("value", "five"));
+            writer->AddRow(TNode()("key", "3")("value", "six"));
+            writer->Finish();
+        }
+
+        client->RawReduce(
+            TRawReduceOperationSpec()
+            .ReduceBy({"key"})
+            .AddInput("//testing/input")
+            .AddOutput("//testing/output")
+            .Format(TFormat(EFormatType::Custom, TNode("json"))),
+            new TJsonValueJoin);
+
+        TVector<TNode> actual = ReadTable(client, "//testing/output");
+
+        const TVector<TNode> expected = {
+            TNode()("key", "1")("value", "one;two;"),
+            TNode()("key", "2")("value", "three;"),
+            TNode()("key", "3")("value", "four;five;six;"),
         };
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }

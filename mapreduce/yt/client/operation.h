@@ -64,11 +64,25 @@ TOperationId ExecuteReduce(
     IJob* reducer,
     const TOperationOptions& options);
 
+TOperationId ExecuteRawReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRawReduceOperationSpec& spec,
+    IRawJob* reducer,
+    const TOperationOptions& options);
+
 TOperationId ExecuteJoinReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TJoinReduceOperationSpec& spec,
     IJob* reducer,
+    const TOperationOptions& options);
+
+TOperationId ExecuteRawJoinReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRawJoinReduceOperationSpec& spec,
+    IRawJob* reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteMapReduce(

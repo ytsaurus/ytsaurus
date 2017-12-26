@@ -283,6 +283,20 @@ IOperationPtr TClientBase::DoReduce(
     return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
+IOperationPtr TClientBase::RawReduce(
+    const TRawReduceOperationSpec& spec,
+    ::TIntrusivePtr<IRawJob> reducer,
+    const TOperationOptions& options)
+{
+    auto operationId = ExecuteRawReduce(
+        Auth_,
+        TransactionId_,
+        spec,
+        reducer.Get(),
+        options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+}
+
 IOperationPtr TClientBase::DoJoinReduce(
     const TJoinReduceOperationSpec& spec,
     IJob* reducer,
@@ -293,6 +307,20 @@ IOperationPtr TClientBase::DoJoinReduce(
         TransactionId_,
         spec,
         reducer,
+        options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+}
+
+IOperationPtr TClientBase::RawJoinReduce(
+    const TRawJoinReduceOperationSpec& spec,
+    ::TIntrusivePtr<IRawJob> reducer,
+    const TOperationOptions& options)
+{
+    auto operationId = ExecuteRawJoinReduce(
+        Auth_,
+        TransactionId_,
+        spec,
+        reducer.Get(),
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }

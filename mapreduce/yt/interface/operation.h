@@ -314,6 +314,11 @@ struct TReduceOperationSpec
     , public TOperationIOSpec<TReduceOperationSpec>
 { };
 
+struct TRawReduceOperationSpec
+    : public TReduceOperationSpecBase<TRawReduceOperationSpec>
+    , public TSimpleRawOperationIoSpec<TRawReduceOperationSpec>
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TDerived>
@@ -330,11 +335,14 @@ struct TJoinReduceOperationSpecBase
     FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct TJoinReduceOperationSpec
     : public TJoinReduceOperationSpecBase<TJoinReduceOperationSpec>
     , public TOperationIOSpec<TJoinReduceOperationSpec>
+{ };
+
+struct TRawJoinReduceOperationSpec
+    : public TJoinReduceOperationSpecBase<TRawJoinReduceOperationSpec>
+    , public TSimpleRawOperationIoSpec<TRawJoinReduceOperationSpec>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -751,10 +759,20 @@ struct IOperationClient
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
 
+    virtual IOperationPtr RawReduce(
+        const TRawReduceOperationSpec& spec,
+        ::TIntrusivePtr<IRawJob> rawJob,
+        const TOperationOptions& options = TOperationOptions()) = 0;
+
     IOperationPtr JoinReduce(
         const TJoinReduceOperationSpec& spec,
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
+
+    virtual IOperationPtr RawJoinReduce(
+        const TRawJoinReduceOperationSpec& spec,
+        ::TIntrusivePtr<IRawJob> rawJob,
+        const TOperationOptions& options = TOperationOptions()) = 0;
 
     //
     // mapper might be nullptr in that case it's assumed to be identity mapper

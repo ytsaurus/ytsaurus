@@ -1137,12 +1137,13 @@ TOperationId ExecuteRawMap(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
 TOperationId DoExecuteReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TSimpleOperationIo& operationIo,
     const TVector<TSmallJobFile>& smallFileList,
-    const TReduceOperationSpecBase<TReduceOperationSpec>& spec,
+    const TReduceOperationSpecBase<T>& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
@@ -1224,14 +1225,32 @@ TOperationId ExecuteReduce(
         options);
 }
 
+TOperationId ExecuteRawReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRawReduceOperationSpec& spec,
+    IRawJob* mapper,
+    const TOperationOptions& options)
+{
+    return DoExecuteReduce(
+        auth,
+        transactionId,
+        CreateSimpleOperationIo(auth, spec),
+        TVector<TSmallJobFile>{},
+        spec,
+        mapper,
+        options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
 TOperationId DoExecuteJoinReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TSimpleOperationIo& operationIo,
     const TVector<TSmallJobFile>& smallFileList,
-    const TJoinReduceOperationSpecBase<TJoinReduceOperationSpec>& spec,
+    const TJoinReduceOperationSpecBase<T>& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
@@ -1306,6 +1325,23 @@ TOperationId ExecuteJoinReduce(
         CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc()),
         spec,
         reducer,
+        options);
+}
+
+TOperationId ExecuteRawJoinReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRawJoinReduceOperationSpec& spec,
+    IRawJob* mapper,
+    const TOperationOptions& options)
+{
+    return DoExecuteJoinReduce(
+        auth,
+        transactionId,
+        CreateSimpleOperationIo(auth, spec),
+        TVector<TSmallJobFile>{},
+        spec,
+        mapper,
         options);
 }
 
