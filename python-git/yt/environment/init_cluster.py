@@ -220,7 +220,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                              for name in ["key", "subkey"]] + [{"name": "value", "type": "any"}]
         client.create("table", "//sys/empty_yamr_table", attributes={"schema": yamr_table_schema})
 
-    add_acl("//tmp", {"action": "allow", "subjects": ["users"], "permissions": ["write", "remove", "read"]}, client)
+    add_acl("//tmp", {"action": "allow", "subjects": [everyone_group], "permissions": ["write", "remove", "read"]}, client)
 
     client.create("map_node",
                   "//tmp/yt_wrapper/file_storage",
