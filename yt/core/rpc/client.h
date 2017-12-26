@@ -75,13 +75,7 @@ public:
         const NTracing::TTraceContext& traceContext,
         const TString& service,
         const TString& method,
-        bool heavy)
-        : RequestId_(requestId)
-        , TraceContext_(traceContext)
-        , Service_(service)
-        , Method_(method)
-        , Heavy_(heavy)
-    { }
+        bool heavy);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientContext)
@@ -331,17 +325,15 @@ private:
 struct TServiceDescriptor
 {
     TString ServiceName;
+    TString Namespace;
     int ProtocolVersion = DefaultProtocolVersion;
 
-    explicit TServiceDescriptor(const TString& serviceName)
-        : ServiceName(serviceName)
-    { }
+    explicit TServiceDescriptor(const TString& serviceName);
 
-    TServiceDescriptor& SetProtocolVersion(int value)
-    {
-        ProtocolVersion = value;
-        return *this;
-    }
+    TServiceDescriptor& SetProtocolVersion(int value);
+    TServiceDescriptor& SetNamespace(const TString& value);
+
+    TString GetFullServiceName() const;
 };
 
 #define DEFINE_RPC_PROXY(type, name, ...) \
@@ -362,15 +354,9 @@ struct TMethodDescriptor
     TString MethodName;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
 
-    explicit TMethodDescriptor(const TString& methodName)
-        : MethodName(methodName)
-    { }
+    explicit TMethodDescriptor(const TString& methodName);
 
-    TMethodDescriptor& SetMultiplexingBand(EMultiplexingBand value)
-    {
-        MultiplexingBand = value;
-        return *this;
-    }
+    TMethodDescriptor& SetMultiplexingBand(EMultiplexingBand value);
 };
 
 #define DEFINE_RPC_PROXY_METHOD(ns, method, ...) \
@@ -394,7 +380,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
-    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck, true);
 
 protected:
     const IChannelPtr Channel_;
