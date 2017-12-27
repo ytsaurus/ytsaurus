@@ -11,6 +11,7 @@
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/varint.h>
 #include <yt/core/misc/variant.h>
+#include <yt/core/misc/cast.h>
 
 #include <yt/core/ytree/proto/attributes.pb.h>
 
@@ -930,36 +931,19 @@ private:
     }
 
     template <class TTo, class TFrom>
-    static bool IsOutOfRange(TFrom value)
-    {
-        if (std::numeric_limits<TFrom>::min() != 0) {
-            auto min = std::numeric_limits<TTo>::min();
-            if (static_cast<i64>(value) < static_cast<i64>(min)) {
-                return true;
-            }
-        }
-
-        auto max = std::numeric_limits<TTo>::max();
-        if (static_cast<ui64>(value) > static_cast<ui64>(max)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    template <class TTo, class TFrom>
-    TTo CheckedCast(TFrom value, const TStringBuf& to)
+    TTo CheckedCast(TFrom value, const TStringBuf& toTypeName)
     {
         const auto* field = FieldStack_.back().Field;
-        if (IsOutOfRange<TTo, TFrom>(value)) {
+        TTo result;
+        if (!TryIntegralCast<TTo>(value, &result)) {
             THROW_ERROR_EXCEPTION("Value %v of field %v cannot fit into %Qv",
                 value,
                 YPathStack_.GetPath(),
-                to)
+                toTypeName)
                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                 << TErrorAttribute("protobuf_field", field->GetFullName());
         }
-        return static_cast<TTo>(value);
+        return result;
     }
 };
 

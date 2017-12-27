@@ -30,6 +30,7 @@
 
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/cast.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -114,7 +115,7 @@ void FromProto(
     const NProto::TMasterReadOptions& proto)
 {
     if (proto.has_read_from()) {
-        options->ReadFrom = static_cast<EMasterChannelKind>(proto.read_from());
+        options->ReadFrom = CheckedEnumCast<EMasterChannelKind>(proto.read_from());
     }
     if (proto.has_success_expiration_time()) {
         FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.success_expiration_time());
@@ -423,8 +424,8 @@ private:
         options.Sticky = request->sticky();
         options.Ping = request->ping();
         options.PingAncestors = request->ping_ancestors();
-        options.Atomicity = static_cast<NTransactionClient::EAtomicity>(request->atomicity());
-        options.Durability = static_cast<NTransactionClient::EDurability>(request->durability());
+        options.Atomicity = CheckedEnumCast<NTransactionClient::EAtomicity>(request->atomicity());
+        options.Durability = CheckedEnumCast<NTransactionClient::EDurability>(request->durability());
         if (request->has_attributes()) {
             options.Attributes = NYTree::FromProto(request->attributes());
         }
@@ -689,7 +690,7 @@ private:
         }
 
         const auto& path = request->path();
-        auto type = static_cast<NObjectClient::EObjectType>(request->type());
+        auto type = CheckedEnumCast<NObjectClient::EObjectType>(request->type());
 
         TCreateNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -813,7 +814,7 @@ private:
         }
 
         const auto& path = request->path();
-        auto mode = static_cast<NCypressClient::ELockMode>(request->mode());
+        auto mode = CheckedEnumCast<NCypressClient::ELockMode>(request->mode());
 
         TLockNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1308,7 +1309,7 @@ private:
             options.Enabled = request->enabled();
         }
         if (request->has_mode()) {
-            options.Mode = static_cast<ETableReplicaMode>(request->mode());
+            options.Mode = CheckedEnumCast<ETableReplicaMode>(request->mode());
         }
 
         context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v",
@@ -1614,7 +1615,7 @@ private:
         modifications.reserve(rowsetSize);
         for (size_t index = 0; index < rowsetSize; ++index) {
             modifications.push_back({
-                static_cast<ERowModificationType>(request->row_modification_types(index)),
+                CheckedEnumCast<ERowModificationType>(request->row_modification_types(index)),
                 rowsetRows[index].ToTypeErasedRow()
             });
         }
