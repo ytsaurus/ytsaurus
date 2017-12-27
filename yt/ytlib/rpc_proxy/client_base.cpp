@@ -78,6 +78,9 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     req->set_ping_ancestors(options.PingAncestors);
     req->set_atomicity(static_cast<NProto::EAtomicity>(options.Atomicity));
     req->set_durability(static_cast<NProto::EDurability>(options.Durability));
+    if (options.Attributes) {
+        ToProto(req->mutable_attributes(), *options.Attributes);
+    }
 
     return req->Invoke().Apply(BIND(
         [
