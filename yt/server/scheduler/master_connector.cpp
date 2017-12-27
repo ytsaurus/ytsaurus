@@ -679,7 +679,14 @@ private:
                 }
             }
 
-            YCHECK(operationIdToState.empty() &&
+            size_t runningOperationsWithUndefinedStorageSchema = 0;
+            for (const auto& pair : operationIdToState) {
+                if (IsOperationInProgress(pair.second)) {
+                    ++runningOperationsWithUndefinedStorageSchema;
+                }
+            }
+
+            YCHECK(runningOperationsWithUndefinedStorageSchema == 0 &&
                    "Operations node contains operations with undefined storage schema");
 
             for (const auto& operationInfo : operations) {
