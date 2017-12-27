@@ -114,17 +114,7 @@ void FromProto(
     const NProto::TMasterReadOptions& proto)
 {
     if (proto.has_read_from()) {
-        switch (proto.read_from()) {
-            case NProto::TMasterReadOptions_EMasterReadKind_LEADER:
-                options->ReadFrom = EMasterChannelKind::Leader;
-                break;
-            case NProto::TMasterReadOptions_EMasterReadKind_FOLLOWER:
-                options->ReadFrom = EMasterChannelKind::Follower;
-                break;
-            case NProto::TMasterReadOptions_EMasterReadKind_CACHE:
-                options->ReadFrom = EMasterChannelKind::Cache;
-                break;
-        }
+        options->ReadFrom = static_cast<EMasterChannelKind>(proto.read_from());
     }
     if (proto.has_success_expiration_time()) {
         FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.success_expiration_time());
@@ -1318,14 +1308,7 @@ private:
             options.Enabled = request->enabled();
         }
         if (request->has_mode()) {
-            switch (request->mode()) {
-                case NProto::TReqAlterTableReplica_ETableReplicaMode_SYNC:
-                    options.Mode = ETableReplicaMode::Sync;
-                    break;
-                case NProto::TReqAlterTableReplica_ETableReplicaMode_ASYNC:
-                    options.Mode = ETableReplicaMode::Async;
-                    break;
-            }
+            options.Mode = static_cast<ETableReplicaMode>(request->mode());
         }
 
         context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v",
@@ -1351,7 +1334,7 @@ private:
         TSharedRange<TUnversionedRow>* keys,
         TOptions* options)
     {
-        ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NProto::ERowsetKind::UNVERSIONED);
+        ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NProto::RK_UNVERSIONED);
         if (request->Attachments().empty()) {
             context->Reply(TError("Request is missing rowset in attachments"));
             return false;
