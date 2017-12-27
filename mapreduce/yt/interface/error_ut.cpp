@@ -5,8 +5,6 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/common/helpers.h>
 
-// TODO: move to mapreduce/interface
-
 using namespace NYT;
 
 template<>
