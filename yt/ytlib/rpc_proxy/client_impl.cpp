@@ -257,14 +257,7 @@ TFuture<void> TClient::AlterTableReplica(
         req->set_enabled(*options.Enabled);
     }
     if (options.Mode) {
-        switch (*options.Mode) {
-            case ETableReplicaMode::Sync:
-                req->set_mode(NProto::TReqAlterTableReplica_ETableReplicaMode_SYNC);
-                break;
-            case ETableReplicaMode::Async:
-                req->set_mode(NProto::TReqAlterTableReplica_ETableReplicaMode_ASYNC);
-                break;
-        }
+        req->set_mode(static_cast<NProto::ETableReplicaMode>(*options.Mode));
     }
 
     return req->Invoke().As<void>();

@@ -65,17 +65,7 @@ void ToProto(
     NProto::TMasterReadOptions* proto,
     const TMasterReadOptions& options)
 {
-    switch (options.ReadFrom) {
-        case EMasterChannelKind::Leader:
-            proto->set_read_from(NProto::TMasterReadOptions_EMasterReadKind_LEADER);
-            break;
-        case EMasterChannelKind::Follower:
-            proto->set_read_from(NProto::TMasterReadOptions_EMasterReadKind_FOLLOWER);
-            break;
-        case EMasterChannelKind::Cache:
-            proto->set_read_from(NProto::TMasterReadOptions_EMasterReadKind_CACHE);
-            break;
-    }
+    proto->set_read_from(static_cast<NProto::EMasterReadKind>(options.ReadFrom));
     proto->set_success_expiration_time(NYT::ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
     proto->set_failure_expiration_time(NYT::ToProto<i64>(options.ExpireAfterFailedUpdateTime));
     proto->set_cache_sticky_group_size(options.CacheStickyGroupSize);
@@ -119,13 +109,13 @@ struct TRowsetTraits;
 template <>
 struct TRowsetTraits<TUnversionedRow>
 {
-    static constexpr NProto::ERowsetKind Kind = NProto::ERowsetKind::UNVERSIONED;
+    static constexpr NProto::ERowsetKind Kind = NProto::RK_UNVERSIONED;
 };
 
 template <>
 struct TRowsetTraits<TVersionedRow>
 {
-    static constexpr NProto::ERowsetKind Kind = NProto::ERowsetKind::VERSIONED;
+    static constexpr NProto::ERowsetKind Kind = NProto::RK_VERSIONED;
 };
 
 struct TRpcProxyRowsetBufferTag
@@ -156,7 +146,7 @@ std::vector<TSharedRef> SerializeRowset(
     NProto::TRowsetDescriptor* descriptor)
 {
     descriptor->set_wire_format_version(1);
-    descriptor->set_rowset_kind(NProto::ERowsetKind::UNVERSIONED);
+    descriptor->set_rowset_kind(NProto::RK_UNVERSIONED);
     for (size_t id = 0; id < nameTable->GetSize(); ++id) {
         auto* columnDescriptor = descriptor->add_columns();
         columnDescriptor->set_name(TString(nameTable->GetName(id)));

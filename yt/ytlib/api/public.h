@@ -11,10 +11,11 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Keep in sync with NRpcProxy::NProto::EMasterReadKind.
 DEFINE_ENUM(EMasterChannelKind,
-    (Leader)
-    (Follower)
-    (Cache)
+    ((Leader)     (0))
+    ((Follower)   (1))
+    ((Cache)      (2))
 );
 
 DEFINE_ENUM(EUserWorkloadCategory,
