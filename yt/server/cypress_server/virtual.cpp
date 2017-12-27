@@ -8,6 +8,8 @@
 
 #include <yt/server/hydra/hydra_manager.h>
 
+#include <yt/server/security_server/user.h>
+
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
@@ -381,7 +383,7 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
     }));
 }
 
-TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPtr session)
+TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSessionPtr& session)
 {
     auto keys = GetKeys(session->Limit);
     session->Incomplete |= (keys.size() == session->Limit);
@@ -419,7 +421,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
         }).AsyncVia(session->Invoker));
 }
 
-TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionPtr session, TCellTag cellTag)
+TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSessionPtr& session, TCellTag cellTag)
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
@@ -427,8 +429,12 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionP
         return VoidFuture;
     }
 
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto* user = securityManager->GetAuthenticatedUser();
+
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetUser(user->GetName());
     batchReq->SetSuppressUpstreamSync(true);
 
     auto path = GetWellKnownPath();
