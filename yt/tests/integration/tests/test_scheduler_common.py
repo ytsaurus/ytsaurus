@@ -1888,6 +1888,7 @@ class TestSchedulerConfig(YTEnvSetup):
 
     def test_unrecognized_spec(self):
         create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
         assert get("//sys/operations/{0}/@unrecognized_spec".format(op.id)) == {"xxx": "yyy"}
@@ -1895,6 +1896,7 @@ class TestSchedulerConfig(YTEnvSetup):
 
     def test_brief_progress(self):
         create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
 
