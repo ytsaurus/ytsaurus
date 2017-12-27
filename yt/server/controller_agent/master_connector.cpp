@@ -820,14 +820,26 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto batchReq = StartObjectBatchRequest();
-        auto req = TYPathProxy::Remove(NScheduler::GetSnapshotPath(operationId));
-        req->set_force(true);
-        batchReq->AddRequest(req, "remove_snapshot");
+        auto doRemove = [&] () {
+            auto batchReq = StartObjectBatchRequest();
+            auto req = TYPathProxy::Remove(NScheduler::GetSnapshotPath(operationId));
+            req->set_force(true);
+            batchReq->AddRequest(req, "remove_snapshot");
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            return GetCumulativeError(batchRspOrError);
+        };
+
+        auto error = doRemove();
+        if (!error.IsOK() && error.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+            LOG_WARNING(error, "Failed to remove snapshot with transaction lock conflict, another attempt in %v seconds",
+                Config_->SnapshotTimeout.Seconds());
+            Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->SnapshotTimeout)));
+            error = doRemove();
+        }
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
