@@ -28,8 +28,12 @@ using namespace NYTree;
 // To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
 static constexpr int CpuShareMultiplier = 10;
 
+#ifdef _linux_
+
 // Used as porto io_weight parameter.
-static double RestrictedIOWeight = 0.05;
+static constexpr double RestrictedIOWeight = 0.05;
+
+#endif
 
 static const NLogging::TLogger Logger("ResourceController");
 
