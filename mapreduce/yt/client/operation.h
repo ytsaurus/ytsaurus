@@ -98,6 +98,15 @@ TOperationId ExecuteMapReduce(
     const TMultiFormatDesc& inputReducerDesc,
     const TOperationOptions& options);
 
+TOperationId ExecuteRawMapReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRawMapReduceOperationSpec& spec,
+    IRawJob* mapper,
+    IRawJob* reduceCombiner,
+    IRawJob* reducer,
+    const TOperationOptions& options);
+
 TOperationId ExecuteSort(
     const TAuth& auth,
     const TTransactionId& transactionId,

@@ -1344,11 +1344,12 @@ TOperationId ExecuteRawJoinReduce(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
 TOperationId DoExecuteMapReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TMapReduceOperationIo& operationIo,
-    const TMapReduceOperationSpecBase<TMapReduceOperationSpec>& spec,
+    const TMapReduceOperationSpecBase<T>& spec,
     IJob* mapper,
     const TVector<TSmallJobFile>& mapperJobFiles,
     IJob* reduceCombiner,
@@ -1592,6 +1593,57 @@ TOperationId ExecuteMapReduce(
         reduceCombinerFiles,
         reducer,
         reducerFiles,
+        options);
+}
+
+TOperationId ExecuteRawMapReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRawMapReduceOperationSpec& spec,
+    IRawJob* mapper,
+    IRawJob* reduceCombiner,
+    IRawJob* reducer,
+    const TOperationOptions& options)
+{
+    TMapReduceOperationIo operationIo;
+    operationIo.Inputs = CanonizePaths(auth, spec.GetInputs());
+    operationIo.MapOutputs = CanonizePaths(auth, spec.GetMapOutputs());
+    operationIo.Outputs = CanonizePaths(auth, spec.GetOutputs());
+
+    auto getFormatOrDefault = [&] (const TMaybe<TFormat>& maybeFormat, const TMaybe<TFormat> stageDefaultFormat, const char* formatName) {
+        if (maybeFormat) {
+            return *maybeFormat;
+        } else if (stageDefaultFormat) {
+            return *stageDefaultFormat;
+        } else {
+            ythrow TApiUsageError() << "Cannot derive " << formatName;
+        }
+    };
+
+    if (mapper) {
+        operationIo.MapperInputFormat = getFormatOrDefault(spec.MapperInputFormat_, spec.MapperFormat_, "mapper input format");
+        operationIo.MapperOutputFormat = getFormatOrDefault(spec.MapperOutputFormat_, spec.MapperFormat_, "mapper output format");
+    }
+
+    if (reduceCombiner) {
+        operationIo.ReduceCombinerInputFormat = getFormatOrDefault(spec.ReduceCombinerInputFormat_, spec.ReduceCombinerFormat_, "reduce combiner input format");
+        operationIo.ReduceCombinerOutputFormat = getFormatOrDefault(spec.ReduceCombinerOutputFormat_, spec.ReduceCombinerFormat_, "reduce combiner output format");
+    }
+
+    operationIo.ReducerInputFormat = getFormatOrDefault(spec.ReducerInputFormat_, spec.ReducerFormat_, "reducer input format");
+    operationIo.ReducerOutputFormat = getFormatOrDefault(spec.ReducerOutputFormat_, spec.ReducerFormat_, "reducer output format");
+
+    return DoExecuteMapReduce(
+        auth,
+        transactionId,
+        operationIo,
+        spec,
+        mapper,
+        {},
+        reduceCombiner,
+        {},
+        reducer,
+        {},
         options);
 }
 

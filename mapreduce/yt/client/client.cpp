@@ -341,6 +341,24 @@ IOperationPtr TClientBase::DoMapReduce(
     return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
+IOperationPtr TClientBase::RawMapReduce(
+    const TRawMapReduceOperationSpec& spec,
+    ::TIntrusivePtr<IRawJob> mapper,
+    ::TIntrusivePtr<IRawJob> reduceCombiner,
+    ::TIntrusivePtr<IRawJob> reducer,
+    const TOperationOptions& options)
+{
+    auto operationId = ExecuteRawMapReduce(
+        Auth_,
+        TransactionId_,
+        spec,
+        mapper.Get(),
+        reduceCombiner.Get(),
+        reducer.Get(),
+        options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+}
+
 IOperationPtr TClientBase::Sort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)

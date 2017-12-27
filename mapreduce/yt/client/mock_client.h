@@ -76,6 +76,7 @@ public:
     IOperationPtr RawJoinReduce(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) override;
 
     IOperationPtr DoMapReduce(const TMapReduceOperationSpec&, IJob*, IJob*, IJob*, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&) override;
+    IOperationPtr RawMapReduce(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) override;
 
     ITransactionPtr StartTransaction(const TStartTransactionOptions&) override;
 

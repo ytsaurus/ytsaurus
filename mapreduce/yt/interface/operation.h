@@ -58,11 +58,11 @@ struct TSimpleRawOperationIoSpec
 };
 
 template <class TDerived>
-struct TMapReduceFormatDescription
+class TRawMapReduceOperationIoSpec
+    : public TRawOperationIoTableSpec<TDerived>
 {
+public:
     using TSelf = TDerived;
-
-    FLUENT_FIELD_OPTION(TFormat, Format);
 
     // Describes format for both input and output. `Format' is overriden by `InputFormat' and `OutputFormat'.
     FLUENT_FIELD_OPTION(TFormat, MapperFormat);
@@ -76,6 +76,14 @@ struct TMapReduceFormatDescription
     FLUENT_FIELD_OPTION(TFormat, ReducerFormat);
     FLUENT_FIELD_OPTION(TFormat, ReducerInputFormat);
     FLUENT_FIELD_OPTION(TFormat, ReducerOutputFormat);
+
+    TDerived& AddMapOutput(const TRichYPath& path);
+    TDerived& SetMapOutput(size_t tableIndex, const TRichYPath& path);
+
+    const TVector<TRichYPath>& GetMapOutputs() const;
+
+private:
+    TVector<TRichYPath> MapOutputs_;
 };
 
 class TOperationIOSpecBase
@@ -343,7 +351,7 @@ struct TRawJoinReduceOperationSpec
 
 template <typename TDerived>
 struct TMapReduceOperationSpecBase
-    : public TUserOperationSpecBase<TMapReduceOperationSpec>
+    : public TUserOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
@@ -365,6 +373,11 @@ struct TMapReduceOperationSpec
     : public TMapReduceOperationSpecBase<TMapReduceOperationSpec>
     , public TOperationIOSpec<TMapReduceOperationSpec>
     , public TIntermediateTablesHintSpec<TMapReduceOperationSpec>
+{ };
+
+struct TRawMapReduceOperationSpec
+    : public TMapReduceOperationSpecBase<TRawMapReduceOperationSpec>
+    , public TRawMapReduceOperationIoSpec<TRawMapReduceOperationSpec>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -783,6 +796,14 @@ struct IOperationClient
         ::TIntrusivePtr<IReducerBase> reduceCombiner,
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
+
+    // mapper and/or reduceCombiner may be nullptr
+    virtual IOperationPtr RawMapReduce(
+        const TRawMapReduceOperationSpec& spec,
+        ::TIntrusivePtr<IRawJob> mapper,
+        ::TIntrusivePtr<IRawJob> reduceCombiner,
+        ::TIntrusivePtr<IRawJob> reducer,
+        const TOperationOptions& options = TOperationOptions()) = 0;
 
     virtual IOperationPtr Sort(
         const TSortOperationSpec& spec,
