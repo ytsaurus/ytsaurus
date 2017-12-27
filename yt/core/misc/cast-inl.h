@@ -63,10 +63,11 @@ T CheckedIntegralCast(S value)
 template <class T, class S>
 bool TryEnumCast(S value, T* result)
 {
-    if (!TEnumTraits<T>::FindLiteralByValue(result)) {
+    auto candidate = static_cast<T>(value);
+    if (!TEnumTraits<T>::FindLiteralByValue(candidate)) {
         return false;
     }
-    *result = static_cast<T>(value);
+    *result = candidate;
     return true;
 }
 
