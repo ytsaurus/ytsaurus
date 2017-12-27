@@ -435,6 +435,9 @@ private:
         options.PingAncestors = request->ping_ancestors();
         options.Atomicity = static_cast<NTransactionClient::EAtomicity>(request->atomicity());
         options.Durability = static_cast<NTransactionClient::EDurability>(request->durability());
+        if (request->has_attributes()) {
+            options.Attributes = NYTree::FromProto(request->attributes());
+        }
 
         CompleteCallWith(
             context,

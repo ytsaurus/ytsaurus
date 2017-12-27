@@ -63,7 +63,7 @@ enum EDurability
     ASYNC = 1;
 }
 
-// XXX(babenko): this is a very conventional analog of NYT.NYTree.NProto.TAttributeKeys
+// XXX(babenko): this is a very unconventional analog of NYT.NYTree.NProto.TAttributeKeys
 // Only sandello@ knows why we need this.
 message TAttributeKeys
 {
@@ -132,7 +132,7 @@ message TReqStartTransaction
     optional EAtomicity atomicity = 9 [default = FULL];
     optional EDurability durability = 10 [default = SYNC];
 
-    // TODO(sandello): Attributes.
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 11;
 }
 
 message TRspStartTransaction
