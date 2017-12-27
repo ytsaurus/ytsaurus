@@ -15,7 +15,7 @@ using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 
-static const int MaxSchedulingTagRuleCount = 100;
+static constexpr int MaxSchedulingTagRuleCount = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +34,7 @@ class TReqGetOperationInfo;
 class TRspGetOperationInfo;
 class TReqGetJobInfo;
 class TRspGetJobInfo;
+class TOutputResult;
 
 } // namespace NProto
 
