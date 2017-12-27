@@ -2255,7 +2255,7 @@ public:
         fluent
             .DoIf(DefaultFairShareTree_.HasValue(), [&] (TFluentMap fluent) {
                 fluent
-                    // COMPAT(asaitgalin): Remove it when UI will use fair_share_info_per_pool_tree
+                    // COMPAT(asaitgalin): Remove it when UI will use scheduling_info_per_pool_tree
                     .Item("fair_share_info").BeginMap()
                         .Do(BIND(&TFairShareTree::BuildFairShareInfo, GetTree(*DefaultFairShareTree_)))
                     .EndMap()
