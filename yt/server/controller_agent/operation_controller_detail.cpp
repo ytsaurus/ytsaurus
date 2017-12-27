@@ -384,7 +384,10 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
         Snapshot = TOperationSnapshot();
         auto error = WaitFor(MasterConnector->RemoveSnapshot(OperationId));
-        YCHECK(error.IsOK() && "Failed to remove snapshot");
+        if (!error.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to remove snapshot")
+                << error;
+        }
 
         InitializeTransactions();
         InitializeStructures();
