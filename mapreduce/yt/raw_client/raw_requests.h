@@ -62,6 +62,12 @@ void Remove(
     const TYPath& path,
     const TRemoveOptions& options = TRemoveOptions());
 
+TNode::TListType List(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TListOptions& options);
+
 TNodeId Link(
     const TAuth& auth,
     const TTransactionId& transactionId,

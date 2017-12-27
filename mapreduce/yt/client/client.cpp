@@ -105,17 +105,7 @@ TNode::TListType TClientBase::List(
     const TYPath& path,
     const TListOptions& options)
 {
-    THttpHeader header("GET", "list");
-
-    TYPath updatedPath = AddPathPrefix(path);
-    // FIXME: ugly but quick empty path special case
-    // Translate "//" to "/"
-    // Translate "//some/constom/prefix/from/config/" to "//some/constom/prefix/from/config"
-    if (path.empty() && updatedPath.EndsWith('/')) {
-        updatedPath.pop_back();
-    }
-    header.SetParameters(NDetail::SerializeParamsForList(TransactionId_, updatedPath, options));
-    return NodeFromYsonString(RetryRequest(Auth_, header)).AsList();
+    return NDetail::List(Auth_, TransactionId_, path, options);
 }
 
 TNodeId TClientBase::Copy(
