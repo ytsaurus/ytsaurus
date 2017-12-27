@@ -74,6 +74,27 @@ const TVector<TRichYPath>& TRawOperationIoTableSpec<TDerived>::GetOutputs() cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TDerived>
+TDerived& TRawMapReduceOperationIoSpec<TDerived>::AddMapOutput(const TRichYPath& path)
+{
+    MapOutputs_.push_back(path);
+    return static_cast<TDerived&>(*this);
+}
+
+template <typename TDerived>
+TDerived& TRawMapReduceOperationIoSpec<TDerived>::SetMapOutput(size_t tableIndex, const TRichYPath& path)
+{
+    NDetail::Assign(MapOutputs_, tableIndex, path);
+}
+
+template <typename TDerived>
+const TVector<TRichYPath>& TRawMapReduceOperationIoSpec<TDerived>::GetMapOutputs() const
+{
+    return MapOutputs_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 ::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader();
 ::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader();
 ::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader();

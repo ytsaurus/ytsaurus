@@ -362,6 +362,10 @@ IOperationPtr TMockClient::DoMapReduce(const TMapReduceOperationSpec&, IJob*, IJ
     return nullptr;
 }
 
+IOperationPtr TMockClient::RawMapReduce(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) {
+    return nullptr;
+}
+
 ITransactionPtr TMockClient::StartTransaction(const TStartTransactionOptions&) {
     return new TMockTransaction();
 }

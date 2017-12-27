@@ -92,7 +92,7 @@ REGISTER_RAW_JOB(TJsonValueJoin);
 
 SIMPLE_UNIT_TEST_SUITE(RawOperations)
 {
-    SIMPLE_UNIT_TEST(RawMapper)
+    SIMPLE_UNIT_TEST(Map)
     {
         auto client = CreateTestClient();
 
@@ -121,7 +121,7 @@ SIMPLE_UNIT_TEST_SUITE(RawOperations)
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }
 
-    SIMPLE_UNIT_TEST(RawReducer)
+    SIMPLE_UNIT_TEST(Reduce)
     {
         auto client = CreateTestClient();
 
@@ -142,6 +142,42 @@ SIMPLE_UNIT_TEST_SUITE(RawOperations)
             .AddInput("//testing/input")
             .AddOutput("//testing/output")
             .Format(TFormat(EFormatType::Custom, TNode("json"))),
+            new TJsonValueJoin);
+
+        TVector<TNode> actual = ReadTable(client, "//testing/output");
+
+        const TVector<TNode> expected = {
+            TNode()("key", "1")("value", "one;two;"),
+            TNode()("key", "2")("value", "three;"),
+            TNode()("key", "3")("value", "four;five;six;"),
+        };
+        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    }
+
+    SIMPLE_UNIT_TEST(MapReduce)
+    {
+        auto client = CreateTestClient();
+
+        auto writer = client->CreateTableWriter<TNode>("//testing/input");
+        {
+            writer->AddRow(TNode()("1", "key")("one", "value"));
+            writer->AddRow(TNode()("1", "key")("two", "value"));
+            writer->AddRow(TNode()("2", "key")("three", "value"));
+            writer->AddRow(TNode()("3", "key")("four", "value"));
+            writer->AddRow(TNode()("3", "key")("five", "value"));
+            writer->AddRow(TNode()("3", "key")("six", "value"));
+            writer->Finish();
+        }
+
+        client->RawMapReduce(
+            TRawMapReduceOperationSpec()
+            .AddInput("//testing/input")
+            .AddOutput("//testing/output")
+            .SortBy("key")
+            .MapperFormat(TFormat(EFormatType::Custom, TNode("json")))
+            .ReducerFormat(TFormat(EFormatType::Custom, TNode("json"))),
+            new TJsonKvSwapper,
+            nullptr,
             new TJsonValueJoin);
 
         TVector<TNode> actual = ReadTable(client, "//testing/output");

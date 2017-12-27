@@ -148,6 +148,13 @@ public:
         const TMultiFormatDesc& inputReducerDesc,
         const TOperationOptions& options) override;
 
+    IOperationPtr RawMapReduce(
+        const TRawMapReduceOperationSpec& spec,
+        ::TIntrusivePtr<IRawJob> mapper,
+        ::TIntrusivePtr<IRawJob> reduceCombiner,
+        ::TIntrusivePtr<IRawJob> reducer,
+        const TOperationOptions& options = TOperationOptions()) override;
+
     IOperationPtr Sort(
         const TSortOperationSpec& spec,
         const TOperationOptions& options) override;
