@@ -2,6 +2,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/misc/cast.h>
+
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT {

@@ -1,6 +1,6 @@
 #pragma once
 #ifndef CONVERT_INL_H_
-#error "Direct inclusion of this file is not allowed, Tnclude convert.h"
+#error "Direct inclusion of this file is not allowed, include convert.h"
 #endif
 
 #include "default_building_consumer.h"
@@ -15,51 +15,13 @@
 #include <yt/core/yson/stream.h>
 #include <yt/core/yson/producer.h>
 
+#include <yt/core/misc/cast.h>
+
 #include <type_traits>
 #include <limits>
 
 namespace NYT {
 namespace NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-template <class T, class S>
-typename std::enable_if<std::is_signed<T>::value && std::is_signed<S>::value, bool>::type CheckIntegralCast(S value)
-{
-    return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
-}
-
-template <class T, class S>
-static typename std::enable_if<std::is_signed<T>::value && std::is_unsigned<S>::value, bool>::type CheckIntegralCast(S value)
-{
-    return value <= static_cast<typename std::make_unsigned<T>::type>(std::numeric_limits<T>::max());
-}
-
-template <class T, class S>
-static typename std::enable_if<std::is_unsigned<T>::value && std::is_signed<S>::value, bool>::type CheckIntegralCast(S value)
-{
-    return value >= 0 && static_cast<typename std::make_unsigned<S>::type>(value) <= std::numeric_limits<T>::max();
-}
-
-template <class T, class S>
-typename std::enable_if<std::is_unsigned<T>::value && std::is_unsigned<S>::value, bool>::type CheckIntegralCast(S value)
-{
-    return value <= std::numeric_limits<T>::max();
-}
-
-} // namespace
-
-template <class T, class S>
-T CheckedIntegralCast(S value)
-{
-    if (!CheckIntegralCast<T>(value)) {
-        THROW_ERROR_EXCEPTION("Argument value %v is out of expected range",
-            value);
-    }
-    return static_cast<T>(value);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
