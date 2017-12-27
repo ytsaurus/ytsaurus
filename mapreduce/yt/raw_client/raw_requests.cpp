@@ -3,6 +3,7 @@
 #include "raw_batch_request.h"
 #include "rpc_parameters_serialization.h"
 
+#include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/node/node_io.h>
@@ -112,6 +113,24 @@ void Remove(
     header.AddMutationId();
     header.SetParameters(NDetail::SerializeParamsForRemove(transactionId, path, options));
     RetryRequest(auth, header);
+}
+
+TNode::TListType List(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TListOptions& options)
+{
+    THttpHeader header("GET", "list");
+
+    TYPath updatedPath = AddPathPrefix(path);
+    // Translate "//" to "/"
+    // Translate "//some/constom/prefix/from/config/" to "//some/constom/prefix/from/config"
+    if (path.empty() && updatedPath.EndsWith('/')) {
+        updatedPath.pop_back();
+    }
+    header.SetParameters(NDetail::SerializeParamsForList(transactionId, updatedPath, options));
+    return NodeFromYsonString(RetryRequest(auth, header)).AsList();
 }
 
 TNodeId Link(

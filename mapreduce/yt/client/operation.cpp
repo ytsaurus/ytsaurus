@@ -597,13 +597,10 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
     }
 
     // TODO: use raw request
-    THttpHeader header("GET", "list");
-    header.AddPath(jobsPath);
-    header.SetParameters(AttributeFilterToYsonString(
+    auto jobList = List(auth, TTransactionId(), jobsPath, TListOptions().AttributeFilter(
         TAttributeFilter()
             .AddAttribute("state")
             .AddAttribute("error")));
-    auto jobList = NodeFromYsonString(RetryRequest(auth, header)).AsList();
 
     TVector<TFailedJobInfo> result;
     for (const auto& job : jobList) {
