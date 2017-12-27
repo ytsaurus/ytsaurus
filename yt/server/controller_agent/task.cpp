@@ -438,7 +438,7 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
-                this->TaskHost_->ReleaseChunkLists({joblet->ChunkListIds[index]}, true /* unstageNonRecursively */);
+                this->TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, false /* unstageRecursively */);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }
@@ -471,7 +471,10 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
         }
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
-        TaskHost_->ChunkListPool()->Release(chunkListIds);
+        // NB: we should release these chunk lists only when information about this job being abandoned
+        // gets to the snapshot; otherwise it may revive in different scheduler and continue writing
+        // to the released chunk list.
+        TaskHost_->ReleaseChunkTrees(chunkListIds, true /* recursive */, true /* waitForSnapshot */);
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
@@ -482,10 +485,10 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
     UpdateMaximumUsedTmpfsSize(statistics);
 }
 
-void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
+void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot)
 {
     TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
-    TaskHost_->ReleaseChunkLists(joblet->ChunkListIds);
+    TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, true /* recursive */, waitForSnapshot);
 
     auto list = HasInputLocality()
         ? GetChunkPoolOutput()->GetStripeList(joblet->OutputCookie)
@@ -515,13 +518,19 @@ void TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 void TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
     if (joblet->StderrTableChunkListId) {
-        TaskHost_->ReleaseChunkLists({joblet->StderrTableChunkListId});
+        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId});
     }
     if (joblet->CoreTableChunkListId) {
-        TaskHost_->ReleaseChunkLists({joblet->CoreTableChunkListId});
+        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId});
     }
 
-    ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}));
+    // NB: when job is aborted due to revival confirmation timeout we can only release its chunk lists
+    // when the information about abortion gets to the snapshot. Otherwise this job may revive in a
+    // different controller with an invalidated chunk list id.
+    ReinstallJob(
+        joblet,
+        BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}),
+        jobSummary.AbortReason == EAbortReason::RevivalConfirmationTimeout /* waitForSnapshot */);
 }
 
 void TTask::OnJobLost(TCompletedJobPtr completedJob)

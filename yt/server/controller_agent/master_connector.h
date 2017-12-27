@@ -64,7 +64,7 @@ public:
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId);
     TFuture<void> RemoveSnapshot(const TOperationId& operationId);
 
-    void AddChunksToUnstageList(std::vector<NChunkClient::TChunkId> chunkIds);
+    void AddChunkTreesToUnstageList(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds, bool recursive);
 
     void AttachJobContext(
         const NYPath::TYPath& path,

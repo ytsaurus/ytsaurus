@@ -246,7 +246,7 @@ void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& job
     // It may do nothing with these chunks, release them immediately
     // or release after next snapshot built but it should eventually
     // discount them in auto merge director.
-    TaskHost_->ReleaseStripeList(joblet->InputStripeList);
+    TaskHost_->ReleaseIntermediateStripeList(joblet->InputStripeList);
 
     RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 }

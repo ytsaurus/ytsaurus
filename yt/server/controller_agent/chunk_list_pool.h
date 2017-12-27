@@ -29,7 +29,6 @@ public:
     bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);
     NChunkClient::TChunkListId Extract(NObjectClient::TCellTag cellTag);
 
-    void Release(const std::vector<NChunkClient::TChunkListId>& ids);
     void Reinstall(const NChunkClient::TChunkListId& id);
 
 private:
@@ -38,8 +37,6 @@ private:
     const IInvokerPtr ControllerInvoker_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;
-
-    NConcurrency::TPeriodicExecutorPtr ChunkListReleaseExecutor_;
 
     NLogging::TLogger Logger;
 
@@ -52,16 +49,9 @@ private:
 
     yhash<NObjectClient::TCellTag, TCellData> CellMap_;
 
-    yhash<NObjectClient::TCellTag, std::vector<NChunkClient::TChunkListId>> ChunksToRelease_;
-    TInstant LastReleaseTime_;
-
     void AllocateMore(NObjectClient::TCellTag cellTag);
 
     void OnChunkListsCreated(
-        NObjectClient::TCellTag cellTag,
-        const NChunkClient::TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
-
-    void OnChunkListsReleased(
         NObjectClient::TCellTag cellTag,
         const NChunkClient::TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 };

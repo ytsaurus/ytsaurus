@@ -396,7 +396,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
     RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
-        .Default(TDuration::Seconds(3));
+        .Default(TDuration::MilliSeconds(100));
     RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
@@ -473,10 +473,8 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
         .Default(2.0)
         .GreaterThan(1.0);
-    RegisterParameter("chunk_list_release_batch_delay", ChunkListReleaseBatchDelay)
-        .Default(TDuration::Seconds(30));
     RegisterParameter("desired_chunk_lists_per_release", DesiredChunkListsPerRelease)
-        .Default(1000);
+        .Default(10 * 1000);
 
     RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
         .Default(100000)

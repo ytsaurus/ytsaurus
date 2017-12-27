@@ -152,7 +152,7 @@ protected:
     //! True if task supports lost jobs.
     virtual bool CanLoseJobs() const;
 
-    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
+    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot = false);
 
     std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);

@@ -5330,11 +5330,13 @@ int TOperationControllerBase::OnSnapshotStarted()
     RecentSnapshotIndex_ = SnapshotIndex_++;
 
     CompletedJobIdsSnapshotCookie_ = CompletedJobIdsReleaseQueue_.Checkpoint();
-    StripeListSnapshotCookie_ = StripeListReleaseQueue_.Checkpoint();
-    LOG_INFO("Storing snapshot cookies "
-        "(CompletedJobIdsSnapshotCookie: %v, StripeListSnapshotCookie: %v, SnapshotIndex: %v",
+    IntermediateStripeListSnapshotCookie_ = IntermediateStripeListReleaseQueue_.Checkpoint();
+    ChunkTreeSnapshotCookie_ = ChunkTreeReleaseQueue_.Checkpoint();
+    LOG_INFO("Storing snapshot cookies (CompletedJobIdsSnapshotCookie: %v, StripeListSnapshotCookie: %v, "
+        "ChunkTreeSnapshotCookie: %v, SnapshotIndex: %v)",
         CompletedJobIdsSnapshotCookie_,
-        StripeListSnapshotCookie_,
+        IntermediateStripeListSnapshotCookie_,
+        ChunkTreeSnapshotCookie_,
         *RecentSnapshotIndex_);
 
     return *RecentSnapshotIndex_;
@@ -5363,19 +5365,32 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
 
     // Stripe lists.
     {
-        auto headCookie = StripeListReleaseQueue_.GetHeadCookie();
-        auto stripeListsToRelease = StripeListReleaseQueue_.Release(StripeListSnapshotCookie_);
+        auto headCookie = IntermediateStripeListReleaseQueue_.GetHeadCookie();
+        auto stripeListsToRelease = IntermediateStripeListReleaseQueue_.Release(IntermediateStripeListSnapshotCookie_);
         LOG_INFO("Releasing stripe lists (SnapshotCookie: %v, HeadCookie: %v, StripeListCount: %v, SnapshotIndex: %v)",
-            StripeListSnapshotCookie_,
+            IntermediateStripeListSnapshotCookie_,
             headCookie,
             stripeListsToRelease.size(),
             snapshotIndex);
 
         for (const auto& stripeList : stripeListsToRelease) {
             auto chunkIds = GetStripeListChunkIds(stripeList);
-            MasterConnector->AddChunksToUnstageList(std::move(chunkIds));
+            MasterConnector->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
             OnChunksReleased(stripeList->TotalChunkCount);
         }
+    }
+
+    // Chunk trees.
+    {
+        auto headCookie = ChunkTreeReleaseQueue_.GetHeadCookie();
+        auto chunkTreeIdsToRelease = ChunkTreeReleaseQueue_.Release(ChunkTreeSnapshotCookie_);
+        LOG_INFO("Releasing chunk trees (SnapshotCookie: %v, HeadCookie: %v, ChunkTreeCount: %v, SnapshotIndex: %v)",
+            ChunkTreeSnapshotCookie_,
+            headCookie,
+            chunkTreeIdsToRelease.size(),
+            snapshotIndex);
+
+        MasterConnector->AddChunkTreesToUnstageList(std::move(chunkTreeIdsToRelease), true /* recursive */);
     }
 
     RecentSnapshotIndex_.Reset();
@@ -5495,12 +5510,18 @@ TChunkListId TOperationControllerBase::ExtractChunkList(TCellTag cellTag)
     return ChunkListPool_->Extract(cellTag);
 }
 
-void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids, bool unstageNonRecursively)
+void TOperationControllerBase::ReleaseChunkTrees(
+    const std::vector<TChunkListId>& chunkTreeIds,
+    bool unstageRecursively,
+    bool waitForSnapshot)
 {
-    if (unstageNonRecursively) {
-        MasterConnector->AddChunksToUnstageList(ids);
+    if (waitForSnapshot) {
+        YCHECK(unstageRecursively);
+        for (const auto& chunkTreeId : chunkTreeIds) {
+            ChunkTreeReleaseQueue_.Push(chunkTreeId);
+        }
     } else {
-        ChunkListPool_->Release(ids);
+        MasterConnector->AddChunkTreesToUnstageList(chunkTreeIds, unstageRecursively);
     }
 }
 
@@ -6770,17 +6791,17 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
     return descriptor;
 }
 
-void TOperationControllerBase::ReleaseStripeList(const NChunkPools::TChunkStripeListPtr& stripeList)
+void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList)
 {
+    auto chunkIds = GetStripeListChunkIds(stripeList);
     switch (GetIntermediateChunkUnstageMode()) {
         case EIntermediateChunkUnstageMode::OnJobCompleted: {
-            auto chunkIds = GetStripeListChunkIds(stripeList);
-            MasterConnector->AddChunksToUnstageList(std::move(chunkIds));
+            MasterConnector->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
             OnChunksReleased(stripeList->TotalChunkCount);
             break;
         }
         case EIntermediateChunkUnstageMode::OnSnapshotCompleted: {
-            StripeListReleaseQueue_.Push(stripeList);
+            IntermediateStripeListReleaseQueue_.Push(stripeList);
             break;
         }
     }
