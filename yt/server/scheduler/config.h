@@ -535,11 +535,6 @@ public:
     //! more chunk lists than previously.
     double ChunkListAllocationMultiplier;
 
-    //! Minimum time between two consecutive chunk list release requests
-    //! until number of chunk lists to release less that desired chunk lists to release.
-    //! This option necessary to prevent chunk list release storm.
-    TDuration ChunkListReleaseBatchDelay;
-
     //! Desired number of chunks to release in one batch.
     int DesiredChunkListsPerRelease;
 

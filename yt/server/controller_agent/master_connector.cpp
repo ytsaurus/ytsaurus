@@ -87,7 +87,7 @@ public:
             EPeriodicExecutorMode::Automatic))
         , UnstageExecutor_(New<TPeriodicExecutor>(
             Invoker_,
-            BIND(&TImpl::UnstageChunks, MakeWeak(this)),
+            BIND(&TImpl::UnstageChunkTrees, MakeWeak(this)),
             Config_->ChunkUnstagePeriod,
             EPeriodicExecutorMode::Automatic))
     {
@@ -217,13 +217,12 @@ public:
         return future;
     }
 
-    void AddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+    void AddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
     {
-        BIND(&TImpl::DoAddChunksToUnstageList,
-             MakeWeak(this),
-             Passed(std::move(chunkIds)))
-            .Via(Invoker_)
-            .Run();
+        Invoker_->Invoke(BIND(&TImpl::DoAddChunkTreesToUnstageList,
+            MakeWeak(this),
+            Passed(std::move(chunkTreeIds)),
+            recursive));
     }
 
     void AttachJobContext(
@@ -316,7 +315,13 @@ private:
     TPeriodicExecutorPtr SnapshotExecutor_;
     TPeriodicExecutorPtr UnstageExecutor_;
 
-    yhash<TCellTag, std::vector<TChunkId>> CellTagToChunkUnstageList_;
+    struct TUnstageRequest
+    {
+        TChunkTreeId ChunkTreeId;
+        bool Recursive;
+    };
+
+    yhash<TCellTag, std::vector<TUnstageRequest>> CellTagToUnstageList_;
 
     const TCallback<TFuture<void>()> VoidCallback_ = BIND([] { return VoidFuture; });
 
@@ -1101,48 +1106,49 @@ private:
         LOG_ERROR(error, "Failed to update operation node");
     }
 
-    void DoAddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+    void DoAddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
     {
-        for (const auto& chunkId : chunkIds) {
-            auto cellTag = CellTagFromId(chunkId);
-            CellTagToChunkUnstageList_[cellTag].emplace_back(chunkId);
+        for (const auto& chunkTreeId : chunkTreeIds) {
+            auto cellTag = CellTagFromId(chunkTreeId);
+            CellTagToUnstageList_[cellTag].emplace_back(TUnstageRequest{chunkTreeId, recursive});
         }
     }
 
-    void UnstageChunks()
+    void UnstageChunkTrees()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        for (auto& pair : CellTagToChunkUnstageList_) {
+        for (auto& pair : CellTagToUnstageList_) {
             const auto& cellTag = pair.first;
-            auto& chunkIds = pair.second;
+            auto& unstageRequests = pair.second;
 
-            if (chunkIds.empty()) {
+            if (unstageRequests.empty()) {
                 continue;
             }
-
-            LOG_DEBUG("Unstaging %v chunk trees from cell %v", chunkIds.size(), cellTag);
 
             TChunkServiceProxy proxy(Bootstrap_
                 ->GetMasterClient()
                 ->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag));
 
             auto batchReq = proxy.ExecuteBatch();
-            for (const auto& chunkId : chunkIds) {
+            while (!unstageRequests.empty() &&
+                batchReq->unstage_chunk_tree_subrequests_size() < Config_->DesiredChunkListsPerRelease)
+            {
+                auto unstageRequest = unstageRequests.back();
+                unstageRequests.pop_back();
                 auto req = batchReq->add_unstage_chunk_tree_subrequests();
-                ToProto(req->mutable_chunk_tree_id(), chunkId);
-                // Chunk trees are either single chunks or the chunk lists
-                // that should be unstaged in non-recursive manner (useful for
-                // auto-merge, we destroy each of the containing chunks afterwards).
-                req->set_recursive(false);
+                ToProto(req->mutable_chunk_tree_id(), unstageRequest.ChunkTreeId);
+                req->set_recursive(unstageRequest.Recursive);
             }
 
-            chunkIds.clear();
+            LOG_DEBUG("Unstaging chunk trees (ChunkTreeCount: %v, CellTag: %v)",
+                batchReq->unstage_chunk_tree_subrequests_size(),
+                cellTag);
 
             batchReq->Invoke().Apply(
                 BIND([=] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                     if (!batchRspOrError.IsOK()) {
-                        LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees in cell %v", cellTag);
+                        LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees (CellTag: %v)", cellTag);
                     }
                 }));
         }
@@ -1205,9 +1211,9 @@ TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
     return Impl_->RemoveSnapshot(operationId);
 }
 
-void TMasterConnector::AddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+void TMasterConnector::AddChunkTreesToUnstageList(std::vector<TChunkId> chunkTreeIds, bool recursive)
 {
-    Impl_->AddChunksToUnstageList(std::move(chunkIds));
+    Impl_->AddChunkTreesToUnstageList(std::move(chunkTreeIds), recursive);
 }
 
 void TMasterConnector::AttachJobContext(

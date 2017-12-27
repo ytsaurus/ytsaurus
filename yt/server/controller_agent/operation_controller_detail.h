@@ -309,10 +309,11 @@ public:
 
     virtual const TChunkListPoolPtr& ChunkListPool() const override;
     virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) override;
-    virtual void ReleaseChunkLists(
+    virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
-        bool unstageNonRecursively) override;
-    virtual void ReleaseStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) override;
+        bool unstageRecursively,
+        bool waitForSnapshot) override;
+    virtual void ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) override;
 
     virtual TOperationId GetOperationId() const override;
     virtual EOperationType GetOperationType() const override;
@@ -1038,11 +1039,17 @@ private:
 
     //! Release queue of chunk stripe lists that are no longer needed by a controller.
     //! Similar to the previous field.
-    TReleaseQueue<NChunkPools::TChunkStripeListPtr> StripeListReleaseQueue_;
+    TReleaseQueue<NChunkPools::TChunkStripeListPtr> IntermediateStripeListReleaseQueue_;
+    TReleaseQueue<NChunkPools::TChunkStripeListPtr>::TCookie IntermediateStripeListSnapshotCookie_ = 0;
 
-    //! Cookie corresponding to a state of stripe list release queue
-    //! by the moment the most recent snapshot started to be built.
-    TReleaseQueue<NChunkPools::TChunkStripeListPtr>::TCookie StripeListSnapshotCookie_ = 0;
+    //! Release queue of chunk trees that should be released, but the corresponding
+    //! node does not know yet about their invalidation.
+    /* It may happen (presumably) in two situations:
+     *  - Abandoned completed jobs.
+     *  - Jobs aborted by confirmation timeout during the revival.
+     */
+    TReleaseQueue<NChunkClient::TChunkTreeId> ChunkTreeReleaseQueue_;
+    TReleaseQueue<NChunkClient::TChunkTreeId>::TCookie ChunkTreeSnapshotCookie_ = 0;
 
     //! Number of times `OnSnapshotStarted()` was called up to this moment.
     int SnapshotIndex_ = 0;
