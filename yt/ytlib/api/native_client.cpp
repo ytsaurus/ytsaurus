@@ -3213,7 +3213,8 @@ private:
                 } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     LOG_DEBUG("No such operation %v in the scheduler", operationId);
                 } else {
-                    THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId);
+                    THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId)
+                        << schedulerProgressValueOrError;
                 }
             }
 
