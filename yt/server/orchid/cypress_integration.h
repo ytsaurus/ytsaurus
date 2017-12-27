@@ -10,6 +10,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/rpc/config.h>
+
 namespace NYT {
 namespace NOrchid {
 
@@ -21,6 +23,7 @@ struct TOrchidManifest
     NNodeTrackerClient::TAddressMap RemoteAddresses;
     TString RemoteRoot;
     TDuration Timeout;
+    NRpc::TRetryingChannelConfigPtr RetriesConfig;
 
     TOrchidManifest()
     {
@@ -29,6 +32,8 @@ struct TOrchidManifest
             .Default("/");
         RegisterParameter("timeout", Timeout)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("retries_config", RetriesConfig)
+            .DefaultNew();
     }
 };
 
