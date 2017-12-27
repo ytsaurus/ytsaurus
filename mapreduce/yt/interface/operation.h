@@ -8,13 +8,7 @@
 #include <util/system/file.h>
 #include <util/generic/vector.h>
 
-#ifdef __clang__
-using std::nullptr_t;
-#endif
-
 namespace NYT {
-
-struct TAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
