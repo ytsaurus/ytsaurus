@@ -1,9 +1,9 @@
 #include "rpc_parameters_serialization.h"
 
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/serialize.h>
 
 #include <mapreduce/yt/interface/client_method_options.h>
+#include <mapreduce/yt/interface/serialize.h>
 
 #include <mapreduce/yt/node/node.h>
 #include <mapreduce/yt/node/node_io.h>

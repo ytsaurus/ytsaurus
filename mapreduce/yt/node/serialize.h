@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mapreduce/yt/interface/common.h>
+#include "node.h"
 
 namespace NYT {
 
@@ -28,29 +28,13 @@ void Serialize(unsigned long long value, IYsonConsumer* consumer);
 void Deserialize(ui64& value, const TNode& node);
 
 void Serialize(double value, IYsonConsumer* consumer);
-void Deserialize(ui64& value, const TNode& node);
+void Deserialize(double& value, const TNode& node);
 
 void Serialize(bool value, IYsonConsumer* consumer);
-void Deserialize(ui64& value, const TNode& node);
+void Deserialize(bool& value, const TNode& node);
 
 void Serialize(const TNode& node, IYsonConsumer* consumer);
 void Deserialize(TNode& value, const TNode& node);
-
-void Serialize(const TKey& key, IYsonConsumer* consumer);
-void Serialize(const TKeyColumns& keyColumns, IYsonConsumer* consumer);
-
-void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer);
-void Serialize(const TReadRange& readRange, IYsonConsumer* consumer);
-void Serialize(const TRichYPath& path, IYsonConsumer* consumer);
-void Deserialize(TRichYPath& path, const TNode& node);
-
-void Serialize(const TAttributeFilter& filter, IYsonConsumer* consumer);
-
-void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer);
-void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer);
-void Deserialize(EValueType& valueType, const TNode& node);
-void Deserialize(TTableSchema& tableSchema, const TNode& node);
-void Deserialize(TColumnSchema& columnSchema, const TNode& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
