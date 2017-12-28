@@ -316,5 +316,26 @@ TFuture<std::vector<NApi::TTabletInfo>> TClient::GetTabletInfos(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
+    const TString& md5,
+    const NApi::TGetFileFromCacheOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.GetFileFromCache();
+    SetTimeoutOptions(*req, options);
+
+    req->set_md5(md5);
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_master_read_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetFileFromCachePtr& rsp) {
+        return FromProto<TGetFileFromCacheResult>(rsp->result());
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpcProxy
 } // namespace NYT

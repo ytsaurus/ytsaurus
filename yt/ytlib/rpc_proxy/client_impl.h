@@ -87,6 +87,11 @@ public:
         const std::vector<int>& tabletIndexes,
         const NApi::TGetTabletsInfoOptions& options) override;
 
+    // Files
+    virtual TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(
+        const TString& md5,
+        const NApi::TGetFileFromCacheOptions& options) override;
+
     // Security
     virtual TFuture<void> AddMember(
         const TString&,

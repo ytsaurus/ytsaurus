@@ -226,6 +226,20 @@ TUnversionedOwningRow CreateJobKey(const TJobId& jobId, const TNameTablePtr& nam
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+constexpr int FileCacheHashDigitCount = 2;
+
+NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cachePath)
+{
+    auto lastDigits = md5.substr(md5.size() - FileCacheHashDigitCount);
+    return cachePath + "/" + lastDigits + "/" + md5;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TError TCheckPermissionResult::ToError(const TString& user, EPermission permission) const
 {
     switch (Action) {
@@ -752,6 +766,11 @@ public:
     {
         return NApi::CreateTableWriter(this, path, options);
     }
+
+    IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
+        const TString& md5,
+        const TGetFileFromCacheOptions& options),
+        (md5, options))
 
     IMPLEMENT_METHOD(void, AddMember, (
         const TString& group,
@@ -2872,6 +2891,54 @@ private:
             .ValueOrThrow();
 
         return FromProto<TObjectId>(rsp->object_id());
+    }
+
+    TGetFileFromCacheResult DoGetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options)
+    {
+        TGetFileFromCacheResult result;
+        auto destination = GetFilePathInCache(md5, options.CachePath);
+
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto req = TYPathProxy::Get(destination + "/@");
+
+        std::vector<TString> attributeKeys{
+            "md5"
+        };
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+        SetTransactionId(req, options, true);
+
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        if (!rspOrError.IsOK()) {
+            LOG_DEBUG(
+                rspOrError,
+                "File is missing "
+                "(Destination: %v, MD5: %v)",
+                destination,
+                md5);
+
+            return result;
+        }
+
+        auto rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        auto originalMD5 = attributes->Get<TString>("md5", "");
+        if (md5 != originalMD5) {
+            LOG_DEBUG(
+                "File has incorrect md5 hash "
+                "(Destination: %v, expectedMD5: %v, originalMD5: %v)",
+                destination,
+                md5,
+                originalMD5);
+
+            return result;
+        }
+
+        result.Path = destination;
+        return result;
     }
 
 
