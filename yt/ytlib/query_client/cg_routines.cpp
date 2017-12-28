@@ -83,7 +83,7 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     batch.push_back(rowBuffer->Capture(values, closure->RowSize));
 
-    // NB: Aggregate flag is neighter set from TCG value nor cleared during row allocation.
+    // NB: Aggregate flag is neither set from TCG value nor cleared during row allocation.
     size_t id = 0;
     for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
         const_cast<TUnversionedValue*>(value)->Aggregate = false;
