@@ -5379,6 +5379,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
     }
 
     RecentSnapshotIndex_.Reset();
+    LastSuccessfulSnapshotTime_ = TInstant::Now();
 }
 
 void TOperationControllerBase::OnBeforeDisposal()
@@ -5653,7 +5654,8 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
                 .Item("input_data_size_histogram").Value(*InputDataSizeHistogram_);
         })
         .Item("snapshot_index").Value(SnapshotIndex_)
-        .Item("recent_snapshot_index").Value(RecentSnapshotIndex_);
+        .Item("recent_snapshot_index").Value(RecentSnapshotIndex_)
+        .Item("last_successful_snapshot_time").Value(LastSuccessfulSnapshotTime_);
 }
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {

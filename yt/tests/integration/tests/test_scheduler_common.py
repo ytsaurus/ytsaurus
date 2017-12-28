@@ -1967,6 +1967,9 @@ class TestSchedulerSnapshots(YTEnvSetup):
         copy(snapshot_path, snapshot_backup_path)
         assert len(read_file(snapshot_backup_path, verbose=False)) > 0
 
+        ts = get("//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/last_successful_snapshot_time")
+        assert time.time() - datetime_str_to_ts(ts) < 60
+
         op.resume_jobs()
         op.track()
 
