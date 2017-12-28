@@ -513,6 +513,11 @@ def check_permission(user, permission, path, **kwargs):
     kwargs["path"] = path
     return yson.loads(execute_command("check_permission", kwargs))
 
+def get_file_from_cache(md5, cache_path, **kwargs):
+    kwargs["md5"] = md5
+    kwargs["cache_path"] = cache_path
+    return execute_command("get_file_from_cache", kwargs)
+
 class TimeoutError(Exception):
     pass
 
