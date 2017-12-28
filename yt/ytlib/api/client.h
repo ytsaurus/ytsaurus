@@ -517,6 +517,14 @@ struct TFileWriterOptions
     TFileWriterConfigPtr Config;
 };
 
+struct TGetFileFromCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+{
+    NYPath::TYPath CachePath;
+};
+
 struct TJournalReaderOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
@@ -756,6 +764,11 @@ struct TListJobsResult
     int ArchiveJobCount = -1;
 };
 
+struct TGetFileFromCacheResult
+{
+    NYPath::TYPath Path;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -970,6 +983,11 @@ struct IClient
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
+
+    // Files
+    virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

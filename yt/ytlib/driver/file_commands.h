@@ -40,6 +40,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetFileFromCacheCommand
+    : public TTypedCommand<NApi::TGetFileFromCacheOptions>
+{
+public:
+    TGetFileFromCacheCommand();
+
+private:
+    TString MD5;
+    NYPath::TYPath CachePath;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
 
