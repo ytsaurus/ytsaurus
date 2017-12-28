@@ -768,6 +768,11 @@ void TOperationControllerBase::Revive()
 
     CreateLivePreviewTables();
 
+    if (IsCompleted()) {
+        OnOperationCompleted(/* interrupted */ false);
+        return;
+    }
+
     AddAllTaskPendingHints();
 
     // Input chunk scraper initialization should be the last step to avoid races.
