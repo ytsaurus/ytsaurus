@@ -1048,6 +1048,8 @@ private:
     int SnapshotIndex_ = 0;
     //! Index of a snapshot that is building right now.
     TNullable<int> RecentSnapshotIndex_ = Null;
+    //! Timestamp of last successfull uploaded snapshot.
+    TInstant LastSuccessfulSnapshotTime_ = TInstant::Zero();
 
     TSpinLock AlertsLock_;
     TOperationAlertsMap Alerts_;
