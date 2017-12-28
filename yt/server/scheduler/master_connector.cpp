@@ -108,6 +108,12 @@ public:
         DoDisconnect();
     }
 
+    void RandomDisconnect()
+    {
+        LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
+        DoDisconnect();
+    }
+
     IInvokerPtr GetCancelableControlInvoker() const
     {
         return CancelableControlInvoker;
@@ -368,7 +374,7 @@ private:
     {
         if (Config->TestingOptions->EnableRandomMasterDisconnection) {
             TDelayedExecutor::Submit(
-                BIND(&TImpl::Disconnect, MakeStrong(this))
+                BIND(&TImpl::RandomDisconnect, MakeStrong(this))
                     .Via(Bootstrap->GetControlInvoker()),
                 RandomDuration(Config->TestingOptions->RandomMasterDisconnectionMaxBackoff));
         }

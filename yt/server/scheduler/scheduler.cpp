@@ -1497,6 +1497,17 @@ private:
             .Item("error").Value(error);
     }
 
+    void ValidateState(const TOperationPtr& operation, EOperationState expectedState)
+    {
+        if (operation->GetState() != expectedState) {
+            LOG_INFO("Operation has unexpected state (OperationId: %v, State: %v, ExpectedState: %v)",
+                operation->GetId(),
+                operation->GetState(),
+                expectedState);
+            throw TFiberCanceledException();
+        }
+    }
+
     void OnUserTransactionAborted(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1845,9 +1856,7 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        if (operation->GetState() != EOperationState::Initializing) {
-            throw TFiberCanceledException();
-        }
+        ValidateState(operation, EOperationState::Initializing);
 
         bool registered = false;
         try {
@@ -1875,9 +1884,7 @@ private:
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
 
-            if (operation->GetState() != EOperationState::Initializing) {
-                throw TFiberCanceledException();
-            }
+            ValidateState(operation, EOperationState::Initializing);
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
@@ -1910,9 +1917,7 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        if (operation->GetState() != EOperationState::Initializing) {
-            throw TFiberCanceledException();
-        }
+        ValidateState(operation, EOperationState::Initializing);
 
         const auto& operationId = operation->GetId();
 
@@ -1937,9 +1942,8 @@ private:
 
             operation->ControllerAttributes().Attributes = controller->GetAttributes();
 
-            if (operation->GetState() != EOperationState::Preparing) {
-                throw TFiberCanceledException();
-            }
+            ValidateState(operation, EOperationState::Preparing);
+
             operation->SetState(EOperationState::Pending);
             operation->SetPrepared(true);
             if (operation->GetActivated()) {
@@ -2024,9 +2028,7 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        if (operation->GetState() != EOperationState::Reviving) {
-            throw TFiberCanceledException();
-        }
+        ValidateState(operation, EOperationState::Reviving);
 
         try {
             auto controller = operation->GetController();
@@ -2041,9 +2043,7 @@ private:
                 operation->ControllerAttributes().InitializationAttributes = controller->GetInitializationAttributes();
             }
 
-            if (operation->GetState() != EOperationState::Reviving) {
-                throw TFiberCanceledException();
-            }
+            ValidateState(operation, EOperationState::Reviving);
 
             {
                 auto error = WaitFor(MasterConnector_->ResetRevivingOperationNode(operation));
@@ -2060,9 +2060,7 @@ private:
                 operation->ControllerAttributes().Attributes = controller->GetAttributes();
             }
 
-            if (operation->GetState() != EOperationState::Reviving) {
-                throw TFiberCanceledException();
-            }
+            ValidateState(operation, EOperationState::Reviving);
 
             LOG_INFO("Operation has been revived (OperationId: %v)",
                 operation->GetId());
@@ -2266,9 +2264,7 @@ private:
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
                 // Result is ignored since failure causes scheduler disconnection.
                 Y_UNUSED(WaitFor(asyncResult));
-                if (operation->GetState() != EOperationState::Completing) {
-                    throw TFiberCanceledException();
-                }
+                ValidateState(operation, EOperationState::Completing);
             }
 
             {
@@ -2283,9 +2279,7 @@ private:
                     return;
                 }
 
-                if (operation->GetState() != EOperationState::Completing) {
-                    throw TFiberCanceledException();
-                }
+                ValidateState(operation, EOperationState::Completing);
 
                 if (Config_->TestingOptions->FinishOperationTransitionDelay) {
                     Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
