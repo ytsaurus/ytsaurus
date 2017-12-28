@@ -6,9 +6,9 @@
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/log.h>
-#include <mapreduce/yt/common/serialize.h>
 
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/serialize.h>
 
 #include <mapreduce/yt/node/node.h>
 

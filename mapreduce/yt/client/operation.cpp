@@ -8,15 +8,16 @@
 #include "yt_poller.h"
 
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/fluent.h>
 #include <mapreduce/yt/interface/job_statistics.h>
 
 #include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/serialize.h>
-#include <mapreduce/yt/common/fluent.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/wait_proxy.h>
+
+#include <mapreduce/yt/node/serialize.h>
 
 #include <library/yson/writer.h>
 #include <library/yson/json_writer.h>
