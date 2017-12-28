@@ -11,6 +11,7 @@ namespace NDriver {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,6 +110,24 @@ void TWriteFileCommand::DoExecute(ICommandContextPtr context)
 
     WaitFor(writer->Close())
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGetFileFromCacheCommand::TGetFileFromCacheCommand()
+{
+    RegisterParameter("md5", MD5);
+    RegisterParameter("cache_path", CachePath);
+}
+
+void TGetFileFromCacheCommand::DoExecute(ICommandContextPtr context)
+{
+    Options.CachePath = CachePath;
+    auto asyncResult = context->GetClient()->GetFileFromCache(MD5, Options);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(result.Path));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
