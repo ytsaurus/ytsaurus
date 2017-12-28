@@ -2576,7 +2576,7 @@ private:
                 continue;
             }
 
-            reviveFutures.emplace_back(ReviveOperation(operation, operationReport.ControllerTransactions));
+            reviveFutures.emplace_back(ReviveOperation(operation, operationReport.ControllerTransactions).ToUncancelable());
         }
 
         {
