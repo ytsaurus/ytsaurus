@@ -3162,12 +3162,13 @@ private:
                 "brief_spec",
                 "finish_time",
                 "operation_type",
+                "progress",
+                "result"
                 "start_time",
                 "state",
                 "suspended",
                 "title",
                 "weight",
-                "progress"
             };
         }
         if (deadline) {
