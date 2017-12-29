@@ -15,7 +15,7 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
-from yt.wrapper.spec_builders import MapSpecBuilder
+from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder
 from yt.local import start, stop
 from yt.yson import YsonMap
 import yt.logger as logger
@@ -1690,3 +1690,33 @@ if __name__ == "__main__":
         yt.run_map_reduce(mapper, reducer, table, output_table, format="<lazy=%true>yson", reduce_by="x")
 
         assert list(yt.read_table(output_table)) == [{"x": 1, "res": 7}, {"x": 3, "res": 5}]
+
+    def test_multiple_mapper_output_tables_in_mapreduce(self):
+        input_table = TEST_DIR + "/table"
+        mapper_output_table = TEST_DIR + "/mapper_output_table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(input_table, [{"x": 1}])
+
+        def mapper(rec):
+            recs = [{"a": "b"}, {"c": "d"}]
+            for i, rec in enumerate(recs):
+                rec["@table_index"] = i
+                yield rec
+
+        spec_builder = MapReduceSpecBuilder() \
+            .begin_mapper() \
+                .format(yt.YsonFormat(control_attributes_mode="row_fields")) \
+                .command(mapper) \
+            .end_mapper() \
+            .begin_reducer() \
+                .command("cat") \
+                .format("json") \
+            .end_reducer() \
+            .reduce_by(["a"]) \
+            .mapper_output_table_count(1) \
+            .input_table_paths(input_table) \
+            .output_table_paths([mapper_output_table, output_table])
+
+        yt.run_operation(spec_builder)
+        check([{"c": "d"}], list(yt.read_table(mapper_output_table)))
+        check([{"a": "b"}], list(yt.read_table(output_table)))

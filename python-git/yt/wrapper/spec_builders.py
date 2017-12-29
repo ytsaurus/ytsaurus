@@ -1181,19 +1181,23 @@ class MapReduceSpecBuilder(SpecBuilder):
             self.prepare(client)
         spec = self._prepared_spec
 
+        additional_mapper_output_table_count = spec.get("mapper_output_table_count", 0)
+        mapper_output_table_count = 1 + additional_mapper_output_table_count
+        reducer_output_table_count = len(self.get_output_table_paths()) - additional_mapper_output_table_count
+
         if "mapper" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="mapper",
                                              operation_type=self.operation_type,
                                              input_table_count=len(self.get_input_table_paths()),
-                                             output_table_count=1 + spec.get("mapper_output_table_count", 0),
+                                             output_table_count=1 + mapper_output_table_count,
                                              client=client)
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
                                              operation_type=self.operation_type,
                                              input_table_count=1,
-                                             output_table_count=len(self.get_output_table_paths()),
+                                             output_table_count=reducer_output_table_count,
                                              group_by=spec.get("reduce_by"),
                                              client=client)
         if "reduce_combiner" in spec:
