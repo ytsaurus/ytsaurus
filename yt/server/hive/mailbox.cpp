@@ -49,19 +49,9 @@ void TMailbox::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(babenko)
-    if (context.GetVersion() < 3) {
-        Load(context, FirstOutcomingMessageId_);
-        // LastIncomingMessage_ differs from NextIncomingMessageId_ by 1.
-        NextIncomingMessageId_ = Load<TMessageId>(context) + 1;
-        TVectorSerializer<TEncapsulatedMessageSerializer>::Load(context, OutcomingMessages_);
-        // IncomingMessages_ must be empty.
-        YCHECK(TSizeSerializer::Load(context) == 0);
-    } else {
-        Load(context, FirstOutcomingMessageId_);
-        TVectorSerializer<TEncapsulatedMessageSerializer>::Load(context, OutcomingMessages_);
-        Load(context, NextIncomingMessageId_);
-    }
+    Load(context, FirstOutcomingMessageId_);
+    TVectorSerializer<TEncapsulatedMessageSerializer>::Load(context, OutcomingMessages_);
+    Load(context, NextIncomingMessageId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
