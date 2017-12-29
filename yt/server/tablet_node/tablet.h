@@ -186,6 +186,8 @@ struct TTabletPerformanceCounters
     std::atomic<i64> MergedRowReadCount = {0};
     std::atomic<i64> CompactionDataWeightCount = {0};
     std::atomic<i64> PartitioningDataWeightCount = {0};
+    std::atomic<i64> LookupErrorCount = {0};
+    std::atomic<i64> WriteErrorCount = {0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)

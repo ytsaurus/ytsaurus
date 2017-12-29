@@ -173,37 +173,43 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
-        ExecuteRequestWithRetries(
-            Config_->MaxQueryRetries,
-            Logger,
-            [&] () {
-                const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-                slotManager->ValidateTabletAccess(
-                    tabletSnapshot,
-                    EPermission::Read,
-                    timestamp);
+        const auto &slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
-                tabletSnapshot->ValidateMountRevision(mountRevision);
+        try {
+            ExecuteRequestWithRetries(
+                Config_->MaxQueryRetries,
+                Logger,
+                [&]() {
+                    slotManager->ValidateTabletAccess(
+                        tabletSnapshot,
+                        EPermission::Read,
+                        timestamp);
 
-                struct TLookupRowBufferTag { };
-                TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
-                TWireProtocolWriter writer;
+                    tabletSnapshot->ValidateMountRevision(mountRevision);
 
-                const auto& tabletManager = tabletSnapshot->TabletManager;
-                tabletManager->Read(
-                    tabletSnapshot,
-                    timestamp,
-                    user,
-                    workloadDescriptor,
-                    sessionId,
-                    retentionConfig,
-                    &reader,
-                    &writer);
+                    struct TLookupRowBufferTag { };
+                    TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
+                    TWireProtocolWriter writer;
 
-                response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
-                context->Reply();
-            });
+                    const auto &tabletManager = tabletSnapshot->TabletManager;
+                    tabletManager->Read(
+                        tabletSnapshot,
+                        timestamp,
+                        user,
+                        workloadDescriptor,
+                        sessionId,
+                        retentionConfig,
+                        &reader,
+                        &writer);
+
+                    response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
+                    context->Reply();
+                });
+        } catch (const TErrorException&) {
+            ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+            throw;
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)
