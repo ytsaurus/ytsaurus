@@ -46,6 +46,7 @@ struct TSortedChunkPoolOptions
     bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NScheduler::TOperationId OperationId;
+    TString Task;
 
     void Persist(const TPersistenceContext& context);
 };

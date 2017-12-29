@@ -57,6 +57,11 @@ void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, JobSizeConstraints);
     Persist(context, SupportLocality);
     Persist(context, OperationId);
+
+    // COMPAT(max42)
+    if (context.GetVersion() >= 202044) {
+        Persist(context, Task);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -581,10 +586,12 @@ public:
         , JobSizeConstraints_(options.JobSizeConstraints)
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
+        , Task_(options.Task)
     {
         ForeignStripeCookiesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
+        Logger.AddTag("Task: %v", Task_);
         JobManager_->SetLogger(Logger);
 
         LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
@@ -810,6 +817,12 @@ public:
         Persist(context, SupportLocality_);
         Persist(context, JobManager_);
         Persist(context, OperationId_);
+
+        // COMPAT(max42)
+        if (context.GetVersion() >= 202044) {
+            Persist(context, Task_);
+        }
+
         Persist(context, ChunkPoolId_);
         Persist(context, SortedJobOptions_);
         Persist(context, ForeignStripeCookiesByStreamIndex_);
@@ -818,6 +831,7 @@ public:
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
+            Logger.AddTag("Task: %v", Task_);
             JobManager_->SetLogger(Logger);
         }
     }
@@ -877,6 +891,7 @@ private:
     TLogger Logger = ChunkPoolLogger;
 
     TOperationId OperationId_;
+    TString Task_;
 
     TGuid ChunkPoolId_ = TGuid::Create();
 

@@ -112,8 +112,11 @@ protected:
         TOrderedTask(TOrderedControllerBase* controller)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateOrderedChunkPool(controller->GetOrderedChunkPoolOptions(), controller->GetInputStreamDirectory()))
-        { }
+        {
+            auto options = controller->GetOrderedChunkPoolOptions();
+            options.Task = GetId();
+            ChunkPool_ = CreateOrderedChunkPool(options, controller->GetInputStreamDirectory());
+        }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
