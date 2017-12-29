@@ -377,4 +377,58 @@ i64 TRefCountedProto<TProto>::GetSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TMovableProto<T>::TMovableProto(TMovableProto<T>&& other)
+{
+    Underlying_.Swap(&other.Underlying_);
+}
+
+template <class T>
+TMovableProto<T>::TMovableProto(T&& other)
+{
+    Underlying_.Swap(&other);
+}
+
+template <class T>
+TMovableProto<T>& TMovableProto<T>::operator=(TMovableProto<T>&& other)
+{
+    if (this != &other) {
+        Underlying_.Swap(other.Underlying_);
+    }
+    return *this;
+}
+
+template <class T>
+TMovableProto<T>& TMovableProto<T>::operator=(T&& other)
+{
+    Underlying_.Swap(&other);
+    return *this;
+}
+
+template <class T>
+T& TMovableProto<T>::Unwrap()
+{
+    return Underlying_;
+}
+
+template <class T>
+const T& TMovableProto<T>::Unwrap() const
+{
+    return Underlying_;
+}
+
+template <class T>
+TMovableProto<T>::operator T&()
+{
+    return Unwrap();
+}
+
+template <class T>
+TMovableProto<T>::operator const T&() const
+{
+    return Unwrap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
