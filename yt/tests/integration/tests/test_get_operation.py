@@ -55,10 +55,10 @@ class TestGetOperation(YTEnvSetup):
             })
 
         def check(res1, res2):
-            for key in ["authenticated_user", "brief_progress", "brief_spec", "finish_time", "operation_type", "start_time", "state", "suspended", "title", "weight"]:
+            for key in ["authenticated_user", "brief_progress", "brief_spec", "finish_time", "operation_type", "result", "start_time", "state", "suspended", "title", "weight"]:
                 ok1 = key in res1
                 ok2 = key in res2
-                assert ok1 == ok2
+                assert ok1 == ok2, "{0} is missing in one of [res1, res2]".format(key)
 
                 if ok1:
                     assert res1[key] == res2[key]

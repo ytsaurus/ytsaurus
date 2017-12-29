@@ -3163,7 +3163,7 @@ private:
                 "finish_time",
                 "operation_type",
                 "progress",
-                "result"
+                "result",
                 "start_time",
                 "state",
                 "suspended",
