@@ -36,6 +36,10 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, EnablePeriodicYielder);
     Persist(context, ExtractionOrder);
     Persist(context, ShouldSliceByRowIndices);
+
+    if (context.GetVersion() >= 202044) {
+        Persist(context, Task);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +70,7 @@ public:
         , JobSizeConstraints_(options.JobSizeConstraints)
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
+        , Task_(options.Task)
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
@@ -73,6 +78,7 @@ public:
     {
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
+        Logger.AddTag("Task: %v", Task_);
         JobManager_->SetLogger(Logger);
     }
 
@@ -280,6 +286,7 @@ public:
         Persist(context, JobSizeConstraints_);
         Persist(context, SupportLocality_);
         Persist(context, OperationId_);
+        Persist(context, Task_);
         Persist(context, ChunkPoolId_);
         Persist(context, MaxTotalSliceCount_);
         Persist(context, ShouldSliceByRowIndices_);
@@ -290,6 +297,7 @@ public:
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
+            Logger.AddTag("Task: %v", Task_);
             JobManager_->SetLogger(Logger);
         }
     }
@@ -326,6 +334,7 @@ private:
     TLogger Logger = ChunkPoolLogger;
 
     TOperationId OperationId_;
+    TString Task_;
 
     TGuid ChunkPoolId_ = TGuid::Create();
 

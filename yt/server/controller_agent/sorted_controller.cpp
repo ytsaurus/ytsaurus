@@ -111,11 +111,15 @@ protected:
         TSortedTask(TSortedControllerBase* controller)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateSortedChunkPool(
-                controller->GetSortedChunkPoolOptions(),
+        {
+            auto options = controller->GetSortedChunkPoolOptions();
+            options.Task = GetId();
+            ChunkPool_ = CreateSortedChunkPool(
+                options,
                 controller->CreateChunkSliceFetcherFactory(),
-                controller->GetInputStreamDirectory()))
-        { }
+                controller->GetInputStreamDirectory());
+
+        }
 
         virtual TString GetId() const override
         {

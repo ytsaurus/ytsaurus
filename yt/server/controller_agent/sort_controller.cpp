@@ -1059,9 +1059,10 @@ protected:
             TPartition* partition,
             std::vector<TEdgeDescriptor> edgeDescriptors)
             : TMergeTask(controller, partition, std::move(edgeDescriptors))
-            , ChunkPool_(controller->CreateSortedMergeChunkPool())
             , ChunkPoolInput_(CreateHintAddingAdapter(ChunkPool_.get(), this))
-        { }
+        {
+            ChunkPool_ = controller->CreateSortedMergeChunkPool(GetId());
+        }
 
         virtual TString GetId() const override
         {
@@ -2019,7 +2020,7 @@ protected:
         return GetStandardEdgeDescriptors();
     }
 
-    std::unique_ptr<IChunkPool> CreateSortedMergeChunkPool()
+    std::unique_ptr<IChunkPool> CreateSortedMergeChunkPool(TString taskId)
     {
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
@@ -2035,6 +2036,7 @@ protected:
             Spec,
             Options,
             GetOutputTablePaths().size());
+        chunkPoolOptions.Task = taskId;
         return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
     }
 
