@@ -1059,9 +1059,9 @@ protected:
             TPartition* partition,
             std::vector<TEdgeDescriptor> edgeDescriptors)
             : TMergeTask(controller, partition, std::move(edgeDescriptors))
-            , ChunkPoolInput_(CreateHintAddingAdapter(ChunkPool_.get(), this))
         {
             ChunkPool_ = controller->CreateSortedMergeChunkPool(GetId());
+            ChunkPoolInput_ = CreateHintAddingAdapter(ChunkPool_.get(), this);
         }
 
         virtual TString GetId() const override
