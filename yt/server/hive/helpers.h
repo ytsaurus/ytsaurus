@@ -2,16 +2,13 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/hive_service.pb.h>
-
 namespace NYT {
 namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SerializeMessage(
-    const ::google::protobuf::MessageLite& protoMessage,
-    NHiveClient::NProto::TEncapsulatedMessage* encapsulatedMessage);
+TRefCountedEncapsulatedMessagePtr SerializeMessage(
+    const ::google::protobuf::MessageLite& protoMessage);
 
 ////////////////////////////////////////////////////////////////////////////////
 

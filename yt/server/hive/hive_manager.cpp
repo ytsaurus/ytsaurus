@@ -190,32 +190,30 @@ public:
             cellId);
     }
 
-    void PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message, bool reliable)
+    void PostMessage(TMailbox* mailbox, TRefCountedEncapsulatedMessagePtr message, bool reliable)
     {
-        PostMessage(TMailboxList{mailbox}, message, reliable);
+        PostMessage(TMailboxList{mailbox}, std::move(message), reliable);
     }
 
-    void PostMessage(const TMailboxList& mailboxes, const TEncapsulatedMessage& message, bool reliable)
+    void PostMessage(const TMailboxList& mailboxes, TRefCountedEncapsulatedMessagePtr message, bool reliable)
     {
         if (reliable) {
-            ReliablePostMessage(mailboxes, message);
+            ReliablePostMessage(mailboxes, std::move(message));
         } else {
-            UnreliablePostMessage(mailboxes, message);
+            UnreliablePostMessage(mailboxes, std::move(message));
         }
     }
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        TEncapsulatedMessage encapsulatedMessage;
-        SerializeMessage(message, &encapsulatedMessage);
-        PostMessage(mailbox, encapsulatedMessage, reliable);
+        auto encapsulatedMessage = SerializeMessage(message);
+        PostMessage(mailbox, std::move(encapsulatedMessage), reliable);
     }
 
     void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        TEncapsulatedMessage encapsulatedMessage;
-        SerializeMessage(message, &encapsulatedMessage);
-        PostMessage(mailboxes, encapsulatedMessage, reliable);
+        auto encapsulatedMessage = SerializeMessage(message);
+        PostMessage(mailboxes, std::move(encapsulatedMessage), reliable);
     }
 
 
@@ -517,14 +515,16 @@ private:
     }
 
 
-    void ReliablePostMessage(const TMailboxList& mailboxes, const TEncapsulatedMessage& message)
+    void ReliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
     {
         // A typical mistake is to try sending a Hive message outside of a mutation.
         YCHECK(HasMutationContext());
 
+        AnnotateWithTraceContext(message.Get());
+
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Reliable outcoming message added (MutationType: %v, SrcCellId: %v, DstCellIds: {",
-            message.type(),
+            message->type(),
             SelfCellId_);
 
         for (auto* mailbox : mailboxes) {
@@ -533,7 +533,6 @@ private:
                 mailbox->OutcomingMessages().size();
 
             mailbox->OutcomingMessages().push_back(message);
-            AnnotateWithTraceContext(&mailbox->OutcomingMessages().back());
 
             if (mailbox != mailboxes.front()) {
                 logMessageBuilder.AppendString(STRINGBUF(", "));
@@ -553,11 +552,11 @@ private:
         }
     }
 
-    void UnreliablePostMessage(const TMailboxList& mailboxes, const TEncapsulatedMessage& message)
+    void UnreliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
     {
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Sending unreliable outcoming message (MutationType: %v, SrcCellId: %v, DstCellIds: [",
-            message.type(),
+            message->type(),
             SelfCellId_);
 
         for (auto* mailbox : mailboxes) {
@@ -578,7 +577,7 @@ private:
             auto req = proxy->SendMessages();
             req->SetTimeout(Config_->SendRpcTimeout);
             ToProto(req->mutable_src_cell_id(), SelfCellId_);
-            *req->add_messages() = message;
+            *req->add_messages() = *message;
             AnnotateWithTraceContext(req->mutable_messages(0));
 
             req->Invoke().Subscribe(
@@ -901,9 +900,9 @@ private:
                bytesToPost < Config_->MaxBytesPerPost)
         {
             const auto& message = outcomingMessages[firstMessageId + messagesToPost - mailbox->GetFirstOutcomingMessageId()];
-            *req->add_messages() = message;
+            *req->add_messages() = *message;
             messagesToPost += 1;
-            bytesToPost += message.ByteSize();
+            bytesToPost += message->ByteSize();
         }
 
         mailbox->SetInFlightOutcomingMessageCount(messagesToPost);
@@ -1376,14 +1375,14 @@ void THiveManager::RemoveMailbox(TMailbox* mailbox)
     Impl_->RemoveMailbox(mailbox);
 }
 
-void THiveManager::PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message, bool reliable)
+void THiveManager::PostMessage(TMailbox* mailbox, TRefCountedEncapsulatedMessagePtr message, bool reliable)
 {
-    Impl_->PostMessage(mailbox, message, reliable);
+    Impl_->PostMessage(mailbox, std::move(message), reliable);
 }
 
-void THiveManager::PostMessage(const TMailboxList& mailboxes, const TEncapsulatedMessage& message, bool reliable)
+void THiveManager::PostMessage(const TMailboxList& mailboxes, TRefCountedEncapsulatedMessagePtr message, bool reliable)
 {
-    Impl_->PostMessage(mailboxes, message, reliable);
+    Impl_->PostMessage(mailboxes, std::move(message), reliable);
 }
 
 void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
