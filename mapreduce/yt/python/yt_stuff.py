@@ -196,7 +196,8 @@ class YtStuff(object):
                                        ('scheduler', 'cell_scheduler_program'),
                                        ('node', 'cell_node_program'),
                                        ('job-proxy', 'job_proxy_program'),
-                                       ('exec', 'exec_program')]:
+                                       ('exec', 'exec_program'),
+                                       ('proxy', 'cell_proxy_program')]:
                 binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
                                                         .format(self.version, server_dir, binary))
                 os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
@@ -261,7 +262,8 @@ class YtStuff(object):
                 "--path", self.yt_work_dir,
                 "--fqdn", self.config.fqdn,
                 "--jobs-memory-limit", str(self.config.jobs_memory_limit),
-                "--enable-debug-logging"
+                "--enable-debug-logging",
+                "--rpc-proxy",
             ]
 
             if self.config.jobs_cpu_limit:
@@ -333,6 +335,11 @@ class YtStuff(object):
                 with open(info_yson_file) as f:
                     info = yt.yson.load(f)
                 self.yt_proxy_port = int(info["proxy"]["address"].split(":")[1])
+
+            rpc_proxy_config_file = os.path.join(self.yt_work_dir, self.yt_id, "configs", "rpc-client.yson")
+            import yt.yson
+            with open(rpc_proxy_config_file) as f:
+                self.yt_rpc_proxy = yt.yson.load(f)["addresses"][0]
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
             for pid in self.get_pids():
@@ -375,6 +382,9 @@ class YtStuff(object):
 
     def get_server(self):
         return "localhost:%d" % self.yt_proxy_port
+
+    def get_rpc_proxy(self):
+        return self.yt_rpc_proxy
 
     def get_env(self):
         return self.env
