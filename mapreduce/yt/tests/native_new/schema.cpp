@@ -73,12 +73,7 @@ SIMPLE_UNIT_TEST_SUITE(Schema) {
         auto actualSchema = client->Get("//testing/table/@schema");
         UNIT_ASSERT_VALUES_EQUAL(actualSchema, schema.ToNode());
 
-        TVector<TNode> actual;
-        auto reader = client->CreateTableReader<TNode>("//testing/table");
-        for (; reader->IsValid(); reader->Next()) {
-            actual.push_back(reader->GetRow());
-        }
-
+        TVector<TNode> actual = ReadTable(client, "//testing/table");
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }
 }

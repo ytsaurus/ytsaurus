@@ -668,14 +668,13 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
                 .AddOutput<TAllTypesMessage>(outputTable),
             new TProtobufMapper);
 
-        auto reader = client->CreateTableReader<TNode>(outputTable);
-        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["StringField"], "raz mapped");
-        reader->Next();
-        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["StringField"], "dva mapped");
-        reader->Next();
-        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["StringField"], "tri mapped");
-        reader->Next();
-        UNIT_ASSERT(!reader->IsValid());
+        TVector<TNode> expected = {
+            TNode()("StringField", "raz mapped"),
+            TNode()("StringField", "dva mapped"),
+            TNode()("StringField", "tri mapped"),
+        };
+        auto actual = ReadTable(client, outputTable.Path_);
+        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
     SIMPLE_UNIT_TEST(JobPreffix)
