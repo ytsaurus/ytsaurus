@@ -347,6 +347,8 @@ public:
 
     virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() override;
 
+    virtual bool IsCompleteFinished() const override;
+
     virtual TOperationAlertsMap GetAlerts() override;
 
     virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override;
@@ -387,6 +389,7 @@ protected:
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> Forgotten = {false};
     std::atomic<bool> RevivedFromSnapshot = {false};
+    std::atomic<bool> CompleteFinished = {false};
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;

@@ -282,6 +282,11 @@ public:
         return Underlying_->GetSuspiciousJobsYson();
     }
 
+    virtual bool IsCompleteFinished() const override
+    {
+        return Underlying_->IsCompleteFinished();
+    }
+
     virtual int OnSnapshotStarted() override
     {
         return Underlying_->OnSnapshotStarted();
