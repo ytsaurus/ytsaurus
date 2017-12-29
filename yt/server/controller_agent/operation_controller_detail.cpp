@@ -3308,7 +3308,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     LogProgress(/* force */ true);
 
-    Host->OnOperationCompleted(OperationId);
+    CompleteFinished.store(true);
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
@@ -5436,6 +5436,11 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelt
     LastJobMetricsDeltaReportTime_ = now;
 
     return result;
+}
+
+bool TOperationControllerBase::IsCompleteFinished() const
+{
+    return CompleteFinished;
 }
 
 TOperationAlertsMap TOperationControllerBase::GetAlerts()

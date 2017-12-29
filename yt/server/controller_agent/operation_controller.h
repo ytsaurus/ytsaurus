@@ -84,15 +84,6 @@ struct IOperationHost
      */
     virtual TControllerAgent* GetControllerAgent() = 0;
 
-    //! Called by a controller to notify the host that the operation has
-    //! finished successfully.
-    /*!
-     *  Must be called exactly once.
-     *
-     *  \note Thread affinity: any
-     */
-    virtual void OnOperationCompleted(const TOperationId& operation) = 0;
-
     //! Called by a controller to notify the host that the operation has failed.
     /*!
      *  Safe to call multiple times (only the first call counts).
@@ -419,6 +410,9 @@ struct IOperationController
 
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
+
+    //! Called to check that operation fully completed.
+    virtual bool IsCompleteFinished() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

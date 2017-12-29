@@ -886,6 +886,12 @@ public:
                     jobsToRelease.controller_scheduler_incarnation()));
         }
 
+        for (const auto& operationIdProto : request->completed_operations()) {
+            auto operationId = FromProto<TOperationId>(operationIdProto);
+            MasterConnector_->GetCancelableControlInvoker()->Invoke(
+                BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operationId));
+        }
+
         for (const auto& operationAlerts : request->operation_alerts()) {
             TOperationAlertsMap alerts;
             for (const auto& alertProto : operationAlerts.alerts()) {
@@ -1052,14 +1058,6 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return EventLogWriterConsumer_.get();
-    }
-
-    virtual void OnOperationCompleted(const TOperationId& operationId) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operationId));
     }
 
     virtual void OnOperationFailed(const TOperationId& operationId, const TError& error) override

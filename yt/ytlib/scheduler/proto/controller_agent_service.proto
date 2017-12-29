@@ -99,6 +99,8 @@ message TReqHeartbeat
     required bool exec_nodes_requested = 7;
 
     optional bytes suspicious_jobs = 8;
+
+    repeated NYT.NProto.TGuid completed_operations = 9;
 }
 
 message TRspHeartbeat
