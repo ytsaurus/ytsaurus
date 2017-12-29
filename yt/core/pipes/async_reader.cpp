@@ -10,8 +10,6 @@
 
 #include <yt/core/profiling/timing.h>
 
-#include <yt/contrib/libev/ev++.h>
-
 #include <errno.h>
 
 namespace NYT {
