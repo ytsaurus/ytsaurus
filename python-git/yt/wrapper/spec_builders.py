@@ -1190,7 +1190,7 @@ class MapReduceSpecBuilder(SpecBuilder):
                                              job_type="mapper",
                                              operation_type=self.operation_type,
                                              input_table_count=len(self.get_input_table_paths()),
-                                             output_table_count=1 + mapper_output_table_count,
+                                             output_table_count=mapper_output_table_count,
                                              client=client)
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
