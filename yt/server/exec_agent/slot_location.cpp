@@ -223,7 +223,7 @@ TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
         auto stat = GetDiskInfo();
 
         if (stat.usage() + diskSpaceLimit.Get(0) >= stat.limit()) {
-            THROW_ERROR_EXCEPTION("Not enough disk space to run job.");
+            THROW_ERROR_EXCEPTION("Not enough disk space to run job");
         }
 
         {
@@ -521,7 +521,12 @@ NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() cons
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
                 if (NFS::Exists(path)) {
-                    auto dirSize = NFS::GetDirectorySize(path);
+                    // We have to calculate user directory size as root,
+                    // because user job could have set restricted permissions for files and
+                    // directories inside sandbox.
+                    auto dirSize = sandboxKind == ESandboxKind::User
+                        ? RunTool<TGetDirectorySizeAsRootTool>(path)
+                        : NFS::GetDirectorySize(path);
                     diskUsage += dirSize;
                 }
             }
