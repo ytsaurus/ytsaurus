@@ -263,8 +263,10 @@ class YtStuff(object):
                 "--fqdn", self.config.fqdn,
                 "--jobs-memory-limit", str(self.config.jobs_memory_limit),
                 "--enable-debug-logging",
-                "--rpc-proxy",
             ]
+
+            if self.version != "18_5":
+                args += ["--rpc-proxy"]
 
             if self.config.jobs_cpu_limit:
                 args += ["--jobs-cpu-limit", str(self.jobs_cpu_limit)]
