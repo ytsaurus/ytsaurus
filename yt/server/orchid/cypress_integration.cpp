@@ -62,7 +62,7 @@ public:
         auto manifest = LoadManifest();
 
         auto channel = CreateRetryingChannel(
-            manifest->RetriesConfig,
+            manifest,
             ChannelFactory_->CreateChannel(manifest->RemoteAddresses));
 
         TOrchidServiceProxy proxy(channel);
