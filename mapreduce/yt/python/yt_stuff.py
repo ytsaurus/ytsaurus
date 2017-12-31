@@ -338,10 +338,11 @@ class YtStuff(object):
                     info = yt.yson.load(f)
                 self.yt_proxy_port = int(info["proxy"]["address"].split(":")[1])
 
-            rpc_proxy_config_file = os.path.join(self.yt_work_dir, self.yt_id, "configs", "rpc-client.yson")
-            import yt.yson
-            with open(rpc_proxy_config_file) as f:
-                self.yt_rpc_proxy = yt.yson.load(f)["addresses"][0]
+            if self.version != "18_5":
+                rpc_proxy_config_file = os.path.join(self.yt_work_dir, self.yt_id, "configs", "rpc-client.yson")
+                import yt.yson
+                with open(rpc_proxy_config_file) as f:
+                    self.yt_rpc_proxy = yt.yson.load(f)["addresses"][0]
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
             for pid in self.get_pids():
