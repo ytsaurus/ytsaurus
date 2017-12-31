@@ -441,7 +441,7 @@ private:
             const auto& controller = pair.second;
 
             if (controller->IsCompleteFinished()) {
-                ToProto(req->add_completed_operations(), operationId);
+                ToProto(req->add_completed_operation_ids(), operationId);
             }
 
             auto jobMetricsDelta = controller->ExtractJobMetricsDelta();
