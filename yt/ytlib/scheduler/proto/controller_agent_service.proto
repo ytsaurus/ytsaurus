@@ -100,7 +100,7 @@ message TReqHeartbeat
 
     optional bytes suspicious_jobs = 8;
 
-    repeated NYT.NProto.TGuid completed_operations = 9;
+    repeated NYT.NProto.TGuid completed_operation_ids = 9;
 }
 
 message TRspHeartbeat

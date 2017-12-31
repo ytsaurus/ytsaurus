@@ -886,8 +886,8 @@ public:
                     jobsToRelease.controller_scheduler_incarnation()));
         }
 
-        for (const auto& operationIdProto : request->completed_operations()) {
-            auto operationId = FromProto<TOperationId>(operationIdProto);
+        for (const auto& protoOperationId: request->completed_operation_ids()) {
+            auto operationId = FromProto<TOperationId>(protoOperationId);
             MasterConnector_->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operationId));
         }
