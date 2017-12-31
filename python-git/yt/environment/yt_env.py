@@ -809,8 +809,10 @@ class YTInstance(object):
             try:
                 active_scheduler_orchid_path = None
                 for instance in instances:
-                    path = "//sys/scheduler/instances/{0}/orchid/scheduler".format(instance)
+                    orchid_path = "//sys/scheduler/instances/{0}/orchid".format(instance)
+                    path = orchid_path + "/scheduler"
                     try:
+                        client.set(orchid_path + "/@retry_backoff_time", 100)
                         if client.get(path + "/connected"):
                             active_scheduler_orchid_path = path
                     except YtError as err:
