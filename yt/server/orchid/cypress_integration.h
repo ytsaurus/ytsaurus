@@ -18,12 +18,11 @@ namespace NOrchid {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOrchidManifest
-    : public NYTree::TYsonSerializable
+    : public NRpc::TRetryingChannelConfig
 {
     NNodeTrackerClient::TAddressMap RemoteAddresses;
     TString RemoteRoot;
     TDuration Timeout;
-    NRpc::TRetryingChannelConfigPtr RetriesConfig;
 
     TOrchidManifest()
     {
@@ -32,8 +31,6 @@ struct TOrchidManifest
             .Default("/");
         RegisterParameter("timeout", Timeout)
             .Default(TDuration::Seconds(15));
-        RegisterParameter("retries_config", RetriesConfig)
-            .DefaultNew();
     }
 };
 
