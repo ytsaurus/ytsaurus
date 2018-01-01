@@ -10,6 +10,7 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NYPath;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,6 +287,11 @@ bool IsSentinelReason(EAbortReason reason)
     return
         reason == EAbortReason::SchedulingFirst ||
         reason == EAbortReason::SchedulingLast;
+}
+
+TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
+{
+    return TError("User transaction %v of operation has expired or was aborted", transactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

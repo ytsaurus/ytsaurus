@@ -445,10 +445,16 @@ private:
             }
 
             if (!controller->GetSuspensionError().IsOK()) {
-                auto suspendesOperationProto = req->add_suspended_operations();
-                ToProto(suspendesOperationProto->mutable_operation_id(), operationId);
-                ToProto(suspendesOperationProto->mutable_error(), controller->GetSuspensionError());
+                auto suspendedOperationProto = req->add_suspended_operations();
+                ToProto(suspendedOperationProto->mutable_operation_id(), operationId);
+                ToProto(suspendedOperationProto->mutable_error(), controller->GetSuspensionError());
                 controller->ResetSuspensionError();
+            }
+
+            if (!controller->GetAbortError().IsOK()) {
+                auto abortedOperationProto = req->add_aborted_operations();
+                ToProto(abortedOperationProto->mutable_operation_id(), operationId);
+                ToProto(abortedOperationProto->mutable_error(), controller->GetAbortError());
             }
 
             auto jobMetricsDelta = controller->ExtractJobMetricsDelta();

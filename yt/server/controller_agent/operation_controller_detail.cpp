@@ -2233,7 +2233,8 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 void TOperationControllerBase::OnTransactionAborted(const TTransactionId& transactionId)
 {
     if (transactionId == UserTransactionId) {
-        Host->OnUserTransactionAborted(OperationId);
+        TGuard<TSpinLock> guard(AbortErrorLock_);
+        AbortError_ = GetUserTransactionAbortedError(UserTransactionId);
     } else {
         {
             // Check that transactionId is presented in controller.
@@ -5448,6 +5449,12 @@ TError TOperationControllerBase::GetSuspensionError() const
 {
     TGuard<TSpinLock> guard(SuspensionErrorLock_);
     return SuspensionError_;
+}
+
+TError TOperationControllerBase::GetAbortError() const
+{
+    TGuard<TSpinLock> guard(AbortErrorLock_);
+    return AbortError_;
 }
 
 void TOperationControllerBase::ResetSuspensionError()
