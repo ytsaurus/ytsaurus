@@ -206,7 +206,8 @@ public:
         auto future = BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
             .AsyncVia(Invoker_)
             .Run();
-        future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+        return future.Apply(
+            BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
                     Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
                         .AsyncVia(Bootstrap_->GetControlInvoker())
@@ -214,7 +215,6 @@ public:
                 }
             })
             .AsyncVia(Bootstrap_->GetControlInvoker()));
-        return future;
     }
 
     void AddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)

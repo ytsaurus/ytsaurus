@@ -392,8 +392,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         LOG_INFO("Using clean start instead of revive");
 
         Snapshot = TOperationSnapshot();
-        auto error = WaitFor(MasterConnector->RemoveSnapshot(OperationId));
-        YCHECK(error.IsOK() && "Failed to remove snapshot");
+        Y_UNUSED(WaitFor(MasterConnector->RemoveSnapshot(OperationId)));
 
         InitializeTransactions();
         InitializeStructures();
