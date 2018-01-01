@@ -94,14 +94,6 @@ struct IOperationHost
         const TOperationId& operationId,
         const TError& error) = 0;
 
-    //! Called by a controller to notify the host that the operation should be suspended.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void OnOperationSuspended(
-        const TOperationId& operationId,
-        const TError& error) = 0;
-
     //! Called by a controller to notify the host that the operation has aborted.
     /*!
      *  Safe to call multiple times (only the first call counts).
@@ -413,6 +405,10 @@ struct IOperationController
 
     //! Called to check that operation fully completed.
     virtual bool IsCompleteFinished() const = 0;
+
+    //! Returns non-trivial error if operation should be suspended.
+    virtual TError GetSuspensionError() const = 0;
+    virtual void ResetSuspensionError() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

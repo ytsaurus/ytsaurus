@@ -1817,7 +1817,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     RemoveJoblet(joblet);
 
     if (abortReason == EAbortReason::AccountLimitExceeded) {
-        Host->OnOperationSuspended(OperationId, TError("Account limit exceeded"));
+        TGuard<TSpinLock> guard(SuspensionErrorLock_);
+        SuspensionError_ = TError("Account limit exceeded");
     }
 
     CheckFailedJobsStatusReceived();
@@ -5441,6 +5442,18 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelt
 bool TOperationControllerBase::IsCompleteFinished() const
 {
     return CompleteFinished;
+}
+
+TError TOperationControllerBase::GetSuspensionError() const
+{
+    TGuard<TSpinLock> guard(SuspensionErrorLock_);
+    return SuspensionError_;
+}
+
+void TOperationControllerBase::ResetSuspensionError()
+{
+    TGuard<TSpinLock> guard(SuspensionErrorLock_);
+    SuspensionError_ = TError();
 }
 
 TOperationAlertsMap TOperationControllerBase::GetAlerts()
