@@ -159,11 +159,6 @@ public:
         return Underlying_->GetPendingJobCount();
     }
 
-    virtual int GetTotalJobCount() const override
-    {
-        return Underlying_->GetTotalJobCount();
-    }
-
     virtual bool IsRunning() const override
     {
         return Underlying_->IsRunning();
