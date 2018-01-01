@@ -99,6 +99,12 @@ message TReqHeartbeat
         required NYT.NProto.TError error = 2;
     }
 
+    message TOperationFailure
+    {
+        required NYT.NProto.TGuid operation_id = 1;
+        required NYT.NProto.TError error = 2;
+    }
+
     repeated TOperationJobMetrics job_metrics = 1;
 
     repeated TJobInterrupt jobs_to_interrupt = 2;
@@ -115,6 +121,7 @@ message TReqHeartbeat
     repeated NYT.NProto.TGuid completed_operation_ids = 9;
     repeated TOperationSuspension suspended_operations = 10;
     repeated TOperationAbort aborted_operations = 11;
+    repeated TOperationFailure failed_operations = 12;
 }
 
 message TRspHeartbeat

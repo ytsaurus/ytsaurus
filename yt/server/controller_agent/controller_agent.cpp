@@ -457,6 +457,12 @@ private:
                 ToProto(abortedOperationProto->mutable_error(), controller->GetAbortError());
             }
 
+            if (!controller->GetFailureError().IsOK()) {
+                auto failedOperationProto = req->add_failed_operations();
+                ToProto(failedOperationProto->mutable_operation_id(), operationId);
+                ToProto(failedOperationProto->mutable_error(), controller->GetFailureError());
+            }
+
             auto jobMetricsDelta = controller->ExtractJobMetricsDelta();
             ToProto(req->add_job_metrics(), jobMetricsDelta);
 

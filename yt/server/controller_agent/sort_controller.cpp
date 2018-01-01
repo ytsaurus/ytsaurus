@@ -85,9 +85,9 @@ public:
     TSortControllerBase(
         TSortOperationSpecBasePtr spec,
         TSortOperationOptionsBasePtr options,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOperationControllerBase(spec, options, host, operation)
+        : TOperationControllerBase(spec, options, controllerAgent, operation)
         , Spec(spec)
         , Options(options)
         , CompletedPartitionCount(0)
@@ -2070,12 +2070,12 @@ class TSortController
 public:
     TSortController(
         TSortOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortControllerBase(
             spec,
-            host->GetControllerAgent()->GetConfig()->SortOperationOptions,
-            host,
+            controllerAgent->GetConfig()->SortOperationOptions,
+            controllerAgent,
             operation)
         , Spec(spec)
     {
@@ -2752,11 +2752,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
 
 IOperationControllerPtr CreateSortController(
-    IOperationHost* host,
+    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
-    return New<TSortController>(spec, host, operation);
+    return New<TSortController>(spec, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2767,12 +2767,12 @@ class TMapReduceController
 public:
     TMapReduceController(
         TMapReduceOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortControllerBase(
             spec,
-            host->GetControllerAgent()->GetConfig()->MapReduceOperationOptions,
-            host,
+            controllerAgent->GetConfig()->MapReduceOperationOptions,
+            controllerAgent,
             operation)
         , Spec(spec)
         , MapStartRowIndex(0)
@@ -3507,11 +3507,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceController);
 
 IOperationControllerPtr CreateMapReduceController(
-    IOperationHost* host,
+    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
-    return New<TMapReduceController>(spec, host, operation);
+    return New<TMapReduceController>(spec, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

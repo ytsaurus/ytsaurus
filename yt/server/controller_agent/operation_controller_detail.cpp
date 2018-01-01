@@ -1,7 +1,7 @@
 #include "operation_controller_detail.h"
 
 #include "auto_merge_task.h"
-#include "controller_agent.h"
+//#include "controller_agent.h"
 #include "intermediate_chunk_scraper.h"
 #include "job_info.h"
 #include "job_helpers.h"
@@ -201,11 +201,10 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistence
 TOperationControllerBase::TOperationControllerBase(
     TOperationSpecBasePtr spec,
     TOperationOptionsPtr options,
-    IOperationHost* host,
+    TControllerAgentPtr controllerAgent,
     TOperation* operation)
-    : Host(host)
-    , ControllerAgent(Host->GetControllerAgent())
-    , Config(ControllerAgent->GetConfig())
+    : ControllerAgent(controllerAgent)
+    , Config(controllerAgent->GetConfig())
     , MasterConnector(ControllerAgent->GetMasterConnector())
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
@@ -3331,7 +3330,10 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
         FlushOperationNode(/* checkFlushResult */ false);
     }
 
-    Host->OnOperationFailed(OperationId, error);
+    {
+        TGuard<TSpinLock> guard(FailureErrorLock_);
+        FailureError_ = error;
+    }
 }
 
 TNullable<TDuration> TOperationControllerBase::GetTimeLimit() const
@@ -5449,6 +5451,12 @@ TError TOperationControllerBase::GetSuspensionError() const
 {
     TGuard<TSpinLock> guard(SuspensionErrorLock_);
     return SuspensionError_;
+}
+
+TError TOperationControllerBase::GetFailureError() const
+{
+    TGuard<TSpinLock> guard(FailureErrorLock_);
+    return FailureError_;
 }
 
 TError TOperationControllerBase::GetAbortError() const

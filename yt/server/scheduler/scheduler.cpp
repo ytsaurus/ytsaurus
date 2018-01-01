@@ -148,7 +148,6 @@ struct TPoolTreeKeysHolder
 
 class TScheduler::TImpl
     : public TRefCounted
-    , public NControllerAgent::IOperationHost
     , public ISchedulerStrategyHost
     , public INodeShardHost
     , public TEventLogHostBase
@@ -908,6 +907,12 @@ public:
                 }));
         }
 
+        for (const auto& protoOperationFailure: request->failed_operations()) {
+            auto operationId = FromProto<TOperationId>(protoOperationFailure.operation_id());
+            auto error = FromProto<TError>(protoOperationFailure.error());
+            OnOperationFailed(operationId, error);
+        }
+
         for (const auto& operationAlerts : request->operation_alerts()) {
             TOperationAlertsMap alerts;
             for (const auto& alertProto : operationAlerts.alerts()) {
@@ -1058,12 +1063,6 @@ public:
         return result;
     }
 
-    // IOperationHost implementation
-    virtual NControllerAgent::TControllerAgent* GetControllerAgent() override
-    {
-        return Bootstrap_->GetControllerAgent().Get();
-    }
-
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const
     {
         return Bootstrap_->GetControlInvoker(queue);
@@ -1076,7 +1075,7 @@ public:
         return EventLogWriterConsumer_.get();
     }
 
-    virtual void OnOperationFailed(const TOperationId& operationId, const TError& error) override
+    void OnOperationFailed(const TOperationId& operationId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1855,7 +1854,7 @@ private:
 
         bool registered = false;
         try {
-            auto controller = CreateControllerForOperation(this, operation.Get());
+            auto controller = CreateControllerForOperation(Bootstrap_->GetControllerAgent(), operation.Get());
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
@@ -1990,7 +1989,7 @@ private:
 
         IOperationControllerPtr controller;
         try {
-            controller = CreateControllerForOperation(this, operation.Get());
+            controller = CreateControllerForOperation(Bootstrap_->GetControllerAgent(), operation.Get());
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
