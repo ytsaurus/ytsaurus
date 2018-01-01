@@ -87,6 +87,12 @@ message TReqHeartbeat
         repeated TAlert alerts = 2;
     }
 
+    message TOperationSuspension
+    {
+        required NYT.NProto.TGuid operation_id = 1;
+        required NYT.NProto.TError error = 2;
+    }
+
     repeated TOperationJobMetrics job_metrics = 1;
 
     repeated TJobInterrupt jobs_to_interrupt = 2;
@@ -101,6 +107,7 @@ message TReqHeartbeat
     optional bytes suspicious_jobs = 8;
 
     repeated NYT.NProto.TGuid completed_operation_ids = 9;
+    repeated TOperationSuspension suspended_operations = 10;
 }
 
 message TRspHeartbeat

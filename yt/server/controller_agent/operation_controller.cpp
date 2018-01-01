@@ -287,6 +287,16 @@ public:
         return Underlying_->IsCompleteFinished();
     }
 
+    virtual TError GetSuspensionError() const override
+    {
+        return Underlying_->GetSuspensionError();
+    }
+
+    virtual void ResetSuspensionError() override
+    {
+        Underlying_->ResetSuspensionError();
+    }
+
     virtual int OnSnapshotStarted() override
     {
         return Underlying_->OnSnapshotStarted();

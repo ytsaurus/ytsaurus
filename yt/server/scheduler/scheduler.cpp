@@ -892,6 +892,13 @@ public:
                 BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operationId));
         }
 
+        for (const auto& protoOperationSuspension: request->suspended_operations()) {
+            auto operationId = FromProto<TOperationId>(protoOperationSuspension.operation_id());
+            auto error = FromProto<TError>(protoOperationSuspension.error());
+            MasterConnector_->GetCancelableControlInvoker()->Invoke(
+                BIND(&TImpl::DoSuspendOperation, MakeStrong(this), operationId, error, /* abortRunningJobs */ true, /* setAlert */ true));
+        }
+
         for (const auto& operationAlerts : request->operation_alerts()) {
             TOperationAlertsMap alerts;
             for (const auto& alertProto : operationAlerts.alerts()) {
@@ -1066,14 +1073,6 @@ public:
 
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
-    }
-
-    virtual void OnOperationSuspended(const TOperationId& operationId, const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoSuspendOperation, MakeStrong(this), operationId, error, /* abortRunningJobs */ true, /* setAlert */ true));
     }
 
     virtual void OnOperationAborted(const TOperationId& operationId, const TError& error) override

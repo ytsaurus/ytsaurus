@@ -444,6 +444,13 @@ private:
                 ToProto(req->add_completed_operation_ids(), operationId);
             }
 
+            if (!controller->GetSuspensionError().IsOK()) {
+                auto suspendesOperationProto = req->add_suspended_operations();
+                ToProto(suspendesOperationProto->mutable_operation_id(), operationId);
+                ToProto(suspendesOperationProto->mutable_error(), controller->GetSuspensionError());
+                controller->ResetSuspensionError();
+            }
+
             auto jobMetricsDelta = controller->ExtractJobMetricsDelta();
             ToProto(req->add_job_metrics(), jobMetricsDelta);
 

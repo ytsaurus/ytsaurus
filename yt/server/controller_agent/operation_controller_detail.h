@@ -349,6 +349,9 @@ public:
 
     virtual bool IsCompleteFinished() const override;
 
+    virtual TError GetSuspensionError() const override;
+    virtual void ResetSuspensionError() override;
+
     virtual TOperationAlertsMap GetAlerts() override;
 
     virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override;
@@ -390,6 +393,9 @@ protected:
     std::atomic<bool> Forgotten = {false};
     std::atomic<bool> RevivedFromSnapshot = {false};
     std::atomic<bool> CompleteFinished = {false};
+
+    TSpinLock SuspensionErrorLock_;
+    TError SuspensionError_;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
