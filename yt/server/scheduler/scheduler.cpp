@@ -899,6 +899,15 @@ public:
                 BIND(&TImpl::DoSuspendOperation, MakeStrong(this), operationId, error, /* abortRunningJobs */ true, /* setAlert */ true));
         }
 
+        for (const auto& protoOperationAbort: request->aborted_operations()) {
+            auto operationId = FromProto<TOperationId>(protoOperationAbort.operation_id());
+            auto error = FromProto<TError>(protoOperationAbort.error());
+            MasterConnector_->GetCancelableControlInvoker()->Invoke(
+                BIND([=, this_ = MakeStrong(this)] {
+                    DoAbortOperation(operationId, error);
+                }));
+        }
+
         for (const auto& operationAlerts : request->operation_alerts()) {
             TOperationAlertsMap alerts;
             for (const auto& alertProto : operationAlerts.alerts()) {
@@ -1073,16 +1082,6 @@ public:
 
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
-    }
-
-    virtual void OnOperationAborted(const TOperationId& operationId, const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND([=, this_ = MakeStrong(this)] {
-                DoAbortOperation(operationId, error);
-            }));
     }
 
     // INodeShardHost implementation
@@ -1513,11 +1512,10 @@ private:
 
         DoAbortOperation(
             operation,
-            TError("User transaction %v of operation has expired or was aborted",
-                operation->GetUserTransactionId()));
+            GetUserTransactionAbortedError(operation->GetUserTransactionId()));
     }
 
-    void OnUserTransactionAborted(const TOperationId& operationId) override
+    void OnUserTransactionAborted(const TOperationId& operationId)
     {
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
             BIND([=, this_ = MakeStrong(this)] {

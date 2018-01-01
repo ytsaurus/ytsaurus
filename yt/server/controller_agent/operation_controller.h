@@ -93,25 +93,6 @@ struct IOperationHost
     virtual void OnOperationFailed(
         const TOperationId& operationId,
         const TError& error) = 0;
-
-    //! Called by a controller to notify the host that the operation has aborted.
-    /*!
-     *  Safe to call multiple times (only the first call counts).
-     *
-     *  \note Thread affinity: any
-     */
-    virtual void OnOperationAborted(
-        const TOperationId& operationId,
-        const TError& error) = 0;
-
-    //! Called by a controller to notify the host that the user transaction of operations is expired or aborted.
-    /*!
-     *  Safe to call multiple times (only the first call counts).
-     *
-     *  \note Thread affinity: any
-     */
-    virtual void OnUserTransactionAborted(
-        const TOperationId& operationId) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,6 +390,9 @@ struct IOperationController
     //! Returns non-trivial error if operation should be suspended.
     virtual TError GetSuspensionError() const = 0;
     virtual void ResetSuspensionError() = 0;
+
+    //! Returns non-trivial error if operation should be aborted.
+    virtual TError GetAbortError() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

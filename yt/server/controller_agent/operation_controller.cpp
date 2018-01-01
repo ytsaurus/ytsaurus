@@ -287,6 +287,11 @@ public:
         return Underlying_->IsCompleteFinished();
     }
 
+    virtual TError GetAbortError() const override
+    {
+        return Underlying_->GetAbortError();
+    }
+
     virtual TError GetSuspensionError() const override
     {
         return Underlying_->GetSuspensionError();

@@ -352,6 +352,8 @@ public:
     virtual TError GetSuspensionError() const override;
     virtual void ResetSuspensionError() override;
 
+    virtual TError GetAbortError() const override;
+
     virtual TOperationAlertsMap GetAlerts() override;
 
     virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override;
@@ -396,6 +398,9 @@ protected:
 
     TSpinLock SuspensionErrorLock_;
     TError SuspensionError_;
+
+    TSpinLock AbortErrorLock_;
+    TError AbortError_;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;

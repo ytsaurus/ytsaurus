@@ -61,6 +61,8 @@ bool IsSchedulingReason(EAbortReason reason);
 bool IsNonSchedulingReason(EAbortReason reason);
 bool IsSentinelReason(EAbortReason reason);
 
+TError GetUserTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
