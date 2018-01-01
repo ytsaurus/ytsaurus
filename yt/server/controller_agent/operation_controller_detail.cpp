@@ -3206,18 +3206,6 @@ int TOperationControllerBase::GetPendingJobCount() const
     return CachedPendingJobCount;
 }
 
-int TOperationControllerBase::GetTotalJobCount() const
-{
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    // Avoid accessing the state while not prepared.
-    if (!IsPrepared()) {
-        return 0;
-    }
-
-    return JobCounter->GetTotal();
-}
-
 bool TOperationControllerBase::IsRevivedFromSnapshot() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -3247,7 +3235,7 @@ std::vector<NScheduler::TJobResourcesWithQuota> TOperationControllerBase::GetMin
 
     yhash<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
 
-    for (const auto& task: Tasks) {
+    for (const auto& task : Tasks) {
         if (task->GetPendingJobCount() == 0) {
             continue;
         }
@@ -5715,6 +5703,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .Item("recent_snapshot_index").Value(RecentSnapshotIndex_)
         .Item("last_successful_snapshot_time").Value(LastSuccessfulSnapshotTime_);
 }
+
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
     if (!IsPrepared()) {
@@ -6096,6 +6085,18 @@ i64 TOperationControllerBase::GetUnavailableInputChunkCount() const
         return result;
     }
     return UnavailableInputChunkCount;
+}
+
+int TOperationControllerBase::GetTotalJobCount() const
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    // Avoid accessing the state while not prepared.
+    if (!IsPrepared()) {
+        return 0;
+    }
+
+    return JobCounter->GetTotal();
 }
 
 i64 TOperationControllerBase::GetDataSliceCount() const

@@ -223,7 +223,6 @@ public:
     virtual TCancelableContextPtr GetCancelableContext() const override;
     virtual IInvokerPtr GetInvoker() const override;
 
-    virtual int GetTotalJobCount() const override;
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
@@ -786,6 +785,8 @@ protected:
     //! number of unavailable chunks during materialization (fetching samples or chunk slices).
     //! Used for diagnostics only (exported into orchid).
     virtual i64 GetUnavailableInputChunkCount() const;
+
+    int GetTotalJobCount() const;
 
     i64 GetDataSliceCount() const;
 

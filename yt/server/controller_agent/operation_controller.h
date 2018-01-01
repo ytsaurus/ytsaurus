@@ -111,10 +111,10 @@ struct IOperationControllerStrategyHost
     //! Called periodically during heartbeat to obtain min needed resources to schedule any operation job.
     virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const = 0;
 
+    //! Returns the number of jobs the controller is able to start right away.
     /*!
      *  \note Thread affinity: any
      */
-    //! Returns the number of jobs the controller still needs to start right away.
     virtual int GetPendingJobCount() const = 0;
 };
 
@@ -272,9 +272,6 @@ struct IOperationController
      *  the negotiation between scheduler and controller becomes no longer valid.
      */
     virtual void Forget() = 0;
-
-    //! Returns the total number of jobs to be run during the operation.
-    virtual int GetTotalJobCount() const = 0;
 
     //! Returns whether controller is running or not.
     virtual bool IsRunning() const = 0;
