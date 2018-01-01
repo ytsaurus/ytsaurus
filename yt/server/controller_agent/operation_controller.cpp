@@ -287,6 +287,11 @@ public:
         return Underlying_->IsCompleteFinished();
     }
 
+    virtual TError GetFailureError() const override
+    {
+        return Underlying_->GetFailureError();
+    }
+
     virtual TError GetAbortError() const override
     {
         return Underlying_->GetAbortError();
@@ -331,7 +336,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateControllerForOperation(
-    IOperationHost* host,
+    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     IOperationControllerPtr controller;
@@ -339,50 +344,50 @@ IOperationControllerPtr CreateControllerForOperation(
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
             controller = baseSpec->Ordered
-                ? CreateOrderedMapController(host, operation)
-                : CreateUnorderedMapController(host, operation);
+                ? CreateOrderedMapController(controllerAgent, operation)
+                : CreateUnorderedMapController(controllerAgent, operation);
             break;
         }
         case EOperationType::Merge: {
             auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
             switch (baseSpec->Mode) {
                 case EMergeMode::Ordered: {
-                    controller = CreateOrderedMergeController(host, operation);
+                    controller = CreateOrderedMergeController(controllerAgent, operation);
                     break;
                 }
                 case EMergeMode::Sorted: {
-                    controller = CreateSortedMergeController(host, operation);
+                    controller = CreateSortedMergeController(controllerAgent, operation);
                     break;
                 }
                 case EMergeMode::Unordered: {
-                    controller = CreateUnorderedMergeController(host, operation);
+                    controller = CreateUnorderedMergeController(controllerAgent, operation);
                     break;
                 }
             }
             break;
         }
         case EOperationType::Erase: {
-            controller = CreateEraseController(host, operation);
+            controller = CreateEraseController(controllerAgent, operation);
             break;
         }
         case EOperationType::Sort: {
-            controller = CreateSortController(host, operation);
+            controller = CreateSortController(controllerAgent, operation);
             break;
         }
         case EOperationType::Reduce: {
-            controller = CreateSortedReduceController(host, operation);
+            controller = CreateSortedReduceController(controllerAgent, operation);
             break;
         }
         case EOperationType::JoinReduce: {
-            controller = CreateJoinReduceController(host, operation);
+            controller = CreateJoinReduceController(controllerAgent, operation);
             break;
         }
         case EOperationType::MapReduce: {
-            controller = CreateMapReduceController(host, operation);
+            controller = CreateMapReduceController(controllerAgent, operation);
             break;
         }
         case EOperationType::RemoteCopy: {
-            controller = CreateRemoteCopyController(host, operation);
+            controller = CreateRemoteCopyController(controllerAgent, operation);
             break;
         }
         default:

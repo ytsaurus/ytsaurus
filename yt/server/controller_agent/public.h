@@ -25,8 +25,6 @@ using NScheduler::TOperationOptionsPtr;
 // TODO(ignat): Move setting alerts from Scheduler to ControllerAgent.
 using NScheduler::EOperationAlertType;
 
-struct IOperationHost;
-
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
 DECLARE_REFCOUNTED_STRUCT(TControllerTransactions)

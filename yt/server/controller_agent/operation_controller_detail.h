@@ -264,7 +264,7 @@ public:
     TOperationControllerBase(
         TOperationSpecBasePtr spec,
         TOperationOptionsPtr options,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation);
 
     // ITaskHost implementation.
@@ -352,6 +352,7 @@ public:
     virtual TError GetSuspensionError() const override;
     virtual void ResetSuspensionError() override;
 
+    virtual TError GetFailureError() const override;
     virtual TError GetAbortError() const override;
 
     virtual TOperationAlertsMap GetAlerts() override;
@@ -361,8 +362,7 @@ public:
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 
 protected:
-    IOperationHost* Host;
-    TControllerAgent* ControllerAgent;
+    TControllerAgentPtr ControllerAgent;
     TSchedulerConfigPtr Config;
     TMasterConnectorPtr MasterConnector;
 
@@ -401,6 +401,9 @@ protected:
 
     TSpinLock AbortErrorLock_;
     TError AbortError_;
+
+    TSpinLock FailureErrorLock_;
+    TError FailureError_;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;

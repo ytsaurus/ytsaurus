@@ -75,28 +75,6 @@ struct TOperationControllerInitializationAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IOperationHost
-{
-    virtual ~IOperationHost() = default;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual TControllerAgent* GetControllerAgent() = 0;
-
-    //! Called by a controller to notify the host that the operation has failed.
-    /*!
-     *  Safe to call multiple times (only the first call counts).
-     *
-     *  \note Thread affinity: any
-     */
-    virtual void OnOperationFailed(
-        const TOperationId& operationId,
-        const TError& error) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IOperationControllerStrategyHost
     : public virtual TRefCounted
 {
@@ -183,7 +161,7 @@ struct IOperationControllerSchedulerHost
      */
     virtual void Revive() = 0;
 
-    //! Called by a scheduler in response to IOperationHost::OnOperationCompleted.
+    //! Called by a scheduler in operation complete pipeline.
     /*!
      *  The controller must commit the transactions related to the operation.
      */
@@ -393,6 +371,9 @@ struct IOperationController
 
     //! Returns non-trivial error if operation should be aborted.
     virtual TError GetAbortError() const = 0;
+
+    //! Returns non-trivial error if operation should be failed.
+    virtual TError GetFailureError() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
@@ -400,7 +381,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateControllerForOperation(
-    IOperationHost* host,
+    TControllerAgentPtr controllerAgent,
     NScheduler::TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////

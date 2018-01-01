@@ -66,8 +66,6 @@ struct IEventLogHost;
 DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
 
-struct IOperationHost;
-
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 
 class TMasterConnector;

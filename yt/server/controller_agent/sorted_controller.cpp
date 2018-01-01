@@ -63,9 +63,9 @@ public:
     TSortedControllerBase(
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOperationControllerBase(spec, options, host, operation)
+        : TOperationControllerBase(spec, options, controllerAgent, operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -573,9 +573,9 @@ class TSortedMergeController
 public:
     TSortedMergeController(
         TSortedMergeOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TSortedControllerBase(spec, host->GetControllerAgent()->GetConfig()->SortedMergeOperationOptions, host, operation)
+        : TSortedControllerBase(spec, controllerAgent->GetConfig()->SortedMergeOperationOptions, controllerAgent, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
@@ -747,11 +747,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
 
 IOperationControllerPtr CreateSortedMergeController(
-    IOperationHost* host,
+    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(operation->GetSpec());
-    return New<TSortedMergeController>(spec, host, operation);
+    return New<TSortedMergeController>(spec, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -763,9 +763,9 @@ public:
     TSortedReduceControllerBase(
         TReduceOperationSpecBasePtr spec,
         TReduceOperationOptionsPtr options,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TSortedControllerBase(spec, options, host, operation)
+        : TSortedControllerBase(spec, options, controllerAgent, operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -976,9 +976,9 @@ class TSortedReduceController
 public:
     TSortedReduceController(
         TReduceOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TSortedReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->ReduceOperationOptions, host, operation)
+        : TSortedReduceControllerBase(spec, controllerAgent->GetConfig()->ReduceOperationOptions, controllerAgent, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
@@ -1129,11 +1129,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController);
 
 IOperationControllerPtr CreateSortedReduceController(
-    IOperationHost* host,
+    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TSortedReduceController>(spec, host, operation);
+    return New<TSortedReduceController>(spec, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1144,9 +1144,9 @@ class TJoinReduceController
 public:
     TJoinReduceController(
         TJoinReduceOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TSortedReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->JoinReduceOperationOptions, host, operation)
+        : TSortedReduceControllerBase(spec, controllerAgent->GetConfig()->JoinReduceOperationOptions, controllerAgent, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
@@ -1242,11 +1242,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);
 
 IOperationControllerPtr CreateJoinReduceController(
-    IOperationHost* host,
+    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TJoinReduceController>(spec, host, operation);
+    return New<TJoinReduceController>(spec, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
