@@ -2155,7 +2155,8 @@ bool TOperationElement::IsSchedulable() const
 
 bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
 {
-    return !Schedulable_ ||
+    return
+        !Schedulable_ ||
         GetPendingJobCount() == 0 ||
         Controller_->IsBlocked(
             now,
