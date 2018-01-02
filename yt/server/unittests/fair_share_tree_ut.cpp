@@ -206,7 +206,7 @@ public:
         return "root";
     }
 
-    virtual TOperationId GetId() const
+    virtual const TOperationId& GetId() const
     {
         return Id_;
     }
