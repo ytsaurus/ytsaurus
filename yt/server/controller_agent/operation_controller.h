@@ -260,16 +260,14 @@ struct IOperationController
     //! Returns the context that gets invalidated by #Abort.
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
 
+    //! Suspends controller invoker and returns future that is set after last action in invoker is executed.
     /*!
-     *  Suspends controller invoker and returns future that is set after last action in invoker is executed.
-     *
      *  \note Invoker affinity: Control invoker
      */
     virtual TFuture<void> Suspend() = 0;
 
+    //! Resumes execution in controller invoker.
     /*!
-     *  Resumes execution in controller invoker.
-     *
      *  \note Invoker affinity: Control invoker
      */
     virtual void Resume() = 0;
@@ -278,10 +276,15 @@ struct IOperationController
     /*!
      *  Happens when current scheduler gets disconnected from master and
      *  the negotiation between scheduler and controller becomes no longer valid.
+     *
+     *  \note Invoker affinity: Control invoker
      */
     virtual void Forget() = 0;
 
-    //! Returns whether controller is running or not.
+    //! Returns |true| as long as the operation can schedule new jobs.
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
     virtual bool IsRunning() const = 0;
 
     //! Marks that progress was dumped to Cypress.

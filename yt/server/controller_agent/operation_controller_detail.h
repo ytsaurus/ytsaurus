@@ -230,7 +230,6 @@ public:
 
     virtual bool IsRevivedFromSnapshot() const override;
 
-    //! Returns |true| as long as the operation can schedule new jobs.
     virtual bool IsRunning() const override;
 
     virtual void SetProgressUpdated() override;
