@@ -120,6 +120,8 @@ struct IOperationControllerStrategyHost
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationControllerSchedulerHost
     : public IOperationControllerStrategyHost
 {
@@ -231,12 +233,13 @@ struct IOperationControllerSchedulerHost
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)
 
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Invoker affinity: OperationControllerInvoker
  */
 struct IOperationController
-    : public virtual TRefCounted
-    , public IOperationControllerSchedulerHost
+    : public IOperationControllerSchedulerHost
 {
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
@@ -274,22 +277,22 @@ struct IOperationController
     //! Returns whether controller is running or not.
     virtual bool IsRunning() const = 0;
 
+    //! Marks that progress was dumped to Cypress.
     /*!
      *  \note Invoker affinity: any.
      */
-    //! Marks that progress was dumped to Cypress.
     virtual void SetProgressUpdated() = 0;
 
+    //! Check that progress has changed and should be dumped to the Cypress.
     /*!
      *  \note Invoker affinity: any.
      */
-    //! Check that progress has changed and should be dumped to the Cypress.
     virtual bool ShouldUpdateProgress() const = 0;
 
+    //! Provides a string describing operation status and statistics.
     /*!
      *  \note Invoker affinity: Controller invoker
      */
-    //! Provides a string describing operation status and statistics.
     virtual TString GetLoggingProgress() const = 0;
 
     //! Called to get a cached YSON string representing the current progress.
@@ -301,73 +304,91 @@ struct IOperationController
     //! Builds job spec proto blob.
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
 
-    /*!
-     *  \note Invoker affinity: controller invoker.
-     */
     //! Method that is called right before the controller is suspended and snapshot builder forks.
     //! Return value is an index of snapshot upload attempt starting from zero.
     //! This method should not throw.
+    /*!
+     *  \note Invoker affinity: Controller invoker.
+     */
     virtual int OnSnapshotStarted() = 0;
 
-    /*!
-     *  \note Invoker affinity: cancellable controller invoker.
-     */
     //! Method that is called right after each snapshot is uploaded.
     //! `snapshotIndex` should be equal to a last `OnSnapshotStarted()` return value,
     //! otherwise controller crashes.
+    /*!
+     *  \note Invoker affinity: cancellable Controller invoker.
+     */
     virtual void OnSnapshotCompleted(int snapshotIndex) = 0;
 
+    //! Returns metrics delta since last call.
     /*!
      * \note Invoker affinity: any.
      */
-    //! Returns metrics delta since last call.
     virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() = 0;
 
+    //! Builds operation alerts.
     /*!
      * \note Invoker affinity: any.
      */
-    //! Build operation alerts.
     virtual TOperationAlertsMap GetAlerts() = 0;
 
-    /*!
-     *  \note Invoker affinity: Controller invoker
-     */
     //! Updates internal copy of scheduler config used by controller.
+    /*!
+     *  \note Invoker affinity: Controller invoker.
+     */
     virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
 
     // TODO(ignat): remake it to method that returns attributes that should be updated in Cypress.
+    //! Returns |true| when controller can build its progress.
     /*!
      *  \note Invoker affinity: any.
      */
-    //! Returns |true| when controller can build it's progress.
     virtual bool HasProgress() const = 0;
 
-    /*!
-     * \note Invoker affinity: controller.
-     */
     //! Builds operation info, used for orchid.
+    /*!
+     *  \note Invoker affinity: Controller invoker.
+     */
     virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) = 0;
 
-    /*!
-     * \note Invoker affinity: controller.
-     */
     //! Builds job info, used for orchid.
+    /*!
+     *  \note Invoker affinity: Controller invoker.
+     */
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
 
     //! Called to get a YSON string representing suspicious jobs of operation.
+    /*!
+     *  \note Invoker affinity: any.
+     */
     virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
 
     //! Called to check that operation fully completed.
+    // TODO(babenko): thread affinity?
     virtual bool IsCompleteFinished() const = 0;
 
     //! Returns non-trivial error if operation should be suspended.
+    /*!
+     *  \note Invoker affinity: any.
+     */
     virtual TError GetSuspensionError() const = 0;
+
+    //! Resets the above set error.
+    /*!
+     *  \note Invoker affinity: any.
+     */
     virtual void ResetSuspensionError() = 0;
 
     //! Returns non-trivial error if operation should be aborted.
+    /*!
+     *  \note Invoker affinity: any.
+     */
     virtual TError GetAbortError() const = 0;
 
     //! Returns non-trivial error if operation should be failed.
+    /*!
+     *  \note Invoker affinity: any.
+     */
     virtual TError GetFailureError() const = 0;
 };
 
