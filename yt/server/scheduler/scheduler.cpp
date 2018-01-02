@@ -365,7 +365,9 @@ public:
 
     virtual TInstant GetConnectionTime() const override
     {
-        return ConnectionTime_;
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return MasterConnector_->GetConnectionTime();
     }
 
     TOperationPtr FindOperation(const TOperationId& id) const
@@ -1208,8 +1210,6 @@ private:
 
     ISchedulerStrategyPtr Strategy_;
 
-    TInstant ConnectionTime_;
-
     yhash<TOperationId, TOperationPtr> IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
@@ -1410,8 +1410,6 @@ private:
 
     void OnMasterConnected()
     {
-        ConnectionTime_ = TInstant::Now();
-
         CachedExecNodeMemoryDistributionByTags_->Start();
 
         Strategy_->StartPeriodicActivity();

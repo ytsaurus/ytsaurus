@@ -42,6 +42,7 @@ public:
     IInvokerPtr GetCancelableControlInvoker() const;
 
     bool IsConnected() const;
+    TInstant GetConnectionTime() const;
 
     void Disconnect();
 

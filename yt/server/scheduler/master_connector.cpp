@@ -98,7 +98,12 @@ public:
 
     bool IsConnected() const
     {
-        return Connected;
+        return Connected.load();
+    }
+
+    TInstant GetConnectionTime() const
+    {
+        return ConnectionTime.load();
     }
 
     void Disconnect()
@@ -320,6 +325,7 @@ private:
     IInvokerPtr CancelableControlInvoker;
 
     std::atomic<bool> Connected = {false};
+    std::atomic<TInstant> ConnectionTime;
 
     ITransactionPtr LockTransaction;
 
@@ -413,6 +419,7 @@ private:
 
         YCHECK(!Connected);
         Connected.store(true);
+        ConnectionTime.store(TInstant::Now());
 
         LOG_INFO("Master connected");
 
@@ -1513,9 +1520,14 @@ bool TMasterConnector::IsConnected() const
     return Impl->IsConnected();
 }
 
+TInstant TMasterConnector::GetConnectionTime() const
+{
+    return Impl->GetConnectionTime();
+}
+
 void TMasterConnector::Disconnect()
 {
-    return Impl->Disconnect();
+    Impl->Disconnect();
 }
 
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
