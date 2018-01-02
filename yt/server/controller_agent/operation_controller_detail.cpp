@@ -6131,9 +6131,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_file_account(fileAccount);
 
     if (config->TmpfsPath && Config->EnableTmpfs) {
-        auto tmpfsSize = config->TmpfsSize
-            ? *config->TmpfsSize
-            : config->MemoryLimit;
+        auto tmpfsSize = config->TmpfsSize.Get(config->MemoryLimit);
         jobSpec->set_tmpfs_size(tmpfsSize);
         jobSpec->set_tmpfs_path(*config->TmpfsPath);
     }
