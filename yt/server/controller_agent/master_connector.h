@@ -41,6 +41,10 @@ public:
         TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
 
+    // TODO(babenko): get rid of these methods
+    void OnMasterConnected();
+    void OnMasterDisconnected();
+
     const IInvokerPtr& GetInvoker() const;
 
     void RegisterOperation(

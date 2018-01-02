@@ -90,6 +90,9 @@ public:
             BIND(&TImpl::UnstageChunkTrees, MakeWeak(this)),
             Config_->ChunkUnstagePeriod,
             EPeriodicExecutorMode::Automatic))
+    { }
+
+    void OnMasterConnected()
     {
         OperationNodesUpdateExecutor_->StartPeriodicUpdates(
             Invoker_,
@@ -97,6 +100,14 @@ public:
         TransactionRefreshExecutor_->Start();
         SnapshotExecutor_->Start();
         UnstageExecutor_->Start();
+    }
+
+    void OnMasterDisconnected()
+    {
+        OperationNodesUpdateExecutor_->StopPeriodicUpdates();
+        TransactionRefreshExecutor_->Stop();
+        SnapshotExecutor_->Stop();
+        UnstageExecutor_->Stop();
     }
 
     const IInvokerPtr& GetInvoker() const
@@ -1164,6 +1175,16 @@ TMasterConnector::TMasterConnector(
     NCellScheduler::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(invoker, config, bootstrap))
 { }
+
+void TMasterConnector::OnMasterConnected()
+{
+    Impl_->OnMasterConnected();
+}
+
+void TMasterConnector::OnMasterDisconnected()
+{
+    Impl_->OnMasterDisconnected();
+}
 
 const IInvokerPtr& TMasterConnector::GetInvoker() const
 {

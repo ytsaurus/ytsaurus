@@ -38,8 +38,10 @@ public:
         TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
 
-    void Connect();
-    void Disconnect();
+    // TODO(babenko): get rid of these method
+    void OnMasterConnected();
+    void OnMasterDisconnected();
+
     void ValidateConnected() const;
 
     TInstant GetConnectionTime() const;

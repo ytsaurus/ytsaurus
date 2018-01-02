@@ -354,9 +354,9 @@ public:
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 
 protected:
-    TControllerAgentPtr ControllerAgent;
+    const TControllerAgentPtr ControllerAgent;
     TControllerAgentConfigPtr Config;
-    TMasterConnectorPtr MasterConnector;
+    const TMasterConnectorPtr MasterConnector;
 
     const TOperationId OperationId;
 
