@@ -61,7 +61,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOperationAlertsMap = yhash<EOperationAlertType, TError>;
+using TOperationAlertMap = yhash<EOperationAlertType, TError>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,7 +330,7 @@ struct IOperationController
     /*!
      * \note Invoker affinity: any.
      */
-    virtual TOperationAlertsMap GetAlerts() = 0;
+    virtual TOperationAlertMap GetAlerts() = 0;
 
     //! Updates internal copy of scheduler config used by controller.
     /*!

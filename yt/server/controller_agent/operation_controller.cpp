@@ -262,7 +262,7 @@ public:
         return Underlying_->ExtractJobMetricsDelta();
     }
 
-    virtual TOperationAlertsMap GetAlerts() override
+    virtual TOperationAlertMap GetAlerts() override
     {
         return Underlying_->GetAlerts();
     }

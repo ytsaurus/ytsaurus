@@ -354,7 +354,7 @@ public:
     virtual TError GetFailureError() const override;
     virtual TError GetAbortError() const override;
 
-    virtual TOperationAlertsMap GetAlerts() override;
+    virtual TOperationAlertMap GetAlerts() override;
 
     virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override;
 
@@ -1077,7 +1077,7 @@ private:
     TInstant LastSuccessfulSnapshotTime_ = TInstant::Zero();
 
     TSpinLock AlertsLock_;
-    TOperationAlertsMap Alerts_;
+    TOperationAlertMap Alerts_;
 
     TOperationControllerInitializationAttributes InitializationAttributes_;
     NYson::TYsonString Attributes_;
