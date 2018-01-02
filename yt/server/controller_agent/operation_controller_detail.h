@@ -907,14 +907,12 @@ protected:
 private:
     typedef TOperationControllerBase TThis;
 
-    typedef yhash<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunkMap;
-
     //! Scheduler incarnation that spawned this controller.
     //! This field is set in the constructor.
     const int SchedulerIncarnation_;
 
     //! Keeps information needed to maintain the liveness state of input chunks.
-    TInputChunkMap InputChunkMap;
+    yhash<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
 
     TOperationSpecBasePtr Spec_;
     TOperationOptionsPtr Options;
