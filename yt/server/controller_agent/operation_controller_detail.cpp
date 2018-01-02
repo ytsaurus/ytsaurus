@@ -5463,7 +5463,7 @@ void TOperationControllerBase::ResetSuspensionError()
     SuspensionError_ = TError();
 }
 
-TOperationAlertsMap TOperationControllerBase::GetAlerts()
+TOperationAlertMap TOperationControllerBase::GetAlerts()
 {
     TGuard<TSpinLock> guard(AlertsLock_);
     return Alerts_;

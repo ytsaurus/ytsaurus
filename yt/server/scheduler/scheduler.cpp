@@ -466,7 +466,7 @@ public:
 
     void DoSetOperationAlerts(
         const TOperationId& operationId,
-        const TOperationAlertsMap& operationAlerts)
+        const TOperationAlertMap& operationAlerts)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -941,7 +941,7 @@ public:
         }
 
         for (const auto& operationAlerts : request->operation_alerts()) {
-            TOperationAlertsMap alerts;
+            TOperationAlertMap alerts;
             for (const auto& alertProto : operationAlerts.alerts()) {
                 auto alertType = EOperationAlertType(alertProto.type());
                 auto alert = FromProto<TError>(alertProto.error());
