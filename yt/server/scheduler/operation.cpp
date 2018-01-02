@@ -128,11 +128,6 @@ void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDur
     ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
 }
 
-void TOperation::UpdateControllerTimeStatistics(const TStatistics& statistics)
-{
-    ControllerTimeStatistics_.Update(statistics);
-}
-
 TCodicilGuard TOperation::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);
