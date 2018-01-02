@@ -232,7 +232,6 @@ public:
     TNullable<int> FindSlotIndex(const TString& treeId) const override;
     int GetSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int value) override;
-
     const yhash<TString, int>& GetSlotIndices() const;
 
     //! Returns a cancelable control invoker corresponding to this operation.
