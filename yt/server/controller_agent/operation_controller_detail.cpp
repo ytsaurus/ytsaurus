@@ -1820,7 +1820,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     RemoveJoblet(joblet);
 
     if (abortReason == EAbortReason::AccountLimitExceeded) {
-        TGuard<TSpinLock> guard(SuspensionErrorLock_);
+        auto guard = Guard(EventsLock_);
         SuspensionError_ = TError("Account limit exceeded");
     }
 
@@ -2236,26 +2236,27 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 void TOperationControllerBase::OnTransactionAborted(const TTransactionId& transactionId)
 {
     if (transactionId == UserTransactionId) {
-        TGuard<TSpinLock> guard(AbortErrorLock_);
+        auto guard = Guard(EventsLock_);
         AbortError_ = GetUserTransactionAbortedError(UserTransactionId);
-    } else {
-        {
-            // Check that transactionId is presented in controller.
-            bool found = false;
-            for (const auto& transaction : GetTransactions()) {
-                if (transaction->GetId() == transactionId) {
-                    found = true;
-                    break;
-                }
-            }
-            YCHECK(found);
-        }
-
-        OnOperationFailed(
-            TError("Controller transaction %v has expired or was aborted",
-                transactionId),
-            /* flush */ false);
+        return;
     }
+
+    {
+        // Check that transactionId is presented in controller.
+        bool found = false;
+        for (const auto& transaction : GetTransactions()) {
+            if (transaction->GetId() == transactionId) {
+                found = true;
+                break;
+            }
+        }
+        YCHECK(found);
+    }
+
+    OnOperationFailed(
+        TError("Controller transaction %v has expired or was aborted",
+            transactionId),
+        /* flush */ false);
 }
 
 std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
@@ -3301,7 +3302,10 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     LogProgress(/* force */ true);
 
-    CompleteFinished.store(true);
+    {
+        auto guard = Guard(EventsLock_);
+        Completed_ = true;
+    }
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
@@ -3323,7 +3327,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     }
 
     {
-        TGuard<TSpinLock> guard(FailureErrorLock_);
+        auto guard = Guard(EventsLock_);
         FailureError_ = error;
     }
 }
@@ -5407,7 +5411,7 @@ void TOperationControllerBase::OnBeforeDisposal()
     ControllerAgent->ReleaseJobs(std::move(jobIdsToRelease), OperationId, SchedulerIncarnation_);
 }
 
-NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelta()
+NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
 {
     TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
@@ -5436,33 +5440,25 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelt
     return result;
 }
 
-bool TOperationControllerBase::IsCompleteFinished() const
+TOperationControllerEvent TOperationControllerBase::PullEvent()
 {
-    return CompleteFinished;
-}
-
-TError TOperationControllerBase::GetSuspensionError() const
-{
-    TGuard<TSpinLock> guard(SuspensionErrorLock_);
-    return SuspensionError_;
-}
-
-TError TOperationControllerBase::GetFailureError() const
-{
-    TGuard<TSpinLock> guard(FailureErrorLock_);
-    return FailureError_;
-}
-
-TError TOperationControllerBase::GetAbortError() const
-{
-    TGuard<TSpinLock> guard(AbortErrorLock_);
-    return AbortError_;
-}
-
-void TOperationControllerBase::ResetSuspensionError()
-{
-    TGuard<TSpinLock> guard(SuspensionErrorLock_);
-    SuspensionError_ = TError();
+    auto guard = Guard(EventsLock_);
+    if (!AbortError_.IsOK()) {
+        return TOperationAbortedEvent{AbortError_};
+    }
+    if (!FailureError_.IsOK()) {
+        return TOperationFailedEvent{FailureError_};
+    }
+    if (!SuspensionError_.IsOK()) {
+        // NB: Suspension error is non-sticky.
+        auto error = SuspensionError_;
+        SuspensionError_ = {};
+        return TOperationSuspendedEvent{error};
+    }
+    if (Completed_) {
+        return TOperationCompletedEvent{};
+    }
+    return TNullOperationEvent{};
 }
 
 TOperationAlertMap TOperationControllerBase::GetAlerts()

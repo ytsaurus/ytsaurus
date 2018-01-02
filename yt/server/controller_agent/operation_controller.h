@@ -36,6 +36,7 @@
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/variant.h>
 
 #include <yt/core/yson/public.h>
 
@@ -242,8 +243,39 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNullOperationEvent
+{ };
+
+struct TOperationCompletedEvent
+{ };
+
+struct TOperationAbortedEvent
+{
+    TError Error;
+};
+
+struct TOperationFailedEvent
+{
+    TError Error;
+};
+
+struct TOperationSuspendedEvent
+{
+    TError Error;
+};
+
+using TOperationControllerEvent = TVariant<
+    TNullOperationEvent,
+    TOperationCompletedEvent,
+    TOperationAbortedEvent,
+    TOperationFailedEvent,
+    TOperationSuspendedEvent
+>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
- *  \note Invoker affinity: OperationControllerInvoker
+ *  \note Invoker affinity: Controller invoker
  */
 struct IOperationController
     : public IOperationControllerSchedulerHost
@@ -334,7 +366,7 @@ struct IOperationController
     /*!
      * \note Invoker affinity: any.
      */
-    virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() = 0;
+    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() = 0;
 
     //! Builds operation alerts.
     /*!
@@ -373,35 +405,11 @@ struct IOperationController
      */
     virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
 
-    //! Called to check that operation fully completed.
+    //! Called to retrieve a new event from the controller and pass it to the scheduler.
     /*!
      *  \note Invoker affinity: any.
      */
-    virtual bool IsCompleteFinished() const = 0;
-
-    //! Returns non-trivial error if operation should be suspended.
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    virtual TError GetSuspensionError() const = 0;
-
-    //! Resets the above set error.
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    virtual void ResetSuspensionError() = 0;
-
-    //! Returns non-trivial error if operation should be aborted.
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    virtual TError GetAbortError() const = 0;
-
-    //! Returns non-trivial error if operation should be failed.
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    virtual TError GetFailureError() const = 0;
+    virtual TOperationControllerEvent PullEvent() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

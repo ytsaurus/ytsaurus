@@ -343,15 +343,9 @@ public:
 
     virtual void OnBeforeDisposal() override;
 
-    virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() override;
+    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() override;
 
-    virtual bool IsCompleteFinished() const override;
-
-    virtual TError GetSuspensionError() const override;
-    virtual void ResetSuspensionError() override;
-
-    virtual TError GetFailureError() const override;
-    virtual TError GetAbortError() const override;
+    virtual TOperationControllerEvent PullEvent() override;
 
     virtual TOperationAlertMap GetAlerts() override;
 
@@ -392,16 +386,12 @@ protected:
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> Forgotten = {false};
     std::atomic<bool> RevivedFromSnapshot = {false};
-    std::atomic<bool> CompleteFinished = {false};
 
-    TSpinLock SuspensionErrorLock_;
+    TSpinLock EventsLock_;
     TError SuspensionError_;
-
-    TSpinLock AbortErrorLock_;
     TError AbortError_;
-
-    TSpinLock FailureErrorLock_;
     TError FailureError_;
+    bool Completed_ = false;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
