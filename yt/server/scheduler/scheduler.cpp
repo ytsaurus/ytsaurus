@@ -2529,7 +2529,7 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-        void AbortAbortingOperation(const TOperationPtr& operation)
+    void AbortAbortingOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
