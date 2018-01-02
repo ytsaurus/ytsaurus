@@ -219,7 +219,7 @@ public:
 
     //! Adds new sample to controller time statistics.
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
-    void UpdateControllerTimeStatistics(const NJobTrackerClient::TStatistics& statistics);
+    
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
