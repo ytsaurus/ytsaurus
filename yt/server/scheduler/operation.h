@@ -73,7 +73,7 @@ struct IOperationStrategyHost
 
     virtual TString GetAuthenticatedUser() const = 0;
 
-    virtual TOperationId GetId() const = 0;
+    virtual const TOperationId& GetId() const = 0;
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
@@ -185,7 +185,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(EOperationCypressStorageMode, StorageMode);
 
     //! Returns operation id.
-    TOperationId GetId() const override;
+    const TOperationId& GetId() const override;
 
     //! Returns operation start time.
     TInstant GetStartTime() const override;
@@ -219,7 +219,7 @@ public:
 
     //! Adds new sample to controller time statistics.
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
-    
+
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
