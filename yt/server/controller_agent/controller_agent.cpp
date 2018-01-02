@@ -60,7 +60,7 @@ public:
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity)))
         , ControllerAgentMasterConnector_(New<TMasterConnector>(
-            CancelableInvoker_,
+            Bootstrap_->GetControllerAgentInvoker(),
             Config_,
             Bootstrap_))
         , SchedulerProxy_(Bootstrap_->GetLocalRpcChannel())
