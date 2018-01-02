@@ -1085,6 +1085,7 @@ private:
             attributes.Get<TMutationId>("mutation_id"),
             userTransactionId,
             specNode,
+            secureVault,
             attributes.Get<TString>("authenticated_user"),
             attributes.Get<std::vector<TString>>("owners", spec->Owners),
             attributes.Get<TInstant>("start_time"),
@@ -1101,8 +1102,6 @@ private:
                 operation->SetSlotIndex(pair.first, pair.second);
             }
         }
-
-        operation->SetSecureVault(std::move(secureVault));
 
         return operation;
     }
