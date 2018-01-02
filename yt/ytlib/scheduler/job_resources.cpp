@@ -214,19 +214,6 @@ double GetResource(const TJobResources& resources, EResourceType type)
     }
 }
 
-void SetResource(TJobResources& resources, EResourceType type, i64 value)
-{
-    switch (type) {
-        #define XX(name, Name) \
-            case EResourceType::Name: \
-                resources.Set##Name(static_cast<decltype(resources.Get##Name())>(value)); break;
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
 double GetMinResourceRatio(
     const TJobResources& nominator,
     const TJobResources& denominator)
