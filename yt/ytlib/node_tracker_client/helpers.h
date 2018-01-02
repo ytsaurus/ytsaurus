@@ -56,7 +56,9 @@ DEFINE_ENUM(EResourceType,
     (SealSlots)
 );
 
-TString FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);
+TString FormatResourceUsage(
+    const NProto::TNodeResources& usage,
+    const NProto::TNodeResources& limits);
 TString FormatResourceUsage(
     const NProto::TNodeResources& usage,
     const NProto::TNodeResources& limits,
