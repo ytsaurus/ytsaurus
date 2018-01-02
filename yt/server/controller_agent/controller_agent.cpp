@@ -59,12 +59,16 @@ public:
             Config_->EventLog,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity)))
+        , ControllerAgentMasterConnector_(New<TMasterConnector>(
+            CancelableInvoker_,
+            Config_,
+            Bootstrap_))
         , SchedulerProxy_(Bootstrap_->GetLocalRpcChannel())
     {
         SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
     }
 
-    void Disconnect()
+    void OnMasterDisconnected()
     {
         Connected_.store(false);
 
@@ -82,20 +86,17 @@ public:
 
         HeartbeatExecutor_->Stop();
 
-        ControllerAgentMasterConnector_.Reset();
+        ControllerAgentMasterConnector_->OnMasterDisconnected();
     }
 
-    void Connect()
+    void OnMasterConnected()
     {
         ConnectionTime_ = TInstant::Now();
 
         CancelableContext_ = New<TCancelableContext>();
         CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
-        ControllerAgentMasterConnector_ = New<TMasterConnector>(
-            CancelableInvoker_,
-            Config_,
-            Bootstrap_);
+        ControllerAgentMasterConnector_->OnMasterConnected();
 
         HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
 
@@ -373,20 +374,18 @@ private:
     TControllerAgentConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
+    const TThreadPoolPtr ControllerThreadPool_;
+    const TActionQueuePtr SnapshotIOQueue_;
+    const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
+    const TAsyncSemaphorePtr CoreSemaphore_;
+    const TEventLogWriterPtr EventLogWriter_;
+
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    const TThreadPoolPtr ControllerThreadPool_;
-    const TActionQueuePtr SnapshotIOQueue_;
-
-    const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
-
-    const TAsyncSemaphorePtr CoreSemaphore_;
-
-    TEventLogWriterPtr EventLogWriter_;
-
     std::atomic<bool> Connected_ = {false};
     TInstant ConnectionTime_;
+
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
     using TControllersMap = yhash<TOperationId, IOperationControllerPtr>;
@@ -567,14 +566,14 @@ TControllerAgent::TControllerAgent(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-void TControllerAgent::Connect()
+void TControllerAgent::OnMasterConnected()
 {
-    Impl_->Connect();
+    Impl_->OnMasterConnected();
 }
 
-void TControllerAgent::Disconnect()
+void TControllerAgent::OnMasterDisconnected()
 {
-    Impl_->Disconnect();
+    Impl_->OnMasterDisconnected();
 }
 
 void TControllerAgent::ValidateConnected() const

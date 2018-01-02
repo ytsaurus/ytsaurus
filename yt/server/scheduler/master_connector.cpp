@@ -433,7 +433,7 @@ private:
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(CancelableControlInvoker));
 
-        Bootstrap->GetControllerAgent()->Connect();
+        Bootstrap->GetControllerAgent()->OnMasterConnected();
 
         StartPeriodicActivities();
 
@@ -985,7 +985,7 @@ private:
 
         LOG_WARNING("Master disconnected");
 
-        Bootstrap->GetControllerAgent()->Disconnect();
+        Bootstrap->GetControllerAgent()->OnMasterDisconnected();
 
         LockTransaction.Reset();
 
