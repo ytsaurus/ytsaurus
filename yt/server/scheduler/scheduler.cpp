@@ -628,16 +628,20 @@ public:
                 << ex;
         }
 
-        // Create operation object.
+        auto secureVault = std::move(spec->SecureVault);
+        specNode->RemoveChild("secure_vault");
+
         auto operationId = MakeRandomId(
             EObjectType::Operation,
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
+
         auto operation = New<TOperation>(
             operationId,
             type,
             mutationId,
             transactionId,
             specNode,
+            secureVault,
             user,
             spec->Owners,
             TInstant::Now(),

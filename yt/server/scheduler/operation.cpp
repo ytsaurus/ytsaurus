@@ -26,6 +26,7 @@ TOperation::TOperation(
     const TMutationId& mutationId,
     const TTransactionId& userTransactionId,
     IMapNodePtr spec,
+    IMapNodePtr secureVault,
     const TString& authenticatedUser,
     const std::vector<TString>& owners,
     TInstant startTime,
@@ -41,6 +42,7 @@ TOperation::TOperation(
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
     , RuntimeParams_(New<TOperationRuntimeParams>())
+    , SecureVault_(std::move(secureVault))
     , Owners_(owners)
     , Events_(events)
     , RevivalDescriptor_(revivalDescriptor)
@@ -53,10 +55,6 @@ TOperation::TOperation(
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
 {
-    auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
-    SecureVault_ = std::move(parsedSpec->SecureVault);
-    Spec_->RemoveChild("secure_vault");
-
     RuntimeParams_->Weight = parsedSpec->Weight.Get(1.0);
     RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
     RuntimeParams_->Owners = parsedSpec->Owners;

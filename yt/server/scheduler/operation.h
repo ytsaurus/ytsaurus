@@ -149,7 +149,7 @@ public:
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain
     // sensitive information.
-    DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
+    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::vector<TString>, Owners);
 
@@ -247,6 +247,7 @@ public:
         const NRpc::TMutationId& mutationId,
         const NTransactionClient::TTransactionId& userTransactionId,
         NYTree::IMapNodePtr spec,
+        NYTree::IMapNodePtr secureVault,
         const TString& authenticatedUser,
         const std::vector<TString>& owners,
         TInstant startTime,
