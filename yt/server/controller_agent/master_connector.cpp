@@ -169,7 +169,8 @@ public:
         LOG_INFO("Invoked flushing controller attributes of operation (OperationId: %v)",
             operationId);
 
-        return BIND([=] {
+        return
+            BIND([=, this_ = MakeStrong(this)] {
                 WaitFor(OperationNodesUpdateExecutor_->ExecuteUpdate(operationId))
                     .ThrowOnError();
             })
