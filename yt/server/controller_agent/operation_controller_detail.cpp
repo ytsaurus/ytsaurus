@@ -226,7 +226,6 @@ TOperationControllerBase::TOperationControllerBase(
     , SchedulerIncarnation_(operation->GetSchedulerIncarnation())
     , Spec_(spec)
     , Options(options)
-    , CachedNeededResources(ZeroJobResources())
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::UpdateSuspiciousJobsYson, MakeWeak(this)),
