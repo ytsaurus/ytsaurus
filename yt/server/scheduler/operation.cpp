@@ -55,12 +55,12 @@ TOperation::TOperation(
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
 {
-    RuntimeParams_->Weight = parsedSpec->Weight.Get(1.0);
+    RuntimeParams_->Weight = spec->Weight.Get(1.0);
     RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
     RuntimeParams_->Owners = parsedSpec->Owners;
 }
 
-TOperationId TOperation::GetId() const
+const TOperationId& TOperation::GetId() const
 {
     return Id_;
 }
