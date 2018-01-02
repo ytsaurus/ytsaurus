@@ -248,6 +248,9 @@ public:
             &TImpl::HandleOperationArchiveVersion,
             Unretained(this)));
 
+        MasterConnector_->SubscribeMasterConnecting(BIND(
+            &TImpl::OnMasterConnecting,
+            Unretained(this)));
         MasterConnector_->SubscribeMasterConnected(BIND(
             &TImpl::OnMasterConnected,
             Unretained(this)));
@@ -320,7 +323,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return IsConnected_ && MasterConnector_->IsConnected();
+        return MasterConnector_->IsConnected();
     }
 
     void ValidateConnected()
@@ -591,7 +594,7 @@ public:
         EOperationType type,
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
-        IMapNodePtr spec,
+        IMapNodePtr specNode,
         const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -604,16 +607,17 @@ public:
         }
 
         // Merge operation spec with template
-        auto specTemplate = GetSpecTemplate(type, spec);
+        auto specTemplate = GetSpecTemplate(type, specNode);
         if (specTemplate) {
-            spec = PatchNode(specTemplate, spec)->AsMap();
+            specNode = PatchNode(specTemplate, specNode)->AsMap();
         }
 
-        TOperationSpecBasePtr operationSpec;
+        TOperationSpecBasePtr spec;
         try {
-            operationSpec = ConvertTo<TOperationSpecBasePtr>(spec);
+            spec = ConvertTo<TOperationSpecBasePtr>(specNode);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
+            THROW_ERROR_EXCEPTION("Error parsing operation spec")
+                << ex;
         }
 
         // Create operation object.
@@ -625,12 +629,12 @@ public:
             type,
             mutationId,
             transactionId,
-            spec,
+            specNode,
             user,
-            operationSpec->Owners,
+            spec->Owners,
             TInstant::Now(),
             GetControlInvoker(EControlQueue::Operation),
-            operationSpec->TestingOperationOptions->CypressStorageMode);
+            spec->TestingOperationOptions->CypressStorageMode);
         operation->SetState(EOperationState::Initializing);
         operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
@@ -655,7 +659,10 @@ public:
         return operation->GetStarted();
     }
 
-    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const TString& user)
+    TFuture<void> AbortOperation(
+        const TOperationPtr& operation,
+        const TError& error,
+        const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -678,7 +685,10 @@ public:
         return operation->GetFinished();
     }
 
-    TFuture<void> SuspendOperation(TOperationPtr operation, const TString& user, bool abortRunningJobs)
+    TFuture<void> SuspendOperation(
+        const TOperationPtr& operation,
+        const TString& user,
+        bool abortRunningJobs)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -702,7 +712,9 @@ public:
         return MasterConnector_->FlushOperationNode(operation);
     }
 
-    TFuture<void> ResumeOperation(TOperationPtr operation, const TString& user)
+    TFuture<void> ResumeOperation(
+        const TOperationPtr& operation,
+        const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -739,7 +751,10 @@ public:
         return MasterConnector_->FlushOperationNode(operation);
     }
 
-    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error, const TString& user)
+    TFuture<void> CompleteOperation(
+        const TOperationPtr& operation,
+        const TError& error,
+        const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1016,7 +1031,7 @@ public:
         DoAbortOperation(operationId, error);
     }
 
-    void MaterializeOperation(TOperationPtr operation)
+    void MaterializeOperation(const TOperationPtr& operation)
     {
         if (operation->GetState() != EOperationState::Pending) {
             // Operation can be in finishing state already.
@@ -1038,14 +1053,15 @@ public:
             BIND(&IOperationControllerSchedulerHost::Materialize, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run()
-                .Subscribe(BIND([operation] (const TError& error) {
-                    if (error.IsOK()) {
-                        if (operation->GetState() == EOperationState::Materializing) {
-                            operation->SetState(EOperationState::Running);
+                .Subscribe(
+                    BIND([operation] (const TError& error) {
+                        if (error.IsOK()) {
+                            if (operation->GetState() == EOperationState::Materializing) {
+                                operation->SetState(EOperationState::Running);
+                            }
                         }
-                    }
-                })
-                .Via(operation->GetCancelableControlInvoker()));
+                    })
+                    .Via(operation->GetCancelableControlInvoker()));
         }
     }
 
@@ -1170,7 +1186,6 @@ private:
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
-    std::atomic<bool> IsConnected_ = {false};
 
     //! Ordinal number of this scheduler incarnation. It is used
     //! to discard late callbacks that are submitted by still
@@ -1183,8 +1198,7 @@ private:
 
     TInstant ConnectionTime_;
 
-    typedef yhash<TOperationId, TOperationPtr> TOperationIdMap;
-    TOperationIdMap IdToOperation_;
+    yhash<TOperationId, TOperationPtr> IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
@@ -1348,7 +1362,7 @@ private:
     }
 
 
-    void OnMasterConnected(const TMasterHandshakeResult& result)
+    void OnMasterConnecting(const TMasterHandshakeResult& result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1356,60 +1370,54 @@ private:
         LOG_INFO("Preparing new incarnation of scheduler (SchedulerIncarnation: %v)",
             SchedulerIncarnation_);
 
-        {
-            auto registerFuture = BIND(&TImpl::RegisterRevivingOperations, MakeStrong(this), result.OperationReports)
-                .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
-                .Run();
-            auto error = WaitFor(registerFuture);
-            if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to register reviving operations")
-                    << error;
-            }
-        }
+        ValidateConfig();
+
+        // NB: Must start the keeper before registering operations.
+        const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
+        responseKeeper->Start();
+
+        ProcessHandshakeOperations(result.Operations);
 
         {
-            std::vector<TFuture<void>> nodeShardFutures;
-            for (auto& nodeShard : NodeShards_) {
-                nodeShardFutures.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard)
+            LOG_INFO("Connecting node shards");
+
+            std::vector<TFuture<void>> asyncResults;
+            for (const auto& nodeShard : NodeShards_) {
+                asyncResults.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
-            auto error = WaitFor(Combine(nodeShardFutures));
+
+            auto error = WaitFor(Combine(asyncResults));
             if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Node shards failed to connect")
+                THROW_ERROR_EXCEPTION("Error connecting node shards")
                     << error;
             }
         }
+    }
 
-        auto responseKeeper = Bootstrap_->GetResponseKeeper();
-        responseKeeper->Start();
+    void OnMasterConnected()
+    {
+        ConnectionTime_ = TInstant::Now();
 
         CachedExecNodeMemoryDistributionByTags_->Start();
 
-        IsConnected_.store(true);
+        Strategy_->StartPeriodicActivity();
 
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
-        ConnectionTime_ = TInstant::Now();
-
-        Strategy_->StartPeriodicActivity();
-
-        {
-            auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
-                .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
-                .Run();
-            auto error = WaitFor(processFuture);
-            if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to process operation reports")
-                    << error;
-            }
-        }
-
-        ValidateConfig();
-
-        LOG_INFO("Scheduler ready (SchedulerIncarnation: %v)",
-            SchedulerIncarnation_);
+        // Initiate background revival.
+        MasterConnector_
+            ->GetCancelableControlInvoker()
+            ->Invoke(BIND([this, this_ = MakeStrong(this)] {
+                try {
+                    ReviveOperations();
+                } catch (const std::exception& ex) {
+                    LOG_ERROR(ex, "Error reviving operations");
+                    Disconnect();
+                }
+            }));
     }
 
     void OnMasterDisconnected()
@@ -1419,13 +1427,10 @@ private:
         LOG_INFO("Cleaning up scheduler state (SchedulerIncarnation: %v)",
             SchedulerIncarnation_);
 
+        // XXX(babenko)
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        LOG_INFO("Starting scheduler state cleanup");
-
-        IsConnected_.store(false);
-
-        auto responseKeeper = Bootstrap_->GetResponseKeeper();
+        const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
 
         CachedExecNodeMemoryDistributionByTags_->Stop();
@@ -1440,40 +1445,53 @@ private:
         }
 
         {
-            std::vector<TFuture<void>> abortFutures;
-            for (auto& nodeShard : NodeShards_) {
-                abortFutures.push_back(BIND(&TNodeShard::AbortAllJobs, nodeShard)
+            LOG_INFO("Aborting jobs at node shards");
+
+            std::vector<TFuture<void>> asyncResults;
+            for (const auto& nodeShard : NodeShards_) {
+                asyncResults.push_back(BIND(&TNodeShard::AbortAllJobs, nodeShard)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run(error));
             }
-            Combine(abortFutures)
+
+            // XXX(babenko)
+            Combine(asyncResults)
                 .Get();
         }
 
-        auto operations = IdToOperation_;
-        for (const auto& pair : operations) {
-            auto operation = pair.second;
-            LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
-            if (!operation->IsFinishedState()) {
-                operation->Cancel();
-                operation->SetForgotten(true);
-                SetOperationFinalState(
-                    operation,
-                    EOperationState::Aborted,
-                    error);
+        {
+            LOG_INFO("Forgetting operations");
+
+            auto idToOperation = IdToOperation_;
+            for (const auto& pair : idToOperation) {
+                const auto& operation = pair.second;
+                LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
+                if (!operation->IsFinishedState()) {
+                    operation->Cancel();
+                    operation->SetForgotten(true);
+                    SetOperationFinalState(
+                        operation,
+                        EOperationState::Aborted,
+                        error);
+                }
+                FinishOperation(operation);
             }
-            FinishOperation(operation);
+
+            YCHECK(IdToOperation_.empty());
         }
-        YCHECK(IdToOperation_.empty());
 
         {
-            std::vector<TFuture<void>> nodeShardFutures;
-            for (auto& nodeShard : NodeShards_) {
-                nodeShardFutures.push_back(BIND(&TNodeShard::OnMasterDisconnected, nodeShard)
+            LOG_INFO("Disconnecting node shards");
+
+            std::vector<TFuture<void>> asyncResults;
+            for (const auto& nodeShard : NodeShards_) {
+                asyncResults.push_back(BIND(&TNodeShard::OnMasterDisconnected, nodeShard)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
-            Combine(nodeShardFutures)
+
+            // XXX(babenko)
+            Combine(asyncResults)
                 .Get();
         }
 
@@ -1482,7 +1500,7 @@ private:
         LOG_INFO("Finished scheduler state cleanup");
     }
 
-    void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
+    void LogOperationFinished(const TOperationPtr& operation, ELogEventType logEventType, TError error)
     {
         LogEventFluently(logEventType)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
@@ -1492,7 +1510,7 @@ private:
             .Item("error").Value(error);
     }
 
-    void ValidateState(const TOperationPtr& operation, EOperationState expectedState)
+    void ValidateOperationState(const TOperationPtr& operation, EOperationState expectedState)
     {
         if (operation->GetState() != expectedState) {
             LOG_INFO("Operation has unexpected state (OperationId: %v, State: %v, ExpectedState: %v)",
@@ -1611,8 +1629,8 @@ private:
     }
 
     void RequestOperationRuntimeParams(
-        TOperationPtr operation,
-        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+        const TOperationPtr& operation,
+        const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
         static auto runtimeParamsTemplate = New<TOperationRuntimeParams>();
 
@@ -1630,8 +1648,8 @@ private:
     }
 
     void HandleOperationRuntimeParams(
-        TOperationPtr operation,
-        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        const TOperationPtr& operation,
+        const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
         auto rspOrErrorNew = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params_new");
@@ -1844,13 +1862,13 @@ private:
         return FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
     }
 
-    void DoStartOperation(TOperationPtr operation)
+    void DoStartOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateState(operation, EOperationState::Initializing);
+        ValidateOperationState(operation, EOperationState::Initializing);
 
         bool registered = false;
         try {
@@ -1878,7 +1896,7 @@ private:
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
 
-            ValidateState(operation, EOperationState::Initializing);
+            ValidateOperationState(operation, EOperationState::Initializing);
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
@@ -1905,23 +1923,23 @@ private:
         operation->SetStarted(TError());
     }
 
-    void DoPrepareOperation(TOperationPtr operation)
+    void DoPrepareOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateState(operation, EOperationState::Initializing);
+        ValidateOperationState(operation, EOperationState::Initializing);
 
         const auto& operationId = operation->GetId();
 
+        LOG_INFO("Preparing operation (OperationId: %v)",
+            operationId);
+
+        operation->SetState(EOperationState::Preparing);
+
         try {
             // Run async preparation.
-            LOG_INFO("Preparing operation (OperationId: %v)",
-                operationId);
-
-            operation->SetState(EOperationState::Preparing);
-
             auto controller = operation->GetController();
             auto asyncResult = BIND(&IOperationControllerSchedulerHost::Prepare, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
@@ -1936,7 +1954,7 @@ private:
 
             operation->ControllerAttributes().Attributes = controller->GetAttributes();
 
-            ValidateState(operation, EOperationState::Preparing);
+            ValidateOperationState(operation, EOperationState::Preparing);
 
             operation->SetState(EOperationState::Pending);
             operation->SetPrepared(true);
@@ -1968,11 +1986,12 @@ private:
 
         const auto& operationId = operation->GetId();
 
-        operation->SetSchedulerIncarnation(SchedulerIncarnation_);
-
         LOG_INFO("Reviving operation (OperationId: %v, SchedulerIncarnation: %v)",
             operationId,
             SchedulerIncarnation_);
+
+        operation->SetState(EOperationState::Reviving);
+        operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
         if (operation->GetMutationId()) {
             TRspStartOperation response;
@@ -1994,41 +2013,41 @@ private:
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
+            LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
                 operationId);
-            auto wrappedError = TError("Operation has failed to revive") << ex;
+
+            auto wrappedError = TError("Operation has failed to revive")
+                << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
-            MasterConnector_->FlushOperationNode(operation);
+
+            // No need to wait for the outcome.
+            Y_UNUSED(MasterConnector_->FlushOperationNode(operation));
             return;
         }
 
         // NB: Should not throw!
         RegisterOperation(operation);
+        // XXX(babenko)
         // Ignore result? (we cannot throw error here)
         Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
     }
 
-    TFuture<void> ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
-    {
-        auto controller = operation->GetController();
-        return BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
-            .AsyncVia(operation->GetCancelableControlInvoker())
-            .Run();
-    }
-
-    void DoReviveOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)
+    void DoReviveOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateState(operation, EOperationState::Reviving);
+        ValidateOperationState(operation, EOperationState::Reviving);
+
+        auto revivalDescriptor = *operation->RevivalDescriptor();
+        operation->RevivalDescriptor().Reset();
 
         try {
             auto controller = operation->GetController();
 
             {
-                auto asyncResult = BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, controllerTransactions)
+                auto asyncResult = BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, revivalDescriptor.ControllerTransactions)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 auto error = WaitFor(asyncResult);
@@ -2037,12 +2056,14 @@ private:
                 operation->ControllerAttributes().InitializationAttributes = controller->GetInitializationAttributes();
             }
 
-            ValidateState(operation, EOperationState::Reviving);
+            ValidateOperationState(operation, EOperationState::Reviving);
 
             {
                 auto error = WaitFor(MasterConnector_->ResetRevivingOperationNode(operation));
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
+
+            ValidateOperationState(operation, EOperationState::Reviving);
 
             {
                 auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller)
@@ -2054,22 +2075,23 @@ private:
                 operation->ControllerAttributes().Attributes = controller->GetAttributes();
             }
 
-            ValidateState(operation, EOperationState::Reviving);
+            ValidateOperationState(operation, EOperationState::Reviving);
 
             LOG_INFO("Operation has been revived (OperationId: %v)",
                 operation->GetId());
 
             operation->SetState(EOperationState::Pending);
             operation->SetPrepared(true);
+
             if (operation->GetActivated()) {
                 MaterializeOperation(operation);
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
+            LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
                 operation->GetId());
-            auto wrappedError = TError("Operation has failed to revive") << ex;
+            auto wrappedError = TError("Operation has failed to revive")
+                << ex;
             OnOperationFailed(operation->GetId(), wrappedError);
-            return;
         }
     }
 
@@ -2086,24 +2108,25 @@ private:
 
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
-        for (auto& job : jobs) {
+        for (const auto& job : jobs) {
             auto shardId = GetNodeShardId(NodeIdFromJobId(job->GetId()));
             jobsByShardId[shardId].emplace_back(std::move(job));
         }
-        std::vector<TFuture<void>> registrationFutures;
+        
+        std::vector<TFuture<void>> asyncResults;
         for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
             if (jobsByShardId[shardId].empty()) {
                 continue;
             }
-            auto registerFuture = BIND(&TNodeShard::RegisterRevivedJobs, NodeShards_[shardId])
+            auto asyncResult = BIND(&TNodeShard::RegisterRevivedJobs, NodeShards_[shardId])
                 .AsyncVia(NodeShards_[shardId]->GetInvoker())
                 .Run(operation->GetId(), std::move(jobsByShardId[shardId]));
-            registrationFutures.emplace_back(std::move(registerFuture));
+            asyncResults.emplace_back(std::move(asyncResult));
         }
-        return Combine(registrationFutures);
+        return Combine(asyncResults);
     }
 
-    void RegisterOperation(TOperationPtr operation)
+    void RegisterOperation(const TOperationPtr& operation)
     {
         VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
 
@@ -2127,7 +2150,7 @@ private:
             operation->GetId());
     }
 
-    void AbortOperationJobs(TOperationPtr operation, const TError& error, bool terminated)
+    void AbortOperationJobs(const TOperationPtr& operation, const TError& error, bool terminated)
     {
         std::vector<TFuture<void>> abortFutures;
         for (auto& nodeShard : NodeShards_) {
@@ -2139,7 +2162,7 @@ private:
             .ThrowOnError();
     }
 
-    void UnregisterOperation(TOperationPtr operation)
+    void UnregisterOperation(const TOperationPtr& operation)
     {
         YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
         for (auto& nodeShard : NodeShards_) {
@@ -2156,7 +2179,7 @@ private:
             operation->GetId());
     }
 
-    void BuildOperationInfoForEventLog(TOperationPtr operation, TFluentMap fluent)
+    void BuildOperationInfoForEventLog(const TOperationPtr& operation, TFluentMap fluent)
     {
         fluent
             .Item("operation_id").Value(operation->GetId())
@@ -2165,7 +2188,7 @@ private:
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
     }
 
-    void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
+    void SetOperationFinalState(const TOperationPtr& operation, EOperationState state, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2177,7 +2200,7 @@ private:
         ToProto(operation->MutableResult().mutable_error(), error);
     }
 
-    void FinishOperation(TOperationPtr operation)
+    void FinishOperation(const TOperationPtr& operation)
     {
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
@@ -2195,7 +2218,7 @@ private:
         Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
     }
 
-    INodePtr GetSpecTemplate(EOperationType type, IMapNodePtr spec)
+    INodePtr GetSpecTemplate(EOperationType type, const IMapNodePtr& spec)
     {
         switch (type) {
             case EOperationType::Map:
@@ -2235,7 +2258,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto operation = FindOperation(operationId);
-
         if (!operation || operation->IsFinishedState() || operation->IsFinishingState()) {
             // Operation is probably being aborted.
             return;
@@ -2258,7 +2280,7 @@ private:
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
                 // Result is ignored since failure causes scheduler disconnection.
                 Y_UNUSED(WaitFor(asyncResult));
-                ValidateState(operation, EOperationState::Completing);
+                ValidateOperationState(operation, EOperationState::Completing);
             }
 
             {
@@ -2273,7 +2295,7 @@ private:
                     return;
                 }
 
-                ValidateState(operation, EOperationState::Completing);
+                ValidateOperationState(operation, EOperationState::Completing);
 
                 if (Config_->TestingOptions->FinishOperationTransitionDelay) {
                     Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
@@ -2312,12 +2334,11 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-    void DoFailOperation(const TOperationId operationId, const TError& error)
+    void DoFailOperation(const TOperationId& operationId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto operation = FindOperation(operationId);
-
         // NB: finishing state is ok, do not skip operation fail in this case.
         if (!operation || operation->IsFinishedState()) {
             // Operation is already terminated.
@@ -2360,7 +2381,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto operation = FindOperation(operationId);
-
         // NB: finishing state is ok, do not skip operation fail in this case.
         if (!operation || operation->IsFinishedState()) {
             // Operation is already terminated.
@@ -2375,7 +2395,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto operation = FindOperation(operationId);
-
         // NB: finishing state is ok, do not skip operation fail in this case.
         if (!operation || operation->IsFinishedState()) {
             // Operation is already terminated.
@@ -2402,7 +2421,7 @@ private:
     }
 
     void TerminateOperation(
-        TOperationPtr operation,
+        const TOperationPtr& operation,
         EOperationState intermediateState,
         EOperationState finalState,
         ELogEventType logEventType,
@@ -2433,13 +2452,13 @@ private:
         {
             // Result is ignored since failure causes scheduler disconnection.
             Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-            if (operation->GetState() != intermediateState)
+            if (operation->GetState() != intermediateState) {
                 return;
+            }
         }
 
 
         if (Config_->TestingOptions->FinishOperationTransitionDelay) {
-            auto controller = operation->GetController();
             Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
             if (operation->GetForgotten()) {
                 // Master disconnect happened while committing controller.
@@ -2447,17 +2466,15 @@ private:
             }
         }
 
-        {
-            operation->Cancel();
-            auto controller = operation->GetController();
-            if (controller) {
-                try {
-                    controller->Abort();
-                } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Failed to abort controller (OperationId: %v)", operation->GetId());
-                    MasterConnector_->Disconnect();
-                    return;
-                }
+        operation->Cancel();
+
+        if (auto controller = operation->GetController()) {
+            try {
+                controller->Abort();
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Failed to abort controller (OperationId: %v)", operation->GetId());
+                MasterConnector_->Disconnect();
+                return;
             }
         }
 
@@ -2467,12 +2484,13 @@ private:
         {
             // Result is ignored since failure causes scheduler disconnection.
             Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-            if (operation->GetState() != finalState)
+            if (operation->GetState() != finalState) {
                 return;
+            }
         }
 
         // Notify controller that it is going to be disposed.
-        if (const auto& controller = operation->GetController()) {
+        if (auto controller = operation->GetController()) {
             auto error = WaitFor(
                 BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller)
                     .AsyncVia(controller->GetInvoker())
@@ -2485,19 +2503,18 @@ private:
         FinishOperation(operation);
     }
 
-    void CompleteCompletingOperation(const TOperationReport& report)
+    void CompleteCompletingOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& operation = report.Operation;
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
         LOG_INFO("Completing operation (OperationId: %v)",
              operation->GetId());
 
-        if (report.ShouldCommitOutputTransaction) {
-            WaitFor(report.ControllerTransactions->Output->Commit())
+        const auto& revivalDescriptor = *operation->RevivalDescriptor();
+        if (revivalDescriptor.ShouldCommitOutputTransaction) {
+            WaitFor(revivalDescriptor.ControllerTransactions->Output->Commit())
                 .ThrowOnError();
         }
 
@@ -2509,7 +2526,7 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-    void AbortAbortingOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)
+        void AbortAbortingOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2525,6 +2542,7 @@ private:
             }
         };
 
+        const auto& controllerTransactions = operation->RevivalDescriptor()->ControllerTransactions;
         abortTransaction(controllerTransactions->Async);
         abortTransaction(controllerTransactions->Input);
         abortTransaction(controllerTransactions->Output);
@@ -2537,86 +2555,75 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-    void ProcessOperationReports(const std::vector<TOperationReport>& operationReports)
+    void ReviveOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Prepare reviving process on node shards.
         {
-            std::vector<TFuture<void>> prepareFutures;
-            for (auto& shard : NodeShards_) {
-                auto prepareFuture = BIND(&TNodeShard::PrepareReviving, shard)
-                    .AsyncVia(shard->GetInvoker())
+            LOG_INFO("Reviving operations");
+
+            std::vector<TFuture<void>> asyncResults;
+            auto idToOperation = IdToOperation_;
+            for (const auto& pair : idToOperation) {
+                const auto& operation = pair.second;
+                auto asyncResult = BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation)
+                    .AsyncVia(operation->GetCancelableControlInvoker())
                     .Run();
-                prepareFutures.emplace_back(std::move(prepareFuture));
-            }
-            auto error = WaitFor(Combine(prepareFutures));
-            if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to prepare node shard for revive")
-                    << error;
-            }
-        }
-
-        std::vector<TFuture<void>> reviveFutures;
-        for (const auto& operationReport : operationReports) {
-            const auto& operation = operationReport.Operation;
-
-            if (operationReport.IsCommitted) {
-                CompleteCompletingOperation(operationReport);
-                continue;
+                asyncResults.emplace_back(std::move(asyncResult));
             }
 
-            if (operationReport.IsAborting) {
-                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
-                continue;
-            }
-
-            if (operationReport.UserTransactionAborted) {
-                OnUserTransactionAborted(operation);
-                continue;
-            }
-
-            reviveFutures.emplace_back(ReviveOperation(operation, operationReport.ControllerTransactions).ToUncancelable());
-        }
-
-        {
-            auto error = WaitFor(CombineAll(reviveFutures));
+            // We need to all revivals to complete (either successfully or not) to proceed any further;
+            // hence we use CombineAll rather than Combine.
+            auto error = WaitFor(CombineAll(asyncResults));
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to revive operations")
                     << error;
             }
         }
 
-        // Start reviving process on node shards.
         {
-            std::vector<TFuture<void>> startFutures;
-            for (auto& shard : NodeShards_) {
-                auto startFuture = BIND(&TNodeShard::StartReviving, shard)
-                    .AsyncVia(shard->GetInvoker())
+            LOG_INFO("Reviving node shards");
+
+            std::vector<TFuture<void>> asyncResults;
+            for (const auto& nodeShard : NodeShards_) {
+                auto startFuture = BIND(&TNodeShard::StartReviving, nodeShard)
+                    .AsyncVia(nodeShard->GetInvoker())
                     .Run();
-                startFutures.emplace_back(std::move(startFuture));
+                asyncResults.emplace_back(std::move(startFuture));
             }
-            auto error = WaitFor(Combine(startFutures));
+
+            auto error = WaitFor(Combine(asyncResults));
             if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to start reviving on node shards")
+                THROW_ERROR_EXCEPTION("Failed to start revival at node shards")
                     << error;
             }
         }
     }
 
-    void RegisterRevivingOperations(const std::vector<TOperationReport>& operationReports)
+    void ProcessHandshakeOperations(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (const auto& operationReport : operationReports) {
-            const auto& operation = operationReport.Operation;
+        LOG_INFO("Registering reviving operations");
+        for (const auto& operation : operations) {
+            YCHECK(operation->RevivalDescriptor());
+            const auto& revivalDescriptor = *operation->RevivalDescriptor();
 
-            operation->SetState(EOperationState::Reviving);
+            if (revivalDescriptor.OperationCommitted) {
+                // TODO(babenko): parallelize
+                CompleteCompletingOperation(operation);
+                continue;
+            }
 
-            if (operationReport.IsCommitted ||
-                operationReport.IsAborting ||
-                operationReport.UserTransactionAborted)
-            {
+            if (revivalDescriptor.OperationAborting) {
+                // TODO(babenko): parallelize
+                AbortAbortingOperation(operation);
+                continue;
+            }
+
+            if (revivalDescriptor.UserTransactionAborted) {
+                // TODO(babenko): parallelize
+                OnUserTransactionAborted(operation);
                 continue;
             }
 
@@ -2683,7 +2690,10 @@ private:
             .EndMap();
     }
 
-    void BuildOperationYson(TOperationPtr operation, TControllerAgentOperationServiceProxy::TErrorOrRspGetOperationInfoPtr response, IYsonConsumer* consumer) const
+    void BuildOperationYson(
+        const TOperationPtr& operation,
+        const TControllerAgentOperationServiceProxy::TErrorOrRspGetOperationInfoPtr& response,
+        IYsonConsumer* consumer) const
     {
         static const auto emptyMapFragment = TYsonString("", EYsonType::MapFragment);
 
@@ -2790,13 +2800,10 @@ private:
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
             auto operationId = TOperationId::FromString(key);
-
             auto operation = Scheduler_->FindOperation(operationId);
             if (!operation) {
                 return nullptr;
             }
-
-            auto controller = operation->GetController();
 
             TControllerAgentOperationServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
             proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);
