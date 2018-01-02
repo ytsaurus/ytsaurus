@@ -33,8 +33,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Network);
 
 public:
-    TExtendedJobResources();
-
     i64 GetMemory() const;
 
     void Persist(const TStreamPersistenceContext& context);
@@ -50,7 +48,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Network);
 
 public:
-    TJobResources();
+    TJobResources() = default;
     TJobResources(const NNodeTrackerClient::NProto::TNodeResources& nodeResources);
 
     NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const;
@@ -68,7 +66,7 @@ public:
     using Base::Get ## Field; \
     using Base::Set ## Field;
 
-template<class TResourceType>
+template <class TResourceType>
 class TResourcesWithQuota
 {
 public:
@@ -86,7 +84,7 @@ protected:
     i64 DiskQuota_ = 0;
 };
 
-template<>
+template <>
 struct TResourcesWithQuota<TJobResources>
     : private TJobResources
     , private TResourcesWithQuota<void>
