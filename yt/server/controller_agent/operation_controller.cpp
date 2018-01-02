@@ -257,9 +257,9 @@ public:
         return Underlying_->ExtractJobSpec(jobId);
     }
 
-    virtual TOperationJobMetrics ExtractJobMetricsDelta() override
+    virtual TOperationJobMetrics PullJobMetricsDelta() override
     {
-        return Underlying_->ExtractJobMetricsDelta();
+        return Underlying_->PullJobMetricsDelta();
     }
 
     virtual TOperationAlertMap GetAlerts() override
@@ -277,29 +277,9 @@ public:
         return Underlying_->GetSuspiciousJobsYson();
     }
 
-    virtual bool IsCompleteFinished() const override
+    virtual TOperationControllerEvent PullEvent() override
     {
-        return Underlying_->IsCompleteFinished();
-    }
-
-    virtual TError GetFailureError() const override
-    {
-        return Underlying_->GetFailureError();
-    }
-
-    virtual TError GetAbortError() const override
-    {
-        return Underlying_->GetAbortError();
-    }
-
-    virtual TError GetSuspensionError() const override
-    {
-        return Underlying_->GetSuspensionError();
-    }
-
-    virtual void ResetSuspensionError() override
-    {
-        Underlying_->ResetSuspensionError();
+        return Underlying_->PullEvent();
     }
 
     virtual TSnapshotCookie OnSnapshotStarted() override

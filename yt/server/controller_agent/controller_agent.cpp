@@ -440,41 +440,60 @@ private:
             const auto& operationId = pair.first;
             const auto& controller = pair.second;
 
-            if (controller->IsCompleteFinished()) {
-                ToProto(req->add_completed_operation_ids(), operationId);
+            auto event = controller->PullEvent();
+            switch (event.Tag()) {
+                case TOperationControllerEvent::TagOf<TNullOperationEvent>():
+                    break;
+
+                case TOperationControllerEvent::TagOf<TOperationCompletedEvent>(): {
+                    ToProto(req->add_completed_operation_ids(), operationId);
+                    break;
+                }
+
+                case TOperationControllerEvent::TagOf<TOperationAbortedEvent>(): {
+                    const auto& typedEvent = event.As<TOperationAbortedEvent>();
+                    auto* proto = req->add_aborted_operations();
+                    ToProto(proto->mutable_operation_id(), operationId);
+                    ToProto(proto->mutable_error(), typedEvent.Error);
+                    break;
+                }
+
+                case TOperationControllerEvent::TagOf<TOperationFailedEvent>(): {
+                    const auto& typedEvent = event.As<TOperationFailedEvent>();
+                    auto failedOperationProto = req->add_failed_operations();
+                    ToProto(failedOperationProto->mutable_operation_id(), operationId);
+                    ToProto(failedOperationProto->mutable_error(), typedEvent.Error);
+                    break;
+                }
+
+                case TOperationControllerEvent::TagOf<TOperationSuspendedEvent>(): {
+                    const auto& typedEvent = event.As<TOperationSuspendedEvent>();
+                    auto* proto = req->add_suspended_operations();
+                    ToProto(proto->mutable_operation_id(), operationId);
+                    ToProto(proto->mutable_error(), typedEvent.Error);
+                    break;
+                }
+
+                default:
+                    Y_UNREACHABLE();
             }
 
-            if (!controller->GetSuspensionError().IsOK()) {
-                auto suspendedOperationProto = req->add_suspended_operations();
-                ToProto(suspendedOperationProto->mutable_operation_id(), operationId);
-                ToProto(suspendedOperationProto->mutable_error(), controller->GetSuspensionError());
-                controller->ResetSuspensionError();
+            {
+                auto jobMetricsDelta = controller->PullJobMetricsDelta();
+                ToProto(req->add_job_metrics(), jobMetricsDelta);
             }
 
-            if (!controller->GetAbortError().IsOK()) {
-                auto abortedOperationProto = req->add_aborted_operations();
-                ToProto(abortedOperationProto->mutable_operation_id(), operationId);
-                ToProto(abortedOperationProto->mutable_error(), controller->GetAbortError());
-            }
 
-            if (!controller->GetFailureError().IsOK()) {
-                auto failedOperationProto = req->add_failed_operations();
-                ToProto(failedOperationProto->mutable_operation_id(), operationId);
-                ToProto(failedOperationProto->mutable_error(), controller->GetFailureError());
-            }
-
-            auto jobMetricsDelta = controller->ExtractJobMetricsDelta();
-            ToProto(req->add_job_metrics(), jobMetricsDelta);
-
-            auto* operationAlertsProto = req->add_operation_alerts();
-            ToProto(operationAlertsProto->mutable_operation_id(), operationId);
-            for (const auto& pair : controller->GetAlerts()) {
-                auto alertType = pair.first;
-                const auto& alert = pair.second;
-
-                auto* alertProto = operationAlertsProto->add_alerts();
-                alertProto->set_type(static_cast<int>(alertType));
-                ToProto(alertProto->mutable_error(), alert);
+            {
+                auto* operationAlertsProto = req->add_operation_alerts();
+                ToProto(operationAlertsProto->mutable_operation_id(), operationId);
+                for (const auto& pair : controller->GetAlerts()) {
+                    auto alertType = pair.first;
+                    const auto& alert = pair.second;
+                    auto* protoAlert = operationAlertsProto->add_alerts();
+                    protoAlert->set_type(static_cast<int>(alertType));
+                    ToProto(protoAlert->mutable_error(), alert);
+                }
             }
         }
 
