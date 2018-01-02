@@ -2313,7 +2313,7 @@ void TOperationControllerBase::DoAbort()
             CommitTransaction(DebugOutputTransaction);
         } catch (const std::exception& ex) {
             // Bad luck we can't commit transaction.
-            // Such a pity can happen for example if somebody aborted our transaction manualy.
+            // Such a pity can happen for example if somebody aborted our transaction manually.
             LOG_ERROR(ex, "Failed to commit debug output transaction");
         }
     }
