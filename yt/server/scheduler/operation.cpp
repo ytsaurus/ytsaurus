@@ -24,7 +24,7 @@ TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
     const TMutationId& mutationId,
-    TTransactionId userTransactionId,
+    const TTransactionId& userTransactionId,
     IMapNodePtr spec,
     const TString& authenticatedUser,
     const std::vector<TString>& owners,
