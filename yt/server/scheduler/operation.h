@@ -245,7 +245,7 @@ public:
         const TOperationId& operationId,
         EOperationType type,
         const NRpc::TMutationId& mutationId,
-        NTransactionClient::TTransactionId userTransactionId,
+        const NTransactionClient::TTransactionId& userTransactionId,
         NYTree::IMapNodePtr spec,
         const TString& authenticatedUser,
         const std::vector<TString>& owners,
