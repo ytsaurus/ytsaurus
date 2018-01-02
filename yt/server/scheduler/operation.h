@@ -49,6 +49,18 @@ struct TControllerAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Per-operation data retrieved from Cypress on handshake.
+struct TOperationRevivalDescriptor
+{
+    NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
+    bool UserTransactionAborted = false;
+    bool OperationAborting = false;
+    bool OperationCommitted = false;
+    bool ShouldCommitOutputTransaction = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationStrategyHost
 {
     virtual bool IsSchedulable() const = 0;
@@ -69,6 +81,8 @@ struct IOperationStrategyHost
 
     virtual TOperationRuntimeParamsPtr GetRuntimeParams() const = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(type, name, ...) \
 protected: \
@@ -102,14 +116,13 @@ public: \
         return name##_; \
     }
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperation
     : public TIntrinsicRefCounted
     , public IOperationStrategyHost
 {
 public:
-
-    using TAlertsArray = TEnumIndexedVector<TError, EOperationAlertType>;
-
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
 
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
@@ -146,7 +159,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(std::vector<TOperationEvent>, Events);
 
     //! List of operation alerts.
-    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlertsArray, Alerts);
+    using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
+    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
 
     //! Controller that owns the operation.
     DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerSchedulerHostPtr, Controller);
@@ -162,6 +176,10 @@ public:
 
     //! Scheduler incarnation that spawned this operation.
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulerIncarnation);
+
+    //! If this operation needs revive, the corresponding revive descriptor is provided
+    //! by Master Connector.
+    DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
 
     //! Cypress storage mode of the operation.
     DEFINE_BYVAL_RO_PROPERTY(EOperationCypressStorageMode, StorageMode);
@@ -236,7 +254,8 @@ public:
         EOperationCypressStorageMode storageMode,
         EOperationState state = EOperationState::None,
         bool suspended = false,
-        const std::vector<TOperationEvent>& events = {});
+        const std::vector<TOperationEvent>& events = {},
+        const TNullable<TOperationRevivalDescriptor>& revivalDescriptor = Null);
 
 private:
     const TOperationId Id_;

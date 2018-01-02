@@ -33,17 +33,17 @@ TOperation::TOperation(
     EOperationCypressStorageMode storageMode,
     EOperationState state,
     bool suspended,
-    const std::vector<TOperationEvent>& events)
+    const std::vector<TOperationEvent>& events,
+    const TNullable<TOperationRevivalDescriptor>& revivalDescriptor)
     : Type_(type)
     , MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
-    , Activated_(false)
-    , Prepared_(false)
     , UserTransactionId_(userTransactionId)
     , RuntimeParams_(New<TOperationRuntimeParams>())
     , Owners_(owners)
     , Events_(events)
+    , RevivalDescriptor_(revivalDescriptor)
     , StorageMode_(storageMode)
     , Id_(id)
     , StartTime_(startTime)

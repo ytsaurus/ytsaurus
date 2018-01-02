@@ -64,18 +64,17 @@ static NProfiling::TAggregateCounter ScheduleTimeCounter;
 
 TNodeShard::TNodeShard(
     int id,
-    const TCellTag& primaryMasterCellTag,
+    TCellTag primaryMasterCellTag,
     TSchedulerConfigPtr config,
     INodeShardHost* host,
     TBootstrap* bootstrap)
     : Id_(id)
-    , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
     , PrimaryMasterCellTag_(primaryMasterCellTag)
     , Config_(config)
     , Host_(host)
     , Bootstrap_(bootstrap)
+    , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
     , RevivalState_(New<TNodeShard::TRevivalState>(this))
-    , Logger(SchedulerLogger)
     , CachedExecNodeDescriptorsRefresher_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
@@ -84,9 +83,9 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::CalculateResourceLimits, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
-{
-    Logger.AddTag("NodeShardId: %v", Id_);
-}
+    , Logger(NLogging::TLogger(SchedulerLogger)
+        .AddTag("NodeShardId: %v", Id_))
+{ }
 
 IInvokerPtr TNodeShard::GetInvoker()
 {
@@ -106,6 +105,7 @@ void TNodeShard::OnMasterConnected()
 
     CachedExecNodeDescriptorsRefresher_->Start();
     CachedResourceLimitsByTags_->Start();
+    RevivalState_->PrepareReviving();
 }
 
 void TNodeShard::OnMasterDisconnected()
@@ -138,23 +138,25 @@ void TNodeShard::OnMasterDisconnected()
     SubmitUpdatedAndCompletedJobsToStrategy();
 }
 
-void TNodeShard::RegisterOperation(const TOperationId& operationId, const IOperationControllerSchedulerHostPtr& operationController)
+void TNodeShard::RegisterOperation(
+    const TOperationId& operationId,
+    const IOperationControllerSchedulerHostPtr& operationController)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    YCHECK(OperationStates_.emplace(operationId, operationController).second);
+    YCHECK(OperationIdToState_.emplace(operationId, TOperationState(operationController)).second);
 }
 
 void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto it = OperationStates_.find(operationId);
-    YCHECK(it != OperationStates_.end());
+    auto it = OperationIdToState_.find(operationId);
+    YCHECK(it != OperationIdToState_.end());
     for (const auto& job : it->second.Jobs) {
         YCHECK(job.second->GetHasPendingUnregistration());
     }
-    OperationStates_.erase(it);
+    OperationIdToState_.erase(it);
 }
 
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
@@ -348,8 +350,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     if (HasOngoingNodesAttributesUpdate_) {
-        LOG_WARNING("Node shard %v is handling nodes attributes update for too long, skipping new update",
-            Id_);
+        LOG_WARNING("Node shard is handling nodes attributes update for too long, skipping new update");
         return;
     }
 
@@ -424,7 +425,7 @@ void TNodeShard::AbortAllJobs(const TError& abortReason)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    for (auto& pair : OperationStates_) {
+    for (auto& pair : OperationIdToState_) {
         auto& state = pair.second;
         state.JobsAborted = true;
         auto jobs = state.Jobs;
@@ -770,11 +771,6 @@ void TNodeShard::RegisterRevivedJobs(const TOperationId& operationId, const std:
         RegisterJob(job);
         RevivalState_->RegisterRevivedJob(job);
     }
-}
-
-void TNodeShard::PrepareReviving()
-{
-    RevivalState_->PrepareReviving();
 }
 
 void TNodeShard::StartReviving()
@@ -1440,11 +1436,6 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     }
 }
 
-void TNodeShard::OnJobWaiting(const TJobPtr& /*job*/)
-{
-    // Do nothing.
-}
-
 void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned)
 {
     if (job->GetState() == EJobState::Running ||
@@ -1745,19 +1736,19 @@ TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
 
 bool TNodeShard::OperationExists(const TOperationId& operationId) const
 {
-    return OperationStates_.find(operationId) != OperationStates_.end();
+    return OperationIdToState_.find(operationId) != OperationIdToState_.end();
 }
 
 TNodeShard::TOperationState* TNodeShard::FindOperationState(const TOperationId& operationId)
 {
-    auto it = OperationStates_.find(operationId);
-    return it != OperationStates_.end() ? &it->second : nullptr;
+    auto it = OperationIdToState_.find(operationId);
+    return it != OperationIdToState_.end() ? &it->second : nullptr;
 }
 
 TNodeShard::TOperationState& TNodeShard::GetOperationState(const TOperationId& operationId)
 {
-    auto it = OperationStates_.find(operationId);
-    YCHECK(it != OperationStates_.end());
+    auto it = OperationIdToState_.find(operationId);
+    YCHECK(it != OperationIdToState_.end());
     return it->second;
 }
 
@@ -1773,8 +1764,9 @@ void TNodeShard::BuildNodeYson(TExecNodePtr node, TFluentMap fluent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeShard::TRevivalState::TRevivalState(TNodeShard* host)
-    : Host_(host)
+TNodeShard::TRevivalState::TRevivalState(TNodeShard* shard)
+    : Shard_(shard)
+    , Logger(Shard_->Logger)
 { }
 
 bool TNodeShard::TRevivalState::ShouldSkipUnknownJobs() const
@@ -1821,8 +1813,6 @@ void TNodeShard::TRevivalState::PrepareReviving()
 
 void TNodeShard::TRevivalState::StartReviving()
 {
-    auto& Logger = Host_->Logger;
-
     Active_ = true;
     ShouldSkipUnknownJobs_ = false;
 
@@ -1832,21 +1822,21 @@ void TNodeShard::TRevivalState::StartReviving()
     //! Give some time for nodes to confirm the jobs.
     TDelayedExecutor::Submit(
         BIND(&TNodeShard::TRevivalState::FinalizeReviving, MakeWeak(this))
-            .Via(Host_->GetInvoker()),
-        Host_->Config_->JobRevivalAbortTimeout);
+            .Via(Shard_->GetInvoker()),
+        Shard_->Config_->JobRevivalAbortTimeout);
 }
 
 void TNodeShard::TRevivalState::FinalizeReviving()
 {
-    auto& Logger = Host_->Logger;
     Active_ = false;
     if (NotConfirmedJobs_.empty()) {
         LOG_INFO("All revived jobs were confirmed");
         return;
     }
+
     LOG_WARNING("Aborting revived jobs that were not confirmed (JobCount: %v, JobRevivalAbortTimeout: %v)",
         NotConfirmedJobs_.size(),
-        Host_->Config_->JobRevivalAbortTimeout);
+        Shard_->Config_->JobRevivalAbortTimeout);
 
     // NB: DoUnregisterJob attempts to erase job from the revival state, so we need to
     // eliminate set modification during its traversal by moving it to the local variable.
@@ -1857,7 +1847,7 @@ void TNodeShard::TRevivalState::FinalizeReviving()
         auto status = JobStatusFromError(
             TError("Job not confirmed")
                 << TErrorAttribute("abort_reason", EAbortReason::RevivalConfirmationTimeout));
-        Host_->OnJobAborted(job, &status);
+        Shard_->OnJobAborted(job, &status);
     }
 }
 

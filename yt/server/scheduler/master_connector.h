@@ -3,7 +3,6 @@
 #include "private.h"
 
 #include <yt/server/controller_agent/public.h>
-#include <yt/server/controller_agent/master_connector.h>
 
 #include <yt/server/cell_scheduler/public.h>
 
@@ -20,24 +19,14 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationReport
-{
-    TOperationPtr Operation;
-    NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
-    bool UserTransactionAborted = false;
-    bool IsAborting = false;
-    bool IsCommitted = false;
-    bool ShouldCommitOutputTransaction = false;
-};
-
 //! Information retrieved during scheduler-master handshake.
 struct TMasterHandshakeResult
 {
-    std::vector<TOperationReport> OperationReports;
+    std::vector<TOperationPtr> Operations;
 };
 
-typedef TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)> TWatcherRequester;
-typedef TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)> TWatcherHandler;
+using TWatcherRequester = TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)>;
+using TWatcherHandler = TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)>;
 
 //! Mediates communication between scheduler and master.
 class TMasterConnector
@@ -71,7 +60,17 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
-    DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
+    //! Raised during connection process.
+    //! Handshake result contains operations created from Cypress data; all of these have valid revival descriptors.
+    //! Subscribers may throw and yield.
+    DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnecting);
+
+    //! Raised when connection is complete.
+    //! Subscribers may throw but cannot yield.
+    DECLARE_SIGNAL(void(), MasterConnected);
+
+    //! Raised when disconnect happens.
+    //! Subscribers may yield but cannot throw.
     DECLARE_SIGNAL(void(), MasterDisconnected);
 
 private:
