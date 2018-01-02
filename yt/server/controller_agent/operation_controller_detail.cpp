@@ -218,7 +218,6 @@ TOperationControllerBase::TOperationControllerBase(
     , Invoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
-    , ReleaseJobsFeasibleInvokers_({Invoker, CancelableInvoker})
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())

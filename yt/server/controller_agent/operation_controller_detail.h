@@ -380,9 +380,6 @@ protected:
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
 
-    //! Invokers that are feasible when calling `ReleaseJobs`.
-    std::vector<IInvokerPtr> ReleaseJobsFeasibleInvokers_;
-
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> RevivedFromSnapshot = {false};
 
