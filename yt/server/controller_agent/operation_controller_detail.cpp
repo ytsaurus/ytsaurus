@@ -2365,11 +2365,7 @@ void TOperationControllerBase::SafeAbort()
 
 void TOperationControllerBase::SafeForget()
 {
-    LOG_INFO("Forgetting operation");
-
     CancelableContext->Cancel();
-
-    Forgotten = true;
 
     MasterConnector->UnregisterOperation(OperationId);
 
