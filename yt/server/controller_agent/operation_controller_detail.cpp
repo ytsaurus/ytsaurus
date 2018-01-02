@@ -5315,7 +5315,7 @@ TRowBufferPtr TOperationControllerBase::GetRowBuffer()
     return RowBuffer;
 }
 
-int TOperationControllerBase::OnSnapshotStarted()
+TSnapshotCookie TOperationControllerBase::OnSnapshotStarted()
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
 
@@ -5335,16 +5335,18 @@ int TOperationControllerBase::OnSnapshotStarted()
         ChunkTreeSnapshotCookie_,
         *RecentSnapshotIndex_);
 
-    return *RecentSnapshotIndex_;
+    TSnapshotCookie cookie;
+    cookie.SnapshotIndex = *RecentSnapshotIndex_;
+    return cookie;
 }
 
-void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
+void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& cookie)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     // OnSnapshotCompleted should match the most recent OnSnapshotStarted.
     YCHECK(RecentSnapshotIndex_);
-    YCHECK(snapshotIndex == *RecentSnapshotIndex_);
+    YCHECK(cookie.SnapshotIndex == *RecentSnapshotIndex_);
 
     // Completed job ids.
     {
@@ -5354,7 +5356,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
             CompletedJobIdsSnapshotCookie_,
             headCookie,
             jobIdsToRelease.size(),
-            snapshotIndex,
+            cookie.SnapshotIndex,
             SchedulerIncarnation_);
         ControllerAgent->ReleaseJobs(std::move(jobIdsToRelease), OperationId, SchedulerIncarnation_);
     }
@@ -5367,7 +5369,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
             IntermediateStripeListSnapshotCookie_,
             headCookie,
             stripeListsToRelease.size(),
-            snapshotIndex);
+            cookie.SnapshotIndex);
 
         for (const auto& stripeList : stripeListsToRelease) {
             auto chunkIds = GetStripeListChunkIds(stripeList);
@@ -5384,7 +5386,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
             ChunkTreeSnapshotCookie_,
             headCookie,
             chunkTreeIdsToRelease.size(),
-            snapshotIndex);
+            cookie.SnapshotIndex);
 
         MasterConnector->AddChunkTreesToUnstageList(std::move(chunkTreeIdsToRelease), true /* recursive */);
     }

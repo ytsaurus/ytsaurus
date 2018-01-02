@@ -193,8 +193,8 @@ private: \
     //! Called by `TSnapshotBuilder` when snapshot is built.
     IMPLEMENT_SAFE_VOID_METHOD(
         OnSnapshotCompleted,
-        (int snapshotIndex),
-        (snapshotIndex),
+        (const TSnapshotCookie& cookie),
+        (cookie),
         INVOKER_AFFINITY(CancelableInvoker),
         false)
 
@@ -340,7 +340,7 @@ public:
 
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override;
 
-    virtual int OnSnapshotStarted() override;
+    virtual TSnapshotCookie OnSnapshotStarted() override;
 
     virtual void OnBeforeDisposal() override;
 

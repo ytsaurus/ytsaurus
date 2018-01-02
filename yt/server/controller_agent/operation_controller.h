@@ -75,6 +75,13 @@ struct TOperationControllerInitializationAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSnapshotCookie
+{
+    int SnapshotIndex = -1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationControllerStrategyHost
     : public virtual TRefCounted
 {
@@ -304,21 +311,20 @@ struct IOperationController
     //! Builds job spec proto blob.
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
 
-    //! Method that is called right before the controller is suspended and snapshot builder forks.
-    //! Return value is an index of snapshot upload attempt starting from zero.
+    //! Called right before the controller is suspended and snapshot builder forks.
+    //! Returns a certain opaque cookie.
     //! This method should not throw.
     /*!
      *  \note Invoker affinity: Controller invoker.
      */
-    virtual int OnSnapshotStarted() = 0;
+    virtual TSnapshotCookie OnSnapshotStarted() = 0;
 
     //! Method that is called right after each snapshot is uploaded.
-    //! `snapshotIndex` should be equal to a last `OnSnapshotStarted()` return value,
-    //! otherwise controller crashes.
+    //! #cookie must be equal to the result of the last #OnSnapshotStarted call.
     /*!
      *  \note Invoker affinity: cancellable Controller invoker.
      */
-    virtual void OnSnapshotCompleted(int snapshotIndex) = 0;
+    virtual void OnSnapshotCompleted(const TSnapshotCookie& cookie) = 0;
 
     //! Returns metrics delta since last call.
     /*!

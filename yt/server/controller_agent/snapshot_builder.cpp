@@ -78,9 +78,9 @@ TFuture<void> TSnapshotBuilder::Run()
     std::vector<TOperationId> operationIds;
 
     LOG_INFO("Preparing controllers for suspension");
-    std::vector<TFuture<int>> onSnapshotStartedFutures;
+    std::vector<TFuture<TSnapshotCookie>> onSnapshotStartedFutures;
 
-    // Capture everything needed in Build.
+    // Capture everything needed.
     for (const auto& pair : Controllers_) {
         const auto& operationId = pair.first;
         const auto& controller = pair.second;
@@ -92,6 +92,7 @@ TFuture<void> TSnapshotBuilder::Run()
         auto job = New<TSnapshotJob>();
         job->OperationId = operationId;
         job->Controller = controller;
+
         auto pipe = TPipeFactory().Create();
         job->Reader = pipe.CreateAsyncReader();
         job->OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
@@ -107,25 +108,24 @@ TFuture<void> TSnapshotBuilder::Run()
             operationId);
     }
 
-    // We need to filter those controllers who were not able to return snapshot index
+    // We need to filter those controllers who were not able to return snapshot cookie
     // on OnSnapshotStarted call. This may normally happen when promise was abandoned
     // because controller was disposed.
     std::vector<TSnapshotJobPtr> preparedJobs;
-
     PROFILE_TIMING("/controllers_prepare_time") {
-        auto result = WaitFor(CombineAll(onSnapshotStartedFutures));
-        YCHECK(result.IsOK() && "CombineAll failed");
-        const auto& snapshotIndices = result.Value();
-        YCHECK(snapshotIndices.size() == Jobs_.size());
+        auto resultsOrError = WaitFor(CombineAll(onSnapshotStartedFutures));
+        YCHECK(resultsOrError.IsOK() && "CombineAll failed");
+        const auto& results = resultsOrError.Value();
+        YCHECK(results.size() == Jobs_.size());
         for (int index = 0; index < Jobs_.size(); ++index) {
-            auto snapshotIndexOrError = snapshotIndices[index];
-            if (!snapshotIndexOrError.IsOK()) {
-                LOG_WARNING(snapshotIndexOrError, "Failed to get snapshot index from controller (OperationId: %v)",
+            const auto& coookieOrError = results[index];
+            if (!coookieOrError.IsOK()) {
+                LOG_WARNING(coookieOrError, "Failed to get snapshot index from controller (OperationId: %v)",
                     Jobs_[index]->OperationId);
-            } else {
-                Jobs_[index]->SnapshotIndex = snapshotIndexOrError.Value();
-                preparedJobs.emplace_back(Jobs_[index]);
+                continue;
             }
+            Jobs_[index]->Cookie  = coookieOrError.Value();
+            preparedJobs.emplace_back(Jobs_[index]);
         }
     }
 
@@ -191,12 +191,12 @@ void TSnapshotBuilder::OnControllerSuspended(const TSnapshotJobPtr& job)
     if (!ControllersSuspended_) {
         LOG_DEBUG("Controller suspended (OperationId: %v, SnapshotIndex: %v)",
             job->OperationId,
-            job->SnapshotIndex);
+            job->Cookie.SnapshotIndex);
         job->Suspended = true;
     } else {
         LOG_DEBUG("Controller suspended too late (OperationId: %v, SnapshotIndex: %v)",
             job->OperationId,
-            job->SnapshotIndex);
+            job->Cookie.SnapshotIndex);
     }
 }
 
@@ -410,16 +410,15 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                 .ThrowOnError();
 
             LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
-                job->SnapshotIndex);
+                job->Cookie.SnapshotIndex);
 
             auto controller = job->Controller;
-
             if (controller->IsRunning()) {
                 // Safely remove jobs that we do not need any more.
                 WaitFor(
                     BIND(&IOperationController::OnSnapshotCompleted, controller)
                         .AsyncVia(controller->GetCancelableInvoker())
-                        .Run(job->SnapshotIndex))
+                        .Run(job->Cookie))
                     .ThrowOnError();
             }
         }
