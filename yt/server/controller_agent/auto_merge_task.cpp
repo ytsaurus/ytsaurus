@@ -86,7 +86,7 @@ void TAutoMergeChunkPoolAdapter::ProcessStripe(const TChunkStripePtr& stripe, bo
 {
     // We perform an in-place filtration of all large chunks.
     int firstUnusedIndex = 0;
-    for (auto& slice : stripe->DataSlices) {
+    for (const auto& slice : stripe->DataSlices) {
         const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
         if (chunk->IsLargeCompleteChunk(ChunkSizeThreshold_) ||
             chunk->GetDataWeight() >= 0.5 * MaxDataWeightPerJob_)
