@@ -128,7 +128,7 @@ TString FormatResources(const TJobResources& resources)
 TString FormatResources(const TJobResourcesWithQuota& resources)
 {
     return Format(
-        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, Disk Quota: %v}",
+        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, DiskQuota: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetMemory() / 1_MB,
@@ -144,9 +144,9 @@ TString FormatResources(const TExtendedJobResources& resources)
         "{UserSlots: %v, Cpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
-        resources.GetJobProxyMemory() / (1024 * 1024),
-        resources.GetUserJobMemory() / (1024 * 1024),
-        resources.GetFootprintMemory() / (1024 * 1024),
+        resources.GetJobProxyMemory() / 1_MB,
+        resources.GetUserJobMemory() / 1_MB,
+        resources.GetFootprintMemory() / 1_MB,
         resources.GetNetwork());
 }
 
