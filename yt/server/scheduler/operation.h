@@ -247,6 +247,7 @@ public:
         const NTransactionClient::TTransactionId& userTransactionId,
         NYTree::IMapNodePtr spec,
         NYTree::IMapNodePtr secureVault,
+        TOperationRuntimeParamsPtr runtimeParams,
         const TString& authenticatedUser,
         const std::vector<TString>& owners,
         TInstant startTime,

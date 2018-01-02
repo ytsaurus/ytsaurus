@@ -644,6 +644,7 @@ public:
             transactionId,
             specNode,
             secureVault,
+            BuildOperationRuntimeParams(spec),
             user,
             spec->Owners,
             TInstant::Now(),

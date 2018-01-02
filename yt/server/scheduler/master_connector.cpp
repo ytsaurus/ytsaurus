@@ -1093,6 +1093,7 @@ private:
             userTransactionId,
             specNode,
             secureVault,
+            BuildOperationRuntimeParams(spec),
             attributes.Get<TString>("authenticated_user"),
             attributes.Get<std::vector<TString>>("owners", spec->Owners),
             attributes.Get<TInstant>("start_time"),

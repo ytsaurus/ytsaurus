@@ -27,6 +27,7 @@ TOperation::TOperation(
     const TTransactionId& userTransactionId,
     IMapNodePtr spec,
     IMapNodePtr secureVault,
+    TOperationRuntimeParamsPtr runtimeParams,
     const TString& authenticatedUser,
     const std::vector<TString>& owners,
     TInstant startTime,
@@ -41,7 +42,7 @@ TOperation::TOperation(
     , State_(state)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
-    , RuntimeParams_(New<TOperationRuntimeParams>())
+    , RuntimeParams_(std::move(runtimeParams))
     , SecureVault_(std::move(secureVault))
     , Owners_(owners)
     , Events_(events)
@@ -54,11 +55,7 @@ TOperation::TOperation(
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
-{
-    RuntimeParams_->Weight = spec->Weight.Get(1.0);
-    RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
-    RuntimeParams_->Owners = parsedSpec->Owners;
-}
+{ }
 
 const TOperationId& TOperation::GetId() const
 {
