@@ -374,7 +374,9 @@ struct IOperationController
     virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
 
     //! Called to check that operation fully completed.
-    // TODO(babenko): thread affinity?
+    /*!
+     *  \note Invoker affinity: any.
+     */
     virtual bool IsCompleteFinished() const = 0;
 
     //! Returns non-trivial error if operation should be suspended.
