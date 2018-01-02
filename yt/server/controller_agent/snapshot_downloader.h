@@ -18,14 +18,14 @@ class TSnapshotDownloader
 {
 public:
     TSnapshotDownloader(
-        TSchedulerConfigPtr config,
+        TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap,
         const TOperationId& operationId);
 
     TSharedRef Run(const NYTree::TYPath& snapshotPath);
 
 private:
-    const TSchedulerConfigPtr Config_;
+    const TControllerAgentConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
     const TOperationId OperationId_;
 

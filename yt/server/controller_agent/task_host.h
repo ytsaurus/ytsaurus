@@ -49,8 +49,8 @@ struct ITaskHost
     virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) = 0;
     virtual void RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet) = 0;
 
-    virtual const TSchedulerConfigPtr& SchedulerConfig() const = 0;
-    virtual const TOperationSpecBasePtr& Spec() const = 0;
+    virtual const TControllerAgentConfigPtr& GetConfig() const = 0;
+    virtual const TOperationSpecBasePtr& GetSpec() const = 0;
 
     virtual void OnOperationFailed(const TError& error, bool flush = true) = 0;
 
@@ -66,7 +66,7 @@ struct ITaskHost
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const = 0;
 
-    virtual const TChunkListPoolPtr& ChunkListPool() const = 0;
+    virtual const TChunkListPoolPtr& GetChunkListPool() const = 0;
     virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
@@ -85,7 +85,7 @@ struct ITaskHost
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
 
-    virtual IJobSplitter* JobSplitter() = 0;
+    virtual IJobSplitter* GetJobSplitter() = 0;
 
     virtual const TNullable<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 

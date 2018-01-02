@@ -21,7 +21,6 @@ using NScheduler::EJobType;
 using NScheduler::EJobState;
 using NScheduler::TOperation;
 using NScheduler::TOperationSpecBasePtr;
-using NScheduler::TOperationOptionsPtr;
 // TODO(ignat): Move setting alerts from Scheduler to ControllerAgent.
 using NScheduler::EOperationAlertType;
 
@@ -39,9 +38,27 @@ DECLARE_REFCOUNTED_STRUCT(IOperationControllerSchedulerHost)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
 
+DECLARE_REFCOUNTED_CLASS(TOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TSimpleOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TMapOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TUnorderedMergeOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TOrderedMergeOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TSortedMergeOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TEraseOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TReduceOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TJoinReduceOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TSortOperationOptionsBase)
+DECLARE_REFCOUNTED_CLASS(TSortOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TMapReduceOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationOptions)
+
+DECLARE_REFCOUNTED_CLASS(TJobSplitterConfig)
 DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
+DECLARE_REFCOUNTED_CLASS(TOperationAlertsConfig)
+DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)
+DECLARE_REFCOUNTED_CLASS(TControllerAgentConfig)
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 

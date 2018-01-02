@@ -5,12 +5,12 @@
 #endif
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOptions>
-void TSchedulerConfig::UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch)
+void TControllerAgentConfig::UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch)
 {
     using NYTree::INodePtr;
     using NYTree::ConvertTo;
@@ -28,6 +28,6 @@ void TSchedulerConfig::UpdateOptions(TOptions* options, NYT::NYTree::INodePtr pa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

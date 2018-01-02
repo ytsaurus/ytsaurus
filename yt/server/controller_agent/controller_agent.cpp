@@ -1,9 +1,9 @@
 #include "controller_agent.h"
 #include "operation_controller.h"
+#include "config.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/cache.h>
 
 #include <yt/ytlib/api/transaction.h>
@@ -44,7 +44,9 @@ class TControllerAgent::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TSchedulerConfigPtr config, NCellScheduler::TBootstrap* bootstrap)
+    TImpl(
+        TControllerAgentConfigPtr config,
+        NCellScheduler::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
@@ -149,7 +151,7 @@ public:
         return ControllerAgentMasterConnector_.Get();
     }
 
-    const TSchedulerConfigPtr& GetConfig() const
+    const TControllerAgentConfigPtr& GetConfig() const
     {
         return Config_;
     }
@@ -179,20 +181,22 @@ public:
         return CoreSemaphore_;
     }
 
-    TEventLogWriterPtr GetEventLogWriter() const
+    const TEventLogWriterPtr& GetEventLogWriter() const
     {
         return EventLogWriter_;
     }
 
-    void UpdateConfig(const TSchedulerConfigPtr& config)
+    void UpdateConfig(const TControllerAgentConfigPtr& config)
     {
         Config_ = config;
+
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
         EventLogWriter_->UpdateConfig(Config_->EventLog);
         SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
         if (ControllerAgentMasterConnector_) {
             ControllerAgentMasterConnector_->UpdateConfig(config);
         }
+
         for (auto pair : GetControllers()) {
             const auto& controller = pair.second;
             controller->GetCancelableInvoker()->Invoke(
@@ -366,8 +370,8 @@ public:
     }
 
 private:
-    TSchedulerConfigPtr Config_;
-    NCellScheduler::TBootstrap* Bootstrap_;
+    TControllerAgentConfigPtr Config_;
+    NCellScheduler::TBootstrap* const Bootstrap_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
@@ -512,7 +516,6 @@ private:
         }
 
         auto rspOrError = WaitFor(req->Invoke());
-
         if (!rspOrError.IsOK()) {
             if (rspOrError.FindMatching(NRpc::EErrorCode::Unavailable)) {
                 LOG_DEBUG(rspOrError, "Scheduler is currently unavailable; retrying heartbeat");
@@ -559,7 +562,7 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 TControllerAgent::TControllerAgent(
-    NScheduler::TSchedulerConfigPtr config,
+    TControllerAgentConfigPtr config,
     NCellScheduler::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
@@ -609,7 +612,7 @@ TMasterConnector* TControllerAgent::GetMasterConnector()
     return Impl_->GetMasterConnector();
 }
 
-const TSchedulerConfigPtr& TControllerAgent::GetConfig() const
+const TControllerAgentConfigPtr& TControllerAgent::GetConfig() const
 {
     return Impl_->GetConfig();
 }
@@ -639,12 +642,12 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
     return Impl_->GetCoreSemaphore();
 }
 
-TEventLogWriterPtr TControllerAgent::GetEventLogWriter() const
+const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
 }
 
-void TControllerAgent::UpdateConfig(const TSchedulerConfigPtr& config)
+void TControllerAgent::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
 }

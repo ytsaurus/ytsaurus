@@ -218,7 +218,7 @@ public:
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
-    virtual void UpdateConfig(TSchedulerConfigPtr config) override;
+    virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override;
 
     virtual TCancelableContextPtr GetCancelableContext() const override;
     virtual IInvokerPtr GetInvoker() const override;
@@ -285,8 +285,8 @@ public:
     virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) override;
     virtual void RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet) override;
 
-    virtual const TSchedulerConfigPtr& SchedulerConfig() const override;
-    virtual const TOperationSpecBasePtr& Spec() const override;
+    virtual const TControllerAgentConfigPtr& GetConfig() const override;
+    virtual const TOperationSpecBasePtr& GetSpec() const override;
 
     virtual void OnOperationFailed(const TError& error, bool flush = true) override;
 
@@ -305,7 +305,7 @@ public:
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const override;
 
-    virtual const TChunkListPoolPtr& ChunkListPool() const override;
+    virtual const TChunkListPoolPtr& GetChunkListPool() const override;
     virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) override;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
@@ -325,7 +325,7 @@ public:
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) override;
 
-    virtual IJobSplitter* JobSplitter() override;
+    virtual IJobSplitter* GetJobSplitter() override;
 
     virtual const TNullable<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
@@ -355,7 +355,7 @@ public:
 
 protected:
     TControllerAgentPtr ControllerAgent;
-    TSchedulerConfigPtr Config;
+    TControllerAgentConfigPtr Config;
     TMasterConnectorPtr MasterConnector;
 
     const TOperationId OperationId;

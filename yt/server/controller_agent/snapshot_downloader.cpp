@@ -8,8 +8,6 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
-#include <yt/core/concurrency/async_stream.h>
-
 namespace NYT {
 namespace NControllerAgent {
 
@@ -20,7 +18,7 @@ using namespace NScheduler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotDownloader::TSnapshotDownloader(
-    TSchedulerConfigPtr config,
+    TControllerAgentConfigPtr config,
     NCellScheduler::TBootstrap* bootstrap,
     const TOperationId& operationId)
     : Config_(config)
@@ -29,7 +27,8 @@ TSnapshotDownloader::TSnapshotDownloader(
     , Logger(NLogging::TLogger(MasterConnectorLogger)
         .AddTag("OperationId: %v", operationId))
 {
-    YCHECK(bootstrap);
+    YCHECK(Config_);
+    YCHECK(Bootstrap_);
 }
 
 TSharedRef TSnapshotDownloader::Run(const NYTree::TYPath& snapshotPath)
@@ -41,8 +40,8 @@ TSharedRef TSnapshotDownloader::Run(const NYTree::TYPath& snapshotPath)
     TFileReaderOptions options;
     options.Config = Config_->SnapshotReader;
 
-    auto readerOrError = WaitFor(client->CreateFileReader(snapshotPath, options));
-    auto reader = readerOrError.ValueOrThrow();
+    auto reader = WaitFor(client->CreateFileReader(snapshotPath, options))
+        .ValueOrThrow();
 
     LOG_INFO("Snapshot reader opened");
 

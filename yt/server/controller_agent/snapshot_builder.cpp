@@ -3,8 +3,8 @@
 #include "helpers.h"
 #include "operation_controller.h"
 #include "serialize.h"
+#include "config.h"
 
-#include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/scheduler.h>
 
 #include <yt/ytlib/api/file_writer.h>
@@ -51,22 +51,22 @@ struct TBuildSnapshotJob
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotBuilder::TSnapshotBuilder(
-    TSchedulerConfigPtr config,
+    TControllerAgentConfigPtr config,
     TOperationIdToControllerMap controllers,
     IClientPtr client,
-    IInvokerPtr IOInvoker)
+    IInvokerPtr ioInvoker)
     : Config_(config)
     , Controllers_(std::move(controllers))
     , Client_(client)
-    , IOInvoker_(IOInvoker)
+    , IOInvoker_(ioInvoker)
     , ControlInvoker_(GetCurrentInvoker())
-    , Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot")
+    , Profiler(ControllerAgentProfiler.GetPathPrefix() + "/snapshot")
 {
     YCHECK(Config_);
     YCHECK(Client_);
     YCHECK(IOInvoker_);
 
-    Logger = SchedulerLogger;
+    Logger = ControllerAgentLogger;
 }
 
 TFuture<void> TSnapshotBuilder::Run()

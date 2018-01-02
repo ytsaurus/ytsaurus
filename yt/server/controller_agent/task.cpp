@@ -246,7 +246,7 @@ void TTask::ScheduleJob(
     }
 
     const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
-    if (sliceCount > TaskHost_->SchedulerConfig()->HeavyJobSpecSliceCountThreshold) {
+    if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
                       sliceCount);
@@ -285,7 +285,7 @@ void TTask::ScheduleJob(
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
     bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
 
-    joblet->Account = TaskHost_->Spec()->JobNodeAccount;
+    joblet->Account = TaskHost_->GetSpec()->JobNodeAccount;
     joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
         .AsyncVia(TaskHost_->GetCancelableInvoker())
         .Run();
@@ -299,11 +299,11 @@ void TTask::ScheduleJob(
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
     joblet->JobProxyMemoryReserveFactor = TaskHost_->GetJobProxyMemoryDigest(jobType)->GetQuantile(
-        TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
+        TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
         joblet->UserJobMemoryReserveFactor = TaskHost_->GetUserJobMemoryDigest(GetJobType())->GetQuantile(
-            TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
+            TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     }
 
     LOG_DEBUG(
@@ -350,8 +350,8 @@ void TTask::ScheduleJob(
 
     OnJobStarted(joblet);
 
-    if (TaskHost_->JobSplitter()) {
-        TaskHost_->JobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList);
+    if (TaskHost_->GetJobSplitter()) {
+        TaskHost_->GetJobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList);
     }
 }
 
@@ -433,7 +433,7 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {
-                    TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                    TaskHost_->GetChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
                 }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
@@ -708,10 +708,10 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     result.SetUserSlots(jobResources.GetUserSlots());
     i64 memory = jobResources.GetFootprintMemory();
     memory += jobResources.GetJobProxyMemory() * TaskHost_->GetJobProxyMemoryDigest(
-        GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
+        GetJobType())->GetQuantile(TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
     if (GetUserJobSpec()) {
         memory += jobResources.GetUserJobMemory() * TaskHost_->GetUserJobMemoryDigest(
-            GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
+            GetJobType())->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     } else {
         YCHECK(jobResources.GetUserJobMemory() == 0);
     }
@@ -749,11 +749,11 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
     TaskHost_->CustomizeJobSpec(joblet, &jobSpec);
 
     auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    if (TaskHost_->Spec()->JobProxyMemoryOvercommitLimit) {
-        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->Spec()->JobProxyMemoryOvercommitLimit);
+    if (TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit) {
+        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
     }
-    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
-    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->Spec()->SuspendOperationIfAccountLimitExceeded);
+    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
+    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
 
     // Adjust sizes if approximation flag is set.
     if (joblet->InputStripeList->IsApproximate) {
@@ -765,14 +765,14 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             ApproximateSizesBoostFactor));
     }
 
-    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->Spec()->MaxDataWeightPerJob) {
+    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         TaskHost_->OnOperationFailed(TError(
             "Maximum allowed data weight per job violated: %v > %v",
             schedulerJobSpecExt->input_data_weight(),
-            TaskHost_->Spec()->MaxDataWeightPerJob));
+            TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }
 
-    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
+    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
