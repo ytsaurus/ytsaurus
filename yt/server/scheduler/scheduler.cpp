@@ -404,7 +404,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         int execNodeCount = 0;
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             execNodeCount += nodeShard->GetExecNodeCount();
         }
         return execNodeCount;
@@ -415,7 +415,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         int totalNodeCount = 0;
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             totalNodeCount += nodeShard->GetTotalNodeCount();
         }
         return totalNodeCount;
@@ -742,7 +742,7 @@ public:
         }
 
         std::vector<TFuture<void>> resumeFutures;
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             resumeFutures.push_back(BIND(&TNodeShard::ResumeOperationJobs, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run(operation->GetId()));
@@ -976,7 +976,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto totalResourceLimits = ZeroJobResources();
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             totalResourceLimits += nodeShard->GetTotalResourceLimits();
         }
         return totalResourceLimits;
@@ -998,7 +998,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto resourceLimits = ZeroJobResources();
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             resourceLimits += nodeShard->GetResourceLimits(filter);
         }
 
@@ -1018,7 +1018,7 @@ public:
     int GetActiveJobCount()
     {
         int activeJobCount = 0;
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
              activeJobCount += nodeShard->GetActiveJobCount();
         }
         return activeJobCount;
@@ -1351,7 +1351,7 @@ private:
 
         {
             TJobTimeStatisticsDelta jobTimeStatisticsDelta;
-            for (auto& nodeShard : NodeShards_) {
+            for (const auto& nodeShard : NodeShards_) {
                 jobTimeStatisticsDelta += nodeShard->GetJobTimeStatisticsDelta();
             }
             Profiler.Increment(TotalCompletedJobTimeCounter_, jobTimeStatisticsDelta.CompletedJobTimeDelta);
@@ -1748,7 +1748,7 @@ private:
             Config_ = newConfig;
             ValidateConfig();
 
-            for (auto& nodeShard : NodeShards_) {
+            for (const auto& nodeShard : NodeShards_) {
                 BIND(&TNodeShard::UpdateConfig, nodeShard, Config_)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run();
@@ -1802,7 +1802,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TFuture<TExecNodeDescriptorListPtr>> shardDescriptorsFutures;
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             shardDescriptorsFutures.push_back(BIND(&TNodeShard::GetExecNodeDescriptors, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run());
@@ -2143,7 +2143,7 @@ private:
         VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
 
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             BIND(&TNodeShard::RegisterOperation, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run(operation->GetId(), operation->GetController());
@@ -2165,7 +2165,7 @@ private:
     void AbortOperationJobs(const TOperationPtr& operation, const TError& error, bool terminated)
     {
         std::vector<TFuture<void>> abortFutures;
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             abortFutures.push_back(BIND(&TNodeShard::AbortOperationJobs, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run(operation->GetId(), error, terminated));
@@ -2177,7 +2177,7 @@ private:
     void UnregisterOperation(const TOperationPtr& operation)
     {
         YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             BIND(&TNodeShard::UnregisterOperation, nodeShard, operation->GetId())
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run();

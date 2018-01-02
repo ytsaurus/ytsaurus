@@ -100,7 +100,7 @@ std::vector<TDataFlowGraph::TVertexDescriptor> TDataFlowGraph::GetTopologicalOrd
     std::vector<TVertexDescriptor> result;
     result.reserve(topologicalOrdering.size());
 
-    for (auto& element : topologicalOrdering) {
+    for (const auto& element : topologicalOrdering) {
         result.emplace_back(static_cast<TVertexDescriptor>(element));
     }
 

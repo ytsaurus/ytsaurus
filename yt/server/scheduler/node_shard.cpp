@@ -730,8 +730,8 @@ void TNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    for (auto& node : IdToNode_) {
-        BuildNodeYson(node.second, fluent);
+    for (const auto& pair : IdToNode_) {
+        BuildNodeYson(pair.second, fluent);
     }
 }
 
@@ -764,7 +764,7 @@ void TNodeShard::RegisterRevivedJobs(const TOperationId& operationId, const std:
         return;
     }
 
-    for (auto& job : jobs) {
+    for (const auto& job : jobs) {
         job->SetNode(GetOrRegisterNode(
             job->RevivedNodeDescriptor().Id,
             TNodeDescriptor(job->RevivedNodeDescriptor().Address)));

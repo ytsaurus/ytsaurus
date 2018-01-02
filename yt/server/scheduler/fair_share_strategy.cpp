@@ -1218,9 +1218,7 @@ private:
                 schedulingContext->CanStartMoreJobs());
             context.ActiveTreeSize = 0;
             context.ActiveOperationCount = 0;
-            for (auto& item : context.DeactivationReasons) {
-                item = 0;
-            }
+            std::fill(context.DeactivationReasons.begin(), context.DeactivationReasons.end(), 0);
         };
 
         DoScheduleJobsWithoutPreemption(rootElementSnapshot, context, profileTimings, logAndCleanSchedulingStatistics);
