@@ -1057,12 +1057,16 @@ public:
         if (controller->IsRevivedFromSnapshot()) {
             operation->SetState(EOperationState::RevivingJobs);
             RegisterJobsFromRevivedOperation(operation)
-                .Subscribe(BIND([operation] (const TError& error) {
-                    YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
-                    if (operation->GetState() == EOperationState::RevivingJobs) {
-                        operation->SetState(EOperationState::Running);
-                    }
-                }));
+                .Subscribe(
+                    BIND([operation] (const TError& error) {
+                        if (!error.IsOK()) {
+                            return;
+                        }
+                        if (operation->GetState() == EOperationState::RevivingJobs) {
+                            operation->SetState(EOperationState::Running);
+                        }
+                    })
+                    .Via(operation->GetCancelableControlInvoker()));
         } else {
             operation->SetState(EOperationState::Materializing);
             BIND(&IOperationControllerSchedulerHost::Materialize, controller)
@@ -1070,10 +1074,11 @@ public:
                 .Run()
                 .Subscribe(
                     BIND([operation] (const TError& error) {
-                        if (error.IsOK()) {
-                            if (operation->GetState() == EOperationState::Materializing) {
-                                operation->SetState(EOperationState::Running);
-                            }
+                        if (!error.IsOK()) {
+                            return;
+                        }
+                        if (operation->GetState() == EOperationState::Materializing) {
+                            operation->SetState(EOperationState::Running);
                         }
                     })
                     .Via(operation->GetCancelableControlInvoker()));
