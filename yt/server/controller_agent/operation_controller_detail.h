@@ -365,13 +365,13 @@ protected:
     const TString AuthenticatedUser;
     const NScheduler::EOperationCypressStorageMode StorageMode;
 
-    // Usually these clients are all the same (and connected to master of the current cluster).
-    // But `remote copy' operation connects AuthenticatedInputMasterClient to remote cluster master server.
-    // AuthenticatedOutputMasterClient is created for the sake of symmetry with Input,
-    // i.e. AuthenticatedMasterClient and AuthenticatedOutputMasterClient are always connected to the same master.
-    NApi::INativeClientPtr AuthenticatedMasterClient;
-    NApi::INativeClientPtr AuthenticatedInputMasterClient;
-    NApi::INativeClientPtr AuthenticatedOutputMasterClient;
+    // Usually these clients are all the same (and connected to the current cluster).
+    // But `remote copy' operation connects InputClient to remote cluster.
+    // OutputClient is created for the sake of symmetry with Input;
+    // i.e. Client and OutputClient are always connected to the same cluster.
+    NApi::INativeClientPtr Client;
+    NApi::INativeClientPtr InputClient;
+    NApi::INativeClientPtr OutputClient;
 
     mutable NLogging::TLogger Logger;
 
@@ -559,13 +559,12 @@ protected:
 
     // Initialization.
     virtual void DoInitialize();
-    virtual void InitializeConnections();
+    virtual void InitializeClients();
     virtual void InitializeTransactions();
     virtual void InitializeStructures();
     virtual void SyncPrepare();
     virtual void FinishInitialization();
     void InitUpdatingTables();
-
 
     // Preparation.
     void FetchInputTables();
@@ -1065,6 +1064,9 @@ private:
     TOperationControllerInitializationAttributes InitializationAttributes_;
     NYson::TYsonString Attributes_;
 
+    std::unique_ptr<IJobSplitter> JobSplitter_;
+
+
     void BuildAndSaveProgress();
 
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
@@ -1082,9 +1084,6 @@ private:
 
     void LogProgress(bool force = false);
 
-    std::unique_ptr<IJobSplitter> JobSplitter_;
-
-    NApi::INativeClientPtr CreateClient();
     void UpdateAllTasksIfNeeded();
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);

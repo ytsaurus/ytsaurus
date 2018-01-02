@@ -543,7 +543,7 @@ private:
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
                 ControllerAgent->GetChunkLocationThrottlerManager(),
-                AuthenticatedInputMasterClient,
+                InputClient,
                 InputNodeDirectory_,
                 Logger);
         }

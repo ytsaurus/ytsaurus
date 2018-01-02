@@ -210,9 +210,6 @@ TOperationControllerBase::TOperationControllerBase(
     , StartTime(operation->GetStartTime())
     , AuthenticatedUser(operation->GetAuthenticatedUser())
     , StorageMode(operation->GetStorageMode())
-    , AuthenticatedMasterClient(CreateClient())
-    , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
-    , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
     , Invoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()))
@@ -289,14 +286,23 @@ const TJobSpec& TOperationControllerBase::GetAutoMergeJobSpecTemplate(int tableI
     return AutoMergeJobSpecTemplates_[tableIndex];
 }
 
-void TOperationControllerBase::InitializeConnections()
-{ }
+void TOperationControllerBase::InitializeClients()
+{
+    TClientOptions options;
+    options.User = AuthenticatedUser;
+    Client = ControllerAgent
+        ->GetMasterClient()
+        ->GetNativeConnection()
+        ->CreateNativeClient(options);
+    InputClient = Client;
+    OutputClient = Client;
+}
 
 void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
 {
     LOG_INFO("Initializing operation for revive");
 
-    InitializeConnections();
+    InitializeClients();
 
     std::atomic<bool> cleanStart = {false};
 
@@ -411,7 +417,7 @@ void TOperationControllerBase::Initialize()
         Spec_->Title);
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] () {
-        InitializeConnections();
+        InitializeClients();
         InitializeTransactions();
         InitializeStructures();
         SyncPrepare();
@@ -593,21 +599,21 @@ void TOperationControllerBase::SafePrepare()
     // Process output and stderr tables.
     {
         GetUserObjectBasicAttributes<TOutputTable>(
-            AuthenticatedOutputMasterClient,
+            OutputClient,
             OutputTables_,
             OutputTransaction->GetId(),
             Logger,
             EPermission::Write);
 
         GetUserObjectBasicAttributes<TOutputTable>(
-            AuthenticatedMasterClient,
+            Client,
             StderrTable_,
             DebugOutputTransaction->GetId(),
             Logger,
             EPermission::Write);
 
         GetUserObjectBasicAttributes<TOutputTable>(
-            AuthenticatedMasterClient,
+            Client,
             CoreTable_,
             DebugOutputTransaction->GetId(),
             Logger,
@@ -883,7 +889,7 @@ TFuture<void> TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
     auto transactionFuture = StartTransaction(
         ETransactionType::Async,
-        AuthenticatedMasterClient);
+        Client);
 
     return transactionFuture.Apply(
         BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
@@ -895,7 +901,7 @@ TFuture<void> TOperationControllerBase::StartInputTransaction(const TTransaction
 {
     auto transactionFuture = StartTransaction(
         ETransactionType::Input,
-        AuthenticatedInputMasterClient,
+        InputClient,
         parentTransactionId);
 
     return transactionFuture.Apply(
@@ -908,7 +914,7 @@ TFuture<void> TOperationControllerBase::StartOutputTransaction(const TTransactio
 {
     auto transactionFuture = StartTransaction(
         ETransactionType::Output,
-        AuthenticatedOutputMasterClient,
+        OutputClient,
         parentTransactionId);
 
     return transactionFuture.Apply(
@@ -921,7 +927,7 @@ TFuture<void> TOperationControllerBase::StartDebugOutputTransaction()
 {
     auto transactionFuture = StartTransaction(
         ETransactionType::DebugOutput,
-        AuthenticatedMasterClient);
+        Client);
 
     return transactionFuture.Apply(
         BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
@@ -931,7 +937,7 @@ TFuture<void> TOperationControllerBase::StartDebugOutputTransaction()
 
 void TOperationControllerBase::PickIntermediateDataCell()
 {
-    auto connection = AuthenticatedOutputMasterClient->GetNativeConnection();
+    auto connection = OutputClient->GetNativeConnection();
     const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
     IntermediateOutputCellTag = secondaryCellTags.empty()
         ? connection->GetPrimaryMasterCellTag()
@@ -942,7 +948,7 @@ void TOperationControllerBase::InitChunkListPool()
 {
     ChunkListPool_ = New<TChunkListPool>(
         Config,
-        AuthenticatedOutputMasterClient,
+        OutputClient,
         CancelableInvoker,
         OperationId,
         OutputTransaction->GetId());
@@ -973,7 +979,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         Config->ChunkScraper,
         CancelableInvoker,
         ControllerAgent->GetChunkLocationThrottlerManager(),
-        AuthenticatedInputMasterClient,
+        InputClient,
         InputNodeDirectory_,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this)),
@@ -991,7 +997,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         Config->ChunkScraper,
         CancelableInvoker,
         ControllerAgent->GetChunkLocationThrottlerManager(),
-        AuthenticatedInputMasterClient,
+        InputClient,
         InputNodeDirectory_,
         [weakThis = MakeWeak(this)] () {
             if (auto this_ = weakThis.Lock()) {
@@ -1173,7 +1179,7 @@ void TOperationControllerBase::StartCompletionTransaction()
 {
     CompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::Completion,
-        AuthenticatedOutputMasterClient,
+        OutputClient,
         OutputTransaction->GetId()))
         .ValueOrThrow();
 
@@ -1318,7 +1324,7 @@ void TOperationControllerBase::TeleportOutputChunks()
 {
     auto teleporter = New<TChunkTeleporter>(
         Config,
-        AuthenticatedOutputMasterClient,
+        OutputClient,
         CancelableInvoker,
         CompletionTransaction->GetId(),
         Logger);
@@ -1346,7 +1352,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
         LOG_INFO("Attaching output chunks (Path: %v)",
             path);
 
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(
+        auto channel = OutputClient->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
             table->CellTag);
         TChunkServiceProxy proxy(channel);
@@ -1475,7 +1481,7 @@ void TOperationControllerBase::CustomCommit()
 
 void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTable*>& tableList)
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -3704,7 +3710,7 @@ void TOperationControllerBase::FetchInputTables()
 
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
         FetchChunkSpecs(
-            AuthenticatedInputMasterClient,
+            InputClient,
             InputNodeDirectory_,
             table.CellTag,
             table.Path,
@@ -3771,7 +3777,7 @@ void TOperationControllerBase::LockInputTables()
     //! TODO(ignat): Merge in with lock input files method.
     LOG_INFO("Locking input tables");
 
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -3803,7 +3809,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
     LOG_INFO("Getting input tables attributes");
 
     GetUserObjectBasicAttributes<TInputTable>(
-        AuthenticatedInputMasterClient,
+        InputClient,
         InputTables,
         InputTransaction->GetId(),
         Logger,
@@ -3819,7 +3825,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
     }
 
     {
-        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -3876,7 +3882,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
     LOG_INFO("Getting output tables schema");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -3971,7 +3977,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
     LOG_INFO("Locking output tables");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
         {
@@ -3994,7 +4000,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
     LOG_INFO("Getting output tables attributes");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -4080,7 +4086,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
     LOG_INFO("Beginning upload for output tables");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
         {
@@ -4123,7 +4129,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
 
         LOG_INFO("Getting output tables upload parameters (CellTag: %v)", cellTag);
 
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(
+        auto channel = OutputClient->GetMasterChannelOrThrow(
             EMasterChannelKind::Follower,
             cellTag);
         TObjectServiceProxy proxy(channel);
@@ -4174,7 +4180,7 @@ void TOperationControllerBase::FetchUserFiles()
         switch (file.Type) {
             case EObjectType::Table:
                 FetchChunkSpecs(
-                    AuthenticatedInputMasterClient,
+                    InputClient,
                     InputNodeDirectory_,
                     file.CellTag,
                     file.Path,
@@ -4199,7 +4205,7 @@ void TOperationControllerBase::FetchUserFiles()
                 break;
 
             case EObjectType::File: {
-                auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
+                auto channel = InputClient->GetMasterChannelOrThrow(
                     EMasterChannelKind::Follower,
                     file.CellTag);
                 TObjectServiceProxy proxy(channel);
@@ -4219,7 +4225,7 @@ void TOperationControllerBase::FetchUserFiles()
 
                 auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
                 ProcessFetchResponse(
-                    AuthenticatedInputMasterClient,
+                    InputClient,
                     rsp,
                     file.CellTag,
                     nullptr,
@@ -4245,7 +4251,7 @@ void TOperationControllerBase::LockUserFiles()
 {
     LOG_INFO("Locking user files");
 
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
 
@@ -4276,7 +4282,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     LOG_INFO("Getting user files attributes");
 
     GetUserObjectBasicAttributes<TUserFile>(
-        AuthenticatedMasterClient,
+        Client,
         Files,
         InputTransaction->GetId(),
         Logger,
@@ -4299,7 +4305,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -4698,7 +4704,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
                 ControllerAgent->GetChunkLocationThrottlerManager(),
-                AuthenticatedInputMasterClient,
+                InputClient,
                 InputNodeDirectory_,
                 Logger);
             DataSliceFetcherChunkScrapers.push_back(scraper);
@@ -6389,16 +6395,6 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
     options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
     options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
     return options;
-}
-
-INativeClientPtr TOperationControllerBase::CreateClient()
-{
-    TClientOptions options;
-    options.User = AuthenticatedUser;
-    return ControllerAgent
-        ->GetMasterClient()
-        ->GetNativeConnection()
-        ->CreateNativeClient(options);
 }
 
 void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation)
