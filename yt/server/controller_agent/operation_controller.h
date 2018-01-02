@@ -121,8 +121,7 @@ struct IOperationControllerStrategyHost
 DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
 
 struct IOperationControllerSchedulerHost
-    : public virtual TRefCounted
-    , public IOperationControllerStrategyHost
+    : public IOperationControllerStrategyHost
 {
     //! Performs controller inner state initialization. Starts all controller transactions.
     /*
@@ -136,7 +135,6 @@ struct IOperationControllerSchedulerHost
     //! Performs controller inner state initialization for reviving operation.
     /*
      *  If an exception is thrown then the operation fails immediately.
-     *  The diagnostics is returned to the client, no Cypress node is created.
      *
      *  \note Invoker affinity: Control invoker
      */
@@ -226,7 +224,7 @@ struct IOperationControllerSchedulerHost
     /*!
      *  \note Invoker affinity: controller invoker.
      */
-    //! Method that is called after operation results are commited and before
+    //! Method that is called after operation results are committed and before
     //! controller is disposed.
     virtual void OnBeforeDisposal() = 0;
 };
