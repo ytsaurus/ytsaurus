@@ -1111,13 +1111,13 @@ private:
         AreTransactionsActive = true;
     }
 
-    virtual void InitializeConnections() override
+    virtual void InitializeClients() override
     {
-        auto connection = GetRemoteConnection();
+        TOperationControllerBase::InitializeClients();
 
         TClientOptions options;
         options.User = AuthenticatedUser;
-        AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
+        InputClient = GetRemoteConnection()->CreateNativeClient(options);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -1187,7 +1187,7 @@ private:
 
             const auto& path = Spec_->InputTablePaths[0].GetPath();
 
-            auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");
@@ -1211,7 +1211,7 @@ private:
         if (Spec_->CopyAttributes) {
             const auto& path = Spec_->OutputTablePath.GetPath();
 
-            auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
 
             auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
