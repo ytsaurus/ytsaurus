@@ -25,15 +25,6 @@ static const i64 LowWatermarkMemorySize = 256_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExtendedJobResources::TExtendedJobResources()
-    : UserSlots_(0)
-    , Cpu_(0)
-    , JobProxyMemory_(0)
-    , UserJobMemory_(0)
-    , FootprintMemory_(0)
-    , Network_(0)
-{ }
-
 i64 TExtendedJobResources::GetMemory() const
 {
     return JobProxyMemory_ + UserJobMemory_ + FootprintMemory_;
@@ -63,13 +54,6 @@ void TExtendedJobResources::Persist(const TStreamPersistenceContext& context)
     Persist(context, FootprintMemory_);
     Persist(context, Network_);
 }
-
-TJobResources::TJobResources()
-    : TEmptyJobResourcesBase()
-#define XX(name, Name) , Name##_(0)
-ITERATE_JOB_RESOURCES(XX)
-#undef XX
-{ }
 
 TJobResources::TJobResources(const TNodeResources& resources)
     : TEmptyJobResourcesBase()
