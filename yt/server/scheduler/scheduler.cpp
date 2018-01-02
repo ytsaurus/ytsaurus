@@ -2140,8 +2140,6 @@ private:
 
     void RegisterOperation(const TOperationPtr& operation)
     {
-        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
-
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
         for (const auto& nodeShard : NodeShards_) {
             BIND(&TNodeShard::RegisterOperation, nodeShard)
