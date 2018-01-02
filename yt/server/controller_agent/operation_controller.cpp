@@ -302,14 +302,14 @@ public:
         Underlying_->ResetSuspensionError();
     }
 
-    virtual int OnSnapshotStarted() override
+    virtual TSnapshotCookie OnSnapshotStarted() override
     {
         return Underlying_->OnSnapshotStarted();
     }
 
-    virtual void OnSnapshotCompleted(int snapshotIndex) override
+    virtual void OnSnapshotCompleted(const TSnapshotCookie& cookie) override
     {
-        return Underlying_->OnSnapshotCompleted(snapshotIndex);
+        return Underlying_->OnSnapshotCompleted(cookie);
     }
 
     virtual void OnBeforeDisposal() override

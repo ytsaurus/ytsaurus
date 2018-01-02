@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
+#include "operation_controller.h"
 
 #include <yt/server/cell_scheduler/public.h>
 
@@ -27,7 +27,7 @@ struct TSnapshotJob
     IOperationControllerPtr Controller;
     NPipes::TAsyncReaderPtr Reader;
     std::unique_ptr<TFile> OutputFile;
-    int SnapshotIndex = -1;
+    TSnapshotCookie Cookie;
     bool Suspended = false;
 };
 
