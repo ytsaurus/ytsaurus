@@ -384,7 +384,6 @@ protected:
     std::vector<IInvokerPtr> ReleaseJobsFeasibleInvokers_;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
-    std::atomic<bool> Forgotten = {false};
     std::atomic<bool> RevivedFromSnapshot = {false};
 
     TSpinLock EventsLock_;
