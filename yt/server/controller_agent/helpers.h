@@ -58,7 +58,7 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 //! Fits for operations with user code.
 IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
-    const NScheduler::TSimpleOperationOptionsPtr& options,
+    const NControllerAgent::TSimpleOperationOptionsPtr& options,
     int outputTableCount,
     double dataWeightRatio,
     i64 primaryInputDataWeight,
@@ -68,19 +68,19 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
 //! Fits for system operations like merge or erase.
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
-    const NScheduler::TSimpleOperationOptionsPtr& options,
+    const NControllerAgent::TSimpleOperationOptionsPtr& options,
     i64 inputDataWeight,
     double dataWeightRatio,
     double compressionRatio);
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NScheduler::TSortOperationOptionsBasePtr& options,
+    const NControllerAgent::TSortOperationOptionsBasePtr& options,
     i64 inputDataWeight);
 
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NScheduler::TSortOperationOptionsBasePtr& options,
+    const NControllerAgent::TSortOperationOptionsBasePtr& options,
     i64 inputDataSize,
     i64 inputDataWeight,
     i64 inputRowCount,
@@ -88,7 +88,7 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NScheduler::TSortOperationOptionsBasePtr& options,
+    const NControllerAgent::TSortOperationOptionsBasePtr& options,
     int outputTableCount);
 
 IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(

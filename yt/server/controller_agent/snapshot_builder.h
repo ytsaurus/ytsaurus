@@ -40,15 +40,15 @@ class TSnapshotBuilder
 {
 public:
     TSnapshotBuilder(
-        TSchedulerConfigPtr config,
+        TControllerAgentConfigPtr config,
         TOperationIdToControllerMap controllers,
         NApi::IClientPtr client,
-        IInvokerPtr IOInvoker);
+        IInvokerPtr ioInvoker);
 
     TFuture<void> Run();
 
 private:
-    const TSchedulerConfigPtr Config_;
+    const TControllerAgentConfigPtr Config_;
     const TOperationIdToControllerMap Controllers_;
     const NApi::IClientPtr Client_;
     const IInvokerPtr IOInvoker_;

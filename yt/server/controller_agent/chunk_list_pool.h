@@ -20,7 +20,7 @@ class TChunkListPool
 {
 public:
     TChunkListPool(
-        TSchedulerConfigPtr config,
+        TControllerAgentConfigPtr config,
         NApi::INativeClientPtr clientPtr,
         IInvokerPtr controlInvoker,
         const TOperationId& operationId,
@@ -32,13 +32,13 @@ public:
     void Reinstall(const NChunkClient::TChunkListId& id);
 
 private:
-    const TSchedulerConfigPtr Config_;
+    const TControllerAgentConfigPtr Config_;
     const NApi::INativeClientPtr Client_;
     const IInvokerPtr ControllerInvoker_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     struct TCellData
     {

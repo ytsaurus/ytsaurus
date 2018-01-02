@@ -28,7 +28,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkListPool::TChunkListPool(
-    TSchedulerConfigPtr config,
+    TControllerAgentConfigPtr config,
     INativeClientPtr client,
     IInvokerPtr controllerInvoker,
     const TOperationId& operationId,
@@ -38,13 +38,12 @@ TChunkListPool::TChunkListPool(
     , ControllerInvoker_(controllerInvoker)
     , OperationId_(operationId)
     , TransactionId_(transactionId)
-    , Logger(OperationLogger)
+    , Logger(NLogging::TLogger(OperationLogger)
+        .AddTag("OperationId: %v", operationId))
 {
-    YCHECK(config);
-    YCHECK(client);
-    YCHECK(controllerInvoker);
-
-    Logger.AddTag("OperationId: %v", operationId);
+    YCHECK(Config_);
+    YCHECK(Client_);
+    YCHECK(ControllerInvoker_);
 }
 
 bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)

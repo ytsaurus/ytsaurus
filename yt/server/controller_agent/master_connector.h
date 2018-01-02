@@ -38,7 +38,7 @@ class TMasterConnector
 public:
     TMasterConnector(
         IInvokerPtr invoker,
-        TSchedulerConfigPtr config,
+        TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
 
     const IInvokerPtr& GetInvoker() const;
@@ -71,7 +71,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId);
 
-    void UpdateConfig(const TSchedulerConfigPtr& config);
+    void UpdateConfig(const TControllerAgentConfigPtr& config);
 
 private:
     class TImpl;

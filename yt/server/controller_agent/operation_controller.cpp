@@ -212,9 +212,9 @@ public:
         return Underlying_->ScheduleJob(std::move(context), jobLimits, treeId);
     }
 
-    virtual void UpdateConfig(TSchedulerConfigPtr config) override
+    virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override
     {
-        Underlying_->UpdateConfig(std::move(config));
+        Underlying_->UpdateConfig(config);
     }
 
     virtual bool ShouldUpdateProgress() const override

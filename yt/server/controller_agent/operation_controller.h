@@ -378,7 +378,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker.
      */
-    virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
+    virtual void UpdateConfig(const TControllerAgentConfigPtr& config) = 0;
 
     // TODO(ignat): remake it to method that returns attributes that should be updated in Cypress.
     //! Returns |true| when controller can build its progress.

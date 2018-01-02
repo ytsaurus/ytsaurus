@@ -35,7 +35,7 @@ class TControllerAgent
 {
 public:
     TControllerAgent(
-        NScheduler::TSchedulerConfigPtr config,
+        TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
 
     void Connect();
@@ -52,7 +52,7 @@ public:
 
     TMasterConnector* GetMasterConnector();
 
-    const TSchedulerConfigPtr& GetConfig() const;
+    const TControllerAgentConfigPtr& GetConfig() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
 
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
@@ -62,9 +62,9 @@ public:
     const TCoreDumperPtr& GetCoreDumper() const;
     const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
 
-    NEventLog::TEventLogWriterPtr GetEventLogWriter() const;
+    const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
 
-    void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config);
+    void UpdateConfig(const TControllerAgentConfigPtr& config);
 
     void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller);
     void UnregisterOperation(const TOperationId& operationId);

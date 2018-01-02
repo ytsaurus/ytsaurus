@@ -65,7 +65,7 @@ class TMasterConnector::TImpl
 public:
     TImpl(
         IInvokerPtr invoker,
-        TSchedulerConfigPtr config,
+        TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap)
         : Invoker_(invoker)
         , Config_(config)
@@ -250,7 +250,7 @@ public:
         }
     }
 
-    void DoUpdateConfig(const TSchedulerConfigPtr& config)
+    void DoUpdateConfig(const TControllerAgentConfigPtr& config)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -262,7 +262,7 @@ public:
         UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
     }
 
-    void UpdateConfig(const TSchedulerConfigPtr& config)
+    void UpdateConfig(const TControllerAgentConfigPtr& config)
     {
         BIND(&TImpl::DoUpdateConfig, MakeStrong(this), config)
             .AsyncVia(Invoker_)
@@ -276,7 +276,7 @@ public:
 
 private:
     const IInvokerPtr Invoker_;
-    TSchedulerConfigPtr Config_;
+    TControllerAgentConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     TSpinLock ControllersLock_;
@@ -1057,9 +1057,9 @@ private:
 
     void BuildSnapshot()
     {
-        if (!Config_->EnableSnapshotBuilding)
+        if (!Config_->EnableSnapshotBuilding) {
             return;
-
+        }
 
         TOperationIdToControllerMap controllersMap;
 
@@ -1160,7 +1160,7 @@ private:
 
 TMasterConnector::TMasterConnector(
     IInvokerPtr invoker,
-    TSchedulerConfigPtr config,
+    TControllerAgentConfigPtr config,
     NCellScheduler::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(invoker, config, bootstrap))
 { }
@@ -1226,7 +1226,7 @@ void TMasterConnector::AttachJobContext(
     return Impl_->AttachJobContext(path, chunkId, operationId, jobId);
 }
 
-void TMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
+void TMasterConnector::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
 }

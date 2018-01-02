@@ -204,7 +204,7 @@ TOperationControllerBase::TOperationControllerBase(
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
     : ControllerAgent(controllerAgent)
-    , Config(controllerAgent->GetConfig())
+    , Config(ControllerAgent->GetConfig())
     , MasterConnector(ControllerAgent->GetMasterConnector())
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
@@ -2719,7 +2719,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     return scheduleJobResult;
 }
 
-void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
+void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
@@ -6009,17 +6009,17 @@ TCellTag TOperationControllerBase::GetIntermediateOutputCellTag() const
     return IntermediateOutputCellTag;
 }
 
-const TChunkListPoolPtr& TOperationControllerBase::ChunkListPool() const
+const TChunkListPoolPtr& TOperationControllerBase::GetChunkListPool() const
 {
     return ChunkListPool_;
 }
 
-const TSchedulerConfigPtr& TOperationControllerBase::SchedulerConfig() const
+const TControllerAgentConfigPtr& TOperationControllerBase::GetConfig() const
 {
     return Config;
 }
 
-const TOperationSpecBasePtr& TOperationControllerBase::Spec() const
+const TOperationSpecBasePtr& TOperationControllerBase::GetSpec() const
 {
     return Spec_;
 }
@@ -6039,7 +6039,7 @@ const TNullable<TOutputTable>& TOperationControllerBase::CoreTable() const
     return CoreTable_;
 }
 
-IJobSplitter* TOperationControllerBase::JobSplitter()
+IJobSplitter* TOperationControllerBase::GetJobSplitter()
 {
     return JobSplitter_.get();
 }
