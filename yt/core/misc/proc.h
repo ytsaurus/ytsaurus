@@ -18,6 +18,7 @@ const int LinuxErrorCodeBase = 4200;
 
 DEFINE_ENUM(ELinuxErrorCode,
     ((NOSPC)((LinuxErrorCodeBase + ENOSPC)))
+    ((NOENT)((LinuxErrorCodeBase + ENOENT)))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

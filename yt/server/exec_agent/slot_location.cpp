@@ -500,6 +500,8 @@ void TSlotLocation::Disable(const TError& error)
 
 NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() const
 {
+    // ToDo(psushin): return cached values and make periodic updates.
+
     auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
     i64 diskLimit = locationStatistics.TotalSpace;
     if (Config_->DiskQuota) {

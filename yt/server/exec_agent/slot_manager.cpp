@@ -40,6 +40,8 @@ TSlotManager::TSlotManager(
 
 void TSlotManager::Initialize()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_INFO("Initializing %v exec slots", SlotCount_);
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
@@ -125,6 +127,8 @@ void TSlotManager::UpdateAliveLocations()
 
 ISlotPtr TSlotManager::AcquireSlot()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     UpdateAliveLocations();
 
     if (AliveLocations_.empty()) {
@@ -149,16 +153,19 @@ ISlotPtr TSlotManager::AcquireSlot()
 
 void TSlotManager::ReleaseSlot(int slotIndex)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(FreeSlots_.insert(slotIndex).second);
 }
 
 int TSlotManager::GetSlotCount() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     return IsEnabled() ? SlotCount_ : 0;
 }
 
 bool TSlotManager::IsEnabled() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     bool isEnabled = SlotCount_ > 0 &&
         !AliveLocations_.empty() &&
         JobEnvironment_->IsEnabled();
@@ -193,9 +200,14 @@ bool TSlotManager::ExternalJobMemory() const
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     UpdateAliveLocations();
     NNodeTrackerClient::NProto::TDiskResources result;
-    for (auto& location : AliveLocations_) {
+    // Make a copy, since GetDiskInfo is async and iterator over AliveLocations_
+    // may have been invalidated between iterations.
+    auto locations = AliveLocations_;
+    for (auto& location : locations) {
         try {
             auto info = location->GetDiskInfo();
             auto *pair = result.add_disk_reports();
