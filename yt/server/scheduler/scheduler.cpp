@@ -2691,26 +2691,27 @@ private:
 
     void BuildOperationYson(
         const TOperationPtr& operation,
-        const TControllerAgentOperationServiceProxy::TErrorOrRspGetOperationInfoPtr& response,
+        const TControllerAgentOperationServiceProxy::TErrorOrRspGetOperationInfoPtr& rspOrError,
         IYsonConsumer* consumer) const
     {
-        static const auto emptyMapFragment = TYsonString("", EYsonType::MapFragment);
+        static const auto emptyMapFragment = TYsonString(TString(), EYsonType::MapFragment);
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        auto getValue = [] (const TProtoStringType& protoString) {
+        auto toYsonString = [] (const TProtoStringType& protoString) {
             return protoString.empty() ? emptyMapFragment : TYsonString(protoString, EYsonType::MapFragment);
         };
 
-        bool isOK = response.IsOK();
+        bool isOK = rspOrError.IsOK();
         if (!isOK) {
-            LOG_DEBUG(response, "Failed to get operation info from controller");
+            LOG_DEBUG(rspOrError, "Failed to get operation info from controller");
         }
-        auto controllerProgress = isOK ? getValue(response.Value()->progress()) : emptyMapFragment;
-        auto controllerBriefProgress = isOK ? getValue(response.Value()->brief_progress()) : emptyMapFragment;
-        auto controllerRunningJobs = isOK ? getValue(response.Value()->running_jobs()) : emptyMapFragment;
-        auto controllerJobSplitterInfo = isOK ? getValue(response.Value()->job_splitter()) : emptyMapFragment;
-        auto controllerMemoryDigest = isOK ? getValue(response.Value()->memory_digest()) : emptyMapFragment;
+        
+        auto controllerProgress = isOK ? toYsonString(rspOrError.Value()->progress()) : emptyMapFragment;
+        auto controllerBriefProgress = isOK ? toYsonString(rspOrError.Value()->brief_progress()) : emptyMapFragment;
+        auto controllerRunningJobs = isOK ? toYsonString(rspOrError.Value()->running_jobs()) : emptyMapFragment;
+        auto controllerJobSplitterInfo = isOK ? toYsonString(rspOrError.Value()->job_splitter()) : emptyMapFragment;
+        auto controllerMemoryDigest = isOK ? toYsonString(rspOrError.Value()->memory_digest()) : emptyMapFragment;
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -2808,7 +2809,7 @@ private:
             proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);
             auto request = proxy.GetOperationInfo();
             ToProto(request->mutable_operation_id(), operationId);
-            auto response = WaitFor(request->Invoke());
+            auto rspOrError = WaitFor(request->Invoke());
 
             // Operation can be unregistered, since request to controller agent is asynchronous.
             if (!Scheduler_->FindOperation(operationId)) {
@@ -2816,7 +2817,7 @@ private:
             }
 
             return IYPathService::FromProducer(
-                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), operation, response));
+                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), operation, rspOrError));
         }
 
     private:
