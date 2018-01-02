@@ -9,6 +9,7 @@
 #include <yt/core/actions/public.h>
 
 #include <yt/core/concurrency/public.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/fs.h>
@@ -62,6 +63,8 @@ private:
     yhash_set<int> FreeSlots_;
 
     bool JobProxySocketNameDirectoryCreated_ = false;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void UpdateAliveLocations();
 };

@@ -295,8 +295,14 @@ i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles)
     auto wrapNoEntryError = [&] (std::function<void()> func) {
         try {
             func();
-        } catch (const TErrorException& ex) {
-            if (ignoreUnavailableFiles && ex.Error().FindMatching(LinuxErrorCodeBase + ENOENT)) {
+        } catch (const TSystemError& ex) { // For util functions.
+            if (ignoreUnavailableFiles && ex.Status() == ENOENT) {
+                // Do nothing
+            } else {
+                throw;
+            }
+        } catch (const TErrorException& ex) { // For YT functions.
+            if (ignoreUnavailableFiles && ex.Error().FindMatching(ELinuxErrorCode::NOENT)) {
                 // Do nothing
             } else {
                 throw;
