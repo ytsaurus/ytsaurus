@@ -2555,7 +2555,7 @@ private:
         // Result is ignored since failure causes scheduler disconnection.
         Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
 
-        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+        LogOperationFinished(operation, ELogEventType::OperationAborted, TError());
     }
 
     void ReviveOperations()
