@@ -146,11 +146,6 @@ double GetResource(
     const TJobResources& resources,
     NNodeTrackerClient::EResourceType type);
 
-void SetResource(
-    TJobResources& resources,
-    NNodeTrackerClient::EResourceType type,
-    i64 value);
-
 double GetMinResourceRatio(
     const TJobResources& nominator,
     const TJobResources& denominator);
