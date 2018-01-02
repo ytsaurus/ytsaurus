@@ -308,7 +308,8 @@ struct IOperationController
     //! Called to get a cached YSON string representing the current brief progress.
     virtual NYson::TYsonString GetBriefProgress() const = 0;
 
-    //! Builds job spec proto blob.
+    //! Extracts the job spec proto blob, which is being built at background.
+    //! After this call, the reference to this blob is released.
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
 
     //! Called right before the controller is suspended and snapshot builder forks.
@@ -326,7 +327,7 @@ struct IOperationController
      */
     virtual void OnSnapshotCompleted(const TSnapshotCookie& cookie) = 0;
 
-    //! Returns metrics delta since last call.
+    //! Returns metrics delta since the last call and resets the state.
     /*!
      * \note Invoker affinity: any.
      */
