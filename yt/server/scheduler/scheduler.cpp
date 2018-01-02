@@ -101,6 +101,8 @@ using NNodeTrackerClient::TNodeDirectory;
 
 using NScheduler::NProto::TRspStartOperation;
 
+using std::placeholders::_1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
@@ -216,12 +218,18 @@ public:
         for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
             JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
+
+        {
+            std::vector<IInvokerPtr> feasibleInvokers;
+            for (auto controlQueue : TEnumTraits<EControlQueue>::GetDomainValues()) {
+                feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
+            }
+            Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
+        }
     }
 
     void Initialize()
     {
-        InitStrategy();
-
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TImpl::RequestPools,
             Unretained(this)));
@@ -1909,8 +1917,8 @@ private:
         }
 
         LogEventFluently(ELogEventType::OperationStarted)
-            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
-            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, Unretained(operation.Get())));
+            .Do(std::bind(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation, _1))
+            .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1));
 
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
@@ -2207,15 +2215,6 @@ private:
             operation->SetController(nullptr);
             UnregisterOperation(operation);
         }
-    }
-
-    void InitStrategy()
-    {
-        std::vector<IInvokerPtr> feasibleInvokers;
-        for (auto controlQueue : TEnumTraits<EControlQueue>::GetDomainValues()) {
-            feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
-        }
-        Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
     }
 
     INodePtr GetSpecTemplate(EOperationType type, const IMapNodePtr& spec)
@@ -2686,7 +2685,7 @@ private:
                     })
                 .EndMap()
                 .Item("config").Value(Config_)
-                .DoIf(Strategy_.operator bool(), BIND(&ISchedulerStrategy::BuildOrchid, Strategy_))
+                .Do(std::bind(&ISchedulerStrategy::BuildOrchid, Strategy_, _1))
             .EndMap();
     }
 
