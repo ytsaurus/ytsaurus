@@ -1992,8 +1992,7 @@ private:
             .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializationAttributes->UnrecognizedSpec);
 
         // From this moment on the controller is fully responsible for the
-        // operation's fate. It will eventually call #OnOperationCompleted or
-        // #OnOperationFailed to inform the scheduler about the outcome.
+        // operation's fate.
     }
 
     void RegisterRevivingOperation(const TOperationPtr& operation)
