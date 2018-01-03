@@ -401,28 +401,6 @@ public:
         return operation;
     }
 
-    int GetExecNodeCount() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        int execNodeCount = 0;
-        for (const auto& nodeShard : NodeShards_) {
-            execNodeCount += nodeShard->GetExecNodeCount();
-        }
-        return execNodeCount;
-    }
-
-    int GetTotalNodeCount() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        int totalNodeCount = 0;
-        for (const auto& nodeShard : NodeShards_) {
-            totalNodeCount += nodeShard->GetTotalNodeCount();
-        }
-        return totalNodeCount;
-    }
-
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -447,45 +425,6 @@ public:
         MasterConnector_->SetSchedulerAlert(alertType, alert);
     }
 
-    void DoSetOperationAlert(
-        const TOperationId& operationId,
-        EOperationAlertType alertType,
-        const TError& alert)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operation = FindOperation(operationId);
-        if (!operation) {
-            return;
-        }
-
-        if (operation->Alerts()[alertType] == alert) {
-            return;
-        }
-
-        operation->MutableAlerts()[alertType] = alert;
-    }
-
-    void DoSetOperationAlerts(
-        const TOperationId& operationId,
-        const TOperationAlertMap& operationAlerts)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operation = FindOperation(operationId);
-        if (!operation) {
-            return;
-        }
-
-        for (const auto& pair : operationAlerts) {
-            const auto& alertType = pair.first;
-            const auto& alert = pair.second;
-            if (operation->Alerts()[alertType] != alert) {
-                operation->MutableAlerts()[alertType] = alert;
-            }
-        }
-    }
-
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
@@ -496,44 +435,6 @@ public:
         return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert.Sanitize())
             .AsyncVia(GetControlInvoker())
             .Run();
-    }
-
-    void DoReleaseJobs(
-        const TOperationId& operationId,
-        const std::vector<TJobId>& jobIds,
-        int controllerSchedulerIncarnation)
-    {
-        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
-
-        if (SchedulerIncarnation_ != controllerSchedulerIncarnation) {
-            LOG_WARNING("Not releasing jobs because of the wrong scheduler incarnation "
-                "(SchedulerIncarnation: %v, ControllerSchedulerIncarnation: %v)",
-                SchedulerIncarnation_,
-                controllerSchedulerIncarnation);
-            return;
-        }
-
-        std::vector<std::vector<TJobId>> jobIdsToRemoveByShardId(NodeShards_.size());
-        for (const auto& jobId : jobIds) {
-            int shardId = GetNodeShardId(NodeIdFromJobId(jobId));
-            jobIdsToRemoveByShardId[shardId].emplace_back(jobId);
-        }
-
-        std::vector<TFuture<void>> submitFutures;
-        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-            if (jobIdsToRemoveByShardId[shardId].empty()) {
-                continue;
-            }
-            auto submitFuture = BIND(&TNodeShard::ReleaseJobs, NodeShards_[shardId])
-                .AsyncVia(NodeShards_[shardId]->GetInvoker())
-                .Run(std::move(jobIdsToRemoveByShardId[shardId]));
-            submitFutures.emplace_back(std::move(submitFuture));
-        }
-
-        auto error = WaitFor(Combine(submitFutures));
-        if (!error.IsOK()) {
-            DoFailOperation(operationId, error);
-        }
     }
 
     virtual void ValidatePoolPermission(
@@ -1018,15 +919,6 @@ public:
         return resourceLimits;
     }
 
-    int GetActiveJobCount()
-    {
-        int activeJobCount = 0;
-        for (const auto& nodeShard : NodeShards_) {
-             activeJobCount += nodeShard->GetActiveJobCount();
-        }
-        return activeJobCount;
-    }
-
     virtual void ActivateOperation(const TOperationId& operationId) override
     {
         auto operation = GetOperation(operationId);
@@ -1134,14 +1026,6 @@ public:
         return BIND(&TImpl::DoRegisterOrUpdateNodeTags, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run(nodeId, tags);
-    }
-
-    void DoRegisterOrUpdateNodeTags(TNodeId nodeId, const yhash_set<TString>& tags)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        Strategy_->ValidateNodeTags(tags);
-        NodeIdToTags_[nodeId] = tags;
     }
 
     virtual void UnregisterNode(TNodeId nodeId) override
@@ -1259,6 +1143,95 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+
+    void DoSetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        if (operation->Alerts()[alertType] == alert) {
+            return;
+        }
+
+        operation->MutableAlerts()[alertType] = alert;
+    }
+
+    void DoSetOperationAlerts(
+        const TOperationId& operationId,
+        const TOperationAlertMap& operationAlerts)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        for (const auto& pair : operationAlerts) {
+            const auto& alertType = pair.first;
+            const auto& alert = pair.second;
+            if (operation->Alerts()[alertType] != alert) {
+                operation->MutableAlerts()[alertType] = alert;
+            }
+        }
+    }
+
+
+    void DoRegisterOrUpdateNodeTags(TNodeId nodeId, const yhash_set<TString>& tags)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Strategy_->ValidateNodeTags(tags);
+        NodeIdToTags_[nodeId] = tags;
+    }
+
+
+    void DoReleaseJobs(
+        const TOperationId& operationId,
+        const std::vector<TJobId>& jobIds,
+        int controllerSchedulerIncarnation)
+    {
+        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
+
+        if (SchedulerIncarnation_ != controllerSchedulerIncarnation) {
+            LOG_WARNING("Not releasing jobs because of the wrong scheduler incarnation "
+                "(SchedulerIncarnation: %v, ControllerSchedulerIncarnation: %v)",
+                SchedulerIncarnation_,
+                controllerSchedulerIncarnation);
+            return;
+        }
+
+        std::vector<std::vector<TJobId>> jobIdsToRemoveByShardId(NodeShards_.size());
+        for (const auto& jobId : jobIds) {
+            int shardId = GetNodeShardId(NodeIdFromJobId(jobId));
+            jobIdsToRemoveByShardId[shardId].emplace_back(jobId);
+        }
+
+        std::vector<TFuture<void>> submitFutures;
+        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            if (jobIdsToRemoveByShardId[shardId].empty()) {
+                continue;
+            }
+            auto submitFuture = BIND(&TNodeShard::ReleaseJobs, NodeShards_[shardId])
+                .AsyncVia(NodeShards_[shardId]->GetInvoker())
+                .Run(std::move(jobIdsToRemoveByShardId[shardId]));
+            submitFutures.emplace_back(std::move(submitFuture));
+        }
+
+        auto error = WaitFor(Combine(submitFutures));
+        if (!error.IsOK()) {
+            DoFailOperation(operationId, error);
+        }
+    }
+
+
     const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
     {
         return NodeShards_[GetNodeShardId(nodeId)];
@@ -1295,6 +1268,39 @@ private:
             LOG_WARNING(batchRspOrError, "Error releasing stderr chunk");
         }
     }
+
+
+    int GetExecNodeCount() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        int execNodeCount = 0;
+        for (const auto& nodeShard : NodeShards_) {
+            execNodeCount += nodeShard->GetExecNodeCount();
+        }
+        return execNodeCount;
+    }
+
+    int GetTotalNodeCount() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        int totalNodeCount = 0;
+        for (const auto& nodeShard : NodeShards_) {
+            totalNodeCount += nodeShard->GetTotalNodeCount();
+        }
+        return totalNodeCount;
+    }
+
+    int GetActiveJobCount()
+    {
+        int activeJobCount = 0;
+        for (const auto& nodeShard : NodeShards_) {
+            activeJobCount += nodeShard->GetActiveJobCount();
+        }
+        return activeJobCount;
+    }
+
 
     void OnProfiling()
     {
