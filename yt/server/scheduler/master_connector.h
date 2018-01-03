@@ -63,9 +63,9 @@ public:
 
     void Disconnect();
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation);
-    TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
-    TFuture<void> FlushOperationNode(TOperationPtr operation);
+    TFuture<void> CreateOperationNode(const TOperationPtr& operation);
+    TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation);
+    TFuture<void> FlushOperationNode(const TOperationPtr& operation);
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
@@ -73,8 +73,8 @@ public:
     void AddGlobalWatcherHandler(TWatcherHandler handler);
     void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period);
 
-    void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester);
-    void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler);
+    void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester);
+    void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler);
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 

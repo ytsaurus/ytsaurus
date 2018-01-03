@@ -202,7 +202,7 @@ public:
                 .AsyncVia(GetCancelableControlInvoker()));
     }
 
-    TFuture<void> ResetRevivingOperationNode(TOperationPtr operation)
+    TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State != EMasterConnectorState::Disconnected);
@@ -240,7 +240,7 @@ public:
             .AsyncVia(GetCancelableControlInvoker()));
     }
 
-    TFuture<void> FlushOperationNode(TOperationPtr operation)
+    TFuture<void> FlushOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State != EMasterConnectorState::Disconnected);
@@ -277,7 +277,7 @@ public:
         CustomGlobalWatcherRecords.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
     }
 
-    void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
+    void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State != EMasterConnectorState::Disconnected);
@@ -286,7 +286,7 @@ public:
         list->WatcherRequesters.push_back(requester);
     }
 
-    void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
+    void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State != EMasterConnectorState::Disconnected);
@@ -361,7 +361,7 @@ private:
 
     struct TWatcherList
     {
-        explicit TWatcherList(TOperationPtr operation)
+        explicit TWatcherList(const TOperationPtr& operation)
             : Operation(operation)
         { }
 
@@ -1601,17 +1601,17 @@ IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
     return Impl->GetCancelableControlInvoker();
 }
 
-TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation)
+TFuture<void> TMasterConnector::CreateOperationNode(const TOperationPtr& operation)
 {
     return Impl->CreateOperationNode(operation);
 }
 
-TFuture<void> TMasterConnector::ResetRevivingOperationNode(TOperationPtr operation)
+TFuture<void> TMasterConnector::ResetRevivingOperationNode(const TOperationPtr& operation)
 {
     return Impl->ResetRevivingOperationNode(operation);
 }
 
-TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
+TFuture<void> TMasterConnector::FlushOperationNode(const TOperationPtr& operation)
 {
     return Impl->FlushOperationNode(operation);
 }
@@ -1641,12 +1641,12 @@ void TMasterConnector::AddGlobalWatcher(TWatcherRequester requester, TWatcherHan
     Impl->AddGlobalWatcher(std::move(requester), std::move(handler), period);
 }
 
-void TMasterConnector::AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
+void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
 {
     Impl->AddOperationWatcherRequester(operation, requester);
 }
 
-void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
+void TMasterConnector::AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
 {
     Impl->AddOperationWatcherHandler(operation, handler);
 }
