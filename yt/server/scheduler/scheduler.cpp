@@ -798,6 +798,7 @@ public:
         }
 
         for (const auto& jobsToRelease : request->jobs_to_release()) {
+            // XXX(babenko): wrong affinity
             MasterConnector_->GetCancelableControlInvoker()->Invoke(
                 BIND(
                     &TImpl::DoReleaseJobs,
@@ -809,6 +810,7 @@ public:
 
         for (const auto& protoOperationId: request->completed_operation_ids()) {
             auto operationId = FromProto<TOperationId>(protoOperationId);
+            // XXX(babenko): wrong affinity
             MasterConnector_->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operationId));
         }
@@ -816,6 +818,7 @@ public:
         for (const auto& protoOperationSuspension: request->suspended_operations()) {
             auto operationId = FromProto<TOperationId>(protoOperationSuspension.operation_id());
             auto error = FromProto<TError>(protoOperationSuspension.error());
+            // XXX(babenko): wrong affinity
             MasterConnector_->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoSuspendOperation, MakeStrong(this), operationId, error, /* abortRunningJobs */ true, /* setAlert */ true));
         }
@@ -823,6 +826,7 @@ public:
         for (const auto& protoOperationAbort: request->aborted_operations()) {
             auto operationId = FromProto<TOperationId>(protoOperationAbort.operation_id());
             auto error = FromProto<TError>(protoOperationAbort.error());
+            // XXX(babenko): wrong affinity
             MasterConnector_->GetCancelableControlInvoker()->Invoke(
                 BIND([=, this_ = MakeStrong(this)] {
                     DoAbortOperation(operationId, error);
@@ -842,6 +846,7 @@ public:
                 auto alert = FromProto<TError>(alertProto.error());
                 YCHECK(alerts.emplace(alertType, std::move(alert)).second);
             }
+            // XXX(babenko): wrong affinity
             MasterConnector_->GetCancelableControlInvoker()->Invoke(
                 BIND(
                     &TImpl::DoSetOperationAlerts,
@@ -1008,7 +1013,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return nodeId % NodeShards_.size();
+        return nodeId % static_cast<int>(NodeShards_.size());
     }
 
     virtual TFuture<void> RegisterOrUpdateNode(TNodeId nodeId, const yhash_set<TString>& tags) override
@@ -1190,6 +1195,7 @@ private:
         const std::vector<TJobId>& jobIds,
         int controllerSchedulerIncarnation)
     {
+        // XXX
         VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
 
         if (SchedulerIncarnation_ != controllerSchedulerIncarnation) {
@@ -1536,6 +1542,7 @@ private:
             .Item("error").Value(error);
     }
 
+
     void ValidateOperationState(const TOperationPtr& operation, EOperationState expectedState)
     {
         if (operation->GetState() != expectedState) {
@@ -1547,26 +1554,6 @@ private:
         }
     }
 
-    void OnUserTransactionAborted(const TOperationPtr& operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        DoAbortOperation(
-            operation,
-            GetUserTransactionAbortedError(operation->GetUserTransactionId()));
-    }
-
-    void OnUserTransactionAborted(const TOperationId& operationId)
-    {
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND([=, this_ = MakeStrong(this)] {
-                auto operation = FindOperation(operationId);
-                if (!operation || operation->IsFinishedState()) {
-                    return;
-                }
-                OnUserTransactionAborted(operation);
-            }));
-    }
 
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
@@ -1599,6 +1586,7 @@ private:
 
         Strategy_->UpdatePools(poolsNode);
     }
+
 
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
@@ -1651,6 +1639,7 @@ private:
 
         LOG_INFO("Nodes information updated");
     }
+
 
     void RequestOperationRuntimeParams(
         const TOperationPtr& operation,
@@ -1708,6 +1697,7 @@ private:
                 operation->GetId());
         }
     }
+
 
     void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
@@ -1782,6 +1772,7 @@ private:
         }
     }
 
+
     void RequestOperationArchiveVersion(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating operation archive version");
@@ -1808,6 +1799,7 @@ private:
             SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, error);
         }
     }
+
 
     void UpdateExecNodeDescriptors()
     {
