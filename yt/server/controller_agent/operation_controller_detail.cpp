@@ -57,6 +57,8 @@
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/scheduler/proto/controller_agent_operation_service.pb.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -405,8 +407,6 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     FinishInitialization();
 
-    MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
-
     LOG_INFO("Operation initialized");
 }
 
@@ -432,8 +432,6 @@ void TOperationControllerBase::Initialize()
         .ThrowOnError();
 
     FinishInitialization();
-
-    MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
 
     LOG_INFO("Operation initialized");
 }
@@ -1293,8 +1291,6 @@ void TOperationControllerBase::SafeCommit()
     CommitCompletionTransaction();
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
     CommitTransactions();
-
-    MasterConnector->UnregisterOperation(OperationId);
 
     CancelableContext->Cancel();
 
@@ -2345,7 +2341,6 @@ void TOperationControllerBase::DoAbort()
 
     State = EControllerState::Finished;
 
-    MasterConnector->UnregisterOperation(OperationId);
     LogProgress(/* force */ true);
 
     LOG_INFO("Operation controller aborted");
@@ -2369,8 +2364,6 @@ void TOperationControllerBase::SafeAbort()
 void TOperationControllerBase::SafeForget()
 {
     CancelableContext->Cancel();
-
-    MasterConnector->UnregisterOperation(OperationId);
 
     LOG_INFO("Operation forgotten");
 }

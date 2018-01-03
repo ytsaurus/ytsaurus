@@ -15,15 +15,16 @@ class TUpdateExecutor
 {
 public:
     TUpdateExecutor(
+        IInvokerPtr invoker,
         TCallback<TCallback<TFuture<void>()>(const TKey&, TUpdateParameters*)> createUpdateAction,
         TCallback<bool(const TUpdateParameters*)> shouldRemoveUpdateAction,
         TCallback<void(const TError&)> onUpdateFailed,
+        TDuration period,
         NLogging::TLogger logger);
 
-    void StartPeriodicUpdates(const IInvokerPtr& invoker, TDuration updatePeriod);
-    void StopPeriodicUpdates();
-
-    void SetPeriod(TDuration updatePeriod);
+    void Start();
+    void Stop();
+    void SetPeriod(TDuration period);
 
     TUpdateParameters* AddUpdate(const TKey& key, const TUpdateParameters& parameters);
     void RemoveUpdate(const TKey& key);
@@ -41,6 +42,8 @@ private:
     const TCallback<void(const TError&)> OnUpdateFailed_;
     const NLogging::TLogger Logger;
 
+    const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
+
     struct TUpdateRecord
     {
         TUpdateRecord(const TKey& key, const TUpdateParameters& parameters)
@@ -53,14 +56,13 @@ private:
         TFuture<void> LastUpdateFuture = VoidFuture;
     };
 
-    NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
     yhash<TKey, TUpdateRecord> Updates_;
 
     DECLARE_THREAD_AFFINITY_SLOT(UpdateThread);
 
     TUpdateRecord* FindUpdateRecord(const TKey& key);
     TFuture<void> DoExecuteUpdate(TUpdateRecord* updateRecord);
-    void ExecuteUpdates(IInvokerPtr invoker);
+    void ExecuteUpdates();
     void OnUpdateExecuted(const TKey& key);
     TCallback<TFuture<void>()> CreateUpdateAction(const TKey& key, TUpdateParameters* updateParameters);
 };

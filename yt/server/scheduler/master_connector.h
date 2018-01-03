@@ -12,8 +12,6 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/ytree/public.h>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -28,7 +26,16 @@ struct TMasterHandshakeResult
 using TWatcherRequester = TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)>;
 using TWatcherHandler = TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)>;
 
+DEFINE_ENUM(EMasterConnectorState,
+    (Disconnected)
+    (Connecting)
+    (Connected)
+);
+
 //! Mediates communication between scheduler and master.
+/*!
+ *  \note Thread affinity: control unless noted otherwise
+ */
 class TMasterConnector
 {
 public:
@@ -37,12 +44,22 @@ public:
         NCellScheduler::TBootstrap* bootstrap);
     ~TMasterConnector();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     void Start();
 
-    IInvokerPtr GetCancelableControlInvoker() const;
+    /*!
+     *  \note Thread affinity: any
+     */
+    EMasterConnectorState GetState() const;
 
-    bool IsConnected() const;
+    /*!
+     *  \note Thread affinity: any
+     */
     TInstant GetConnectionTime() const;
+
+    IInvokerPtr GetCancelableControlInvoker() const;
 
     void Disconnect();
 
@@ -77,7 +94,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,28 +2,23 @@
 
 #include "public.h"
 
-#include "master_connector.h"
-
 #include <yt/server/cell_scheduler/public.h>
 
-#include <yt/server/scheduler/scheduling_tag.h>
+#include <yt/server/scheduler/public.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
-#include <yt/ytlib/job_tracker_client/job_spec_service.pb.h>
-
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
-
-#include <yt/ytlib/scheduler/controller_agent_operation_service_proxy.h>
 
 #include <yt/ytlib/event_log/public.h>
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/core/rpc/service_detail.h>
-
 #include <yt/core/ytree/public.h>
+
+#include <yt/core/concurrency/public.h>
+
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -37,14 +32,7 @@ public:
     TControllerAgent(
         TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
-
-    // TODO(babenko): get rid of these method
-    void OnMasterConnected();
-    void OnMasterDisconnected();
-
-    void ValidateConnected() const;
-
-    TInstant GetConnectionTime() const;
+    ~TControllerAgent();
 
     const IInvokerPtr& GetInvoker();
     const IInvokerPtr& GetCancelableInvoker();
@@ -52,24 +40,36 @@ public:
     const IInvokerPtr& GetControllerThreadPoolInvoker();
     const IInvokerPtr& GetSnapshotIOInvoker();
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    void ValidateConnected() const;
+    /*!
+     *  \note Thread affinity: any
+     */
+    TInstant GetConnectionTime() const;
+
+    // XXX(babenko)
     TMasterConnector* GetMasterConnector();
 
     const TControllerAgentConfigPtr& GetConfig() const;
-    const NApi::INativeClientPtr& GetMasterClient() const;
-
-    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
-
-    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
-
-    const TCoreDumperPtr& GetCoreDumper() const;
-    const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
-
-    const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
-
     void UpdateConfig(const TControllerAgentConfigPtr& config);
 
-    void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller);
-    void UnregisterOperation(const TOperationId& operationId);
+    const NApi::INativeClientPtr& GetMasterClient() const;
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
+    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
+    const TCoreDumperPtr& GetCoreDumper() const;
+    const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
+    const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
+
+    // XXX(babenko): any
+    void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller);
+    // XXX(babenko): any
+    void UnregisterController(const TOperationId& operationId);
+    // XXX(babenko): any
+    IOperationControllerPtr FindController(const TOperationId& operationId);
+    // XXX(babenko): any
+    TOperationIdToControllerMap GetControllers();
 
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests);
 

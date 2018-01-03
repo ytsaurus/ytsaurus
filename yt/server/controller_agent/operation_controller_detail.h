@@ -356,7 +356,7 @@ public:
 protected:
     const TControllerAgentPtr ControllerAgent;
     TControllerAgentConfigPtr Config;
-    const TMasterConnectorPtr MasterConnector;
+    TMasterConnector* const MasterConnector;
 
     const TOperationId OperationId;
 

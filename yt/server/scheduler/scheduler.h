@@ -26,7 +26,6 @@ public:
     TScheduler(
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
-
     ~TScheduler();
 
     void Initialize();
@@ -34,8 +33,6 @@ public:
     ISchedulerStrategyPtr GetStrategy();
 
     NYTree::IYPathServicePtr GetOrchidService();
-
-    std::vector<TOperationPtr> GetOperations();
 
     bool IsConnected();
     void ValidateConnected();

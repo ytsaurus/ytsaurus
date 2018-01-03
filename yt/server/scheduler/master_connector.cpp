@@ -57,8 +57,11 @@ using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
 using namespace NCellScheduler;
+
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
+
+using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,74 +78,58 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
-            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
-            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
-            Logger))
+    { }
+
+    void Start()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         Bootstrap
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
             ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
                 .Via(Bootstrap->GetControlInvoker(EControlQueue::MasterConnector)));
-    }
 
-    void Start()
-    {
         Bootstrap->GetControlInvoker()->Invoke(BIND(
             &TImpl::StartConnecting,
             MakeStrong(this)));
     }
 
-    bool IsConnected() const
+    EMasterConnectorState GetState() const
     {
-        return Connected.load();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return State.load();
     }
 
     TInstant GetConnectionTime() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return ConnectionTime.load();
     }
 
     void Disconnect()
     {
-        DoDisconnect();
-    }
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-    void RandomDisconnect()
-    {
-        LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
         DoDisconnect();
     }
 
     IInvokerPtr GetCancelableControlInvoker() const
     {
+        // XXX(babenko): fixme
+        //VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State != EMasterConnectorState::Disconnected);
+
         return CancelableControlInvoker;
-    }
-
-    void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
-    {
-        auto owners = operation->GetOwners();
-        owners.push_back(operation->GetAuthenticatedUser());
-
-        fluent
-            .BeginList()
-                .Item().BeginMap()
-                    .Item("action").Value(ESecurityAction::Allow)
-                    .Item("subjects").Value(owners)
-                    .Item("permissions").BeginList()
-                        .Item().Value(EPermission::Write)
-                    .EndList()
-                .EndMap()
-            .EndList();
     }
 
     TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
         LOG_INFO("Creating operation node (OperationId: %v)",
@@ -172,7 +159,7 @@ public:
                 .Item("progress").BeginMap().EndMap()
                 .Item("brief_progress").BeginMap().EndMap()
                 .Item("opaque").Value("true")
-                    .Item("acl").Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
+                    .Item("acl").Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
                 .Item("owners").Value(operation->GetOwners())
             .EndAttributes()
             .BeginMap()
@@ -199,7 +186,7 @@ public:
             attributes->Set("inherit_acl", false);
             attributes->Set("value", operation->GetSecureVault());
             attributes->Set("acl", BuildYsonStringFluently()
-                .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation)));
+                .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1)));
 
             for (const auto& path : secureVaultPaths) {
                 auto req = TCypressYPathProxy::Create(path);
@@ -218,7 +205,7 @@ public:
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State != EMasterConnectorState::Disconnected);
         YCHECK(operation->GetState() == EOperationState::Reviving);
 
         auto operationId = operation->GetId();
@@ -256,7 +243,7 @@ public:
     TFuture<void> FlushOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State != EMasterConnectorState::Disconnected);
 
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
@@ -271,36 +258,50 @@ public:
 
     void AddGlobalWatcherRequester(TWatcherRequester requester)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         GlobalWatcherRequesters.push_back(requester);
     }
 
     void AddGlobalWatcherHandler(TWatcherHandler handler)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         GlobalWatcherHandlers.push_back(handler);
     }
 
     void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         CustomGlobalWatcherRecords.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
     }
 
     void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State != EMasterConnectorState::Disconnected);
+
         auto* list = GetOrCreateWatcherList(operation);
         list->WatcherRequesters.push_back(requester);
     }
 
     void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State != EMasterConnectorState::Disconnected);
+
         auto* list = GetOrCreateWatcherList(operation);
         list->WatcherHandlers.push_back(handler);
     }
 
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Config = config;
 
-        if (Connected) {
+        if (OperationNodesUpdateExecutor_) {
             OperationNodesUpdateExecutor_->SetPeriod(Config->OperationsUpdatePeriod);
         }
         if (WatchersExecutor) {
@@ -324,7 +325,7 @@ private:
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
 
-    std::atomic<bool> Connected = {false};
+    std::atomic<EMasterConnectorState> State = {EMasterConnectorState::Disconnected};
     std::atomic<TInstant> ConnectionTime;
 
     ITransactionPtr LockTransaction;
@@ -346,8 +347,6 @@ private:
     std::vector<TPeriodicExecutorPtr> CustomGlobalWatcherExecutors;
 
     TEnumIndexedVector<TError, ESchedulerAlertType> Alerts;
-
-    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] {return VoidFuture;});
 
     struct TOperationNodeUpdate
     {
@@ -375,6 +374,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+
     void ScheduleConnectRetry()
     {
         TDelayedExecutor::Submit(
@@ -393,49 +393,93 @@ private:
         }
     }
 
+    void RandomDisconnect()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
+        DoDisconnect();
+    }
+
     void StartConnecting()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Connecting to master");
 
+        YCHECK(State == EMasterConnectorState::Disconnected);
+        State = EMasterConnectorState::Connecting;
+
+        YCHECK(!CancelableContext);
+        CancelableContext = New<TCancelableContext>();
+
+        YCHECK(!CancelableControlInvoker);
+        CancelableControlInvoker = CancelableContext->CreateInvoker(
+            Bootstrap->GetControlInvoker(EControlQueue::MasterConnector));
+
+        OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
+            CancelableControlInvoker,
+            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
+            Config->OperationsUpdatePeriod,
+            Logger);
+
+        WatchersExecutor = New<TPeriodicExecutor>(
+            CancelableControlInvoker,
+            BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
+            Config->WatchersUpdatePeriod,
+            EPeriodicExecutorMode::Automatic);
+
+        AlertsExecutor = New<TPeriodicExecutor>(
+            CancelableControlInvoker,
+            BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
+            Config->AlertsUpdatePeriod,
+            EPeriodicExecutorMode::Automatic);
+
+        for (const auto& record : CustomGlobalWatcherRecords) {
+            auto executor = New<TPeriodicExecutor>(
+                CancelableControlInvoker,
+                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
+                record.Period,
+                EPeriodicExecutorMode::Automatic);
+            CustomGlobalWatcherExecutors.push_back(executor);
+        }
+
         auto pipeline = New<TRegistrationPipeline>(this);
         BIND(&TRegistrationPipeline::Run, pipeline)
-            .AsyncVia(Bootstrap->GetControlInvoker())
+            .AsyncVia(CancelableControlInvoker)
             .Run()
             .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this))
-                .Via(Bootstrap->GetControlInvoker()));
+                .Via(CancelableControlInvoker));
     }
 
     void OnConnected(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State == EMasterConnectorState::Connecting);
 
         if (!error.IsOK()) {
             LOG_WARNING(error, "Error connecting to master");
+            DoCleanup();
             ScheduleConnectRetry();
             return;
         }
 
-        YCHECK(!Connected);
-        Connected.store(true);
+        State.store(EMasterConnectorState::Connected);
         ConnectionTime.store(TInstant::Now());
 
         LOG_INFO("Master connected");
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        CancelableContext = New<TCancelableContext>();
-        CancelableControlInvoker = CancelableContext->CreateInvoker(
-            Bootstrap->GetControlInvoker(EControlQueue::MasterConnector));
-
         LockTransaction->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(CancelableControlInvoker));
 
-        Bootstrap->GetControllerAgent()->OnMasterConnected();
-
         StartPeriodicActivities();
+
+        ScheduleTestingDisconnect();
 
         try {
             MasterConnected_.Fire();
@@ -444,8 +488,6 @@ private:
             Disconnect();
             return;
         }
-
-        ScheduleTestingDisconnect();
     }
 
     void OnLockTransactionAborted()
@@ -456,7 +498,6 @@ private:
 
         Disconnect();
     }
-
 
 
     class TRegistrationPipeline
@@ -479,6 +520,7 @@ private:
             ListOperations();
             RequestOperationAttributes();
             RequestCommittedFlag();
+            RegisterExistingOperations();
             FireConnectingSignal();
         }
 
@@ -952,6 +994,13 @@ private:
             }
         }
 
+        void RegisterExistingOperations()
+        {
+            for (const auto& operation : Result.Operations) {
+                Owner->OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+            }
+        }
+
         void FireConnectingSignal()
         {
             Owner->MasterConnecting_.Fire(Result);
@@ -973,19 +1022,10 @@ private:
         return batchReq;
     }
 
-    void DoDisconnect()
+
+    void DoCleanup()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!Connected) {
-            return;
-        }
-
-        Connected.store(false);
-
-        LOG_WARNING("Master disconnected");
-
-        Bootstrap->GetControllerAgent()->OnMasterDisconnected();
 
         LockTransaction.Reset();
 
@@ -993,17 +1033,51 @@ private:
 
         StopPeriodicActivities();
 
-        CancelableContext->Cancel();
-
-        try {
-            MasterDisconnected_.Fire();
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error disconnecting from master");
+        if (CancelableContext) {
+            CancelableContext->Cancel();
+            CancelableContext.Reset();
         }
 
+        CancelableControlInvoker.Reset();
+
+        State.store(EMasterConnectorState::Disconnected);
+    }
+
+    void DoDisconnect()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (State == EMasterConnectorState::Connected) {
+            try {
+                MasterDisconnected_.Fire();
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Error disconnecting from master");
+            }
+
+            LOG_WARNING("Master disconnected");
+        }
+
+        DoCleanup();
         StartConnecting();
     }
 
+
+    static void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
+    {
+        auto owners = operation->GetOwners();
+        owners.push_back(operation->GetAuthenticatedUser());
+
+        fluent
+            .BeginList()
+                .Item().BeginMap()
+                    .Item("action").Value(ESecurityAction::Allow)
+                    .Item("subjects").Value(owners)
+                    .Item("permissions").BeginList()
+                        .Item().Value(EPermission::Write)
+                    .EndList()
+                .EndMap()
+            .EndList();
+    }
 
     TOperationPtr TryCreateOperationFromAttributes(
         const TOperationId& operationId,
@@ -1117,39 +1191,23 @@ private:
 
     void StartPeriodicActivities()
     {
-        OperationNodesUpdateExecutor_->StartPeriodicUpdates(
-            CancelableControlInvoker,
-            Config->OperationsUpdatePeriod);
+        OperationNodesUpdateExecutor_->Start();
 
-        WatchersExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
-            Config->WatchersUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
         WatchersExecutor->Start();
 
-        AlertsExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
-            Config->AlertsUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
         AlertsExecutor->Start();
 
-        for (const auto& record : CustomGlobalWatcherRecords) {
-            auto executor = New<TPeriodicExecutor>(
-                CancelableControlInvoker,
-                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
-                record.Period,
-                EPeriodicExecutorMode::Automatic);
+        for (const auto& executor : CustomGlobalWatcherExecutors) {
             executor->Start();
-            CustomGlobalWatcherExecutors.push_back(executor);
         }
     }
 
     void StopPeriodicActivities()
     {
-        OperationNodesUpdateExecutor_->Clear();
-        OperationNodesUpdateExecutor_->StopPeriodicUpdates();
+        if (OperationNodesUpdateExecutor_) {
+            OperationNodesUpdateExecutor_->Stop();
+            OperationNodesUpdateExecutor_.Reset();
+        }
 
         if (WatchersExecutor) {
             WatchersExecutor->Stop();
@@ -1166,6 +1224,7 @@ private:
         }
         CustomGlobalWatcherExecutors.clear();
     }
+
 
     TWatcherList* GetOrCreateWatcherList(const TOperationPtr& operation)
     {
@@ -1187,6 +1246,14 @@ private:
     void ClearWatcherLists()
     {
         WatcherLists.clear();
+    }
+
+
+    void RegisterOperation(const TOperationPtr& operation)
+    {
+        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+        // XXX(babenko)
+        Bootstrap->GetControllerAgent()->GetMasterConnector()->RegisterOperation(operation->GetId(), operation->GetStorageMode());
     }
 
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
@@ -1217,7 +1284,7 @@ private:
                 auto aclBatchReq = StartObjectBatchRequest();
                 auto req = TYPathProxy::Set(operationPath + "/@acl");
                 req->set_value(BuildYsonStringFluently()
-                    .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
+                    .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
                     .GetData());
                 aclBatchReq->AddRequest(req, "set_acl");
 
@@ -1319,7 +1386,7 @@ private:
                 update->Operation)
                 .AsyncVia(CancelableControlInvoker);
         } else {
-            return VoidCallback_;
+            return BIND([] { return VoidFuture; });
         }
     }
 
@@ -1334,7 +1401,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
 
-        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+        RegisterOperation(operation);
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
@@ -1345,24 +1412,20 @@ private:
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
 
         auto operationId = operation->GetId();
-
         auto error = GetCumulativeError(batchRspOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error resetting reviving operation node %v",
             operationId);
-
-        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
 
         LOG_INFO("Reviving operation node reset (OperationId: %v)",
             operationId);
     }
 
+
     void ExecuteCustomWatcherUpdate(const TWatcherRequester& requester, const TWatcherHandler& handler)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
         requester.Run(batchReq);
@@ -1377,7 +1440,7 @@ private:
     void UpdateWatchers()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State == EMasterConnectorState::Connected);
 
         LOG_INFO("Updating watchers");
 
@@ -1424,7 +1487,7 @@ private:
     void OnGlobalWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
             LOG_ERROR(batchRspOrError, "Error updating global watchers");
@@ -1444,7 +1507,7 @@ private:
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
             LOG_ERROR(batchRspOrError, "Error updating operation watchers (OperationId: %v)",
@@ -1468,10 +1531,11 @@ private:
             operation->GetId());
     }
 
+
     void UpdateAlerts()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State == EMasterConnectorState::Connected);
 
         std::vector<TError> alerts;
         for (auto alertType : TEnumTraits<ESchedulerAlertType>::GetDomainValues()) {
@@ -1492,6 +1556,7 @@ private:
             LOG_WARNING(rspOrError, "Error updating scheduler alerts");
         }
     }
+
 
     void OnClusterDirectorySynchronized(const TError& error)
     {
@@ -1516,9 +1581,9 @@ void TMasterConnector::Start()
     Impl->Start();
 }
 
-bool TMasterConnector::IsConnected() const
+EMasterConnectorState TMasterConnector::GetState() const
 {
-    return Impl->IsConnected();
+    return Impl->GetState();
 }
 
 TInstant TMasterConnector::GetConnectionTime() const
