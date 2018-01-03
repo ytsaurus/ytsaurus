@@ -207,7 +207,7 @@ public:
 
         return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(GetCancelableControlInvoker()));
+                .AsyncVia(CancelableControlInvoker));
     }
 
     TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation)
@@ -245,7 +245,7 @@ public:
                 &TImpl::OnRevivingOperationNodeReset,
                 MakeStrong(this),
                 operation)
-            .AsyncVia(GetCancelableControlInvoker()));
+            .AsyncVia(CancelableControlInvoker));
     }
 
     TFuture<void> FlushOperationNode(const TOperationPtr& operation)
