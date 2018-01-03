@@ -89,11 +89,6 @@ public:
         return MasterConnector_->GetConnectionTime();
     }
 
-    const IInvokerPtr& GetInvoker()
-    {
-        return Bootstrap_->GetControllerAgentInvoker();
-    }
-
     const IInvokerPtr& GetCancelableInvoker()
     {
         return CancelableInvoker_;
@@ -196,7 +191,7 @@ public:
 
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControllerAgentInvoker());
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
 
@@ -385,7 +380,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         CancelableContext_ = New<TCancelableContext>();
-        CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
+        // TODO(babenko): better queue
+        CancelableInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
 
         {
             auto guard = Guard(HeartbeatRequestLock_);
@@ -579,11 +575,6 @@ TControllerAgent::TControllerAgent(
 { }
 
 TControllerAgent::~TControllerAgent() = default;
-
-const IInvokerPtr& TControllerAgent::GetInvoker()
-{
-    return Impl_->GetInvoker();
-}
 
 const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
 {

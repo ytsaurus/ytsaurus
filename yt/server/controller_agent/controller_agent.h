@@ -34,7 +34,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap);
     ~TControllerAgent();
 
-    const IInvokerPtr& GetInvoker();
+    // TODO(babenko)
     const IInvokerPtr& GetCancelableInvoker();
 
     const IInvokerPtr& GetControllerThreadPoolInvoker();

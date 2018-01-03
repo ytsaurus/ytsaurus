@@ -112,7 +112,6 @@ TBootstrap::~TBootstrap() = default;
 void TBootstrap::Run()
 {
     ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
-    ControllerAgentQueue_ = New<TActionQueue>("ControllerAgent");
 
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(GetControlInvoker())
@@ -286,11 +285,6 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 {
     return ControlQueue_->GetInvoker(static_cast<int>(queue));
-}
-
-const IInvokerPtr& TBootstrap::GetControllerAgentInvoker() const
-{
-    return ControllerAgentQueue_->GetInvoker();
 }
 
 const TSchedulerPtr& TBootstrap::GetScheduler() const
