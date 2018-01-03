@@ -1061,6 +1061,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&NControllerAgent::TControllerAgent::AttachJobContext, Bootstrap_->GetControllerAgent())
+            // XXX(babenko): wrong affinity
             .AsyncVia(Bootstrap_->GetControllerAgent()->GetCancelableInvoker())
             .Run(path, chunkId, operationId, jobId);
     }
