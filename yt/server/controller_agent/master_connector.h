@@ -60,7 +60,7 @@ public:
      */
     TInstant GetConnectionTime() const;
 
-    void RegisterOperation(
+    void StartOperationNodeUpdates(
         const TOperationId& operationId,
         NScheduler::EOperationCypressStorageMode storageMode);
 

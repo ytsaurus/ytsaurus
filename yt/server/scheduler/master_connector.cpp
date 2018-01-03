@@ -126,6 +126,14 @@ public:
         return CancelableControlInvoker;
     }
 
+    void StartOperationNodeUpdates(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State != EMasterConnectorState::Disconnected);
+
+        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+    }
+
     TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -520,7 +528,6 @@ private:
             ListOperations();
             RequestOperationAttributes();
             RequestCommittedFlag();
-            RegisterExistingOperations();
             FireConnectingSignal();
         }
 
@@ -994,13 +1001,6 @@ private:
             }
         }
 
-        void RegisterExistingOperations()
-        {
-            for (const auto& operation : Result.Operations) {
-                Owner->OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
-            }
-        }
-
         void FireConnectingSignal()
         {
             Owner->MasterConnecting_.Fire(Result);
@@ -1249,13 +1249,6 @@ private:
     }
 
 
-    void RegisterOperation(const TOperationPtr& operation)
-    {
-        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
-        // XXX(babenko)
-        Bootstrap->GetControllerAgent()->GetMasterConnector()->RegisterOperation(operation->GetId(), operation->GetStorageMode());
-    }
-
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
         const auto& operation = update->Operation;
@@ -1400,8 +1393,6 @@ private:
         auto error = GetCumulativeError(batchRspOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
-
-        RegisterOperation(operation);
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
@@ -1599,6 +1590,11 @@ void TMasterConnector::Disconnect()
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
 {
     return Impl->GetCancelableControlInvoker();
+}
+
+void TMasterConnector::StartOperationNodeUpdates(const TOperationPtr& operation)
+{
+    Impl->StartOperationNodeUpdates(operation);
 }
 
 TFuture<void> TMasterConnector::CreateOperationNode(const TOperationPtr& operation)
