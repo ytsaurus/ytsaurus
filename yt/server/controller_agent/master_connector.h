@@ -10,6 +10,8 @@
 
 #include <yt/core/misc/ref.h>
 
+#include <yt/core/actions/signal.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -32,29 +34,37 @@ struct TOperationSnapshot
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Mediates communication between controller agent and master.
+/*!
+ *  \note Thread affinity: control unless noted otherwise
+ *  XXX(babenko): check affinity
+ */
 class TMasterConnector
-    : public TRefCounted
 {
 public:
     TMasterConnector(
-        IInvokerPtr invoker,
         TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
+    ~TMasterConnector();
 
     // TODO(babenko): get rid of these methods
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    const IInvokerPtr& GetInvoker() const;
+    /*!
+     *  \note Thread affinity: any
+     */
+    bool IsConnected() const;
+    /*!
+     *  \note Thread affinity: any
+     */
+    TInstant GetConnectionTime() const;
 
     void RegisterOperation(
         const TOperationId& operationId,
-        NScheduler::EOperationCypressStorageMode storageMode,
-        const IOperationControllerPtr& controller);
-    
-    void UnregisterOperation(const TOperationId& operationId);
+        NScheduler::EOperationCypressStorageMode storageMode);
 
-    void CreateJobNode(TCreateJobNodeRequest createJobNodeRequest);
+    void CreateJobNode(const TCreateJobNodeRequest& request);
 
     TFuture<void> FlushOperationNode(const TOperationId& operationId);
 
@@ -67,7 +77,9 @@ public:
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId);
     TFuture<void> RemoveSnapshot(const TOperationId& operationId);
 
-    void AddChunkTreesToUnstageList(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds, bool recursive);
+    void AddChunkTreesToUnstageList(
+        std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
+        bool recursive);
 
     void AttachJobContext(
         const NYPath::TYPath& path,
@@ -77,12 +89,18 @@ public:
 
     void UpdateConfig(const TControllerAgentConfigPtr& config);
 
+    //! Raised when connection is complete.
+    //! Subscribers may throw but cannot yield.
+    DECLARE_SIGNAL(void(), MasterConnected);
+
+    //! Raised when disconnect happens.
+    //! Subscribers may yield but cannot throw.
+    DECLARE_SIGNAL(void(), MasterDisconnected);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
-
-DEFINE_REFCOUNTED_TYPE(TMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 

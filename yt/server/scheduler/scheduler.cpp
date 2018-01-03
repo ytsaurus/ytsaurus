@@ -44,6 +44,8 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -316,22 +318,11 @@ public:
             Config_->OrchidKeysUpdatePeriod);
     }
 
-    std::vector<TOperationPtr> GetOperations()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        std::vector<TOperationPtr> operations;
-        for (const auto& pair : IdToOperation_) {
-            operations.push_back(pair.second);
-        }
-        return operations;
-    }
-
     bool IsConnected()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return MasterConnector_->IsConnected();
+        return MasterConnector_->GetState() == EMasterConnectorState::Connected;
     }
 
     void ValidateConnected()
@@ -1422,6 +1413,11 @@ private:
 
     void OnMasterConnected()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // XXX(babenko)
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected();
+
         CachedExecNodeMemoryDistributionByTags_->Start();
 
         Strategy_->StartPeriodicActivity();
@@ -1451,6 +1447,9 @@ private:
 
         // XXX(babenko)
         TForbidContextSwitchGuard contextSwitchGuard;
+
+        // XXX(babenko)
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
 
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
@@ -1901,7 +1900,7 @@ private:
 
             RegisterOperation(operation);
             // Ignore result? (we cannot throw error here)
-            Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
+            Bootstrap_->GetControllerAgent()->RegisterController(operation->GetId(), controller);
 
             registered = true;
 
@@ -2011,7 +2010,6 @@ private:
             operationId,
             SchedulerIncarnation_);
 
-        operation->SetState(EOperationState::Reviving);
         operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
         if (operation->GetMutationId()) {
@@ -2050,7 +2048,7 @@ private:
         RegisterOperation(operation);
         // XXX(babenko)
         // Ignore result? (we cannot throw error here)
-        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
+        Bootstrap_->GetControllerAgent()->RegisterController(operation->GetId(), controller);
     }
 
     void DoReviveOperation(const TOperationPtr& operation)
@@ -2192,7 +2190,7 @@ private:
 
         Strategy_->UnregisterOperation(operation.Get());
 
-        Bootstrap_->GetControllerAgent()->UnregisterOperation(operation->GetId());
+        Bootstrap_->GetControllerAgent()->UnregisterController(operation->GetId());
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)",
             operation->GetId());
@@ -2619,6 +2617,8 @@ private:
             YCHECK(operation->RevivalDescriptor());
             const auto& revivalDescriptor = *operation->RevivalDescriptor();
 
+            operation->SetState(EOperationState::Reviving);
+
             if (revivalDescriptor.OperationCommitted) {
                 // TODO(babenko): parallelize
                 CompleteCompletingOperation(operation);
@@ -2665,7 +2665,7 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("connected").Value(MasterConnector_->IsConnected())
+                .Item("connected").Value(IsConnected())
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(GetTotalResourceLimits())
                     .Item("resource_usage").Value(GetTotalResourceUsage())
@@ -2686,7 +2686,7 @@ private:
                 .EndMap()
                 .Item("nodes").BeginMap()
                     .Do([=] (TFluentMap fluent) {
-                        for (auto nodeShard : NodeShards_) {
+                        for (const auto& nodeShard : NodeShards_) {
                             auto asyncResult = WaitFor(
                                 BIND(&TNodeShard::BuildNodesYson, nodeShard, fluent)
                                     .AsyncVia(nodeShard->GetInvoker())
@@ -2938,11 +2938,6 @@ ISchedulerStrategyPtr TScheduler::GetStrategy()
 IYPathServicePtr TScheduler::GetOrchidService()
 {
     return Impl_->GetOrchidService();
-}
-
-std::vector<TOperationPtr> TScheduler::GetOperations()
-{
-    return Impl_->GetOperations();
 }
 
 bool TScheduler::IsConnected()

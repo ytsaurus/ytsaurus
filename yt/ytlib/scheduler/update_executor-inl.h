@@ -11,38 +11,39 @@ namespace NScheduler {
 
 template <class TKey, class TUpdateParameters>
 TUpdateExecutor<TKey, TUpdateParameters>::TUpdateExecutor(
+    IInvokerPtr invoker,
     TCallback<TCallback<TFuture<void>()>(const TKey&, TUpdateParameters*)> createUpdateAction,
     TCallback<bool(const TUpdateParameters*)> shouldRemoveUpdateAction,
     TCallback<void(const TError&)> onUpdateFailed,
+    TDuration period,
     NLogging::TLogger logger)
     : CreateUpdateAction_(createUpdateAction)
     , ShouldRemoveUpdateAction_(shouldRemoveUpdateAction)
     , OnUpdateFailed_(onUpdateFailed)
     , Logger(logger)
+    , UpdateExecutor_(New<NConcurrency::TPeriodicExecutor>(
+        std::move(invoker),
+        BIND(&TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates, MakeWeak(this)),
+        period,
+        NConcurrency::EPeriodicExecutorMode::Automatic))
 { }
 
 template <class TKey, class TUpdateParameters>
-void TUpdateExecutor<TKey, TUpdateParameters>::StartPeriodicUpdates(const IInvokerPtr& invoker, TDuration updatePeriod)
+void TUpdateExecutor<TKey, TUpdateParameters>::Start()
 {
-    UpdateExecutor_ = New<NConcurrency::TPeriodicExecutor>(
-        invoker,
-        BIND(&TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates, MakeWeak(this), invoker),
-        updatePeriod,
-        NConcurrency::EPeriodicExecutorMode::Automatic);
     UpdateExecutor_->Start();
 }
 
 template <class TKey, class TUpdateParameters>
-void TUpdateExecutor<TKey, TUpdateParameters>::StopPeriodicUpdates()
+void TUpdateExecutor<TKey, TUpdateParameters>::Stop()
 {
     UpdateExecutor_->Stop();
-    UpdateExecutor_.Reset();
 }
 
 template <class TKey, class TUpdateParameters>
-void TUpdateExecutor<TKey, TUpdateParameters>::SetPeriod(TDuration updatePeriod)
+void TUpdateExecutor<TKey, TUpdateParameters>::SetPeriod(TDuration period)
 {
-    UpdateExecutor_->SetPeriod(updatePeriod);
+    UpdateExecutor_->SetPeriod(period);
 }
 
 template <class TKey, class TUpdateParameters>
@@ -93,7 +94,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::Clear()
 }
 
 template <class TKey, class TUpdateParameters>
-void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates(IInvokerPtr invoker)
+void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
 {
     VERIFY_THREAD_AFFINITY(UpdateThread);
 

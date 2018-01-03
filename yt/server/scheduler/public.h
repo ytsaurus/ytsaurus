@@ -51,6 +51,7 @@ struct ISchedulerStrategyHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 
+// XXX(babenko): move to private
 class TMasterConnector;
 
 using NJobTrackerClient::NProto::TJobResult;
@@ -60,6 +61,8 @@ struct TJobSummary;
 struct TCompletedJobSummary;
 struct TAbortedJobSummary;
 struct TRunningJobSummary;
+
+class TSchedulingTagFilter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

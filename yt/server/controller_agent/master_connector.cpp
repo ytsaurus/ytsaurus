@@ -52,6 +52,7 @@ using namespace NFileClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
 using namespace NScheduler;
+using namespace NCellScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,112 +65,123 @@ class TMasterConnector::TImpl
 {
 public:
     TImpl(
-        IInvokerPtr invoker,
         TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap)
-        : Invoker_(invoker)
-        , Config_(config)
+        : Config_(config)
         , Bootstrap_(bootstrap)
-        , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
-            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
-            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
-            Logger))
-        , TransactionRefreshExecutor_(New<TPeriodicExecutor>(
-            Invoker_,
-            BIND(&TImpl::RefreshTransactions, MakeStrong(this)),
-            Config_->TransactionsRefreshPeriod,
-            EPeriodicExecutorMode::Automatic))
-        , SnapshotExecutor_(New<TPeriodicExecutor>(
-            Invoker_,
-            BIND(&TImpl::BuildSnapshot, MakeStrong(this)),
-            Config_->SnapshotPeriod,
-            EPeriodicExecutorMode::Automatic))
-        , UnstageExecutor_(New<TPeriodicExecutor>(
-            Invoker_,
-            BIND(&TImpl::UnstageChunkTrees, MakeWeak(this)),
-            Config_->ChunkUnstagePeriod,
-            EPeriodicExecutorMode::Automatic))
     { }
 
     void OnMasterConnected()
     {
-        OperationNodesUpdateExecutor_->StartPeriodicUpdates(
-            Invoker_,
-            Config_->OperationsUpdatePeriod);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YCHECK(!Connected_);
+        Connected_.store(true);
+        ConnectionTime_ = TInstant::Now();
+
+        YCHECK(!CancelableContext_);
+        CancelableContext_ = New<TCancelableContext>();
+
+        YCHECK(!CancelableControlInvoker_);
+        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
+
+        YCHECK(!OperationNodesUpdateExecutor_);
+        OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
+            Config_->OperationsUpdatePeriod,
+            Logger);
+        OperationNodesUpdateExecutor_->Start();
+
+        YCHECK(!TransactionRefreshExecutor_);
+        TransactionRefreshExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::RefreshTransactions, MakeStrong(this)),
+            Config_->TransactionsRefreshPeriod,
+            EPeriodicExecutorMode::Automatic);
         TransactionRefreshExecutor_->Start();
+
+        YCHECK(!SnapshotExecutor_);
+        SnapshotExecutor_= New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::BuildSnapshot, MakeStrong(this)),
+            Config_->SnapshotPeriod,
+            EPeriodicExecutorMode::Automatic);
         SnapshotExecutor_->Start();
+
+        YCHECK(!UnstageExecutor_);
+        UnstageExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UnstageChunkTrees, MakeWeak(this)),
+            Config_->ChunkUnstagePeriod,
+            EPeriodicExecutorMode::Automatic);
         UnstageExecutor_->Start();
+
+        try {
+            MasterConnected_.Fire();
+        } catch (const std::exception& ex) {
+            DoCleanup();
+            throw;
+        }
     }
 
     void OnMasterDisconnected()
     {
-        OperationNodesUpdateExecutor_->StopPeriodicUpdates();
-        TransactionRefreshExecutor_->Stop();
-        SnapshotExecutor_->Stop();
-        UnstageExecutor_->Stop();
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        DoCleanup();
+
+        MasterDisconnected_.Fire();
     }
 
-    const IInvokerPtr& GetInvoker() const
+    bool IsConnected() const
     {
-        return Invoker_;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Connected_.load();
     }
 
-    void DoRegisterOperation(
-        const TOperationId& operationId,
-        EOperationCypressStorageMode storageMode,
-        const IOperationControllerPtr& controller)
+    TInstant GetConnectionTime() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        return ConnectionTime_.load();
 
-        {
-            TGuard<TSpinLock> guard(ControllersLock_);
-            YCHECK(ControllerMap_.emplace(operationId, controller).second);
-        }
-
-        OperationNodesUpdateExecutor_->AddUpdate(operationId, TOperationNodeUpdate(operationId, storageMode));
+        VERIFY_THREAD_AFFINITY_ANY();
     }
 
     void RegisterOperation(
         const TOperationId& operationId,
-        EOperationCypressStorageMode storageMode,
-        const IOperationControllerPtr& controller)
+        NScheduler::EOperationCypressStorageMode storageMode)
     {
-        BIND(&TImpl::DoRegisterOperation, MakeStrong(this), operationId, storageMode, controller)
-            .AsyncVia(Invoker_)
-            .Run()
-            .Subscribe(
-                BIND([] (TError error) {
-                    YCHECK(error.IsOK() && "RegisterOperation failed");
-                })
-                .AsyncVia(Invoker_));
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        OperationNodesUpdateExecutor_->AddUpdate(
+            operationId,
+            TOperationNodeUpdate(operationId, storageMode));
     }
 
-    void UnregisterOperation(const TOperationId& operationId)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        // NB: from OperationNodesUpdateExecutor_ operation will be removed by periodic update executor.
-        // NB: Method can be called more than one time.
-        {
-            TGuard<TSpinLock> guard(ControllersLock_);
-            ControllerMap_.erase(operationId);
-        }
-    }
-
-    void CreateJobNode(TCreateJobNodeRequest createJobNodeRequest)
+    void CreateJobNode(const TCreateJobNodeRequest& request)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
-            createJobNodeRequest.OperationId,
-            createJobNodeRequest.JobId,
-            createJobNodeRequest.StderrChunkId,
-            createJobNodeRequest.FailContextChunkId);
+            request.OperationId,
+            request.JobId,
+            request.StderrChunkId,
+            request.FailContextChunkId);
 
-        Invoker_->Invoke(BIND([this, this_ = MakeStrong(this), request = std::move(createJobNodeRequest)] {
-            auto* updateParameters = OperationNodesUpdateExecutor_->GetUpdate(request.OperationId);
-            updateParameters->JobRequests.emplace_back(std::move(request));
+        // XXX(babenko)
+        CancelableControlInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
+            auto* update = OperationNodesUpdateExecutor_->FindUpdate(request.OperationId);
+            if (!update) {
+                LOG_DEBUG("Trying to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
+                    request.OperationId,
+                    request.JobId);
+                return;
+            }
+
+            update->JobRequests.emplace_back(request);
         }));
     }
 
@@ -185,7 +197,8 @@ public:
                 WaitFor(OperationNodesUpdateExecutor_->ExecuteUpdate(operationId))
                     .ThrowOnError();
             })
-            .AsyncVia(Invoker_)
+            // XXX(babenko)
+            .AsyncVia(CancelableControlInvoker_)
             .Run();
     }
 
@@ -195,8 +208,9 @@ public:
         const std::vector<TNodeId>& tableIds,
         const std::vector<TChunkTreeId>& childIds)
     {
+        // XXX(babenko)
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
-            .AsyncVia(Invoker_)
+            .AsyncVia(CancelableControlInvoker_)
             .Run(operationId, transactionId, tableIds, childIds);
     }
 
@@ -209,14 +223,16 @@ public:
         }
 
         return BIND(&TImpl::DoDownloadSnapshot, MakeStrong(this), operationId)
-            .AsyncVia(Invoker_)
+            // XXX(babenko)
+            .AsyncVia(CancelableControlInvoker_)
             .Run();
     }
 
     TFuture<void> RemoveSnapshot(const TOperationId& operationId)
     {
         auto future = BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
-            .AsyncVia(Invoker_)
+            // XXX(babenko)
+            .AsyncVia(CancelableControlInvoker_)
             .Run();
         return future.Apply(
             BIND([this, this_ = MakeStrong(this)] (const TError& error) {
@@ -231,7 +247,8 @@ public:
 
     void AddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
     {
-        Invoker_->Invoke(BIND(&TImpl::DoAddChunkTreesToUnstageList,
+        // XXX(babenko)
+        CancelableControlInvoker_->Invoke(BIND(&TImpl::DoAddChunkTreesToUnstageList,
             MakeWeak(this),
             Passed(std::move(chunkTreeIds)),
             recursive));
@@ -243,9 +260,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        YCHECK(chunkId);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         try {
             TJobFile file{
@@ -261,9 +276,9 @@ public:
         }
     }
 
-    void DoUpdateConfig(const TControllerAgentConfigPtr& config)
+    void UpdateConfig(const TControllerAgentConfigPtr& config)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         Config_ = config;
 
@@ -273,25 +288,18 @@ public:
         UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
     }
 
-    void UpdateConfig(const TControllerAgentConfigPtr& config)
-    {
-        BIND(&TImpl::DoUpdateConfig, MakeStrong(this), config)
-            .AsyncVia(Invoker_)
-            .Run()
-            .Subscribe(
-                BIND([] (TError error) {
-                    YCHECK(error.IsOK() && "UpdateConfig failed");
-                })
-                .AsyncVia(Invoker_));
-    }
+    DEFINE_SIGNAL(void(), MasterConnected);
+    DEFINE_SIGNAL(void(), MasterDisconnected);
 
 private:
-    const IInvokerPtr Invoker_;
     TControllerAgentConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
-    TSpinLock ControllersLock_;
-    TOperationIdToControllerMap ControllerMap_;
+    std::atomic<bool> Connected_ = {false};
+    std::atomic<TInstant> ConnectionTime_;
+
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableControlInvoker_;
 
     struct TLivePreviewRequest
     {
@@ -316,8 +324,10 @@ private:
 
         TOperationId OperationId;
         EOperationCypressStorageMode StorageMode;
-        TTransactionId TransactionId;
+
         std::vector<TCreateJobNodeRequest> JobRequests;
+
+        TTransactionId LivePreviewTransactionId;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
     };
 
@@ -335,7 +345,40 @@ private:
 
     yhash<TCellTag, std::vector<TUnstageRequest>> CellTagToUnstageList_;
 
-    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] { return VoidFuture; });
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void DoCleanup()
+    {
+        Connected_.store(false);
+
+        if (CancelableContext_) {
+            CancelableContext_->Cancel();
+            CancelableContext_.Reset();
+        }
+
+        CancelableControlInvoker_.Reset();
+
+        if (OperationNodesUpdateExecutor_) {
+            OperationNodesUpdateExecutor_->Stop();
+            OperationNodesUpdateExecutor_.Reset();
+        }
+
+        if (TransactionRefreshExecutor_) {
+            TransactionRefreshExecutor_->Stop();
+            TransactionRefreshExecutor_.Reset();
+        }
+
+        if (SnapshotExecutor_) {
+            SnapshotExecutor_->Stop();
+            SnapshotExecutor_.Reset();
+        }
+
+        if (UnstageExecutor_) {
+            UnstageExecutor_->Stop();
+            UnstageExecutor_.Reset();
+        }
+    }
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
@@ -358,18 +401,18 @@ private:
 
     void RefreshTransactions()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Take a snapshot of all known operations.
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        auto controllerMap = controllerAgent->GetControllers();
 
         // Collect all transactions that are used by currently running operations.
         yhash_set<TTransactionId> watchSet;
-
-        {
-            TGuard<TSpinLock> guard(ControllersLock_);
-            for (auto pair : ControllerMap_) {
-                auto controller = pair.second;
-                for (const auto& transaction : controller->GetTransactions()) {
-                    watchSet.insert(transaction->GetId());
-                }
+        for (const auto& pair : controllerMap) {
+            const auto& controller = pair.second;
+            for (const auto& transaction : controller->GetTransactions()) {
+                watchSet.insert(transaction->GetId());
             }
         }
 
@@ -426,16 +469,12 @@ private:
         LOG_INFO("Transactions refreshed");
 
         // Check every operation's transactions and raise appropriate notifications.
-        {
-            TGuard<TSpinLock> guard(ControllersLock_);
-            for (auto pair : ControllerMap_) {
-                auto controller = pair.second;
-                for (const auto& transaction : controller->GetTransactions()) {
-                    if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
-                        TInverseGuard<TSpinLock> inverseGuard(ControllersLock_);
-                        controller->OnTransactionAborted(transaction->GetId());
-                        break;
-                    }
+        for (const auto& pair : controllerMap) {
+            auto controller = pair.second;
+            for (const auto& transaction : controller->GetTransactions()) {
+                if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
+                    controller->OnTransactionAborted(transaction->GetId());
+                    break;
                 }
             }
         }
@@ -445,10 +484,10 @@ private:
         const TOperationId& operationId,
         EOperationCypressStorageMode storageMode,
         const TTransactionId& transactionId,
-        const std::vector<TCreateJobNodeRequest> jobRequests,
-        const std::vector<TLivePreviewRequest> livePreviewRequests)
+        const std::vector<TCreateJobNodeRequest>& jobRequests,
+        const std::vector<TLivePreviewRequest>& livePreviewRequests)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         try {
             CreateJobNodes(operationId, storageMode, jobRequests);
@@ -521,26 +560,29 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& operationId, TOperationNodeUpdate* update)
     {
-        auto controller = GetOperationController(operationId);
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        auto controller = controllerAgent->FindController(operationId);
         if (controller && (!update->JobRequests.empty() || !update->LivePreviewRequests.empty() || controller->ShouldUpdateProgress())) {
             return BIND(&TImpl::DoUpdateOperationNode,
                 MakeStrong(this),
                 operationId,
                 update->StorageMode,
-                update->TransactionId,
+                update->LivePreviewTransactionId,
                 Passed(std::move(update->JobRequests)),
                 Passed(std::move(update->LivePreviewRequests)))
-                .AsyncVia(Invoker_);
+                // XXX(babenko)
+                .AsyncVia(CancelableControlInvoker_);
         } else {
-            return VoidCallback_;
+            return BIND([] { return VoidFuture; });
         }
     }
 
     void UpdateOperationNodeAttributes(const TOperationId& operationId, EOperationCypressStorageMode storageMode)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto controller = GetOperationController(operationId);
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        auto controller = controllerAgent->FindController(operationId);
         if (!controller || !controller->HasProgress()) {
             return;
         }
@@ -583,17 +625,17 @@ private:
     void CreateJobNodes(
         const TOperationId& operationId,
         EOperationCypressStorageMode storageMode,
-        const std::vector<TCreateJobNodeRequest>& jobRequests)
+        const std::vector<TCreateJobNodeRequest>& requests)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (jobRequests.empty()) {
+        if (requests.empty()) {
             return;
         }
 
         auto batchReq = StartObjectBatchRequest();
 
-        for (const auto& request : jobRequests) {
+        for (const auto& request : requests) {
             const auto& jobId = request.JobId;
 
             auto paths = GetCompatibilityJobPaths(operationId, jobId, storageMode);
@@ -619,16 +661,16 @@ private:
         }
 
         LOG_INFO("Job nodes created (Count: %v, OperationId: %v)",
-            jobRequests.size(),
+            requests.size(),
             operationId);
     }
 
     void AttachLivePreviewChunks(
         const TOperationId& operationId,
         const TTransactionId& transactionId,
-        const std::vector<TLivePreviewRequest>& livePreviewRequests)
+        const std::vector<TLivePreviewRequest>& requests)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         struct TTableInfo
         {
@@ -641,7 +683,7 @@ private:
         };
 
         yhash<TNodeId, TTableInfo> tableIdToInfo;
-        for (const auto& request : livePreviewRequests) {
+        for (const auto& request : requests) {
             auto& tableInfo = tableIdToInfo[request.TableId];
             tableInfo.TableId = request.TableId;
             tableInfo.ChildIds.push_back(request.ChildId);
@@ -786,21 +828,18 @@ private:
         const std::vector<TNodeId>& tableIds,
         const std::vector<TChunkTreeId>& childIds)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto* list = OperationNodesUpdateExecutor_->FindUpdate(operationId);
-        if (!list) {
-            LOG_DEBUG("Operation node is not registered, omitting live preview attach (OperationId: %v)",
+        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+        if (!update) {
+            LOG_DEBUG("Trying to attach live preview to an unknown operation (OperationId: %v)",
                 operationId);
             return;
         }
 
-        if (!list->TransactionId) {
-            list->TransactionId = transactionId;
-        } else {
-            // NB: Controller must attach all live preview chunks under the same transaction.
-            YCHECK(list->TransactionId == transactionId);
-        }
+        // NB: Controller must attach all live preview chunks under the same transaction.
+        YCHECK(!update->LivePreviewTransactionId || update->LivePreviewTransactionId == transactionId);
+        update->LivePreviewTransactionId = transactionId;
 
         LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableIds: %v, ChildCount: %v)",
             operationId,
@@ -809,7 +848,7 @@ private:
 
         for (const auto& tableId : tableIds) {
             for (const auto& childId : childIds) {
-                list->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
+                update->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
             }
         }
     }
@@ -881,7 +920,7 @@ private:
 
     void DoRemoveSnapshot(const TOperationId& operationId)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto batchReq = StartObjectBatchRequest();
         auto req = TYPathProxy::Remove(NScheduler::GetSnapshotPath(operationId));
@@ -895,7 +934,7 @@ private:
 
     void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (files.empty()) {
             return;
@@ -1072,16 +1111,12 @@ private:
             return;
         }
 
-        TOperationIdToControllerMap controllersMap;
-
-        {
-            TGuard<TSpinLock> guard(ControllersLock_);
-            controllersMap = ControllerMap_;
-        }
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        auto controllerMap = controllerAgent->GetControllers();
 
         auto builder = New<TSnapshotBuilder>(
             Config_,
-            std::move(controllersMap),
+            std::move(controllerMap),
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker());
 
@@ -1094,23 +1129,10 @@ private:
         }
     }
 
-    IOperationControllerPtr GetOperationController(const TOperationId& operationId) const
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        TGuard<TSpinLock> guard(ControllersLock_);
-
-        auto it = ControllerMap_.find(operationId);
-        if (it == ControllerMap_.end()) {
-            return nullptr;
-        } else {
-            return it->second;
-        }
-    }
-
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
-        return !GetOperationController(update->OperationId);
+        // XXX(babenko)
+        return !Bootstrap_->GetControllerAgent()->FindController(update->OperationId);
     }
 
     void OnOperationUpdateFailed(const TError& error)
@@ -1128,7 +1150,7 @@ private:
 
     void UnstageChunkTrees()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         for (auto& pair : CellTagToUnstageList_) {
             const auto& cellTag = pair.first;
@@ -1170,11 +1192,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterConnector::TMasterConnector(
-    IInvokerPtr invoker,
     TControllerAgentConfigPtr config,
     NCellScheduler::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(invoker, config, bootstrap))
+    : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
+
+TMasterConnector::~TMasterConnector() = default;
 
 void TMasterConnector::OnMasterConnected()
 {
@@ -1186,27 +1209,26 @@ void TMasterConnector::OnMasterDisconnected()
     Impl_->OnMasterDisconnected();
 }
 
-const IInvokerPtr& TMasterConnector::GetInvoker() const
+bool TMasterConnector::IsConnected() const
 {
-    return Impl_->GetInvoker();
+    return Impl_->IsConnected();
+}
+
+TInstant TMasterConnector::GetConnectionTime() const
+{
+    return Impl_->GetConnectionTime();
 }
 
 void TMasterConnector::RegisterOperation(
     const TOperationId& operationId,
-    EOperationCypressStorageMode storageMode,
-    const IOperationControllerPtr& controller)
+    NScheduler::EOperationCypressStorageMode storageMode)
 {
-    Impl_->RegisterOperation(operationId, storageMode, controller);
+    Impl_->RegisterOperation(operationId, storageMode);
 }
 
-void TMasterConnector::UnregisterOperation(const TOperationId& operationId)
+void TMasterConnector::CreateJobNode(const TCreateJobNodeRequest& request)
 {
-    Impl_->UnregisterOperation(operationId);
-}
-
-void TMasterConnector::CreateJobNode(TCreateJobNodeRequest createJobNodeRequest)
-{
-    return Impl_->CreateJobNode(std::move(createJobNodeRequest));
+    Impl_->CreateJobNode(request);
 }
 
 TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operationId)
@@ -1251,6 +1273,9 @@ void TMasterConnector::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
 }
+
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl_);
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,7 +14,6 @@ using NScheduler::TJobId;
 using NScheduler::TJobResources;
 using NScheduler::EAbortReason;
 using NScheduler::EInterruptReason;
-using NScheduler::TSchedulerConfigPtr;
 using NScheduler::TExecNodeDescriptorListPtr;
 using NScheduler::EOperationType;
 using NScheduler::EJobType;
@@ -59,6 +58,12 @@ DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IOperationController)
+using TOperationIdToControllerMap = yhash<TOperationId, IOperationControllerPtr>;
+
+// XXX(babenko): move private
+class TMasterConnector;
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 

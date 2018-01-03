@@ -1,5 +1,6 @@
 #include "controller_agent.h"
 #include "operation_controller.h"
+#include "master_connector.h"
 #include "config.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
@@ -36,6 +37,8 @@ using namespace NEventLog;
 using namespace NProfiling;
 using namespace NYson;
 
+////////////////////////////////////////////////////////////////////
+
 static const auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////
@@ -59,72 +62,31 @@ public:
             Config_->EventLog,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity)))
-        , ControllerAgentMasterConnector_(New<TMasterConnector>(
-            Bootstrap_->GetControllerAgentInvoker(),
+        , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             Bootstrap_))
         , SchedulerProxy_(Bootstrap_->GetLocalRpcChannel())
     {
         SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
-    }
 
-    void OnMasterDisconnected()
-    {
-        Connected_.store(false);
-
-        for (auto pair : GetControllers()) {
-            const auto& operationId = pair.first;
-            const auto& controller = pair.second;
-
-            LOG_INFO("Forgetting operation (OperationId: %v)", operationId);
-            controller->Forget();
-        }
-
-        CancelableContext_->Cancel();
-
-        CachedExecNodeDescriptorsByTags_->Stop();
-
-        HeartbeatExecutor_->Stop();
-
-        ControllerAgentMasterConnector_->OnMasterDisconnected();
-    }
-
-    void OnMasterConnected()
-    {
-        ConnectionTime_ = TInstant::Now();
-
-        CancelableContext_ = New<TCancelableContext>();
-        CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
-
-        ControllerAgentMasterConnector_->OnMasterConnected();
-
-        HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
-
-        CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
-            BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            GetCancelableInvoker());
-        CachedExecNodeDescriptorsByTags_->Start();
-
-        HeartbeatExecutor_ = New<TPeriodicExecutor>(
-            CancelableInvoker_,
-            BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
-            Config_->ControllerAgentHeartbeatPeriod);
-        HeartbeatExecutor_->Start();
-
-        Connected_.store(true);
+        MasterConnector_->SubscribeMasterConnected(BIND(
+            &TImpl::OnMasterConnected,
+            Unretained(this)));
+        MasterConnector_->SubscribeMasterDisconnected(BIND(
+            &TImpl::OnMasterDisconnected,
+            Unretained(this)));
     }
 
     void ValidateConnected()
     {
-        if (!Connected_) {
+        if (!MasterConnector_->IsConnected()) {
             THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
         }
     }
 
     TInstant GetConnectionTime() const
     {
-        return ConnectionTime_;
+        return MasterConnector_->GetConnectionTime();
     }
 
     const IInvokerPtr& GetInvoker()
@@ -149,7 +111,7 @@ public:
 
     TMasterConnector* GetMasterConnector()
     {
-        return ControllerAgentMasterConnector_.Get();
+        return MasterConnector_.get();
     }
 
     const TControllerAgentConfigPtr& GetConfig() const
@@ -194,8 +156,8 @@ public:
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
         EventLogWriter_->UpdateConfig(Config_->EventLog);
         SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
-        if (ControllerAgentMasterConnector_) {
-            ControllerAgentMasterConnector_->UpdateConfig(config);
+        if (MasterConnector_) {
+            MasterConnector_->UpdateConfig(config);
         }
 
         for (auto pair : GetControllers()) {
@@ -205,17 +167,32 @@ public:
         }
     }
 
-    void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller)
+
+    void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller)
     {
-        TWriterGuard guard(ControllersLock_);
-        Controllers_.emplace(operationId, controller);
+        TWriterGuard guard(ControllerMapLock_);
+        ControllerMap_.emplace(operationId, controller);
     }
 
-    void UnregisterOperation(const TOperationId& operationId)
+    void UnregisterController(const TOperationId& operationId)
     {
-        TWriterGuard guard(ControllersLock_);
-        YCHECK(Controllers_.erase(operationId) == 1);
+        TWriterGuard guard(ControllerMapLock_);
+        YCHECK(ControllerMap_.erase(operationId) == 1);
     }
+
+    IOperationControllerPtr FindController(const TOperationId& operationId)
+    {
+        TReaderGuard guard(ControllerMapLock_);
+        auto it = ControllerMap_.find(operationId);
+        return it == ControllerMap_.end() ? nullptr : it->second;
+    }
+
+    TOperationIdToControllerMap GetControllers()
+    {
+        TReaderGuard guard(ControllerMapLock_);
+        return ControllerMap_;
+    }
+
 
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
     {
@@ -308,7 +285,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId)
     {
-        ControllerAgentMasterConnector_->AttachJobContext(path, chunkId, operationId, jobId);
+        MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId);
     }
 
     TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
@@ -379,18 +356,13 @@ private:
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
     const TAsyncSemaphorePtr CoreSemaphore_;
     const TEventLogWriterPtr EventLogWriter_;
+    const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    std::atomic<bool> Connected_ = {false};
-    TInstant ConnectionTime_;
-
-    TMasterConnectorPtr ControllerAgentMasterConnector_;
-
-    using TControllersMap = yhash<TOperationId, IOperationControllerPtr>;
-    TReaderWriterSpinLock ControllersLock_;
-    TControllersMap Controllers_;
+    TReaderWriterSpinLock ControllerMapLock_;
+    TOperationIdToControllerMap ControllerMap_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
@@ -405,28 +377,50 @@ private:
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
+
+    void OnMasterConnected()
+    {
+        CancelableContext_ = New<TCancelableContext>();
+        CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
+
+        HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
+
+        CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
+            BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            GetCancelableInvoker());
+        CachedExecNodeDescriptorsByTags_->Start();
+
+        HeartbeatExecutor_ = New<TPeriodicExecutor>(
+            CancelableInvoker_,
+            BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
+            Config_->ControllerAgentHeartbeatPeriod);
+        HeartbeatExecutor_->Start();
+    }
+
+    void OnMasterDisconnected()
+    {
+        for (const auto& pair : GetControllers()) {
+            const auto& operationId = pair.first;
+            const auto& controller = pair.second;
+
+            LOG_INFO("Forgetting operation (OperationId: %v)", operationId);
+            controller->Forget();
+        }
+
+        CancelableContext_->Cancel();
+
+        CachedExecNodeDescriptorsByTags_->Stop();
+
+        HeartbeatExecutor_->Stop();
+    }
+
     // TODO: Move this method to some common place to avoid copy/paste.
     TError GetMasterDisconnectedError()
     {
         return TError(
             NRpc::EErrorCode::Unavailable,
             "Master is not connected");
-    }
-
-    IOperationControllerPtr FindController(const TOperationId& operationId)
-    {
-        TReaderGuard guard(ControllersLock_);
-        auto it = Controllers_.find(operationId);
-        if (it == Controllers_.end()) {
-            return nullptr;
-        }
-        return it->second;
-    }
-
-    TControllersMap GetControllers()
-    {
-        TReaderGuard guard(ControllersLock_);
-        return Controllers_;
     }
 
     void SendHeartbeat()
@@ -566,25 +560,7 @@ TControllerAgent::TControllerAgent(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-void TControllerAgent::OnMasterConnected()
-{
-    Impl_->OnMasterConnected();
-}
-
-void TControllerAgent::OnMasterDisconnected()
-{
-    Impl_->OnMasterDisconnected();
-}
-
-void TControllerAgent::ValidateConnected() const
-{
-    Impl_->ValidateConnected();
-}
-
-TInstant TControllerAgent::GetConnectionTime() const
-{
-    return Impl_->GetConnectionTime();
-}
+TControllerAgent::~TControllerAgent() = default;
 
 const IInvokerPtr& TControllerAgent::GetInvoker()
 {
@@ -609,6 +585,16 @@ const IInvokerPtr& TControllerAgent::GetSnapshotIOInvoker()
 TMasterConnector* TControllerAgent::GetMasterConnector()
 {
     return Impl_->GetMasterConnector();
+}
+
+void TControllerAgent::ValidateConnected() const
+{
+    Impl_->ValidateConnected();
+}
+
+TInstant TControllerAgent::GetConnectionTime() const
+{
+    return Impl_->GetConnectionTime();
 }
 
 const TControllerAgentConfigPtr& TControllerAgent::GetConfig() const
@@ -651,14 +637,24 @@ void TControllerAgent::UpdateConfig(const TControllerAgentConfigPtr& config)
     Impl_->UpdateConfig(config);
 }
 
-void TControllerAgent::RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller)
+void TControllerAgent::RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller)
 {
-    Impl_->RegisterOperation(operationId, controller);
+    Impl_->RegisterController(operationId, controller);
 }
 
-void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
+void TControllerAgent::UnregisterController(const TOperationId& operationId)
 {
-    Impl_->UnregisterOperation(operationId);
+    Impl_->UnregisterController(operationId);
+}
+
+IOperationControllerPtr TControllerAgent::FindController(const TOperationId& operationId)
+{
+    return Impl_->FindController(operationId);
+}
+
+yhash<TOperationId, IOperationControllerPtr> TControllerAgent::GetControllers()
+{
+    return Impl_->GetControllers();
 }
 
 std::vector<TErrorOr<TSharedRef>> TControllerAgent::GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
