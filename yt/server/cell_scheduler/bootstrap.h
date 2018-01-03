@@ -38,6 +38,7 @@ DEFINE_ENUM(EControlQueue,
     (Orchid)
     (PeriodicActivity)
     (Operation)
+    (AgentTracker)
 );
 
 class TBootstrap

@@ -6620,7 +6620,6 @@ const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobTyp
     return iter->second.get();
 }
 
-
 void TOperationControllerBase::WaitForHeartbeat()
 {
     Y_UNUSED(WaitFor(ControllerAgent->GetHeartbeatSentFuture()));

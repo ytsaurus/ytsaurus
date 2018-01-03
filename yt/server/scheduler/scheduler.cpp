@@ -744,14 +744,19 @@ public:
     TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
-        // A neat way to choose the proper overload.
-        typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TNullable<TDuration>&, const TString&);
-        return BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), nodeShard, jobId, interruptTimeout, user)
+        return
+            BIND(
+                static_cast<void (TNodeShard::*)(const TJobId&, const TNullable<TDuration>&, const TString&)>(&TNodeShard::AbortJob),
+                nodeShard,
+                jobId,
+                interruptTimeout,
+                user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
 
-    void ProcessHeartbeat(const TCtxHeartbeatPtr& context)
+    
+    void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -762,75 +767,88 @@ public:
         nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
     }
 
-    void ProcessControllerAgentHeartbeat(
-        const NScheduler::NProto::TReqHeartbeat* request,
-        NScheduler::NProto::TRspHeartbeat* response)
+    void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto* request = &context->Request();
+        auto* response = &context->Response();
+
+        auto agentIncarnationId = FromProto<NControllerAgent::TIncarnationId>(request->agent_incarnation_id());
+
+        context->SetRequestInfo("AgentIncarnationId: %v", agentIncarnationId);
+
+        if (agentIncarnationId != AgentIncarnationId_) {
+            THROW_ERROR_EXCEPTION("Wrong agent incarnation id: expected %v, got %v",
+                AgentIncarnationId_,
+                agentIncarnationId);
+        }
+
+        auto cancelableControlInvoker = MasterConnector_->GetCancelableControlInvoker();
 
         for (const auto& jobMetricsProto : request->job_metrics()) {
             auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
             GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
         }
 
+        // TODO(babenko): per-shard batching
         for (const auto& jobToInterrupt : request->jobs_to_interrupt()) {
             auto jobId = FromProto<TJobId>(jobToInterrupt.job_id());
             auto reason = EInterruptReason(jobToInterrupt.reason());
             const auto& nodeShard = GetNodeShardByJobId(jobId);
-            nodeShard->GetInvoker()->Invoke(
-                BIND(&TNodeShard::InterruptJob, nodeShard, jobId, reason));
+            nodeShard->GetInvoker()->Invoke(BIND(
+                &TNodeShard::InterruptJob,
+                nodeShard,
+                jobId,
+                reason));
         }
 
+        // TODO(babenko): per-shard batching
         for (const auto& jobToAbort : request->jobs_to_abort()) {
             auto jobId = FromProto<TJobId>(jobToAbort.job_id());
             auto error = FromProto<TError>(jobToAbort.error());
             const auto& nodeShard = GetNodeShardByJobId(jobId);
-            typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TError&);
-            nodeShard->GetInvoker()->Invoke(
-                BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), nodeShard, jobId, error));
+            nodeShard->GetInvoker()->Invoke(BIND(
+                static_cast<void(TNodeShard::*)(const TJobId&, const TError&)>(&TNodeShard::AbortJob),
+                nodeShard,
+                jobId,
+                error));
         }
 
+        // TODO(babenko): per-shard batching
         for (const auto& jobToFail : request->jobs_to_fail()) {
             auto jobId = FromProto<TJobId>(jobToFail.job_id());
             const auto& nodeShard = GetNodeShardByJobId(jobId);
-            nodeShard->GetInvoker()->Invoke(
-                BIND(&TNodeShard::FailJob, nodeShard, jobId));
+            nodeShard->GetInvoker()->Invoke(BIND(
+                &TNodeShard::FailJob,
+                nodeShard,
+                jobId));
         }
 
         for (const auto& jobsToRelease : request->jobs_to_release()) {
-            // XXX(babenko): wrong affinity
-            MasterConnector_->GetCancelableControlInvoker()->Invoke(
-                BIND(
-                    &TImpl::DoReleaseJobs,
-                    MakeStrong(this),
-                    FromProto<TOperationId>(jobsToRelease.operation_id()),
-                    FromProto<std::vector<TJobId>>(jobsToRelease.job_ids()),
-                    jobsToRelease.controller_scheduler_incarnation()));
+            auto operationId = FromProto<TOperationId>(jobsToRelease.operation_id());
+            auto jobIds = FromProto<std::vector<TJobId>>(jobsToRelease.job_ids());
+            OnJobsRelease(
+                operationId,
+                jobIds,
+                jobsToRelease.controller_scheduler_incarnation());
         }
 
         for (const auto& protoOperationId: request->completed_operation_ids()) {
             auto operationId = FromProto<TOperationId>(protoOperationId);
-            // XXX(babenko): wrong affinity
-            MasterConnector_->GetCancelableControlInvoker()->Invoke(
-                BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operationId));
+            OnOperationCompleted(operationId);
         }
 
         for (const auto& protoOperationSuspension: request->suspended_operations()) {
             auto operationId = FromProto<TOperationId>(protoOperationSuspension.operation_id());
             auto error = FromProto<TError>(protoOperationSuspension.error());
-            // XXX(babenko): wrong affinity
-            MasterConnector_->GetCancelableControlInvoker()->Invoke(
-                BIND(&TImpl::DoSuspendOperation, MakeStrong(this), operationId, error, /* abortRunningJobs */ true, /* setAlert */ true));
+            OnOperationSuspended(operationId, error);
         }
 
         for (const auto& protoOperationAbort: request->aborted_operations()) {
             auto operationId = FromProto<TOperationId>(protoOperationAbort.operation_id());
             auto error = FromProto<TError>(protoOperationAbort.error());
-            // XXX(babenko): wrong affinity
-            MasterConnector_->GetCancelableControlInvoker()->Invoke(
-                BIND([=, this_ = MakeStrong(this)] {
-                    DoAbortOperation(operationId, error);
-                }));
+            OnOperationAborted(operationId, error);
         }
 
         for (const auto& protoOperationFailure: request->failed_operations()) {
@@ -839,20 +857,15 @@ public:
             OnOperationFailed(operationId, error);
         }
 
-        for (const auto& operationAlerts : request->operation_alerts()) {
+        for (const auto& protoOperationAlerts : request->operation_alerts()) {
+            auto operationId = FromProto<TOperationId>(protoOperationAlerts.operation_id());
             TOperationAlertMap alerts;
-            for (const auto& alertProto : operationAlerts.alerts()) {
-                auto alertType = EOperationAlertType(alertProto.type());
-                auto alert = FromProto<TError>(alertProto.error());
+            for (const auto& protoAlert : protoOperationAlerts.alerts()) {
+                auto alertType = EOperationAlertType(protoAlert.type());
+                auto alert = FromProto<TError>(protoAlert.error());
                 YCHECK(alerts.emplace(alertType, std::move(alert)).second);
             }
-            // XXX(babenko): wrong affinity
-            MasterConnector_->GetCancelableControlInvoker()->Invoke(
-                BIND(
-                    &TImpl::DoSetOperationAlerts,
-                    MakeStrong(this),
-                    FromProto<TOperationId>(operationAlerts.operation_id()),
-                    alerts));
+            DoSetOperationAlerts(operationId, alerts);
         }
 
         if (request->exec_nodes_requested()) {
@@ -999,15 +1012,6 @@ public:
         return EventLogWriterConsumer_.get();
     }
 
-    void OnOperationFailed(const TOperationId& operationId, const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        // XXX(banenko): wrong affinity
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
-    }
-
     // INodeShardHost implementation
     virtual int GetNodeShardId(TNodeId nodeId) const override
     {
@@ -1137,6 +1141,9 @@ private:
     std::atomic<int> OperationArchiveVersion_ = {-1};
 
     TYsonString SuspiciousJobsYson_ = TYsonString("", EYsonType::MapFragment);
+    
+    // TODO(babenko): multiple incarnations
+    NControllerAgent::TIncarnationId AgentIncarnationId_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1190,13 +1197,27 @@ private:
     }
 
 
+    void OnJobsRelease(
+        const TOperationId& operationId,
+        std::vector<TJobId> jobIds,
+        int controllerSchedulerIncarnation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+            &TImpl::DoReleaseJobs,
+            MakeStrong(this),
+            operationId,
+            Passed(std::move(jobIds)),
+            controllerSchedulerIncarnation));
+    }
+
     void DoReleaseJobs(
         const TOperationId& operationId,
         const std::vector<TJobId>& jobIds,
         int controllerSchedulerIncarnation)
     {
-        // XXX
-        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (SchedulerIncarnation_ != controllerSchedulerIncarnation) {
             LOG_WARNING("Not releasing jobs because of the wrong scheduler incarnation "
@@ -1239,32 +1260,6 @@ private:
     {
         auto nodeId = NodeIdFromJobId(jobId);
         return GetNodeShard(nodeId);
-    }
-
-
-    void ReleaseStderrChunk(const TOperationPtr& operation, const TChunkId& chunkId)
-    {
-        auto cellTag = CellTagFromId(chunkId);
-        auto channel = GetMasterClient()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
-        TChunkServiceProxy proxy(channel);
-
-        auto batchReq = proxy.ExecuteBatch();
-        auto req = batchReq->add_unstage_chunk_tree_subrequests();
-        ToProto(req->mutable_chunk_tree_id(), chunkId);
-        req->set_recursive(false);
-
-        // Fire-and-forget.
-        // The subscriber is only needed to log the outcome.
-        batchReq->Invoke().Subscribe(
-            BIND(&TImpl::OnStderrChunkReleased, MakeStrong(this)));
-    }
-
-    void OnStderrChunkReleased(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-    {
-        // NB: We only look at the topmost error and ignore subresponses.
-        if (!batchRspOrError.IsOK()) {
-            LOG_WARNING(batchRspOrError, "Error releasing stderr chunk");
-        }
     }
 
 
@@ -1423,7 +1418,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // XXX(babenko)
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected();
+        AgentIncarnationId_ = NControllerAgent::TIncarnationId::Create();
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected(AgentIncarnationId_);
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;
             Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
@@ -1675,7 +1671,7 @@ private:
 
         if (!rspOrErrorPtr->IsOK()) {
             LOG_WARNING(*rspOrErrorPtr, "Error updating operation runtime parameters (OperationId: %v)",
-                        operation->GetId());
+                operation->GetId());
         }
 
         const auto& rsp = rspOrErrorPtr->Value();
@@ -2264,6 +2260,17 @@ private:
         }
     }
 
+
+    void OnOperationCompleted(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+            &TImpl::DoCompleteOperation,
+            MakeStrong(this),
+            operationId));
+    }
+
     void DoCompleteOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2345,6 +2352,15 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
+
+    void OnOperationFailed(const TOperationId& operationId, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
+    }
+
     void DoFailOperation(const TOperationId& operationId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2369,6 +2385,18 @@ private:
             error);
     }
 
+
+    void OnOperationAborted(const TOperationId& operationId, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+            static_cast<void(TImpl::*)(const TOperationId&, const TError& error)>(&TImpl::DoAbortOperation),
+            MakeStrong(this),
+            operationId,
+            error));
+    }
+
     void DoAbortOperation(const TOperationPtr& operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2387,7 +2415,7 @@ private:
             error);
     }
 
-    void DoAbortOperation(const TOperationId operationId, const TError& error)
+    void DoAbortOperation(const TOperationId& operationId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2401,7 +2429,23 @@ private:
         DoAbortOperation(operation, error);
     }
 
-    void DoSuspendOperation(const TOperationId operationId, const TError& error, bool abortRunningJobs, bool setAlert)
+
+    void OnOperationSuspended(const TOperationId& operationId, const TError& error)
+    {
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+            &TImpl::DoSuspendOperation,
+            MakeStrong(this),
+            operationId,
+            error,
+            /* abortRunningJobs */ true,
+            /* setAlert */ true));
+    }
+
+    void DoSuspendOperation(
+        const TOperationId& operationId,
+        const TError& error,
+        bool abortRunningJobs,
+        bool setAlert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2428,8 +2472,9 @@ private:
         }
 
         LOG_INFO(error, "Operation suspended (OperationId: %v)",
-            operation->GetId());
+            operationId);
     }
+
 
     void TerminateOperation(
         const TOperationPtr& operation,
@@ -3030,7 +3075,6 @@ TFuture<TNodeDescriptor> TScheduler::GetJobNode(const TJobId& jobId, const TStri
     return Impl_->GetJobNode(jobId, user);
 }
 
-
 TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId, const TString& user)
 {
     return Impl_->Strace(jobId, user);
@@ -3056,16 +3100,14 @@ TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const TNullable<TDuratio
     return Impl_->AbortJob(jobId, interruptTimeout, user);
 }
 
-void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)
+void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
-    Impl_->ProcessHeartbeat(context);
+    Impl_->ProcessNodeHeartbeat(context);
 }
 
-void TScheduler::ProcessControllerAgentHeartbeat(
-    const NScheduler::NProto::TReqHeartbeat* request,
-    NScheduler::NProto::TRspHeartbeat* response)
+void TScheduler::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
 {
-    Impl_->ProcessControllerAgentHeartbeat(request, response);
+    Impl_->ProcessAgentHeartbeat(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

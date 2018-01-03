@@ -42,9 +42,8 @@ private:
     {
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateAcceptsHeartbeats();
-        scheduler->ProcessHeartbeat(context);
+        scheduler->ProcessNodeHeartbeat(context);
     }
-
 };
 
 IServicePtr CreateJobTrackerService(TBootstrap* bootstrap)
