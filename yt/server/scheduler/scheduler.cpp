@@ -578,7 +578,7 @@ public:
         ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
-            LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
+            LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
                 operation->GetId(),
                 operation->GetState());
             return operation->GetFinished();
@@ -998,6 +998,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        // XXX(banenko): wrong affinity
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
     }
@@ -1549,8 +1550,6 @@ private:
     void OnUserTransactionAborted(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(operation);
 
         DoAbortOperation(
             operation,
