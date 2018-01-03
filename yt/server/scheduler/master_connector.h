@@ -63,6 +63,7 @@ public:
 
     void Disconnect();
 
+    void StartOperationNodeUpdates(const TOperationPtr& operation);
     TFuture<void> CreateOperationNode(const TOperationPtr& operation);
     TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation);
     TFuture<void> FlushOperationNode(const TOperationPtr& operation);

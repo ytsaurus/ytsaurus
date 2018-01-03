@@ -1417,6 +1417,10 @@ private:
 
         // XXX(babenko)
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected();
+        for (const auto& pair : IdToOperation_) {
+            const auto& operation = pair.second;
+            Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
+        }
 
         CachedExecNodeMemoryDistributionByTags_->Start();
 
@@ -1899,7 +1903,7 @@ private:
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             RegisterOperation(operation);
-            // Ignore result? (we cannot throw error here)
+            // XXX(babenko): Ignore result? (we cannot throw error here)
             Bootstrap_->GetControllerAgent()->RegisterController(operation->GetId(), controller);
 
             registered = true;
@@ -1916,6 +1920,10 @@ private:
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
+
+            MasterConnector_->StartOperationNodeUpdates(operation);
+            // XXX(babenko)
+            Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
 
             ValidateOperationState(operation, EOperationState::Initializing);
         } catch (const std::exception& ex) {
@@ -2006,9 +2014,8 @@ private:
 
         const auto& operationId = operation->GetId();
 
-        LOG_INFO("Reviving operation (OperationId: %v, SchedulerIncarnation: %v)",
-            operationId,
-            SchedulerIncarnation_);
+        LOG_INFO("Registering operation for revival (OperationId: %v)",
+            operationId);
 
         operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
@@ -2062,6 +2069,11 @@ private:
         auto revivalDescriptor = *operation->RevivalDescriptor();
         operation->RevivalDescriptor().Reset();
 
+        auto operationId = operation->GetId();
+        LOG_INFO("Reviving operation (OperationId: %v, SchedulerIncarnation: %v)",
+            operationId,
+            SchedulerIncarnation_);
+
         try {
             auto controller = operation->GetController();
 
@@ -2097,7 +2109,7 @@ private:
             ValidateOperationState(operation, EOperationState::Reviving);
 
             LOG_INFO("Operation has been revived (OperationId: %v)",
-                operation->GetId());
+                operationId);
 
             operation->SetState(EOperationState::Pending);
             operation->SetPrepared(true);
@@ -2107,10 +2119,10 @@ private:
             }
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
-                operation->GetId());
+                operationId);
             auto wrappedError = TError("Operation has failed to revive")
                 << ex;
-            OnOperationFailed(operation->GetId(), wrappedError);
+            OnOperationFailed(operationId, wrappedError);
         }
     }
 
@@ -2511,13 +2523,14 @@ private:
         FinishOperation(operation);
     }
 
-    void CompleteCompletingOperation(const TOperationPtr& operation)
+
+    void CompleteOperationWithoutRevival(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        LOG_INFO("Completing operation (OperationId: %v)",
+        LOG_INFO("Completing operation without revival (OperationId: %v)",
              operation->GetId());
 
         const auto& revivalDescriptor = *operation->RevivalDescriptor();
@@ -2534,13 +2547,13 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-    void AbortAbortingOperation(const TOperationPtr& operation)
+    void AbortOperationWithoutRevival(const TOperationPtr& operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        LOG_INFO("Aborting operation (OperationId: %v)",
+        LOG_INFO(error, "Aborting operation without revival (OperationId: %v)",
              operation->GetId());
 
         auto abortTransaction = [&] (ITransactionPtr transaction) {
@@ -2555,12 +2568,12 @@ private:
         abortTransaction(controllerTransactions->Input);
         abortTransaction(controllerTransactions->Output);
 
-        SetOperationFinalState(operation, EOperationState::Aborted, TError());
+        SetOperationFinalState(operation, EOperationState::Aborted, error);
 
         // Result is ignored since failure causes scheduler disconnection.
         Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
 
-        LogOperationFinished(operation, ELogEventType::OperationAborted, TError());
+        LogOperationFinished(operation, ELogEventType::OperationAborted, error);
     }
 
     void ReviveOperations()
@@ -2612,34 +2625,34 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Registering reviving operations");
+        LOG_INFO("Checking operations for revival");
         for (const auto& operation : operations) {
             YCHECK(operation->RevivalDescriptor());
             const auto& revivalDescriptor = *operation->RevivalDescriptor();
 
+            MasterConnector_->StartOperationNodeUpdates(operation);
             operation->SetState(EOperationState::Reviving);
 
             if (revivalDescriptor.OperationCommitted) {
                 // TODO(babenko): parallelize
-                CompleteCompletingOperation(operation);
-                continue;
-            }
-
-            if (revivalDescriptor.OperationAborting) {
+                CompleteOperationWithoutRevival(operation);
+            } else if (revivalDescriptor.OperationAborting) {
                 // TODO(babenko): parallelize
-                AbortAbortingOperation(operation);
-                continue;
-            }
-
-            if (revivalDescriptor.UserTransactionAborted) {
+                // TODO(babenko): error is lost
+                AbortOperationWithoutRevival(
+                    operation,
+                    TError("Operation aborted since it was found in \"aborting\" state during scheduler revival"));
+            } else if (revivalDescriptor.UserTransactionAborted) {
                 // TODO(babenko): parallelize
-                OnUserTransactionAborted(operation);
-                continue;
+                AbortOperationWithoutRevival(
+                    operation,
+                    GetUserTransactionAbortedError(operation->GetUserTransactionId()));
+            } else {
+                RegisterRevivingOperation(operation);
             }
-
-            RegisterRevivingOperation(operation);
         }
     }
+
 
     void RemoveExpiredResourceLimitsTags()
     {

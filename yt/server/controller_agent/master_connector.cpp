@@ -145,16 +145,17 @@ public:
 
     TInstant GetConnectionTime() const
     {
-        return ConnectionTime_.load();
-
         VERIFY_THREAD_AFFINITY_ANY();
+
+        return ConnectionTime_.load();
     }
 
-    void RegisterOperation(
+    void StartOperationNodeUpdates(
         const TOperationId& operationId,
         NScheduler::EOperationCypressStorageMode storageMode)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         OperationNodesUpdateExecutor_->AddUpdate(
             operationId,
@@ -1219,11 +1220,11 @@ TInstant TMasterConnector::GetConnectionTime() const
     return Impl_->GetConnectionTime();
 }
 
-void TMasterConnector::RegisterOperation(
+void TMasterConnector::StartOperationNodeUpdates(
     const TOperationId& operationId,
     NScheduler::EOperationCypressStorageMode storageMode)
 {
-    Impl_->RegisterOperation(operationId, storageMode);
+    Impl_->StartOperationNodeUpdates(operationId, storageMode);
 }
 
 void TMasterConnector::CreateJobNode(const TCreateJobNodeRequest& request)
