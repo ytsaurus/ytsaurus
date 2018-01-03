@@ -310,7 +310,7 @@ public:
 
     void InterruptJob(const TJobId& jobId, EInterruptReason reason)
     {
-        TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+        auto guard = Guard(HeartbeatRequestLock_);
         YCHECK(HeartbeatRequest_);
         auto* jobToInterrupt = HeartbeatRequest_->add_jobs_to_interrupt();
         ToProto(jobToInterrupt->mutable_job_id(), jobId);
@@ -328,7 +328,7 @@ public:
 
     void FailJob(const TJobId& jobId)
     {
-        TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+        auto guard = Guard(HeartbeatRequestLock_);
         YCHECK(HeartbeatRequest_);
         auto* jobToFail = HeartbeatRequest_->add_jobs_to_fail();
         ToProto(jobToFail->mutable_job_id(), jobId);
@@ -339,7 +339,7 @@ public:
         const TOperationId& operationId,
         int controllerSchedulerIncarnation)
     {
-        TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+        auto guard = Guard(HeartbeatRequestLock_);
         YCHECK(HeartbeatRequest_);
         auto* jobsToRelease = HeartbeatRequest_->add_jobs_to_release();
         ToProto(jobsToRelease->mutable_job_ids(), jobIds);
@@ -377,13 +377,20 @@ private:
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
 
     void OnMasterConnected()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         CancelableContext_ = New<TCancelableContext>();
         CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
-        HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
+        {
+            auto guard = Guard(HeartbeatRequestLock_);
+            PrepareHeartbeatRequest();
+        }
 
         CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
             BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
@@ -400,6 +407,8 @@ private:
 
     void OnMasterDisconnected()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         for (const auto& pair : GetControllers()) {
             const auto& operationId = pair.first;
             const auto& controller = pair.second;
@@ -423,13 +432,22 @@ private:
             "Master is not connected");
     }
 
+    void PrepareHeartbeatRequest()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_SPINLOCK_AFFINITY(HeartbeatRequestLock_);
+
+        HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
+        ToProto(HeartbeatRequest_->mutable_agent_incarnation_id(), MasterConnector_->GetIncarnationId());
+    }
+
     void SendHeartbeat()
     {
         TControllerAgentServiceProxy::TReqHeartbeatPtr req;
         {
-            TGuard<TSpinLock> guard(HeartbeatRequestLock_);
+            auto guard = Guard(HeartbeatRequestLock_);
             req = HeartbeatRequest_;
-            HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
+            PrepareHeartbeatRequest();
         }
 
         auto controllers = GetControllers();

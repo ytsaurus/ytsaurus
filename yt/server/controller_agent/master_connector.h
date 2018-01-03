@@ -48,17 +48,20 @@ public:
     ~TMasterConnector();
 
     // TODO(babenko): get rid of these methods
-    void OnMasterConnected();
+    void OnMasterConnected(const TIncarnationId& incarnationId);
     void OnMasterDisconnected();
 
     /*!
      *  \note Thread affinity: any
      */
     bool IsConnected() const;
+
     /*!
      *  \note Thread affinity: any
      */
     TInstant GetConnectionTime() const;
+
+    const TIncarnationId& GetIncarnationId() const;
 
     void StartOperationNodeUpdates(
         const TOperationId& operationId,

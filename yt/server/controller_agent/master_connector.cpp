@@ -71,13 +71,14 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    void OnMasterConnected()
+    void OnMasterConnected(const TIncarnationId& incarnationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(!Connected_);
         Connected_.store(true);
         ConnectionTime_ = TInstant::Now();
+        IncarnationId_ = incarnationId;
 
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -148,6 +149,14 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ConnectionTime_.load();
+    }
+
+    const TIncarnationId& GetIncarnationId() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
+
+        return IncarnationId_;
     }
 
     void StartOperationNodeUpdates(
@@ -299,6 +308,8 @@ private:
     std::atomic<bool> Connected_ = {false};
     std::atomic<TInstant> ConnectionTime_;
 
+    TIncarnationId IncarnationId_;
+
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
 
@@ -352,6 +363,7 @@ private:
     void DoCleanup()
     {
         Connected_.store(false);
+        IncarnationId_ = {};
 
         if (CancelableContext_) {
             CancelableContext_->Cancel();
@@ -1200,9 +1212,9 @@ TMasterConnector::TMasterConnector(
 
 TMasterConnector::~TMasterConnector() = default;
 
-void TMasterConnector::OnMasterConnected()
+void TMasterConnector::OnMasterConnected(const TIncarnationId& incarnationId)
 {
-    Impl_->OnMasterConnected();
+    Impl_->OnMasterConnected(incarnationId);
 }
 
 void TMasterConnector::OnMasterDisconnected()
@@ -1218,6 +1230,11 @@ bool TMasterConnector::IsConnected() const
 TInstant TMasterConnector::GetConnectionTime() const
 {
     return Impl_->GetConnectionTime();
+}
+
+const TIncarnationId& TMasterConnector::GetIncarnationId() const
+{
+    return Impl_->GetIncarnationId();
 }
 
 void TMasterConnector::StartOperationNodeUpdates(

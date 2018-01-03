@@ -159,7 +159,7 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
     OperationIdToState_.erase(it);
 }
 
-void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
+void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1347,7 +1347,7 @@ void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
 
 void TNodeShard::ProcessScheduledJobs(
     const ISchedulingContextPtr& schedulingContext,
-    const TScheduler::TCtxHeartbeatPtr& rpcContext)
+    const TScheduler::TCtxNodeHeartbeatPtr& rpcContext)
 {
     auto* response = &rpcContext->Response();
 

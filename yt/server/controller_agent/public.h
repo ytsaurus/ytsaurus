@@ -69,6 +69,8 @@ DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
 class TDataFlowGraph;
 
+using TIncarnationId = TGuid;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent

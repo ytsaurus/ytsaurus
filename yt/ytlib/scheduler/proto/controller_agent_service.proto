@@ -51,6 +51,8 @@ message TOperationJobMetrics
 
 message TReqHeartbeat
 {
+    required NYT.NProto.TGuid agent_incarnation_id = 13;
+
     message TJobInterrupt
     {
         required NYT.NProto.TGuid job_id = 1;

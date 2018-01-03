@@ -111,7 +111,7 @@ public:
     void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerSchedulerHostPtr& operationController);
     void UnregisterOperation(const TOperationId& operationId);
 
-    void ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
+    void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     TExecNodeDescriptorListPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();
@@ -313,7 +313,7 @@ private:
 
     void ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,
-        const TScheduler::TCtxHeartbeatPtr& rpcContext);
+        const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
 
     void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);
     void OnJobFinished(const TJobPtr& job);

@@ -23,7 +23,7 @@ class TControllerAgentService
 public:
     explicit TControllerAgentService(TBootstrap* bootstrap)
         : NRpc::TServiceBase(
-            GetSyncInvoker(),
+            bootstrap->GetControlInvoker(EControlQueue::AgentTracker),
             TControllerAgentServiceProxy::GetDescriptor(),
             SchedulerLogger)
         , Bootstrap_(bootstrap)
@@ -41,7 +41,7 @@ private:
     {
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateAcceptsHeartbeats();
-        scheduler->ProcessControllerAgentHeartbeat(request, response);
+        scheduler->ProcessAgentHeartbeat(context);
         context->Reply();
     }
 };

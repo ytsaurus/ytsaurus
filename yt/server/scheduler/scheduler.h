@@ -19,6 +19,9 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  \note Thread affinity: control unless noted otherwise
+ */
 class TScheduler
     : public TRefCounted
 {
@@ -30,12 +33,27 @@ public:
 
     void Initialize();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     ISchedulerStrategyPtr GetStrategy();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     NYTree::IYPathServicePtr GetOrchidService();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     bool IsConnected();
+    /*!
+     *  \note Thread affinity: any
+     */
     void ValidateConnected();
+    /*!
+     *  \note Thread affinity: any
+     */
     void ValidateAcceptsHeartbeats();
 
     void Disconnect();
@@ -66,22 +84,24 @@ public:
     TFuture<NYson::TYsonString> PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
     TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user);
 
-    using TCtxHeartbeat = NRpc::TTypedServiceContext<
+    using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
         NJobTrackerClient::NProto::TRspHeartbeat>;
-    using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
-    void ProcessHeartbeat(TCtxHeartbeatPtr context);
+    using TCtxNodeHeartbeatPtr = TIntrusivePtr<TCtxNodeHeartbeat>;
+    /*!
+     *  \note Thread affinity: any
+     */
+    void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
-    void ProcessControllerAgentHeartbeat(
-        const NScheduler::NProto::TReqHeartbeat* request,
-        NScheduler::NProto::TRspHeartbeat* response);
+    using TCtxAgentHeartbeat = NRpc::TTypedServiceContext<
+        NScheduler::NProto::TReqHeartbeat,
+        NScheduler::NProto::TRspHeartbeat>;
+    using TCtxAgentHeartbeatPtr = TIntrusivePtr<TCtxAgentHeartbeat>;
+    void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context);
 
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
-    class TSchedulingContext;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduler)
