@@ -38,7 +38,8 @@ class TControllerAgentOperationService
 public:
     explicit TControllerAgentOperationService(TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControllerAgentInvoker(),
+            // TODO(babenko): better queue
+            bootstrap->GetControlInvoker(EControlQueue::Default),
             NScheduler::TControllerAgentOperationServiceProxy::GetDescriptor(),
             ControllerAgentLogger)
         , Bootstrap_(bootstrap)

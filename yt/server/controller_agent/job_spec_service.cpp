@@ -38,7 +38,8 @@ class TJobSpecService
 public:
     explicit TJobSpecService(TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControllerAgentInvoker(),
+            // TODO(babenko): better queue
+            bootstrap->GetControlInvoker(EControlQueue::Default),
             TJobSpecServiceProxy::GetDescriptor(),
             ControllerAgentLogger)
         , Bootstrap_(bootstrap)
