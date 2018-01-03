@@ -2240,17 +2240,14 @@ void TOperationControllerBase::OnTransactionAborted(const TTransactionId& transa
         return;
     }
 
-    {
-        // Check that transactionId is presented in controller.
-        bool found = false;
-        for (const auto& transaction : GetTransactions()) {
-            if (transaction->GetId() == transactionId) {
-                found = true;
-                break;
-            }
-        }
-        YCHECK(found);
-    }
+    // Check that transactionId is known to the controller.
+    auto transactions = GetTransactions();
+    YCHECK(
+        std::find_if(
+            transactions.begin(),
+            transactions.end(),
+            [&] (const auto& transaction) { return transaction->GetId() == transactionId; })
+        != transactions.end());
 
     OnOperationFailed(
         TError("Controller transaction %v has expired or was aborted",
