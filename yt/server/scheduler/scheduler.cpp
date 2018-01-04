@@ -741,12 +741,12 @@ public:
             .Run();
     }
 
-    TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
+    TFuture<void> AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return
             BIND(
-                static_cast<void (TNodeShard::*)(const TJobId&, const TNullable<TDuration>&, const TString&)>(&TNodeShard::AbortJob),
+                static_cast<void (TNodeShard::*)(const TJobId&, TNullable<TDuration>, const TString&)>(&TNodeShard::AbortJob),
                 nodeShard,
                 jobId,
                 interruptTimeout,
@@ -3096,7 +3096,7 @@ TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonSt
     return Impl_->PollJobShell(jobId, parameters, user);
 }
 
-TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
+TFuture<void> TScheduler::AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
 {
     return Impl_->AbortJob(jobId, interruptTimeout, user);
 }

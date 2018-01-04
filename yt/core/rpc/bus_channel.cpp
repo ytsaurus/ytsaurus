@@ -765,7 +765,7 @@ private:
             return RequestId_;
         }
 
-        const TNullable<TDuration>& GetTimeout() const
+        TNullable<TDuration> GetTimeout() const
         {
             return Timeout_;
         }
