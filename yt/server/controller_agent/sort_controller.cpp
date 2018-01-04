@@ -1960,9 +1960,9 @@ protected:
         auto sizeHistogram = ComputePartitionSizeHistogram();
         auto view = sizeHistogram->GetHistogramView();
 
-        i64 minIqr = Config->OperationAlertsConfig->IntermediateDataSkewAlertMinInterquartileRange;
+        i64 minIqr = Config->OperationAlerts->IntermediateDataSkewAlertMinInterquartileRange;
 
-        if (view.Max > Config->OperationAlertsConfig->IntermediateDataSkewAlertMinPartitionSize) {
+        if (view.Max > Config->OperationAlerts->IntermediateDataSkewAlertMinPartitionSize) {
             auto quartiles = ComputeHistogramQuartiles(view);
             i64 iqr = quartiles.Q75 - quartiles.Q25;
             if (iqr > minIqr && quartiles.Q50 + 2 * iqr < view.Max) {
