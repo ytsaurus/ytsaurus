@@ -2439,14 +2439,14 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     std::vector<TError> innerErrors;
 
-    double minUnusedSpaceRatio = 1.0 - Config->OperationAlertsConfig->TmpfsAlertMaxUnusedSpaceRatio;
+    double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
     for (const auto& pair : maximumUsedTmfpsSizePerJobType) {
         const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
         auto maxUsedTmpfsSize = pair.second;
 
         bool minUnusedSpaceThresholdOvercome = userJobSpecPtr->TmpfsSize.Get() - maxUsedTmpfsSize >
-            Config->OperationAlertsConfig->TmpfsAlertMinUnusedSpaceThreshold;
+            Config->OperationAlerts->TmpfsAlertMinUnusedSpaceThreshold;
         bool minUnusedSpaceRatioViolated = maxUsedTmpfsSize <
             minUnusedSpaceRatio * userJobSpecPtr->TmpfsSize.Get();
 
@@ -2523,8 +2523,8 @@ void TOperationControllerBase::AnalyzeAbortedJobs()
     }
 
     TError error;
-    if (abortedJobsTime > Config->OperationAlertsConfig->AbortedJobsAlertMaxAbortedTime &&
-        abortedJobsTimeRatio > Config->OperationAlertsConfig->AbortedJobsAlertMaxAbortedTimeRatio)
+    if (abortedJobsTime > Config->OperationAlerts->AbortedJobsAlertMaxAbortedTime &&
+        abortedJobsTimeRatio > Config->OperationAlerts->AbortedJobsAlertMaxAbortedTimeRatio)
     {
         error = TError(
             "Aborted jobs time ratio is too high, scheduling is likely to be inefficient; "
@@ -2580,14 +2580,14 @@ void TOperationControllerBase::AnalyzeJobsDuration()
         auto maxJobDuration = TDuration::MilliSeconds(completedJobsSummary->GetMax());
         auto completedJobCount = completedJobsSummary->GetCount();
 
-        if (completedJobCount > Config->OperationAlertsConfig->ShortJobsAlertMinJobCount &&
+        if (completedJobCount > Config->OperationAlerts->ShortJobsAlertMinJobCount &&
             operationDuration > maxJobDuration * 2 &&
-            maxJobDuration < Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration)
+            maxJobDuration < Config->OperationAlerts->ShortJobsAlertMinJobDuration)
         {
             auto error = TError(
                 "Duration of %Qlv jobs is less than %v seconds, try increasing %v in operation spec",
                 jobType,
-                Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration.Seconds(),
+                Config->OperationAlerts->ShortJobsAlertMinJobDuration.Seconds(),
                 GetDataWeightParameterNameForJob(jobType))
                     << TErrorAttribute("max_job_duration", maxJobDuration);
 
@@ -2599,7 +2599,7 @@ void TOperationControllerBase::AnalyzeJobsDuration()
     if (!innerErrors.empty()) {
         error = TError("Operation has jobs with duration is less than %v seconds, "
                        "that leads to large overhead costs for scheduling",
-                       Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration)
+                       Config->OperationAlerts->ShortJobsAlertMinJobDuration)
             << innerErrors;
     }
 
@@ -2609,7 +2609,7 @@ void TOperationControllerBase::AnalyzeJobsDuration()
 void TOperationControllerBase::AnalyzeScheduleJobStatistics()
 {
     auto jobSpecThrottlerActivationCount = ScheduleJobStatistics_->Failed[EScheduleJobFailReason::JobSpecThrottling];
-    auto activationCountThreshold = Config->OperationAlertsConfig->JobSpecThrottlingAlertActivationCountThreshold;
+    auto activationCountThreshold = Config->OperationAlerts->JobSpecThrottlingAlertActivationCountThreshold;
 
     TError error;
     if (jobSpecThrottlerActivationCount > activationCountThreshold) {

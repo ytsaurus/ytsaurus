@@ -725,7 +725,7 @@ public:
     //! Total number of data slices in operation, summed up over all jobs.
     i64 MaxTotalSliceCount;
 
-    TOperationAlertsConfigPtr OperationAlertsConfig;
+    TOperationAlertsConfigPtr OperationAlerts;
 
     //! Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
@@ -990,7 +990,7 @@ public:
             .Default((i64) 10 * 1000 * 1000)
             .GreaterThan(0);
 
-        RegisterParameter("operation_alerts", OperationAlertsConfig)
+        RegisterParameter("operation_alerts", OperationAlerts)
             .DefaultNew();
 
         RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
