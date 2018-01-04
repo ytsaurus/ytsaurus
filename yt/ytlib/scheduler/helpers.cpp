@@ -119,27 +119,6 @@ TYPath GetNewSecureVaultPath(const TOperationId& operationId)
         + "/secure_vault";
 }
 
-TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
-{
-    return
-        GetOperationPath(operationId)
-        + "/output_" + ToString(tableIndex);
-}
-
-TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId)
-{
-    return
-        GetOperationPath(operationId)
-        + "/stderr";
-}
-
-TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
-{
-    return
-        GetOperationPath(operationId)
-        + "/intermediate";
-}
-
 std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
     const TOperationId& operationId,
     const TJobId& jobId,
