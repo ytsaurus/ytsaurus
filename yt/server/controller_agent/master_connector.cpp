@@ -941,7 +941,6 @@ private:
         batchReq->AddRequest(req, "remove_snapshot");
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 

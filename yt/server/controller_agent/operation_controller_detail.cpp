@@ -6816,12 +6816,14 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
             IntermediateStripeListReleaseQueue_.Push(stripeList);
             break;
         }
+        default:
+            Y_UNREACHABLE();
     }
 }
 
-TDataFlowGraph& TOperationControllerBase::DataFlowGraph()
+TDataFlowGraph* TOperationControllerBase::GetDataFlowGraph()
 {
-    return DataFlowGraph_;
+    return &DataFlowGraph_;
 }
 
 void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)

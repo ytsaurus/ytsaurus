@@ -897,7 +897,7 @@ protected:
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
     TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;
 
-    virtual TDataFlowGraph& DataFlowGraph() override;
+    virtual TDataFlowGraph* GetDataFlowGraph() override;
 
     void FinishTaskInput(const TTaskPtr& task);
 
