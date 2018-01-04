@@ -174,7 +174,7 @@ void TTask::FinishInput()
     GetChunkPoolInput()->Finish();
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     if (!progressCounter->Parent()) {
-        progressCounter->SetParent(TaskHost_->DataFlowGraph().JobCounter(GetJobType()));
+        progressCounter->SetParent(TaskHost_->GetDataFlowGraph()->JobCounter(GetJobType()));
     }
     AddPendingHint();
     CheckCompleted();
@@ -459,11 +459,11 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
         YCHECK(InputVertex_ < TDataFlowGraph::TVertexDescriptor::SchedulerLast);
 
         auto vertex = GetJobType();
-        TaskHost_->DataFlowGraph().RegisterFlow(InputVertex_, vertex, inputStatistics);
+        TaskHost_->GetDataFlowGraph()->RegisterFlow(InputVertex_, vertex, inputStatistics);
         // TODO(max42): rewrite this properly one day.
         for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
             if (EdgeDescriptors_[index].IsFinalOutput) {
-                TaskHost_->DataFlowGraph().RegisterFlow(
+                TaskHost_->GetDataFlowGraph()->RegisterFlow(
                     vertex,
                     TDataFlowGraph::TVertexDescriptor::Sink,
                     outputStatisticsMap[index]);

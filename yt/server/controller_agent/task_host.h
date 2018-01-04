@@ -114,12 +114,12 @@ struct ITaskHost
         NChunkPools::TChunkStripeKey key,
         int tableIndex) = 0;
 
-    virtual TDataFlowGraph& DataFlowGraph() = 0;
+    virtual TDataFlowGraph* GetDataFlowGraph() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITaskHost);
+DEFINE_REFCOUNTED_TYPE(ITaskHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NControllerAgent
+} // namespace NYT
