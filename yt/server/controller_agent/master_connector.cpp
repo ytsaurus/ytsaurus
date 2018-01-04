@@ -481,12 +481,15 @@ private:
 
         LOG_INFO("Transactions refreshed");
 
-        // Check every operation's transactions and raise appropriate notifications.
+        // Check every operation's transaction and raise appropriate notifications.
         for (const auto& pair : controllerMap) {
-            auto controller = pair.second;
+            const auto& controller = pair.second;
             for (const auto& transaction : controller->GetTransactions()) {
                 if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
-                    controller->OnTransactionAborted(transaction->GetId());
+                    controller->GetCancelableInvoker()->Invoke(BIND(
+                        &IOperationController::OnTransactionAborted,
+                        controller,
+                        transaction->GetId()));
                     break;
                 }
             }
