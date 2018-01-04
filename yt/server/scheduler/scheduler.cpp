@@ -435,7 +435,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_DEBUG("Validating permission %Qv of user %Qv on pool %Qv",
+        LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v)",
             permission,
             user,
             path);
@@ -462,10 +462,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_DEBUG("Validating permission %Qv of user %Qv on operation %v",
+        LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v)",
             permission,
             user,
-            ToString(operationId));
+            operationId);
 
         auto path = GetNewOperationPath(operationId);
 
