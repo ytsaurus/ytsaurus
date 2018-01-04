@@ -1257,7 +1257,7 @@ private:
         return NodeShards_[GetNodeShardId(nodeId)];
     }
 
-    const TNodeShardPtr& GetNodeShardByJobId(TJobId jobId) const
+    const TNodeShardPtr& GetNodeShardByJobId(const TJobId& jobId) const
     {
         auto nodeId = NodeIdFromJobId(jobId);
         return GetNodeShard(nodeId);
