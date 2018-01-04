@@ -306,13 +306,13 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     InitializeClients();
 
-    std::atomic<bool> cleanStart = {false};
+    bool cleanStart = false;
 
     // Check transactions.
     {
         std::vector<std::pair<ITransactionPtr, TFuture<void>>> asyncCheckResults;
 
-        auto checkTransaction = [&] (ITransactionPtr transaction) {
+        auto checkTransaction = [&] (const ITransactionPtr& transaction) {
             if (cleanStart) {
                 return;
             }
@@ -331,14 +331,14 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         checkTransaction(controllerTransactions->Output);
         checkTransaction(controllerTransactions->DebugOutput);
 
-        for (auto pair : asyncCheckResults) {
+        for (const auto& pair : asyncCheckResults) {
             const auto& transaction = pair.first;
             const auto& asyncCheckResult = pair.second;
             auto error = WaitFor(asyncCheckResult);
             if (!error.IsOK()) {
                 cleanStart = true;
                 LOG_INFO(error,
-                    "Error renewing operation transaction %v, will use clean start",
+                    "Error renewing operation transaction, will use clean start (TransactionId: %v)",
                     transaction->GetId());
             }
         }
@@ -351,7 +351,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
             LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
             cleanStart = true;
         } else {
-            LOG_INFO("Snapshot succesfully downloaded");
+            LOG_INFO("Snapshot successfully downloaded");
             Snapshot = snapshotOrError.Value();
         }
     }
