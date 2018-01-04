@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
@@ -11,11 +11,11 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TControllerAgentServiceProxy
+class TControllerAgentTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TControllerAgentServiceProxy, ControllerAgentService,
+    DEFINE_RPC_PROXY(TControllerAgentTrackerServiceProxy, ControllerAgentTrackerService,
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);

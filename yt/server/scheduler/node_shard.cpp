@@ -18,7 +18,7 @@
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
 
-#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/core/misc/finally.h>
 

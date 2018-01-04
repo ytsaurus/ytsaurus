@@ -14,7 +14,7 @@
 
 #include <yt/ytlib/event_log/event_log.h>
 
-#include <yt/ytlib/scheduler/controller_agent_service_proxy.h>
+#include <yt/ytlib/scheduler/controller_agent_tracker_service_proxy.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -363,12 +363,12 @@ private:
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
 
-    TControllerAgentServiceProxy SchedulerProxy_;
+    TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
     TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
 
     TSpinLock HeartbeatRequestLock_;
-    TControllerAgentServiceProxy::TReqHeartbeatPtr HeartbeatRequest_;
+    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr HeartbeatRequest_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -439,7 +439,7 @@ private:
 
     void SendHeartbeat()
     {
-        TControllerAgentServiceProxy::TReqHeartbeatPtr req;
+        TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr req;
         {
             auto guard = Guard(HeartbeatRequestLock_);
             req = HeartbeatRequest_;

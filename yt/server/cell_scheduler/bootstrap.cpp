@@ -14,7 +14,7 @@
 #include <yt/server/scheduler/private.h>
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/scheduler_service.h>
-#include <yt/server/scheduler/controller_agent_service.h>
+#include <yt/server/scheduler/controller_agent_tracker_service.h>
 
 #include <yt/server/controller_agent/job_spec_service.h>
 #include <yt/server/controller_agent/controller_agent_operation_service.h>
@@ -241,7 +241,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentOperationService(this));
-    RpcServer_->RegisterService(CreateControllerAgentService(this));
+    RpcServer_->RegisterService(CreateControllerAgentTrackerService(this));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     if (HttpServer_) {
