@@ -51,7 +51,7 @@ DEFINE_ENUM(EAddressType,
     ((SkynetHttp)     (1))
 );
 
-using TNodeId = i32;
+using TNodeId = ui32;
 const TNodeId InvalidNodeId = 0;
 const TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
 
