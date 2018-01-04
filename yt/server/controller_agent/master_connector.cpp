@@ -292,10 +292,18 @@ public:
 
         Config_ = config;
 
-        OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
-        TransactionRefreshExecutor_->SetPeriod(Config_->TransactionsRefreshPeriod);
-        SnapshotExecutor_->SetPeriod(Config_->SnapshotPeriod);
-        UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
+        if (OperationNodesUpdateExecutor_) {
+            OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
+        }
+        if (TransactionRefreshExecutor_) {
+            TransactionRefreshExecutor_->SetPeriod(Config_->TransactionsRefreshPeriod);
+        }
+        if (SnapshotExecutor_) {
+            SnapshotExecutor_->SetPeriod(Config_->SnapshotPeriod);
+        }
+        if (UnstageExecutor_) {
+            UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
+        }
     }
 
     DEFINE_SIGNAL(void(), MasterConnected);
