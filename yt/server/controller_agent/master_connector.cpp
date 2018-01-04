@@ -658,6 +658,7 @@ private:
                 auto req = TCypressYPathProxy::Create(path);
                 GenerateMutationId(req);
                 req->set_type(static_cast<int>(EObjectType::MapNode));
+                req->set_force(true);
                 ToProto(req->mutable_node_attributes(), *attributes);
                 batchReq->AddRequest(req, "create");
             }
