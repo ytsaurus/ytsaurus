@@ -82,7 +82,7 @@ public:
     TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
     TFuture<void> AbandonJob(const TJobId& jobId, const TString& user);
     TFuture<NYson::TYsonString> PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
-    TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user);
+    TFuture<void> AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
 
     using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,

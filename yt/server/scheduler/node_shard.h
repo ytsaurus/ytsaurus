@@ -136,7 +136,7 @@ public:
 
     NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
 
-    void AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user);
+    void AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
 
     void AbortJob(const TJobId& jobId, const TError& error);
 

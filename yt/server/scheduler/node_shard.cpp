@@ -648,7 +648,7 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
     return TYsonString(rsp->result());
 }
 
-void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
+void TNodeShard::AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
