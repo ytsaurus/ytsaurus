@@ -289,6 +289,7 @@ public:
     virtual const TOperationSpecBasePtr& GetSpec() const override;
 
     virtual void OnOperationFailed(const TError& error, bool flush = true) override;
+    void OnOperationAborted(const TError& error);
 
     virtual bool IsRowCountPreserved() const override;
     virtual bool IsJobInterruptible() const override;
@@ -418,6 +419,7 @@ protected:
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
 
+    TSpinLock TransactionsLock_;
     NApi::ITransactionPtr AsyncSchedulerTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
@@ -426,8 +428,6 @@ protected:
     NApi::ITransactionPtr UserTransaction;
 
     NTransactionClient::TTransactionId UserTransactionId;
-
-    std::atomic<bool> AreTransactionsActive = {false};
 
     bool CommitFinished = false;
 

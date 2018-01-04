@@ -112,27 +112,6 @@ using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-void CommitTransaction(ITransactionPtr& transaction)
-{
-    if (!transaction) {
-        return;
-    }
-
-    auto transactionId = transaction->GetId();
-    auto asyncResult = transaction->Commit();
-    transaction.Reset();
-
-    auto result = WaitFor(asyncResult);
-    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Transaction %v has failed to commit",
-        transactionId);
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 static class TJobHelper
 {
 public:
@@ -378,12 +357,17 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
             scheduleAbort(controllerTransactions->DebugOutput);
         } else {
             LOG_INFO("Reusing operation transactions");
-            InputTransaction = controllerTransactions->Input;
-            OutputTransaction = controllerTransactions->Output;
-            DebugOutputTransaction = controllerTransactions->DebugOutput;
-            AsyncSchedulerTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
+
+            auto asyncSchedulerTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
                 .ValueOrThrow();
-            AreTransactionsActive = true;
+
+            {
+                auto guard = Guard(TransactionsLock_);
+                InputTransaction = controllerTransactions->Input;
+                OutputTransaction = controllerTransactions->Output;
+                DebugOutputTransaction = controllerTransactions->DebugOutput;
+                AsyncSchedulerTransaction = asyncSchedulerTransaction;
+            }
         }
 
         WaitFor(Combine(asyncResults))
@@ -827,12 +811,13 @@ void TOperationControllerBase::StartTransactions()
     auto results = WaitFor(CombineAll(asyncResults))
         .ValueOrThrow();
 
-    AsyncSchedulerTransaction = results[0].ValueOrThrow();
-    InputTransaction = results[1].ValueOrThrow();
-    OutputTransaction = results[2].ValueOrThrow();
-    DebugOutputTransaction = results[3].ValueOrThrow();
-
-    AreTransactionsActive = true;
+    {
+        auto guard = Guard(TransactionsLock_);
+        AsyncSchedulerTransaction = results[0].ValueOrThrow();
+        InputTransaction = results[1].ValueOrThrow();
+        OutputTransaction = results[2].ValueOrThrow();
+        DebugOutputTransaction = results[3].ValueOrThrow();
+    }
 }
 
 TTransactionId TOperationControllerBase::GetInputTransactionParentId()
@@ -1225,7 +1210,7 @@ void TOperationControllerBase::SafeCommit()
     CustomCommit();
 
     if (StderrTable_ || CoreTable_) {
-        const auto &client = ControllerAgent->GetMasterClient();
+        const auto& client = ControllerAgent->GetMasterClient();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
@@ -1267,19 +1252,32 @@ void TOperationControllerBase::CommitTransactions()
 {
     LOG_INFO("Committing scheduler transactions");
 
-    AreTransactionsActive = false;
+    ITransactionPtr asyncSchedulerTransaction;
+    ITransactionPtr inputTransaction;
+    ITransactionPtr outputTransaction;
+    ITransactionPtr debugOutputTransaction;
+    {
+        auto guard = Guard(TransactionsLock_);
+        std::swap(asyncSchedulerTransaction, AsyncSchedulerTransaction);
+        std::swap(inputTransaction, InputTransaction);
+        std::swap(outputTransaction, OutputTransaction);
+        std::swap(debugOutputTransaction, DebugOutputTransaction);
+    }
 
-    CommitTransaction(InputTransaction);
-    CommitTransaction(OutputTransaction);
+    // TODO(babenko): consider running these commits in parallel
+    WaitFor(outputTransaction->Commit())
+        .ThrowOnError();
 
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage7);
 
-    CommitTransaction(DebugOutputTransaction);
+    WaitFor(debugOutputTransaction->Commit())
+        .ThrowOnError();
 
     LOG_INFO("Scheduler transactions committed");
 
-    // NB: Never commit async transaction since it's used for writing Live Preview tables.
-    AsyncSchedulerTransaction->Abort();
+    // Fire-and-forget.
+    inputTransaction->Abort();
+    asyncSchedulerTransaction->Abort();
 }
 
 void TOperationControllerBase::TeleportOutputChunks()
@@ -2200,48 +2198,49 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 
 void TOperationControllerBase::OnTransactionAborted(const TTransactionId& transactionId)
 {
-    if (transactionId == UserTransactionId) {
-        auto guard = Guard(EventsLock_);
-        AbortError_ = GetUserTransactionAbortedError(UserTransactionId);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    // Double-check transaction ownership to avoid races with commits and aborts.
+    auto transactions = GetTransactions();
+    if (std::find_if(
+            transactions.begin(),
+            transactions.end(),
+            [&] (const auto& transaction) { return transaction->GetId() == transactionId; }) ==
+        transactions.end())
+    {
         return;
     }
 
-    // Check that transactionId is known to the controller.
-    auto transactions = GetTransactions();
-    YCHECK(
-        std::find_if(
-            transactions.begin(),
-            transactions.end(),
-            [&] (const auto& transaction) { return transaction->GetId() == transactionId; })
-        != transactions.end());
-
-    OnOperationFailed(
-        TError("Controller transaction %v has expired or was aborted",
-            transactionId),
-        /* flush */ false);
+    if (transactionId == UserTransactionId) {
+        OnOperationAborted(
+            GetUserTransactionAbortedError(transactionId));
+    } else {
+        OnOperationFailed(
+            GetSchedulerTransactionAbortedError(transactionId),
+            /* flush */ false);
+    }
 }
 
 std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 {
-    if (AreTransactionsActive) {
-        std::vector<ITransactionPtr> transactions;
-        for (auto transaction : {
-                // NB: User transaction must be returned first to correctly detect that operation aborted due to user transaction abort.
-                UserTransaction,
-                AsyncSchedulerTransaction,
-                InputTransaction,
-                OutputTransaction,
-                DebugOutputTransaction
-            })
-        {
-            if (transaction) {
-                transactions.push_back(transaction);
-            }
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(TransactionsLock_);
+    std::vector<ITransactionPtr> transactions;
+    for (auto transaction : {
+        // NB: User transaction must be returned first to correctly detect that operation aborted due to user transaction abort.
+        UserTransaction,
+        AsyncSchedulerTransaction,
+        InputTransaction,
+        OutputTransaction,
+        DebugOutputTransaction
+    })
+    {
+        if (transaction) {
+            transactions.push_back(transaction);
         }
-        return transactions;
-    } else {
-        return {};
     }
+    return transactions;
 }
 
 bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
@@ -2253,8 +2252,6 @@ void TOperationControllerBase::DoAbort()
 {
     // NB: Errors ignored since we cannot do anything with it.
     Y_UNUSED(WaitFor(MasterConnector->FlushOperationNode(OperationId)));
-
-    AreTransactionsActive = false;
 
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
@@ -2273,7 +2270,16 @@ void TOperationControllerBase::DoAbort()
                 SetPartSize(CoreTable_, GetCoreTableWriterConfig()->MaxPartSize);
             }
 
-            CommitTransaction(DebugOutputTransaction);
+            ITransactionPtr debugOutputTransaction;
+            {
+                auto guard = Guard(TransactionsLock_);
+                std::swap(debugOutputTransaction, DebugOutputTransaction);
+            }
+
+            if (debugOutputTransaction) {
+                WaitFor(debugOutputTransaction->Commit())
+                    .ThrowOnError();
+            }
         } catch (const std::exception& ex) {
             // Bad luck we can't commit transaction.
             // Such a pity can happen for example if somebody aborted our transaction manually.
@@ -2281,9 +2287,18 @@ void TOperationControllerBase::DoAbort()
         }
     }
 
-    std::vector<TFuture<void>> abortTransactionFutures;
+    ITransactionPtr asyncSchedulerTransaction;
+    ITransactionPtr inputTransaction;
+    ITransactionPtr outputTransaction;
+    {
+        auto guard = Guard(TransactionsLock_);
+        std::swap(asyncSchedulerTransaction, AsyncSchedulerTransaction);
+        std::swap(inputTransaction, InputTransaction);
+        std::swap(outputTransaction, OutputTransaction);
+    }
 
-    auto abortTransaction = [&] (ITransactionPtr transaction, bool sync = true) {
+    std::vector<TFuture<void>> abortTransactionFutures;
+    auto abortTransaction = [&] (const ITransactionPtr& transaction, bool sync = true) {
         if (transaction) {
             auto asyncResult = transaction->Abort();
             if (sync) {
@@ -2293,11 +2308,11 @@ void TOperationControllerBase::DoAbort()
     };
 
     // NB: We do not abort input transaction synchronously since
-    // it can be located in remote cluster that can be unavailable.
+    // it can belong to an unavailable remote cluster.
     // Moreover if input transaction abort failed it does not harm anything.
-    abortTransaction(InputTransaction, /* sync */ false);
-    abortTransaction(OutputTransaction);
-    abortTransaction(AsyncSchedulerTransaction, /* sync */ false);
+    abortTransaction(inputTransaction, /* sync */ false);
+    abortTransaction(outputTransaction);
+    abortTransaction(asyncSchedulerTransaction, /* sync */ false);
 
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();
@@ -3287,6 +3302,21 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     }
 }
 
+void TOperationControllerBase::OnOperationAborted(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // Cf. OnOperationFailed.
+    if (State.exchange(EControllerState::Finished) == EControllerState::Finished) {
+        return;
+    }
+
+    {
+        auto guard = Guard(EventsLock_);
+        AbortError_ = error;
+    }
+}
+
 TNullable<TDuration> TOperationControllerBase::GetTimeLimit() const
 {
     auto timeLimit = Config->OperationTimeLimit;
@@ -3306,7 +3336,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    EControllerState expected = EControllerState::Running;
+    auto expected = EControllerState::Running;
     if (!State.compare_exchange_strong(expected, EControllerState::Failing)) {
         return;
     }

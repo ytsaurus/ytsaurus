@@ -268,9 +268,14 @@ bool IsSentinelReason(EAbortReason reason)
         reason == EAbortReason::SchedulingLast;
 }
 
+TError GetSchedulerTransactionAbortedError(const TTransactionId& transactionId)
+{
+    return TError("Scheduler transaction %v has expired or was aborted", transactionId);
+}
+
 TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
 {
-    return TError("User transaction %v of operation has expired or was aborted", transactionId);
+    return TError("User transaction %v has expired or was aborted", transactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
