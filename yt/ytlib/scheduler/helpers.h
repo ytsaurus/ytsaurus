@@ -20,10 +20,8 @@ NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobI
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
 NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex);
-NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId);
-NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 
+// TODO(babenko): remove "New" infix once we fully migrate to this scheme
 NYPath::TYPath GetNewJobsPath(const TOperationId& operationId);
 NYPath::TYPath GetNewJobPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetNewOperationPath(const TOperationId& operationId);
