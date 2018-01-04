@@ -1,10 +1,10 @@
-#include "controller_agent_service.h"
+#include "controller_agent_tracker_service.h"
 #include "private.h"
 #include "scheduler.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <yt/ytlib/scheduler/controller_agent_service_proxy.h>
+#include <yt/ytlib/scheduler/controller_agent_tracker_service_proxy.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -17,14 +17,14 @@ using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TControllerAgentService
+class TControllerAgentTrackerService
     : public TServiceBase
 {
 public:
-    explicit TControllerAgentService(TBootstrap* bootstrap)
+    explicit TControllerAgentTrackerService(TBootstrap* bootstrap)
         : NRpc::TServiceBase(
             bootstrap->GetControlInvoker(EControlQueue::AgentTracker),
-            TControllerAgentServiceProxy::GetDescriptor(),
+            TControllerAgentTrackerServiceProxy::GetDescriptor(),
             SchedulerLogger)
         , Bootstrap_(bootstrap)
     {
@@ -46,9 +46,9 @@ private:
     }
 };
 
-IServicePtr CreateControllerAgentService(TBootstrap* bootstrap)
+IServicePtr CreateControllerAgentTrackerService(TBootstrap* bootstrap)
 {
-    return New<TControllerAgentService>(bootstrap);
+    return New<TControllerAgentTrackerService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
