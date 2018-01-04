@@ -34,7 +34,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap);
     ~TControllerAgent();
 
-    // TODO(babenko)
+    // XXX(babenko): remove this after getting rid of AttachJobContext
     const IInvokerPtr& GetCancelableInvoker();
 
     const IInvokerPtr& GetControllerThreadPoolInvoker();
@@ -81,6 +81,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId);
 
+    // XXX(babenko)
     TFuture<void> GetHeartbeatSentFuture();
 
     //! Returns the total number of online exec nodes.
@@ -95,6 +96,7 @@ public:
      */
     NScheduler::TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
 
+    // XXX(babenko): this method does not belong here
     void AttachJobContext(
         const NYTree::TYPath& path,
         const NChunkClient::TChunkId& chunkId,
