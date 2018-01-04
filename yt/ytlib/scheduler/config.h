@@ -288,8 +288,6 @@ public:
     //! Limit on operation execution time.
     TNullable<TDuration> TimeLimit;
 
-    bool CheckMultichunkFiles;
-
     TTestingOperationOptionsPtr TestingOperationOptions;
 
     //! Users that can change operation parameters, e.g abort or suspend it.
