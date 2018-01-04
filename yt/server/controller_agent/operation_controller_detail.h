@@ -560,7 +560,9 @@ protected:
     // Initialization.
     virtual void DoInitialize();
     virtual void InitializeClients();
-    virtual void InitializeTransactions();
+    void StartTransactions();
+    virtual NTransactionClient::TTransactionId GetInputTransactionParentId();
+    virtual NTransactionClient::TTransactionId GetOutputTransactionParentId();
     virtual void InitializeStructures();
     virtual void SyncPrepare();
     virtual void FinishInitialization();
@@ -596,12 +598,6 @@ protected:
 
     void PickIntermediateDataCell();
     void InitChunkListPool();
-
-    // Initialize transactions
-    TFuture<void> StartAsyncSchedulerTransaction();
-    TFuture<void> StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
-    TFuture<void> StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
-    TFuture<void> StartDebugOutputTransaction();
 
     // Completion.
     void TeleportOutputChunks();

@@ -360,7 +360,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
     {
         std::vector<TFuture<void>> asyncResults;
 
-        auto scheduleAbort = [&] (ITransactionPtr transaction) {
+        auto scheduleAbort = [&] (const ITransactionPtr& transaction) {
             if (transaction) {
                 asyncResults.push_back(transaction->Abort());
             }
@@ -381,10 +381,8 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
             InputTransaction = controllerTransactions->Input;
             OutputTransaction = controllerTransactions->Output;
             DebugOutputTransaction = controllerTransactions->DebugOutput;
-
-            WaitFor(StartAsyncSchedulerTransaction())
-                .ThrowOnError();
-
+            AsyncSchedulerTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
+                .ValueOrThrow();
             AreTransactionsActive = true;
         }
 
@@ -399,7 +397,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         Snapshot = TOperationSnapshot();
         Y_UNUSED(WaitFor(MasterConnector->RemoveSnapshot(OperationId)));
 
-        InitializeTransactions();
+        StartTransactions();
         InitializeStructures();
 
         SyncPrepare();
@@ -418,7 +416,7 @@ void TOperationControllerBase::Initialize()
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] () {
         InitializeClients();
-        InitializeTransactions();
+        StartTransactions();
         InitializeStructures();
         SyncPrepare();
     });
@@ -817,17 +815,34 @@ void TOperationControllerBase::AbortAllJoblets()
     JobletMap.clear();
 }
 
-void TOperationControllerBase::InitializeTransactions()
+void TOperationControllerBase::StartTransactions()
 {
-    std::vector<TFuture<void>> startFutures {
-        StartAsyncSchedulerTransaction(),
-        StartInputTransaction(UserTransactionId),
-        StartOutputTransaction(UserTransactionId),
-        StartDebugOutputTransaction(),
+    std::vector<TFuture<ITransactionPtr>> asyncResults = {
+        StartTransaction(ETransactionType::Async, Client),
+        StartTransaction(ETransactionType::Input, InputClient, GetInputTransactionParentId()),
+        StartTransaction(ETransactionType::Output, OutputClient, GetOutputTransactionParentId()),
+        StartTransaction(ETransactionType::DebugOutput, Client),
     };
-    WaitFor(Combine(startFutures))
-        .ThrowOnError();
+
+    auto results = WaitFor(CombineAll(asyncResults))
+        .ValueOrThrow();
+
+    AsyncSchedulerTransaction = results[0].ValueOrThrow();
+    InputTransaction = results[1].ValueOrThrow();
+    OutputTransaction = results[2].ValueOrThrow();
+    DebugOutputTransaction = results[3].ValueOrThrow();
+
     AreTransactionsActive = true;
+}
+
+TTransactionId TOperationControllerBase::GetInputTransactionParentId()
+{
+    return UserTransactionId;
+}
+
+TTransactionId TOperationControllerBase::GetOutputTransactionParentId()
+{
+    return UserTransactionId;
 }
 
 TTaskGroupPtr TOperationControllerBase::GetAutoMergeTaskGroup() const
@@ -845,8 +860,9 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     INativeClientPtr client,
     const TTransactionId& parentTransactionId)
 {
-    LOG_INFO("Starting transaction (Type: %v)",
-        type);
+    LOG_INFO("Starting transaction (Type: %v, ParentId: %v)",
+        type,
+        parentTransactionId);
 
     TTransactionStartOptions options;
     options.AutoAbort = false;
@@ -881,56 +897,6 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
 
         return transaction;
     }));
-}
-
-TFuture<void> TOperationControllerBase::StartAsyncSchedulerTransaction()
-{
-    auto transactionFuture = StartTransaction(
-        ETransactionType::Async,
-        Client);
-
-    return transactionFuture.Apply(
-        BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
-            AsyncSchedulerTransaction = transaction;
-        }));
-}
-
-TFuture<void> TOperationControllerBase::StartInputTransaction(const TTransactionId& parentTransactionId)
-{
-    auto transactionFuture = StartTransaction(
-        ETransactionType::Input,
-        InputClient,
-        parentTransactionId);
-
-    return transactionFuture.Apply(
-        BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
-            InputTransaction = transaction;
-        }));
-}
-
-TFuture<void> TOperationControllerBase::StartOutputTransaction(const TTransactionId& parentTransactionId)
-{
-    auto transactionFuture = StartTransaction(
-        ETransactionType::Output,
-        OutputClient,
-        parentTransactionId);
-
-    return transactionFuture.Apply(
-        BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
-            OutputTransaction = transaction;
-        }));
-}
-
-TFuture<void> TOperationControllerBase::StartDebugOutputTransaction()
-{
-    auto transactionFuture = StartTransaction(
-        ETransactionType::DebugOutput,
-        Client);
-
-    return transactionFuture.Apply(
-        BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
-            DebugOutputTransaction = transaction;
-        }));
 }
 
 void TOperationControllerBase::PickIntermediateDataCell()
