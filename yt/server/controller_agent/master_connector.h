@@ -69,6 +69,7 @@ public:
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
         bool recursive);
 
+    // XXX(babenko): this method does not belong here
     void AttachJobContext(
         const NYPath::TYPath& path,
         const NChunkClient::TChunkId& chunkId,
