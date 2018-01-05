@@ -499,8 +499,6 @@ protected:
     void RegisterTaskGroup(TTaskGroupPtr group);
 
     void UpdateTask(TTaskPtr task);
-    void UpdateDynamicNeededResources(TTaskPtr task);
-
     void UpdateAllTasks();
 
     void DoAddTaskLocalityHint(TTaskPtr task, NNodeTrackerClient::TNodeId nodeId);
@@ -1068,8 +1066,6 @@ private:
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
 
     void InitializeHistograms();
-    void AddValueToEstimatedHistogram(TJobletPtr joblet);
-    void RemoveValueFromEstimatedHistogram(TJobletPtr joblet);
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
     void GetExecNodesInformation();
