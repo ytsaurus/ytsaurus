@@ -2074,6 +2074,7 @@ public:
         TOperation* operation)
         : TSortControllerBase(
             spec,
+            // XXX(babenko): wrong affinity
             controllerAgent->GetConfig()->SortOperationOptions,
             controllerAgent,
             operation)
@@ -2771,12 +2772,11 @@ public:
         TOperation* operation)
         : TSortControllerBase(
             spec,
+            // XXX(babenko): wrong affinity
             controllerAgent->GetConfig()->MapReduceOperationOptions,
             controllerAgent,
             operation)
         , Spec(spec)
-        , MapStartRowIndex(0)
-        , ReduceStartRowIndex(0)
     {
         if (spec->Mapper) {
             RegisterJobProxyMemoryDigest(EJobType::PartitionMap, spec->PartitionJobProxyMemoryDigest);
@@ -2891,8 +2891,8 @@ private:
     std::vector<TUserFile> ReduceCombinerFiles;
     std::vector<TUserFile> ReducerFiles;
 
-    i64 MapStartRowIndex;
-    i64 ReduceStartRowIndex;
+    i64 MapStartRowIndex = 0;
+    i64 ReduceStartRowIndex = 0;
 
     // Custom bits of preparation pipeline.
 

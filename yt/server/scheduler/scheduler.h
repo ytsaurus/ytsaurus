@@ -20,7 +20,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- *  \note Thread affinity: control unless noted otherwise
+ *  \note Thread affinity: Control unless noted otherwise
  */
 class TScheduler
     : public TRefCounted
