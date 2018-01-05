@@ -992,8 +992,6 @@ private:
     TMemoryDigestMap JobProxyMemoryDigests_;
     TMemoryDigestMap UserJobMemoryDigests_;
 
-    const TString CodicilData_;
-
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;
 
@@ -1096,8 +1094,6 @@ private:
         const NScheduler::TJobSummary& jobSummary);
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
-
-    TCodicilGuard MakeCodicilGuard() const;
 
     void SleepInCommitStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
     void SleepInRevive();
