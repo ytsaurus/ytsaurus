@@ -5344,7 +5344,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
             jobIdsToRelease.size(),
             cookie.SnapshotIndex,
             SchedulerIncarnation_);
-        ControllerAgent->ReleaseJobs(std::move(jobIdsToRelease), OperationId, SchedulerIncarnation_);
+        ControllerAgent->ReleaseJobs(jobIdsToRelease);
     }
 
     // Stripe lists.
@@ -5390,7 +5390,7 @@ void TOperationControllerBase::OnBeforeDisposal()
         headCookie,
         SchedulerIncarnation_);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
-    ControllerAgent->ReleaseJobs(std::move(jobIdsToRelease), OperationId, SchedulerIncarnation_);
+    ControllerAgent->ReleaseJobs(jobIdsToRelease);
 }
 
 NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()

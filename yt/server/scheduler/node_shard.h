@@ -144,9 +144,9 @@ public:
 
     void FailJob(const TJobId& jobId);
 
-    void BuildNodesYson(NYTree::TFluentMap fluent);
+    void ReleaseJob(const TJobId& jobId);
 
-    void ReleaseJobs(const std::vector<TJobId>& jobIds);
+    void BuildNodesYson(NYTree::TFluentMap fluent);
 
     void RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
 

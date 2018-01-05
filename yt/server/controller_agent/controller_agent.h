@@ -130,10 +130,7 @@ public:
     // XXX(babenko): check affinity
     void FailJob(const TJobId& jobId);
     // XXX(babenko): check affinity
-    void ReleaseJobs(
-        std::vector<TJobId> jobIds,
-        const TOperationId& operationId,
-        int controllerSchedulerIncarnation);
+    void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
 private:
     class TImpl;
