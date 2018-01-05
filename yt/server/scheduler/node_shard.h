@@ -338,7 +338,7 @@ private:
         NProfiling::TCpuDuration interruptTimeout = 0,
         TNullable<TString> interruptUser = Null);
 
-    TExecNodePtr GetNodeByJob(const TJobId& jobId);
+    TExecNodePtr FindNodeByJob(const TJobId& jobId);
 
     TJobPtr FindJob(const TJobId& jobId, const TExecNodePtr& node);
 

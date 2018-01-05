@@ -741,9 +741,9 @@ void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
 
     for (const auto& jobId : jobIds) {
         // NB: While we kept job id in operation controller, its execution node
-        // could have unregistered.
-        const auto& nodeId = NodeIdFromJobId(jobId);
-        if (auto execNode = GetNodeByJob(jobId)) {
+        // could have been unregistered.
+        auto nodeId = NodeIdFromJobId(jobId);
+        if (auto execNode = FindNodeByJob(jobId)) {
             LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v)",
                 jobId,
                 nodeId,
@@ -1690,14 +1690,11 @@ void TNodeShard::InterruptJob(const TJobId& jobId, EInterruptReason reason)
     }
 }
 
-TExecNodePtr TNodeShard::GetNodeByJob(const TJobId& jobId)
+TExecNodePtr TNodeShard::FindNodeByJob(const TJobId& jobId)
 {
     auto nodeId = NodeIdFromJobId(jobId);
     auto it = IdToNode_.find(nodeId);
-    if (it == IdToNode_.end()) {
-        return nullptr;
-    }
-    return it->second;
+    return it == IdToNode_.end() ? nullptr : it->second;
 }
 
 TJobPtr TNodeShard::FindJob(const TJobId& jobId, const TExecNodePtr& node)
@@ -1709,7 +1706,7 @@ TJobPtr TNodeShard::FindJob(const TJobId& jobId, const TExecNodePtr& node)
 
 TJobPtr TNodeShard::FindJob(const TJobId& jobId)
 {
-    auto node = GetNodeByJob(jobId);
+    auto node = FindNodeByJob(jobId);
     if (!node) {
         return nullptr;
     }
