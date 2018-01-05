@@ -1012,7 +1012,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TImpl::DoRegisterOrUpdateNodeTags, MakeStrong(this))
+        return BIND(&TImpl::DoRegisterOrUpdateNode, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run(nodeId, tags);
     }
@@ -1021,9 +1021,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        BIND([this, this_ = MakeStrong(this), nodeId] { YCHECK(NodeIdToTags_.erase(nodeId) == 1); })
-            .AsyncVia(GetControlInvoker())
-            .Run();
+        GetControlInvoker()->Invoke(BIND(&TImpl::DoUnregisterNode, MakeStrong(this), nodeId));
     }
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const override
@@ -1332,12 +1330,19 @@ private:
     }
 
 
-    void DoRegisterOrUpdateNodeTags(TNodeId nodeId, const yhash_set<TString>& tags)
+    void DoRegisterOrUpdateNode(TNodeId nodeId, const yhash_set<TString>& tags)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Strategy_->ValidateNodeTags(tags);
         NodeIdToTags_[nodeId] = tags;
+    }
+
+    void DoUnregisterNode(TNodeId nodeId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YCHECK(NodeIdToTags_.erase(nodeId) == 1);
     }
 
 
@@ -1536,6 +1541,8 @@ private:
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        NodeIdToTags_.clear();
 
         // TODO(babenko): rework when separating scheduler and agent
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
