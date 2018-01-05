@@ -117,10 +117,12 @@ void TNodeShard::OnMasterDisconnected()
     CachedResourceLimitsByTags_->Stop();
 
     for (const auto& pair : IdToNode_) {
-        auto node = pair.second;
-        node->Jobs().clear();
-        node->IdToJob().clear();
+        const auto& node = pair.second;
+        TLeaseManager::CloseLease(node->GetLease());
     }
+
+    IdToOpertionState_.clear();
+    IdToNode_.clear();
 
     ActiveJobCount_ = 0;
 
@@ -135,8 +137,6 @@ void TNodeShard::OnMasterDisconnected()
             }
         }
     }
-
-    SubmitUpdatedAndCompletedJobsToStrategy();
 }
 
 void TNodeShard::RegisterOperation(
@@ -145,19 +145,19 @@ void TNodeShard::RegisterOperation(
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    YCHECK(OperationIdToState_.emplace(operationId, TOperationState(operationController)).second);
+    YCHECK(IdToOpertionState_.emplace(operationId, TOperationState(operationController)).second);
 }
 
 void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto it = OperationIdToState_.find(operationId);
-    YCHECK(it != OperationIdToState_.end());
+    auto it = IdToOpertionState_.find(operationId);
+    YCHECK(it != IdToOpertionState_.end());
     for (const auto& job : it->second.Jobs) {
         YCHECK(job.second->GetHasPendingUnregistration());
     }
-    OperationIdToState_.erase(it);
+    IdToOpertionState_.erase(it);
 }
 
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
@@ -418,21 +418,6 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
                 execNode->Tags() = tags;
                 UpdateNodeState(execNode, newState);
             }
-        }
-    }
-}
-
-void TNodeShard::AbortAllJobs(const TError& abortReason)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    for (auto& pair : OperationIdToState_) {
-        auto& state = pair.second;
-        state.JobsAborted = true;
-        auto jobs = state.Jobs;
-        for (const auto& job : jobs) {
-            auto status = JobStatusFromError(abortReason);
-            OnJobAborted(job.second, &status);
         }
     }
 }
@@ -1732,19 +1717,19 @@ TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
 
 bool TNodeShard::OperationExists(const TOperationId& operationId) const
 {
-    return OperationIdToState_.find(operationId) != OperationIdToState_.end();
+    return IdToOpertionState_.find(operationId) != IdToOpertionState_.end();
 }
 
 TNodeShard::TOperationState* TNodeShard::FindOperationState(const TOperationId& operationId)
 {
-    auto it = OperationIdToState_.find(operationId);
-    return it != OperationIdToState_.end() ? &it->second : nullptr;
+    auto it = IdToOpertionState_.find(operationId);
+    return it != IdToOpertionState_.end() ? &it->second : nullptr;
 }
 
 TNodeShard::TOperationState& TNodeShard::GetOperationState(const TOperationId& operationId)
 {
-    auto it = OperationIdToState_.find(operationId);
-    YCHECK(it != OperationIdToState_.end());
+    auto it = IdToOpertionState_.find(operationId);
+    YCHECK(it != IdToOpertionState_.end());
     return it->second;
 }
 

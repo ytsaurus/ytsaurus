@@ -1909,7 +1909,7 @@ public:
             Config->MinNeededResourcesUpdatePeriod);
     }
 
-    virtual void StartPeriodicActivity() override
+    virtual void OnMasterConnected() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1918,7 +1918,7 @@ public:
         MinNeededJobResourcesUpdateExecutor_->Start();
     }
 
-    virtual void ResetState() override
+    virtual void OnMasterDisconnected() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
