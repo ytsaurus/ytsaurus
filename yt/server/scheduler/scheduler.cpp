@@ -1068,7 +1068,9 @@ public:
 
     virtual int GetOperationArchiveVersion() const override
     {
-        return OperationArchiveVersion_.load(std::memory_order_relaxed);
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return OperationArchiveVersion_.load();
     }
 
 private:
@@ -1138,26 +1140,27 @@ private:
             TBootstrap* bootstrap)
             : Operation_(std::move(operation))
             , Bootstrap_(bootstrap)
+            , IncarnationId_(Bootstrap_->GetControllerAgent()->GetMasterConnector()->GetIncarnationId())
         { }
 
         virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override
         {
-            Bootstrap_->GetControllerAgent()->InterruptJob(jobId, reason);
+            Bootstrap_->GetControllerAgent()->InterruptJob(IncarnationId_, jobId, reason);
         }
 
         virtual void AbortJob(const TJobId& jobId, const TError& error) override
         {
-            Bootstrap_->GetControllerAgent()->AbortJob(jobId, error);
+            Bootstrap_->GetControllerAgent()->AbortJob(IncarnationId_, jobId, error);
         }
 
         virtual void FailJob(const TJobId& jobId) override
         {
-            Bootstrap_->GetControllerAgent()->FailJob(jobId);
+            Bootstrap_->GetControllerAgent()->FailJob(IncarnationId_, jobId);
         }
 
         virtual void ReleaseJobs(const std::vector<TJobId>& jobIds) override
         {
-            Bootstrap_->GetControllerAgent()->ReleaseJobs(jobIds);
+            Bootstrap_->GetControllerAgent()->ReleaseJobs(IncarnationId_, jobIds);
         }
 
         virtual TFuture<TOperationSnapshot> DownloadSnapshot() override
@@ -1261,6 +1264,7 @@ private:
     private:
         const TOperationPtr Operation_;
         TBootstrap* const Bootstrap_;
+        const TIncarnationId IncarnationId_;
     };
 
 
@@ -1502,7 +1506,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // XXX(babenko)
+        // TODO(babenko): rework when multiple agents are supported
         AgentIncarnationId_ = NControllerAgent::TIncarnationId::Create();
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected(AgentIncarnationId_);
         for (const auto& pair : IdToOperation_) {
@@ -1534,7 +1538,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // XXX(babenko)
+        // TODO(babenko): rework when separating scheduler and agent
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
 
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -1956,7 +1960,7 @@ private:
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             RegisterOperation(operation);
-            // XXX(babenko): Ignore result? (we cannot throw error here)
+            // TODO(babenko): rework when separating scheduler and agent
             Bootstrap_->GetControllerAgent()->RegisterController(operation->GetId(), controller);
 
             registered = true;
@@ -1975,7 +1979,7 @@ private:
                 .ThrowOnError();
 
             MasterConnector_->StartOperationNodeUpdates(operation);
-            // XXX(babenko)
+            // TODO(babenko): rework when separating scheduler and agent
             Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
 
             ValidateOperationState(operation, EOperationState::Initializing);
@@ -2112,8 +2116,7 @@ private:
 
         // NB: Should not throw!
         RegisterOperation(operation);
-        // XXX(babenko)
-        // Ignore result? (we cannot throw error here)
+        // TODO(babenko): rework when separating scheduler and agent
         Bootstrap_->GetControllerAgent()->RegisterController(operation->GetId(), controller);
     }
 

@@ -334,40 +334,48 @@ public:
         return static_cast<int>(CachedExecNodeDescriptors_->Descriptors.size());
     }
 
-    void InterruptJob(const TJobId& jobId, EInterruptReason reason)
+    void InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason)
     {
-        auto guard = Guard(HeartbeatRequestLock_);
-        YCHECK(HeartbeatRequest_);
-        auto* jobToInterrupt = HeartbeatRequest_->add_jobs_to_interrupt();
-        ToProto(jobToInterrupt->mutable_job_id(), jobId);
-        jobToInterrupt->set_reason(static_cast<int>(reason));
+        PopulateHeartbeatRequest(
+            incarnationId,
+            [&] (const auto& request) {
+                auto* jobToInterrupt = request->add_jobs_to_interrupt();
+                ToProto(jobToInterrupt->mutable_job_id(), jobId);
+                jobToInterrupt->set_reason(static_cast<int>(reason));
+            });
     }
 
-    void AbortJob(const TJobId& jobId, const TError& error)
+    void AbortJob(const TIncarnationId& incarnationId, const TJobId& jobId, const TError& error)
     {
-        TGuard<TSpinLock> guard(HeartbeatRequestLock_);
-        YCHECK(HeartbeatRequest_);
-        auto* jobToAbort = HeartbeatRequest_->add_jobs_to_abort();
-        ToProto(jobToAbort->mutable_job_id(), jobId);
-        ToProto(jobToAbort->mutable_error(), error);
+        PopulateHeartbeatRequest(
+            incarnationId,
+            [&] (const auto& request) {
+                auto* jobToAbort = request->add_jobs_to_abort();
+                ToProto(jobToAbort->mutable_job_id(), jobId);
+                ToProto(jobToAbort->mutable_error(), error);
+            });
     }
 
-    void FailJob(const TJobId& jobId)
+    void FailJob(const TIncarnationId& incarnationId, const TJobId& jobId)
     {
-        auto guard = Guard(HeartbeatRequestLock_);
-        YCHECK(HeartbeatRequest_);
-        auto* jobToFail = HeartbeatRequest_->add_jobs_to_fail();
-        ToProto(jobToFail->mutable_job_id(), jobId);
+        PopulateHeartbeatRequest(
+            incarnationId,
+            [&] (const auto& request) {
+                auto* jobToFail = request->add_jobs_to_fail();
+                ToProto(jobToFail->mutable_job_id(), jobId);
+            });
     }
 
-    void ReleaseJobs(const std::vector<TJobId>& jobIds)
+    void ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds)
     {
-        auto guard = Guard(HeartbeatRequestLock_);
-        YCHECK(HeartbeatRequest_);
-        for (const auto& jobId : jobIds) {
-            auto* subrequest = HeartbeatRequest_->add_jobs_to_release();
-            ToProto(subrequest->mutable_job_id(), jobId);
-        }
+        PopulateHeartbeatRequest(
+            incarnationId,
+            [&] (const auto& request) {
+                for (const auto& jobId : jobIds) {
+                    auto* jobToRelease = request->add_jobs_to_release();
+                    ToProto(jobToRelease->mutable_job_id(), jobId);
+                }
+            });
     }
 
 private:
@@ -395,6 +403,7 @@ private:
     TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
 
     TSpinLock HeartbeatRequestLock_;
+    TIncarnationId HeartbeatIncarnationId_;
     TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr HeartbeatRequest_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
@@ -412,6 +421,7 @@ private:
 
         {
             auto guard = Guard(HeartbeatRequestLock_);
+            HeartbeatIncarnationId_ = MasterConnector_->GetIncarnationId();
             PrepareHeartbeatRequest();
         }
 
@@ -445,6 +455,12 @@ private:
         CachedExecNodeDescriptorsByTags_->Stop();
 
         HeartbeatExecutor_->Stop();
+
+        {
+            auto guard = Guard(HeartbeatRequestLock_);
+            HeartbeatIncarnationId_ = {};
+            HeartbeatRequest_.Reset();
+        }
     }
 
     // TODO: Move this method to some common place to avoid copy/paste.
@@ -453,6 +469,17 @@ private:
         return TError(
             NRpc::EErrorCode::Unavailable,
             "Master is not connected");
+    }
+
+    template <class F>
+    void PopulateHeartbeatRequest(const TIncarnationId& incarnationId, F callback)
+    {
+        auto guard = Guard(HeartbeatRequestLock_);
+        if (HeartbeatIncarnationId_ != incarnationId) {
+            return;
+        }
+        YCHECK(HeartbeatRequest_);
+        callback(HeartbeatRequest_);
     }
 
     void PrepareHeartbeatRequest()
@@ -735,24 +762,24 @@ void TControllerAgent::AttachJobContext(
     Impl_->AttachJobContext(path, chunkId, operationId, jobId);
 }
 
-void TControllerAgent::InterruptJob(const TJobId& jobId, EInterruptReason reason)
+void TControllerAgent::InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason)
 {
-    Impl_->InterruptJob(jobId, reason);
+    Impl_->InterruptJob(incarnationId, jobId, reason);
 }
 
-void TControllerAgent::AbortJob(const TJobId& jobId, const TError& error)
+void TControllerAgent::AbortJob(const TIncarnationId& incarnationId, const TJobId& jobId, const TError& error)
 {
-    Impl_->AbortJob(jobId, error);
+    Impl_->AbortJob(incarnationId, jobId, error);
 }
 
-void TControllerAgent::FailJob(const TJobId& jobId)
+void TControllerAgent::FailJob(const TIncarnationId& incarnationId, const TJobId& jobId)
 {
-    Impl_->FailJob(jobId);
+    Impl_->FailJob(incarnationId, jobId);
 }
 
-void TControllerAgent::ReleaseJobs(const std::vector<TJobId>& jobIds)
+void TControllerAgent::ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds)
 {
-    Impl_->ReleaseJobs(jobIds);
+    Impl_->ReleaseJobs(incarnationId, jobIds);
 }
 
 ////////////////////////////////////////////////////////////////////
