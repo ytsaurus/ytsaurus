@@ -174,9 +174,6 @@ public:
     //! Mark that operation attributes should be flushed to Cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
-    //! Scheduler incarnation that spawned this operation.
-    DEFINE_BYVAL_RW_PROPERTY(int, SchedulerIncarnation);
-
     //! If this operation needs revive, the corresponding revive descriptor is provided
     //! by Master Connector.
     DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
