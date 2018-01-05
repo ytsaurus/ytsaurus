@@ -214,9 +214,15 @@ public:
     TUnorderedControllerBase(
         TUnorderedOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOperationControllerBase(spec, options, controllerAgent, operation)
+        : TOperationControllerBase(
+            spec,
+            options,
+            host,
+            controllerAgent,
+            operation)
         , Spec(spec)
         , Options(options)
     { }
@@ -517,9 +523,15 @@ public:
     TMapController(
         TMapOperationSpecPtr spec,
         TMapOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TUnorderedControllerBase(spec, options, controllerAgent, operation)
+        : TUnorderedControllerBase(
+            spec,
+            options,
+            host,
+            controllerAgent,
+            operation)
         , Spec(spec)
         , Options(options)
     {
@@ -713,11 +725,13 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateUnorderedMapController(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TMapController>(spec, controllerAgent->GetConfig()->MapOperationOptions, controllerAgent, operation);
+    // XXX(babenko): check affinity
+    return New<TMapController>(spec, controllerAgent->GetConfig()->MapOperationOptions, host, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -729,9 +743,15 @@ public:
     TUnorderedMergeController(
         TUnorderedMergeOperationSpecPtr spec,
         TUnorderedMergeOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TUnorderedControllerBase(spec, options, controllerAgent, operation)
+        : TUnorderedControllerBase(
+            spec,
+            options,
+            host,
+            controllerAgent,
+            operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
@@ -864,11 +884,13 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateUnorderedMergeController(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(operation->GetSpec());
-    return New<TUnorderedMergeController>(spec, controllerAgent->GetConfig()->UnorderedMergeOperationOptions, controllerAgent, operation);
+    // XXX(babenko): check affinity
+    return New<TUnorderedMergeController>(spec, controllerAgent->GetConfig()->UnorderedMergeOperationOptions, host, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

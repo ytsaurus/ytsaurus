@@ -64,9 +64,15 @@ public:
     TOrderedControllerBase(
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOperationControllerBase(spec, options, controllerAgent, operation)
+        : TOperationControllerBase(
+            spec,
+            options,
+            host,
+            controllerAgent,
+            operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -472,9 +478,16 @@ class TOrderedMergeController
 public:
     TOrderedMergeController(
         TOrderedMergeOperationSpecPtr spec,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOrderedControllerBase(spec, controllerAgent->GetConfig()->OrderedMergeOperationOptions, controllerAgent, operation)
+        : TOrderedControllerBase(
+            spec,
+            // XXX(babenko): check affinity
+            controllerAgent->GetConfig()->OrderedMergeOperationOptions,
+            host,
+            controllerAgent,
+            operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -616,11 +629,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
 
 IOperationControllerPtr CreateOrderedMergeController(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(operation->GetSpec());
-    return New<TOrderedMergeController>(spec, controllerAgent, operation);
+    return New<TOrderedMergeController>(spec, host, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -632,9 +646,15 @@ public:
     TOrderedMapController(
         TMapOperationSpecPtr spec,
         TMapOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOrderedControllerBase(spec, options, controllerAgent, operation)
+        : TOrderedControllerBase(
+            spec,
+            options,
+            host,
+            controllerAgent,
+            operation)
         , Spec_(spec)
         , Options_(options)
     {
@@ -842,11 +862,13 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
 
 IOperationControllerPtr CreateOrderedMapController(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TOrderedMapController>(spec, controllerAgent->GetConfig()->MapOperationOptions, controllerAgent, operation);
+    // XXX(babenko): check affinity
+    return New<TOrderedMapController>(spec, controllerAgent->GetConfig()->MapOperationOptions, host, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -857,9 +879,16 @@ class TEraseController
 public:
     TEraseController(
         TEraseOperationSpecPtr spec,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOrderedControllerBase(spec, controllerAgent->GetConfig()->EraseOperationOptions, controllerAgent, operation)
+        : TOrderedControllerBase(
+            spec,
+            // XXX(babenko): check affinity
+            controllerAgent->GetConfig()->EraseOperationOptions,
+            host,
+            controllerAgent,
+            operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -1032,11 +1061,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
 
 IOperationControllerPtr CreateEraseController(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
-    return New<TEraseController>(spec, controllerAgent, operation);
+    return New<TEraseController>(spec, host, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1047,9 +1077,16 @@ class TRemoteCopyController
 public:
     TRemoteCopyController(
         TRemoteCopyOperationSpecPtr spec,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOrderedControllerBase(spec, controllerAgent->GetConfig()->RemoteCopyOperationOptions, controllerAgent, operation)
+        : TOrderedControllerBase(
+            spec,
+            // XXX(babenko): check affinity
+            controllerAgent->GetConfig()->RemoteCopyOperationOptions,
+            host,
+            controllerAgent,
+            operation)
         , Spec_(spec)
         , Options_(Config->RemoteCopyOperationOptions)
     {
@@ -1309,11 +1346,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
 
 IOperationControllerPtr CreateRemoteCopyController(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
-    return New<TRemoteCopyController>(spec, controllerAgent, operation);
+    return New<TRemoteCopyController>(spec, host, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

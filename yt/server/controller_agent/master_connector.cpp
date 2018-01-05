@@ -35,6 +35,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 namespace NYT {
 namespace NControllerAgent {
 

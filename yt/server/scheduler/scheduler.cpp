@@ -1137,6 +1137,12 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    class TOperationControllerHost
+        : public IOperationControllerHost
+    {
+
+    };
+
 
     template <class TContext, class TSubrequest, class F>
     void ProcessNodeShardRequests(
@@ -1846,7 +1852,7 @@ private:
 
         bool registered = false;
         try {
-            auto controller = CreateControllerForOperation(Bootstrap_->GetControllerAgent(), operation.Get());
+            auto controller = CreateOperationController(operation);
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
@@ -1957,6 +1963,14 @@ private:
         // operation's fate.
     }
 
+    IOperationControllerPtr CreateOperationController(const TOperationPtr& operation)
+    {
+        return CreateControllerForOperation(
+            New<TOperationControllerHost>(),
+            Bootstrap_->GetControllerAgent(),
+            operation.Get());
+    }
+
     void RegisterRevivingOperation(const TOperationPtr& operation)
     {
         auto codicilGuard = operation->MakeCodicilGuard();
@@ -1983,7 +1997,7 @@ private:
 
         IOperationControllerPtr controller;
         try {
-            controller = CreateControllerForOperation(Bootstrap_->GetControllerAgent(), operation.Get());
+            controller = CreateOperationController(operation);
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());

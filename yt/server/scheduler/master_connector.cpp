@@ -39,6 +39,8 @@
 
 #include <yt/core/utilex/random.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 namespace NYT {
 namespace NScheduler {
 

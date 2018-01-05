@@ -59,6 +59,7 @@ DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IOperationControllerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 using TOperationIdToControllerMap = yhash<TOperationId, IOperationControllerPtr>;
 
