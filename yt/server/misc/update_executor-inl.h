@@ -153,7 +153,12 @@ typename TUpdateExecutor<TKey, TUpdateParameters>::TUpdateRecord* TUpdateExecuto
 template <class TKey, class TUpdateParameters>
 TCallback<TFuture<void>()> TUpdateExecutor<TKey, TUpdateParameters>::CreateUpdateAction(const TKey& key, TUpdateParameters* updateParameters)
 {
-    return BIND([key, this, updateAction = CreateUpdateAction_(key, updateParameters), this_ = MakeStrong(this)] () {
+    auto updateAction = CreateUpdateAction_(key, updateParameters);
+    if (!updateAction) {
+        return {};
+    }
+
+    return BIND([key, this, updateAction = std::move(updateAction), this_ = MakeStrong(this)] () {
             return updateAction().Apply(
                 BIND([=, this_ = MakeStrong(this)] (const TError& error) {
                     if (!error.IsOK()) {
@@ -171,9 +176,11 @@ TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::DoExecuteUpdate(TUpdateR
 {
     VERIFY_THREAD_AFFINITY(UpdateThread);
 
-    auto lastUpdateFuture = updateRecord->LastUpdateFuture.Apply(
-        CreateUpdateAction(updateRecord->Key, &updateRecord->UpdateParameters));
-    updateRecord->LastUpdateFuture = std::move(lastUpdateFuture);
+    auto callback = CreateUpdateAction(updateRecord->Key, &updateRecord->UpdateParameters);
+    if (!callback) {
+        return updateRecord->LastUpdateFuture;
+    }
+    updateRecord->LastUpdateFuture = updateRecord->LastUpdateFuture.Apply(callback);
     return updateRecord->LastUpdateFuture;
 }
 
