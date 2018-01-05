@@ -8,13 +8,13 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateUnorderedMapController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     NScheduler::TOperation* operation);
 
 IOperationControllerPtr CreateUnorderedMergeController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     NScheduler::TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////

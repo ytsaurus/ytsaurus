@@ -5,7 +5,6 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
-#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
@@ -63,15 +62,15 @@ class TOrderedControllerBase
 public:
     TOrderedControllerBase(
         TSimpleOperationSpecBasePtr spec,
+        TControllerAgentConfigPtr config,
         TSimpleOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TOperationControllerBase(
             spec,
+            config,
             options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
         , Options_(options)
@@ -478,15 +477,15 @@ class TOrderedMergeController
 public:
     TOrderedMergeController(
         TOrderedMergeOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TSimpleOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TOrderedControllerBase(
             spec,
-            // XXX(babenko): check affinity
-            controllerAgent->GetConfig()->OrderedMergeOperationOptions,
+            config,
+            options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
     {
@@ -629,12 +628,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
 
 IOperationControllerPtr CreateOrderedMergeController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(operation->GetSpec());
-    return New<TOrderedMergeController>(spec, host, controllerAgent, operation);
+    return New<TOrderedMergeController>(spec, config, config->OrderedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -645,15 +644,15 @@ class TOrderedMapController
 public:
     TOrderedMapController(
         TMapOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
         TMapOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TOrderedControllerBase(
             spec,
+            config,
             options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
         , Options_(options)
@@ -862,13 +861,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
 
 IOperationControllerPtr CreateOrderedMapController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    // XXX(babenko): check affinity
-    return New<TOrderedMapController>(spec, controllerAgent->GetConfig()->MapOperationOptions, host, controllerAgent, operation);
+    return New<TOrderedMapController>(spec, config, config->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -879,15 +877,15 @@ class TEraseController
 public:
     TEraseController(
         TEraseOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TSimpleOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TOrderedControllerBase(
             spec,
-            // XXX(babenko): check affinity
-            controllerAgent->GetConfig()->EraseOperationOptions,
+            config,
+            options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
     {
@@ -1061,12 +1059,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
 
 IOperationControllerPtr CreateEraseController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
-    return New<TEraseController>(spec, host, controllerAgent, operation);
+    return New<TEraseController>(spec, config, config->EraseOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1077,18 +1075,18 @@ class TRemoteCopyController
 public:
     TRemoteCopyController(
         TRemoteCopyOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TRemoteCopyOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TOrderedControllerBase(
             spec,
-            // XXX(babenko): check affinity
-            controllerAgent->GetConfig()->RemoteCopyOperationOptions,
+            config,
+            options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
-        , Options_(Config->RemoteCopyOperationOptions)
+        , Options_(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
     }
@@ -1288,8 +1286,8 @@ private:
         if (Spec_->ClusterConnection) {
             return CreateNativeConnection(*Spec_->ClusterConnection);
         } else if (Spec_->ClusterName) {
-            auto connection = ControllerAgent
-                ->GetMasterClient()
+            auto connection = Host
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(*Spec_->ClusterName);
@@ -1346,12 +1344,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
 
 IOperationControllerPtr CreateRemoteCopyController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
-    return New<TRemoteCopyController>(spec, host, controllerAgent, operation);
+    return New<TRemoteCopyController>(spec, config, config->RemoteCopyOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

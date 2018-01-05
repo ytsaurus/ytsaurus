@@ -6,7 +6,6 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "task.h"
-#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
@@ -62,15 +61,15 @@ class TSortedControllerBase
 public:
     TSortedControllerBase(
         TSimpleOperationSpecBasePtr spec,
+        TControllerAgentConfigPtr config,
         TSimpleOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TOperationControllerBase(
             spec,
+            config,
             options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
         , Options_(options)
@@ -548,7 +547,7 @@ private:
             FetcherChunkScraper_ = CreateFetcherChunkScraper(
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
-                ControllerAgent->GetChunkLocationThrottlerManager(),
+                Host->GetChunkLocationThrottlerManager(),
                 InputClient,
                 InputNodeDirectory_,
                 Logger);
@@ -562,7 +561,7 @@ private:
             InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper_,
-            ControllerAgent->GetMasterClient(),
+            Host->GetClient(),
             RowBuffer,
             Logger);
     }
@@ -579,15 +578,15 @@ class TSortedMergeController
 public:
     TSortedMergeController(
         TSortedMergeOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TSortedMergeOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortedControllerBase(
             spec,
-            // XXX(babenko): check affinity
-            controllerAgent->GetConfig()->SortedMergeOperationOptions,
+            config,
+            options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
     {
@@ -760,12 +759,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
 
 IOperationControllerPtr CreateSortedMergeController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(operation->GetSpec());
-    return New<TSortedMergeController>(spec, host, controllerAgent, operation);
+    return New<TSortedMergeController>(spec, config, config->SortedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -776,15 +775,15 @@ class TSortedReduceControllerBase
 public:
     TSortedReduceControllerBase(
         TReduceOperationSpecBasePtr spec,
+        TControllerAgentConfigPtr config,
         TReduceOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortedControllerBase(
             spec,
+            config,
             options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
         , Options_(options)
@@ -996,15 +995,15 @@ class TSortedReduceController
 public:
     TSortedReduceController(
         TReduceOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TReduceOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortedReduceControllerBase(
             spec,
-            // XXX(babenko): check affinity
-            controllerAgent->GetConfig()->ReduceOperationOptions,
+            config,
+            options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
     {
@@ -1156,12 +1155,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController);
 
 IOperationControllerPtr CreateSortedReduceController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TSortedReduceController>(spec, host, controllerAgent, operation);
+    return New<TSortedReduceController>(spec, config, config->ReduceOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1172,15 +1171,15 @@ class TJoinReduceController
 public:
     TJoinReduceController(
         TJoinReduceOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TReduceOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortedReduceControllerBase(
             spec,
-            // XXX(babenko): check affinity
-            controllerAgent->GetConfig()->JoinReduceOperationOptions,
+            config,
+            options,
             host,
-            controllerAgent,
             operation)
         , Spec_(spec)
     {
@@ -1277,12 +1276,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);
 
 IOperationControllerPtr CreateJoinReduceController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TJoinReduceController>(spec, host, controllerAgent, operation);
+    return New<TJoinReduceController>(spec, config, config->ReduceOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

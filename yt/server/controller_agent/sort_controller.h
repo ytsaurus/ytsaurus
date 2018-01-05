@@ -8,13 +8,13 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateSortController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation);
 
 IOperationControllerPtr CreateMapReduceController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////

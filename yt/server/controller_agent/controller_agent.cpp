@@ -2,6 +2,7 @@
 #include "operation_controller.h"
 #include "master_connector.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
@@ -121,13 +122,12 @@ public:
 
     const TControllerAgentConfigPtr& GetConfig() const
     {
-        // XXX(babenko)
-        // VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Config_;
     }
 
-    const NApi::INativeClientPtr& GetMasterClient() const
+    const NApi::INativeClientPtr& GetClient() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -639,9 +639,9 @@ const TControllerAgentConfigPtr& TControllerAgent::GetConfig() const
     return Impl_->GetConfig();
 }
 
-const NApi::INativeClientPtr& TControllerAgent::GetMasterClient() const
+const NApi::INativeClientPtr& TControllerAgent::GetClient() const
 {
-    return Impl_->GetMasterClient();
+    return Impl_->GetClient();
 }
 
 const TNodeDirectoryPtr& TControllerAgent::GetNodeDirectory()

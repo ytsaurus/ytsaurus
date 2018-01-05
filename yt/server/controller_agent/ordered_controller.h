@@ -8,23 +8,23 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateOrderedMergeController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation);
 
 IOperationControllerPtr CreateOrderedMapController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation);
 
 IOperationControllerPtr CreateEraseController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation);
 
 IOperationControllerPtr CreateRemoteCopyController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////

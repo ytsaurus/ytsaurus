@@ -311,8 +311,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateControllerForOperation(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     IOperationControllerPtr controller;
@@ -320,50 +320,50 @@ IOperationControllerPtr CreateControllerForOperation(
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
             controller = baseSpec->Ordered
-                ? CreateOrderedMapController(host, controllerAgent, operation)
-                : CreateUnorderedMapController(host, controllerAgent, operation);
+                ? CreateOrderedMapController(config, host, operation)
+                : CreateUnorderedMapController(config, host, operation);
             break;
         }
         case EOperationType::Merge: {
             auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
             switch (baseSpec->Mode) {
                 case EMergeMode::Ordered: {
-                    controller = CreateOrderedMergeController(host, controllerAgent, operation);
+                    controller = CreateOrderedMergeController(config, host, operation);
                     break;
                 }
                 case EMergeMode::Sorted: {
-                    controller = CreateSortedMergeController(host, controllerAgent, operation);
+                    controller = CreateSortedMergeController(config, host, operation);
                     break;
                 }
                 case EMergeMode::Unordered: {
-                    controller = CreateUnorderedMergeController(host, controllerAgent, operation);
+                    controller = CreateUnorderedMergeController(config, host, operation);
                     break;
                 }
             }
             break;
         }
         case EOperationType::Erase: {
-            controller = CreateEraseController(host, controllerAgent, operation);
+            controller = CreateEraseController(config, host, operation);
             break;
         }
         case EOperationType::Sort: {
-            controller = CreateSortController(host, controllerAgent, operation);
+            controller = CreateSortController(config, host, operation);
             break;
         }
         case EOperationType::Reduce: {
-            controller = CreateSortedReduceController(host, controllerAgent, operation);
+            controller = CreateSortedReduceController(config, host, operation);
             break;
         }
         case EOperationType::JoinReduce: {
-            controller = CreateJoinReduceController(host, controllerAgent, operation);
+            controller = CreateJoinReduceController(config, host, operation);
             break;
         }
         case EOperationType::MapReduce: {
-            controller = CreateMapReduceController(host, controllerAgent, operation);
+            controller = CreateMapReduceController(config, host, operation);
             break;
         }
         case EOperationType::RemoteCopy: {
-            controller = CreateRemoteCopyController(host, controllerAgent, operation);
+            controller = CreateRemoteCopyController(config, host, operation);
             break;
         }
         default:

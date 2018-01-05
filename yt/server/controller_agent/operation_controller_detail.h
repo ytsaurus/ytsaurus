@@ -11,7 +11,6 @@
 #include "helpers.h"
 #include "master_connector.h"
 #include "task_host.h"
-#include "controller_agent.h"
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/event_log.h>
@@ -133,8 +132,8 @@ public: \
     { \
         VERIFY_EVALUATOR(affinity); \
         TSafeAssertionsGuard guard( \
-            ControllerAgent->GetCoreDumper(), \
-            ControllerAgent->GetCoreSemaphore(), \
+            Host->GetCoreDumper(), \
+            Host->GetCoreSemaphore(), \
             {"OperationId: " + ToString(OperationId)}); \
         try { \
             return Safe ## method args; \
@@ -265,9 +264,9 @@ public:
 
     TOperationControllerBase(
         TOperationSpecBasePtr spec,
+        TControllerAgentConfigPtr config,
         TOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation);
 
     // ITaskHost implementation.
@@ -361,9 +360,7 @@ public:
 
 protected:
     const IOperationControllerHostPtr Host;
-    const TControllerAgentPtr ControllerAgent;
     TControllerAgentConfigPtr Config;
-    TMasterConnector* const MasterConnector;
 
     const TOperationId OperationId;
 

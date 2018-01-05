@@ -61,14 +61,13 @@ public:
     // XXX(babenko)
     TMasterConnector* GetMasterConnector();
 
-    // XXX(babenko): affinity
     const TControllerAgentConfigPtr& GetConfig() const;
     void UpdateConfig(const TControllerAgentConfigPtr& config);
 
     /*!
      *  \note Thread affinity: any
      */
-    const NApi::INativeClientPtr& GetMasterClient() const;
+    const NApi::INativeClientPtr& GetClient() const;
     /*!
      *  \note Thread affinity: any
      */

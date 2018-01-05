@@ -1,6 +1,6 @@
-#include "private.h"
-
+#include "job_spec_service.h"
 #include "controller_agent.h"
+#include "private.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
