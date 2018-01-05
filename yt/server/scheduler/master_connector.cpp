@@ -1386,7 +1386,6 @@ private:
         return BIND(&TImpl::DoUpdateOperationNode,
             MakeStrong(this),
             update->Operation)
-            // XXX(babenko)
             .AsyncVia(CancelableControlInvoker);
     }
 
