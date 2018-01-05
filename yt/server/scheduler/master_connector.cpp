@@ -1252,119 +1252,120 @@ private:
 
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& operation = update->Operation;
         return operation->IsFinishedState();
     }
 
     void OnOperationUpdateFailed(const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YCHECK(!error.IsOK());
         LOG_ERROR(error, "Failed to update operation node");
 
         Disconnect();
     }
 
-    void UpdateOperationNodeAttributes(const TOperationPtr& operation)
+    void DoUpdateOperationNode(const TOperationPtr& operation)
     {
-        operation->SetShouldFlush(false);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto batchReq = StartObjectBatchRequest();
-        GenerateMutationId(batchReq);
+        try {
+            operation->SetShouldFlush(false);
 
-        auto paths = GetCompatibilityOperationPaths(operation->GetId(), operation->GetStorageMode());
-        for (const auto& operationPath : paths) {
-            // Set operation acl.
-            {
-                auto aclBatchReq = StartObjectBatchRequest();
-                auto req = TYPathProxy::Set(operationPath + "/@acl");
-                req->set_value(BuildYsonStringFluently()
-                    .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
-                    .GetData());
-                aclBatchReq->AddRequest(req, "set_acl");
+            auto batchReq = StartObjectBatchRequest();
+            GenerateMutationId(batchReq);
 
-                auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(aclBatchRspOrError);
+            auto paths = GetCompatibilityOperationPaths(operation->GetId(), operation->GetStorageMode());
+            for (const auto& operationPath : paths) {
+                // Set operation acl.
+                {
+                    auto aclBatchReq = StartObjectBatchRequest();
+                    auto req = TYPathProxy::Set(operationPath + "/@acl");
+                    req->set_value(BuildYsonStringFluently()
+                        .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
+                        .GetData());
+                    aclBatchReq->AddRequest(req, "set_acl");
 
-                auto rspOrErr = aclBatchRspOrError.Value()->GetResponse("set_acl");
-                if (!rspOrErr.IsOK()) {
-                    auto error = TError("Failed to set operation ACL")
-                        << TErrorAttribute("operation_id", operation->GetId())
-                        << rspOrErr;
-                    operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = error;
-                    LOG_INFO(error);
-                } else {
-                    if (!operation->Alerts()[EOperationAlertType::InvalidAcl].IsOK()) {
-                        operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = TError();
+                    auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(aclBatchRspOrError);
+
+                    auto rspOrErr = aclBatchRspOrError.Value()->GetResponse("set_acl");
+                    if (!rspOrErr.IsOK()) {
+                        auto error = TError("Failed to set operation ACL")
+                            << TErrorAttribute("operation_id", operation->GetId())
+                            << rspOrErr;
+                        operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = error;
+                        LOG_INFO(error);
+                    } else {
+                        if (!operation->Alerts()[EOperationAlertType::InvalidAcl].IsOK()) {
+                            operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = TError();
+                        }
                     }
+                }
+
+                // Set suspended flag.
+                {
+                    auto req = TYPathProxy::Set(operationPath + "/@suspended");
+                    req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set events.
+                {
+                    auto req = TYPathProxy::Set(operationPath + "/@events");
+                    req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set result.
+                if (operation->IsFinishedState()) {
+                    auto req = TYPathProxy::Set(operationPath + "/@result");
+                    auto error = FromProto<TError>(operation->Result().error());
+                    auto errorString = BuildYsonStringFluently()
+                        .BeginMap()
+                        .Item("error").Value(error)
+                        .EndMap();
+                    req->set_value(errorString.GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set end time, if given.
+                if (operation->GetFinishTime()) {
+                    auto req = TYPathProxy::Set(operationPath + "/@finish_time");
+                    req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set state.
+                {
+                    auto req = TYPathProxy::Set(operationPath + "/@state");
+                    req->set_value(ConvertToYsonString(operation->GetState()).GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set alerts.
+                {
+                    auto req = TYPathProxy::Set(operationPath + "/@alerts");
+                    const auto& alerts = operation->Alerts();
+                    req->set_value(BuildYsonStringFluently()
+                        .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
+                            [&] (TFluentMap fluent, EOperationAlertType alertType) {
+                                if (!alerts[alertType].IsOK()) {
+                                    fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
+                                }
+                            })
+                        .GetData());
+                    batchReq->AddRequest(req, "update_op_node");
                 }
             }
 
-            // Set suspended flag.
-            {
-                auto req = TYPathProxy::Set(operationPath + "/@suspended");
-                req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
-                batchReq->AddRequest(req, "update_op_node");
-            }
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
 
-            // Set events.
-            {
-                auto req = TYPathProxy::Set(operationPath + "/@events");
-                req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
-                batchReq->AddRequest(req, "update_op_node");
-            }
-
-            // Set result.
-            if (operation->IsFinishedState()) {
-                auto req = TYPathProxy::Set(operationPath + "/@result");
-                auto error = FromProto<TError>(operation->Result().error());
-                auto errorString = BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("error").Value(error)
-                    .EndMap();
-                req->set_value(errorString.GetData());
-                batchReq->AddRequest(req, "update_op_node");
-            }
-
-            // Set end time, if given.
-            if (operation->GetFinishTime()) {
-                auto req = TYPathProxy::Set(operationPath + "/@finish_time");
-                req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
-                batchReq->AddRequest(req, "update_op_node");
-            }
-
-            // Set state.
-            {
-                auto req = TYPathProxy::Set(operationPath + "/@state");
-                req->set_value(ConvertToYsonString(operation->GetState()).GetData());
-                batchReq->AddRequest(req, "update_op_node");
-            }
-
-            // Set alerts.
-            {
-                auto req = TYPathProxy::Set(operationPath + "/@alerts");
-                const auto& alerts = operation->Alerts();
-                req->set_value(BuildYsonStringFluently()
-                    .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
-                        [&] (TFluentMap fluent, EOperationAlertType alertType) {
-                            if (!alerts[alertType].IsOK()) {
-                                fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
-                            }
-                        })
-                    .GetData());
-                batchReq->AddRequest(req, "update_op_node");
-            }
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-
-        LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
-    }
-
-    void DoUpdateOperationNode(const TOperationPtr& operation)
-    {
-        try {
-            UpdateOperationNodeAttributes(operation);
+            LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation node %v",
                 operation->GetId())
@@ -1374,14 +1375,17 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& /*operationId*/, TOperationNodeUpdate* update)
     {
-        if (update->Operation->GetShouldFlush()) {
-            return BIND(&TImpl::DoUpdateOperationNode,
-                MakeStrong(this),
-                update->Operation)
-                .AsyncVia(CancelableControlInvoker);
-        } else {
-            return BIND([] { return VoidFuture; });
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!update->Operation->GetShouldFlush()) {
+            return {};
         }
+
+        return BIND(&TImpl::DoUpdateOperationNode,
+            MakeStrong(this),
+            update->Operation)
+            // XXX(babenko)
+            .AsyncVia(CancelableControlInvoker);
     }
 
     void OnOperationNodeCreated(

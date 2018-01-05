@@ -584,21 +584,30 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& operationId, TOperationNodeUpdate* update)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto controller = controllerAgent->FindController(operationId);
-        if (controller && (!update->JobRequests.empty() || !update->LivePreviewRequests.empty() || controller->ShouldUpdateProgress())) {
-            return BIND(&TImpl::DoUpdateOperationNode,
-                MakeStrong(this),
-                operationId,
-                update->StorageMode,
-                update->LivePreviewTransactionId,
-                Passed(std::move(update->JobRequests)),
-                Passed(std::move(update->LivePreviewRequests)))
-                // XXX(babenko)
-                .AsyncVia(CancelableControlInvoker_);
-        } else {
-            return BIND([] { return VoidFuture; });
+        if (!controller) {
+            return {};
         }
+
+        if (update->JobRequests.empty() &&
+            update->LivePreviewRequests.empty() &&
+            !controller->ShouldUpdateProgress())
+        {
+            return {};
+        }
+
+        return BIND(&TImpl::DoUpdateOperationNode,
+            MakeStrong(this),
+            operationId,
+            update->StorageMode,
+            update->LivePreviewTransactionId,
+            Passed(std::move(update->JobRequests)),
+            Passed(std::move(update->LivePreviewRequests)))
+            // XXX(babenko)
+            .AsyncVia(CancelableControlInvoker_);
     }
 
     void UpdateOperationNodeAttributes(const TOperationId& operationId, EOperationCypressStorageMode storageMode)
@@ -1155,12 +1164,16 @@ private:
 
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         // XXX(babenko)
         return !Bootstrap_->GetControllerAgent()->FindController(update->OperationId);
     }
 
     void OnOperationUpdateFailed(const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         LOG_ERROR(error, "Failed to update operation node");
     }
 
