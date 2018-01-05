@@ -823,8 +823,8 @@ public:
                 nodeShard->ReleaseJob(jobId);
             });
 
-        for (const auto& protoOperationId : request->completed_operation_ids()) {
-            auto operationId = FromProto<TOperationId>(protoOperationId);
+        for (const auto& protoOperationCompletion : request->completed_operations()) {
+            auto operationId = FromProto<TOperationId>(protoOperationCompletion.operation_id());
             OnOperationCompleted(operationId);
         }
 
