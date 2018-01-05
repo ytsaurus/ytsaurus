@@ -227,7 +227,6 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TThis::UpdateCachedMaxAvailableExecNodeResources, MakeWeak(this)),
         Config->MaxAvailableExecNodeResourcesUpdatePeriod))
     , EventLogConsumer_(ControllerAgent->GetEventLogWriter()->CreateConsumer())
-    , CodicilData_(MakeOperationCodicilString(OperationId))
     , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -6737,11 +6736,6 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
     }
-}
-
-TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
-{
-    return TCodicilGuard(CodicilData_);
 }
 
 EIntermediateChunkUnstageMode TOperationControllerBase::GetIntermediateChunkUnstageMode() const
