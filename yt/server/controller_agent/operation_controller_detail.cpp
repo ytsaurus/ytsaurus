@@ -189,15 +189,17 @@ TOperationControllerBase::TOperationControllerBase(
     , StartTime(operation->GetStartTime())
     , AuthenticatedUser(operation->GetAuthenticatedUser())
     , StorageMode(operation->GetStorageMode())
-    , Logger(OperationLogger)
+    , SecureVault(operation->GetSecureVault())
+    , Owners(operation->GetOwners())
+    , UserTransactionId(operation->GetUserTransactionId())
+    , Logger(NLogging::TLogger(OperationLogger)
+        .AddTag("OperationId: %v", OperationId))
     , CancelableContext(New<TCancelableContext>())
     , Invoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
-    , SecureVault(operation->GetSecureVault())
-    , Owners(operation->GetOwners())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -232,14 +234,10 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
         Config->OperationBuildProgressPeriod))
 {
-    Logger.AddTag("OperationId: %v", OperationId);
-
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
     userAttachOptions.Ping = false;
     userAttachOptions.PingAncestors = false;
-
-    UserTransactionId = operation->GetUserTransactionId();
     UserTransaction = UserTransactionId
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
@@ -387,7 +385,6 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     LOG_INFO("Operation initialized");
 }
-
 
 void TOperationControllerBase::Initialize()
 {
