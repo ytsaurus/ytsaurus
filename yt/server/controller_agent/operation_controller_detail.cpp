@@ -57,8 +57,6 @@
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
 
-#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
-
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -5452,37 +5450,36 @@ TOperationAlertMap TOperationControllerBase::GetAlerts()
     return Alerts_;
 }
 
-void TOperationControllerBase::BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response)
+TOperationInfo TOperationControllerBase::BuildOperationInfo()
 {
-    response->set_progress(
+    TOperationInfo result;
+
+    result.Progress =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildProgress, this, _1))
-        .Finish()
-        .GetData());
+        .Finish();
 
-    response->set_brief_progress(
+    result.BriefProgress =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildBriefProgress, this, _1))
-        .Finish()
-        .GetData());
+        .Finish();
 
-    response->set_running_jobs(
+    result.RunningJobs =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildJobsYson, this, _1))
-        .Finish()
-        .GetData());
+        .Finish();
 
-    response->set_job_splitter(
+    result.JobSplitter =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildJobSplitterInfo, this, _1))
-        .Finish()
-        .GetData());
+        .Finish();
 
-    response->set_memory_digest(
+    result.MemoryDigest =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildMemoryDigestStatistics, this, _1))
-        .Finish()
-        .GetData());
+        .Finish();
+
+    return result;
 }
 
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const

@@ -274,6 +274,17 @@ using TOperationControllerEvent = TVariant<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationInfo
+{
+    NYson::TYsonString Progress;
+    NYson::TYsonString BriefProgress;
+    NYson::TYsonString RunningJobs;
+    NYson::TYsonString JobSplitter;
+    NYson::TYsonString MemoryDigest;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Invoker affinity: Controller invoker
  */
@@ -394,7 +405,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker.
      */
-    virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) = 0;
+    virtual TOperationInfo BuildOperationInfo() = 0;
 
     //! Builds job info, used for orchid.
     /*!
