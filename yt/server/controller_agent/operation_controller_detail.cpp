@@ -57,7 +57,7 @@
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
 
-#include <yt/ytlib/scheduler/proto/controller_agent_operation_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
