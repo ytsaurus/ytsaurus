@@ -368,6 +368,11 @@ protected:
     const TInstant StartTime;
     const TString AuthenticatedUser;
     const NScheduler::EOperationCypressStorageMode StorageMode;
+    const NYTree::IMapNodePtr SecureVault;
+    const std::vector<TString> Owners;
+    const NTransactionClient::TTransactionId UserTransactionId;
+
+    const NLogging::TLogger Logger;
 
     // Usually these clients are all the same (and connected to the current cluster).
     // But `remote copy' operation connects InputClient to remote cluster.
@@ -376,8 +381,6 @@ protected:
     NApi::INativeClientPtr Client;
     NApi::INativeClientPtr InputClient;
     NApi::INativeClientPtr OutputClient;
-
-    mutable NLogging::TLogger Logger;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr Invoker;
@@ -430,17 +433,11 @@ protected:
     NApi::ITransactionPtr DebugOutputTransaction;
     NApi::ITransactionPtr UserTransaction;
 
-    NTransactionClient::TTransactionId UserTransactionId;
-
     bool CommitFinished = false;
 
     TOperationSnapshot Snapshot;
     struct TRowBufferTag { };
     NTableClient::TRowBufferPtr RowBuffer;
-
-    const NYTree::IMapNodePtr SecureVault;
-
-    const std::vector<TString> Owners;
 
     std::vector<TInputTable> InputTables;
     std::vector<TOutputTable> OutputTables_;
