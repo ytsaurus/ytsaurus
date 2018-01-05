@@ -244,7 +244,6 @@ public:
                 jobId);
 
             auto controller = FindController(operationId);
-
             if (!controller) {
                 asyncJobSpecs.push_back(MakeFuture<TSharedRef>(TError("No such operation %v", operationId)));
                 continue;
@@ -327,9 +326,10 @@ public:
 
     int GetExecNodeCount() const
     {
-        TReaderGuard guard(ExecNodeDescriptorsLock_);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        return CachedExecNodeDescriptors_->Descriptors.size();
+        TReaderGuard guard(ExecNodeDescriptorsLock_);
+        return static_cast<int>(CachedExecNodeDescriptors_->Descriptors.size());
     }
 
     void InterruptJob(const TJobId& jobId, EInterruptReason reason)
@@ -358,17 +358,14 @@ public:
         ToProto(jobToFail->mutable_job_id(), jobId);
     }
 
-    void ReleaseJobs(
-        std::vector<TJobId> jobIds,
-        const TOperationId& operationId,
-        int controllerSchedulerIncarnation)
+    void ReleaseJobs(const std::vector<TJobId>& jobIds)
     {
         auto guard = Guard(HeartbeatRequestLock_);
         YCHECK(HeartbeatRequest_);
-        auto* jobsToRelease = HeartbeatRequest_->add_jobs_to_release();
-        ToProto(jobsToRelease->mutable_job_ids(), jobIds);
-        ToProto(jobsToRelease->mutable_operation_id(), operationId);
-        jobsToRelease->set_controller_scheduler_incarnation(controllerSchedulerIncarnation);
+        for (const auto& jobId : jobIds) {
+            auto* subrequest = HeartbeatRequest_->add_jobs_to_release();
+            ToProto(subrequest->mutable_job_id(), jobId);
+        }
     }
 
 private:
@@ -750,12 +747,9 @@ void TControllerAgent::FailJob(const TJobId& jobId)
     Impl_->FailJob(jobId);
 }
 
-void TControllerAgent::ReleaseJobs(
-    std::vector<TJobId> jobIds,
-    const TOperationId& operationId,
-    int controllerSchedulerIncarnation)
+void TControllerAgent::ReleaseJobs(const std::vector<TJobId>& jobIds)
 {
-    Impl_->ReleaseJobs(std::move(jobIds), operationId, controllerSchedulerIncarnation);
+    Impl_->ReleaseJobs(jobIds);
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -726,34 +726,32 @@ void TNodeShard::FailJob(const TJobId& jobId)
     job->SetFailRequested(true);
 }
 
+void TNodeShard::ReleaseJob(const TJobId& jobId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    // NB: While we kept job id in operation controller, its execution node
+    // could have been unregistered.
+    auto nodeId = NodeIdFromJobId(jobId);
+    if (auto execNode = FindNodeByJob(jobId)) {
+        LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v)",
+            jobId,
+            nodeId,
+            execNode->GetDefaultAddress());
+        RevivalState_->JobIdsToRemove()[nodeId].emplace_back(jobId);
+    } else {
+        LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
+            jobId,
+            nodeId);
+    }
+}
+
 void TNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     for (const auto& pair : IdToNode_) {
         BuildNodeYson(pair.second, fluent);
-    }
-}
-
-void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    for (const auto& jobId : jobIds) {
-        // NB: While we kept job id in operation controller, its execution node
-        // could have been unregistered.
-        auto nodeId = NodeIdFromJobId(jobId);
-        if (auto execNode = FindNodeByJob(jobId)) {
-            LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v)",
-                jobId,
-                nodeId,
-                execNode->GetDefaultAddress());
-            RevivalState_->JobIdsToRemove()[nodeId].emplace_back(jobId);
-        } else {
-            LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
-                jobId,
-                nodeId);
-        }
     }
 }
 

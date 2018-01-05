@@ -812,14 +812,12 @@ public:
                 nodeShard->FailJob(jobId);
             });
 
-        for (const auto& jobsToRelease : request->jobs_to_release()) {
-            auto operationId = FromProto<TOperationId>(jobsToRelease.operation_id());
-            auto jobIds = FromProto<std::vector<TJobId>>(jobsToRelease.job_ids());
-            OnJobsRelease(
-                operationId,
-                jobIds,
-                jobsToRelease.controller_scheduler_incarnation());
-        }
+        ProcessNodeShardRequests(
+            request->jobs_to_release(),
+            [] (const auto& nodeShard, const auto& subrequest) {
+                auto jobId = FromProto<TJobId>(subrequest.job_id());
+                nodeShard->ReleaseJob(jobId);
+            });
 
         for (const auto& protoOperationId : request->completed_operation_ids()) {
             auto operationId = FromProto<TOperationId>(protoOperationId);
@@ -1093,11 +1091,11 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
+    // XXX(babenko): never read
     bool ShouldSendExecNodeDescriptorToControllerAgent_ = false;
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
-
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
@@ -1204,60 +1202,6 @@ private:
 
         Strategy_->ValidateNodeTags(tags);
         NodeIdToTags_[nodeId] = tags;
-    }
-
-
-    void OnJobsRelease(
-        const TOperationId& operationId,
-        std::vector<TJobId> jobIds,
-        int controllerSchedulerIncarnation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
-            &TImpl::DoReleaseJobs,
-            MakeStrong(this),
-            operationId,
-            Passed(std::move(jobIds)),
-            controllerSchedulerIncarnation));
-    }
-
-    void DoReleaseJobs(
-        const TOperationId& operationId,
-        const std::vector<TJobId>& jobIds,
-        int controllerSchedulerIncarnation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (SchedulerIncarnation_ != controllerSchedulerIncarnation) {
-            LOG_WARNING("Not releasing jobs because of the wrong scheduler incarnation "
-                "(SchedulerIncarnation: %v, ControllerSchedulerIncarnation: %v)",
-                SchedulerIncarnation_,
-                controllerSchedulerIncarnation);
-            return;
-        }
-
-        std::vector<std::vector<TJobId>> jobIdsToRemoveByShardId(NodeShards_.size());
-        for (const auto& jobId : jobIds) {
-            int shardId = GetNodeShardId(NodeIdFromJobId(jobId));
-            jobIdsToRemoveByShardId[shardId].emplace_back(jobId);
-        }
-
-        std::vector<TFuture<void>> submitFutures;
-        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-            if (jobIdsToRemoveByShardId[shardId].empty()) {
-                continue;
-            }
-            auto submitFuture = BIND(&TNodeShard::ReleaseJobs, NodeShards_[shardId])
-                .AsyncVia(NodeShards_[shardId]->GetInvoker())
-                .Run(std::move(jobIdsToRemoveByShardId[shardId]));
-            submitFutures.emplace_back(std::move(submitFuture));
-        }
-
-        auto error = WaitFor(Combine(submitFutures));
-        if (!error.IsOK()) {
-            DoFailOperation(operationId, error);
-        }
     }
 
 
@@ -1538,7 +1482,8 @@ private:
         LOG_INFO("Finished scheduler state cleanup");
     }
 
-    void LogOperationFinished(const TOperationPtr& operation, ELogEventType logEventType, TError error)
+
+    void LogOperationFinished(const TOperationPtr& operation, ELogEventType logEventType, const TError& error)
     {
         LogEventFluently(logEventType)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))

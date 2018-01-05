@@ -72,9 +72,7 @@ message TReqHeartbeat
 
     message TJobsRelease
     {
-        repeated NYT.NProto.TGuid job_ids = 1;
-        required NYT.NProto.TGuid operation_id = 2;
-        required int32 controller_scheduler_incarnation = 3;
+        required NYT.NProto.TGuid job_id = 1;
     }
 
     message TOperationAlerts
