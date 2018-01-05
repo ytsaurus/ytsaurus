@@ -1,5 +1,4 @@
 #include "unordered_controller.h"
-
 #include "auto_merge_task.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
@@ -8,7 +7,6 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "task.h"
-#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -213,15 +211,15 @@ public:
 
     TUnorderedControllerBase(
         TUnorderedOperationSpecBasePtr spec,
+        TControllerAgentConfigPtr config,
         TSimpleOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TOperationControllerBase(
             spec,
+            config,
             options,
             host,
-            controllerAgent,
             operation)
         , Spec(spec)
         , Options(options)
@@ -522,15 +520,15 @@ class TMapController
 public:
     TMapController(
         TMapOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
         TMapOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TUnorderedControllerBase(
             spec,
+            config,
             options,
             host,
-            controllerAgent,
             operation)
         , Spec(spec)
         , Options(options)
@@ -725,13 +723,12 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateUnorderedMapController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    // XXX(babenko): check affinity
-    return New<TMapController>(spec, controllerAgent->GetConfig()->MapOperationOptions, host, controllerAgent, operation);
+    return New<TMapController>(spec, config, config->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -742,15 +739,15 @@ class TUnorderedMergeController
 public:
     TUnorderedMergeController(
         TUnorderedMergeOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
         TUnorderedMergeOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TUnorderedControllerBase(
             spec,
+            config,
             options,
             host,
-            controllerAgent,
             operation)
         , Spec(spec)
     {
@@ -884,13 +881,12 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateUnorderedMergeController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(operation->GetSpec());
-    // XXX(babenko): check affinity
-    return New<TUnorderedMergeController>(spec, controllerAgent->GetConfig()->UnorderedMergeOperationOptions, host, controllerAgent, operation);
+    return New<TUnorderedMergeController>(spec, config, config->UnorderedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

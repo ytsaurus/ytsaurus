@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "operation_controller.h"
 
 #include <yt/server/cell_scheduler/public.h>
 
@@ -14,23 +14,6 @@
 
 namespace NYT {
 namespace NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCreateJobNodeRequest
-{
-    TOperationId OperationId;
-    TJobId JobId;
-    NYson::TYsonString Attributes;
-    NChunkClient::TChunkId StderrChunkId;
-    NChunkClient::TChunkId FailContextChunkId;
-};
-
-struct TOperationSnapshot
-{
-    int Version = -1;
-    TSharedRef Data;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +50,9 @@ public:
         const TOperationId& operationId,
         NScheduler::EOperationCypressStorageMode storageMode);
 
-    void CreateJobNode(const TCreateJobNodeRequest& request);
+    void CreateJobNode(
+        const TOperationId& operationId,
+        const TCreateJobNodeRequest& request);
 
     TFuture<void> FlushOperationNode(const TOperationId& operationId);
 

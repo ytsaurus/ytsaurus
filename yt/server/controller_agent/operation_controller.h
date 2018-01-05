@@ -7,7 +7,13 @@
 
 #include <yt/ytlib/api/public.h>
 
+#include <yt/ytlib/cypress_client/public.h>
+
 #include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/ytlib/event_log/public.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -58,10 +64,63 @@ struct TSnapshotCookie
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationSnapshot
+{
+    int Version = -1;
+    TSharedRef Data;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCreateJobNodeRequest
+{
+    TJobId JobId;
+    NYson::TYsonString Attributes;
+    NChunkClient::TChunkId StderrChunkId;
+    NChunkClient::TChunkId FailContextChunkId;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*!
+ *  \note Thread affinity: Cancelable controller invoker
+ */
 struct IOperationControllerHost
     : public virtual TRefCounted
 {
-    // TODO(babenko): to be used later
+    virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) = 0;
+    virtual void AbortJob(const TJobId& jobId, const TError& error) = 0;
+    virtual void FailJob(const TJobId& jobId) = 0;
+    virtual void ReleaseJobs(const std::vector<TJobId>& jobIds) = 0;
+
+    virtual TFuture<TOperationSnapshot> DownloadSnapshot() = 0;
+    virtual TFuture<void> RemoveSnapshot() = 0;
+
+    virtual TFuture<void> FlushOperationNode() = 0;
+    virtual void CreateJobNode(const TCreateJobNodeRequest& request) = 0;
+
+    virtual TFuture<void> AttachChunkTreesToLivePreview(
+        const NTransactionClient::TTransactionId& transactionId,
+        const std::vector<NCypressClient::TNodeId>& tableIds,
+        const std::vector<NChunkClient::TChunkTreeId>& childIds) = 0;
+    virtual void AddChunkTreesToUnstageList(
+        const std::vector<NChunkClient::TChunkId>& chunkTreeIds,
+        bool recursive) = 0;
+
+    virtual const NApi::INativeClientPtr& GetClient() = 0;
+    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
+    virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
+    virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
+    virtual const NEventLog::TEventLogWriterPtr& GetEventLogWriter() = 0;
+    virtual const TCoreDumperPtr& GetCoreDumper() = 0;
+    virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
+
+    virtual int GetExecNodeCount() = 0;
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
+    virtual TInstant GetConnectionTime() = 0;
+
+    // XXX(babenko)
+    virtual TFuture<void> GetHeartbeatSentFuture() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
@@ -416,8 +475,8 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateControllerForOperation(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     NScheduler::TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,7 +8,6 @@
 #include "task.h"
 
 #include <yt/server/scheduler/helpers.h>
-#include <yt/server/scheduler/master_connector.h>
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/scheduling_context.h>
 
@@ -179,14 +178,12 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistence
 
 TOperationControllerBase::TOperationControllerBase(
     TOperationSpecBasePtr spec,
+    TControllerAgentConfigPtr config,
     TOperationOptionsPtr options,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
-    : Host(host)
-    , ControllerAgent(controllerAgent)
-    , Config(ControllerAgent->GetConfig())
-    , MasterConnector(ControllerAgent->GetMasterConnector())
+    : Host(std::move(host))
+    , Config(std::move(config))
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
     , StartTime(operation->GetStartTime())
@@ -194,7 +191,7 @@ TOperationControllerBase::TOperationControllerBase(
     , StorageMode(operation->GetStorageMode())
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
-    , Invoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()))
+    , Invoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(New<TProgressCounter>(0))
@@ -202,8 +199,8 @@ TOperationControllerBase::TOperationControllerBase(
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
     , SchedulerIncarnation_(operation->GetSchedulerIncarnation())
-    , Spec_(spec)
-    , Options(options)
+    , Spec_(std::move(spec))
+    , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::UpdateSuspiciousJobsYson, MakeWeak(this)),
@@ -229,7 +226,7 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::UpdateCachedMaxAvailableExecNodeResources, MakeWeak(this)),
         Config->MaxAvailableExecNodeResourcesUpdatePeriod))
-    , EventLogConsumer_(ControllerAgent->GetEventLogWriter()->CreateConsumer())
+    , EventLogConsumer_(Host->GetEventLogWriter()->CreateConsumer())
     , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -245,7 +242,7 @@ TOperationControllerBase::TOperationControllerBase(
 
     UserTransactionId = operation->GetUserTransactionId();
     UserTransaction = UserTransactionId
-        ? ControllerAgent->GetMasterClient()->AttachTransaction(UserTransactionId, userAttachOptions)
+        ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
 }
 
@@ -271,8 +268,8 @@ void TOperationControllerBase::InitializeClients()
 {
     TClientOptions options;
     options.User = AuthenticatedUser;
-    Client = ControllerAgent
-        ->GetMasterClient()
+    Client = Host
+        ->GetClient()
         ->GetNativeConnection()
         ->CreateNativeClient(options);
     InputClient = Client;
@@ -325,7 +322,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     // Downloading snapshot.
     if (!cleanStart) {
-        auto snapshotOrError = WaitFor(MasterConnector->DownloadSnapshot(OperationId));
+        auto snapshotOrError = WaitFor(Host->DownloadSnapshot());
         if (!snapshotOrError.IsOK()) {
             LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
             cleanStart = true;
@@ -379,7 +376,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         LOG_INFO("Using clean start instead of revive");
 
         Snapshot = TOperationSnapshot();
-        Y_UNUSED(WaitFor(MasterConnector->RemoveSnapshot(OperationId)));
+        Y_UNUSED(WaitFor(Host->RemoveSnapshot()));
 
         StartTransactions();
         InitializeStructures();
@@ -927,7 +924,7 @@ void TOperationControllerBase::InitInputChunkScraper()
     InputChunkScraper = New<TChunkScraper>(
         Config->ChunkScraper,
         CancelableInvoker,
-        ControllerAgent->GetChunkLocationThrottlerManager(),
+        Host->GetChunkLocationThrottlerManager(),
         InputClient,
         InputNodeDirectory_,
         std::move(chunkIds),
@@ -945,7 +942,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
     IntermediateChunkScraper = New<TIntermediateChunkScraper>(
         Config->ChunkScraper,
         CancelableInvoker,
-        ControllerAgent->GetChunkLocationThrottlerManager(),
+        Host->GetChunkLocationThrottlerManager(),
         InputClient,
         InputNodeDirectory_,
         [weakThis = MakeWeak(this)] () {
@@ -1082,8 +1079,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             for (const auto& pair : table.OutputChunkTreeIds) {
                 childIds.push_back(pair.second);
             }
-            MasterConnector->AttachToLivePreview(
-                OperationId,
+            Host->AttachChunkTreesToLivePreview(
                 AsyncSchedulerTransaction->GetId(),
                 table.LivePreviewTableIds,
                 childIds);
@@ -1098,8 +1094,7 @@ void TOperationControllerBase::ReinstallLivePreview()
                 childIds.push_back(pair.first);
             }
         }
-        MasterConnector->AttachToLivePreview(
-            OperationId,
+        Host->AttachChunkTreesToLivePreview(
             AsyncSchedulerTransaction->GetId(),
             IntermediateTable.LivePreviewTableIds,
             childIds);
@@ -1134,7 +1129,7 @@ void TOperationControllerBase::StartCompletionTransaction()
 
     // Set transaction id to Cypress.
     {
-        const auto& client = ControllerAgent->GetMasterClient();
+        const auto& client = Host->GetClient();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
@@ -1150,7 +1145,7 @@ void TOperationControllerBase::CommitCompletionTransaction()
 {
     // Set committed flag.
     {
-        const auto& client = ControllerAgent->GetMasterClient();
+        const auto& client = Host->GetClient();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
@@ -1181,7 +1176,7 @@ void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitSta
 
 void TOperationControllerBase::SetPartSize(const TNullable<TOutputTable>& table, size_t partSize)
 {
-    const auto& client = ControllerAgent->GetMasterClient();
+    const auto& client = Host->GetClient();
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
@@ -1210,7 +1205,7 @@ void TOperationControllerBase::SafeCommit()
     CustomCommit();
 
     if (StderrTable_ || CoreTable_) {
-        const auto& client = ControllerAgent->GetMasterClient();
+        const auto& client = Host->GetClient();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
@@ -1592,7 +1587,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     // Validate all node ids of the output chunks and populate the local node directory.
     // In case any id is not known, abort the job.
-    const auto& globalNodeDirectory = ControllerAgent->GetNodeDirectory();
+    const auto& globalNodeDirectory = Host->GetNodeDirectory();
     for (const auto& chunkSpec : schedulerResultExt.output_chunk_specs()) {
         auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
         for (auto replica : replicas) {
@@ -1809,12 +1804,12 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
             JobSplitter_->OnJobRunning(*jobSummary);
             if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
                 LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
-                ControllerAgent->InterruptJob(jobId, EInterruptReason::JobSplit);
+                Host->InterruptJob(jobId, EInterruptReason::JobSplit);
             }
         }
 
         auto asyncResult = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
-            .AsyncVia(ControllerAgent->GetControllerThreadPoolInvoker())
+            .AsyncVia(Host->GetControllerThreadPoolInvoker())
             .Run();
 
         // Resulting future is dropped intentionally.
@@ -2251,7 +2246,7 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
 void TOperationControllerBase::DoAbort()
 {
     // NB: Errors ignored since we cannot do anything with it.
-    Y_UNUSED(WaitFor(MasterConnector->FlushOperationNode(OperationId)));
+    Y_UNUSED(WaitFor(Host->FlushOperationNode()));
 
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
@@ -3249,7 +3244,7 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     // Flush of newly calculated statistics is guaranteed by OnOperationFailed.
     AnalyzeOperationProgress();
 
-    auto flushResult = WaitFor(MasterConnector->FlushOperationNode(OperationId));
+    auto flushResult = WaitFor(Host->FlushOperationNode());
     if (checkFlushResult && !flushResult.IsOK()) {
         // We do not want to complete operation if progress flush has failed.
         OnOperationFailed(flushResult, /* flush */ false);
@@ -3342,7 +3337,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     }
 
     for (const auto& joblet : JobletMap) {
-        ControllerAgent->FailJob(joblet.first);
+        Host->FailJob(joblet.first);
     }
 
     auto error = GetTimeLimitError();
@@ -3439,13 +3434,12 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     {
         TCreateJobNodeRequest request;
-        request.OperationId = OperationId;
         request.JobId = jobId;
         request.Attributes = attributes;
         request.StderrChunkId = stderrChunkId;
         request.FailContextChunkId = failContextChunkId;
 
-        MasterConnector->CreateJobNode(std::move(request));
+        Host->CreateJobNode(std::move(request));
     }
 
     if (stderrChunkId) {
@@ -3476,7 +3470,7 @@ bool TOperationControllerBase::IsFinished() const
 
 void TOperationControllerBase::CreateLivePreviewTables()
 {
-    const auto& client = ControllerAgent->GetMasterClient();
+    const auto& client = Host->GetClient();
     auto connection = client->GetNativeConnection();
 
     // NB: use root credentials.
@@ -3662,7 +3656,7 @@ void TOperationControllerBase::FetchInputTables()
                 InputQuery->Query->WhereClause,
                 table.Schema,
                 table.Schema.GetKeyColumns(),
-                ControllerAgent->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
+                Host->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
                 BuiltinRangeExtractorMap,
                 queryOptions);
 
@@ -4492,7 +4486,7 @@ void TOperationControllerBase::ParseInputQuery(
             THROW_ERROR_EXCEPTION("External UDF registry is not configured");
         }
 
-        auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), ControllerAgent->GetMasterClient());
+        auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), Host->GetClient());
 
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
@@ -4689,7 +4683,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
             auto scraper = CreateFetcherChunkScraper(
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
-                ControllerAgent->GetChunkLocationThrottlerManager(),
+                Host->GetChunkLocationThrottlerManager(),
                 InputClient,
                 InputNodeDirectory_,
                 Logger);
@@ -4714,7 +4708,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 InputNodeDirectory_,
                 GetCancelableInvoker(),
                 createScraperForFetcher(),
-                ControllerAgent->GetMasterClient(),
+                Host->GetClient(),
                 RowBuffer,
                 Logger);
 
@@ -5130,8 +5124,7 @@ void TOperationControllerBase::AttachToLivePreview(
     TChunkTreeId chunkTreeId,
     const std::vector<NCypressClient::TNodeId>& tableIds)
 {
-    MasterConnector->AttachToLivePreview(
-        OperationId,
+    Host->AttachChunkTreesToLivePreview(
         AsyncSchedulerTransaction->GetId(),
         tableIds,
         {chunkTreeId});
@@ -5347,7 +5340,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
             jobIdsToRelease.size(),
             cookie.SnapshotIndex,
             SchedulerIncarnation_);
-        ControllerAgent->ReleaseJobs(jobIdsToRelease);
+        Host->ReleaseJobs(jobIdsToRelease);
     }
 
     // Stripe lists.
@@ -5362,7 +5355,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
 
         for (const auto& stripeList : stripeListsToRelease) {
             auto chunkIds = GetStripeListChunkIds(stripeList);
-            MasterConnector->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
+            Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
             OnChunksReleased(stripeList->TotalChunkCount);
         }
     }
@@ -5377,7 +5370,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
             chunkTreeIdsToRelease.size(),
             cookie.SnapshotIndex);
 
-        MasterConnector->AddChunkTreesToUnstageList(std::move(chunkTreeIdsToRelease), true /* recursive */);
+        Host->AddChunkTreesToUnstageList(chunkTreeIdsToRelease, true /* recursive */);
     }
 
     RecentSnapshotIndex_.Reset();
@@ -5393,7 +5386,7 @@ void TOperationControllerBase::OnBeforeDisposal()
         headCookie,
         SchedulerIncarnation_);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
-    ControllerAgent->ReleaseJobs(jobIdsToRelease);
+    Host->ReleaseJobs(jobIdsToRelease);
 }
 
 NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
@@ -5528,7 +5521,7 @@ void TOperationControllerBase::ReleaseChunkTrees(
             ChunkTreeReleaseQueue_.Push(chunkTreeId);
         }
     } else {
-        MasterConnector->AddChunkTreesToUnstageList(chunkTreeIds, unstageRecursively);
+        Host->AddChunkTreesToUnstageList(chunkTreeIds, unstageRecursively);
     }
 }
 
@@ -6399,8 +6392,8 @@ void TOperationControllerBase::GetExecNodesInformation()
         return;
     }
 
-    ExecNodeCount_ = ControllerAgent->GetExecNodeCount();
-    ExecNodesDescriptors_ = ControllerAgent->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+    ExecNodeCount_ = Host->GetExecNodeCount();
+    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
 }
 
@@ -6423,7 +6416,7 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
         return true;
     }
 
-    if (TInstant::Now() < ControllerAgent->GetConnectionTime() + Config->SafeSchedulerOnlineTime) {
+    if (TInstant::Now() < Host->GetConnectionTime() + Config->SafeSchedulerOnlineTime) {
         return true;
     }
 
@@ -6617,7 +6610,7 @@ const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobTyp
 
 void TOperationControllerBase::WaitForHeartbeat()
 {
-    Y_UNUSED(WaitFor(ControllerAgent->GetHeartbeatSentFuture()));
+    Y_UNUSED(WaitFor(Host->GetHeartbeatSentFuture()));
 }
 
 void TOperationControllerBase::Persist(const TPersistenceContext& context)
@@ -6798,7 +6791,7 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
     auto chunkIds = GetStripeListChunkIds(stripeList);
     switch (GetIntermediateChunkUnstageMode()) {
         case EIntermediateChunkUnstageMode::OnJobCompleted: {
-            MasterConnector->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
+            Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
             OnChunksReleased(stripeList->TotalChunkCount);
             break;
         }

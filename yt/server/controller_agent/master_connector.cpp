@@ -173,22 +173,22 @@ public:
             TOperationNodeUpdate(operationId, storageMode));
     }
 
-    void CreateJobNode(const TCreateJobNodeRequest& request)
+    void CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
-            request.OperationId,
+            operationId,
             request.JobId,
             request.StderrChunkId,
             request.FailContextChunkId);
 
         // XXX(babenko)
         CancelableControlInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
-            auto* update = OperationNodesUpdateExecutor_->FindUpdate(request.OperationId);
+            auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
             if (!update) {
                 LOG_DEBUG("Trying to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
-                    request.OperationId,
+                    operationId,
                     request.JobId);
                 return;
             }
@@ -1170,7 +1170,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // XXX(babenko)
         return !Bootstrap_->GetControllerAgent()->FindController(update->OperationId);
     }
 
@@ -1272,9 +1271,9 @@ void TMasterConnector::StartOperationNodeUpdates(
     Impl_->StartOperationNodeUpdates(operationId, storageMode);
 }
 
-void TMasterConnector::CreateJobNode(const TCreateJobNodeRequest& request)
+void TMasterConnector::CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
 {
-    Impl_->CreateJobNode(request);
+    Impl_->CreateJobNode(operationId, request);
 }
 
 TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operationId)

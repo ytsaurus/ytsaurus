@@ -8,7 +8,6 @@
 #include "unordered_controller.h"
 #include "operation_controller_detail.h"
 #include "task.h"
-#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/shuffle_chunk_pool.h>
@@ -85,15 +84,15 @@ class TSortControllerBase
 public:
     TSortControllerBase(
         TSortOperationSpecBasePtr spec,
+        TControllerAgentConfigPtr config,
         TSortOperationOptionsBasePtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TOperationControllerBase(
             spec,
+            config,
             options,
             host,
-            controllerAgent,
             operation)
         , Spec(spec)
         , Options(options)
@@ -1196,7 +1195,7 @@ protected:
             }
             LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetId());
             for (const auto& joblet : ActiveJoblets_) {
-                Controller->ControllerAgent->AbortJob(
+                Controller->Host->AbortJob(
                     joblet->JobId,
                     TError("Job is aborted due to chunk pool output invalidation")
                         << error);
@@ -1995,7 +1994,7 @@ protected:
         auto user = AuthenticatedUser;
         auto account = Spec->IntermediateDataAccount;
 
-        const auto& client = ControllerAgent->GetMasterClient();
+        const auto& client = Host->GetClient();
         auto asyncResult = client->CheckPermission(
             user,
             "//sys/accounts/" + account,
@@ -2077,15 +2076,15 @@ class TSortController
 public:
     TSortController(
         TSortOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TSortOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortControllerBase(
             spec,
-            // XXX(babenko): check affinity
-            controllerAgent->GetConfig()->SortOperationOptions,
+            config,
+            options,
             host,
-            controllerAgent,
             operation)
         , Spec(spec)
     {
@@ -2192,7 +2191,7 @@ private:
                 FetcherChunkScraper = CreateFetcherChunkScraper(
                     Config->ChunkScraper,
                     GetCancelableInvoker(),
-                    ControllerAgent->GetChunkLocationThrottlerManager(),
+                    Host->GetChunkLocationThrottlerManager(),
                     InputClient,
                     InputNodeDirectory_,
                     Logger);
@@ -2212,7 +2211,7 @@ private:
                 GetCancelableInvoker(),
                 samplesRowBuffer,
                 FetcherChunkScraper,
-                ControllerAgent->GetMasterClient(),
+                Host->GetClient(),
                 Logger);
 
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
@@ -2762,12 +2761,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
 
 IOperationControllerPtr CreateSortController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
-    return New<TSortController>(spec, host, controllerAgent, operation);
+    return New<TSortController>(spec, config, config->SortOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2778,15 +2777,15 @@ class TMapReduceController
 public:
     TMapReduceController(
         TMapReduceOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TMapReduceOperationOptionsPtr options,
         IOperationControllerHostPtr host,
-        TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortControllerBase(
             spec,
-            // XXX(babenko): check affinity
-            controllerAgent->GetConfig()->MapReduceOperationOptions,
+            config,
+            options,
             host,
-            controllerAgent,
             operation)
         , Spec(spec)
     {
@@ -3519,12 +3518,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceController);
 
 IOperationControllerPtr CreateMapReduceController(
+    TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
-    TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
-    return New<TMapReduceController>(spec, host, controllerAgent, operation);
+    return New<TMapReduceController>(spec, config, config->MapReduceOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

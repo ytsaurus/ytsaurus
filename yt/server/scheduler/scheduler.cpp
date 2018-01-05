@@ -1043,7 +1043,7 @@ public:
 
     TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
+        const TChunkId& chunkId,
         const TOperationId& operationId,
         const TJobId& jobId) override
     {
@@ -1140,7 +1140,135 @@ private:
     class TOperationControllerHost
         : public IOperationControllerHost
     {
+    public:
+        TOperationControllerHost(
+            TOperationPtr operation,
+            TBootstrap* bootstrap)
+            : Operation_(std::move(operation))
+            , Bootstrap_(bootstrap)
+        { }
 
+        virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override
+        {
+            Bootstrap_->GetControllerAgent()->InterruptJob(jobId, reason);
+        }
+
+        virtual void AbortJob(const TJobId& jobId, const TError& error) override
+        {
+            Bootstrap_->GetControllerAgent()->AbortJob(jobId, error);
+        }
+
+        virtual void FailJob(const TJobId& jobId) override
+        {
+            Bootstrap_->GetControllerAgent()->FailJob(jobId);
+        }
+
+        virtual void ReleaseJobs(const std::vector<TJobId>& jobIds) override
+        {
+            Bootstrap_->GetControllerAgent()->ReleaseJobs(jobIds);
+        }
+
+        virtual TFuture<TOperationSnapshot> DownloadSnapshot() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->DownloadSnapshot(Operation_->GetId());
+        }
+
+        virtual TFuture<void> RemoveSnapshot() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->RemoveSnapshot(Operation_->GetId());
+        }
+
+        virtual TFuture<void> FlushOperationNode() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->FlushOperationNode(Operation_->GetId());
+        }
+
+        virtual void CreateJobNode(const TCreateJobNodeRequest& request) override
+        {
+            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->CreateJobNode(
+                Operation_->GetId(),
+                request);
+        }
+
+        virtual TFuture<void> AttachChunkTreesToLivePreview(
+            const NTransactionClient::TTransactionId& transactionId,
+            const std::vector<NCypressClient::TNodeId>& tableIds,
+            const std::vector<TChunkTreeId>& childIds) override
+        {
+            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->AttachToLivePreview(
+                Operation_->GetId(),
+                transactionId,
+                tableIds,
+                childIds);
+        }
+
+        virtual void AddChunkTreesToUnstageList(
+            const std::vector<TChunkId>& chunkTreeIds,
+            bool recursive) override
+        {
+            Bootstrap_->GetControllerAgent()->GetMasterConnector()->AddChunkTreesToUnstageList(
+                chunkTreeIds,
+                recursive);
+        }
+
+        virtual const NApi::INativeClientPtr& GetClient() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetClient();
+        }
+
+        virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetNodeDirectory();
+        }
+
+        virtual const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetChunkLocationThrottlerManager();
+        }
+
+        virtual const IInvokerPtr& GetControllerThreadPoolInvoker() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetControllerThreadPoolInvoker();
+        }
+
+        virtual const NEventLog::TEventLogWriterPtr& GetEventLogWriter() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetEventLogWriter();
+        }
+
+        virtual const TCoreDumperPtr& GetCoreDumper() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetCoreDumper();
+        }
+
+        virtual const TAsyncSemaphorePtr& GetCoreSemaphore() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetCoreSemaphore();
+        }
+
+        virtual int GetExecNodeCount() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetExecNodeCount();
+        }
+
+        virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override
+        {
+            return Bootstrap_->GetControllerAgent()->GetExecNodeDescriptors(filter);
+        }
+
+        virtual TInstant GetConnectionTime() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetConnectionTime();
+        }
+
+        virtual TFuture<void> GetHeartbeatSentFuture() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetHeartbeatSentFuture();
+        }
+
+    private:
+        const TOperationPtr Operation_;
+        TBootstrap* const Bootstrap_;
     };
 
 
@@ -1966,8 +2094,8 @@ private:
     IOperationControllerPtr CreateOperationController(const TOperationPtr& operation)
     {
         return CreateControllerForOperation(
-            New<TOperationControllerHost>(),
-            Bootstrap_->GetControllerAgent(),
+            Bootstrap_->GetControllerAgent()->GetConfig(),
+            New<TOperationControllerHost>(operation, Bootstrap_),
             operation.Get());
     }
 
