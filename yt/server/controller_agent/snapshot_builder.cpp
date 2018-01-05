@@ -22,6 +22,8 @@
 #include <yt/core/pipes/async_writer.h>
 #include <yt/core/pipes/pipe.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 #include <thread>
 
 namespace NYT {

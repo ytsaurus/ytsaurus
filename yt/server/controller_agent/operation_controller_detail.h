@@ -22,6 +22,10 @@
 
 #include <yt/server/chunk_server/public.h>
 
+#include <yt/server/misc/release_queue.h>
+
+#include <yt/ytlib/scheduler/proto/job.pb.h>
+
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -262,6 +266,7 @@ public:
     TOperationControllerBase(
         TOperationSpecBasePtr spec,
         TOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation);
 
@@ -355,6 +360,7 @@ public:
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 
 protected:
+    const IOperationControllerHostPtr Host;
     const TControllerAgentPtr ControllerAgent;
     TControllerAgentConfigPtr Config;
     TMasterConnector* const MasterConnector;

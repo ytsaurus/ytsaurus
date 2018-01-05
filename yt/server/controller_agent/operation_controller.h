@@ -2,46 +2,21 @@
 
 #include "public.h"
 
-#include "private.h"
-
-#include <yt/server/cell_scheduler/bootstrap.h>
-
-#include <yt/server/scheduler/scheduling_context.h>
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
 
-#include <yt/server/table_server/public.h>
-
-#include <yt/server/misc/release_queue.h>
-
 #include <yt/ytlib/api/public.h>
-
-#include <yt/ytlib/hive/public.h>
-
-#include <yt/ytlib/job_tracker_client/job.pb.h>
-
-#include <yt/ytlib/node_tracker_client/node.pb.h>
-
-#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/ytlib/object_client/public.h>
-
-#include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/future.h>
-
-#include <yt/core/concurrency/public.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/variant.h>
 
 #include <yt/core/yson/public.h>
-
-#include <yt/core/ytree/public.h>
-#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -80,6 +55,16 @@ struct TSnapshotCookie
 {
     int SnapshotIndex = -1;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IOperationControllerHost
+    : public virtual TRefCounted
+{
+    // TODO(babenko): to be used later
+};
+
+DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -431,6 +416,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateControllerForOperation(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     NScheduler::TOperation* operation);
 

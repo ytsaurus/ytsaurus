@@ -19,6 +19,8 @@
 
 #include <yt/core/concurrency/public.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/core/yson/public.h>
 
 namespace NYT {

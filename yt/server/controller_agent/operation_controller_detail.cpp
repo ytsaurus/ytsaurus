@@ -10,6 +10,7 @@
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/master_connector.h>
 #include <yt/server/scheduler/job.h>
+#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/server/misc/job_table_schema.h>
 
@@ -179,9 +180,11 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistence
 TOperationControllerBase::TOperationControllerBase(
     TOperationSpecBasePtr spec,
     TOperationOptionsPtr options,
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
-    : ControllerAgent(controllerAgent)
+    : Host(host)
+    , ControllerAgent(controllerAgent)
     , Config(ControllerAgent->GetConfig())
     , MasterConnector(ControllerAgent->GetMasterConnector())
     , OperationId(operation->GetId())

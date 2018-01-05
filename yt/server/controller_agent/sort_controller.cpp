@@ -17,6 +17,7 @@
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
+#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -85,9 +86,15 @@ public:
     TSortControllerBase(
         TSortOperationSpecBasePtr spec,
         TSortOperationOptionsBasePtr options,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
-        : TOperationControllerBase(spec, options, controllerAgent, operation)
+        : TOperationControllerBase(
+            spec,
+            options,
+            host,
+            controllerAgent,
+            operation)
         , Spec(spec)
         , Options(options)
         , CompletedPartitionCount(0)
@@ -2070,12 +2077,14 @@ class TSortController
 public:
     TSortController(
         TSortOperationSpecPtr spec,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortControllerBase(
             spec,
-            // XXX(babenko): wrong affinity
+            // XXX(babenko): check affinity
             controllerAgent->GetConfig()->SortOperationOptions,
+            host,
             controllerAgent,
             operation)
         , Spec(spec)
@@ -2753,11 +2762,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
 
 IOperationControllerPtr CreateSortController(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
-    return New<TSortController>(spec, controllerAgent, operation);
+    return New<TSortController>(spec, host, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2768,12 +2778,14 @@ class TMapReduceController
 public:
     TMapReduceController(
         TMapReduceOperationSpecPtr spec,
+        IOperationControllerHostPtr host,
         TControllerAgentPtr controllerAgent,
         TOperation* operation)
         : TSortControllerBase(
             spec,
-            // XXX(babenko): wrong affinity
+            // XXX(babenko): check affinity
             controllerAgent->GetConfig()->MapReduceOperationOptions,
+            host,
             controllerAgent,
             operation)
         , Spec(spec)
@@ -3507,11 +3519,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceController);
 
 IOperationControllerPtr CreateMapReduceController(
+    IOperationControllerHostPtr host,
     TControllerAgentPtr controllerAgent,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
-    return New<TMapReduceController>(spec, controllerAgent, operation);
+    return New<TMapReduceController>(spec, host, controllerAgent, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
