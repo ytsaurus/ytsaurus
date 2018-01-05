@@ -784,46 +784,33 @@ public:
                 agentIncarnationId);
         }
 
-        auto cancelableControlInvoker = MasterConnector_->GetCancelableControlInvoker();
-
         for (const auto& jobMetricsProto : request->job_metrics()) {
             auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
             GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
         }
 
-        // TODO(babenko): per-shard batching
-        for (const auto& jobToInterrupt : request->jobs_to_interrupt()) {
-            auto jobId = FromProto<TJobId>(jobToInterrupt.job_id());
-            auto reason = EInterruptReason(jobToInterrupt.reason());
-            const auto& nodeShard = GetNodeShardByJobId(jobId);
-            nodeShard->GetInvoker()->Invoke(BIND(
-                &TNodeShard::InterruptJob,
-                nodeShard,
-                jobId,
-                reason));
-        }
+        ProcessNodeShardRequests(
+            request->jobs_to_interrupt(),
+            [] (const auto& nodeShard, const auto& subrequest) {
+                auto jobId = FromProto<TJobId>(subrequest.job_id());
+                auto reason = EInterruptReason(subrequest.reason());
+                nodeShard->InterruptJob(jobId, reason);
+            });
 
-        // TODO(babenko): per-shard batching
-        for (const auto& jobToAbort : request->jobs_to_abort()) {
-            auto jobId = FromProto<TJobId>(jobToAbort.job_id());
-            auto error = FromProto<TError>(jobToAbort.error());
-            const auto& nodeShard = GetNodeShardByJobId(jobId);
-            nodeShard->GetInvoker()->Invoke(BIND(
-                static_cast<void(TNodeShard::*)(const TJobId&, const TError&)>(&TNodeShard::AbortJob),
-                nodeShard,
-                jobId,
-                error));
-        }
+        ProcessNodeShardRequests(
+            request->jobs_to_abort(),
+            [] (const auto& nodeShard, const auto& subrequest) {
+                auto jobId = FromProto<TJobId>(subrequest.job_id());
+                auto error = FromProto<TError>(subrequest.error());
+                nodeShard->AbortJob(jobId, error);
+            });
 
-        // TODO(babenko): per-shard batching
-        for (const auto& jobToFail : request->jobs_to_fail()) {
-            auto jobId = FromProto<TJobId>(jobToFail.job_id());
-            const auto& nodeShard = GetNodeShardByJobId(jobId);
-            nodeShard->GetInvoker()->Invoke(BIND(
-                &TNodeShard::FailJob,
-                nodeShard,
-                jobId));
-        }
+        ProcessNodeShardRequests(
+            request->jobs_to_fail(),
+            [] (const auto& nodeShard, const auto& subrequest) {
+                auto jobId = FromProto<TJobId>(subrequest.job_id());
+                nodeShard->FailJob(jobId);
+            });
 
         for (const auto& jobsToRelease : request->jobs_to_release()) {
             auto operationId = FromProto<TOperationId>(jobsToRelease.operation_id());
@@ -834,24 +821,24 @@ public:
                 jobsToRelease.controller_scheduler_incarnation());
         }
 
-        for (const auto& protoOperationId: request->completed_operation_ids()) {
+        for (const auto& protoOperationId : request->completed_operation_ids()) {
             auto operationId = FromProto<TOperationId>(protoOperationId);
             OnOperationCompleted(operationId);
         }
 
-        for (const auto& protoOperationSuspension: request->suspended_operations()) {
+        for (const auto& protoOperationSuspension : request->suspended_operations()) {
             auto operationId = FromProto<TOperationId>(protoOperationSuspension.operation_id());
             auto error = FromProto<TError>(protoOperationSuspension.error());
             OnOperationSuspended(operationId, error);
         }
 
-        for (const auto& protoOperationAbort: request->aborted_operations()) {
+        for (const auto& protoOperationAbort : request->aborted_operations()) {
             auto operationId = FromProto<TOperationId>(protoOperationAbort.operation_id());
             auto error = FromProto<TError>(protoOperationAbort.error());
             OnOperationAborted(operationId, error);
         }
 
-        for (const auto& protoOperationFailure: request->failed_operations()) {
+        for (const auto& protoOperationFailure : request->failed_operations()) {
             auto operationId = FromProto<TOperationId>(protoOperationFailure.operation_id());
             auto error = FromProto<TError>(protoOperationFailure.error());
             OnOperationFailed(operationId, error);
@@ -1147,6 +1134,28 @@ private:
     NControllerAgent::TIncarnationId AgentIncarnationId_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    template <class T, class F>
+    void ProcessNodeShardRequests(const google::protobuf::RepeatedPtrField<T>& subrequests, F handler)
+    {
+        std::vector<std::vector<const T*>> groupedSubrequests(NodeShards_.size());
+        for (const auto& subrequest : subrequests) {
+            auto jobId = FromProto<TJobId>(subrequest.job_id());
+            auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
+            groupedSubrequests[shardId].push_back(&subrequest);
+        }
+
+        for (size_t shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            const auto& nodeShard = NodeShards_[shardId];
+            nodeShard->GetInvoker()->Invoke(BIND(
+                [=, subrequests = std::move(groupedSubrequests[shardId])] {
+                    for (const auto* subrequest : subrequests) {
+                        handler(nodeShard, *subrequest);
+                    }
+                }));
+        }
+    }
 
 
     void DoSetOperationAlert(
