@@ -1140,6 +1140,8 @@ private:
 
     void BuildSnapshot()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (!Config_->EnableSnapshotBuilding) {
             return;
         }

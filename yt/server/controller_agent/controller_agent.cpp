@@ -119,41 +119,58 @@ public:
 
     const TControllerAgentConfigPtr& GetConfig() const
     {
+        // XXX(babenko)
+        // VERIFY_THREAD_AFFINITY(ControlThread);
+
         return Config_;
     }
 
     const NApi::INativeClientPtr& GetMasterClient() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetMasterClient();
     }
 
     const TNodeDirectoryPtr& GetNodeDirectory()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetNodeDirectory();
     }
 
     const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return ChunkLocationThrottlerManager_;
     }
 
     const TCoreDumperPtr& GetCoreDumper() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetCoreDumper();
     }
 
     const TAsyncSemaphorePtr& GetCoreSemaphore() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return CoreSemaphore_;
     }
 
     const TEventLogWriterPtr& GetEventLogWriter() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return EventLogWriter_;
     }
 
     void UpdateConfig(const TControllerAgentConfigPtr& config)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Config_ = config;
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
@@ -173,32 +190,29 @@ public:
 
     void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TWriterGuard guard(ControllerMapLock_);
         ControllerMap_.emplace(operationId, controller);
     }
 
     void UnregisterController(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TWriterGuard guard(ControllerMapLock_);
         YCHECK(ControllerMap_.erase(operationId) == 1);
     }
 
     IOperationControllerPtr FindController(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TReaderGuard guard(ControllerMapLock_);
         auto it = ControllerMap_.find(operationId);
         return it == ControllerMap_.end() ? nullptr : it->second;
     }
 
     IOperationControllerPtr GetControllerOrThrow(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto controller = FindController(operationId);
         if (!controller) {
@@ -209,9 +223,8 @@ public:
 
     TOperationIdToControllerMap GetControllers()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TReaderGuard guard(ControllerMapLock_);
         return ControllerMap_;
     }
 
@@ -263,7 +276,7 @@ public:
 
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto controller = GetControllerOrThrow(operationId);
         return BIND(&IOperationController::BuildOperationInfo, controller)
@@ -275,7 +288,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto controller = GetControllerOrThrow(operationId);
         return BIND(&IOperationController::BuildJobYson, controller)
@@ -372,7 +385,6 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    TReaderWriterSpinLock ControllerMapLock_;
     TOperationIdToControllerMap ControllerMap_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;

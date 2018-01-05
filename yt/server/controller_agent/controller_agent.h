@@ -25,7 +25,9 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): thread affinity
+/*!
+ *  \note Thread affinity: Control unless noted otherwise
+ */
 class TControllerAgent
     : public TRefCounted
 {
@@ -59,35 +61,44 @@ public:
     // XXX(babenko)
     TMasterConnector* GetMasterConnector();
 
+    // XXX(babenko): affinity
     const TControllerAgentConfigPtr& GetConfig() const;
     void UpdateConfig(const TControllerAgentConfigPtr& config);
 
+    /*!
+     *  \note Thread affinity: any
+     */
     const NApi::INativeClientPtr& GetMasterClient() const;
+    /*!
+     *  \note Thread affinity: any
+     */
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
+    /*!
+     *  \note Thread affinity: any
+     */
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
+    /*!
+     *  \note Thread affinity: any
+     */
     const TCoreDumperPtr& GetCoreDumper() const;
+    /*!
+     *  \note Thread affinity: any
+     */
     const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
+    /*!
+     *  \note Thread affinity: any
+     */
     const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
 
-    // XXX(babenko): any
     void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller);
-    // XXX(babenko): any
     void UnregisterController(const TOperationId& operationId);
-    // XXX(babenko): any
     IOperationControllerPtr FindController(const TOperationId& operationId);
-    // XXX(babenko): any
     TOperationIdToControllerMap GetControllers();
 
+    // TODO(babenko): maybe relax affinity?
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests);
 
-    /*!
-     *  \note Thread affinity: any
-     */
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId);
-
-    /*!
-     *  \note Thread affinity: any
-     */
     TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, const TJobId& jobId);
 
     // XXX(babenko)
@@ -112,9 +123,13 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId);
 
+    // XXX(babenko): check affinity
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
+    // XXX(babenko): check affinity
     void AbortJob(const TJobId& jobId, const TError& error);
+    // XXX(babenko): check affinity
     void FailJob(const TJobId& jobId);
+    // XXX(babenko): check affinity
     void ReleaseJobs(
         std::vector<TJobId> jobIds,
         const TOperationId& operationId,
