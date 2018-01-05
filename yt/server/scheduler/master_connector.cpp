@@ -11,6 +11,8 @@
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
 
+#include <yt/server/misc/update_executor.h>
+
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
@@ -27,7 +29,6 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
-#include <yt/ytlib/scheduler/update_executor.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 

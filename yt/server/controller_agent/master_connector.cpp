@@ -11,6 +11,8 @@
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
 
+#include <yt/server/misc/update_executor.h>
+
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -30,8 +32,6 @@
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
-
-#include <yt/ytlib/scheduler/update_executor.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 
