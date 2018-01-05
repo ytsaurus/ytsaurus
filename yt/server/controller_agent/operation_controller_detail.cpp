@@ -198,7 +198,6 @@ TOperationControllerBase::TOperationControllerBase(
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
-    , SchedulerIncarnation_(operation->GetSchedulerIncarnation())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -5334,12 +5333,11 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
     {
         auto headCookie = CompletedJobIdsReleaseQueue_.GetHeadCookie();
         auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release(CompletedJobIdsSnapshotCookie_);
-        LOG_INFO("Releasing job ids (SnapshotCookie: %v, HeadCookie: %v, JobCount: %v, SnapshotIndex: %v, SchedulerIncarnation: %v)",
+        LOG_INFO("Releasing job ids (SnapshotCookie: %v, HeadCookie: %v, JobCount: %v, SnapshotIndex: %v)",
             CompletedJobIdsSnapshotCookie_,
             headCookie,
             jobIdsToRelease.size(),
-            cookie.SnapshotIndex,
-            SchedulerIncarnation_);
+            cookie.SnapshotIndex);
         Host->ReleaseJobs(jobIdsToRelease);
     }
 
@@ -5382,9 +5380,8 @@ void TOperationControllerBase::OnBeforeDisposal()
     VERIFY_INVOKER_AFFINITY(Invoker);
 
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
-    LOG_INFO("Releasing job ids before controller disposal (HeadCookie: %v, SchedulerIncarnation: %v)",
-        headCookie,
-        SchedulerIncarnation_);
+    LOG_INFO("Releasing job ids before controller disposal (HeadCookie: %v)",
+        headCookie);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
     Host->ReleaseJobs(jobIdsToRelease);
 }

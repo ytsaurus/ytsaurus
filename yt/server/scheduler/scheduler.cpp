@@ -543,7 +543,6 @@ public:
             GetControlInvoker(EControlQueue::Operation),
             spec->TestingOperationOptions->CypressStorageMode);
         operation->SetState(EOperationState::Initializing);
-        operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
         WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
             .ThrowOnError();
@@ -1082,13 +1081,6 @@ private:
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
-    //! Ordinal number of this scheduler incarnation. It is used
-    //! to discard late callbacks that are submitted by still
-    //! running controllers.
-    //! This field is incremented on each OnMasterConnected and
-    //! should be accessed only from scheduler control thread.
-    int SchedulerIncarnation_ = -1;
-
     ISchedulerStrategyPtr Strategy_;
 
     yhash<TOperationId, TOperationPtr> IdToOperation_;
@@ -1478,9 +1470,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ++SchedulerIncarnation_;
-        LOG_INFO("Preparing new incarnation of scheduler (SchedulerIncarnation: %v)",
-            SchedulerIncarnation_);
+        LOG_INFO("Preparing new incarnation of scheduler");
 
         ValidateConfig();
 
@@ -1544,8 +1534,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Cleaning up scheduler state (SchedulerIncarnation: %v)",
-            SchedulerIncarnation_);
+        LOG_INFO("Cleaning up scheduler state");
 
         // XXX(babenko)
         TForbidContextSwitchGuard contextSwitchGuard;
@@ -2108,8 +2097,6 @@ private:
         LOG_INFO("Registering operation for revival (OperationId: %v)",
             operationId);
 
-        operation->SetSchedulerIncarnation(SchedulerIncarnation_);
-
         if (operation->GetMutationId()) {
             TRspStartOperation response;
             ToProto(response.mutable_operation_id(), operationId);
@@ -2161,9 +2148,8 @@ private:
         operation->RevivalDescriptor().Reset();
 
         auto operationId = operation->GetId();
-        LOG_INFO("Reviving operation (OperationId: %v, SchedulerIncarnation: %v)",
-            operationId,
-            SchedulerIncarnation_);
+        LOG_INFO("Reviving operation (OperationId: %v)",
+            operationId);
 
         try {
             auto controller = operation->GetController();
