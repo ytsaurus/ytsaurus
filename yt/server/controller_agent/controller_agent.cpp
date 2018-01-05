@@ -482,7 +482,8 @@ private:
                     break;
 
                 case TOperationControllerEvent::TagOf<TOperationCompletedEvent>(): {
-                    ToProto(req->add_completed_operation_ids(), operationId);
+                    auto* proto = req->add_completed_operations();
+                    ToProto(proto->mutable_operation_id(), operationId);
                     break;
                 }
 
