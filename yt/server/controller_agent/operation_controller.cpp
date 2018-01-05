@@ -267,9 +267,9 @@ public:
         return Underlying_->GetAlerts();
     }
 
-    virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override
+    virtual TOperationInfo BuildOperationInfo() override
     {
-        Underlying_->BuildOperationInfo(response);
+        return Underlying_->BuildOperationInfo();
     }
 
     virtual TYsonString GetSuspiciousJobsYson() const override

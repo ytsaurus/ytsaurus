@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "operation_controller.h"
 
 #include <yt/server/cell_scheduler/public.h>
 
@@ -25,6 +25,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): thread affinity
 class TControllerAgent
     : public TRefCounted
 {
@@ -37,7 +38,13 @@ public:
     // XXX(babenko): remove this after getting rid of AttachJobContext
     const IInvokerPtr& GetCancelableInvoker();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetControllerThreadPoolInvoker();
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetSnapshotIOInvoker();
 
     /*!
@@ -73,13 +80,15 @@ public:
 
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests);
 
-    void BuildOperationInfo(
-        const TOperationId& operationId,
-        NScheduler::NProto::TRspGetOperationInfo* response);
+    /*!
+     *  \note Thread affinity: any
+     */
+    TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId);
 
-    NYson::TYsonString BuildJobInfo(
-        const TOperationId& operationId,
-        const TJobId& jobId);
+    /*!
+     *  \note Thread affinity: any
+     */
+    TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, const TJobId& jobId);
 
     // XXX(babenko)
     TFuture<void> GetHeartbeatSentFuture();

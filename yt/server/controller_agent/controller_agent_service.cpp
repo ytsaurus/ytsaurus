@@ -12,6 +12,7 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NRpc;
+using namespace NConcurrency;
 using namespace NCellScheduler;
 
 ////////////////////////////////////////////////////////////////////
@@ -37,7 +38,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, GetOperationInfo)
     {
-        auto controllerAgent = Bootstrap_->GetControllerAgent();
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
 
         auto operationId = FromProto<TOperationId>(request->operation_id());
@@ -45,14 +46,21 @@ private:
         context->SetRequestInfo("OperationId: %v",
             operationId);
 
-        controllerAgent->BuildOperationInfo(operationId, response);
+        auto result = WaitFor(controllerAgent->BuildOperationInfo(operationId))
+            .ValueOrThrow();
+
+        response->set_progress(result.Progress.GetData());
+        response->set_brief_progress(result.BriefProgress.GetData());
+        response->set_running_jobs(result.RunningJobs.GetData());
+        response->set_job_splitter(result.JobSplitter.GetData());
+        response->set_memory_digest(result.MemoryDigest.GetData());
 
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, GetJobInfo)
     {
-        auto controllerAgent = Bootstrap_->GetControllerAgent();
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
 
         auto operationId = FromProto<TOperationId>(request->operation_id());
@@ -62,7 +70,9 @@ private:
             operationId,
             jobId);
 
-        response->set_info(controllerAgent->BuildJobInfo(operationId, jobId).GetData());
+        auto info = WaitFor(controllerAgent->BuildJobInfo(operationId, jobId))
+            .ValueOrThrow();
+        response->set_info(info.GetData());
 
         context->Reply();
     }

@@ -350,7 +350,7 @@ public:
 
     virtual TOperationAlertMap GetAlerts() override;
 
-    virtual void BuildOperationInfo(NScheduler::NProto::TRspGetOperationInfo* response) override;
+    virtual TOperationInfo BuildOperationInfo() override;
 
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 

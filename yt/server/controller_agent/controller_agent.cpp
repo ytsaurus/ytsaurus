@@ -79,6 +79,8 @@ public:
 
     void ValidateConnected()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         if (!MasterConnector_->IsConnected()) {
             THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
         }
@@ -86,6 +88,8 @@ public:
 
     TInstant GetConnectionTime() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return MasterConnector_->GetConnectionTime();
     }
 
@@ -96,11 +100,15 @@ public:
 
     const IInvokerPtr& GetControllerThreadPoolInvoker()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return ControllerThreadPool_->GetInvoker();
     }
 
     const IInvokerPtr& GetSnapshotIOInvoker()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return SnapshotIOQueue_->GetInvoker();
     }
 
@@ -165,25 +173,44 @@ public:
 
     void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TWriterGuard guard(ControllerMapLock_);
         ControllerMap_.emplace(operationId, controller);
     }
 
     void UnregisterController(const TOperationId& operationId)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TWriterGuard guard(ControllerMapLock_);
         YCHECK(ControllerMap_.erase(operationId) == 1);
     }
 
     IOperationControllerPtr FindController(const TOperationId& operationId)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TReaderGuard guard(ControllerMapLock_);
         auto it = ControllerMap_.find(operationId);
         return it == ControllerMap_.end() ? nullptr : it->second;
     }
 
+    IOperationControllerPtr GetControllerOrThrow(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto controller = FindController(operationId);
+        if (!controller) {
+            THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+        }
+        return controller;
+    }
+
     TOperationIdToControllerMap GetControllers()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TReaderGuard guard(ControllerMapLock_);
         return ControllerMap_;
     }
@@ -234,37 +261,26 @@ public:
         return results;
     }
 
-    void BuildOperationInfo(
-        const TOperationId& operationId,
-        NScheduler::NProto::TRspGetOperationInfo* response)
+    TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId)
     {
-        auto controller = FindController(operationId);
-        if (!controller) {
-            return;
-        }
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto asyncResult = BIND(&IOperationController::BuildOperationInfo, controller)
+        auto controller = GetControllerOrThrow(operationId);
+        return BIND(&IOperationController::BuildOperationInfo, controller)
             .AsyncVia(controller->GetCancelableInvoker())
-            .Run(response);
-        WaitFor(asyncResult)
-            .ThrowOnError();
+            .Run();
     }
 
-    TYsonString BuildJobInfo(
+    TFuture<TYsonString> BuildJobInfo(
         const TOperationId& operationId,
         const TJobId& jobId)
     {
-        auto controller = FindController(operationId);
-        if (!controller) {
-            THROW_ERROR_EXCEPTION("Operation %v is missing", operationId);
-        }
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto asyncResult = BIND(&IOperationController::BuildJobYson, controller)
+        auto controller = GetControllerOrThrow(operationId);
+        return BIND(&IOperationController::BuildJobYson, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(jobId, /* outputStatistics */ true);
-
-        return WaitFor(asyncResult)
-            .ValueOrThrow();
     }
 
     TFuture<void> GetHeartbeatSentFuture()
@@ -671,12 +687,12 @@ std::vector<TErrorOr<TSharedRef>> TControllerAgent::GetJobSpecs(const std::vecto
     return Impl_->GetJobSpecs(jobSpecRequests);
 }
 
-void TControllerAgent::BuildOperationInfo(const TOperationId& operationId, NScheduler::NProto::TRspGetOperationInfo* response)
+TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(const TOperationId& operationId)
 {
-    Impl_->BuildOperationInfo(operationId, response);
+    return Impl_->BuildOperationInfo(operationId);
 }
 
-TYsonString TControllerAgent::BuildJobInfo(
+TFuture<TYsonString> TControllerAgent::BuildJobInfo(
     const TOperationId& operationId,
     const TJobId& jobId)
 {
