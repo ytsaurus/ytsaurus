@@ -28,7 +28,7 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
-#include <yt/ytlib/scheduler/controller_agent_operation_service_proxy.h>
+#include <yt/ytlib/scheduler/controller_agent_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -2752,7 +2752,7 @@ private:
 
     void BuildOperationYson(
         const TOperationPtr& operation,
-        const TControllerAgentOperationServiceProxy::TErrorOrRspGetOperationInfoPtr& rspOrError,
+        const TControllerAgentServiceProxy::TErrorOrRspGetOperationInfoPtr& rspOrError,
         IYsonConsumer* consumer) const
     {
         static const auto emptyMapFragment = TYsonString(TString(), EYsonType::MapFragment);
@@ -2866,7 +2866,7 @@ private:
                 return nullptr;
             }
 
-            TControllerAgentOperationServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
+            TControllerAgentServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
             proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);
             auto request = proxy.GetOperationInfo();
             ToProto(request->mutable_operation_id(), operationId);
@@ -2950,7 +2950,7 @@ private:
                 return;
             }
 
-            TControllerAgentOperationServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
+            TControllerAgentServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
             proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);
             auto request = proxy.GetJobInfo();
             ToProto(request->mutable_operation_id(), operationId);
