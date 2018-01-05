@@ -1017,6 +1017,7 @@ private:
                     {
                         auto req = TCypressYPathProxy::Create(file.Path);
                         req->set_recursive(true);
+                        req->set_force(true);
                         req->set_type(static_cast<int>(EObjectType::File));
 
                         auto attributes = CreateEphemeralAttributes();
