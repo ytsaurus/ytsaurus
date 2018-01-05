@@ -120,8 +120,6 @@ public:
 
     void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
-    void AbortAllJobs(const TError& error);
-
     void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
 
     void ResumeOperationJobs(const TOperationId& operationId);
@@ -260,8 +258,8 @@ private:
 
     struct TOperationState
     {
-        explicit TOperationState(const NControllerAgent::IOperationControllerSchedulerHostPtr& controller)
-            : Controller(controller)
+        explicit TOperationState(NControllerAgent::IOperationControllerSchedulerHostPtr controller)
+            : Controller(std::move(controller))
         { }
 
         yhash<TJobId, TJobPtr> Jobs;
@@ -270,7 +268,7 @@ private:
         bool JobsAborted = false;
     };
 
-    yhash<TOperationId, TOperationState> OperationIdToState_;
+    yhash<TOperationId, TOperationState> IdToOpertionState_;
 
     yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
 

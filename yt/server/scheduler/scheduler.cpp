@@ -1512,7 +1512,7 @@ private:
 
         CachedExecNodeMemoryDistributionByTags_->Start();
 
-        Strategy_->StartPeriodicActivity();
+        Strategy_->OnMasterConnected();
 
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
@@ -1534,11 +1534,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Cleaning up scheduler state");
-
-        // XXX(babenko)
-        TForbidContextSwitchGuard contextSwitchGuard;
-
         // XXX(babenko)
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
 
@@ -1550,31 +1545,15 @@ private:
         LogEventFluently(ELogEventType::MasterDisconnected)
             .Item("address").Value(ServiceAddress_);
 
-        auto error = TError("Master disconnected");
-
         if (Config_->TestingOptions->MasterDisconnectDelay) {
             Sleep(*Config_->TestingOptions->MasterDisconnectDelay);
         }
 
         {
-            LOG_INFO("Aborting jobs at node shards");
-
-            std::vector<TFuture<void>> asyncResults;
-            for (const auto& nodeShard : NodeShards_) {
-                asyncResults.push_back(BIND(&TNodeShard::AbortAllJobs, nodeShard)
-                    .AsyncVia(nodeShard->GetInvoker())
-                    .Run(error));
-            }
-
-            // XXX(babenko)
-            Combine(asyncResults)
-                .Get();
-        }
-
-        {
-            LOG_INFO("Forgetting operations");
+            LOG_INFO("Started forgetting operations");
 
             auto idToOperation = IdToOperation_;
+            auto error = TError("Master disconnected");
             for (const auto& pair : idToOperation) {
                 const auto& operation = pair.second;
                 LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
@@ -1590,10 +1569,11 @@ private:
             }
 
             YCHECK(IdToOperation_.empty());
+            LOG_INFO("Finished forgetting operations");
         }
 
         {
-            LOG_INFO("Disconnecting node shards");
+            LOG_INFO("Started disconnecting node shards");
 
             std::vector<TFuture<void>> asyncResults;
             for (const auto& nodeShard : NodeShards_) {
@@ -1602,14 +1582,15 @@ private:
                     .Run());
             }
 
-            // XXX(babenko)
+            // NB: This is the only way we have to induce a barrier preventing a new incarnation
+            // of scheduler from interplaying with the previous one.
             Combine(asyncResults)
                 .Get();
+
+            LOG_INFO("Finished disconnecting node shards");
         }
 
-        Strategy_->ResetState();
-
-        LOG_INFO("Finished scheduler state cleanup");
+        Strategy_->OnMasterDisconnected();
     }
 
 

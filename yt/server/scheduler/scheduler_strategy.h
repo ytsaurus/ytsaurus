@@ -94,7 +94,10 @@ struct ISchedulerStrategy
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
 
     //! Starts periodic updates and logging.
-    virtual void StartPeriodicActivity() = 0;
+    virtual void OnMasterConnected() = 0;
+
+    //! Stops all activities, resets all state.
+    virtual void OnMasterDisconnected() = 0;
 
     //! Called periodically to build new tree snapshot.
     virtual void OnFairShareUpdateAt(TInstant now) = 0;
@@ -107,9 +110,6 @@ struct ISchedulerStrategy
 
     //! Called periodically to update min needed job resources for operation.
     virtual void OnMinNeededJobResourcesUpdate() = 0;
-
-    //! Resets memoized state.
-    virtual void ResetState() = 0;
 
     //! Validates that operation can be started.
     /*!
