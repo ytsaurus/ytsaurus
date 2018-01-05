@@ -231,48 +231,43 @@ public:
     }
 
 
-    std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
+    TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
-
-        for (const auto& pair : jobSpecRequests) {
-            const auto& operationId = pair.first;
-            const auto& jobId = pair.second;
-
+        for (const auto& request : requests) {
             LOG_DEBUG("Retrieving job spec (OperationId: %v, JobId: %v)",
-                operationId,
-                jobId);
+                request.OperationId,
+                request.JobId);
 
-            auto controller = FindController(operationId);
+            auto controller = FindController(request.OperationId);
             if (!controller) {
-                asyncJobSpecs.push_back(MakeFuture<TSharedRef>(TError("No such operation %v", operationId)));
+                asyncJobSpecs.push_back(MakeFuture<TSharedRef>(TError("No such operation %v",
+                    request.OperationId)));
                 continue;
             }
 
             auto asyncJobSpec = BIND(&IOperationController::ExtractJobSpec,
                 controller,
-                jobId)
+                request.JobId)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
 
             asyncJobSpecs.push_back(asyncJobSpec);
         }
 
-        auto results = WaitFor(CombineAll(asyncJobSpecs))
-            .ValueOrThrow();
-
-        int index = 0;
-        for (const auto& result : results) {
-            if (!result.IsOK()) {
-                const auto& jobId = jobSpecRequests[index].second;
-                LOG_DEBUG(result, "Failed to extract job spec (JobId: %v)", jobId);
-            }
-            ++index;
-        }
-
-        return results;
+        return CombineAll(asyncJobSpecs);
+        //int index = 0;
+        //for (const auto& result : jobSpecs) {
+        //    if (!result.IsOK()) {
+        //        const auto& jobId = jobSpecRequests[index].second;
+        //        LOG_DEBUG(result, "Failed to extract job spec (JobId: %v)", jobId);
+        //    }
+        //    ++index;
+        //}
+        //
+        //return jobSpecs;
     }
 
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId)
@@ -721,9 +716,10 @@ yhash<TOperationId, IOperationControllerPtr> TControllerAgent::GetControllers()
     return Impl_->GetControllers();
 }
 
-std::vector<TErrorOr<TSharedRef>> TControllerAgent::GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
+TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(
+    const std::vector<TJobSpecRequest>& requests)
 {
-    return Impl_->GetJobSpecs(jobSpecRequests);
+    return Impl_->ExtractJobSpecs(requests);
 }
 
 TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(const TOperationId& operationId)

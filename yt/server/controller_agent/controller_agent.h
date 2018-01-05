@@ -25,6 +25,14 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
+struct TJobSpecRequest
+{
+    TOperationId OperationId;
+    TJobId JobId;
+};
+
+////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Thread affinity: Control unless noted otherwise
  */
@@ -94,8 +102,8 @@ public:
     IOperationControllerPtr FindController(const TOperationId& operationId);
     TOperationIdToControllerMap GetControllers();
 
-    // TODO(babenko): maybe relax affinity?
-    std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests);
+    //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
+    TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);
 
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId);
     TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, const TJobId& jobId);

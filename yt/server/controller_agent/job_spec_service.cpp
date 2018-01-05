@@ -55,33 +55,35 @@ private:
         auto controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
 
-        std::vector<std::pair<TOperationId, TJobId>> jobSpecRequests;
+        std::vector<TJobSpecRequest> jobSpecRequests;
         for (const auto& jobSpecRequest : request->requests()) {
-            if (!jobSpecRequest.has_operation_id()) {
-                THROW_ERROR_EXCEPTION("Malformed request: all job spec subrequests must contain operation id");
-            }
-            auto operationId = FromProto<TOperationId>(jobSpecRequest.operation_id());
-            auto jobId = FromProto<TJobId>(jobSpecRequest.job_id());
-            jobSpecRequests.emplace_back(operationId, jobId);
+            jobSpecRequests.emplace_back(TJobSpecRequest{
+                FromProto<TOperationId>(jobSpecRequest.operation_id()),
+                FromProto<TJobId>(jobSpecRequest.job_id())
+            });
         }
 
-        auto jobSpecResults = controllerAgent->GetJobSpecs(jobSpecRequests);
+        auto results = WaitFor(controllerAgent->ExtractJobSpecs(jobSpecRequests))
+            .ValueOrThrow();
 
         std::vector<TSharedRef> jobSpecs;
-        jobSpecs.reserve(jobSpecRequests.size());
-
-        for (const auto& errorOrValue : jobSpecResults) {
-            auto* jobSpecResponse = response->add_responses();
-            ToProto(jobSpecResponse->mutable_error(), errorOrValue);
-            if (errorOrValue.IsOK()) {
-                jobSpecs.push_back(errorOrValue.Value());
+        results.reserve(jobSpecRequests.size());
+        for (size_t index = 0; index < jobSpecRequests.size(); ++index) {
+            const auto& subrequest = jobSpecRequests[index];
+            const auto& subresponse = results[index];
+            auto* protoSubresponse = response->add_responses();
+            ToProto(protoSubresponse->mutable_error(), subresponse);
+            if (subresponse.IsOK()) {
+                jobSpecs.push_back(subresponse.Value());
             } else {
-                jobSpecs.push_back(TSharedRef());
+                LOG_DEBUG(subresponse, "Failed to extract job spec (OperationId: %v, JobId: %v)",
+                    subrequest.OperationId,
+                    subrequest.JobId);
+                jobSpecs.emplace_back();
             }
         }
 
-        response->Attachments() = jobSpecs;
-
+        response->Attachments() = std::move(jobSpecs);
         context->Reply();
     }
 };

@@ -21,6 +21,7 @@ message TRspGetJobSpecs
     message TJobSpecResponse
     {
         optional NYT.NProto.TError error = 1;
+        // The actual spec is passed via attachments.
     }
 
     repeated TJobSpecResponse responses = 1;
