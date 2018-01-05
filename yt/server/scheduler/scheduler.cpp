@@ -790,6 +790,7 @@ public:
         }
 
         ProcessNodeShardRequests(
+            context,
             request->jobs_to_interrupt(),
             [] (const auto& nodeShard, const auto& subrequest) {
                 auto jobId = FromProto<TJobId>(subrequest.job_id());
@@ -798,6 +799,7 @@ public:
             });
 
         ProcessNodeShardRequests(
+            context,
             request->jobs_to_abort(),
             [] (const auto& nodeShard, const auto& subrequest) {
                 auto jobId = FromProto<TJobId>(subrequest.job_id());
@@ -806,6 +808,7 @@ public:
             });
 
         ProcessNodeShardRequests(
+            context,
             request->jobs_to_fail(),
             [] (const auto& nodeShard, const auto& subrequest) {
                 auto jobId = FromProto<TJobId>(subrequest.job_id());
@@ -813,6 +816,7 @@ public:
             });
 
         ProcessNodeShardRequests(
+            context,
             request->jobs_to_release(),
             [] (const auto& nodeShard, const auto& subrequest) {
                 auto jobId = FromProto<TJobId>(subrequest.job_id());
@@ -1134,10 +1138,13 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    template <class T, class F>
-    void ProcessNodeShardRequests(const google::protobuf::RepeatedPtrField<T>& subrequests, F handler)
+    template <class TContext, class TSubrequest, class F>
+    void ProcessNodeShardRequests(
+        const TContext& context,
+        const google::protobuf::RepeatedPtrField<TSubrequest>& subrequests,
+        F handler)
     {
-        std::vector<std::vector<const T*>> groupedSubrequests(NodeShards_.size());
+        std::vector<std::vector<const TSubrequest*>> groupedSubrequests(NodeShards_.size());
         for (const auto& subrequest : subrequests) {
             auto jobId = FromProto<TJobId>(subrequest.job_id());
             auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
@@ -1147,7 +1154,7 @@ private:
         for (size_t shardId = 0; shardId < NodeShards_.size(); ++shardId) {
             const auto& nodeShard = NodeShards_[shardId];
             nodeShard->GetInvoker()->Invoke(BIND(
-                [=, subrequests = std::move(groupedSubrequests[shardId])] {
+                [context, handler, nodeShard, subrequests = std::move(groupedSubrequests[shardId])] {
                     for (const auto* subrequest : subrequests) {
                         handler(nodeShard, *subrequest);
                     }
