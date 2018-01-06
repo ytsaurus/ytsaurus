@@ -25,6 +25,8 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -71,7 +73,7 @@ TNodeShard::TNodeShard(
     TBootstrap* bootstrap)
     : Id_(id)
     , PrimaryMasterCellTag_(primaryMasterCellTag)
-    , Config_(config)
+    , Config_(std::move(config))
     , Host_(host)
     , Bootstrap_(bootstrap)
     , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
@@ -87,7 +89,7 @@ TNodeShard::TNodeShard(
         .AddTag("NodeShardId: %v", Id_))
 { }
 
-IInvokerPtr TNodeShard::GetInvoker()
+const IInvokerPtr& TNodeShard::GetInvoker()
 {
     return ActionQueue_->GetInvoker();
 }
@@ -103,6 +105,12 @@ void TNodeShard::OnMasterConnected()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    YCHECK(!Connected_);
+    Connected_ = true;
+
+    CancelableContext_ = New<TCancelableContext>();
+    CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
+
     CachedExecNodeDescriptorsRefresher_->Start();
     CachedResourceLimitsByTags_->Start();
 
@@ -113,6 +121,15 @@ void TNodeShard::OnMasterConnected()
 void TNodeShard::OnMasterDisconnected()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    Connected_ = false;
+
+    if (CancelableContext_) {
+        CancelableContext_->Cancel();
+        CancelableContext_.Reset();
+    }
+
+    CancelableInvoker_.Reset();
 
     CachedExecNodeDescriptorsRefresher_->Stop();
     CachedResourceLimitsByTags_->Stop();
@@ -178,6 +195,20 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    if (!Connected_) {
+        context->Reply(TError(
+            NRpc::EErrorCode::Unavailable,
+            "Scheduler is not able to accept node heartbeats"));
+        return;
+    }
+
+    CancelableInvoker_->Invoke(BIND(&TNodeShard::DoProcessHeartbeat, MakeStrong(this), context));
+}
+
+void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context) noexcept
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker_);
+
     auto* request = &context->Request();
     auto* response = &context->Response();
 
@@ -196,6 +227,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
     YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
 
     auto node = GetOrRegisterNode(nodeId, descriptor);
+
     // NB: Resource limits and usage of node should be updated even if
     // node is offline to avoid getting incorrect total limits when node becomes online.
     UpdateNodeResources(node,
@@ -210,7 +242,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
 
     // We should process only one heartbeat at a time from the same node.
     if (node->GetHasOngoingHeartbeat()) {
-        context->Reply(TError("Node has ongoing heartbeat"));
+        context->Reply(TError("Node alrady has an ongoing heartbeat"));
         return;
     }
 
@@ -235,83 +267,71 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
     response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
     response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
 
-    auto scheduleJobsAsyncResult = VoidFuture;
+    BeginNodeHeartbeatProcessing(node);
+    auto finallyGuard = Finally([&] { EndNodeHeartbeatProcessing(node); });
 
-    {
-        BeginNodeHeartbeatProcessing(node);
-        auto heartbeatGuard = Finally([&] {
-            EndNodeHeartbeatProcessing(node);
-        });
+    std::vector<TJobPtr> runningJobs;
+    bool hasWaitingJobs = false;
+    PROFILE_AGGREGATED_TIMING (AnalysisTimeCounter) {
+        ProcessHeartbeatJobs(
+            node,
+            request,
+            response,
+            &runningJobs,
+            &hasWaitingJobs);
+    }
 
-        // NB: No exception must leave this try/catch block.
-        try {
-            std::vector<TJobPtr> runningJobs;
-            bool hasWaitingJobs = false;
-            PROFILE_AGGREGATED_TIMING (AnalysisTimeCounter) {
-                ProcessHeartbeatJobs(
-                    node,
-                    request,
-                    response,
-                    &runningJobs,
-                    &hasWaitingJobs);
-            }
-
-            if (hasWaitingJobs || isThrottlingActive) {
-                if (hasWaitingJobs) {
-                    LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-                }
-                if (isThrottlingActive) {
-                    LOG_DEBUG("Throttling is active, suppressing new jobs scheduling");
-                }
-                response->set_scheduling_skipped(true);
-            } else {
-                auto schedulingContext = CreateSchedulingContext(
-                    Config_,
-                    node,
-                    Host_->GetJobSpecSliceThrottler(),
-                    runningJobs,
-                    PrimaryMasterCellTag_);
-
-                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-                    SubmitUpdatedAndCompletedJobsToStrategy();
-                }
-
-                PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
-                    node->SetHasOngoingJobsScheduling(true);
-                    WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext))
-                        .ThrowOnError();
-                    node->SetHasOngoingJobsScheduling(false);
-                }
-
-                TotalResourceUsage_ -= node->GetResourceUsage();
-                node->SetResourceUsage(schedulingContext->ResourceUsage());
-                TotalResourceUsage_ += node->GetResourceUsage();
-
-                ProcessScheduledJobs(
-                    schedulingContext,
-                    context);
-
-                // NB: some jobs maybe considered aborted after processing scheduled jobs.
-                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-                    SubmitUpdatedAndCompletedJobsToStrategy();
-                }
-
-                response->set_scheduling_skipped(false);
-            }
-
-            std::vector<TJobPtr> jobsWithPendingUnregistration;
-            for (const auto& job : node->Jobs()) {
-                if (job->GetHasPendingUnregistration()) {
-                    jobsWithPendingUnregistration.push_back(job);
-                }
-            }
-
-            for (const auto& job : jobsWithPendingUnregistration) {
-                DoUnregisterJob(job);
-            }
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to process heartbeat");
+    if (hasWaitingJobs || isThrottlingActive) {
+        if (hasWaitingJobs) {
+            LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
         }
+        if (isThrottlingActive) {
+            LOG_DEBUG("Throttling is active, suppressing new jobs scheduling");
+        }
+        response->set_scheduling_skipped(true);
+    } else {
+        auto schedulingContext = CreateSchedulingContext(
+            Config_,
+            node,
+            Host_->GetJobSpecSliceThrottler(),
+            runningJobs,
+            PrimaryMasterCellTag_);
+
+        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+            SubmitUpdatedAndCompletedJobsToStrategy();
+        }
+
+        PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
+            node->SetHasOngoingJobsScheduling(true);
+            Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
+            node->SetHasOngoingJobsScheduling(false);
+        }
+
+        TotalResourceUsage_ -= node->GetResourceUsage();
+        node->SetResourceUsage(schedulingContext->ResourceUsage());
+        TotalResourceUsage_ += node->GetResourceUsage();
+
+        ProcessScheduledJobs(
+            schedulingContext,
+            context);
+
+        // NB: some jobs maybe considered aborted after processing scheduled jobs.
+        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+            SubmitUpdatedAndCompletedJobsToStrategy();
+        }
+
+        response->set_scheduling_skipped(false);
+    }
+
+    std::vector<TJobPtr> jobsWithPendingUnregistration;
+    for (const auto& job : node->Jobs()) {
+        if (job->GetHasPendingUnregistration()) {
+            jobsWithPendingUnregistration.push_back(job);
+        }
+    }
+
+    for (const auto& job : jobsWithPendingUnregistration) {
+        DoUnregisterJob(job);
     }
 
     context->Reply();
@@ -370,7 +390,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
     }
 
     HasOngoingNodesAttributesUpdate_ = true;
-    auto updateGuard = Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
+    auto finallyGuard = Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
 
     for (const auto& nodeMap : nodeMaps) {
         const auto& address = nodeMap.first;
@@ -1324,6 +1344,7 @@ void TNodeShard::UpdateNodeResources(
 
 void TNodeShard::BeginNodeHeartbeatProcessing(TExecNodePtr node)
 {
+    YCHECK(!node->GetHasOngoingHeartbeat());
     node->SetHasOngoingHeartbeat(true);
 
     ConcurrentHeartbeatCount_ += 1;
@@ -1332,7 +1353,6 @@ void TNodeShard::BeginNodeHeartbeatProcessing(TExecNodePtr node)
 void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
 {
     YCHECK(node->GetHasOngoingHeartbeat());
-
     node->SetHasOngoingHeartbeat(false);
 
     ConcurrentHeartbeatCount_ -= 1;

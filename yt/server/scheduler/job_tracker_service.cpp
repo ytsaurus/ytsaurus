@@ -40,8 +40,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
-        auto scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateAcceptsHeartbeats();
+        const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ProcessNodeHeartbeat(context);
     }
 };

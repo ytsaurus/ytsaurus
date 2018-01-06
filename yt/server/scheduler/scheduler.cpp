@@ -336,16 +336,6 @@ public:
         }
     }
 
-    void ValidateAcceptsHeartbeats()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (!IsConnected()) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::Unavailable,
-                "Scheduler is not able to accept heartbeats");
-        }
-    }
 
     void Disconnect()
     {
@@ -770,18 +760,27 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (!IsConnected()) {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Scheduler is not able to accept agent heartbeats"));
+            return;
+        }
+
         const auto* request = &context->Request();
         auto* response = &context->Response();
 
         auto agentIncarnationId = FromProto<NControllerAgent::TIncarnationId>(request->agent_incarnation_id());
+        if (agentIncarnationId != AgentIncarnationId_) {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Wrong agent incarnation id: expected %v, got %v",
+                AgentIncarnationId_,
+                agentIncarnationId));
+            return;
+        }
 
         context->SetRequestInfo("AgentIncarnationId: %v", agentIncarnationId);
-
-        if (agentIncarnationId != AgentIncarnationId_) {
-            THROW_ERROR_EXCEPTION("Wrong agent incarnation id: expected %v, got %v",
-                AgentIncarnationId_,
-                agentIncarnationId);
-        }
 
         for (const auto& jobMetricsProto : request->job_metrics()) {
             auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
@@ -869,6 +868,8 @@ public:
         }
 
         SuspiciousJobsYson_ = TYsonString(request->suspicious_jobs(), EYsonType::MapFragment);
+
+        context->Reply();
     }
 
     // ISchedulerStrategyHost implementation
@@ -3067,11 +3068,6 @@ bool TScheduler::IsConnected()
 void TScheduler::ValidateConnected()
 {
     Impl_->ValidateConnected();
-}
-
-void TScheduler::ValidateAcceptsHeartbeats()
-{
-    Impl_->ValidateAcceptsHeartbeats();
 }
 
 void TScheduler::Disconnect()

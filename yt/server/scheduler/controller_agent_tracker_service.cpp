@@ -39,10 +39,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Heartbeat)
     {
-        auto scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateAcceptsHeartbeats();
+        const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ProcessAgentHeartbeat(context);
-        context->Reply();
     }
 };
 

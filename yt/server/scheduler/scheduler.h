@@ -51,10 +51,6 @@ public:
      *  \note Thread affinity: any
      */
     void ValidateConnected();
-    /*!
-     *  \note Thread affinity: any
-     */
-    void ValidateAcceptsHeartbeats();
 
     void Disconnect();
 
