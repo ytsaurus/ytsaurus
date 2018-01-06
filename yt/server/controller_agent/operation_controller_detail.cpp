@@ -2330,13 +2330,6 @@ void TOperationControllerBase::SafeAbort()
         .ThrowOnError();
 }
 
-void TOperationControllerBase::SafeForget()
-{
-    CancelableContext->Cancel();
-
-    LOG_INFO("Operation forgotten");
-}
-
 void TOperationControllerBase::SafeComplete()
 {
     BIND(&TOperationControllerBase::OnOperationCompleted, MakeStrong(this), true /* interrupted */)
@@ -3148,6 +3141,15 @@ void TOperationControllerBase::Resume()
     VERIFY_THREAD_AFFINITY_ANY();
 
     SuspendableInvoker->Resume();
+}
+
+void TOperationControllerBase::Cancel()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    CancelableContext->Cancel();
+
+    LOG_INFO("Operation controller canceled");
 }
 
 int TOperationControllerBase::GetPendingJobCount() const

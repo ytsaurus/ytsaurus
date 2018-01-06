@@ -1564,25 +1564,19 @@ private:
         }
 
         {
-            LOG_INFO("Started forgetting operations");
-
-            auto idToOperation = IdToOperation_;
             auto error = TError("Master disconnected");
-            for (const auto& pair : idToOperation) {
+            for (const auto& pair : IdToOperation_) {
                 const auto& operation = pair.second;
-                LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
                 if (!operation->IsFinishedState()) {
-                    operation->Cancel();
+                    // This awakes those waiting for start promise.
                     SetOperationFinalState(
                         operation,
                         EOperationState::Aborted,
                         error);
                 }
-                FinishOperation(operation);
+                operation->Cancel();
             }
-
-            YCHECK(IdToOperation_.empty());
-            LOG_INFO("Finished forgetting operations");
+            IdToOperation_.clear();
         }
 
         {

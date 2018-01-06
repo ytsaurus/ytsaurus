@@ -75,7 +75,6 @@ TNodeShard::TNodeShard(
     , Host_(host)
     , Bootstrap_(bootstrap)
     , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
-    , RevivalState_(New<TNodeShard::TRevivalState>(this))
     , CachedExecNodeDescriptorsRefresher_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
@@ -106,6 +105,8 @@ void TNodeShard::OnMasterConnected()
 
     CachedExecNodeDescriptorsRefresher_->Start();
     CachedResourceLimitsByTags_->Start();
+
+    RevivalState_ = New<TNodeShard::TRevivalState>(this);
     RevivalState_->PrepareReviving();
 }
 
@@ -122,21 +123,34 @@ void TNodeShard::OnMasterDisconnected()
     }
 
     IdToOpertionState_.clear();
+
     IdToNode_.clear();
+    ExecNodeCount_ = 0;
+    TotalNodeCount_ = 0;
 
     ActiveJobCount_ = 0;
 
-    for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            JobCounter_[state][type] = 0;
-            for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-                AbortedJobCounter_[reason][state][type] = 0;
-            }
-            for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
-                CompletedJobCounter_[reason][state][type] = 0;
+    {
+        TWriterGuard guard(JobCounterLock_);
+        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
+            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+                JobCounter_[state][type] = 0;
+                for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+                    AbortedJobCounter_[reason][state][type] = 0;
+                }
+                for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+                    CompletedJobCounter_[reason][state][type] = 0;
+                }
             }
         }
     }
+
+    UpdatedJobs_.clear();
+    CompletedJobs_.clear();
+
+    ConcurrentHeartbeatCount_ = 0;
+
+    RevivalState_.Reset();
 }
 
 void TNodeShard::RegisterOperation(

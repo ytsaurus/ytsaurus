@@ -347,7 +347,7 @@ struct IOperationController
     //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
     virtual void SaveSnapshot(IOutputStream* stream) = 0;
 
-    //! Returns the context that gets invalidated by #Abort.
+    //! Returns the context that gets invalidated by #Abort and #Cancel.
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
 
     //! Suspends controller invoker and returns future that is set after last action in invoker is executed.
@@ -362,14 +362,11 @@ struct IOperationController
      */
     virtual void Resume() = 0;
 
-    //! Notifies the controller that its current scheduling decisions should be discarded.
+    //! Canceles the context returned by #GetCancelableContext.
     /*!
-     *  Happens when current scheduler gets disconnected from master and
-     *  the negotiation between scheduler and controller becomes no longer valid.
-     *
      *  \note Invoker affinity: Control invoker
      */
-    virtual void Forget() = 0;
+    virtual void Cancel() = 0;
 
     //! Returns |true| as long as the operation can schedule new jobs.
     /*!

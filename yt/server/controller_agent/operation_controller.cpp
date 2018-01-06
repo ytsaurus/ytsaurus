@@ -99,9 +99,9 @@ public:
         Underlying_->Abort();
     }
 
-    virtual void Forget() override
+    virtual void Cancel() override
     {
-        Underlying_->Forget();
+        Underlying_->Cancel();
     }
 
     virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const override

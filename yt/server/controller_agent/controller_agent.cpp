@@ -437,13 +437,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (const auto& pair : GetControllers()) {
-            const auto& operationId = pair.first;
+        for (const auto& pair : ControllerMap_) {
             const auto& controller = pair.second;
-
-            LOG_INFO("Forgetting operation (OperationId: %v)", operationId);
-            controller->Forget();
+            controller->Cancel();
         }
+        ControllerMap_.clear();
 
         CancelableContext_->Cancel();
 
