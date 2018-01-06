@@ -31,7 +31,8 @@ public:
     ~TMasterConnector();
 
     // TODO(babenko): get rid of these methods
-    void OnMasterConnected(const TIncarnationId& incarnationId);
+    void SetIncarnationId(const TIncarnationId& incarnationId);
+    void OnMasterConnected();
     void OnMasterDisconnected();
 
     /*!

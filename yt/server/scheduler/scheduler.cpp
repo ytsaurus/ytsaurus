@@ -1480,6 +1480,10 @@ private:
 
         LOG_INFO("Preparing new incarnation of scheduler");
 
+        // TODO(babenko): rework when multiple agents are supported
+        AgentIncarnationId_ = NControllerAgent::TIncarnationId::Create();
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->SetIncarnationId(AgentIncarnationId_);
+
         ValidateConfig();
 
         // NB: Must start the keeper before registering operations.
@@ -1510,9 +1514,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // TODO(babenko): rework when multiple agents are supported
-        AgentIncarnationId_ = NControllerAgent::TIncarnationId::Create();
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected(AgentIncarnationId_);
+        // TODO(babenko)
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected();
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;
             Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
@@ -1545,6 +1548,7 @@ private:
         NodeIdToTags_.clear();
 
         // TODO(babenko): rework when separating scheduler and agent
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->SetIncarnationId({});
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
 
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();

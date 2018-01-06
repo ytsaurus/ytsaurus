@@ -73,14 +73,20 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    void OnMasterConnected(const TIncarnationId& incarnationId)
+    void SetIncarnationId(const TIncarnationId& incarnationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        IncarnationId_ = incarnationId;
+    }
+
+    void OnMasterConnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(!Connected_);
         Connected_.store(true);
         ConnectionTime_ = TInstant::Now();
-        IncarnationId_ = incarnationId;
 
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -156,7 +162,8 @@ public:
     const TIncarnationId& GetIncarnationId() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        // XXX(babenko)
+        // YCHECK(Connected_);
 
         return IncarnationId_;
     }
@@ -1240,9 +1247,14 @@ TMasterConnector::TMasterConnector(
 
 TMasterConnector::~TMasterConnector() = default;
 
-void TMasterConnector::OnMasterConnected(const TIncarnationId& incarnationId)
+void TMasterConnector::SetIncarnationId(const TIncarnationId& incarnationId)
 {
-    Impl_->OnMasterConnected(incarnationId);
+    Impl_->SetIncarnationId(incarnationId);
+}
+
+void TMasterConnector::OnMasterConnected()
+{
+    Impl_->OnMasterConnected();
 }
 
 void TMasterConnector::OnMasterDisconnected()
