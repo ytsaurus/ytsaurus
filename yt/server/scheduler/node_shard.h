@@ -103,7 +103,7 @@ public:
         INodeShardHost* host,
         NCellScheduler::TBootstrap* bootstrap);
 
-    IInvokerPtr GetInvoker();
+    const IInvokerPtr& GetInvoker();
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
@@ -226,6 +226,11 @@ private:
 
     const NLogging::TLogger Logger;
 
+    bool Connected_ = false;
+
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableInvoker_;
+
     TRevivalStatePtr RevivalState_;
 
     int ConcurrentHeartbeatCount_ = 0;
@@ -241,6 +246,7 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
+    yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = {0};
     std::atomic<int> TotalNodeCount_ = {0};
@@ -270,8 +276,8 @@ private:
 
     yhash<TOperationId, TOperationState> IdToOpertionState_;
 
-    yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
 
+    void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context) noexcept;
 
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);
 
