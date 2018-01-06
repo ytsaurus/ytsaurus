@@ -787,8 +787,11 @@ public:
             GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
         }
 
+        std::vector<TFuture<void>> asyncResults;
+
         ProcessNodeShardRequests(
             context,
+            &asyncResults,
             request->jobs_to_interrupt(),
             [] (const auto& nodeShard, const auto& subrequest) {
                 auto jobId = FromProto<TJobId>(subrequest.job_id());
@@ -798,6 +801,7 @@ public:
 
         ProcessNodeShardRequests(
             context,
+            &asyncResults,
             request->jobs_to_abort(),
             [] (const auto& nodeShard, const auto& subrequest) {
                 auto jobId = FromProto<TJobId>(subrequest.job_id());
@@ -807,6 +811,7 @@ public:
 
         ProcessNodeShardRequests(
             context,
+            &asyncResults,
             request->jobs_to_fail(),
             [] (const auto& nodeShard, const auto& subrequest) {
                 auto jobId = FromProto<TJobId>(subrequest.job_id());
@@ -815,6 +820,7 @@ public:
 
         ProcessNodeShardRequests(
             context,
+            &asyncResults,
             request->jobs_to_release(),
             [] (const auto& nodeShard, const auto& subrequest) {
                 auto jobId = FromProto<TJobId>(subrequest.job_id());
@@ -868,6 +874,9 @@ public:
         }
 
         SuspiciousJobsYson_ = TYsonString(request->suspicious_jobs(), EYsonType::MapFragment);
+
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
 
         context->Reply();
     }
@@ -1269,6 +1278,7 @@ private:
     template <class TContext, class TSubrequest, class F>
     void ProcessNodeShardRequests(
         const TContext& context,
+        std::vector<TFuture<void>>* asyncResults,
         const google::protobuf::RepeatedPtrField<TSubrequest>& subrequests,
         F handler)
     {
@@ -1281,12 +1291,14 @@ private:
 
         for (size_t shardId = 0; shardId < NodeShards_.size(); ++shardId) {
             const auto& nodeShard = NodeShards_[shardId];
-            nodeShard->GetInvoker()->Invoke(BIND(
-                [context, handler, nodeShard, subrequests = std::move(groupedSubrequests[shardId])] {
+            asyncResults->push_back(
+                BIND([context, handler, nodeShard, this_ = MakeStrong(this), subrequests = std::move(groupedSubrequests[shardId])] {
                     for (const auto* subrequest : subrequests) {
                         handler(nodeShard, *subrequest);
                     }
-                }));
+                })
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run());
         }
     }
 
