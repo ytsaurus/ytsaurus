@@ -362,7 +362,7 @@ struct IOperationController
      */
     virtual void Resume() = 0;
 
-    //! Canceles the context returned by #GetCancelableContext.
+    //! Cancels the context returned by #GetCancelableContext.
     /*!
      *  \note Invoker affinity: Control invoker
      */

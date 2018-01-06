@@ -242,7 +242,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     // We should process only one heartbeat at a time from the same node.
     if (node->GetHasOngoingHeartbeat()) {
-        context->Reply(TError("Node alrady has an ongoing heartbeat"));
+        context->Reply(TError("Node already has an ongoing heartbeat"));
         return;
     }
 
