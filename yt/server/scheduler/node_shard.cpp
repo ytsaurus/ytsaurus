@@ -354,7 +354,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
     }
 
     HasOngoingNodesAttributesUpdate_ = true;
-    Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
+    auto updateGuard = Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
 
     for (const auto& nodeMap : nodeMaps) {
         const auto& address = nodeMap.first;
