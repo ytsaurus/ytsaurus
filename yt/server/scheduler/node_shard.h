@@ -169,7 +169,7 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-public:
+private:
     //! This class holds nodeshard-specific information for the revival process that happens
     //! each time scheduler becomes connected to master. It contains information about
     //! all revived jobs and tells which nodes should include stored jobs into their heartbeats
@@ -214,7 +214,6 @@ public:
 
     using TRevivalStatePtr = TIntrusivePtr<TRevivalState>;
 
-private:
     const int Id_;
     const NObjectClient::TCellTag PrimaryMasterCellTag_;
     TSchedulerConfigPtr Config_;
@@ -222,11 +221,12 @@ private:
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     const NConcurrency::TActionQueuePtr ActionQueue_;
-    const TRevivalStatePtr RevivalState_;
     const NConcurrency::TPeriodicExecutorPtr CachedExecNodeDescriptorsRefresher_;
     const TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TJobResources>> CachedResourceLimitsByTags_;
 
     const NLogging::TLogger Logger;
+
+    TRevivalStatePtr RevivalState_;
 
     int ConcurrentHeartbeatCount_ = 0;
 
