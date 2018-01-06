@@ -149,6 +149,7 @@ b"""
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
         chunk_list_release_batch_delay = 100;
+        safe_scheduler_online_time = 5000;
         preemptive_scheduling_backoff = 0;
         forbid_immediate_operations_in_root = %false;
         environment = {
