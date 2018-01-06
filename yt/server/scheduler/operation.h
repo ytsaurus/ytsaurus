@@ -137,8 +137,6 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Prepared);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, Forgotten);
-
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 

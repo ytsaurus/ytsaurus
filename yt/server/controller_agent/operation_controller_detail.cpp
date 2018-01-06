@@ -2320,7 +2320,7 @@ void TOperationControllerBase::SafeAbort()
     LOG_INFO("Aborting operation controller");
 
     // NB: context should be cancelled before aborting transactions,
-    // since controller methods can use this transactions.
+    // since controller methods can use these transactions.
     CancelableContext->Cancel();
 
     auto asyncResult = BIND(&TOperationControllerBase::DoAbort, MakeStrong(this))
