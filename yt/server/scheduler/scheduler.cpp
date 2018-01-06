@@ -1573,7 +1573,6 @@ private:
                 LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
                 if (!operation->IsFinishedState()) {
                     operation->Cancel();
-                    operation->SetForgotten(true);
                     SetOperationFinalState(
                         operation,
                         EOperationState::Aborted,
@@ -2349,24 +2348,29 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        operation->GetCancelableControlInvoker()->Invoke(BIND(
             &TImpl::DoCompleteOperation,
             MakeStrong(this),
-            operationId));
+            operation));
     }
 
-    void DoCompleteOperation(const TOperationId& operationId)
+    void DoCompleteOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operation = FindOperation(operationId);
-        if (!operation || operation->IsFinishedState() || operation->IsFinishingState()) {
+        if (operation->IsFinishedState() || operation->IsFinishingState()) {
             // Operation is probably being aborted.
             return;
         }
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
+        const auto& operationId = operation->GetId();
         LOG_INFO("Completing operation (OperationId: %v)",
             operationId);
 
@@ -2392,19 +2396,11 @@ private:
                     .Run();
                 WaitFor(asyncResult)
                     .ThrowOnError();
-                if (operation->GetForgotten()) {
-                    // Master disconnected happend while committing controller.
-                    return;
-                }
 
                 ValidateOperationState(operation, EOperationState::Completing);
 
                 if (Config_->TestingOptions->FinishOperationTransitionDelay) {
                     Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
-                    if (operation->GetForgotten()) {
-                        // Master disconnected happend while committing controller.
-                        return;
-                    }
                 }
             }
 
@@ -2600,10 +2596,6 @@ private:
 
         if (Config_->TestingOptions->FinishOperationTransitionDelay) {
             Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
-            if (operation->GetForgotten()) {
-                // Master disconnect happened while committing controller.
-                return;
-            }
         }
 
         operation->Cancel();
