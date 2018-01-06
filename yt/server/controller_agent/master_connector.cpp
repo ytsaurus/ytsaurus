@@ -498,7 +498,7 @@ private:
 
         LOG_INFO("Transactions refreshed");
 
-        // Check every operation's transaction and raise appropriate notifications.
+        // Check every transaction of every operation and raise appropriate notifications.
         for (const auto& pair : controllerMap) {
             const auto& controller = pair.second;
             for (const auto& transaction : controller->GetTransactions()) {

@@ -295,7 +295,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
         AppendAttribute(
             builder,
             "origin",
-            Format("%v on %v (pid %llv, tid %llx, fid %llx)",
+            Format("%v on %v (pid %v, tid %llx, fid %llx)",
                 *host,
                 *datetime,
                 *pid,
