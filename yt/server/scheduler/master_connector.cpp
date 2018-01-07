@@ -465,7 +465,7 @@ private:
                 .Via(CancelableControlInvoker));
     }
 
-    void OnConnected(const TError& error)
+    void OnConnected(const TError& error) noexcept
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State == EMasterConnectorState::Connecting);
@@ -477,12 +477,12 @@ private:
             return;
         }
 
+        TForbidContextSwitchGuard contextSwitchGuard;
+
         State.store(EMasterConnectorState::Connected);
         ConnectionTime.store(TInstant::Now());
 
         LOG_INFO("Master connected");
-
-        TForbidContextSwitchGuard contextSwitchGuard;
 
         LockTransaction->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
@@ -490,15 +490,9 @@ private:
 
         StartPeriodicActivities();
 
-        ScheduleTestingDisconnect();
+        MasterConnected_.Fire();
 
-        try {
-            MasterConnected_.Fire();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Master connection failed");
-            Disconnect();
-            return;
-        }
+        ScheduleTestingDisconnect();
     }
 
     void OnLockTransactionAborted()
@@ -1046,17 +1040,14 @@ private:
         State.store(EMasterConnectorState::Disconnected);
     }
 
-    void DoDisconnect()
+    void DoDisconnect() noexcept
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (State == EMasterConnectorState::Connected) {
-            try {
-                MasterDisconnected_.Fire();
-            } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Error disconnecting from master");
-            }
+        TForbidContextSwitchGuard contextSwitchGuard;
 
+        if (State == EMasterConnectorState::Connected) {
+            MasterDisconnected_.Fire();
             LOG_WARNING("Master disconnected");
         }
 
