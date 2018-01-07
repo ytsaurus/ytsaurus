@@ -1153,3 +1153,8 @@ class YTInstance(object):
                    "--logrotate-interval", str(self.watcher_config["logs_rotate_interval"]),
                    "--log-path", os.path.join(self.logs_path, "watcher.log")],
                    "watcher")
+
+        def watcher_lock_created():
+            return os.path.exists(os.path.join(self.path, "lock_file"))
+
+        self._wait_for(watcher_lock_created, "watcher")
