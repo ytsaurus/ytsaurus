@@ -1,4 +1,3 @@
-
 #include "data_node_service.h"
 #include "private.h"
 #include "chunk_block_manager.h"
@@ -10,6 +9,7 @@
 #include "location.h"
 #include "master_connector.h"
 #include "peer_block_table.h"
+#include "peer_block_updater.h"
 #include "session.h"
 #include "session_manager.h"
 
@@ -94,6 +94,10 @@ public:
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PopulateCache)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
@@ -331,6 +335,40 @@ private:
         context->ReplyFrom(result);
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PopulateCache)
+    {
+        context->SetRequestInfo("BlockCount: %v", request->blocks_size());
+
+        ValidateConnected();
+
+        auto blocks = GetRpcAttachedBlocks(request, true /* validateChecksums */);
+
+        if (blocks.size() != request->blocks_size()) {
+            THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
+                << TErrorAttribute("attached_block_count", blocks.size())
+                << TErrorAttribute("blocks_length", request->blocks_size());
+        }
+
+        auto blockManager = Bootstrap_->GetChunkBlockManager();
+        for (size_t index = 0; index < blocks.size(); ++index) {
+            auto block = blocks[index];
+            const auto& protoBlock = request->blocks(index);
+            TBlockId blockId;
+            TNullable<TNodeDescriptor> sourceDescriptor;
+            FromProto(&blockId, protoBlock.block_id());
+            if (protoBlock.has_source_descriptor()) {
+                sourceDescriptor.Emplace();
+                FromProto(sourceDescriptor.GetPtr(), protoBlock.source_descriptor());
+            }
+            blockManager->PutCachedBlock(blockId, block, sourceDescriptor);
+        }
+
+        // We mimic TPeerBlockUpdater behavior here.
+        auto expirationTime = Bootstrap_->GetPeerBlockUpdater()->GetPeerUpdateExpirationTime().ToDeadLine();
+
+        response->set_expiration_time(expirationTime.GetValue());
+        context->Reply();
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
