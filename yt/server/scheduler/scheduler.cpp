@@ -1143,9 +1143,11 @@ private:
     {
     public:
         TOperationControllerHost(
-            TOperationPtr operation,
+            TOperation* operation,
+            IInvokerPtr cancelableControlInvoker,
             TBootstrap* bootstrap)
-            : Operation_(std::move(operation))
+            : OperationId_(operation->GetId())
+            , CancelableControlInvoker_(std::move(cancelableControlInvoker))
             , Bootstrap_(bootstrap)
             , IncarnationId_(Bootstrap_->GetControllerAgent()->GetMasterConnector()->GetIncarnationId())
         { }
@@ -1172,24 +1174,32 @@ private:
 
         virtual TFuture<TOperationSnapshot> DownloadSnapshot() override
         {
-            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->DownloadSnapshot(Operation_->GetId());
+            return BIND(&NControllerAgent::TMasterConnector::DownloadSnapshot, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+                .AsyncVia(CancelableControlInvoker_)
+                .Run(OperationId_);
         }
 
         virtual TFuture<void> RemoveSnapshot() override
         {
-            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->RemoveSnapshot(Operation_->GetId());
+            return BIND(&NControllerAgent::TMasterConnector::RemoveSnapshot, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+                .AsyncVia(CancelableControlInvoker_)
+                .Run(OperationId_);
         }
 
         virtual TFuture<void> FlushOperationNode() override
         {
-            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->FlushOperationNode(Operation_->GetId());
+            return BIND(&NControllerAgent::TMasterConnector::FlushOperationNode, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+                .AsyncVia(CancelableControlInvoker_)
+                .Run(OperationId_);
         }
 
         virtual void CreateJobNode(const TCreateJobNodeRequest& request) override
         {
-            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->CreateJobNode(
-                Operation_->GetId(),
-                request);
+            CancelableControlInvoker_->Invoke(BIND(
+                &NControllerAgent::TMasterConnector::CreateJobNode,
+                Bootstrap_->GetControllerAgent()->GetMasterConnector(),
+                OperationId_,
+                request));
         }
 
         virtual TFuture<void> AttachChunkTreesToLivePreview(
@@ -1197,20 +1207,24 @@ private:
             const std::vector<NCypressClient::TNodeId>& tableIds,
             const std::vector<TChunkTreeId>& childIds) override
         {
-            return Bootstrap_->GetControllerAgent()->GetMasterConnector()->AttachToLivePreview(
-                Operation_->GetId(),
-                transactionId,
-                tableIds,
-                childIds);
+            return BIND(&NControllerAgent::TMasterConnector::AttachToLivePreview, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+                .AsyncVia(CancelableControlInvoker_)
+                .Run(
+                    OperationId_,
+                    transactionId,
+                    tableIds,
+                    childIds);
         }
 
         virtual void AddChunkTreesToUnstageList(
             const std::vector<TChunkId>& chunkTreeIds,
             bool recursive) override
         {
-            Bootstrap_->GetControllerAgent()->GetMasterConnector()->AddChunkTreesToUnstageList(
+            CancelableControlInvoker_->Invoke(BIND(
+                &NControllerAgent::TMasterConnector::AddChunkTreesToUnstageList,
+                Bootstrap_->GetControllerAgent()->GetMasterConnector(),
                 chunkTreeIds,
-                recursive);
+                recursive));
         }
 
         virtual const NApi::INativeClientPtr& GetClient() override
@@ -1269,7 +1283,8 @@ private:
         }
 
     private:
-        const TOperationPtr Operation_;
+        const TOperationId OperationId_;
+        const IInvokerPtr CancelableControlInvoker_;
         TBootstrap* const Bootstrap_;
         const TIncarnationId IncarnationId_;
     };
@@ -2091,9 +2106,13 @@ private:
 
     IOperationControllerPtr CreateOperationController(const TOperationPtr& operation)
     {
+        auto host = New<TOperationControllerHost>(
+            operation.Get(),
+            MasterConnector_->GetCancelableControlInvoker(),
+            Bootstrap_);
         return CreateControllerForOperation(
             Bootstrap_->GetControllerAgent()->GetConfig(),
-            New<TOperationControllerHost>(operation, Bootstrap_),
+            host,
             operation.Get());
     }
 
