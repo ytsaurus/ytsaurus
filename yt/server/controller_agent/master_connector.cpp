@@ -183,43 +183,24 @@ public:
 
     void CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
-        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
+        CancelableControlInvoker_->Invoke(BIND(
+            &TImpl::DoCreateJobNode,
+            MakeStrong(this),
             operationId,
-            request.JobId,
-            request.StderrChunkId,
-            request.FailContextChunkId);
-
-        // XXX(babenko)
-        CancelableControlInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
-            auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
-            if (!update) {
-                LOG_DEBUG("Trying to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
-                    operationId,
-                    request.JobId);
-                return;
-            }
-
-            update->JobRequests.emplace_back(request);
-        }));
+            request));
     }
 
     TFuture<void> FlushOperationNode(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
-        LOG_INFO("Invoked flushing controller attributes of operation (OperationId: %v)",
-            operationId);
-
-        return
-            BIND([=, this_ = MakeStrong(this)] {
-                WaitFor(OperationNodesUpdateExecutor_->ExecuteUpdate(operationId))
-                    .ThrowOnError();
-            })
-            // XXX(babenko)
+        return BIND(&TImpl::DoFlushOperationNode, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker_)
-            .Run();
+            .Run(operationId);
     }
 
     TFuture<void> AttachToLivePreview(
@@ -228,7 +209,9 @@ public:
         const std::vector<TNodeId>& tableIds,
         const std::vector<TChunkTreeId>& childIds)
     {
-        // XXX(babenko)
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
+
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker_)
             .Run(operationId, transactionId, tableIds, childIds);
@@ -236,38 +219,33 @@ public:
 
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         if (!Config_->EnableSnapshotLoading) {
             return MakeFuture<TOperationSnapshot>(TError("Snapshot loading is disabled in configuration"));
         }
 
-        return BIND(&TImpl::DoDownloadSnapshot, MakeStrong(this), operationId)
-            // XXX(babenko)
+        return BIND(&TImpl::DoDownloadSnapshot, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker_)
-            .Run();
+            .Run(operationId);
     }
 
     TFuture<void> RemoveSnapshot(const TOperationId& operationId)
     {
-        auto future = BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
-            // XXX(babenko)
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
+
+        return BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker_)
-            .Run();
-        return future.Apply(
-            BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-                if (!error.IsOK()) {
-                    Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
-                        .AsyncVia(Bootstrap_->GetControlInvoker())
-                        .Run()));
-                }
-            })
-            .AsyncVia(Bootstrap_->GetControlInvoker()));
+            .Run(operationId);
     }
 
     void AddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
     {
-        // XXX(babenko)
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
+
         CancelableControlInvoker_->Invoke(BIND(&TImpl::DoAddChunkTreesToUnstageList,
             MakeWeak(this),
             Passed(std::move(chunkTreeIds)),
@@ -961,6 +939,38 @@ private:
             THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
         }
         return snapshot;
+    }
+
+    void DoCreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
+            operationId,
+            request.JobId,
+            request.StderrChunkId,
+            request.FailContextChunkId);
+
+        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+        if (!update) {
+            LOG_DEBUG("Trying to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
+                operationId,
+                request.JobId);
+            return;
+        }
+
+        update->JobRequests.emplace_back(request);
+    }
+
+    void DoFlushOperationNode(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Flushing operation node (OperationId: %v)",
+            operationId);
+
+        WaitFor(OperationNodesUpdateExecutor_->ExecuteUpdate(operationId))
+            .ThrowOnError();
     }
 
     void DoRemoveSnapshot(const TOperationId& operationId)
