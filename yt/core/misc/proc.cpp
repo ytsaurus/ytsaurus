@@ -903,6 +903,51 @@ bool HasRootPermissions()
 #endif
 }
 
+yhash<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics()
+{
+#ifdef _linux_
+    // According to https://www.kernel.org/doc/Documentation/filesystems/proc.txt,
+    // using /proc/net/dev is a stable (and seemingly easiest, despite being nasty)
+    // way to access per-interface network statistics.
+
+    TFileInput procNetDev("/proc/net/dev");
+    // First two lines are header.
+    Y_UNUSED(procNetDev.ReadLine());
+    Y_UNUSED(procNetDev.ReadLine());
+    yhash<TString, TNetworkInterfaceStatistics> interfaceToStatistics;
+    for (TString line; procNetDev.ReadLine(line) != 0; ) {
+        TNetworkInterfaceStatistics statistics;
+        auto lineParts = SplitStringBySet(line.data(), ": ");
+        YCHECK(lineParts.size() == 1 + sizeof(TNetworkInterfaceStatistics) / sizeof(ui64));
+        auto interfaceName = lineParts[0];
+
+        int index = 1;
+#define XX(field) statistics.field = FromString<ui64>(lineParts[index++])
+        XX(Rx.Bytes);
+        XX(Rx.Packets);
+        XX(Rx.Errs);
+        XX(Rx.Drop);
+        XX(Rx.Fifo);
+        XX(Rx.Frame);
+        XX(Rx.Compressed);
+        XX(Rx.Multicast);
+        XX(Tx.Bytes);
+        XX(Tx.Packets);
+        XX(Tx.Errs);
+        XX(Tx.Drop);
+        XX(Tx.Fifo);
+        XX(Tx.Colls);
+        XX(Tx.Carrier);
+        XX(Tx.Compressed);
+#undef XX
+        YCHECK(interfaceToStatistics.insert({interfaceName, statistics}).second);
+    }
+    return interfaceToStatistics;
+#else
+    return {}
+#endif
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TKillAllByUidTool::operator()(int uid) const

@@ -5,6 +5,7 @@
 #include "chunk_registry.h"
 #include "config.h"
 #include "location.h"
+#include "peer_block_distributor.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -147,6 +148,11 @@ public:
             MakeStrong(this),
             chunkId,
             blockIndexes);
+        auto updatePeerBlockDistributor = BIND(
+            &TImpl::UpdatePeerBlockDistributor,
+            MakeStrong(this),
+            chunkId,
+            blockIndexes);
 
         try {
             auto chunkRegistry = Bootstrap_->GetChunkRegistry();
@@ -168,7 +174,8 @@ public:
                     }
                 }
                 return MakeFuture(blocks)
-                    .Apply(updateRecentlyReadBlockQueueCallback);
+                    .Apply(updateRecentlyReadBlockQueueCallback)
+                    .Apply(updatePeerBlockDistributor);
             }
 
             auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
@@ -179,7 +186,9 @@ public:
                 .Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
 
             if (type == EObjectType::Chunk || type == EObjectType::ErasureChunk) {
-                asyncResult = asyncResult.Apply(updateRecentlyReadBlockQueueCallback);
+                asyncResult = asyncResult
+                    .Apply(updateRecentlyReadBlockQueueCallback)
+                    .Apply(updatePeerBlockDistributor);
             }
 
             return asyncResult;
@@ -266,6 +275,17 @@ private:
             }
         }
 
+        return blocks;
+    }
+
+    std::vector<TBlock> UpdatePeerBlockDistributor(
+        const TChunkId& chunkId,
+        const std::vector<int>& blockIndexes,
+        const std::vector<TBlock>& blocks)
+    {
+        for (int blockIndex : blockIndexes) {
+            Bootstrap_->GetPeerBlockDistributor()->OnBlockRequested(TBlockId{chunkId, blockIndex});
+        }
         return blocks;
     }
 

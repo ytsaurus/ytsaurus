@@ -15,6 +15,7 @@
 #include <yt/server/data_node/journal_dispatcher.h>
 #include <yt/server/data_node/location.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/peer_block_distributor.h>
 #include <yt/server/data_node/peer_block_table.h>
 #include <yt/server/data_node/peer_block_updater.h>
 #include <yt/server/data_node/private.h>
@@ -285,8 +286,8 @@ void TBootstrap::DoRun()
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
+    PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
-
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
@@ -592,6 +593,7 @@ void TBootstrap::DoRun()
     JobController->Initialize();
     MonitoringManager_->Start();
     PeerBlockUpdater->Start();
+    PeerBlockDistributor->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
@@ -728,9 +730,19 @@ const IBlockCachePtr& TBootstrap::GetBlockCache() const
     return BlockCache;
 }
 
+const TPeerBlockDistributorPtr& TBootstrap::GetPeerBlockDistributor() const
+{
+    return PeerBlockDistributor;
+}
+
 const TPeerBlockTablePtr& TBootstrap::GetPeerBlockTable() const
 {
     return PeerBlockTable;
+}
+
+const TPeerBlockUpdaterPtr& TBootstrap::GetPeerBlockUpdater() const
+{
+    return PeerBlockUpdater;
 }
 
 const TBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const

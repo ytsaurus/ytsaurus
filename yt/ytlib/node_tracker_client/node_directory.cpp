@@ -416,6 +416,16 @@ std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const TChunkReplicaL
     return result;
 }
 
+std::vector<TNodeDescriptor> TNodeDirectory::GetAllDescriptors() const
+{
+    std::vector<TNodeDescriptor> result;
+    result.reserve(Descriptors_.size());
+    for (const auto& nodeDescriptor : Descriptors_) {
+        result.emplace_back(*nodeDescriptor);
+    }
+    return result;
+}
+
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(const TString& address)
 {
     NConcurrency::TReaderGuard guard(SpinLock_);

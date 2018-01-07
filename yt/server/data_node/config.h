@@ -12,6 +12,8 @@
 
 #include <yt/core/misc/config.h>
 
+#include <yt/core/re2/re2.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -35,6 +37,70 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPeerBlockDistributorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between distributor iterations.
+    TDuration Period;
+
+    //! Transmitted byte count during `Period` time window enough for P2P to become active.
+    ui64 OutTrafficActivationThreshold;
+
+    //! Network out throttler queue size enough for P2P to become active.
+    ui64 OutThrottlerQueueSizeActivationThreshold;
+
+    //! Regex for names of network interfaces considered when calculating transmitted byte count.
+    NRe2::TRe2Ptr NetOutInterfaces;
+
+    //! Maximum total size of blocks transmitted to a single node during the iteration.
+    ui64 MaxPopulateRequestSize;
+
+    //! Number of nodes to send blocks on a given iteration.
+    int DestinationNodeCount;
+
+    //! Upper bound on peer count for block to be distributed. We do not want the same block to be distributed
+    //! again and again.
+    int BlockPeerCountLimit;
+
+    //! Delay between consecutive distributions of a given block.
+    TDuration ConsecutiveDistributionDelay;
+
+    //! Length of the window in which we consider events of blocks being accessed.
+    TDuration WindowLength;
+
+    //! Configuration of the retying channel used for `PopulateCache` requests.
+    NRpc::TRetryingChannelConfigPtr NodeChannel;
+
+    TPeerBlockDistributorConfig()
+    {
+        RegisterParameter("period", Period)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("out_traffic_activation_threshold", OutTrafficActivationThreshold)
+            .Default(256_MB);
+        RegisterParameter("out_throttler_queue_size_activation_threshold", OutThrottlerQueueSizeActivationThreshold)
+            .Default(256_MB);
+        RegisterParameter("net_out_interfaces", NetOutInterfaces)
+            .Default(New<NRe2::TRe2>("eth\\d*"));
+        RegisterParameter("max_populate_request_size", MaxPopulateRequestSize)
+            .Default(64_MB);
+        RegisterParameter("destination_node_count", DestinationNodeCount)
+            .Default(3);
+        RegisterParameter("block_peer_count_limit", BlockPeerCountLimit)
+            .Default(12);
+        RegisterParameter("consecutive_distribution_delay", ConsecutiveDistributionDelay)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("window_length", WindowLength)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("node_channel", NodeChannel)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPeerBlockDistributorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -512,6 +578,9 @@ public:
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
 
+    //! Distributes blocks when node is under heavy load.
+    TPeerBlockDistributorConfigPtr PeerBlockDistributor;
+
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
@@ -664,6 +733,8 @@ public:
             .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)
+            .DefaultNew();
+        RegisterParameter("peer_block_distributor", PeerBlockDistributor)
             .DefaultNew();
 
         RegisterParameter("disk_health_checker", DiskHealthChecker)

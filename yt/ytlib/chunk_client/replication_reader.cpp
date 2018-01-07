@@ -48,7 +48,7 @@ using namespace NApi;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
-using namespace NChunkClient::NProto;
+using namespace NChunkClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -168,7 +168,7 @@ public:
         int firstBlockIndex,
         int blockCount) override;
 
-    virtual TFuture<TChunkMeta> GetMeta(
+    virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
@@ -1512,7 +1512,7 @@ public:
         Promise_.TrySet(TError("Reader terminated"));
     }
 
-    TFuture<TChunkMeta> Run()
+    TFuture<NProto::TChunkMeta> Run()
     {
         NextRetry();
         return Promise_;
@@ -1523,7 +1523,7 @@ private:
     const TNullable<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
-    TPromise<TChunkMeta> Promise_ = NewPromise<TChunkMeta>();
+    TPromise<NProto::TChunkMeta> Promise_ = NewPromise<NProto::TChunkMeta>();
 
     virtual bool IsCanceled() const override
     {
@@ -1632,7 +1632,7 @@ private:
     }
 };
 
-TFuture<TChunkMeta> TReplicationReader::GetMeta(
+TFuture<NProto::TChunkMeta> TReplicationReader::GetMeta(
     const TWorkloadDescriptor& workloadDescriptor,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
