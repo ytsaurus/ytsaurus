@@ -82,7 +82,9 @@ public:
     const NDataNode::TChunkMetaManagerPtr& GetChunkMetaManager() const;
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
+    const NDataNode::TPeerBlockDistributorPtr& GetPeerBlockDistributor() const;
     const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
+    const NDataNode::TPeerBlockUpdaterPtr& GetPeerBlockUpdater() const;
     const NDataNode::TBlobReaderCachePtr& GetBlobReaderCache() const;
     const NDataNode::TJournalDispatcherPtr& GetJournalDispatcher() const;
     const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
@@ -150,6 +152,7 @@ private:
     NChunkClient::IBlockCachePtr BlockCache;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
+    NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor;
     NDataNode::TBlobReaderCachePtr BlobReaderCache;
     NDataNode::TJournalDispatcherPtr JournalDispatcher;
     NDataNode::TMasterConnectorPtr MasterConnector;
