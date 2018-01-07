@@ -72,6 +72,9 @@ public:
     {
         SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
 
+        MasterConnector_->SubscribeMasterConnecting(BIND(
+            &TImpl::OnMasterConnecting,
+            Unretained(this)));
         MasterConnector_->SubscribeMasterConnected(BIND(
             &TImpl::OnMasterConnected,
             Unretained(this)));
@@ -406,13 +409,22 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    void OnMasterConnected()
+    void OnMasterConnecting()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
+        // fiber cancelation.
+        DoCleanup();
 
         CancelableContext_ = New<TCancelableContext>();
         // TODO(babenko): better queue
         CancelableInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
+    }
+
+    void OnMasterConnected()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         {
             auto guard = Guard(HeartbeatRequestLock_);
@@ -433,27 +445,41 @@ private:
         HeartbeatExecutor_->Start();
     }
 
-    void OnMasterDisconnected()
+    void DoCleanup()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         for (const auto& pair : ControllerMap_) {
             const auto& controller = pair.second;
             controller->Cancel();
         }
         ControllerMap_.clear();
 
-        CancelableContext_->Cancel();
+        if (CancelableContext_) {
+            CancelableContext_->Cancel();
+            CancelableContext_.Reset();
+        }
 
-        CachedExecNodeDescriptorsByTags_->Stop();
+        if (CachedExecNodeDescriptorsByTags_) {
+            CachedExecNodeDescriptorsByTags_->Stop();
+            CachedExecNodeDescriptorsByTags_.Reset();
+        }
 
-        HeartbeatExecutor_->Stop();
+        if (HeartbeatExecutor_) {
+            HeartbeatExecutor_->Stop();
+            HeartbeatExecutor_.Reset();
+        }
 
         {
             auto guard = Guard(HeartbeatRequestLock_);
             HeartbeatIncarnationId_ = {};
             HeartbeatRequest_.Reset();
         }
+    }
+
+    void OnMasterDisconnected()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        DoCleanup();
     }
 
     // TODO: Move this method to some common place to avoid copy/paste.

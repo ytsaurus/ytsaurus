@@ -1493,9 +1493,13 @@ private:
 
         LOG_INFO("Preparing new incarnation of scheduler");
 
+        // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
+        // fiber cancelation.
+        DoCleanup();
+
         // TODO(babenko): rework when multiple agents are supported
         AgentIncarnationId_ = NControllerAgent::TIncarnationId::Create();
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->SetIncarnationId(AgentIncarnationId_);
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnecting(AgentIncarnationId_);
 
         ValidateConfig();
 
@@ -1554,27 +1558,9 @@ private:
             }));
     }
 
-    void OnMasterDisconnected()
+    void DoCleanup()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         NodeIdToTags_.clear();
-
-        // TODO(babenko): rework when separating scheduler and agent
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->SetIncarnationId({});
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
-
-        const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
-        responseKeeper->Stop();
-
-        CachedExecNodeMemoryDistributionByTags_->Stop();
-
-        LogEventFluently(ELogEventType::MasterDisconnected)
-            .Item("address").Value(ServiceAddress_);
-
-        if (Config_->TestingOptions->MasterDisconnectDelay) {
-            Sleep(*Config_->TestingOptions->MasterDisconnectDelay);
-        }
 
         {
             auto error = TError("Master disconnected");
@@ -1591,6 +1577,28 @@ private:
             }
             IdToOperation_.clear();
         }
+
+        const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
+        responseKeeper->Stop();
+
+        CachedExecNodeMemoryDistributionByTags_->Stop();
+
+    }
+    void OnMasterDisconnected()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // TODO(babenko): rework when separating scheduler and agent
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
+
+        LogEventFluently(ELogEventType::MasterDisconnected)
+            .Item("address").Value(ServiceAddress_);
+
+        if (Config_->TestingOptions->MasterDisconnectDelay) {
+            Sleep(*Config_->TestingOptions->MasterDisconnectDelay);
+        }
+
+        DoCleanup();
 
         {
             LOG_INFO("Started disconnecting node shards");

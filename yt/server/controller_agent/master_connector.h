@@ -31,7 +31,7 @@ public:
     ~TMasterConnector();
 
     // TODO(babenko): get rid of these methods
-    void SetIncarnationId(const TIncarnationId& incarnationId);
+    void OnMasterConnecting(const TIncarnationId& incarnationId);
     void OnMasterConnected();
     void OnMasterDisconnected();
 
@@ -78,6 +78,10 @@ public:
         const TJobId& jobId);
 
     void UpdateConfig(const TControllerAgentConfigPtr& config);
+
+    //! Raised during connection process.
+    //! Subscribers may throw and yield.
+    DECLARE_SIGNAL(void(), MasterConnecting);
 
     //! Raised when connection is complete.
     //! Subscribers may throw but cannot yield.

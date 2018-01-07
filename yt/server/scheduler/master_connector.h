@@ -89,7 +89,7 @@ public:
     DECLARE_SIGNAL(void(), MasterConnected);
 
     //! Raised when disconnect happens.
-    //! Subscribers may yield but cannot throw.
+    //! Subscribers cannot neither throw nor yield
     DECLARE_SIGNAL(void(), MasterDisconnected);
 
 private:

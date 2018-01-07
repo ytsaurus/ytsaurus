@@ -73,11 +73,23 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    void SetIncarnationId(const TIncarnationId& incarnationId)
+    void OnMasterConnecting(const TIncarnationId& incarnationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
+        // fiber cancelation.
+        DoCleanup();
+
         IncarnationId_ = incarnationId;
+
+        YCHECK(!CancelableContext_);
+        CancelableContext_ = New<TCancelableContext>();
+
+        YCHECK(!CancelableControlInvoker_);
+        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
+
+        MasterConnecting_.Fire();
     }
 
     void OnMasterConnected()
@@ -87,12 +99,6 @@ public:
         YCHECK(!Connected_);
         Connected_.store(true);
         ConnectionTime_ = TInstant::Now();
-
-        YCHECK(!CancelableContext_);
-        CancelableContext_ = New<TCancelableContext>();
-
-        YCHECK(!CancelableControlInvoker_);
-        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
 
         YCHECK(!OperationNodesUpdateExecutor_);
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
@@ -128,12 +134,7 @@ public:
             EPeriodicExecutorMode::Automatic);
         UnstageExecutor_->Start();
 
-        try {
-            MasterConnected_.Fire();
-        } catch (const std::exception& ex) {
-            DoCleanup();
-            throw;
-        }
+        MasterConnected_.Fire();
     }
 
     void OnMasterDisconnected()
@@ -315,6 +316,7 @@ public:
         }
     }
 
+    DEFINE_SIGNAL(void(), MasterConnecting);
     DEFINE_SIGNAL(void(), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
 
@@ -1247,9 +1249,9 @@ TMasterConnector::TMasterConnector(
 
 TMasterConnector::~TMasterConnector() = default;
 
-void TMasterConnector::SetIncarnationId(const TIncarnationId& incarnationId)
+void TMasterConnector::OnMasterConnecting(const TIncarnationId& incarnationId)
 {
-    Impl_->SetIncarnationId(incarnationId);
+    Impl_->OnMasterConnecting(incarnationId);
 }
 
 void TMasterConnector::OnMasterConnected()
@@ -1332,6 +1334,7 @@ void TMasterConnector::UpdateConfig(const TControllerAgentConfigPtr& config)
     Impl_->UpdateConfig(config);
 }
 
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl_);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl_);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl_);
 
