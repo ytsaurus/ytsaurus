@@ -4,10 +4,11 @@ import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/ytlib/misc/workload.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
-import "yt/ytlib/chunk_client/session_id.proto";
+import "yt/ytlib/chunk_client/block_id.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
 import "yt/ytlib/chunk_client/chunk_slice.proto";
+import "yt/ytlib/chunk_client/session_id.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +51,7 @@ message TRspCancelChunk
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Used in replication writer.
 message TReqPutBlocks
 {
     required TSessionId session_id = 7;
@@ -66,6 +68,7 @@ message TRspPutBlocks
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Used in replication writer when asking one node to send data to another node.
 message TReqSendBlocks
 {
     required TSessionId session_id = 5;
@@ -87,6 +90,28 @@ message TReqFlushBlocks
 
 message TRspFlushBlocks
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// This request is used to distribute blocks around the cluster by TPeerBlockDistributor.
+// Blocks are sent as attachments. If node accepts to put blocks in her cache
+// (currently node does not have an option to decline), it responds with an expiration time,
+// such that the originator node can mention her as a peer within this time (cf. TPeerBlockUpdater).
+
+message TReqPopulateCache
+{
+    message TBlock {
+        required TBlockId block_id = 1;
+        optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor source_descriptor = 2;
+    }
+    repeated TBlock blocks = 1;
+    repeated fixed64 block_checksums = 2;
+}
+
+message TRspPopulateCache
+{
+    required int64 expiration_time = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,12 +211,6 @@ message TRspGetChunkMeta
 
 message TReqUpdatePeer
 {
-    message TBlockId
-    {
-        required NYT.NProto.TGuid chunk_id = 1;
-        required int32 block_index = 2;
-    }
-
     repeated TBlockId block_ids = 1;
     required NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 2;
     required uint64 peer_expiration_time = 3;

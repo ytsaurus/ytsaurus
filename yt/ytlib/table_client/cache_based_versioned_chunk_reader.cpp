@@ -36,7 +36,6 @@ namespace NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NTableClient::NProto;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
