@@ -2217,20 +2217,16 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(TransactionsLock_);
-    std::vector<ITransactionPtr> transactions;
-    for (auto transaction : {
-        // NB: User transaction must be returned first to correctly detect that operation aborted due to user transaction abort.
+    std::vector<ITransactionPtr> transactions = {
         UserTransaction,
         AsyncSchedulerTransaction,
         InputTransaction,
         OutputTransaction,
         DebugOutputTransaction
-    })
-    {
-        if (transaction) {
-            transactions.push_back(transaction);
-        }
-    }
+    };
+    transactions.erase(
+        std::remove_if(transactions.begin(), transactions.end(), [] (const auto& transaction) { return !transaction; }),
+        transactions.end());
     return transactions;
 }
 
@@ -3254,7 +3250,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
     Y_UNUSED(interrupted);
 
-    // This can happen if operation failed during completion in derived class (e.x. SortController).
+    // This can happen if operation failed during completion in derived class (e.g. SortController).
     if (State.exchange(EControllerState::Finished) == EControllerState::Finished) {
         return;
     }
@@ -5463,7 +5459,7 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
             .Do(std::bind(&TOperationControllerBase::BuildJobSplitterInfo, this, _1))
         .Finish();
 
-    result.MemoryDigest =
+    result.MemoryDigests =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildMemoryDigestStatistics, this, _1))
         .Finish();
