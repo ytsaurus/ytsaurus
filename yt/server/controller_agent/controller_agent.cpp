@@ -735,7 +735,7 @@ IOperationControllerPtr TControllerAgent::FindController(const TOperationId& ope
     return Impl_->FindController(operationId);
 }
 
-yhash<TOperationId, IOperationControllerPtr> TControllerAgent::GetControllers()
+TOperationIdToControllerMap TControllerAgent::GetControllers()
 {
     return Impl_->GetControllers();
 }
