@@ -956,11 +956,13 @@ def add_remove_member_parser(add_parser):
     member_args(parser)
 
 def execute(**args):
+    if "output_format" not in args["execute_params"]:
+        args["execute_params"]["output_format"] = yt.create_format(output_format)
     data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in args["execute_params"] else None
     result = yt.transaction_commands._make_transactional_request(args["command_name"],
                                                                  args["execute_params"],
                                                                  data=data)
-    if "output_format" in args["execute_params"]:
+    if result is not None:
         sys.stdout.write(result)
 
 def add_execute_parser(add_parser):
