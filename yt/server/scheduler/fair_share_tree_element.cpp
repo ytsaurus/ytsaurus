@@ -2194,6 +2194,8 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
     const TJobResources& jobLimits,
     const TJobResources& jobResourceDiscount)
 {
+    ++context.ControllerScheduleJobCount;
+
     auto scheduleJobResult = Controller_->ScheduleJob(
         context.SchedulingContext,
         jobLimits,
