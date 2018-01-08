@@ -1598,7 +1598,9 @@ private:
 
         CachedExecNodeMemoryDistributionByTags_->Stop();
 
+        Strategy_->OnMasterDisconnected();
     }
+
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1632,8 +1634,6 @@ private:
 
             LOG_INFO("Finished disconnecting node shards");
         }
-
-        Strategy_->OnMasterDisconnected();
     }
 
 
