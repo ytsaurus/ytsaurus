@@ -15,7 +15,7 @@ message TRspGetOperationInfo
     required bytes brief_progress = 2; // YSON
     required bytes running_jobs = 3;   // YSON
     required bytes job_splitter = 4;   // YSON
-    required bytes memory_digest = 5;  // YSON
+    required bytes memory_digests = 5;  // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -427,7 +427,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
             // NOTE: Tags will be validated when node become online, no need in additional check here.
             execNode->Tags() = tags;
             SubtractNodeResources(execNode);
-            AbortJobsAtNode(execNode);
+            AbortAllJobsAtNode(execNode);
             UpdateNodeState(execNode, newState);
             return;
         }
@@ -442,7 +442,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
 
                 if (oldState == ENodeState::Online) {
                     SubtractNodeResources(execNode);
-                    AbortJobsAtNode(execNode);
+                    AbortAllJobsAtNode(execNode);
                     UpdateNodeState(execNode, ENodeState::Offline);
                 }
             } else {
@@ -668,7 +668,7 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
     return TYsonString(rsp->result());
 }
 
-void TNodeShard::AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
+void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -941,7 +941,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
     return node;
 }
 
-void TNodeShard::UnregisterNode(TExecNodePtr node)
+void TNodeShard::UnregisterNode(const TExecNodePtr& node)
 {
     if (node->GetHasOngoingHeartbeat()) {
         LOG_INFO("Node unregistration postponed until heartbeat is finished (Address: %v)",
@@ -952,13 +952,13 @@ void TNodeShard::UnregisterNode(TExecNodePtr node)
     }
 }
 
-void TNodeShard::DoUnregisterNode(TExecNodePtr node)
+void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 {
     if (node->GetMasterState() == ENodeState::Online) {
         SubtractNodeResources(node);
     }
 
-    AbortJobsAtNode(node);
+    AbortAllJobsAtNode(node);
 
     YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
@@ -967,7 +967,7 @@ void TNodeShard::DoUnregisterNode(TExecNodePtr node)
     LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
 }
 
-void TNodeShard::AbortJobsAtNode(TExecNodePtr node)
+void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node)
 {
     // Make a copy, the collection will be modified.
     auto jobs = node->Jobs();
@@ -985,7 +985,7 @@ void TNodeShard::AbortJobsAtNode(TExecNodePtr node)
 }
 
 void TNodeShard::ProcessHeartbeatJobs(
-    TExecNodePtr node,
+    const TExecNodePtr& node,
     NJobTrackerClient::NProto::TReqHeartbeat* request,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     std::vector<TJobPtr>* runningJobs,
@@ -1111,7 +1111,7 @@ NLogging::TLogger TNodeShard::CreateJobLogger(const TJobId& jobId, EJobState sta
 }
 
 TJobPtr TNodeShard::ProcessJobHeartbeat(
-    TExecNodePtr node,
+    const TExecNodePtr& node,
     NJobTrackerClient::NProto::TReqHeartbeat* request,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     TJobStatus* jobStatus,
@@ -1273,7 +1273,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     return job;
 }
 
-void TNodeShard::SubtractNodeResources(TExecNodePtr node)
+void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
     TWriterGuard guard(ResourcesLock_);
 
@@ -1285,7 +1285,7 @@ void TNodeShard::SubtractNodeResources(TExecNodePtr node)
     }
 }
 
-void TNodeShard::AddNodeResources(TExecNodePtr node)
+void TNodeShard::AddNodeResources(const TExecNodePtr& node)
 {
     TWriterGuard guard(ResourcesLock_);
 
@@ -1302,7 +1302,7 @@ void TNodeShard::AddNodeResources(TExecNodePtr node)
 }
 
 void TNodeShard::UpdateNodeResources(
-    TExecNodePtr node,
+    const TExecNodePtr& node,
     const TJobResources& limits,
     const TJobResources& usage,
     const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
@@ -1342,7 +1342,7 @@ void TNodeShard::UpdateNodeResources(
     }
 }
 
-void TNodeShard::BeginNodeHeartbeatProcessing(TExecNodePtr node)
+void TNodeShard::BeginNodeHeartbeatProcessing(const TExecNodePtr& node)
 {
     YCHECK(!node->GetHasOngoingHeartbeat());
     node->SetHasOngoingHeartbeat(true);
@@ -1350,7 +1350,7 @@ void TNodeShard::BeginNodeHeartbeatProcessing(TExecNodePtr node)
     ConcurrentHeartbeatCount_ += 1;
 }
 
-void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
+void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 {
     YCHECK(node->GetHasOngoingHeartbeat());
     node->SetHasOngoingHeartbeat(false);
@@ -1767,7 +1767,7 @@ TNodeShard::TOperationState& TNodeShard::GetOperationState(const TOperationId& o
     return it->second;
 }
 
-void TNodeShard::BuildNodeYson(TExecNodePtr node, TFluentMap fluent)
+void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
 {
     fluent
         .Item(node->GetDefaultAddress()).BeginMap()

@@ -55,7 +55,6 @@ void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 
 void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    auto controller = operation->GetController();
     fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())

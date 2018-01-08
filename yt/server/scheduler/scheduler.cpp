@@ -735,7 +735,7 @@ public:
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return
             BIND(
-                static_cast<void (TNodeShard::*)(const TJobId&, TNullable<TDuration>, const TString&)>(&TNodeShard::AbortJob),
+                &TNodeShard::AbortJobByUserRequest,
                 nodeShard,
                 jobId,
                 interruptTimeout,
@@ -2238,7 +2238,7 @@ private:
             operation->GetId(),
             jobs.size());
 
-        // First, register jobs in the strategy. Do this syncrhonously as we are in the scheduler control thread.
+        // First, register jobs in the strategy. Do this synchronously as we are in the scheduler control thread.
         GetStrategy()->RegisterJobs(operation->GetId(), jobs);
 
         // Second, register jobs on the corresponding node shards.
@@ -2881,7 +2881,7 @@ private:
         auto controllerBriefProgress = isOK ? toYsonString(rspOrError.Value()->brief_progress()) : emptyMapFragment;
         auto controllerRunningJobs = isOK ? toYsonString(rspOrError.Value()->running_jobs()) : emptyMapFragment;
         auto controllerJobSplitterInfo = isOK ? toYsonString(rspOrError.Value()->job_splitter()) : emptyMapFragment;
-        auto controllerMemoryDigest = isOK ? toYsonString(rspOrError.Value()->memory_digest()) : emptyMapFragment;
+        auto controllerMemoryDigests = isOK ? toYsonString(rspOrError.Value()->memory_digests()) : emptyMapFragment;
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -2908,7 +2908,7 @@ private:
                     .BeginMap()
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
-                .Items(controllerMemoryDigest)
+                .Items(controllerMemoryDigests)
             .EndMap();
     }
 
@@ -3053,11 +3053,8 @@ private:
                 return;
             }
 
+            // Just a pre-check.
             auto operation = Scheduler_->GetOperation(operationId);
-            auto controller = operation->GetController();
-            if (!controller) {
-                return;
-            }
 
             TControllerAgentServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
             proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);

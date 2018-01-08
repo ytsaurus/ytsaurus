@@ -136,8 +136,7 @@ public:
 
     NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
 
-    void AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
-
+    void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
     void AbortJob(const TJobId& jobId, const TError& error);
 
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
@@ -285,35 +284,35 @@ private:
 
     TExecNodePtr GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
     TExecNodePtr RegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
-    void UnregisterNode(TExecNodePtr node);
-    void DoUnregisterNode(TExecNodePtr node);
+    void UnregisterNode(const TExecNodePtr& node);
+    void DoUnregisterNode(const TExecNodePtr& node);
 
-    void AbortJobsAtNode(TExecNodePtr node);
+    void AbortAllJobsAtNode(const TExecNodePtr& node);
 
     void ProcessHeartbeatJobs(
-        TExecNodePtr node,
+        const TExecNodePtr& node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         std::vector<TJobPtr>* runningJobs,
         bool* hasWaitingJobs);
 
     TJobPtr ProcessJobHeartbeat(
-        TExecNodePtr node,
+        const TExecNodePtr& node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus,
         bool forceJobsLogging);
 
-    void SubtractNodeResources(TExecNodePtr node);
-    void AddNodeResources(TExecNodePtr node);
+    void SubtractNodeResources(const TExecNodePtr& node);
+    void AddNodeResources(const TExecNodePtr& node);
     void UpdateNodeResources(
-        TExecNodePtr node,
+        const TExecNodePtr& node,
         const TJobResources& limits,
         const TJobResources& usage,
         const NNodeTrackerClient::NProto::TDiskResources& diskInfo);
 
-    void BeginNodeHeartbeatProcessing(TExecNodePtr node);
-    void EndNodeHeartbeatProcessing(TExecNodePtr node);
+    void BeginNodeHeartbeatProcessing(const TExecNodePtr& node);
+    void EndNodeHeartbeatProcessing(const TExecNodePtr& node);
 
     void SubmitUpdatedAndCompletedJobsToStrategy();
 
@@ -360,7 +359,7 @@ private:
 
     TOperationState& GetOperationState(const TOperationId& operationId);
 
-    void BuildNodeYson(TExecNodePtr node, NYTree::TFluentMap consumer);
+    void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
     void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState);
 };
