@@ -967,17 +967,17 @@ private:
                     prescheduleExecuted = true;
                     context.PrescheduledCalled = true;
                 }
-                ++context.NonPreemptiveScheduleJobCount;
+                ++context.NonPreemptiveScheduleJobAttempts;
                 if (!rootElement->ScheduleJob(context)) {
                     break;
                 }
             }
             profileTimings(
                 NonPreemptiveProfilingCounters,
-                context.NonPreemptiveScheduleJobCount,
+                context.NonPreemptiveScheduleJobAttempts,
                 scheduleTimer.GetElapsedTime() - prescheduleDuration - context.TotalScheduleJobDuration);
 
-            if (context.NonPreemptiveScheduleJobCount > 0) {
+            if (context.NonPreemptiveScheduleJobAttempts > 0) {
                 logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
             }
         }
@@ -1058,7 +1058,7 @@ private:
                     prescheduleExecuted = true;
                 }
 
-                ++context.PreemptiveScheduleJobCount;
+                ++context.PreemptiveScheduleJobAttempts;
                 if (!rootElement->ScheduleJob(context)) {
                     break;
                 }
@@ -1069,9 +1069,9 @@ private:
             }
             profileTimings(
                 PreemptiveProfilingCounters,
-                context.PreemptiveScheduleJobCount,
+                context.PreemptiveScheduleJobAttempts,
                 timer.GetElapsedTime() - prescheduleDuration - context.TotalScheduleJobDuration);
-            if (context.PreemptiveScheduleJobCount > 0) {
+            if (context.PreemptiveScheduleJobAttempts > 0) {
                 logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
             }
         }
@@ -1255,14 +1255,15 @@ private:
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v, Address: %v)",
+            "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingNodes: %v, Address: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
             context.ScheduledDuringPreemption,
             context.PreemptableJobCount,
             FormatResources(context.ResourceUsageDiscount),
-            context.NonPreemptiveScheduleJobCount,
-            context.PreemptiveScheduleJobCount,
+            context.ControllerScheduleJobCount,
+            context.NonPreemptiveScheduleJobAttempts,
+            context.PreemptiveScheduleJobAttempts,
             context.HasAggressivelyStarvingNodes,
             schedulingContext->GetNodeDescriptor().Address);
     }
