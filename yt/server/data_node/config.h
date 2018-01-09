@@ -50,8 +50,11 @@ public:
     //! Transmitted byte count during `Period` time window enough for P2P to become active.
     ui64 OutTrafficActivationThreshold;
 
-    //! Network out throttler queue size enough for P2P to become active.
-    ui64 OutThrottlerQueueSizeActivationThreshold;
+    //! Out queue size (Out throttler queue size + default network bus pending byte count) enough for P2P to become active.
+    ui64 OutQueueSizeActivationThreshold;
+
+    //! Block throughput in bytes per `Period` enough for P2P to become active.
+    ui64 TotalRequestedBlockSizeActivationThreshold;
 
     //! Regex for names of network interfaces considered when calculating transmitted byte count.
     NRe2::TRe2Ptr NetOutInterfaces;
@@ -80,9 +83,11 @@ public:
         RegisterParameter("period", Period)
             .Default(TDuration::Seconds(1));
         RegisterParameter("out_traffic_activation_threshold", OutTrafficActivationThreshold)
+            .Default(768_MB);
+        RegisterParameter("out_queue_size_activation_threshold", OutQueueSizeActivationThreshold)
             .Default(256_MB);
-        RegisterParameter("out_throttler_queue_size_activation_threshold", OutThrottlerQueueSizeActivationThreshold)
-            .Default(256_MB);
+        RegisterParameter("total_requested_block_size_activation_threshold", TotalRequestedBlockSizeActivationThreshold)
+            .Default(512_MB);
         RegisterParameter("net_out_interfaces", NetOutInterfaces)
             .Default(New<NRe2::TRe2>("eth\\d*"));
         RegisterParameter("max_populate_request_size", MaxPopulateRequestSize)

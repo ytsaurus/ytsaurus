@@ -56,6 +56,8 @@ public:
     TNullable<TString> UnixDomainName;
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
+    //! "Default" network is considered when checking if the network is under heavy load.
+    TNullable<TString> DefaultNetwork;
 
     yhash<TString, std::vector<NNet::TIP6Network>> Networks;
 
@@ -71,6 +73,14 @@ public:
             .Default(50000);
         RegisterParameter("networks", Networks)
             .Default({});
+        RegisterParameter("default_network", DefaultNetwork)
+            .Default();
+
+        RegisterValidator([&] {
+            if (DefaultNetwork && !Networks.has(*DefaultNetwork)) {
+                THROW_ERROR_EXCEPTION("Default network is not present in network list");
+            }
+        });
     }
 
     static TTcpBusServerConfigPtr CreateTcp(int port);

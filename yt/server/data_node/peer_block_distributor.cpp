@@ -25,12 +25,15 @@
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/dispatcher.h>
 
+#include <yt/core/bus/tcp_dispatcher.h>
+
 #include <util/random/random.h>
 
 namespace NYT {
 namespace NDataNode {
 
 static const auto& Logger = P2PLogger;
+static const auto& Profiler = P2PProfiler;
 
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -38,6 +41,8 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
+using namespace NBus;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,10 +56,11 @@ TPeerBlockDistributor::TPeerBlockDistributor(TPeerBlockDistributorConfigPtr conf
         Config_->Period))
 { }
 
-void TPeerBlockDistributor::OnBlockRequested(TBlockId blockId)
+void TPeerBlockDistributor::OnBlockRequested(TBlockId blockId, ui64 blockSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    TotalRequestedBlockSize_ += blockSize;
     RecentlyRequestedBlocks_.Enqueue(blockId);
 }
 
@@ -72,7 +78,8 @@ void TPeerBlockDistributor::DoIteration()
     SweepObsoleteRequests();
 
     if (ShouldDistributeBlocks()) {
-        DistributeBlocks();
+        ui64 distributedBlockSize = DistributeBlocks();
+        Profiler.Enqueue("/distributed_block_size", distributedBlockSize, EMetricType::Gauge);
     }
 }
 
@@ -114,30 +121,53 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    auto oldTransmittedBytes = TransmittedBytes_;
+    ui64 oldTransmittedBytes = TransmittedBytes_;
     UpdateTransmittedBytes();
     ui64 outTraffic = TransmittedBytes_ - oldTransmittedBytes;
 
-    auto outThrottlerQueueSize = Bootstrap_->GetOutThrottler(TWorkloadDescriptor())->GetQueueTotalCount();
+    ui64 outThrottlerQueueSize = Bootstrap_->GetOutThrottler(TWorkloadDescriptor())->GetQueueTotalCount();
+    ui64 defaultNetworkPendingOutBytes = 0;
+    if (auto defaultNetwork = Bootstrap_->GetDefaultNetworkName()) {
+        defaultNetworkPendingOutBytes = TTcpDispatcher::Get()->GetCounters(*defaultNetwork)->PendingOutBytes;
+    }
+    ui64 totalOutQueueSize = outThrottlerQueueSize + defaultNetworkPendingOutBytes;
+
+    ui64 totalRequestedBlockSize = TotalRequestedBlockSize_;
 
     bool shouldDistributeBlocks =
         outTraffic > Config_->OutTrafficActivationThreshold ||
-        outThrottlerQueueSize > Config_->OutThrottlerQueueSizeActivationThreshold;
+        totalOutQueueSize > Config_->OutQueueSizeActivationThreshold ||
+        totalRequestedBlockSize > Config_->TotalRequestedBlockSizeActivationThreshold;
 
     LOG_INFO("Determining if blocks should be distributed (Period: %v, OutTraffic: %v, "
-        "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, OutThrottlerQueueSizeActivationThreshold: %v, "
-        "ShouldDistributeBlocks: %v)",
+        "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, DefaultNetworkPendingOutBytes: %v, "
+        "TotalOutQueueSize: %v, OutQueueSizeActivationThreshold: %v, TotalRequestedBlockSize: %v, "
+        "TotalRequestedBlockSizeActivationThreshold: %v, ShouldDistributeBlocks: %v)",
         Config_->Period,
         outTraffic,
         Config_->OutTrafficActivationThreshold,
         outThrottlerQueueSize,
-        Config_->OutThrottlerQueueSizeActivationThreshold,
+        defaultNetworkPendingOutBytes,
+        totalOutQueueSize,
+        Config_->OutQueueSizeActivationThreshold,
+        totalRequestedBlockSize,
+        Config_->TotalRequestedBlockSizeActivationThreshold,
         shouldDistributeBlocks);
+
+    // Do not forget to reset the requested block size for the next iteration.
+    TotalRequestedBlockSize_ = 0;
+
+    // Carefully profile all related values.
+    Profiler.Enqueue("/out_traffic", outTraffic, EMetricType::Gauge);
+    Profiler.Enqueue("/out_throttler_queue_size", outThrottlerQueueSize, EMetricType::Gauge);
+    Profiler.Enqueue("/default_network_pending_out_bytes", defaultNetworkPendingOutBytes, EMetricType::Gauge);
+    Profiler.Enqueue("/total_out_queue_size", totalOutQueueSize, EMetricType::Gauge);
+    Profiler.Enqueue("/total_requested_block_size", totalRequestedBlockSize, EMetricType::Gauge);
 
     return shouldDistributeBlocks;
 }
 
-void TPeerBlockDistributor::DistributeBlocks()
+ui64 TPeerBlockDistributor::DistributeBlocks()
 {
     auto chosenBlocks = ChooseBlocks();
     TReqPopulateCache reqTemplate = std::move(chosenBlocks.ReqTemplate);
@@ -147,7 +177,7 @@ void TPeerBlockDistributor::DistributeBlocks()
 
     if (blocks.empty()) {
         LOG_INFO("No blocks may be distributed on current iteration");
-        return;
+        return 0;
     }
 
     auto destinationNodes = ChooseDestinationNodes();
@@ -188,6 +218,7 @@ void TPeerBlockDistributor::DistributeBlocks()
             destinationNode,
             blockIds));
     }
+    return totalBlockSize;
 }
 
 TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
