@@ -236,7 +236,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     struct TBlockCandidate {
         TBlockId BlockId;
         TInstant LastDistributionTime;
-        int PeerCount;
+        int DistributionCount;
         int RequestCount;
 
         bool operator <(const TBlockCandidate& other)
@@ -244,44 +244,26 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
             if (RequestCount != other.RequestCount) {
                 return RequestCount > other.RequestCount;
             }
-            if (PeerCount != other.PeerCount) {
-                return PeerCount < other.PeerCount;
+            if (DistributionCount != other.DistributionCount) {
+                return DistributionCount < other.DistributionCount;
             }
             return false;
         }
     };
 
-    // NB: we need to get peer counts for each candidate block
-    // from the peer block table which may be accessed only
-    // from the control thread.
-    auto blockIdToPeerCount = WaitFor(
-        BIND([=] {
-			yhash<TBlockId, int> blockIdToPeerCount;
-			for (const auto& pair : BlockIdToDistributionEntry_) {
-				const auto& blockId = pair.first;
-				int peerCount = Bootstrap_->GetPeerBlockTable()->GetPeers(blockId).size();
-				blockIdToPeerCount[blockId] = peerCount;
-			}
-			return blockIdToPeerCount;
-		})
-			.AsyncVia(Bootstrap_->GetControlInvoker())
-            .Run()
-    ).ValueOrThrow();
-
     std::vector<TBlockCandidate> candidates;
     for (const auto& pair : BlockIdToDistributionEntry_) {
         const auto& blockId = pair.first;
         const auto& distributionEntry = pair.second;
-        int peerCount = blockIdToPeerCount[blockId];
         YCHECK(distributionEntry.RequestCount > 0);
         if (distributionEntry.LastDistributionTime + Config_->ConsecutiveDistributionDelay <= now &&
-            peerCount <= Config_->MaxBlockPeerCount &&
+            distributionEntry.DistributionCount <= Config_->MaxDistributionCount &&
             distributionEntry.RequestCount >= Config_->MinRequestCount)
         {
             candidates.emplace_back(TBlockCandidate{
                 blockId,
                 distributionEntry.LastDistributionTime,
-                peerCount,
+                distributionEntry.DistributionCount,
                 distributionEntry.RequestCount});
         }
     }
@@ -307,7 +289,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
 
         int requestCount = candidate.RequestCount;
         auto lastDistributionTime = candidate.LastDistributionTime;
-        int peerCount = candidate.PeerCount;
+        int distributionCount = candidate.DistributionCount;
         ui64 blockSize = cachedBlock->GetData().Size();
         auto source = cachedBlock->Source();
         auto block = cachedBlock->GetData();
@@ -324,11 +306,11 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
             Y_UNLIKELY(totalSize == 0)) // Force at least one block to be distributed even if it is huge.
         {
             LOG_DEBUG("Block is ready for distribution (BlockId: %v, RequestCount: %v, LastDistributionTime: %v, "
-                "PeerCount: %v, Source: %v, Size: %v)",
+                "DistributionCount: %v, Source: %v, Size: %v)",
                 blockId,
                 requestCount,
                 lastDistributionTime,
-                peerCount,
+                distributionCount,
                 source,
                 blockSize);
             auto* protoBlock = reqTemplate.add_blocks();
