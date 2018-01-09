@@ -28,7 +28,7 @@ public:
     TPeerBlockDistributor(TPeerBlockDistributorConfigPtr config, NCellNode::TBootstrap* bootstrap);
 
     //! Method that should be called on each block request.
-    void OnBlockRequested(TBlockId blockId);
+    void OnBlockRequested(TBlockId blockId, ui64 blockSize);
 
     //! Starts periodic activity.
     void Start();
@@ -63,7 +63,11 @@ private:
     //! are swept out and corresponding entries in `BlockRequestCount_` are decremented.
     std::queue<std::pair<TInstant, TBlockId>> RequestHistory_;
 
+    //! Total number of transmitted bytes over the selected network interfaces from the beginning of times
+    //! (taken from /proc/net/dev/).
     ui64 TransmittedBytes_ = 0;
+    //! Total size of requested blocks from data node to the outworld during last `Config_->Period` window.
+    std::atomic<ui64> TotalRequestedBlockSize_ = {0};
 
     void DoIteration();
 
@@ -72,7 +76,8 @@ private:
 
     bool ShouldDistributeBlocks();
 
-    void DistributeBlocks();
+    //! Main method here; return value is the total size of blocks to distribute on this iteration.
+    ui64 DistributeBlocks();
 
     struct TChosenBlocks
     {

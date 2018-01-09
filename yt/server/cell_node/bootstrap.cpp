@@ -834,6 +834,11 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
         : GetIths<0>(Config->Addresses);
 }
 
+TNullable<TString> TBootstrap::GetDefaultNetworkName()
+{
+    return Config->BusServer->DefaultNetwork;
+}
+
 TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const
 {
     auto proxyConfig = CloneYsonSerializable(JobProxyConfigTemplate);

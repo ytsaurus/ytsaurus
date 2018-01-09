@@ -283,8 +283,12 @@ private:
         const std::vector<int>& blockIndexes,
         const std::vector<TBlock>& blocks)
     {
-        for (int blockIndex : blockIndexes) {
-            Bootstrap_->GetPeerBlockDistributor()->OnBlockRequested(TBlockId{chunkId, blockIndex});
+        for (int listIndex = 0; listIndex < std::min(blockIndexes.size(), blocks.size()); ++listIndex) {
+            int blockIndex = blockIndexes[listIndex];
+            const auto& block = blocks[listIndex];
+            if (block) {
+                Bootstrap_->GetPeerBlockDistributor()->OnBlockRequested(TBlockId{chunkId, blockIndex}, block.Size());
+            }
         }
         return blocks;
     }
