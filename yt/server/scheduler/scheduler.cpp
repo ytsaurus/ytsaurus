@@ -261,6 +261,9 @@ public:
         MasterConnector_->SubscribeMasterConnecting(BIND(
             &TImpl::OnMasterConnecting,
             Unretained(this)));
+        MasterConnector_->SubscribeMasterHandshake(BIND(
+            &TImpl::OnMasterHandshake,
+            Unretained(this)));
         MasterConnector_->SubscribeMasterConnected(BIND(
             &TImpl::OnMasterConnected,
             Unretained(this)));
@@ -1502,7 +1505,7 @@ private:
     }
 
 
-    void OnMasterConnecting(const TMasterHandshakeResult& result)
+    void OnMasterConnecting()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1516,13 +1519,18 @@ private:
         AgentIncarnationId_ = NControllerAgent::TIncarnationId::Create();
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnecting(AgentIncarnationId_);
 
-        ValidateConfig();
-
         // NB: Must start the keeper before registering operations.
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
+    }
+
+    void OnMasterHandshake(const TMasterHandshakeResult& result)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         ProcessHandshakeOperations(result.Operations);
+
+        ValidateConfig();
 
         {
             LOG_INFO("Connecting node shards");
