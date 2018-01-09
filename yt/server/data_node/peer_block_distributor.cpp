@@ -347,7 +347,7 @@ std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes() con
     std::vector<TNodeCandidate> candidates;
 
     for (const auto& nodeDescriptor : Bootstrap_->GetNodeDirectory()->GetAllDescriptors()) {
-        if (nodeDescriptor != localDescriptor) {
+        if (nodeDescriptor != localDescriptor && Config_->NodeTagFilter.IsSatisfiedBy(nodeDescriptor.GetTags())) {
             candidates.emplace_back(TNodeCandidate{RandomNumber<double>(), nodeDescriptor});
         }
     }
