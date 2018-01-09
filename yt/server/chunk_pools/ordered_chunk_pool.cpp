@@ -38,7 +38,7 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, ShouldSliceByRowIndices);
 
     if (context.GetVersion() >= 202044) {
-        Persist(context, Task);
+        Persist(context, Task_);
     }
 }
 
