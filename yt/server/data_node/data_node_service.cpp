@@ -75,7 +75,7 @@ public:
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : TServiceBase(
-            CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
+            bootstrap->GetControlInvoker(),
             TDataNodeServiceProxy::GetDescriptor(),
             DataNodeLogger)
         , Config_(config)

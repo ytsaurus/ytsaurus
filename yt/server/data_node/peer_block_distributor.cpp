@@ -220,11 +220,28 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
         }
     };
 
+    // NB: we need to get peer counts for each candidate block
+    // from the peer block table which may be accessed only
+    // from the control thread.
+    auto blockIdToPeerCount = WaitFor(
+        BIND([=] {
+			yhash<TBlockId, int> blockIdToPeerCount;
+			for (const auto& pair : BlockIdToDistributionEntry_) {
+				const auto& blockId = pair.first;
+				int peerCount = Bootstrap_->GetPeerBlockTable()->GetPeers(blockId).size();
+				blockIdToPeerCount[blockId] = peerCount;
+			}
+			return blockIdToPeerCount;
+		})
+			.AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run()
+    ).ValueOrThrow();
+
     std::vector<TBlockCandidate> candidates;
     for (const auto& pair : BlockIdToDistributionEntry_) {
         const auto& blockId = pair.first;
         const auto& distributionEntry = pair.second;
-        int peerCount = Bootstrap_->GetPeerBlockTable()->GetPeers(blockId).size();
+        int peerCount = blockIdToPeerCount[blockId];
         YCHECK(distributionEntry.RequestCount > 0);
         if (distributionEntry.LastDistributionTime + Config_->ConsecutiveDistributionDelay <= now &&
             peerCount <= Config_->BlockPeerCountLimit)
@@ -370,7 +387,8 @@ void TPeerBlockDistributor::OnBlocksDistributed(
             expirationTime);
         TPeerInfo peerInfo(descriptor, expirationTime);
         for (const auto& blockId : blockIds) {
-            Bootstrap_->GetPeerBlockTable()->UpdatePeer(blockId, std::move(peerInfo));
+            Bootstrap_->GetControlInvoker()->Invoke(
+                BIND(&TPeerBlockTable::UpdatePeer, Bootstrap_->GetPeerBlockTable(), blockId, std::move(peerInfo)));
         }
     } else {
         LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
