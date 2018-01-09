@@ -288,7 +288,7 @@ void TBootstrap::DoRun()
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
     PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
-    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
+    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable, this);
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
