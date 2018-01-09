@@ -41,6 +41,8 @@ using namespace NScheduler;
 static const size_t PipeWriteBufferSize = 1_MB;
 static const size_t RemoteWriteBufferSize = 1_MB;
 
+static const TString TmpSuffix = ".tmp";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBuildSnapshotJob
@@ -304,6 +306,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         LOG_INFO("Started uploading snapshot");
 
         auto snapshotPath = GetNewSnapshotPath(operationId);
+        auto snapshotUploadPath = snapshotPath + TmpSuffix;
 
         // Start outer transaction.
         ITransactionPtr transaction;
@@ -322,24 +325,16 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             transaction = transactionOrError.ValueOrThrow();
         }
 
-        // Remove previous snapshot, if exists.
-        {
-            TRemoveNodeOptions options;
-            options.Force = true;
-            auto result = WaitFor(transaction->RemoveNode(
-                snapshotPath,
-                options));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error removing previous snapshot");
-        }
-
         // Create new snapshot node.
         {
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("version", GetCurrentSnapshotVersion());
             options.Attributes = std::move(attributes);
+            options.Force = true;
+            options.Recursive = true;
             auto result = WaitFor(transaction->CreateNode(
-                snapshotPath,
+                snapshotUploadPath,
                 EObjectType::File,
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error creating snapshot node");
@@ -351,7 +346,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         {
             TFileWriterOptions options;
             options.Config = Config_->SnapshotWriter;
-            auto writer = transaction->CreateFileWriter(snapshotPath, options);
+            auto writer = transaction->CreateFileWriter(snapshotUploadPath, options);
 
             WaitFor(writer->Open())
                 .ThrowOnError();
@@ -376,54 +371,80 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Close())
                 .ThrowOnError();
 
-            LOG_INFO("Snapshot uploaded successfully (Size: %v)", snapshotSize);
+            LOG_INFO("Snapshot file uploaded successfully (Size: %v, Path: %v)",
+                snapshotSize,
+                snapshotUploadPath);
         }
 
         if (snapshotSize == 0) {
             LOG_WARNING("Empty snapshot found, skipping it");
             transaction->Abort();
-        } else {
-            // Copy snapshot to old operation node if such node exists.
-            {
-                TCopyNodeOptions options;
-                options.Recursive = false;
-                options.Force = true;
+            return;
+        }
 
-                auto rspOrError = WaitFor(transaction->CopyNode(
-                    snapshotPath,
-                    GetSnapshotPath(operationId),
-                    options));
+        // Commit outer transaction.
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
 
-                if (!rspOrError.IsOK()) {
-                    // COMPAT: Remove message check when masters are updated and will set ResolveError
-                    // if intermediate node is missing.
-                    auto isIntermediateNodeMissing = rspOrError.FindMatching(NYTree::EErrorCode::ResolveError) ||
-                        rspOrError.GetMessage().Contains("has no child");
+        // Atomically move snapshot to the right place.
+        {
+            TMoveNodeOptions options;
+            options.Force = true;
 
-                    // Intermediate nodes can be missing in new operations storage mode.
-                    if (!isIntermediateNodeMissing) {
-                        THROW_ERROR rspOrError;
-                    }
-                }
-            }
-
-            // Commit outer transaction.
-            WaitFor(transaction->Commit())
+            WaitFor(Client_->MoveNode(
+                snapshotUploadPath,
+                snapshotPath,
+                options))
                 .ThrowOnError();
 
-            LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
-                job->Cookie.SnapshotIndex);
+            LOG_INFO("Snapshot file moved successfully (Source: %v, Destination: %v)",
+                snapshotUploadPath,
+                snapshotPath);
+        }
 
-            auto controller = job->Controller;
-            if (controller->IsRunning()) {
-                // Safely remove jobs that we do not need any more.
-                WaitFor(
-                    BIND(&IOperationController::OnSnapshotCompleted, controller)
-                        .AsyncVia(controller->GetCancelableInvoker())
-                        .Run(job->Cookie))
-                    .ThrowOnError();
+        // Copy snapshot to old operation node if such node exists.
+        {
+            TCopyNodeOptions options;
+            options.Recursive = false;
+            options.Force = true;
+
+            auto snapshotOldPath = GetSnapshotPath(operationId);
+
+            auto error = WaitFor(Client_->CopyNode(
+                snapshotPath,
+                snapshotOldPath,
+                options));
+
+            if (!error.IsOK()) {
+                // COMPAT: Remove message check when masters are updated and will set ResolveError
+                // if intermediate node is missing.
+                auto isIntermediateNodeMissing = error.FindMatching(NYTree::EErrorCode::ResolveError) ||
+                    error.GetMessage().Contains("has no child");
+
+                // Intermediate nodes can be missing in new operations storage mode.
+                if (!isIntermediateNodeMissing) {
+                    THROW_ERROR error;
+                }
+            } else {
+                LOG_INFO("Snapshot file copied successfully (Source: %v, Destination: %v)",
+                    snapshotPath,
+                    snapshotOldPath);
             }
         }
+
+        LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
+            job->Cookie.SnapshotIndex);
+
+        auto controller = job->Controller;
+        if (controller->IsRunning()) {
+            // Safely remove jobs that we do not need any more.
+            WaitFor(
+                BIND(&IOperationController::OnSnapshotCompleted, controller)
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run(job->Cookie))
+                .ThrowOnError();
+        }
+
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error uploading snapshot");
     }
