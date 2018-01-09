@@ -1084,8 +1084,6 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
-    // XXX(babenko): never read
-    bool ShouldSendExecNodeDescriptorToControllerAgent_ = false;
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
@@ -1927,7 +1925,6 @@ private:
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
             std::swap(CachedExecNodeDescriptors_, result);
-            ShouldSendExecNodeDescriptorToControllerAgent_ = true;
         }
 
         auto execNodeMemoryDistribution = CalculateMemoryDistribution(EmptySchedulingTagFilter);
