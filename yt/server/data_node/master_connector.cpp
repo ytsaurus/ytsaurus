@@ -850,6 +850,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
         UpdateDataCenter(dc);
 
+        auto tags = FromProto<std::vector<TString>>(rsp->tags());
+        UpdateTags(std::move(tags));
+
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
         jobController->SetDisableSchedulerJobs(rsp->disable_scheduler_jobs());
@@ -1055,7 +1058,8 @@ void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         rack,
-        LocalDescriptor_.GetDataCenter());
+        LocalDescriptor_.GetDataCenter(),
+        LocalDescriptor_.GetTags());
 }
 
 void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
@@ -1064,7 +1068,18 @@ void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         LocalDescriptor_.GetRack(),
-        dc);
+        dc,
+        LocalDescriptor_.GetTags());
+}
+
+void TMasterConnector::UpdateTags(std::vector<TString> tags)
+{
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    LocalDescriptor_ = TNodeDescriptor(
+        RpcAddresses_,
+        LocalDescriptor_.GetRack(),
+        LocalDescriptor_.GetDataCenter(),
+        std::move(tags));
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)
