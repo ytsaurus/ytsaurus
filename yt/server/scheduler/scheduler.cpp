@@ -2855,7 +2855,7 @@ private:
     void BuildOperationYson(
         const TOperationPtr& operation,
         const TControllerAgentServiceProxy::TErrorOrRspGetOperationInfoPtr& rspOrError,
-        IYsonConsumer* consumer) const
+        TFluentAny fluent) const
     {
         static const auto emptyMapFragment = TYsonString(TString(), EYsonType::MapFragment);
 
@@ -2876,7 +2876,7 @@ private:
         auto controllerJobSplitterInfo = isOK ? toYsonString(rspOrError.Value()->job_splitter()) : emptyMapFragment;
         auto controllerMemoryDigests = isOK ? toYsonString(rspOrError.Value()->memory_digests()) : emptyMapFragment;
 
-        BuildYsonFluently(consumer)
+        fluent
             .BeginMap()
                 .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
                 .Item("progress").BeginMap()
@@ -2979,8 +2979,10 @@ private:
                 return nullptr;
             }
 
-            return IYPathService::FromProducer(
-                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), operation, rspOrError));
+            auto operationYson = BuildYsonStringFluently()
+                .Do(BIND(&TScheduler::TImpl::BuildOperationYson, Unretained(Scheduler_), operation, rspOrError));
+
+            return IYPathService::FromProducer(ConvertToProducer(std::move(operationYson)));
         }
 
     private:
