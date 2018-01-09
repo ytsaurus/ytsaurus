@@ -18,6 +18,8 @@ DECLARE_REFCOUNTED_CLASS(TTcpBusConfig)
 DECLARE_REFCOUNTED_CLASS(TTcpBusServerConfig)
 DECLARE_REFCOUNTED_CLASS(TTcpBusClientConfig)
 
+DECLARE_REFCOUNTED_STRUCT(TTcpDispatcherCounters)
+
 using TTosLevel = int;
 constexpr int DefaultTosLevel = 0;
 
