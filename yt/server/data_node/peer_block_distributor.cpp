@@ -225,7 +225,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
 {
     // First we filter the blocks requested during the considered window (`Config->WindowLength` from now) such that:
     // 1) Block was not recently distributed (within `Config_->ConsecutiveDistributionDelay` from now);
-    // 2) Block does not have many peers (at most `Config_->BlockPeerCountLimit`);
+    // 2) Block does not have many peers (at most `Config_->MaxBlockPeerCount`);
     // These candidate blocks are sorted in a descending order of request count.
     // We iterate over the blocks forming a PopulateCache request of total size no more than
     // `Config_->MaxPopulateRequestSize`, and finally deliver it to no more than
@@ -275,7 +275,8 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
         int peerCount = blockIdToPeerCount[blockId];
         YCHECK(distributionEntry.RequestCount > 0);
         if (distributionEntry.LastDistributionTime + Config_->ConsecutiveDistributionDelay <= now &&
-            peerCount <= Config_->BlockPeerCountLimit)
+            peerCount <= Config_->MaxBlockPeerCount &&
+            distributionEntry.RequestCount >= Config_->MinRequestCount)
         {
             candidates.emplace_back(TBlockCandidate{
                 blockId,
