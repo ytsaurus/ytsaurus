@@ -147,6 +147,11 @@ public:
      */
     void ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds);
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

@@ -746,6 +746,9 @@ public:
     //! Backoff between schedule job statistics logging.
     TDuration ScheduleJobStatisticsLogBackoff;
 
+    //! Controls the rate at which jobs are scheduled in termes of slices per second.
+    NConcurrency::TThroughputThrottlerConfigPtr JobSpecSliceThrottler;
+
     TControllerAgentConfig()
     {
         RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
@@ -1011,6 +1014,9 @@ public:
 
         RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
+            .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
 
         RegisterInitializer([&] () {
             EventLog->MaxRowWeight = 128_MB;

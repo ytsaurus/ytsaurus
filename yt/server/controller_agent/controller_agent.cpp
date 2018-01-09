@@ -20,6 +20,7 @@
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -60,6 +61,11 @@ public:
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
             ControllerAgentLogger))
+        , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
+            Config_->JobSpecSliceThrottler,
+            NLogging::TLogger(),
+            NProfiling::TProfiler(ControllerAgentProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
+        , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
         , EventLogWriter_(New<TEventLogWriter>(
             Config_->EventLog,
@@ -181,6 +187,8 @@ public:
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
         EventLogWriter_->UpdateConfig(Config_->EventLog);
         SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
+
+        ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
 
         HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
 
@@ -379,6 +387,13 @@ public:
             });
     }
 
+    const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return JobSpecSliceThrottler_;
+    }
+
 private:
     TControllerAgentConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
@@ -386,6 +401,8 @@ private:
     const TThreadPoolPtr ControllerThreadPool_;
     const TActionQueuePtr SnapshotIOQueue_;
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
+    const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
+    const IThroughputThrottlerPtr JobSpecSliceThrottler_;
     const TAsyncSemaphorePtr CoreSemaphore_;
     const TEventLogWriterPtr EventLogWriter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
@@ -803,6 +820,11 @@ void TControllerAgent::FailJob(const TIncarnationId& incarnationId, const TJobId
 void TControllerAgent::ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds)
 {
     Impl_->ReleaseJobs(incarnationId, jobIds);
+}
+
+const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() const
+{
+    return Impl_->GetJobSpecSliceThrottler();
 }
 
 ////////////////////////////////////////////////////////////////////

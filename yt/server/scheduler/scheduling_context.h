@@ -55,8 +55,6 @@ struct ISchedulingContext
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
-
     //! Called by a controller to generate id for new job.
     /*!
      *  \note Thread affinity: any
@@ -71,7 +69,6 @@ DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
 ISchedulingContextPtr CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    NConcurrency::IThroughputThrottlerPtr jobSpecSliceThrottler,
     const std::vector<TJobPtr>& runningJobs,
     NObjectClient::TCellTag cellTag);
 

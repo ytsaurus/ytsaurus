@@ -165,11 +165,6 @@ public:
         : Config_(config)
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
-        , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
-            Config_->JobSpecSliceThrottler,
-            NLogging::TLogger(),
-            NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
-        , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , CachedExecNodeMemoryDistributionByTags_(New<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
@@ -1044,13 +1039,6 @@ public:
         return Strategy_;
     }
 
-    virtual const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return JobSpecSliceThrottler_;
-    }
-
     TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
         const TChunkId& chunkId,
@@ -1087,9 +1075,6 @@ private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
     TBootstrap* const Bootstrap_;
-
-    const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
-    const IThroughputThrottlerPtr JobSpecSliceThrottler_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
@@ -1283,6 +1268,11 @@ private:
         virtual TFuture<void> GetHeartbeatSentFuture() override
         {
             return Bootstrap_->GetControllerAgent()->GetHeartbeatSentFuture();
+        }
+
+        virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override
+        {
+            return Bootstrap_->GetControllerAgent()->GetJobSpecSliceThrottler();
         }
 
     private:
@@ -1874,8 +1864,6 @@ private:
 
             // TODO(ignat): Make separate logic for updating config in controller agent (after separating configs).
             Bootstrap_->GetControllerAgent()->UpdateConfig(Config_);
-
-            ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
 
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->UpdateExecNodeDescriptorsPeriod);

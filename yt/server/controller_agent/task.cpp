@@ -245,7 +245,7 @@ void TTask::ScheduleJob(
         return;
     }
 
-    const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
+    const auto& jobSpecSliceThrottler = TaskHost_->GetJobSpecSliceThrottler();
     if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",

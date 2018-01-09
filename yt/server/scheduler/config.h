@@ -209,10 +209,6 @@ public:
     // Maximum number of simultaneously processed heartbeats.
     int HardConcurrentHeartbeatLimit;
 
-    //! Controls the rate at which jobs are scheduled in termes of slices per second.
-    // TODO(babenko): move to controller agent?
-    NConcurrency::TThroughputThrottlerConfigPtr JobSpecSliceThrottler;
-
     TDuration OrchidKeysUpdatePeriod;
 
     TDuration StaticOrchidCacheUpdatePeriod;
