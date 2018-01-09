@@ -2968,6 +2968,7 @@ private:
                 return nullptr;
             }
 
+            // TODO(ignat): move this to BuildOperationYson.
             TControllerAgentServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
             proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);
             auto request = proxy.GetOperationInfo();
