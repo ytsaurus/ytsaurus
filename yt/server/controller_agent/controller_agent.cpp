@@ -181,6 +181,9 @@ public:
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
         EventLogWriter_->UpdateConfig(Config_->EventLog);
         SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
+
+        HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
+
         if (MasterConnector_) {
             MasterConnector_->UpdateConfig(config);
         }
