@@ -79,10 +79,14 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
+    //! Raised when connection prcoess starts.
+    //! Subscribers may throw and yield.
+    DECLARE_SIGNAL(void(), MasterConnecting);
+
     //! Raised during connection process.
     //! Handshake result contains operations created from Cypress data; all of these have valid revival descriptors.
     //! Subscribers may throw and yield.
-    DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnecting);
+    DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterHandshake);
 
     //! Raised when connection is complete.
     //! Subscribers may throw but cannot yield.

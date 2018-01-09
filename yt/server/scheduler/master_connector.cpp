@@ -325,7 +325,8 @@ public:
         ScheduleTestingDisconnect();
     }
 
-    DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnecting);
+    DEFINE_SIGNAL(void(), MasterConnecting);
+    DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterHandshake);
     DEFINE_SIGNAL(void(), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
 
@@ -516,6 +517,7 @@ private:
 
         void Run()
         {
+            FireConnecting();
             RegisterInstance();
             StartLockTransaction();
             TakeLock();
@@ -525,7 +527,7 @@ private:
             ListOperations();
             RequestOperationAttributes();
             RequestCommittedFlag();
-            FireConnectingSignal();
+            FireHandshake();
         }
 
     private:
@@ -540,6 +542,11 @@ private:
 
         std::vector<TReviveOperationInfo> RunningOperations;
         TMasterHandshakeResult Result;
+
+        void FireConnecting()
+        {
+            Owner->MasterConnecting_.Fire();
+        }
 
         // - Register scheduler instance.
         void RegisterInstance()
@@ -998,9 +1005,9 @@ private:
             }
         }
 
-        void FireConnectingSignal()
+        void FireHandshake()
         {
-            Owner->MasterConnecting_.Fire(Result);
+            Owner->MasterHandshake_.Fire(Result);
         }
     };
 
@@ -1644,7 +1651,8 @@ void TMasterConnector::AddOperationWatcherHandler(const TOperationPtr& operation
     Impl->AddOperationWatcherHandler(operation, handler);
 }
 
-DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnecting, *Impl);
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl);
+DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterHandshake, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
 

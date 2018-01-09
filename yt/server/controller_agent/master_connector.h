@@ -79,7 +79,7 @@ public:
 
     void UpdateConfig(const TControllerAgentConfigPtr& config);
 
-    //! Raised during connection process.
+    //! Raised when connection process starts.
     //! Subscribers may throw and yield.
     DECLARE_SIGNAL(void(), MasterConnecting);
 
