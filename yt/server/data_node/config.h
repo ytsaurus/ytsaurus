@@ -65,9 +65,9 @@ public:
     //! Number of nodes to send blocks on a given iteration.
     int DestinationNodeCount;
 
-    //! Upper bound on peer count for block to be distributed. We do not want the same block to be distributed
-    //! again and again.
-    int MaxBlockPeerCount;
+    //! Upper bound on number of times block may be distributed while we track it as an active. We do not want
+    //! the same block to be distributed again and again.
+    int MaxDistributionCount;
 
     //! Minimum number of times block should be requested during `WindowLength` time period in order to be
     //! considered as a candidate for distribution.
@@ -98,7 +98,7 @@ public:
             .Default(64_MB);
         RegisterParameter("destination_node_count", DestinationNodeCount)
             .Default(3);
-        RegisterParameter("max_block_peer_count", MaxBlockPeerCount)
+        RegisterParameter("max_distribution_count", MaxDistributionCount)
             .Default(12);
         RegisterParameter("min_request_count", MinRequestCount)
             .Default(3);
