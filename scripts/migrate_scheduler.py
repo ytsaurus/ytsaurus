@@ -11,6 +11,7 @@ def main():
     yt.copy("//sys/pools", "//sys/pool_trees/physical")
     yt.set("//sys/pool_trees/physical/@nodes_filter", "internal")
     yt.set("//sys/pool_trees/physical/@opaque", False)
+    yt.link("//sys/pool_trees/physical", "//sys/pools", force=True)
     if args.has_cloud:
         yt.create("map_node", "//sys/pool_trees/cloud", attributes={"nodes_filter": "external"})
     yt.set("//sys/pool_trees/@default_tree", "physical")
