@@ -378,8 +378,10 @@ private:
             if (!SparseFields_.empty()) {
                 for (const auto& fieldInfo : SparseFields_) {
                     const auto& value = row[fieldInfo.ValueIndex];
-                    SkiffWriter_->WriteVariant16Tag(fieldInfo.SparseFieldIndex);
-                    WriteValue(fieldInfo.WireType, value);
+                    if (value.Type != EValueType::Null) {
+                        SkiffWriter_->WriteVariant16Tag(fieldInfo.SparseFieldIndex);
+                        WriteValue(fieldInfo.WireType, value);
+                    }
                 }
                 SkiffWriter_->WriteVariant16Tag(EndOfSequenceTag<ui16>());
             }

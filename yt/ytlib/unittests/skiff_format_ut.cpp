@@ -760,6 +760,16 @@ TEST(TSkiffWriter, TestSparse)
             MakeUnversionedUint64Value(42, nameTable->GetIdOrRegisterName("uint64")),
         }).Get(),
     });
+
+    writer->Write({
+        MakeRow({
+            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeUnversionedInt64Value(-8, nameTable->GetIdOrRegisterName("int64")),
+            MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("uint64")),
+            MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("string32")),
+        }).Get(),
+    });
+
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -787,6 +797,12 @@ TEST(TSkiffWriter, TestSparse)
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 1);
     ASSERT_EQ(checkedSkiffParser.ParseUint64(), 42);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), EndOfSequenceTag<ui16>());
+
+    // row 3
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseInt64(), -8);
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), EndOfSequenceTag<ui16>());
 
     // end
