@@ -29,7 +29,8 @@ public:
     explicit TNodeDescriptor(
         TAddressMap addresses,
         TNullable<TString> rack = Null,
-        TNullable<TString> dc = Null);
+        TNullable<TString> dc = Null,
+        const std::vector<TString>& tags = {});
 
     bool IsNull() const;
 
@@ -43,6 +44,8 @@ public:
     const TNullable<TString>& GetRack() const;
     const TNullable<TString>& GetDataCenter() const;
 
+    const std::vector<TString>& GetTags() const;
+
     void Persist(const TStreamPersistenceContext& context);
 
 private:
@@ -50,6 +53,7 @@ private:
     TString DefaultAddress_;
     TNullable<TString> Rack_;
     TNullable<TString> DataCenter_;
+    std::vector<TString> Tags_;
 };
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
