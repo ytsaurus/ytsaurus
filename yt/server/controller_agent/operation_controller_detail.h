@@ -895,6 +895,8 @@ protected:
 
     virtual TDataFlowGraph* GetDataFlowGraph() override;
 
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override;
+
     void FinishTaskInput(const TTaskPtr& task);
 
     void SetOperationAlert(EOperationAlertType type, const TError& alert);

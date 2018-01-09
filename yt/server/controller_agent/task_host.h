@@ -115,6 +115,8 @@ struct ITaskHost
         int tableIndex) = 0;
 
     virtual TDataFlowGraph* GetDataFlowGraph() = 0;
+
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

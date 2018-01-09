@@ -121,6 +121,8 @@ struct IOperationControllerHost
 
     // XXX(babenko)
     virtual TFuture<void> GetHeartbeatSentFuture() = 0;
+
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)

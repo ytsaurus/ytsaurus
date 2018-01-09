@@ -293,7 +293,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         auto schedulingContext = CreateSchedulingContext(
             Config_,
             node,
-            Host_->GetJobSpecSliceThrottler(),
             runningJobs,
             PrimaryMasterCellTag_);
 

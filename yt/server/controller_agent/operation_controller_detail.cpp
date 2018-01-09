@@ -6799,6 +6799,11 @@ TDataFlowGraph* TOperationControllerBase::GetDataFlowGraph()
     return &DataFlowGraph_;
 }
 
+const IThroughputThrottlerPtr& TOperationControllerBase::GetJobSpecSliceThrottler() const
+{
+    return Host->GetJobSpecSliceThrottler();
+}
+
 void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
 {
     task->FinishInput(TDataFlowGraph::TVertexDescriptor::Source);

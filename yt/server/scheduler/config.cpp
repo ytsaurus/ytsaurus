@@ -219,10 +219,6 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(100)
         .GreaterThanOrEqual(1);
 
-    // TODO(babenko): move to controller agent?
-    RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
-        .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
-
     RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
