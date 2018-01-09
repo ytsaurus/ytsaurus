@@ -11,6 +11,7 @@
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/misc/config.h>
+#include <yt/core/misc/boolean_formula.h>
 
 #include <yt/core/re2/re2.h>
 
@@ -82,6 +83,9 @@ public:
     //! Configuration of the retying channel used for `PopulateCache` requests.
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
+    //! Node tag filter defining which nodes will be considered as candidates for distribution.
+    TBooleanFormula NodeTagFilter;
+
     TPeerBlockDistributorConfig()
     {
         RegisterParameter("period", Period)
@@ -108,6 +112,8 @@ public:
             .Default(TDuration::Seconds(10));
         RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();
+        RegisterParameter("node_tag_filter", NodeTagFilter)
+            .Default(MakeBooleanFormula("!CLOUD"));
     }
 };
 
