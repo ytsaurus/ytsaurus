@@ -51,13 +51,15 @@ private:
         //! (`Config_->WindowLength`).
         int RequestCount = 0;
         //! Last time this block was distributed (may be set to TInstant() if last distribution was earlier
-        //! earlier than the beginning of the considered time window).
+        //! earlier than we started to track this block).
         TInstant LastDistributionTime;
+        //! Number of times we distributed the block since we started tracking it.
+        int DistributionCount = 0;
     };
 
     // NB: Two fields below are accessed only from `Invoker_`, so there are no races nor contention here.
 
-    //! Number of times each block was accessed during the window of length `Config_->WindowLength`.
+    //! All necessary information about blocks that were at least once accessed during last `Config_->WindowLength`.
     yhash<TBlockId, TDistributionEntry> BlockIdToDistributionEntry_;
     //! At the beginning of each iteration requests that become obsolete (older than `Config_->WindowLength`)
     //! are swept out and corresponding entries in `BlockRequestCount_` are decremented.
