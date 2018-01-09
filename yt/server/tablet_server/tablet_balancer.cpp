@@ -458,7 +458,8 @@ private:
         i64 tableSize = tablet->GetInMemoryMode() == EInMemoryMode::Compressed
             ? statistics.compressed_data_size()
             : statistics.uncompressed_data_size();
-        i64 cellCount = tablet->GetCell()->GetCellBundle()->TabletCells().size();
+        i64 cellCount = tablet->GetCell()->GetCellBundle()->TabletCells().size() *
+            config->TabletToCellRatio;
 
         if (!desiredTabletCount) {
             minTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
