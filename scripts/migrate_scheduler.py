@@ -4,7 +4,9 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--has-cloud", action="store_true")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--cloud", action="store_true", help="Specify if cluster has cloud nodes")
+    group.add_argument("--no-cloud", action="store_true", help="Specify if cluster does not have cloud nodes")
     args = parser.parse_args()
 
     yt.create("map_node", "//sys/pool_trees", ignore_existing=True)
@@ -12,7 +14,7 @@ def main():
     yt.set("//sys/pool_trees/physical/@nodes_filter", "internal")
     yt.set("//sys/pool_trees/physical/@opaque", False)
     yt.link("//sys/pool_trees/physical", "//sys/pools", force=True)
-    if args.has_cloud:
+    if args.cloud:
         yt.create("map_node", "//sys/pool_trees/cloud", attributes={"nodes_filter": "external"})
     yt.set("//sys/pool_trees/@default_tree", "physical")
     yt.set("//sys/pool_trees/@acl/end",
