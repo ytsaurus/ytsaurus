@@ -3045,7 +3045,7 @@ private:
                 .ValueOrThrow();
 
             if (!operationId) {
-                return;
+                THROW_ERROR_EXCEPTION("Job %v is missing", jobId);
             }
 
             // Just a pre-check.
