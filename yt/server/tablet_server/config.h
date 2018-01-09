@@ -30,6 +30,8 @@ public:
     i64 MaxInMemoryTabletSize;
     i64 DesiredInMemoryTabletSize;
 
+    double TabletToCellRatio;
+
     TTabletBalancerConfig()
     {
         RegisterParameter("enable_in_memory_balancer", EnableInMemoryBalancer)
@@ -58,6 +60,10 @@ public:
 
         RegisterParameter("desired_in_memory_tablet_size", DesiredInMemoryTabletSize)
             .Default(1_GB);
+
+        RegisterParameter("tablet_to_cell_ratio", TabletToCellRatio)
+            .GreaterThan(0)
+            .Default(5.0);
 
         RegisterPostprocessor([&] () {
             if (MinTabletSize > DesiredTabletSize) {
