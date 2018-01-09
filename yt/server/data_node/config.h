@@ -67,7 +67,11 @@ public:
 
     //! Upper bound on peer count for block to be distributed. We do not want the same block to be distributed
     //! again and again.
-    int BlockPeerCountLimit;
+    int MaxBlockPeerCount;
+
+    //! Minimum number of times block should be requested during `WindowLength` time period in order to be
+    //! considered as a candidate for distribution.
+    int MinRequestCount;
 
     //! Delay between consecutive distributions of a given block.
     TDuration ConsecutiveDistributionDelay;
@@ -94,8 +98,10 @@ public:
             .Default(64_MB);
         RegisterParameter("destination_node_count", DestinationNodeCount)
             .Default(3);
-        RegisterParameter("block_peer_count_limit", BlockPeerCountLimit)
+        RegisterParameter("max_block_peer_count", MaxBlockPeerCount)
             .Default(12);
+        RegisterParameter("min_request_count", MinRequestCount)
+            .Default(3);
         RegisterParameter("consecutive_distribution_delay", ConsecutiveDistributionDelay)
             .Default(TDuration::Seconds(5));
         RegisterParameter("window_length", WindowLength)
