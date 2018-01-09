@@ -38,7 +38,7 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, ShouldSliceByRowIndices);
 
     if (context.GetVersion() >= 202044) {
-        Persist(context, Task_);
+        Persist(context, Task);
     }
 }
 
@@ -287,7 +287,7 @@ public:
         Persist(context, SupportLocality_);
         Persist(context, OperationId_);
         if (context.GetVersion() >= 202044) {
-            Persist(context, Task);
+            Persist(context, Task_);
         }
         Persist(context, ChunkPoolId_);
         Persist(context, MaxTotalSliceCount_);
