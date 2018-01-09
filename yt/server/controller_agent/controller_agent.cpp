@@ -185,18 +185,22 @@ public:
         Config_ = config;
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
+
         EventLogWriter_->UpdateConfig(Config_->EventLog);
+
         SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
 
         ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
 
-        HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
+        if (HeartbeatExecutor_) {
+            HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
+        }
 
         if (MasterConnector_) {
             MasterConnector_->UpdateConfig(config);
         }
 
-        for (auto pair : GetControllers()) {
+        for (const auto& pair : GetControllers()) {
             const auto& controller = pair.second;
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
