@@ -49,11 +49,13 @@ TNodeDescriptor::TNodeDescriptor(const TNullable<TString>& defaultAddress)
 TNodeDescriptor::TNodeDescriptor(
     TAddressMap addresses,
     TNullable<TString> rack,
-    TNullable<TString> dc)
+    TNullable<TString> dc,
+    const std::vector<TString>& tags)
     : Addresses_(std::move(addresses))
     , DefaultAddress_(NNodeTrackerClient::GetDefaultAddress(Addresses_))
     , Rack_(std::move(rack))
     , DataCenter_(std::move(dc))
+    , Tags_(tags)
 { }
 
 bool TNodeDescriptor::IsNull() const
@@ -89,6 +91,11 @@ const TNullable<TString>& TNodeDescriptor::GetRack() const
 const TNullable<TString>& TNodeDescriptor::GetDataCenter() const
 {
     return DataCenter_;
+}
+
+const std::vector<TString>& TNodeDescriptor::GetTags() const
+{
+    return Tags_;
 }
 
 void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
@@ -231,6 +238,8 @@ void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const
     } else {
         protoDescriptor->clear_data_center();
     }
+
+    ToProto(protoDescriptor->mutable_tags(), descriptor.GetTags());
 }
 
 void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor)
@@ -240,7 +249,8 @@ void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrack
     *descriptor = NNodeTrackerClient::TNodeDescriptor(
         FromProto<NNodeTrackerClient::TAddressMap>(protoDescriptor.addresses()),
         protoDescriptor.has_rack() ? MakeNullable(protoDescriptor.rack()) : Null,
-        protoDescriptor.has_data_center() ? MakeNullable(protoDescriptor.data_center()) : Null);
+        protoDescriptor.has_data_center() ? MakeNullable(protoDescriptor.data_center()) : Null,
+        FromProto<std::vector<TString>>(protoDescriptor.tags()));
 }
 
 } // namespace NProto
@@ -251,7 +261,8 @@ bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
         lhs.GetDefaultAddress() == rhs.GetDefaultAddress() && // shortcut
         lhs.Addresses() == rhs.Addresses() &&
         lhs.GetRack() == rhs.GetRack() &&
-        lhs.GetDataCenter() == rhs.GetDataCenter();
+        lhs.GetDataCenter() == rhs.GetDataCenter() &&
+        lhs.GetTags() == rhs.GetTags();
 }
 
 bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
@@ -286,6 +297,12 @@ bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs
     const auto& lhsMaybeDataCenter = lhs.GetDataCenter();
     auto lhsDataCenter = lhsMaybeDataCenter ? TStringBuf(*lhsMaybeDataCenter) : TStringBuf();
     if (lhsDataCenter != rhs.data_center()) {
+        return false;
+    }
+
+    const auto& lhsTags = lhs.GetTags();
+    auto rhsTags = FromProto<std::vector<TString>>(rhs.tags());
+    if (lhsTags != rhsTags) {
         return false;
     }
 
@@ -418,10 +435,13 @@ std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const TChunkReplicaL
 
 std::vector<TNodeDescriptor> TNodeDirectory::GetAllDescriptors() const
 {
+    NConcurrency::TReaderGuard guard(SpinLock_);
+
     std::vector<TNodeDescriptor> result;
-    result.reserve(Descriptors_.size());
-    for (const auto& nodeDescriptor : Descriptors_) {
-        result.emplace_back(*nodeDescriptor);
+    result.reserve(AddressToDescriptor_.size());
+    for (const auto& pair : AddressToDescriptor_) {
+        const auto* descriptor = pair.second;
+        result.emplace_back(*descriptor);
     }
     return result;
 }
