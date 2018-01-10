@@ -742,7 +742,7 @@ public:
             .Run();
     }
 
-    
+
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1047,7 +1047,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&NControllerAgent::TControllerAgent::AttachJobContext, Bootstrap_->GetControllerAgent())
+        return BIND(&TImpl::DoAttachJobContext, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker())
             .Run(path, chunkId, operationId, jobId);
     }
@@ -1118,7 +1118,7 @@ private:
     std::atomic<int> OperationArchiveVersion_ = {-1};
 
     TYsonString SuspiciousJobsYson_ = TYsonString("", EYsonType::MapFragment);
-    
+
     // TODO(babenko): multiple incarnations
     NControllerAgent::TIncarnationId AgentIncarnationId_;
 
@@ -1306,6 +1306,18 @@ private:
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run());
         }
+    }
+
+
+    void DoAttachJobContext(
+        const NYTree::TYPath& path,
+        const TChunkId& chunkId,
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId);
     }
 
 
@@ -2240,7 +2252,7 @@ private:
             auto shardId = GetNodeShardId(NodeIdFromJobId(job->GetId()));
             jobsByShardId[shardId].emplace_back(std::move(job));
         }
-        
+
         std::vector<TFuture<void>> asyncResults;
         for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
             if (jobsByShardId[shardId].empty()) {
@@ -2869,7 +2881,7 @@ private:
         if (!isOK) {
             LOG_DEBUG(rspOrError, "Failed to get operation info from controller");
         }
-        
+
         auto controllerProgress = isOK ? toYsonString(rspOrError.Value()->progress()) : emptyMapFragment;
         auto controllerBriefProgress = isOK ? toYsonString(rspOrError.Value()->brief_progress()) : emptyMapFragment;
         auto controllerRunningJobs = isOK ? toYsonString(rspOrError.Value()->running_jobs()) : emptyMapFragment;

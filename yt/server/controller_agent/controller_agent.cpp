@@ -317,15 +317,6 @@ public:
         return HeartbeatExecutor_->GetExecutedEvent();
     }
 
-    void AttachJobContext(
-        const TYPath& path,
-        const TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId)
-    {
-        MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId);
-    }
-
     TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -674,11 +665,6 @@ TControllerAgent::TControllerAgent(
 
 TControllerAgent::~TControllerAgent() = default;
 
-const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
-{
-    return Impl_->GetCancelableInvoker();
-}
-
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 {
     return Impl_->GetControllerThreadPoolInvoker();
@@ -795,15 +781,6 @@ int TControllerAgent::GetExecNodeCount() const
 TExecNodeDescriptorListPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
 {
     return Impl_->GetExecNodeDescriptors(filter);
-}
-
-void TControllerAgent::AttachJobContext(
-    const TYPath& path,
-    const TChunkId& chunkId,
-    const TOperationId& operationId,
-    const TJobId& jobId)
-{
-    Impl_->AttachJobContext(path, chunkId, operationId, jobId);
 }
 
 void TControllerAgent::InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason)

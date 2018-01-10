@@ -45,9 +45,6 @@ public:
         NCellScheduler::TBootstrap* bootstrap);
     ~TControllerAgent();
 
-    // XXX(babenko): remove this after getting rid of AttachJobContext
-    const IInvokerPtr& GetCancelableInvoker();
-
     /*!
      *  \note Thread affinity: any
      */
@@ -122,13 +119,6 @@ public:
      *  \note Thread affinity: any
      */
     NScheduler::TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
-
-    // XXX(babenko): this method does not belong here
-    void AttachJobContext(
-        const NYTree::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId);
 
     /*!
      *  \note Thread affinity: any

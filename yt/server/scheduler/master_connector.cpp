@@ -259,6 +259,28 @@ public:
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
 
+    void AttachJobContext(
+        const TYPath& path,
+        const TChunkId& chunkId,
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        try {
+            TJobFile file{
+                jobId,
+                path,
+                chunkId,
+                "input_context"
+            };
+            SaveJobFiles(Bootstrap->GetMasterClient(), operationId, { file });
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
+                << ex;
+        }
+    }
+
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
@@ -1614,6 +1636,15 @@ TFuture<void> TMasterConnector::ResetRevivingOperationNode(const TOperationPtr& 
 TFuture<void> TMasterConnector::FlushOperationNode(const TOperationPtr& operation)
 {
     return Impl->FlushOperationNode(operation);
+}
+
+void TMasterConnector::AttachJobContext(
+    const TYPath& path,
+    const TChunkId& chunkId,
+    const TOperationId& operationId,
+    const TJobId& jobId)
+{
+    return Impl->AttachJobContext(path, chunkId, operationId, jobId);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
