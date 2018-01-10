@@ -27,14 +27,19 @@ logger = logging.getLogger("Yt.local")
 
 YT_LOCAL_STOP_WAIT_TIME = 5
 
-def _load_config(path, is_proxy_config=False):
-    if path is None:
+def _load_config(config, is_proxy_config=False):
+    if config is None:
         return {}
-    with open(path, "rb") as f:
+
+    if isinstance(config, dict):
+        return config
+
+    path = config
+    with open(path, "rb") as fin:
         if not is_proxy_config:
-            return yson.load(f)
+            return yson.load(fin)
         else:
-            return json.load(codecs.getreader("utf-8")(f))
+            return json.load(codecs.getreader("utf-8")(fin))
 
 def get_root_path(path=None):
     if path is not None:
