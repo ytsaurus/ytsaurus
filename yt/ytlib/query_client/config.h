@@ -22,7 +22,7 @@ public:
         RegisterParameter("cg_cache", CGCache)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             CGCache->Capacity = 100;
         });
     }
@@ -41,7 +41,7 @@ public:
         RegisterParameter("cg_cache", CGCache)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             CGCache->Capacity = 100;
         });
     }

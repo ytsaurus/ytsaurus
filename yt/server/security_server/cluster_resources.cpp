@@ -158,7 +158,7 @@ TSerializableClusterResources::TSerializableClusterResources()
     RegisterParameter("disk_space", DiskSpace_)
         .Optional();
 
-    RegisterValidator([&] {
+    RegisterPostprocessor([&] {
         for (const auto& pair : DiskSpacePerMedium_) {
             ValidateDiskSpace(pair.second);
         }

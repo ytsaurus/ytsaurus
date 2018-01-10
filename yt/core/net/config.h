@@ -36,7 +36,7 @@ public:
             .GreaterThan(0.0)
             .Default(2.0);
         
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (MaxRto < MinRto) {
                 THROW_ERROR_EXCEPTION("\"max_rto\" should be greater than or equal to \"min_rto\"");
             }
@@ -78,7 +78,7 @@ public:
         RegisterParameter("warning_timeout", WarningTimeout)
             .Default(TDuration::MilliSeconds(1000));
 
-        RegisterInitializer([this] () {
+        RegisterPreprocessor([this] () {
             RefreshTime = TDuration::Seconds(60);
             ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(120);
             ExpireAfterFailedUpdateTime = TDuration::Seconds(30);

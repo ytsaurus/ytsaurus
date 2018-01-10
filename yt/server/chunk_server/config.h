@@ -31,7 +31,7 @@ public:
         RegisterParameter("capacities", Capacities)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             for (const auto& pair : Capacities) {
                 for (const auto& pair2 : pair.second) {
                     if (pair2.second < 0) {
@@ -292,7 +292,7 @@ public:
         RegisterParameter("max_misscheduled_seal_jobs_per_heartbeat", MaxMisscheduledSealJobsPerHeartbeat)
             .Default(128);
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;
         });
 
