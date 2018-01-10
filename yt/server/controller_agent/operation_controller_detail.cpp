@@ -5311,7 +5311,9 @@ TSnapshotCookie TOperationControllerBase::OnSnapshotStarted()
         ChunkTreeSnapshotCookie_,
         *RecentSnapshotIndex_);
 
-    return TSnapshotCookie{*RecentSnapshotIndex_};
+    TSnapshotCookie result;
+    result.SnapshotIndex = *RecentSnapshotIndex_;
+    return result;
 }
 
 void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& cookie)
