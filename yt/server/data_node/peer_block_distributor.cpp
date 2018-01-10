@@ -78,9 +78,9 @@ void TPeerBlockDistributor::DoIteration()
     SweepObsoleteRequests();
 
     if (ShouldDistributeBlocks()) {
-        ui64 distributedBlockSize = DistributeBlocks();
-        Profiler.Enqueue("/distributed_block_size", distributedBlockSize, EMetricType::Gauge);
+        DistributeBlocks();
     }
+    Profiler.Enqueue("/distributed_block_size", DistributedBytes_, EMetricType::Counter);
 }
 
 void TPeerBlockDistributor::SweepObsoleteRequests()
@@ -135,9 +135,9 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     ui64 totalRequestedBlockSize = TotalRequestedBlockSize_;
 
     bool shouldDistributeBlocks =
-        outTraffic > Config_->OutTrafficActivationThreshold ||
-        totalOutQueueSize > Config_->OutQueueSizeActivationThreshold ||
-        totalRequestedBlockSize > Config_->TotalRequestedBlockSizeActivationThreshold;
+        outTraffic >= Config_->OutTrafficActivationThreshold ||
+        totalOutQueueSize >= Config_->OutQueueSizeActivationThreshold ||
+        totalRequestedBlockSize >= Config_->TotalRequestedBlockSizeActivationThreshold;
 
     LOG_INFO("Determining if blocks should be distributed (Period: %v, OutTraffic: %v, "
         "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, DefaultNetworkPendingOutBytes: %v, "
@@ -167,7 +167,7 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     return shouldDistributeBlocks;
 }
 
-ui64 TPeerBlockDistributor::DistributeBlocks()
+void TPeerBlockDistributor::DistributeBlocks()
 {
     auto chosenBlocks = ChooseBlocks();
     TReqPopulateCache reqTemplate = std::move(chosenBlocks.ReqTemplate);
@@ -177,7 +177,7 @@ ui64 TPeerBlockDistributor::DistributeBlocks()
 
     if (blocks.empty()) {
         LOG_INFO("No blocks may be distributed on current iteration");
-        return 0;
+        return;
     }
 
     auto destinationNodes = ChooseDestinationNodes();
@@ -216,9 +216,9 @@ ui64 TPeerBlockDistributor::DistributeBlocks()
             MakeWeak(this),
             destinationAddress,
             destinationNode,
-            blockIds));
+            blockIds,
+            totalBlockSize));
     }
-    return totalBlockSize;
 }
 
 TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
@@ -347,7 +347,9 @@ std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes() con
     std::vector<TNodeCandidate> candidates;
 
     for (const auto& nodeDescriptor : Bootstrap_->GetNodeDirectory()->GetAllDescriptors()) {
-        if (nodeDescriptor != localDescriptor && Config_->NodeTagFilter.IsSatisfiedBy(nodeDescriptor.GetTags())) {
+        if (nodeDescriptor.GetDefaultAddress() != localDescriptor.GetDefaultAddress() &&
+            Config_->NodeTagFilter.IsSatisfiedBy(nodeDescriptor.GetTags()))
+        {
             candidates.emplace_back(TNodeCandidate{RandomNumber<double>(), nodeDescriptor});
         }
     }
@@ -390,15 +392,18 @@ void TPeerBlockDistributor::OnBlocksDistributed(
     const TString& address,
     const TNodeDescriptor& descriptor,
     const std::vector<TBlockId>& blockIds,
+    ui64 size,
     const TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError)
 {
     if (rspOrError.IsOK()) {
         TInstant expirationTime;
         FromProto(&expirationTime, rspOrError.Value()->expiration_time());
         LOG_DEBUG("Populate cache request succeeded, registering node as a peer for populated blocks "
-            "(Address: %v, ExpirationTime: %v)",
+            "(Address: %v, ExpirationTime: %v, Size: %v)",
             address,
-            expirationTime);
+            expirationTime,
+            size);
+        DistributedBytes_ += size;
         TPeerInfo peerInfo(descriptor, expirationTime);
         for (const auto& blockId : blockIds) {
             Bootstrap_->GetControlInvoker()->Invoke(
