@@ -298,7 +298,7 @@ private:
 
         TNonblockingQueue<TCommand> CommandQueue_;
 
-        yhash<TString, TInstant> BannedNodeToDeadline_;
+        THashMap<TString, TInstant> BannedNodeToDeadline_;
 
 
         void EnqueueCommand(TCommand command)

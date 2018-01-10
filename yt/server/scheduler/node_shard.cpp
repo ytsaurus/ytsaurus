@@ -330,7 +330,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<ENodeState>("state");
-        auto ioWeights = attributes.Get<yhash<TString, double>>("io_weights", {});
+        auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
 
         LOG_DEBUG("Handling node attributes (NodeId: %v, Address: %v, ObjectId: %v, NewState: %v)",
             nodeId,
@@ -352,7 +352,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         auto execNode = IdToNode_[nodeId];
         auto oldState = execNode->GetMasterState();
 
-        execNode->Tags() = attributes.Get<yhash_set<TString>>("tags");
+        execNode->Tags() = attributes.Get<THashSet<TString>>("tags");
 
         if (oldState != newState) {
             if (oldState == ENodeState::Online && newState != ENodeState::Online) {

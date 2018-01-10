@@ -823,17 +823,17 @@ public:
     }
 
 
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousVitalChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, QuorumMissingChunks);
-    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ForeignChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostVitalChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, OverreplicatedChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnderreplicatedChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, DataMissingChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ParityMissingChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousVitalChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, QuorumMissingChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ForeignChunks);
 
 
     int GetTotalReplicaCount()
@@ -1120,7 +1120,7 @@ private:
     NHydra::TEntityMap<TChunkList> ChunkListMap_;
 
     NHydra::TEntityMap<TMedium> MediumMap_;
-    yhash<TString, TMedium*> NameToMediumMap_;
+    THashMap<TString, TMedium*> NameToMediumMap_;
     std::vector<TMedium*> IndexToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 
@@ -2511,16 +2511,16 @@ DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, ChunkLi
 
 DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager::TImpl, Medium, Media, TMedium, MediumMap_)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostVitalChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, OverreplicatedChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnderreplicatedChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, DataMissingChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, ParityMissingChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, PrecariousChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, PrecariousVitalChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, QuorumMissingChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, LostChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, LostVitalChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, OverreplicatedChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, UnderreplicatedChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, DataMissingChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, ParityMissingChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, PrecariousChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, PrecariousVitalChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, QuorumMissingChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2874,17 +2874,17 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, *Impl_)
 
 DELEGATE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMedium, *Impl_)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, OverreplicatedChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnderreplicatedChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, DataMissingChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ParityMissingChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, PrecariousChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, PrecariousVitalChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, QuorumMissingChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnsafelyPlacedChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ForeignChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, LostChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, LostVitalChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, OverreplicatedChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnderreplicatedChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, DataMissingChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, ParityMissingChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousVitalChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, QuorumMissingChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnsafelyPlacedChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, ForeignChunks, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

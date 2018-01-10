@@ -129,6 +129,17 @@ TGilGuard::~TGilGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
+    : State_(PyEval_SaveThread())
+{ }
+
+TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
+{
+    PyEval_RestoreThread(State_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPythonClassObject::TPythonClassObject()
 { }
 
@@ -151,7 +162,7 @@ TPythonStringCache::TPythonStringCache(bool enableCache, const TNullable<TString
     , Encoding_(encoding)
 {
     if (CacheEnabled_) {
-        Cache_.reset(new yhash<TStringBuf, PyObject*>());
+        Cache_.reset(new THashMap<TStringBuf, PyObject*>());
     }
 }
 

@@ -710,7 +710,7 @@ public:
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options) override
     {
-        return NApi::CreateTableReader(this, path, options);
+        return NApi::CreateTableReader(this, path, options, New<TNameTable>());
     }
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
@@ -827,7 +827,7 @@ private:
     const INativeConnectionPtr Connection_;
     const TClientOptions Options_;
 
-    TEnumIndexedVector<yhash<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
@@ -1324,7 +1324,7 @@ private:
         const TTabletReadOptions& options,
         const std::vector<std::pair<NTableClient::TKey, int>>& keys)
     {
-        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
         for (const auto& pair : keys) {
             auto key = pair.first;
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
@@ -1337,7 +1337,7 @@ private:
         const TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options)
     {
-        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
         for (const auto& tabletInfo : tableInfo->Tablets) {
             cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
         }
@@ -1347,7 +1347,7 @@ private:
     TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         const TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options,
-        const yhash<TCellId, std::vector<TTabletId>>& cellIdToTabletIds)
+        const THashMap<TCellId, std::vector<TTabletId>>& cellIdToTabletIds)
     {
         size_t cellCount = cellIdToTabletIds.size();
         size_t tabletCount = 0;
@@ -1381,7 +1381,7 @@ private:
 
         return Combine(asyncResults).Apply(
             BIND([=, this_ = MakeStrong(this)] (const std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>& rsps) {
-                yhash<TTableReplicaId, int> replicaIdToCount;
+                THashMap<TTableReplicaId, int> replicaIdToCount;
                 for (const auto& rsp : rsps) {
                     for (const auto& protoTabletInfo : rsp->tablets()) {
                         for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
@@ -1457,7 +1457,7 @@ private:
         auto candidates = WaitFor(Combine(asyncCandidates))
             .ValueOrThrow();
 
-        yhash<TString, int> clusterNameToCount;
+        THashMap<TString, int> clusterNameToCount;
         for (const auto& replicaInfos : candidates) {
             SmallVector<TString, TypicalReplicaCount> clusterNames;
             for (const auto& replicaInfo : replicaInfos) {
@@ -1645,7 +1645,7 @@ private:
         std::vector<int> keyIndexToResultIndex(keys.Size());
         int currentResultIndex = -1;
 
-        yhash<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
+        THashMap<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
 
         // TODO(sandello): Reuse code from QL here to partition sorted keys between tablets.
         // Get rid of hash map.
@@ -1870,8 +1870,8 @@ private:
                 replicas.push_back(replica->ReplicaId);
             }
         } else {
-            yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
-            yhash_set<TTabletId> tabletIds;
+            THashMap<TCellId, std::vector<TTabletId>> cellToTabletIds;
+            THashSet<TTabletId> tabletIds;
             for (auto key : keys) {
                 auto tabletInfo = tableInfo->GetTabletForRow(key);
                 if (tabletIds.count(tabletInfo->TabletId) == 0) {
@@ -1897,7 +1897,7 @@ private:
             auto responsesResult = WaitFor(Combine(futures));
             auto responses = responsesResult.ValueOrThrow();
 
-            yhash<TTableReplicaId, int> replicaIdToCount;
+            THashMap<TTableReplicaId, int> replicaIdToCount;
             for (const auto& response : responses) {
                 for (const auto& protoTabletInfo : response->tablets()) {
                     for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
@@ -2559,7 +2559,7 @@ private:
             // Maps src index -> list of chunk ids for this src.
             std::vector<std::vector<TChunkId>> groupedChunkIds(srcPaths.size());
             {
-                yhash<TCellTag, std::vector<int>> cellTagToIndexes;
+                THashMap<TCellTag, std::vector<int>> cellTagToIndexes;
                 for (int srcIndex = 0; srcIndex < srcCellTags.size(); ++srcIndex) {
                     cellTagToIndexes[srcCellTags[srcIndex]].push_back(srcIndex);
                 }
@@ -3442,8 +3442,8 @@ private:
         }
 
         TListOperationsResult result;
-        yhash<TString, i64> poolCounts;
-        yhash<TString, i64> userCounts;
+        THashMap<TString, i64> poolCounts;
+        THashMap<TString, i64> userCounts;
         TEnumIndexedVector<i64, NScheduler::EOperationState> stateCounts;
         TEnumIndexedVector<i64, NScheduler::EOperationType> typeCounts;
         i64 failedJobsCount = 0;
@@ -3640,7 +3640,7 @@ private:
                 }
                 itemsSortDirection = "ASC";
             }
-            
+
             if (options.Pool) {
                 itemsConditions.push_back(Format("pool = %Qv", *options.Pool));
             }

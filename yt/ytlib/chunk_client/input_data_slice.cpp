@@ -349,7 +349,7 @@ std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TI
         boundaries.emplace_back(chunkSlices[index]->UpperLimit().Key, true, index);
     }
     std::sort(boundaries.begin(), boundaries.end());
-    yhash_set<int> currentChunks;
+    THashSet<int> currentChunks;
 
     int index = 0;
     while (index < boundaries.size()) {

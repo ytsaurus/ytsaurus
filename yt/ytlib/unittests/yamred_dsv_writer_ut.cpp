@@ -16,7 +16,7 @@ namespace NYT {
 namespace NFormats {
 namespace {
 
-typedef yvector<TString> VectorStrok;
+typedef TVector<TString> VectorStrok;
 
 ////////////////////////////////////////////////////////////////////////////////
 

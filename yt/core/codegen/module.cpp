@@ -415,7 +415,7 @@ private:
     std::set<TString> LoadedFunctions_;
     std::set<TString> LoadedSymbols_;
 
-    yhash_set<TString> LoadedModules_;
+    THashSet<TString> LoadedModules_;
 
     bool Compiled_ = false;
 };

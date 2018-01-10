@@ -105,9 +105,9 @@ public:
             std::sort(keys.begin(), keys.end());
         }
 
-        yhash_set<TString> matchingKeys;
+        THashSet<TString> matchingKeys;
         if (attributeKeys) {
-            matchingKeys = yhash_set<TString>(attributeKeys->begin(), attributeKeys->end());
+            matchingKeys = THashSet<TString>(attributeKeys->begin(), attributeKeys->end());
         }
 
         for (const auto& key : keys) {
@@ -328,8 +328,8 @@ public:
     }
 
 private:
-    yhash<TString, INodePtr> KeyToChild;
-    yhash<INodePtr, TString> ChildToKey;
+    THashMap<TString, INodePtr> KeyToChild;
+    THashMap<INodePtr, TString> ChildToKey;
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
@@ -458,7 +458,7 @@ public:
 
 private:
     std::vector<INodePtr> IndexToChild;
-    yhash<INodePtr, int> ChildToIndex;
+    THashMap<INodePtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(
         const TYPath& path,

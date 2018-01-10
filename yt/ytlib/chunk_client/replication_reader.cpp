@@ -215,9 +215,9 @@ private:
 
     TSpinLock PeersSpinLock_;
     //! Peers returning NoSuchChunk error are banned forever.
-    yhash_set<TString> BannedForeverPeers_;
+    THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
-    yhash<TString, int> PeerBanCountMap_;
+    THashMap<TString, int> PeerBanCountMap_;
 
     std::atomic<bool> IsFailed_;
 
@@ -417,7 +417,7 @@ protected:
     TChunkReplicaList SeedReplicas_;
 
     //! Set of peer addresses banned for the current retry.
-    yhash_set<TString> BannedPeers_;
+    THashSet<TString> BannedPeers_;
 
     //! List of candidates addresses to try during current pass, prioritized by:
     //! locality, ban counter, random number.
@@ -425,7 +425,7 @@ protected:
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
-    yhash<TString, TPeer> Peers_;
+    THashMap<TString, TPeer> Peers_;
 
     //! Fixed priority invoker build upon CompressionPool.
     IInvokerPtr SessionInvoker_;
@@ -887,10 +887,10 @@ private:
     TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
-    yhash<int, TBlock> Blocks_;
+    THashMap<int, TBlock> Blocks_;
 
     //! Maps peer addresses to block indexes.
-    yhash<TString, yhash_set<int>> PeerBlocksMap_;
+    THashMap<TString, THashSet<int>> PeerBlocksMap_;
 
     virtual bool IsCanceled() const override
     {
@@ -905,7 +905,7 @@ private:
         PeerBlocksMap_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
         for (const auto& pair : Peers_) {
-            PeerBlocksMap_[pair.first] = yhash_set<int>(blockIndexes.begin(), blockIndexes.end());
+            PeerBlocksMap_[pair.first] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
         }
 
         RequestBlocks();

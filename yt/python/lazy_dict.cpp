@@ -74,7 +74,7 @@ void TLazyDict::Clear()
     Data_.clear();
 }
 
-TLazyDict::THashMap* TLazyDict::GetUnderlyingHashMap()
+TLazyDict::THashMapType* TLazyDict::GetUnderlyingHashMap()
 {
     return &Data_;
 }

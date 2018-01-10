@@ -41,7 +41,7 @@ namespace {
 
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static yhash<EScheduleJobFailReason, TTagId> tagId;
+    static THashMap<EScheduleJobFailReason, TTagId> tagId;
 
     auto it = tagId.find(reason);
     if (it == tagId.end()) {
@@ -55,7 +55,7 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 
 TTagId GetSlotIndexProfilingTag(int slotIndex)
 {
-    static yhash<int, TTagId> slotIndexToTagIdMap;
+    static THashMap<int, TTagId> slotIndexToTagIdMap;
 
     auto it = slotIndexToTagIdMap.find(slotIndex);
     if (it == slotIndexToTagIdMap.end()) {
@@ -346,13 +346,13 @@ public:
 
         try {
             // Build the set of potential orphans.
-            yhash_set<TString> orphanPoolIds;
+            THashSet<TString> orphanPoolIds;
             for (const auto& pair : Pools) {
                 YCHECK(orphanPoolIds.insert(pair.first).second);
             }
 
             // Track ids appearing in various branches of the tree.
-            yhash<TString, TYPath> poolIdToPath;
+            THashMap<TString, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
             std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
@@ -802,26 +802,26 @@ private:
 
     INodePtr LastPoolsNodeUpdate;
 
-    using TPoolMap = yhash<TString, TPoolPtr>;
+    using TPoolMap = THashMap<TString, TPoolPtr>;
     TPoolMap Pools;
 
-    yhash<TString, NProfiling::TTagId> PoolIdToProfilingTagId;
+    THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId;
 
-    yhash<TString, yhash_set<TString>> UserToEphemeralPools;
+    THashMap<TString, THashSet<TString>> UserToEphemeralPools;
 
-    yhash<TString, yhash_set<int>> PoolToSpareSlotIndices;
-    yhash<TString, int> PoolToMinUnusedSlotIndex;
+    THashMap<TString, THashSet<int>> PoolToSpareSlotIndices;
+    THashMap<TString, int> PoolToMinUnusedSlotIndex;
 
-    using TOperationElementPtrByIdMap = yhash<TOperationId, TOperationElementPtr>;
+    using TOperationElementPtrByIdMap = THashMap<TOperationId, TOperationElementPtr>;
     TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationId> WaitingOperationQueue;
     
     TReaderWriterSpinLock RegisteredOperationsSetLock;
-    yhash_set<TOperationId> RegisteredOperationsSet;
+    THashSet<TOperationId> RegisteredOperationsSet;
 
     TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
-    yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
+    THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
 
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
     std::vector<int> FreeSchedulingTagFilterIndexes;
@@ -830,7 +830,7 @@ private:
         int Index;
         int Count;
     };
-    yhash<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
+    THashMap<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
 
     TRootElementPtr RootElement;
 
@@ -958,7 +958,7 @@ private:
 
         // Compute discount to node usage.
         LOG_TRACE("Looking for preemptable jobs");
-        yhash_set<TCompositeSchedulerElementPtr> discountedPools;
+        THashSet<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_AGGREGATED_TIMING (AnalyzePreemptableJobsTimeCounter) {
             for (const auto& job : context.SchedulingContext->RunningJobs()) {
@@ -1439,7 +1439,7 @@ private:
 
         auto it = PoolToSpareSlotIndices.find(poolName);
         if (it == PoolToSpareSlotIndices.end()) {
-            YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, yhash_set<int>{slotIndex})).second);
+            YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, THashSet<int>{slotIndex})).second);
         } else {
             it->second.insert(slotIndex);
         }
@@ -2146,7 +2146,7 @@ private:
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
     TFairShareTreePtr FairShareTree_;
 
-    yhash<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
+    THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
     TInstant LastProfilingTime_;
 

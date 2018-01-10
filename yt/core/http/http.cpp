@@ -100,7 +100,7 @@ const std::vector<TString>& THeaders::GetAll(const TString& header) const
     return it->second.Values;
 }
 
-void THeaders::WriteTo(IOutputStream* out, const yhash_set<TString>* filtered) const
+void THeaders::WriteTo(IOutputStream* out, const THashSet<TString>* filtered) const
 {
     for (const auto& pair : Raw_) {
         // TODO(prime): sanitize headers

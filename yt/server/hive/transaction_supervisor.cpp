@@ -168,7 +168,7 @@ private:
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
 
-    yhash<TTransactionId, TAbort> TransientAbortMap_;
+    THashMap<TTransactionId, TAbort> TransientAbortMap_;
 
 
     class TWrappedParticipant
@@ -416,8 +416,8 @@ private:
     using TWrappedParticipantPtr = TIntrusivePtr<TWrappedParticipant>;
     using TWrappedParticipantWeakPtr = TWeakPtr<TWrappedParticipant>;
 
-    yhash<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
-    yhash<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
+    THashMap<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
+    THashMap<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
     TPeriodicExecutorPtr ParticipantCleanupExecutor_;
 
 
@@ -1230,7 +1230,7 @@ private:
 
         TFuture<TTimestamp> asyncCoordinatorTimestamp;
         std::vector<TFuture<std::pair<TCellTag, TTimestamp>>> asyncTimestamps;
-        yhash_set<TCellTag> timestampProviderCellTags;
+        THashSet<TCellTag> timestampProviderCellTags;
         auto generateFor = [&] (const TCellId& cellId) {
             try {
                 auto cellTag = CellTagFromId(cellId);

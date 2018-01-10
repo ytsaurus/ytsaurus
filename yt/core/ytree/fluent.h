@@ -69,8 +69,8 @@ namespace NYTree {
 // * Value(T value) -> TParent, serialize `value` using underlying consumer.
 //   T should be such that free function Serialize(IYsonConsumer*, const T&) is
 //   defined;
-// * BeginMap() -> TMap, open map;
-// * BeginList() -> TList, open list;
+// * BeginMap() -> TMapType, open map;
+// * BeginList() -> TListType, open list;
 // * BeginAttributes() -> TAttributes, open attributes;
 //
 // * Do(TFuncAny func) -> TAny, delegate invocation to a separate procedure.
@@ -90,20 +90,20 @@ namespace NYTree {
 // * DoListFor(TCollection collection, TFuncList func) -> TAny; same as DoMapFor().
 //
 //
-// TMap:
+// TMapType:
 // * Item(TStringBuf key) -> TAny, open an element keyed with `key`;
 // * EndMap() -> TParent, close map;
-// * Do(TFuncMap func) -> TMap, same as Do() for TAny;
-// * DoIf(bool condition, TFuncMap func) -> TMap, same as DoIf() for TAny;
-// * DoFor(TCollection collection, TFuncMap func) -> TMap, same as DoFor() for TAny.
+// * Do(TFuncMap func) -> TMapType, same as Do() for TAny;
+// * DoIf(bool condition, TFuncMap func) -> TMapType, same as DoIf() for TAny;
+// * DoFor(TCollection collection, TFuncMap func) -> TMapType, same as DoFor() for TAny.
 //
 //
-// TList:
+// TListType:
 // * Item() -> TAny, open an new list element;
 // * EndList() -> TParent, close list;
-// * Do(TFuncList func) -> TList, same as Do() for TAny;
-// * DoIf(bool condition, TFuncList func) -> TList, same as DoIf() for TAny;
-// * DoFor(TCollection collection, TListMap func) -> TList, same as DoFor() for TAny.
+// * Do(TFuncList func) -> TListType, same as Do() for TAny;
+// * DoIf(bool condition, TFuncList func) -> TListType, same as DoIf() for TAny;
+// * DoFor(TCollection collection, TListMap func) -> TListType, same as DoFor() for TAny.
 //
 //
 // TAttributes:
@@ -171,8 +171,8 @@ public:
     template <class TParent> class TAny;
     template <class TParent> class TToAttributes;
     template <class TParent> class TAttributes;
-    template <class TParent> class TList;
-    template <class TParent> class TMap;
+    template <class TParent> class TListType;
+    template <class TParent> class TMapType;
 
     template <class TParent>
     class TFluentBase
@@ -321,17 +321,17 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        TList<TParent> BeginList()
+        TListType<TParent> BeginList()
         {
             this->Consumer->OnBeginList();
-            return TList<TParent>(this->Consumer, this->Parent);
+            return TListType<TParent>(this->Consumer, this->Parent);
         }
 
         template <class TFuncList>
         TUnwrappedParent DoList(TFuncList func)
         {
             this->Consumer->OnBeginList();
-            InvokeFluentFunc<TList<TFluentYsonVoid>>(func, this->Consumer);
+            InvokeFluentFunc<TListType<TFluentYsonVoid>>(func, this->Consumer);
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
         }
@@ -341,7 +341,7 @@ public:
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
-                InvokeFluentFunc<TList<TFluentYsonVoid>>(func, this->Consumer, current);
+                InvokeFluentFunc<TListType<TFluentYsonVoid>>(func, this->Consumer, current);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
@@ -352,23 +352,23 @@ public:
         {
             this->Consumer->OnBeginList();
             for (const auto& item : collection) {
-                InvokeFluentFunc<TList<TFluentYsonVoid>>(func, this->Consumer, item);
+                InvokeFluentFunc<TListType<TFluentYsonVoid>>(func, this->Consumer, item);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
         }
 
-        TMap<TParent> BeginMap()
+        TMapType<TParent> BeginMap()
         {
             this->Consumer->OnBeginMap();
-            return TMap<TParent>(this->Consumer, this->Parent);
+            return TMapType<TParent>(this->Consumer, this->Parent);
         }
 
         template <class TFuncMap>
         TUnwrappedParent DoMap(TFuncMap func)
         {
             this->Consumer->OnBeginMap();
-            InvokeFluentFunc<TMap<TFluentYsonVoid>>(func, this->Consumer);
+            InvokeFluentFunc<TMapType<TFluentYsonVoid>>(func, this->Consumer);
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
         }
@@ -378,7 +378,7 @@ public:
         {
             this->Consumer->OnBeginMap();
             for (auto current = begin; current != end; ++current) {
-                InvokeFluentFunc<TMap<TFluentYsonVoid>>(func, this->Consumer, current);
+                InvokeFluentFunc<TMapType<TFluentYsonVoid>>(func, this->Consumer, current);
             }
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
@@ -389,7 +389,7 @@ public:
         {
             this->Consumer->OnBeginMap();
             for (const auto& item : collection) {
-                InvokeFluentFunc<TMap<TFluentYsonVoid>>(func, this->Consumer, item);
+                InvokeFluentFunc<TMapType<TFluentYsonVoid>>(func, this->Consumer, item);
             }
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
@@ -474,15 +474,15 @@ public:
     };
 
     template <class TParent = TFluentYsonVoid>
-    class TList
-        : public TFluentFragmentBase<TList, TParent>
+    class TListType
+        : public TFluentFragmentBase<TListType, TParent>
     {
     public:
-        typedef TList<TParent> TThis;
+        typedef TListType<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        explicit TList(NYson::IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, std::move(parent))
+        explicit TListType(NYson::IYsonConsumer* consumer, TParent parent = TParent())
+            : TFluentFragmentBase<TFluentYsonBuilder::TListType, TParent>(consumer, std::move(parent))
         { }
 
         TAny<TThis> Item()
@@ -508,15 +508,15 @@ public:
     };
 
     template <class TParent = TFluentYsonVoid>
-    class TMap
-        : public TFluentFragmentBase<TMap, TParent>
+    class TMapType
+        : public TFluentFragmentBase<TMapType, TParent>
     {
     public:
-        typedef TMap<TParent> TThis;
+        typedef TMapType<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        explicit TMap(NYson::IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, std::move(parent))
+        explicit TMapType(NYson::IYsonConsumer* consumer, TParent parent = TParent())
+            : TFluentFragmentBase<TFluentYsonBuilder::TMapType, TParent>(consumer, std::move(parent))
         { }
 
         template <size_t Size>
@@ -581,18 +581,18 @@ template <>
 struct TFluentType<NYson::EYsonType::MapFragment>
 {
     template <class T>
-    using TValue = TFluentYsonBuilder::TMap<T>;
+    using TValue = TFluentYsonBuilder::TMapType<T>;
 };
 
 template <>
 struct TFluentType<NYson::EYsonType::ListFragment>
 {
     template <class T>
-    using TValue = TFluentYsonBuilder::TList<T>;
+    using TValue = TFluentYsonBuilder::TListType<T>;
 };
 
-using TFluentList = TFluentYsonBuilder::TList<TFluentYsonVoid>;
-using TFluentMap = TFluentYsonBuilder::TMap<TFluentYsonVoid>;
+using TFluentList = TFluentYsonBuilder::TListType<TFluentYsonVoid>;
+using TFluentMap = TFluentYsonBuilder::TMapType<TFluentYsonVoid>;
 using TFluentAttributes = TFluentYsonBuilder::TAttributes<TFluentYsonVoid>;
 using TFluentAny = TFluentYsonBuilder::TAny<TFluentYsonVoid>;
 

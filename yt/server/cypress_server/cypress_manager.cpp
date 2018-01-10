@@ -1958,7 +1958,7 @@ private:
         switch (trunkNode->GetNodeType()) {
             case ENodeType::Map: {
                 auto originators = GetNodeReverseOriginators(transaction, trunkNode);
-                yhash<TString, TCypressNodeBase*> children;
+                THashMap<TString, TCypressNodeBase*> children;
                 for (const auto* node : originators) {
                     const auto* mapNode = node->As<TMapNode>();
                     for (const auto& pair : mapNode->KeyToChild()) {

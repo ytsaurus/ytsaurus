@@ -39,7 +39,7 @@ public:
     //! Chunk list kind: static, dynamic table root or tablet.
     DEFINE_BYVAL_RO_PROPERTY(EChunkListKind, Kind);
 
-    using TChildToIndexMap = yhash<TChunkTree*, int>;
+    using TChildToIndexMap = THashMap<TChunkTree*, int>;
     DEFINE_BYREF_RW_PROPERTY(TChildToIndexMap, ChildToIndex);
 
     struct TCumulativeStatisticsEntry

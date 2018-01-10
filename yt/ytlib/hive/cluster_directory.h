@@ -58,8 +58,8 @@ private:
     };
 
     TSpinLock Lock_;
-    yhash<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
-    yhash<TString, TCluster> NameToCluster_;
+    THashMap<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
+    THashMap<TString, TCluster> NameToCluster_;
 
 
     TCluster CreateCluster(const TString& name, NYTree::INodePtr config) const;

@@ -371,7 +371,7 @@ private:
     TPeriodicExecutorPtr SlotScanExecutor_;
 
     TReaderWriterSpinLock TabletSnapshotsSpinLock_;
-    yhash_mm<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
+    THashMultiMap<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
 
     IYPathServicePtr OrchidService_;
 

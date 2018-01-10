@@ -56,6 +56,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReleaseAcquireGilGuard
+    : private TNonCopyable
+{
+public:
+    TReleaseAcquireGilGuard();
+    ~TReleaseAcquireGilGuard();
+
+private:
+    PyThreadState* State_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPythonClassObject
 {
 public:
@@ -78,7 +91,7 @@ public:
 
 private:
     bool CacheEnabled_;
-    std::unique_ptr<yhash<TStringBuf, PyObject*>> Cache_;
+    std::unique_ptr<THashMap<TStringBuf, PyObject*>> Cache_;
     TNullable<TString> Encoding_;
 };
 

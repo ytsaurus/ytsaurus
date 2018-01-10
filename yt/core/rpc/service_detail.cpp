@@ -682,7 +682,7 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
             subscribe = true;
             it = ReplyBusToContexts_.insert(std::make_pair(
                 context->GetReplyBus(),
-                yhash_set<TServiceContext*>())).first;
+                THashSet<TServiceContext*>())).first;
         }
         auto& contexts = it->second;
         contexts.insert(context);

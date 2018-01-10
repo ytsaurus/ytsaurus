@@ -3,8 +3,7 @@
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/finally.h>
 
-#include <contrib/libs/brotli/enc/encode.h>
-#include <contrib/libs/brotli/dec/decode.h>
+#include <library/streams/brotli/brotli.h>
 
 namespace NYT {
 namespace NCompression {
@@ -14,44 +13,50 @@ namespace NCompression {
 namespace {
 
 class TBrotliStreamSourceIn
-    : public brotli::BrotliIn
+    : public IInputStream
 {
 public:
-    TBrotliStreamSourceIn(StreamSource* source)
+    explicit TBrotliStreamSourceIn(StreamSource* source)
         : Source_(source)
     { }
 
-    const void* Read(size_t n, size_t* nread) override
-    {
-        const void* ptr = Source_->Peek(nread);
-        if (*nread == 0) {
-            return nullptr;
-        }
-        *nread = std::min(*nread, n);
-        Source_->Skip(*nread);
-        return ptr;
-    }
-
 private:
     StreamSource* const Source_;
+
+    size_t DoRead(void* buffer, size_t size) override
+    {
+        if (Source_->Available() == 0) {
+            return 0;
+        }
+
+        size_t nRead;
+        const char* ptr = Source_->Peek(&nRead);
+
+        if (nRead > 0) {
+            nRead = std::min(size, nRead);
+            std::copy(ptr, ptr + nRead, static_cast<char*>(buffer));
+            Source_->Skip(nRead);
+        }
+
+        return nRead;
+    }
 };
 
 class TBrotliStreamSourceOut
-    : public brotli::BrotliOut
+    : public IOutputStream
 {
 public:
     explicit TBrotliStreamSourceOut(StreamSink* sink)
         : Sink_(sink)
     { }
 
-    virtual bool Write(const void *buf, size_t n) override
-    {
-        Sink_->Append(static_cast<const char*>(buf), n);
-        return true;
-    }
-
 private:
     StreamSink* const Sink_;
+
+    virtual void DoWrite(const void *buf, size_t size) override
+    {
+        Sink_->Append(static_cast<const char*>(buf), size);
+    }
 };
 
 } // namespace
@@ -60,24 +65,28 @@ private:
 
 void BrotliCompress(int level, StreamSource* source, TBlob* output)
 {
-    brotli::BrotliParams brotliParams;
-    brotliParams.quality = level;
-
     ui64 totalInputSize = source->Available();
     output->Resize(sizeof(totalInputSize));
 
-    ui64 curOutputPos = 0;
     // Write input size that will be used during decompression.
-    {
-        TMemoryOutput memoryOutput(output->Begin(), sizeof(totalInputSize));
-        WritePod(memoryOutput, totalInputSize);
-        curOutputPos += sizeof(totalInputSize);
-    }
+    TMemoryOutput memoryOutput(output->Begin(), sizeof(totalInputSize));
+    WritePod(memoryOutput, totalInputSize);
 
-    TBrotliStreamSourceIn sourceAdaptor(source);
     TDynamicByteArraySink sink(output);
     TBrotliStreamSourceOut sinkAdaptor(&sink);
-    YCHECK(brotli::BrotliCompress(brotliParams, &sourceAdaptor, &sinkAdaptor));
+    try {
+        TBrotliCompress compress(&sinkAdaptor, level);
+        while (source->Available() > 0) {
+            size_t read;
+            const char* ptr = source->Peek(&read);
+            if (read > 0) {
+                compress.Write(ptr, read);
+                source->Skip(read);
+            }
+        }
+    } catch (const std::exception&) {
+        YCHECK(false && "Brotli compression failed");
+    }
 }
 
 void BrotliDecompress(StreamSource* source, TBlob* output)
@@ -86,47 +95,24 @@ void BrotliDecompress(StreamSource* source, TBlob* output)
     ReadPod(source, outputSize);
     output->Resize(outputSize);
 
-    BrotliState state;
-    BrotliStateInit(&state);
-    auto brotliCleanupGuard = Finally([&] {
-        BrotliStateCleanup(&state);
-    });
-    size_t consumedOutputSize = 0;
-    bool isLastBlock = false;
+    TBrotliStreamSourceIn sourceAdaptor(source);
 
-    const char* inputPtr = nullptr;
-    size_t availableInputSize = 0;
-    auto* outputPtr = output->Begin();
-    size_t availableOutputSize = outputSize;
-
-    while (source->Available() > 0) {
-        if (availableInputSize == 0) {
-            inputPtr = source->Peek(&availableInputSize);
-            if (availableInputSize == source->Available()) {
-                isLastBlock = true;
+    try {
+        TBrotliDecompress decompress(&sourceAdaptor);
+        ui64 remainingSize = outputSize;
+        while (remainingSize > 0) {
+            ui64 offset = outputSize - remainingSize;
+            ui64 read = decompress.Read(output->Begin() + offset, remainingSize);
+            if (read == 0) {
+                break;
             }
+            remainingSize -= read;
         }
 
-        ui64 inputSizeBeforeDecompress = availableInputSize;
-        auto result = BrotliDecompressBufferStreaming(
-            &availableInputSize,
-            reinterpret_cast<const uint8_t**>(&inputPtr),
-            isLastBlock,
-            &availableOutputSize,
-            reinterpret_cast<uint8_t**>(&outputPtr),
-            &consumedOutputSize,
-            &state);
-
-        if (!isLastBlock) {
-            YCHECK(result == BROTLI_RESULT_NEEDS_MORE_INPUT);
-        } else {
-            YCHECK(result == BROTLI_RESULT_SUCCESS);
-        }
-
-        source->Skip(inputSizeBeforeDecompress - availableInputSize);
+        YCHECK(remainingSize == 0);
+    } catch (const std::exception&) {
+        YCHECK(false && "Brotli decompression failed");
     }
-
-    YCHECK(consumedOutputSize == outputSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

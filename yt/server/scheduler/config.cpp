@@ -548,7 +548,7 @@ TSchedulerConfig::TSchedulerConfig()
         .DefaultNew();
 
     RegisterParameter("environment", Environment)
-        .Default(yhash<TString, TString>())
+        .Default(THashMap<TString, TString>())
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
     RegisterParameter("snapshot_timeout", SnapshotTimeout)

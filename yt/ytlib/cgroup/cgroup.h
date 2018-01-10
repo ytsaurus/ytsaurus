@@ -174,7 +174,7 @@ private:
     //! Guards device ids.
     TSpinLock SpinLock_;
     //! Set of all seen device ids.
-    mutable yhash_set<TString> DeviceIds_;
+    mutable THashSet<TString> DeviceIds_;
 
     std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename) const;
 

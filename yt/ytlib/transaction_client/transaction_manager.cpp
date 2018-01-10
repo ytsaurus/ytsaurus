@@ -79,7 +79,7 @@ private:
     const TCellDirectoryPtr CellDirectory_;
 
     TSpinLock SpinLock_;
-    yhash_set<TTransaction::TImpl*> AliveTransactions_;
+    THashSet<TTransaction::TImpl*> AliveTransactions_;
 
 
     TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, bool retry)
@@ -437,8 +437,8 @@ private:
     TSingleShotCallbackList<void()> Committed_;
     TSingleShotCallbackList<void()> Aborted_;
 
-    yhash_set<TCellId> RegisteredParticipantIds_;
-    yhash_set<TCellId> ConfirmedParticipantIds_;
+    THashSet<TCellId> RegisteredParticipantIds_;
+    THashSet<TCellId> ConfirmedParticipantIds_;
 
     TError Error_;
 

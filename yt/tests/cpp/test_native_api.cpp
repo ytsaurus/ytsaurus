@@ -238,7 +238,7 @@ public:
 
 protected:
     static TYPath Table_;
-    static yhash<int, TTimestamp> CommitTimestamps_;
+    static THashMap<int, TTimestamp> CommitTimestamps_;
     TRowBufferPtr Buffer_ = New<TRowBuffer>();
 
     static void InitializeRows()
@@ -316,7 +316,7 @@ protected:
 };
 
 TYPath TLookupFilterTest::Table_;
-yhash<int, TTimestamp> TLookupFilterTest::CommitTimestamps_;
+THashMap<int, TTimestamp> TLookupFilterTest::CommitTimestamps_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
