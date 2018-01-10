@@ -112,7 +112,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
                 << TErrorAttribute("aggressive_threshold", AggressivePreemptionSatisfactionThreshold)
@@ -222,7 +222,7 @@ TOperationOptions::TOperationOptions()
         .Default(20 * 100000)
         .GreaterThanOrEqual(100000);
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
                 << TErrorAttribute("min_slice_data_weight", MinSliceDataWeight)
@@ -253,7 +253,7 @@ TMapOperationOptions::TMapOperationOptions()
     RegisterParameter("job_splitter", JobSplitter)
         .DefaultNew();
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         DataWeightPerJob = 128_MB;
     });
 }
@@ -265,7 +265,7 @@ TReduceOperationOptions::TReduceOperationOptions()
     RegisterParameter("job_splitter", JobSplitter)
         .DefaultNew();
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         DataWeightPerJob = 128_MB;
     });
 }
@@ -710,7 +710,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("system_layer_path", SystemLayerPath)
         .Default(Null);
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         ChunkLocationThrottler->Limit = 10000;
 
         EventLog->MaxRowWeight = 128_MB;
@@ -730,7 +730,7 @@ TSchedulerConfig::TSchedulerConfig()
         UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {
             THROW_ERROR_EXCEPTION("Soft limit on concurrent heartbeats must be less than or equal to hard limit on concurrent heartbeats")
                 << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)

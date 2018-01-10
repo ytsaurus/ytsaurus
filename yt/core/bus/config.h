@@ -95,7 +95,7 @@ public:
         RegisterParameter("unix_domain_name", UnixDomainName)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (!Address && !UnixDomainName) {
                 THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_name\" cannot be both missing");
             }

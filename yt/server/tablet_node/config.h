@@ -242,7 +242,7 @@ public:
         RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
             .Default(false);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
                 THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
             }

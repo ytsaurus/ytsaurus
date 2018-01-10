@@ -292,7 +292,7 @@ public:
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             yhash_set<TString> names;
 
             for (const auto& name : KeyColumnNames) {
@@ -368,7 +368,7 @@ public:
         RegisterParameter("enable_column_names_header", EnableColumnNamesHeader)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (Columns) {
                 yhash_set<TString> names;
                 for (const auto& name : *Columns) {
@@ -482,7 +482,7 @@ public:
         RegisterParameter("enumerations", Enumerations)
             .Default();
 
-        RegisterValidator([&] {
+        RegisterPostprocessor([&] {
             Validate();
         });
     }

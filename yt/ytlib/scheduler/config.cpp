@@ -28,7 +28,7 @@ TJobIOConfig::TJobIOConfig()
         .Default(1)
         .GreaterThan(0);
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         ErrorFileWriter->UploadReplicationFactor = 1;
     });
 }
@@ -71,7 +71,7 @@ TAutoMergeConfig::TAutoMergeConfig()
     RegisterParameter("mode", Mode)
         .Default(EAutoMergeMode::Disabled);
 
-    RegisterValidator([&] {
+    RegisterPostprocessor([&] {
         if (Mode == EAutoMergeMode::Manual) {
             if (!MaxIntermediateChunkCount || !ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION(
@@ -191,7 +191,7 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("started_by", StartedBy)
         .Default();
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
         {
@@ -199,7 +199,7 @@ TOperationSpecBase::TOperationSpecBase()
         }
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (SecureVault) {
             for (const auto& name : SecureVault->GetKeys()) {
                 ValidateEnvironmentVariableName(name);
@@ -275,7 +275,7 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("deterministic", Deterministic)
         .Default(false);
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (TmpfsSize && *TmpfsSize > MemoryLimit) {
             THROW_ERROR_EXCEPTION("Size of tmpfs must be less than or equal to memory limit")
                 << TErrorAttribute("tmpfs_size", *TmpfsSize)
@@ -290,7 +290,7 @@ TUserJobSpec::TUserJobSpec()
         UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         for (const auto& pair : Environment) {
             ValidateEnvironmentVariableName(pair.first);
         }
@@ -313,7 +313,7 @@ TInputlyQueryableSpec::TInputlyQueryableSpec()
     RegisterParameter("input_schema", InputSchema)
         .Default();
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (InputSchema && !InputQuery) {
             THROW_ERROR_EXCEPTION("Found \"input_schema\" without \"input_query\" in operation spec");
         }
@@ -375,7 +375,7 @@ TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
     RegisterParameter("input_table_paths", InputTablePaths)
         .NonEmpty();
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         JobIO->TableReader->MaxBufferSize = 256_MB;
     });
 }
@@ -476,7 +476,7 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
     RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
         .Default(false);
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (!JoinBy.empty()) {
             NTableClient::ValidateKeyColumns(JoinBy);
         }
@@ -504,7 +504,7 @@ TReduceOperationSpec::TReduceOperationSpec()
     RegisterParameter("pivot_keys", PivotKeys)
         .Default();
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (!ReduceBy.empty()) {
             NTableClient::ValidateKeyColumns(ReduceBy);
         }
@@ -577,7 +577,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterParameter("partition_job_proxy_memory_digest", PartitionJobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
     });
 }
@@ -628,7 +628,7 @@ TSortOperationSpec::TSortOperationSpec()
         .Alias("data_size_per_sorted_merge_job")
         .Default(Null);
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         PartitionJobIO->TableReader->MaxBufferSize = 1_GB;
         PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
@@ -710,7 +710,7 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     //   SimpleMergeLocalityTimeout
     //   MapSelectivityFactor
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         PartitionJobIO->TableReader->MaxBufferSize = 256_MB;
         PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
@@ -722,7 +722,7 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         MergeJobIO->TableReader->RetryCount = 3;
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
             THROW_ERROR_EXCEPTION(
                 "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",

@@ -355,7 +355,7 @@ TReshardTableCommand::TReshardTableCommand()
         .Default()
         .GreaterThan(0);
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (PivotKeys && TabletCount) {
             THROW_ERROR_EXCEPTION("Cannot specify both \"pivot_keys\" and \"tablet_count\"");
         }
