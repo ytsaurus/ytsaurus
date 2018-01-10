@@ -84,7 +84,7 @@ private:
 
     struct TChosenBlocks
     {
-        NChunkClient::NProto::TReqPopulateCache ReqTemplate;
+        std::vector<NChunkClient::NProto::TReqPopulateCache> ReqTemplates;
         std::vector<NChunkClient::TBlock> Blocks;
         std::vector<TBlockId> BlockIds;
         ui64 BlockTotalSize = 0;
@@ -95,12 +95,12 @@ private:
 
     void UpdateTransmittedBytes();
 
-    //! Method that registers the node as a peer for all blocks chosen during one iteration
+    //! Method that registers the node as a peer for the given block
     //! as long as the node responds to the `PopulateCache` request.
-    void OnBlocksDistributed(
+    void OnBlockDistributed(
         const TString& address,
         const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
-        const std::vector<TBlockId>& blockIds,
+        const TBlockId& blockIds,
         ui64 size,
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError);
 };
