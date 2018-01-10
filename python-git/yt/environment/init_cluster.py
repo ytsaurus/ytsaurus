@@ -96,6 +96,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
 
     for cron_user in ("cron", "cron_merge", "cron_compression"):
         add_member(cron_user, "superusers", client)
+        client.set("//sys/users/" + cron_user + "/@request_queue_size_limit", 500)
+
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
 
