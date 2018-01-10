@@ -70,6 +70,8 @@ private:
     ui64 TransmittedBytes_ = 0;
     //! Total size of requested blocks from data node to the outworld during last `Config_->Period` window.
     std::atomic<ui64> TotalRequestedBlockSize_ = {0};
+    //! Total number of bytes distributed up to this moment.
+    std::atomic<ui64> DistributedBytes_ = {0};
 
     void DoIteration();
 
@@ -78,8 +80,7 @@ private:
 
     bool ShouldDistributeBlocks();
 
-    //! Main method here; return value is the total size of blocks to distribute on this iteration.
-    ui64 DistributeBlocks();
+    void DistributeBlocks();
 
     struct TChosenBlocks
     {
@@ -100,6 +101,7 @@ private:
         const TString& address,
         const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
         const std::vector<TBlockId>& blockIds,
+        ui64 size,
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError);
 };
 
