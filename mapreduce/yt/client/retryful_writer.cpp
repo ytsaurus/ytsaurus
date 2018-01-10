@@ -45,7 +45,7 @@ void TRetryfulWriter::DoWrite(const void* buf, size_t len)
     while (Buffer_.Size() + len > Buffer_.Capacity()) {
         Buffer_.Reserve(Buffer_.Capacity() * 2);
     }
-    BufferOutput_.Write(buf, len);
+    Buffer_.Append(static_cast<const char*>(buf), len);
 }
 
 void TRetryfulWriter::DoFinish()
@@ -55,9 +55,7 @@ void TRetryfulWriter::DoFinish()
     }
     FlushBuffer(true);
     if (Started_) {
-        NDetail::TWaitProxy::WaitEvent(CanWrite_);
-        Stopped_ = true;
-        HasDataOrStopped_.Signal();
+        FilledBuffers_.Stop();
         Thread_.Join();
     }
     if (WriteTransaction_) {
@@ -85,19 +83,17 @@ void TRetryfulWriter::FlushBuffer(bool lastBlock)
             return;
         } else {
             Started_ = true;
-            SecondaryBuffer_.Reserve(Buffer_.Capacity());
             Thread_.Start();
         }
     }
 
-    NDetail::TWaitProxy::WaitEvent(CanWrite_);
-    if (Exception_) {
+    auto emptyBuffer = EmptyBuffers_.Pop();
+    if (!emptyBuffer) {
         WriterState_ = Error;
         std::rethrow_exception(Exception_);
     }
-
-    SecondaryBuffer_.Swap(Buffer_);
-    HasDataOrStopped_.Signal();
+    FilledBuffers_.Push(std::move(Buffer_));
+    Buffer_ = std::move(emptyBuffer.GetRef());
 }
 
 void TRetryfulWriter::Send(const TBuffer& buffer)
@@ -118,20 +114,17 @@ void TRetryfulWriter::Send(const TBuffer& buffer)
 
 void TRetryfulWriter::SendThread()
 {
-    while (true) {
+    while (auto maybeBuffer = FilledBuffers_.Pop()) {
+        auto& buffer = maybeBuffer.GetRef();
         try {
-            CanWrite_.Signal();
-            NDetail::TWaitProxy::WaitEvent(HasDataOrStopped_);
-            if (Stopped_) {
-                break;
-            }
-            Send(SecondaryBuffer_);
-            SecondaryBuffer_.Clear();
+            Send(buffer);
         } catch (const yexception&) {
             Exception_ = std::current_exception();
-            CanWrite_.Signal();
+            EmptyBuffers_.Stop();
             break;
         }
+        buffer.Clear();
+        EmptyBuffers_.Push(std::move(buffer));
     }
 }
 
@@ -144,9 +137,7 @@ void* TRetryfulWriter::SendThread(void* opaque)
 void TRetryfulWriter::Abort()
 {
     if (Started_) {
-        NDetail::TWaitProxy::WaitEvent(CanWrite_);
-        Stopped_ = true;
-        HasDataOrStopped_.Signal();
+        FilledBuffers_.Stop();
         Thread_.Join();
     }
     if (WriteTransaction_) {
