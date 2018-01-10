@@ -961,9 +961,6 @@ private:
 
         if (candidates.empty()) {
             return Null;
-        } else if (candidates.size() == 1) {
-            // Just one candidate, no need for probing.
-            return candidates.front();
         }
 
         // Multiple candidates - send probing requests.
