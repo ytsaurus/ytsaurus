@@ -82,9 +82,10 @@ Py::Object TDriverResponse::ResponseParameters(Py::Tuple& args, Py::Dict& kwargs
 
 Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
 {
-    Py_BEGIN_ALLOW_THREADS
-    Response_.Get();
-    Py_END_ALLOW_THREADS
+    {
+        TReleaseAcquireGilGuard guard;
+        Response_.Get();
+    }
 
     return Py::None();
 }
@@ -119,7 +120,9 @@ Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
 TDriverResponse::~TDriverResponse()
 {
     try {
-        Response_.Cancel();
+        if (Response_) {
+            Response_.Cancel();
+        }
     } catch (...) {
         // intentionally doing nothing
     }

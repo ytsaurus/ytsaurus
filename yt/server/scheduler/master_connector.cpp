@@ -343,7 +343,7 @@ private:
         std::vector<TWatcherHandler>   WatcherHandlers;
     };
 
-    yhash<TOperationId, TWatcherList> WatcherLists;
+    THashMap<TOperationId, TWatcherList> WatcherLists;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

@@ -14,7 +14,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_server.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/compression/brotli.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/compression/brotli_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/bzip2.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/codec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/details.cpp

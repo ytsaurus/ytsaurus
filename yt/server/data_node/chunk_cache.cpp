@@ -864,7 +864,7 @@ private:
             tempMetaFile->Flock(LOCK_EX);
         })).Run();
 
-        TFileOutput fileOutput(*tempDataFile);
+        TUnbufferedFileOutput fileOutput(*tempDataFile);
         TErrorInterceptingOutput checkedOutput(location, &fileOutput);
 
         producer(&checkedOutput);
@@ -901,7 +901,7 @@ private:
             TFile metaFile(
                 metaFileName,
                 OpenExisting | RdOnly | Seq | CloseOnExec);
-            TBufferedFileInput metaInput(metaFile);
+            TFileInput metaInput(metaFile);
             metaBlob = TSharedMutableRef::Allocate<TArtifactReaderMetaBufferTag>(metaFile.GetLength());
             metaInput.Read(metaBlob.Begin(), metaFile.GetLength());
         })).Run();

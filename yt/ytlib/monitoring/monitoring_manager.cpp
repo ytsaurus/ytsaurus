@@ -101,7 +101,7 @@ private:
     TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
-    yhash<TString, NYson::TYsonProducer> PathToProducer_;
+    THashMap<TString, NYson::TYsonProducer> PathToProducer_;
     INodePtr Root_;
 
     void Update()

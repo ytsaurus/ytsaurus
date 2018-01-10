@@ -1705,7 +1705,7 @@ private:
 
         const int prefixLength = static_cast<int>(SortKeyColumns.size());
 
-        yhash_set<TInputDataSlicePtr> globalOpenedSlices;
+        THashSet<TInputDataSlicePtr> globalOpenedSlices;
         TKey lastBreakpoint;
 
         int startIndex = 0;
@@ -1714,7 +1714,7 @@ private:
             auto key = Endpoints[startIndex].GetKey();
 
             std::vector<TInputChunkPtr> teleportChunks;
-            yhash_set<TInputDataSlicePtr> localOpenedSlices;
+            THashSet<TInputDataSlicePtr> localOpenedSlices;
 
             // Slices with equal left and right boundaries.
             std::vector<TInputDataSlicePtr> maniacs;
@@ -2544,7 +2544,7 @@ private:
         TPeriodicYielder yielder(PrepareYieldPeriod);
         const int prefixLength = ReduceKeyColumnCount;
 
-        yhash_set<TInputDataSlicePtr> openedSlices;
+        THashSet<TInputDataSlicePtr> openedSlices;
         TKey lastBreakpoint;
 
         auto hasLargeActiveTask = [&] () {

@@ -198,7 +198,7 @@ void TLocation::Disable(const TError& reason)
     try {
         auto errorData = ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).GetData();
         TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput fileOutput(file);
+        TUnbufferedFileOutput fileOutput(file);
         fileOutput << errorData;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error creating location lock file");
@@ -429,7 +429,7 @@ void TLocation::ValidateLockFile()
     }
 
     TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
-    TBufferedFileInput fileInput(file);
+    TFileInput fileInput(file);
 
     auto errorData = fileInput.ReadAll();
     if (errorData.Empty()) {
@@ -498,7 +498,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     NFS::CleanTempFiles(GetPath());
     ForceHashDirectories(GetPath());
 
-    yhash_set<TChunkId> chunkIds;
+    THashSet<TChunkId> chunkIds;
     {
         // Enumerate files under the location's directory.
         // Note that these also include trash files but the latter are explicitly skipped.
@@ -553,7 +553,7 @@ void TLocation::DoStart()
     } else {
         LOG_INFO("Cell id file is not found, creating");
         TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput cellIdFile(file);
+        TUnbufferedFileOutput cellIdFile(file);
         cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
     }
 
@@ -946,7 +946,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
 
     ForceHashDirectories(GetTrashPath());
 
-    yhash_set<TChunkId> trashChunkIds;
+    THashSet<TChunkId> trashChunkIds;
     {
         // Enumerate files under the location's trash directory.
         // Note that some of them might have just been moved there during repair.

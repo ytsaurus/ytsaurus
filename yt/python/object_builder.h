@@ -75,7 +75,7 @@ private:
     std::stack<PyObject*> Keys_;
     TNullable<PyObjectPtr> Attributes_;
 
-    yhash<TStringBuf, PyObjectPtr> KeyCache_;
+    THashMap<TStringBuf, PyObjectPtr> KeyCache_;
     std::vector<PyObjectPtr> OriginalKeyCache_;
 
     void AddObject(

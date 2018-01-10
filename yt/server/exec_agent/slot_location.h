@@ -78,7 +78,7 @@ private:
 
     bool HasRootPermissions_;
 
-    yhash_set<TString> TmpfsPaths_;
+    THashSet<TString> TmpfsPaths_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

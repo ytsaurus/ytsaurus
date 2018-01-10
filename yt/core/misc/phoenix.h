@@ -142,8 +142,8 @@ private:
         std::function<void*()> Factory;
     };
 
-    yhash<const std::type_info*, TEntry*> TypeInfoToEntry_;
-    yhash<ui32, TEntry> TagToEntry_;
+    THashMap<const std::type_info*, TEntry*> TypeInfoToEntry_;
+    THashMap<ui32, TEntry> TagToEntry_;
 
     TRegistry();
 
@@ -225,7 +225,7 @@ private:
         const std::type_info* TypeInfo;
     };
 
-    mutable yhash<void*, TEntry> PtrToEntry_;
+    mutable THashMap<void*, TEntry> PtrToEntry_;
 
 };
 
@@ -248,7 +248,7 @@ public:
     void RegisterInstantiatedObject(T* rawPtr);
 
 private:
-    yhash<ui32, void*> IdToPtr_;
+    THashMap<ui32, void*> IdToPtr_;
 
     template <class T, class>
     friend struct TInstantiatedRegistrar;

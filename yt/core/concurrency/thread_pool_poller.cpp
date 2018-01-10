@@ -279,7 +279,7 @@ private:
     std::atomic<bool> ShutdownRequested_ = {false};
 
     TSpinLock SpinLock_;
-    yhash_set<IPollablePtr> Pollables_;
+    THashSet<IPollablePtr> Pollables_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TUnregisterEntryPtr> ShutdownUnregisterEntries_;
 

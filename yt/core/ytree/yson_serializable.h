@@ -104,7 +104,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
     NYTree::IMapNodePtr GetOptions() const;
 
-    yhash_set<TString> GetRegisteredKeys() const;
+    THashSet<TString> GetRegisteredKeys() const;
 
 protected:
     virtual void OnLoaded();
@@ -121,7 +121,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    yhash<TString, IParameterPtr> Parameters;
+    THashMap<TString, IParameterPtr> Parameters;
 
     NYTree::IMapNodePtr Options;
 

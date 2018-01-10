@@ -173,7 +173,7 @@ void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobu
 void FilterProtoExtensions(
     NProto::TExtensionSet* target,
     const NProto::TExtensionSet& source,
-    const yhash_set<int>& tags)
+    const THashSet<int>& tags)
 {
     target->Clear();
     for (const auto& extension : source.extensions()) {

@@ -178,7 +178,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     auto getRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_attributes");
     auto basicAttributesRspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
 
-    yhash<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> infoByCellTags;
+    THashMap<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> infoByCellTags;
 
     for (int index = 0; index < functionNames.size(); ++index) {
         const auto& functionName = functionNames[index];

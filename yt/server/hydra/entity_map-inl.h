@@ -83,7 +83,7 @@ bool TReadOnlyEntityMap<TValue>::TIterator::operator!=(const TIterator& other) c
 }
 
 template <class TValue>
-TReadOnlyEntityMap<TValue>::TIterator::TIterator(typename TMap::const_iterator iterator)
+TReadOnlyEntityMap<TValue>::TIterator::TIterator(typename TMapType::const_iterator iterator)
     : Iterator_(std::move(iterator))
 { }
 
@@ -268,7 +268,7 @@ void TEntityMap<TValue, TTraits>::SaveKeys(TContext& context) const
     std::sort(
         SaveIterators_.begin(),
         SaveIterators_.end(),
-        [] (const typename TMap::const_iterator& lhs, const typename TMap::const_iterator& rhs) {
+        [] (const typename TMapType::const_iterator& lhs, const typename TMapType::const_iterator& rhs) {
             return lhs->first < rhs->first;
         });
 

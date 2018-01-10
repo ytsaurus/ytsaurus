@@ -126,7 +126,7 @@ protected:
     };
 
     const TJobEnvironmentConfigPtr BasicConfig_;
-    yhash<int, TJobProxyProcess> JobProxyProcesses_;
+    THashMap<int, TJobProxyProcess> JobProxyProcesses_;
     const TBootstrap* const Bootstrap_;
     TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
 
@@ -412,7 +412,7 @@ private:
     const TPortoJobEnvironmentConfigPtr Config_;
 
     IContainerManagerPtr ContainerManager_;
-    yhash<int, IInstancePtr> PortoInstances_;
+    THashMap<int, IInstancePtr> PortoInstances_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

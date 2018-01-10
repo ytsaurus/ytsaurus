@@ -54,7 +54,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
 
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<ISortedStorePtr>, Stores);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<ISortedStorePtr>, Stores);
 
     DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State, EPartitionState::Normal);
 

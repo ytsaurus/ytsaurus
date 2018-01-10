@@ -371,7 +371,7 @@ public:
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
-    using TChildMap = yhash<TSchedulerElementPtr, int>;
+    using TChildMap = THashMap<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
 
     TChildMap EnabledChildToIndex_;
@@ -637,7 +637,7 @@ private:
         TJobResources ResourceUsage;
     };
 
-    yhash<TJobId, TJobProperties> JobPropertiesMap_;
+    THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
     bool Finalized_ = false;

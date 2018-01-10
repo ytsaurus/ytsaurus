@@ -614,7 +614,7 @@ public:
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
 
     //! Default environment variables set for every job.
-    yhash<TString, TString> Environment;
+    THashMap<TString, TString> Environment;
 
     //! Interval between consequent snapshots.
     TDuration SnapshotPeriod;

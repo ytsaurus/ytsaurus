@@ -242,7 +242,7 @@ private:
         NProfiling::TAggregateCounter ExecTimeCounter;
     };
 
-    yhash<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
+    THashMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
 
     TRootServicePtr RootService_;
 

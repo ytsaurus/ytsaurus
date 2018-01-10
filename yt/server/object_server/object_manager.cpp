@@ -1316,7 +1316,7 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
     auto proxy = handler->GetProxy(object, nullptr);
 
     auto attributes = CreateEphemeralAttributes();
-    yhash_set<TString> replicatedKeys;
+    THashSet<TString> replicatedKeys;
     auto replicateKey = [&] (const TString& key, const TYsonString& value) {
         if (replicatedKeys.insert(key).second) {
             attributes->SetYson(key, value);

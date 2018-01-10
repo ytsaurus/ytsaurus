@@ -33,7 +33,7 @@ private:
         i64 PreviousSystem;
     };
 
-    yhash<TString, TJiffies> ThreadNameToJiffies;
+    THashMap<TString, TJiffies> ThreadNameToJiffies;
 
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
 

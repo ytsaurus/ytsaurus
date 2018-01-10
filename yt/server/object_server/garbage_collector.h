@@ -60,11 +60,11 @@ private:
 
     //! Contains objects with zero ref counter.
     //! These are ready for IObjectTypeHandler::Destroy call.
-    yhash_set<TObjectBase*> Zombies_;
+    THashSet<TObjectBase*> Zombies_;
 
     //! Contains objects with zero ref counter and positive weak ref counter.
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
-    yhash_set<TObjectBase*> Ghosts_;
+    THashSet<TObjectBase*> Ghosts_;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise_;

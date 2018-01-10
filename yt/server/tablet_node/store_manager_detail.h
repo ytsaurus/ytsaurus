@@ -94,7 +94,7 @@ protected:
     ui64 InMemoryConfigRevision_ = 0;
     TInstant LastRotated_;
 
-    yhash_set<IStorePtr> LockedStores_;
+    THashSet<IStorePtr> LockedStores_;
 
     NLogging::TLogger Logger;
 

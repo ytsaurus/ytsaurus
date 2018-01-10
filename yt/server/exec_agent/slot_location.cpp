@@ -318,7 +318,7 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
 
         try {
             TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TFileOutput output(file);
+            TUnbufferedFileOutput output(file);
             TYsonWriter writer(&output, EYsonFormat::Pretty);
             Serialize(config, &writer);
             writer.Flush();

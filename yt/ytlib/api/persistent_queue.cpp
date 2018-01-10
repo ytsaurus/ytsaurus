@@ -141,7 +141,7 @@ private:
 
     struct TTablet
     {
-        yhash_set<i64> ConsumedRowIndexes;
+        THashSet<i64> ConsumedRowIndexes;
         i64 MaxConsumedRowIndex = std::numeric_limits<i64>::min();
         i64 FetchRowIndex = std::numeric_limits<i64>::max();
     };
@@ -154,7 +154,7 @@ private:
         std::deque<TBatch> Batches;
         int BatchesRowCount = 0;
         i64 BatchesDataWeight = 0;
-        yhash<int, TTablet> TabletMap;
+        THashMap<int, TTablet> TabletMap;
         std::atomic<bool> Failed = {false};
     };
 
@@ -388,12 +388,13 @@ private:
 
         // TODO(babenko): escaping
         auto query = Format(
-            "* from [%v] where [%v] = %v and [%v] >= %v order by [%v] limit %v",
+            "* from [%v] where [%v] = %v and [%v] between %v and %v order by [%v] limit %v",
             DataTablePath_,
             TabletIndexColumnName,
             tabletIndex,
             RowIndexColumnName,
             tablet.FetchRowIndex,
+            tablet.FetchRowIndex + rowLimit - 1,
             RowIndexColumnName,
             rowLimit);
         auto result = WaitFor(Client_->SelectRows(query))
@@ -718,10 +719,10 @@ private:
         struct TTabletStatistics
         {
             i64 LastTrimmedRowIndex = -1;
-            yhash_set<i64> ConsumedRowIndexes;
+            THashSet<i64> ConsumedRowIndexes;
         };
 
-        yhash<int, TTabletStatistics> tabletStatisticsMap;
+        THashMap<int, TTabletStatistics> tabletStatisticsMap;
 
         for (const auto& row : stateRows) {
             auto& tablet = tabletStatisticsMap[row.TabletIndex];

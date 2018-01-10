@@ -256,7 +256,7 @@ private:
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicas();
         YCHECK(!replicas.empty());
 
-        static const yhash_set<int> masterMetaTags{
+        static const THashSet<int> masterMetaTags{
             TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
             TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
         };

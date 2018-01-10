@@ -20,9 +20,9 @@ public:
     void RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
 
 protected:
-    yhash<TString, TTransactionPrepareActionHandler<TTransaction>> PrepareActionHandlerMap_;
-    yhash<TString, TTransactionCommitActionHandler<TTransaction>> CommitActionHandlerMap_;
-    yhash<TString, TTransactionAbortActionHandler<TTransaction>> AbortActionHandlerMap_;
+    THashMap<TString, TTransactionPrepareActionHandler<TTransaction>> PrepareActionHandlerMap_;
+    THashMap<TString, TTransactionCommitActionHandler<TTransaction>> CommitActionHandlerMap_;
+    THashMap<TString, TTransactionAbortActionHandler<TTransaction>> AbortActionHandlerMap_;
 
 
     void RunPrepareTransactionActions(TTransaction* transaction, bool persistent);

@@ -31,7 +31,7 @@ public:
     }
 
 private:
-    yhash<typename TTrait::TKey, typename TTrait::TValue> Values_;
+    THashMap<typename TTrait::TKey, typename TTrait::TValue> Values_;
 };
 
 template <typename TBaseTrait>

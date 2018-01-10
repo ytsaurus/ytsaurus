@@ -623,8 +623,8 @@ private:
 
     TRingQueue<TTablet*> PrelockedTablets_;
 
-    yhash_set<IDynamicStorePtr> OrphanedStores_;
-    yhash<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
+    THashSet<IDynamicStorePtr> OrphanedStores_;
+    THashMap<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
 
     TNodeMemoryTrackerGuard DynamicStoresMemoryTrackerGuard_;
     TNodeMemoryTrackerGuard StaticStoresMemoryTrackerGuard_;
@@ -1533,7 +1533,7 @@ private:
         // NB: Must handle store removals before store additions since
         // row index map forbids having multiple stores with the same starting row index.
         // But before proceeding to removals, we must take care of backing stores.
-        yhash<TStoreId, IDynamicStorePtr> idToBackingStore;
+        THashMap<TStoreId, IDynamicStorePtr> idToBackingStore;
         auto registerBackingStore = [&] (const IStorePtr& store) {
             YCHECK(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
         };
@@ -2005,7 +2005,7 @@ private:
     {
         PrepareLockedRows(transaction);
 
-        yhash<TTableReplicaInfo*, int> replicaToRowCount;
+        THashMap<TTableReplicaInfo*, int> replicaToRowCount;
         int syncReplicatedRowCount = 0;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = GetTabletOrThrow(writeRecord.TabletId);
@@ -2224,7 +2224,7 @@ private:
             lockedTabletCount);
 
         if (transaction->GetReplicatedRowsPrepared()) {
-            yhash<TTableReplicaInfo*, int> replicaToRowCount;
+            THashMap<TTableReplicaInfo*, int> replicaToRowCount;
             for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
                 auto* tablet = FindTablet(writeRecord.TabletId);
                 if (!tablet || !tablet->IsReplicated()) {

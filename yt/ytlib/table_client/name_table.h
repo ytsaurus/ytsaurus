@@ -36,7 +36,7 @@ private:
     bool EnableColumnNameValidation_ = false;
 
     std::vector<TString> IdToName_;
-    yhash<TStringBuf, int> NameToId_; // String values are owned by IdToName_.
+    THashMap<TStringBuf, int> NameToId_; // String values are owned by IdToName_.
     i64 ByteSize_ = 0;
 
     int DoRegisterName(const TStringBuf& name);
@@ -82,7 +82,7 @@ private:
     const TNameTablePtr NameTable_;
 
     mutable std::vector<TString> Names_;
-    mutable yhash<TStringBuf, int> NameToId_; // String values are owned by Names_.
+    mutable THashMap<TStringBuf, int> NameToId_; // String values are owned by Names_.
 
 };
 

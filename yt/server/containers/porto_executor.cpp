@@ -181,7 +181,7 @@ private:
     const TActionQueuePtr Queue_ = New<TActionQueue>("PortoQueue");
     TPeriodicExecutorPtr PollExecutor_;
     std::vector<TString> Containers_;
-    yhash<TString, TPromise<int>> ContainersMap_;
+    THashMap<TString, TPromise<int>> ContainersMap_;
     TSingleShotCallbackList<void(const TError&)> Failed_;
 
     static const std::vector<TString> ContainerRequestVars_;

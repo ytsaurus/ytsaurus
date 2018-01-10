@@ -152,7 +152,7 @@ private:
     int FirstValidJobIndex_ = 0;
 
     //! All input cookies that are currently suspended.
-    yhash_set<IChunkPoolInput::TCookie> SuspendedInputCookies_;
+    THashSet<IChunkPoolInput::TCookie> SuspendedInputCookies_;
 
     //! An internal representation of a finalized job.
     class TJob

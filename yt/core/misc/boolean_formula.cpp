@@ -71,7 +71,7 @@ public:
     int Size() const;
 
     bool IsSatisfiedBy(const std::vector<TString>& value) const;
-    bool IsSatisfiedBy(const yhash_set<TString>& value) const;
+    bool IsSatisfiedBy(const THashSet<TString>& value) const;
 
 private:
     std::vector<TBooleanFormulaToken> ParsedFormula_;
@@ -120,11 +120,11 @@ int TBooleanFormula::TImpl::Size() const
 
 bool TBooleanFormula::TImpl::IsSatisfiedBy(const std::vector<TString>& value) const
 {
-    yhash_set<TString> set(value.begin(), value.end());
+    THashSet<TString> set(value.begin(), value.end());
     return IsSatisfiedBy(set);
 }
 
-bool TBooleanFormula::TImpl::IsSatisfiedBy(const yhash_set<TString>& value) const
+bool TBooleanFormula::TImpl::IsSatisfiedBy(const THashSet<TString>& value) const
 {
     std::vector<bool> stack;
 
@@ -390,7 +390,7 @@ bool TBooleanFormula::IsSatisfiedBy(const std::vector<TString>& value) const
     return Impl_->IsSatisfiedBy(value);
 }
 
-bool TBooleanFormula::IsSatisfiedBy(const yhash_set<TString>& value) const
+bool TBooleanFormula::IsSatisfiedBy(const THashSet<TString>& value) const
 {
     return Impl_->IsSatisfiedBy(value);
 }

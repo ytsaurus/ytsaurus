@@ -229,7 +229,7 @@ void CreateTorrentsAndDirs(
     std::map<TString, TSkynetTorrent>* torrents)
 {
     for (const auto& file : meta.Files) {
-        yvector<TString> directories;
+        TVector<TString> directories;
         TString filename = file.first;
 
         if (filename.find('/') != TString::npos) {

@@ -791,7 +791,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         void VisitMap(TCypressNodeBase* node)
         {
             Writer_.OnBeginMap();
-            yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
+            THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
             const auto& keyToChildMap = GetMapNodeChildMap(
                 CypressManager_,
                 node,
@@ -1380,7 +1380,7 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisImpl(ELockMode::Shared);
 
     // Construct children list.
-    yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -1423,7 +1423,7 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    yhash<TString, TCypressNodeBase*> keyToChildStorage;
+    THashMap<TString, TCypressNodeBase*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -1441,7 +1441,7 @@ std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
 
 std::vector<TString> TMapNodeProxy::GetKeys() const
 {
-    yhash<TString, TCypressNodeBase*> keyToChildStorage;
+    THashMap<TString, TCypressNodeBase*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -1657,7 +1657,7 @@ void TMapNodeProxy::ListSelf(
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-    yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         TrunkNode,

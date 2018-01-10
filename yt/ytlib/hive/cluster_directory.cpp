@@ -117,7 +117,7 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
 
 void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDirectory)
 {
-    yhash<TString, INodePtr> nameToConfig;
+    THashMap<TString, INodePtr> nameToConfig;
     for (const auto& item : protoDirectory.items()) {
         YCHECK(nameToConfig.emplace(
             item.name(),

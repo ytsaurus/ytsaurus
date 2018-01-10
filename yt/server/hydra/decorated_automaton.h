@@ -261,7 +261,7 @@ private:
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
-    yhash<TString, TMutationTypeDescriptor> TypeToDescriptor_;
+    THashMap<TString, TMutationTypeDescriptor> TypeToDescriptor_;
 
     const NLogging::TLogger Logger;
 
