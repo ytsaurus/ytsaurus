@@ -11,10 +11,14 @@
 #include <yt/server/chunk_server/chunk_list.h>
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_owner_base.h>
+#include <yt/server/chunk_server/medium.h>
 
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
+
+#include <yt/server/tablet_server/tablet_cell_bundle.h>
+#include <yt/server/tablet_server/tablet_manager.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -45,6 +49,7 @@ using namespace NRpc;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NCypressClient;
@@ -929,6 +934,28 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     return LockImpl(TrunkNode, request, recursive);
 }
 
+void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNodeBase* parent, TCompositeNodeBase::TAttributes* attributes)
+{
+    for (auto* ancestor = parent; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent())
+    {
+        auto* compositeAncestor = ancestor->As<TCompositeNodeBase>();
+
+#define XX(camelCaseName, snakeCaseName) \
+        { \
+            auto inheritedValue = compositeAncestor->Get##camelCaseName(); \
+            if (!attributes->camelCaseName && inheritedValue) { \
+                attributes->camelCaseName = inheritedValue; \
+            } \
+        }
+
+        if (compositeAncestor->HasInheritableAttributes()) {
+            FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+        }
+
+#undef XX
+    }
+}
+
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase* trunkNode) const
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -977,6 +1004,63 @@ void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
     if (TrunkNode->IsExternal()) {
         THROW_ERROR_EXCEPTION("Operation cannot be performed at an external node");
     }
+}
+
+void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
+    const TNullable<TChunkReplication>& oldReplication,
+    TNullable<int> primaryMediumIndex,
+    const TChunkReplication& newReplication)
+{
+    if (newReplication == oldReplication) {
+        return;
+    }
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    for (auto mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        if (newReplication[mediumIndex]) {
+            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+            ValidatePermission(medium, EPermission::Use);
+        }
+    }
+
+    if (primaryMediumIndex && !newReplication[*primaryMediumIndex]) {
+        const auto* primaryMedium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
+        THROW_ERROR_EXCEPTION("Cannot remove primary medium %Qv",
+            primaryMedium->GetName());
+    }
+
+    ValidateChunkReplication(chunkManager, newReplication, primaryMediumIndex);
+}
+
+bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
+    TMedium* newPrimaryMedium,
+    const TChunkReplication& oldReplication,
+    TNullable<int> oldPrimaryMediumIndex,
+    TChunkReplication* newReplication)
+{
+    auto newPrimaryMediumIndex = newPrimaryMedium->GetIndex();
+    if (newPrimaryMediumIndex == oldPrimaryMediumIndex) {
+        return false;
+    }
+
+    ValidatePermission(newPrimaryMedium, EPermission::Use);
+
+    auto copiedReplication = oldReplication;
+    if (!copiedReplication[newPrimaryMediumIndex] && oldPrimaryMediumIndex) {
+        // The user is trying to set a medium with zero replication count
+        // as primary. This is regarded as a request to move from one medium to
+        // another.
+        copiedReplication[newPrimaryMediumIndex] = copiedReplication[*oldPrimaryMediumIndex];
+        copiedReplication[*oldPrimaryMediumIndex].Clear();
+    }
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    ValidateChunkReplication(chunkManager, copiedReplication, newPrimaryMediumIndex);
+
+    *newReplication = copiedReplication;
+
+    return true;
 }
 
 void TNontemplateCypressNodeProxyBase::SetModified()
@@ -1087,6 +1171,133 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     }
 }
 
+//! A combination of inherited and explicitly provided (by the user) attributes.
+//! Explicit attributes take precedence (but may be null).
+class TNewNodeAttributes
+    : public IAttributeDictionary
+{
+public:
+    TNewNodeAttributes(
+        TBootstrap* bootstrap,
+        TCompositeNodeBase::TAttributes* inheritedAttributes,
+        std::unique_ptr<IAttributeDictionary> explicitAttributes)
+        : Bootstrap_(bootstrap)
+        , InheritedAttributes_(inheritedAttributes)
+        , ExplicitAttributes_(std::move(explicitAttributes))
+    { }
+
+    virtual std::vector<TString> List() const override
+    {
+        std::vector<TString> result;
+#define XX(camelCaseName, snakeCaseName) \
+        if (InheritedAttributes_->camelCaseName) { \
+            result.push_back(#snakeCaseName); \
+        }
+
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+
+#undef XX
+
+        if (ExplicitAttributes_) {
+            auto explicitAttributeList = ExplicitAttributes_->List();
+            result.insert(
+                result.end(),
+                explicitAttributeList.begin(),
+                explicitAttributeList.end());
+        }
+
+        std::sort(result.begin(), result.end());
+        result.erase(
+            std::unique(result.begin(), result.end()),
+            result.end());
+
+        return result;
+    }
+
+    virtual TYsonString FindYson(const TString& key) const override
+    {
+        if (ExplicitAttributes_) {
+            auto result = ExplicitAttributes_->FindYson(key);
+            if (result) {
+                return result;
+            }
+        }
+
+#define XX(camelCaseName, snakeCaseName) \
+        if (key == #snakeCaseName) { \
+            const auto& value = InheritedAttributes_->camelCaseName; \
+            return value ? ConvertToYsonString(*value) : TYsonString(); \
+        }
+
+        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+
+        if (key == "primary_medium") {
+            const auto& primaryMediumIndex = InheritedAttributes_->PrimaryMediumIndex;
+            if (!primaryMediumIndex) {
+                return TYsonString();
+            }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto* medium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
+            return ConvertToYsonString(medium->GetName());
+        }
+
+        if (key == "media") {
+            const auto& replication = InheritedAttributes_->Media;
+            if (!replication) {
+                return TYsonString();
+            }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            return ConvertToYsonString(TSerializableChunkReplication(*replication, chunkManager));
+        }
+
+        if (key == "tablet_cell_bundle") {
+            auto* tabletCellBundle = InheritedAttributes_->TabletCellBundle;
+            if (!tabletCellBundle) {
+                return TYsonString();
+            }
+            return ConvertToYsonString(tabletCellBundle->GetName());
+        }
+
+        return TYsonString();
+    }
+
+    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override
+    {
+        if (!ExplicitAttributes_) {
+            ExplicitAttributes_ = CreateEphemeralAttributes();
+        }
+        ExplicitAttributes_->SetYson(key, value);
+    }
+
+    virtual bool Remove(const TString& key) override
+    {
+        auto removedExplicit = ExplicitAttributes_ ? ExplicitAttributes_->Remove(key) : false;
+
+#define XX(camelCaseName, snakeCaseName) \
+        if (key == #snakeCaseName) { \
+            if (InheritedAttributes_->camelCaseName) { \
+                InheritedAttributes_->camelCaseName = decltype(InheritedAttributes_->camelCaseName)(); \
+                return true; \
+            } else { \
+                return removedExplicit; \
+            } \
+        }
+
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+
+        return removedExplicit;
+    }
+
+private:
+    const TBootstrap* Bootstrap_;
+    TCompositeNodeBase::TAttributes* InheritedAttributes_;
+    std::unique_ptr<IAttributeDictionary> ExplicitAttributes_;
+};
+
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
     DeclareMutating();
@@ -1153,13 +1364,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
 
-    auto attributes = request->has_node_attributes()
-        ? FromProto(request->node_attributes())
-        : std::unique_ptr<IAttributeDictionary>();
+    auto inheritedAttributes = TCompositeNodeBase::TAttributes();
+    GatherInheritableAttributes(replace ? node->GetParent() : node, &inheritedAttributes);
+
+    std::unique_ptr<IAttributeDictionary> explicitAttributes;
+    if (request->has_node_attributes()) {
+        explicitAttributes = FromProto(request->node_attributes());
+    }
+
+    TNewNodeAttributes combinedAttributes(Bootstrap_, &inheritedAttributes, std::move(explicitAttributes));
 
     auto newProxy = factory->CreateNode(
         type,
-        attributes.get());
+        &combinedAttributes);
 
     if (replace) {
         parent->ReplaceChild(this, newProxy);
@@ -1301,18 +1518,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNontemplateCompositeCypressNodeProxyBase::TNontemplateCompositeCypressNodeProxyBase(
-    NCellMaster::TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TTransaction* transaction,
-    TCypressNodeBase* trunkNode)
-    : TNontemplateCypressNodeProxyBase(
-        bootstrap,
-        metadata,
-        transaction,
-        trunkNode)
-{ }
-
 TIntrusivePtr<const ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite() const
 {
     return this;
@@ -1327,7 +1532,54 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
 {
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
 
+    const auto* node = GetThisImpl<TCompositeNodeBase>();
+
     descriptors->push_back("count");
+
+    descriptors->push_back(TAttributeDescriptor("compression_codec")
+        .SetPresent(node->GetCompressionCodec().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("erasure_codec")
+        .SetPresent(node->GetErasureCodec().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("primary_medium")
+        .SetPresent(node->GetPrimaryMediumIndex().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("media")
+        .SetPresent(node->GetMedia().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("vital")
+        .SetPresent(node->GetVital().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("replication_factor")
+        .SetPresent(node->GetReplicationFactor().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
+        .SetPresent(node->GetTabletCellBundle())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("atomicity")
+        .SetPresent(node->GetAtomicity().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("commit_ordering")
+        .SetPresent(node->GetCommitOrdering().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("in_memory_mode")
+        .SetPresent(node->GetInMemoryMode().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor("optimize_for")
+        .SetPresent(node->GetOptimizeFor().HasValue())
+        .SetWritable(true)
+        .SetRemovable(true));
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
@@ -1338,7 +1590,235 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const TStrin
         return true;
     }
 
+    const auto* node = GetThisImpl<TCompositeNodeBase>();
+
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName && node->Get##camelCaseName()) { \
+        BuildYsonFluently(consumer) \
+            .Value(node->Get##camelCaseName()); \
+        return true; \
+    }
+
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
+
+#undef XX
+
+    if (key == "primary_medium" && node->GetPrimaryMediumIndex()) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->GetMediumByIndex(*node->GetPrimaryMediumIndex());
+        BuildYsonFluently(consumer)
+            .Value(medium->GetName());
+        return true;
+    }
+
+    if (key == "media" && node->GetMedia()) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        BuildYsonFluently(consumer)
+            .Value(TSerializableChunkReplication(*node->GetMedia(), chunkManager));
+        return true;
+    }
+
+
+    if (key == "tablet_cell_bundle" && node->GetTabletCellBundle()) {
+        BuildYsonFluently(consumer)
+            .Value(node->GetTabletCellBundle()->GetName());
+        return true;
+    }
+
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
+}
+
+bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString& value)
+{
+    auto* node = GetThisImpl<TCompositeNodeBase>();
+
+    // Attributes "media", "primary_medium", "replication_factor" are interrelated
+    // and nullable, which greatly complicates their modification.
+    //
+    // The rule of thumb is: if possible, consistency of non-null attributes is
+    // checked, but an attribute is never required to be set just for the
+    // purposes of validation of other attributes. For instance: "media" and
+    // "replication_factor" are checked for consistency only when "primary_medium" is
+    // set. Without it, it's impossible to tell which medium the "replication_factor"
+    // pertains to, and these attributes may be modified virtually independently.
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    auto throwReplicationFactorMismatch = [&] (int mediumIndex) {
+        const auto& medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
+        THROW_ERROR_EXCEPTION(
+            "Attributes \"media\" and \"replication_factor\" have contradicting values for medium %Qv",
+            medium->GetName());
+    };
+
+    if (key == "primary_medium") {
+        ValidateNoTransaction();
+
+        auto mediumName = ConvertTo<TString>(value);
+        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+        const auto mediumIndex = medium->GetIndex();
+        const auto replication = node->GetMedia();
+
+        if (!replication) {
+            ValidatePermission(medium, EPermission::Use);
+            node->SetPrimaryMediumIndex(mediumIndex);
+            return true;
+        }
+
+        TChunkReplication newReplication;
+        if (ValidatePrimaryMediumChange(
+            medium,
+            *replication,
+            node->GetPrimaryMediumIndex(), // may be null
+            &newReplication))
+        {
+            const auto replicationFactor = node->GetReplicationFactor();
+            if (replicationFactor &&
+                *replicationFactor != newReplication[mediumIndex].GetReplicationFactor())
+            {
+                throwReplicationFactorMismatch(mediumIndex);
+            }
+
+            node->SetMedia(newReplication);
+            node->SetPrimaryMediumIndex(mediumIndex);
+        } // else no change is required
+
+        return true;
+    }
+
+    if (key == "media") {
+        ValidateNoTransaction();
+
+        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+        TChunkReplication replication;
+        serializableReplication.ToChunkReplication(&replication, chunkManager);
+
+        const auto oldReplication = node->GetMedia();
+
+        if (replication == oldReplication) {
+            return true;
+        }
+
+        const auto primaryMediumIndex = node->GetPrimaryMediumIndex();
+        const auto replicationFactor = node->GetReplicationFactor();
+        if (primaryMediumIndex && replicationFactor) {
+            if (replication[*primaryMediumIndex].GetReplicationFactor() != *replicationFactor) {
+                throwReplicationFactorMismatch(*primaryMediumIndex);
+            }
+        }
+
+        // NB: primary medium index may be null, in which case corresponding
+        // parts of validation will be skipped.
+        ValidateMediaChange(oldReplication, primaryMediumIndex, replication);
+        node->SetMedia(replication);
+
+        return true;
+    }
+
+    if (key == "replication_factor") {
+        ValidateNoTransaction();
+
+        auto replicationFactor = ConvertTo<int>(value);
+        if (replicationFactor == node->GetReplicationFactor()) {
+            return true;
+        }
+
+        if (replicationFactor == 0) {
+            THROW_ERROR_EXCEPTION("Inheritable replication factor must not be zero; consider removing the attribute altogether");
+        }
+
+        ValidateReplicationFactor(replicationFactor);
+
+        const auto mediumIndex = node->GetPrimaryMediumIndex();
+        if (mediumIndex) {
+            const auto replication = node->GetMedia();
+            if (replication) {
+                if ((*replication)[*mediumIndex].GetReplicationFactor() != replicationFactor) {
+                    throwReplicationFactorMismatch(*mediumIndex);
+                }
+            } else if (!node->GetReplicationFactor()) {
+                auto* medium = chunkManager->GetMediumByIndex(*mediumIndex);
+                ValidatePermission(medium, EPermission::Use);
+            }
+        }
+
+        node->SetReplicationFactor(replicationFactor);
+
+        return true;
+    }
+
+    if (key == "tablet_cell_bundle") {
+        ValidateNoTransaction();
+
+        auto name = ConvertTo<TString>(value);
+
+        auto* oldBundle = node->GetTabletCellBundle();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+
+        if (oldBundle == newBundle) {
+            return true;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        if (oldBundle) {
+            objectManager->UnrefObject(oldBundle);
+        }
+
+        node->SetTabletCellBundle(newBundle);
+        objectManager->RefObject(newBundle);
+
+        return true;
+    }
+
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName) { \
+        ValidateNoTransaction(); \
+        node->Set##camelCaseName(ConvertTo<decltype(node->Get##camelCaseName())>(value)); \
+        return true; \
+    }
+
+    // The order is important: "replication_factor" is a "simple" attribute. It must be handled before this foreach.
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+
+    return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
+}
+
+bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(const TString& key)
+{
+    auto* node = GetThisImpl<TCompositeNodeBase>();
+
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName) { \
+        ValidateNoTransaction(); \
+        node->Set##camelCaseName(Null); \
+        return true; \
+    }
+
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+
+    XX(PrimaryMediumIndex, primary_medium);
+    XX(Media, media);
+
+#undef XX
+
+    if (key == "tablet_cell_bundle") {
+        ValidateNoTransaction();
+
+        auto* bundle = node->GetTabletCellBundle();
+        if (bundle) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(bundle);
+            node->SetTabletCellBundle(nullptr);
+        }
+
+        return true;
+    }
+
+    return TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(key);
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const
@@ -1347,18 +1827,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TMapNodeProxy::TMapNodeProxy(
-    TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TTransaction* transaction,
-    TMapNode* trunkNode)
-    : TBase(
-        bootstrap,
-        metadata,
-        transaction,
-        trunkNode)
-{ }
 
 void TMapNodeProxy::Clear()
 {
@@ -1689,18 +2157,6 @@ void TMapNodeProxy::ListSelf(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TListNodeProxy::TListNodeProxy(
-    TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TTransaction* transaction,
-    TListNode* trunkNode)
-    : TBase(
-        bootstrap,
-        metadata,
-        transaction,
-        trunkNode)
-{ }
 
 void TListNodeProxy::Clear()
 {

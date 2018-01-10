@@ -233,7 +233,7 @@ void ValidateReplicationFactor(int replicationFactor)
 void ValidateChunkReplication(
     const TChunkManagerPtr& chunkManager,
     const TChunkReplication& replication,
-    int primaryMediumIndex)
+    TNullable<int> primaryMediumIndex)
 {
     if (!replication.IsValid()) {
         THROW_ERROR_EXCEPTION(
@@ -254,15 +254,17 @@ void ValidateChunkReplication(
         }
     }
 
-    const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
-    const auto& primaryMediumPolicy = replication[primaryMediumIndex];
-    if (!primaryMediumPolicy) {
-        THROW_ERROR_EXCEPTION("Medium %Qv is not configured and cannot be made primary",
-            primaryMedium->GetName());
-    }
-    if (primaryMediumPolicy.GetDataPartsOnly()) {
-        THROW_ERROR_EXCEPTION("Medium %Qv stores no parity parts and cannot be made primary",
-            primaryMedium->GetName());
+    if (primaryMediumIndex) {
+        const auto* primaryMedium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
+        const auto& primaryMediumPolicy = replication[*primaryMediumIndex];
+        if (!primaryMediumPolicy) {
+            THROW_ERROR_EXCEPTION("Medium %Qv is not configured and cannot be made primary",
+                                  primaryMedium->GetName());
+        }
+        if (primaryMediumPolicy.GetDataPartsOnly()) {
+            THROW_ERROR_EXCEPTION("Medium %Qv stores no parity parts and cannot be made primary",
+                                  primaryMedium->GetName());
+        }
     }
 }
 

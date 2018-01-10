@@ -691,10 +691,12 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
     }
 
     ValidateReplicationFactor(replicationFactor);
-    ValidatePermission(medium, EPermission::Use);
+    if (replicationFactor != 0) {
+        ValidatePermission(medium, EPermission::Use);
+    }
 
     replication[mediumIndex].SetReplicationFactor(replicationFactor);
-    ValidateChunkReplication(chunkManager, replication, node->GetPrimaryMediumIndex());
+    ValidateChunkReplication(chunkManager, replication, mediumIndex);
 
     node->Replication() = replication;
 
@@ -728,33 +730,16 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
 
     YCHECK(node->IsTrunk());
 
-    if (node->Replication() == replication) {
-        return;
-    }
-
-    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        const auto& policy = replication[mediumIndex];
-        if (policy) {
-            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-            ValidatePermission(medium, EPermission::Use);
-        }
-    }
-
     auto primaryMediumIndex = node->GetPrimaryMediumIndex();
-    const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
-
-    if (!replication[primaryMediumIndex]) {
-        THROW_ERROR_EXCEPTION("Cannot remove primary medium %Qv",
-            primaryMedium->GetName());
-    }
-
-    ValidateChunkReplication(chunkManager, replication, primaryMediumIndex);
+    ValidateMediaChange(node->Replication(), primaryMediumIndex, replication);
 
     node->Replication() = replication;
 
     if (!node->IsExternal()) {
         chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
     }
+
+    const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
     LOG_DEBUG_UNLESS(
         IsRecovery(),
@@ -769,30 +754,21 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->IsTrunk());
 
-    auto mediumIndex = medium->GetIndex();
-    if (node->GetPrimaryMediumIndex() == mediumIndex) {
+    TChunkReplication newReplication;
+    if (!ValidatePrimaryMediumChange(
+        medium,
+        node->Replication(),
+        node->GetPrimaryMediumIndex(),
+        &newReplication))
+    {
         return;
     }
 
-    ValidatePermission(medium, EPermission::Use);
-
-    auto replication = node->Replication();
-    if (!replication[mediumIndex]) {
-        // The user is trying to set a medium with zero replication count
-        // as primary. This is regarded as a request to move from one medium to
-        // another.
-        auto oldMediumIndex = node->GetPrimaryMediumIndex();
-        replication[mediumIndex] = replication[oldMediumIndex];
-        replication[oldMediumIndex].Clear();
-    }
-
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    ValidateChunkReplication(chunkManager, replication, mediumIndex);
-
-    node->Replication() = replication;
-    node->SetPrimaryMediumIndex(mediumIndex);
+    node->Replication() = newReplication;
+    node->SetPrimaryMediumIndex(medium->GetIndex());
 
     if (!node->IsExternal()) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
     }
 

@@ -176,6 +176,24 @@ protected:
 
     void ValidateNotExternal();
 
+    // If some argument is null, eschews corresponding parts of validation.
+    void ValidateMediaChange(
+        const TNullable<NChunkServer::TChunkReplication>& oldReplication,
+        TNullable<int> primaryMediumIndex,
+        const NChunkServer::TChunkReplication& newReplication);
+
+    //! Validates an attempt to set #newPrimaryMedium as a primary medium.
+    /*!
+     * On failure, throws.
+     * If there's nothing to be done, return false.
+     * On success, returns true and modifies *newReplication accordingly.
+     */
+    bool ValidatePrimaryMediumChange(
+        NChunkServer::TMedium* newPrimaryMedium,
+        const NChunkServer::TChunkReplication& oldReplication,
+        TNullable<int> oldPrimaryMediumIndex,
+        NChunkServer::TChunkReplication* newReplication);
+
     void SetModified();
     void SuppressModificationTracking();
 
@@ -200,6 +218,7 @@ private:
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
 
+    void GatherInheritableAttributes(TCypressNodeBase* parent, TCompositeNodeBase::TAttributes* attributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,14 +232,12 @@ public:
     virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override;
 
 protected:
-    TNontemplateCompositeCypressNodeProxyBase(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TCypressNodeBase* trunkNode);
+    using TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(const TString& key) override;
 
     virtual bool CanHaveChildren() const override;
 
@@ -384,14 +401,12 @@ class TMapNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
+    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>;
+
     YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
-    TMapNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TMapNode* trunkNode);
+    using TBase::TBase;
 
     virtual void Clear() override;
     virtual int GetChildCount() const override;
@@ -405,8 +420,6 @@ public:
     virtual TString GetChildKey(NYTree::IConstNodePtr child) override;
 
 private:
-    typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
-
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void SetChildNode(
@@ -440,14 +453,12 @@ class TListNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
+    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>;
+
     YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
-    TListNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TListNode* trunkNode);
+    using TBase::TBase;
 
     virtual void Clear() override;
     virtual int GetChildCount() const override;
@@ -460,8 +471,6 @@ public:
     virtual int GetChildIndex(NYTree::IConstNodePtr child) override;
 
 private:
-    typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
-
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
