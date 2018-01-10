@@ -983,7 +983,11 @@ private:
         batchReq->AddRequest(req, "remove_snapshot");
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        auto error = GetCumulativeError(batchRspOrError);
+        if (!error.IsOK()) {
+            LOG_WARNING(error, "Failed to remove snapshot");
+            Bootstrap_->GetScheduler()->Disconnect();
+        }
     }
 
     void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
