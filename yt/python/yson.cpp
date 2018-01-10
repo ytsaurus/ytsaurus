@@ -400,7 +400,7 @@ private:
 #if PY_MAJOR_VERSION < 3
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
-                inputStream.reset(new TFileInput(Duplicate(file)));
+                inputStream.reset(new TUnbufferedFileInput(Duplicate(file)));
                 wrapStream = false;
             }
 #endif
