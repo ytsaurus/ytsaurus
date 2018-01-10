@@ -1496,7 +1496,7 @@ public:
                 hiveManager->PostMessage(mailbox, req);
             }
 
-            for (auto& pair  : tablet->Replicas()) {
+            for (auto& pair : GetPairsSortedByKey(tablet->Replicas())) {
                 auto* replica = pair.first;
                 auto& replicaInfo = pair.second;
                 if (replica->GetState() != ETableReplicaState::Enabled) {
@@ -1802,7 +1802,7 @@ public:
         int newTabletCount,
         const std::vector<TOwningKey>& pivotKeys)
     {
-        if (!pivotKeys.empty() || !table->IsSorted()) {
+        if (!pivotKeys.empty() || !table->IsPhysicallySorted()) {
             DoReshardTable(
                 table,
                 firstTabletIndex,
