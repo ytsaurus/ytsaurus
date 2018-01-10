@@ -166,9 +166,115 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNode::TMapNode(const TVersionedNodeId& id)
+void TCompositeNodeBase::TAttributes::Persist(NCellMaster::TPersistenceContext& context)
+{
+#define XX(camelCaseName, snakeCaseName) \
+    Persist(context, camelCaseName);
+
+    using NYT::Persist;
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+}
+
+bool TCompositeNodeBase::TAttributes::AreFull() const
+{
+#define XX(camelCaseName, snakeCaseName) \
+    && camelCaseName
+
+    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+}
+
+bool TCompositeNodeBase::TAttributes::AreEmpty() const
+{
+#define XX(camelCaseName, snakeCaseName) \
+    && !camelCaseName
+
+    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+}
+
+TCompositeNodeBase::TCompositeNodeBase(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 { }
+
+void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
+{
+    TCypressNodeBase::Save(context);
+
+    using NYT::Save;
+    TUniquePtrSerializer<>::Save(context, Attributes_);
+}
+
+void TCompositeNodeBase::Load(NCellMaster::TLoadContext& context)
+{
+    TCypressNodeBase::Load(context);
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 701) {
+        return;
+    }
+
+    using NYT::Load;
+    TUniquePtrSerializer<>::Load(context, Attributes_);
+}
+
+bool TCompositeNodeBase::HasInheritableAttributes() const
+{
+    if (Attributes_) {
+        Y_ASSERT(!Attributes_->AreEmpty());
+        return true;
+    } else {
+        return false;
+    }
+}
+
+const TCompositeNodeBase::TAttributes* TCompositeNodeBase::Attributes() const
+{
+    return Attributes_.get();
+}
+
+void TCompositeNodeBase::SetAttributes(const TCompositeNodeBase::TAttributes* attributes)
+{
+    if (!attributes || attributes->AreEmpty()) {
+        Attributes_.reset();
+    } else if (Attributes_) {
+        *Attributes_ = *attributes;
+    } else {
+        Attributes_ = std::make_unique<TAttributes>(*attributes);
+    }
+}
+
+#define IMPLEMENT_ATTRIBUTE_ACCESSORS(camelCaseName, snakeCaseName) \
+auto TCompositeNodeBase::Get##camelCaseName() const -> decltype(TCompositeNodeBase::TAttributes::camelCaseName) \
+{ \
+    if (Attributes_) { \
+        return Attributes_->camelCaseName; \
+    } else { \
+        return {}; \
+    } \
+} \
+void TCompositeNodeBase::Set##camelCaseName(decltype(TCompositeNodeBase::TAttributes::camelCaseName) value) \
+{ \
+    if (Attributes_) { \
+        Attributes_->camelCaseName = value; \
+        if (Attributes_->AreEmpty()) { \
+            Attributes_.reset(); \
+        } \
+    } else if (value) { \
+        Attributes_ = std::make_unique<TAttributes>(); \
+        Attributes_->camelCaseName = value; \
+    } \
+}
+
+FOR_EACH_INHERITABLE_ATTRIBUTE(IMPLEMENT_ATTRIBUTE_ACCESSORS)
+
+#undef IMPLEMENT_ATTRIBUTE_ACCESSORS
+
+////////////////////////////////////////////////////////////////////////////////
 
 ENodeType TMapNode::GetNodeType() const
 {
@@ -177,7 +283,7 @@ ENodeType TMapNode::GetNodeType() const
 
 void TMapNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCompositeNodeBase::Save(context);
 
     using NYT::Save;
     Save(context, ChildCountDelta_);
@@ -189,7 +295,7 @@ void TMapNode::Save(NCellMaster::TSaveContext& context) const
 
 void TMapNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCompositeNodeBase::Load(context);
 
     using NYT::Load;
     Load(context, ChildCountDelta_);
@@ -214,10 +320,6 @@ int TMapNode::GetGCWeight() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TMapNodeTypeHandler::TMapNodeTypeHandler(TBootstrap* bootstrap)
-    : TBase(bootstrap)
-{ }
 
 EObjectType TMapNodeTypeHandler::GetObjectType() const
 {
@@ -367,10 +469,6 @@ void TMapNodeTypeHandler::DoClone(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListNode::TListNode(const TVersionedNodeId& id)
-    : TCypressNodeBase(id)
-{ }
-
 ENodeType TListNode::GetNodeType() const
 {
     return ENodeType::List;
@@ -378,7 +476,7 @@ ENodeType TListNode::GetNodeType() const
 
 void TListNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCompositeNodeBase::Save(context);
 
     using NYT::Save;
     TVectorSerializer<
@@ -388,7 +486,7 @@ void TListNode::Save(NCellMaster::TSaveContext& context) const
 
 void TListNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCompositeNodeBase::Load(context);
 
     using NYT::Load;
     TVectorSerializer<
@@ -407,10 +505,6 @@ int TListNode::GetGCWeight() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TListNodeTypeHandler::TListNodeTypeHandler(TBootstrap* bootstrap)
-    : TBase(bootstrap)
-{ }
 
 EObjectType TListNodeTypeHandler::GetObjectType() const
 {

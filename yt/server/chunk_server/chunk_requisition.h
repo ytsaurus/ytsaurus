@@ -187,10 +187,12 @@ void Deserialize(TSerializableChunkReplication& serializer, NYTree::INodePtr nod
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateReplicationFactor(int replicationFactor);
+
+//! If primaryMediumIndex is null, eschews primary medium-related validation.
 void ValidateChunkReplication(
     const TChunkManagerPtr& chunkManager,
     const TChunkReplication& replication,
-    int primaryMediumIndex);
+    TNullable<int> primaryMediumIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

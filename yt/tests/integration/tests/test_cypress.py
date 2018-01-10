@@ -1484,6 +1484,217 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/a", tx=tx)
         assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
 
+    def test_inheritable_attributes1(self):
+        # parent inheritance
+        create("map_node", "//tmp/dir1")
+        set("//tmp/dir1/@compression_codec", "lz4")
+        create("table", "//tmp/dir1/t1")
+        assert get("//tmp/dir1/t1/@compression_codec") == "lz4"
+
+        # explicit attribute precedence
+        create("table", "//tmp/dir1/t2", attributes={"compression_codec": "zstd_17"})
+        assert get("//tmp/dir1/t2/@compression_codec") == "zstd_17"
+
+        create("map_node", "//tmp/dir1/dir2")
+
+        # ancestor inheritance
+        create("table", "//tmp/dir1/dir2/t1")
+        assert get("//tmp/dir1/dir2/t1/@compression_codec") == "lz4"
+
+        # parent inheritance
+        set("//tmp/dir1/dir2/@compression_codec", "zlib_6")
+        create("table", "//tmp/dir1/dir2/t2")
+        assert get("//tmp/dir1/dir2/t2/@compression_codec") == "zlib_6"
+
+    def test_inheritable_attributes2(self):
+        create_medium("hdd")
+        create_tablet_cell_bundle("b")
+
+        create("map_node", "//tmp/dir1")
+        create("map_node", "//tmp/dir1/dir2")
+
+        # inherited from parent
+        set("//tmp/dir1/@compression_codec", "lz4")
+        set("//tmp/dir1/@replication_factor", 5)
+        set("//tmp/dir1/@commit_ordering", "strong")
+
+        # inherited from grandparent
+        set("//tmp/dir1/dir2/@erasure_codec", "reed_solomon_6_3")
+        set("//tmp/dir1/dir2/@vital", False)
+        set("//tmp/dir1/dir2/@in_memory_mode", "uncompressed")
+
+        # overridden explicitly
+        primary_medium = "hdd"
+        tablet_cell_bundle = "b"
+        optimize_for = "scan"
+
+        # left default: "media", "atomicity"
+
+        create("table", "//tmp/dir1/dir2/t1", attributes={"primary_medium": primary_medium, "tablet_cell_bundle": tablet_cell_bundle, "optimize_for": optimize_for})
+        assert get("//tmp/dir1/dir2/t1/@compression_codec") == "lz4"
+        assert get("//tmp/dir1/dir2/t1/@replication_factor") == 5
+        assert get("//tmp/dir1/dir2/t1/@commit_ordering") == "strong"
+        assert get("//tmp/dir1/dir2/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert get("//tmp/dir1/dir2/t1/@vital") == False
+        assert get("//tmp/dir1/dir2/t1/@in_memory_mode") == "uncompressed"
+        assert get("//tmp/dir1/dir2/t1/@primary_medium") == "hdd"
+        assert get("//tmp/dir1/dir2/t1/@tablet_cell_bundle") == "b"
+        assert get("//tmp/dir1/dir2/t1/@optimize_for") == "scan"
+        assert get("//tmp/dir1/dir2/t1/@media") == {"hdd": {"replication_factor": 5, "data_parts_only": False}}
+        assert get("//tmp/dir1/dir2/t1/@atomicity") == "full"
+
+    def test_inheritable_attributes_with_transactions(self):
+        create("map_node", "//tmp/dir1")
+        tx = start_transaction()
+
+        # Inheritable attributes cannot be changed within trasactions.
+        with pytest.raises(YtError):
+            set("//tmp/dir1/@compression_codec", "lz4", tx=tx)
+
+        set("//tmp/dir1/@compression_codec", "lz4")
+
+        create("table", "//tmp/dir1/t1", tx=tx)
+        assert get("//tmp/dir1/t1/@compression_codec", tx=tx) == "lz4"
+
+    def test_inheritable_attributes_media_validation(self):
+        create_medium("ssd")
+
+        create("map_node", "//tmp/dir1")
+        assert not exists("//tmp/dir1/@media")
+
+        # media - primary_medium - replication_factor
+        with pytest.raises(YtError):
+            set("//tmp/dir1/@media", {"default": {"replication_factor": 0, "data_parts_only": False}})
+        with pytest.raises(YtError):
+            set("//tmp/dir1/@media", {"default": {"replication_factor": 3, "data_parts_only": True}})
+        set("//tmp/dir1/@media", {"default": {"replication_factor": 3, "data_parts_only": False}})
+        assert get("//tmp/dir1/@media") == {"default": {"replication_factor": 3, "data_parts_only": False}}
+        with pytest.raises(YtError):
+            set("//tmp/dir1/@primary_medium", "ssd")
+        assert not exists("//tmp/dir1/@primary_medium")
+        set("//tmp/dir1/@primary_medium", "default")
+        assert get("//tmp/dir1/@primary_medium") == "default"
+        with pytest.raises(YtError):
+            set("//tmp/dir1/@replication_factor", 5)
+        assert not exists("//tmp/dir1/@replication_factor")
+        set("//tmp/dir1/@replication_factor", 3)
+        assert get("//tmp/dir1/@replication_factor") == 3
+
+        # media - replication_factor - primary_medium
+        create("map_node", "//tmp/dir2")
+        set("//tmp/dir2/@media", {"default": {"replication_factor": 3, "data_parts_only": False}, "ssd": {"replication_factor": 5, "data_parts_only": False}})
+        assert get("//tmp/dir2/@media") == {"default": {"replication_factor": 3, "data_parts_only": False}, "ssd": {"replication_factor": 5, "data_parts_only": False}}
+        set("//tmp/dir2/@replication_factor", 5)
+        assert get("//tmp/dir2/@replication_factor") == 5
+        with pytest.raises(YtError):
+            set("//tmp/dir2/@primary_medium", "default")
+        set("//tmp/dir2/@primary_medium", "ssd")
+        assert get("//tmp/dir2/@primary_medium") == "ssd"
+
+        # primary_medium - media - replication_factor
+        create("map_node", "//tmp/dir3")
+        with pytest.raises(YtError):
+            set("//tmp/dir3/@primary_medium", "non_existent")
+        set("//tmp/dir3/@primary_medium", "ssd")
+        assert get("//tmp/dir3/@primary_medium") == "ssd"
+        with pytest.raises(YtError):
+            set("//tmp/dir3/@media", {"default": {"replication_factor": 3, "data_parts_only": True}, "ssd": {"replication_factor": 3, "data_parts_only": True}})
+        set("//tmp/dir3/@media", {"default": {"replication_factor": 5, "data_parts_only": True}, "ssd": {"replication_factor": 3, "data_parts_only": False}})
+        assert get("//tmp/dir3/@media") == {"default": {"replication_factor": 5, "data_parts_only": True}, "ssd": {"replication_factor": 3, "data_parts_only": False}}
+        with pytest.raises(YtError):
+            set("//tmp/dir3/@replication_factor", 5)
+        set("//tmp/dir3/@replication_factor", 3)
+        assert get("//tmp/dir3/@replication_factor") == 3
+
+        # primary_medium - replication_factor - media
+        # and
+        # replication_factor - primary_medium - media
+        # are pretty much the same
+        create("map_node", "//tmp/dir4")
+        set("//tmp/dir4/@primary_medium", "ssd")
+        with pytest.raises(YtError):
+            set("//tmp/dir4/@replication_factor", 0)
+        set("//tmp/dir4/@replication_factor", 3)
+        with pytest.raises(YtError):
+            set("//tmp/dir4/@media", {"default": {"replication_factor": 3, "data_parts_only": False}})
+        with pytest.raises(YtError):
+            set("//tmp/dir4/@media", {"default": {"replication_factor": 3, "data_parts_only": False}, "ssd": {"replication_factor": 2, "data_parts_only": False}})
+        set("//tmp/dir4/@media", {"default": {"replication_factor": 3, "data_parts_only": False}, "ssd": {"replication_factor": 3, "data_parts_only": False}})
+
+        # replication_factor - media - primary_medium
+        create("map_node", "//tmp/dir5")
+        set("//tmp/dir5/@replication_factor", 3)
+        set("//tmp/dir5/@media", {"default": {"replication_factor": 2, "data_parts_only": False}, "ssd": {"replication_factor": 4, "data_parts_only": False}})
+        with pytest.raises(YtError):
+            set("//tmp/dir5/@primary_medium", "default")
+        with pytest.raises(YtError):
+            set("//tmp/dir5/@primary_medium", "ssd")
+        set("//tmp/dir5/@media", {"default": {"replication_factor": 2, "data_parts_only": False}, "ssd": {"replication_factor": 3, "data_parts_only": False}})
+        set("//tmp/dir5/@primary_medium", "ssd")
+
+    def test_inheritable_attributes_tablet_cell_bundle(self):
+        create("map_node", "//tmp/dir1")
+        create("map_node", "//tmp/dir2")
+        create("map_node", "//tmp/dir3")
+
+        with pytest.raises(YtError):
+            set("//tmp/dir1/@tablet_cell_bundle", "non_existent")
+
+        create_tablet_cell_bundle("b1")
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
+
+        set("//tmp/dir1/@tablet_cell_bundle", "b1")
+        assert get("//tmp/dir1/@tablet_cell_bundle") == "b1"
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
+
+        set("//tmp/dir2/@tablet_cell_bundle", "b1")
+        assert get("//tmp/dir2/@tablet_cell_bundle") == "b1"
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 3
+
+        set("//tmp/dir3/@tablet_cell_bundle", "b1")
+        assert get("//tmp/dir3/@tablet_cell_bundle") == "b1"
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 4
+
+        create_tablet_cell_bundle("b2")
+
+        tx = start_transaction()
+        copy("//tmp/dir3", "//tmp/dir3_copy", tx=tx)
+
+        assert get("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx) == "b1"
+
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 6 # +1 for cloned trunk, +1 for it branch
+        with pytest.raises(YtError):
+            set("//tmp/dir3_copy/@tablet_cell_bundle", "b2", tx=tx)
+        with pytest.raises(YtError):
+            remove("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx)
+
+        set("//tmp/dir1/@tablet_cell_bundle", "b2")
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 5
+
+        remove("//tmp/dir2/@tablet_cell_bundle")
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 4
+
+        abort_transaction(tx)
+        gc_collect()
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
+
+        move("//tmp/dir3", "//tmp/dir3_move")
+        gc_collect()
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
+
+        tx = start_transaction()
+        move("//tmp/dir3_move", "//tmp/dir3", tx=tx)
+        gc_collect()
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 5
+
+        abort_transaction(tx)
+        gc_collect()
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
+
+        remove("//tmp/dir3_move")
+        gc_collect()
+        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

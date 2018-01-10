@@ -15,6 +15,10 @@
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>
 
+#include <yt/server/tablet_server/tablet_cell_bundle.h>
+
+#include <yt/ytlib/table_client/public.h>
+
 #include <yt/core/misc/serialize.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
@@ -454,8 +458,191 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapNode
+class TCompositeNodeBase
     : public TCypressNodeBase
+{
+public:
+    explicit TCompositeNodeBase(const TVersionedNodeId& id);
+
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
+
+    bool HasInheritableAttributes() const;
+
+    // NB: the list of inheritable attributes doesn't include the "account"
+    // attribute because that's already present on every Cypress node.
+
+    TNullable<NCompression::ECodec> GetCompressionCodec() const;
+    void SetCompressionCodec(TNullable<NCompression::ECodec> compressionCodec);
+
+    TNullable<NErasure::ECodec> GetErasureCodec() const;
+    void SetErasureCodec(TNullable<NErasure::ECodec> erasureCodec);
+
+    TNullable<int> GetPrimaryMediumIndex() const;
+    void SetPrimaryMediumIndex(TNullable<int> primaryMediumIndex);
+
+    TNullable<NChunkServer::TChunkReplication> GetMedia() const;
+    void SetMedia(TNullable<NChunkServer::TChunkReplication> media);
+
+    // Although both Vital and ReplicationFactor can be deduced from Media, it's
+    // important to be able to specify just the ReplicationFactor (or the Vital
+    // flag) while leaving Media null.
+
+    TNullable<int> GetReplicationFactor() const;
+    void SetReplicationFactor(TNullable<int> replicationFactor);
+
+    TNullable<bool> GetVital() const;
+    void SetVital(TNullable<bool> vital);
+
+    NTabletServer::TTabletCellBundle* GetTabletCellBundle() const;
+    void SetTabletCellBundle(NTabletServer::TTabletCellBundle* tabletCellBundle);
+
+    TNullable<NTransactionClient::EAtomicity> GetAtomicity() const;
+    void SetAtomicity(TNullable<NTransactionClient::EAtomicity> atomicity);
+
+    TNullable<NTransactionClient::ECommitOrdering> GetCommitOrdering() const;
+    void SetCommitOrdering(TNullable<NTransactionClient::ECommitOrdering> commitOrdering);
+
+    TNullable<NTabletClient::EInMemoryMode> GetInMemoryMode() const;
+    void SetInMemoryMode(TNullable<NTabletClient::EInMemoryMode> inMemoryMode);
+
+    TNullable<NTableClient::EOptimizeFor> GetOptimizeFor() const;
+    void SetOptimizeFor(TNullable<NTableClient::EOptimizeFor> optimizeFor);
+
+    struct TAttributes
+    {
+        TNullable<NCompression::ECodec> CompressionCodec;
+        TNullable<NErasure::ECodec> ErasureCodec;
+        TNullable<int> PrimaryMediumIndex;
+        TNullable<NChunkServer::TChunkReplication> Media;
+        TNullable<int> ReplicationFactor;
+        TNullable<bool> Vital;
+        NTabletServer::TTabletCellBundle* TabletCellBundle = nullptr;
+        TNullable<NTransactionClient::EAtomicity> Atomicity;
+        TNullable<NTransactionClient::ECommitOrdering> CommitOrdering;
+        TNullable<NTabletClient::EInMemoryMode> InMemoryMode;
+        TNullable<NTableClient::EOptimizeFor> OptimizeFor;
+
+        void Persist(NCellMaster::TPersistenceContext& context);
+
+        // Are all attributes not null?
+        bool AreFull() const;
+
+        // Are all attributes null?
+        bool AreEmpty() const;
+    };
+
+    const TAttributes* Attributes() const;
+    void SetAttributes(const TAttributes* attributes);
+
+private:
+    std::unique_ptr<TAttributes> Attributes_;
+};
+
+// Beware: changing these macros changes snapshot format.
+#define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
+    process(CompressionCodec, compression_codec) \
+    process(ErasureCodec, erasure_codec) \
+    process(ReplicationFactor, replication_factor) \
+    process(Vital, vital) \
+    process(Atomicity, atomicity) \
+    process(CommitOrdering, commit_ordering) \
+    process(InMemoryMode, in_memory_mode) \
+    process(OptimizeFor, optimize_for)
+
+#define FOR_EACH_INHERITABLE_ATTRIBUTE(process) \
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
+    process(PrimaryMediumIndex, primary_medium) \
+    process(Media, media) \
+    process(TabletCellBundle, tablet_cell_bundle) \
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TImpl>
+class TCompositeNodeBaseTypeHandler
+    : public TCypressNodeTypeHandlerBase<TImpl>
+{
+    using TBase = TCypressNodeTypeHandlerBase<TImpl>;
+
+public:
+    using TBase::TBase;
+
+protected:
+    virtual void DoDestroy(TImpl* node) override
+    {
+        if (node->GetTabletCellBundle()) {
+            const auto& objectManager = this->Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(node->GetTabletCellBundle());
+        }
+
+        TBase::DoDestroy(node);
+    }
+
+    virtual void DoClone(
+        TImpl* sourceNode,
+        TImpl* clonedNode,
+        ICypressNodeFactory* factory,
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override
+    {
+        TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+
+        clonedNode->SetAttributes(sourceNode->Attributes());
+
+        if (clonedNode->GetTabletCellBundle()) {
+            const auto& objectManager = this->Bootstrap_->GetObjectManager();
+            objectManager->RefObject(clonedNode->GetTabletCellBundle());
+        }
+    }
+
+    virtual void DoBranch(
+        const TImpl* originatingNode,
+        TImpl* branchedNode,
+        const TLockRequest& lockRequest) override
+    {
+        TBase::DoBranch(originatingNode, branchedNode, lockRequest);
+
+        branchedNode->SetAttributes(originatingNode->Attributes());
+
+        if (branchedNode->GetTabletCellBundle()) {
+            const auto& objectManager = this->Bootstrap_->GetObjectManager();
+            objectManager->RefObject(branchedNode->GetTabletCellBundle());
+        }
+    }
+
+    virtual void DoUnbranch(
+        TImpl* originatingNode,
+        TImpl* branchedNode) override
+    {
+        TBase::DoUnbranch(originatingNode, branchedNode);
+
+        if (branchedNode->GetTabletCellBundle()) {
+            const auto& objectManager = this->Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(branchedNode->GetTabletCellBundle());
+        }
+
+        branchedNode->SetAttributes(nullptr); // just in case
+    }
+
+    virtual void DoMerge(
+        TImpl* originatingNode,
+        TImpl* branchedNode) override
+    {
+        TBase::DoMerge(originatingNode, branchedNode);
+
+        if (originatingNode->GetTabletCellBundle()) {
+            const auto& objectManager = this->Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(originatingNode->GetTabletCellBundle());
+        }
+
+        originatingNode->SetAttributes(branchedNode->Attributes());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapNode
+    : public TCompositeNodeBase
 {
 public:
     typedef yhash<TString, TCypressNodeBase*> TKeyToChild;
@@ -466,7 +653,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, ChildCountDelta);
 
 public:
-    explicit TMapNode(const TVersionedNodeId& id);
+    using TCompositeNodeBase::TCompositeNodeBase;
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
@@ -480,17 +667,17 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapNodeTypeHandler
-    : public TCypressNodeTypeHandlerBase<TMapNode>
+    : public TCompositeNodeBaseTypeHandler<TMapNode>
 {
 public:
-    explicit TMapNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+    using TBase = TCompositeNodeBaseTypeHandler<TMapNode>;
+
+    using TBase::TBase;
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
     virtual NYTree::ENodeType GetNodeType() const override;
 
 private:
-    typedef TCypressNodeTypeHandlerBase<TMapNode> TBase;
-
     virtual ICypressNodeProxyPtr DoGetProxy(
         TMapNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
@@ -517,7 +704,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNode
-    : public TCypressNodeBase
+    : public TCompositeNodeBase
 {
 public:
     typedef std::vector<TCypressNodeBase*> TIndexToChild;
@@ -527,7 +714,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
-    explicit TListNode(const TVersionedNodeId& id);
+    using TCompositeNodeBase::TCompositeNodeBase;
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
@@ -541,17 +728,17 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeTypeHandler
-    : public TCypressNodeTypeHandlerBase<TListNode>
+    : public TCompositeNodeBaseTypeHandler<TListNode>
 {
 public:
-    explicit TListNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+    using TBase = TCompositeNodeBaseTypeHandler<TListNode>;
+
+    using TBase::TBase;
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
     virtual NYTree::ENodeType GetNodeType() const override;
 
 private:
-    typedef TCypressNodeTypeHandlerBase<TListNode> TBase;
-
     virtual ICypressNodeProxyPtr DoGetProxy(
         TListNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
