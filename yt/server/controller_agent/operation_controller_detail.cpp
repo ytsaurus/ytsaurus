@@ -2540,17 +2540,18 @@ void TOperationControllerBase::AnalyzeJobsDuration()
 
         auto maxJobDuration = TDuration::MilliSeconds(completedJobsSummary->GetMax());
         auto completedJobCount = completedJobsSummary->GetCount();
+        auto avgJobDuration = TDuration::MilliSeconds(completedJobsSummary->GetSum() / completedJobCount);
 
         if (completedJobCount > Config->OperationAlerts->ShortJobsAlertMinJobCount &&
             operationDuration > maxJobDuration * 2 &&
-            maxJobDuration < Config->OperationAlerts->ShortJobsAlertMinJobDuration)
+            avgJobDuration < Config->OperationAlerts->ShortJobsAlertMinJobDuration)
         {
             auto error = TError(
-                "Duration of %Qlv jobs is less than %v seconds, try increasing %v in operation spec",
+                "Average duration of %Qlv jobs is less than %v seconds, try increasing %v in operation spec",
                 jobType,
                 Config->OperationAlerts->ShortJobsAlertMinJobDuration.Seconds(),
                 GetDataWeightParameterNameForJob(jobType))
-                    << TErrorAttribute("max_job_duration", maxJobDuration);
+                    << TErrorAttribute("average_job_duration", avgJobDuration);
 
             innerErrors.push_back(error);
         }
