@@ -170,9 +170,9 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
 void TPeerBlockDistributor::DistributeBlocks()
 {
     auto chosenBlocks = ChooseBlocks();
-    TReqPopulateCache reqTemplate = std::move(chosenBlocks.ReqTemplate);
-    std::vector<TBlock> blocks = std::move(chosenBlocks.Blocks);
-    std::vector<TBlockId> blockIds = std::move(chosenBlocks.BlockIds);
+    const auto& reqTemplates = chosenBlocks.ReqTemplates;
+    const auto& blocks = chosenBlocks.Blocks;
+    const auto& blockIds = chosenBlocks.BlockIds;
     auto totalBlockSize = chosenBlocks.BlockTotalSize;
 
     if (blocks.empty()) {
@@ -180,44 +180,58 @@ void TPeerBlockDistributor::DistributeBlocks()
         return;
     }
 
-    auto destinationNodes = ChooseDestinationNodes();
-
-    if (destinationNodes.empty()) {
-        LOG_INFO("No suitable destination nodes found");
-    }
-
-    LOG_INFO("Ready to distribute blocks (BlockCount: %v, TotalBlockSize: %v, DestinationNodes: %v)",
+    LOG_INFO("Ready to distribute blocks (BlockCount: %v, TotalBlockSize: %v)",
         blocks.size(),
-        totalBlockSize,
-        destinationNodes);
+        totalBlockSize);
 
     auto now = TInstant::Now();
     for (const auto& blockId : blockIds) {
         BlockIdToDistributionEntry_[blockId].LastDistributionTime = now;
     }
 
+    YCHECK(blocks.size() == blockIds.size() && blocks.size() == reqTemplates.size());
+
     const auto& channelFactory = Bootstrap_
         ->GetMasterClient()
         ->GetNativeConnection()
         ->GetChannelFactory();
-    
-    for (const auto& destinationNode : destinationNodes) {
-        const auto& destinationAddress = destinationNode.GetAddress(Bootstrap_->GetLocalNetworks());
-        auto heavyChannel = CreateRetryingChannel(
-            Config_->NodeChannel,
-            channelFactory->CreateChannel(destinationAddress));
-        TDataNodeServiceProxy proxy(std::move(heavyChannel));
-        auto req = proxy.PopulateCache();
-        req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-        req->MergeFrom(reqTemplate);
-        SetRpcAttachedBlocks(req, blocks);
-        req->Invoke().Subscribe(BIND(
-            &TPeerBlockDistributor::OnBlocksDistributed,
-            MakeWeak(this),
-            destinationAddress,
-            destinationNode,
-            blockIds,
-            totalBlockSize));
+
+    for (size_t index = 0; index < blocks.size(); ++index) {
+        // TODO(max42): maybe we should try to avoid the nodes already having our block here
+        // using the information from peer block table.
+        auto destinationNodes = ChooseDestinationNodes();
+        if (destinationNodes.empty()) {
+            LOG_WARNING("No suitable destination nodes found");
+            // We have no chances to succeed with following blocks.
+            break;
+        }
+
+        const auto& block = blocks[index];
+        const auto& blockId = blockIds[index];
+        const auto& reqTemplate = reqTemplates[index];;
+
+        LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
+            blockId,
+            destinationNodes);
+
+        for (const auto& destinationNode : destinationNodes) {
+            const auto& destinationAddress = destinationNode.GetAddress(Bootstrap_->GetLocalNetworks());
+            auto heavyChannel = CreateRetryingChannel(
+                Config_->NodeChannel,
+                channelFactory->CreateChannel(destinationAddress));
+            TDataNodeServiceProxy proxy(std::move(heavyChannel));
+            auto req = proxy.PopulateCache();
+            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+            req->MergeFrom(reqTemplate);
+            SetRpcAttachedBlocks(req, {block});
+            req->Invoke().Subscribe(BIND(
+                &TPeerBlockDistributor::OnBlockDistributed,
+                MakeWeak(this),
+                destinationAddress,
+                destinationNode,
+                blockId,
+                block.Size()));
+        }
     }
 }
 
@@ -270,9 +284,9 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
 
     std::sort(candidates.begin(), candidates.end());
 
-    TReqPopulateCache reqTemplate;
     std::vector<TBlock> blocks;
     std::vector<TBlockId> blockIds;
+    std::vector<TReqPopulateCache> reqTemplates;
     ui64 totalSize = 0;
 
     const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
@@ -313,6 +327,8 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
                 distributionCount,
                 source,
                 blockSize);
+            reqTemplates.emplace_back();
+            auto& reqTemplate = reqTemplates.back();
             auto* protoBlock = reqTemplate.add_blocks();
             ToProto(protoBlock->mutable_block_id(), blockId);
             if (source) {
@@ -324,7 +340,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
         }
     }
 
-    return {std::move(reqTemplate), std::move(blocks), std::move(blockIds), totalSize};
+    return {std::move(reqTemplates), std::move(blocks), std::move(blockIds), totalSize};
 }
 
 std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes() const
@@ -388,27 +404,26 @@ void TPeerBlockDistributor::UpdateTransmittedBytes()
     }
 }
 
-void TPeerBlockDistributor::OnBlocksDistributed(
+void TPeerBlockDistributor::OnBlockDistributed(
     const TString& address,
     const TNodeDescriptor& descriptor,
-    const std::vector<TBlockId>& blockIds,
+    const TBlockId& blockId,
     ui64 size,
     const TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError)
 {
     if (rspOrError.IsOK()) {
         TInstant expirationTime;
         FromProto(&expirationTime, rspOrError.Value()->expiration_time());
-        LOG_DEBUG("Populate cache request succeeded, registering node as a peer for populated blocks "
-            "(Address: %v, ExpirationTime: %v, Size: %v)",
+        LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
+            "(BlockId: %v, Address: %v, ExpirationTime: %v, Size: %v)",
+            blockId,
             address,
             expirationTime,
             size);
         DistributedBytes_ += size;
         TPeerInfo peerInfo(descriptor, expirationTime);
-        for (const auto& blockId : blockIds) {
-            Bootstrap_->GetControlInvoker()->Invoke(
-                BIND(&TPeerBlockTable::UpdatePeer, Bootstrap_->GetPeerBlockTable(), blockId, std::move(peerInfo)));
-        }
+        Bootstrap_->GetControlInvoker()->Invoke(
+            BIND(&TPeerBlockTable::UpdatePeer, Bootstrap_->GetPeerBlockTable(), blockId, std::move(peerInfo)));
     } else {
         LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
             address);
