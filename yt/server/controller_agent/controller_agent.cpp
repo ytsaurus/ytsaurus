@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/event_log/event_log.h>
 
 #include <yt/ytlib/scheduler/controller_agent_tracker_service_proxy.h>
@@ -40,6 +42,7 @@ using namespace NNodeTrackerClient;
 using namespace NEventLog;
 using namespace NProfiling;
 using namespace NYson;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -342,7 +345,7 @@ public:
     {
         PopulateHeartbeatRequest(
             incarnationId,
-            [&] (const auto& request) {
+            [&] (auto* request) {
                 auto* jobToInterrupt = request->add_jobs_to_interrupt();
                 ToProto(jobToInterrupt->mutable_job_id(), jobId);
                 jobToInterrupt->set_reason(static_cast<int>(reason));
@@ -353,7 +356,7 @@ public:
     {
         PopulateHeartbeatRequest(
             incarnationId,
-            [&] (const auto& request) {
+            [&] (auto* request) {
                 auto* jobToAbort = request->add_jobs_to_abort();
                 ToProto(jobToAbort->mutable_job_id(), jobId);
                 ToProto(jobToAbort->mutable_error(), error);
@@ -364,7 +367,7 @@ public:
     {
         PopulateHeartbeatRequest(
             incarnationId,
-            [&] (const auto& request) {
+            [&] (auto* request) {
                 auto* jobToFail = request->add_jobs_to_fail();
                 ToProto(jobToFail->mutable_job_id(), jobId);
             });
@@ -374,7 +377,7 @@ public:
     {
         PopulateHeartbeatRequest(
             incarnationId,
-            [&] (const auto& request) {
+            [&] (auto* request) {
                 for (const auto& jobId : jobIds) {
                     auto* jobToRelease = request->add_jobs_to_release();
                     ToProto(jobToRelease->mutable_job_id(), jobId);
@@ -417,7 +420,9 @@ private:
 
     TSpinLock HeartbeatRequestLock_;
     TIncarnationId HeartbeatIncarnationId_;
-    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr HeartbeatRequest_;
+
+    using TReqHeartbeatPtr = std::unique_ptr<NScheduler::NProto::TReqHeartbeat>;
+    TReqHeartbeatPtr HeartbeatRequest_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -444,7 +449,7 @@ private:
         {
             auto guard = Guard(HeartbeatRequestLock_);
             HeartbeatIncarnationId_ = MasterConnector_->GetIncarnationId();
-            PrepareHeartbeatRequest();
+            ResetHeartbeatRequest();
         }
 
         CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
@@ -486,7 +491,7 @@ private:
         {
             auto guard = Guard(HeartbeatRequestLock_);
             HeartbeatIncarnationId_ = {};
-            HeartbeatRequest_.Reset();
+            HeartbeatRequest_.reset();
         }
     }
 
@@ -513,25 +518,26 @@ private:
             return;
         }
         YCHECK(HeartbeatRequest_);
-        callback(HeartbeatRequest_);
+        callback(HeartbeatRequest_.get());
     }
 
-    void PrepareHeartbeatRequest()
+    void ResetHeartbeatRequest()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         VERIFY_SPINLOCK_AFFINITY(HeartbeatRequestLock_);
 
-        HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
+        HeartbeatRequest_ = std::make_unique<NScheduler::NProto::TReqHeartbeat>();
         ToProto(HeartbeatRequest_->mutable_agent_incarnation_id(), MasterConnector_->GetIncarnationId());
     }
 
-    void SendHeartbeat()
+    TReqHeartbeatPtr PrepareHeartbeatRequest(TCpuInstant now)
     {
-        TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr req;
+        std::unique_ptr<NScheduler::NProto::TReqHeartbeat> req;
         {
             auto guard = Guard(HeartbeatRequestLock_);
-            req = HeartbeatRequest_;
-            PrepareHeartbeatRequest();
+            YCHECK(HeartbeatRequest_);
+            req = std::move(HeartbeatRequest_);
+            ResetHeartbeatRequest();
         }
 
         auto controllers = GetControllers();
@@ -597,7 +603,6 @@ private:
             }
         }
 
-        auto now = GetCpuInstant();
         bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
         req->set_exec_nodes_requested(shouldRequestExecNodes);
 
@@ -611,19 +616,50 @@ private:
             req->set_suspicious_jobs(JoinSeq("", suspiciousJobsYsons));
         }
 
-        auto rspOrError = WaitFor(req->Invoke());
-        if (!rspOrError.IsOK()) {
-            if (rspOrError.FindMatching(NRpc::EErrorCode::Unavailable)) {
-                LOG_DEBUG(rspOrError, "Scheduler is currently unavailable; retrying heartbeat");
-            } else {
-                LOG_WARNING(rspOrError, "Error reporting heratbeat to scheduler; disconnecting");
-                // TODO(ignat): this class is not ready from disconnection inside! Fix it!!!
-                //Disconnect();
-            }
-            return;
-        }
+        return req;
+    }
 
-        const auto& rsp = rspOrError.Value();
+    NLogging::TLogger CreateHeartbeatLogger(
+        const TMutationId& mutationId,
+        const TIncarnationId& agentIncarnationId)
+    {
+        return NLogging::TLogger(Logger)
+            .AddTag("MutationId: %v, AgentIncarnationId: %v",
+                mutationId,
+                agentIncarnationId);
+    }
+
+    void SendHeartbeat()
+    {
+        TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr rsp;
+
+        auto now = GetCpuInstant();
+
+        auto preparedRequest = PrepareHeartbeatRequest(now);
+
+        auto mutationId = GenerateMutationId();
+        auto agentIncarnationId = FromProto<TMutationId>(preparedRequest->agent_incarnation_id());
+
+        auto Logger = CreateHeartbeatLogger(mutationId, agentIncarnationId);
+
+        while (true) {
+            LOG_INFO("Sending heartbeat");
+
+            auto req = SchedulerProxy_.Heartbeat();
+            req->CopyFrom(*preparedRequest);
+            // Option 'retry' is not used in the #ProcessAgentHeartbeat.
+            req->SetMutationId(mutationId);
+
+            auto rspOrError = WaitFor(req->Invoke());
+            if (rspOrError.IsOK()) {
+                rsp = rspOrError.Value();
+                LOG_INFO("Heartbeat succeeded");
+                break;
+            } else {
+                LOG_WARNING(rspOrError, "Heartbeat failed");
+                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
+            }
+        }
 
         if (rsp->has_exec_nodes()) {
             auto execNodeDescriptors = New<TExecNodeDescriptorList>();

@@ -780,6 +780,13 @@ public:
 
         context->SetRequestInfo("AgentIncarnationId: %v", agentIncarnationId);
 
+        // TODO(ignat): add controller agent id to distinguish different controller agents in future.
+        auto mutationId = context->GetMutationId();
+        if (mutationId == LastSeenAgentHeartbeatMutationId_) {
+            context->Reply();
+            return;
+        }
+
         for (const auto& jobMetricsProto : request->job_metrics()) {
             auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
             GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
@@ -873,10 +880,16 @@ public:
 
         SuspiciousJobsYson_ = TYsonString(request->suspicious_jobs(), EYsonType::MapFragment);
 
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
+        auto error = WaitFor(Combine(asyncResults));
+        if (error.IsOK()) {
+            LastSeenAgentHeartbeatMutationId_ = mutationId;
+        } else {
+            LastSeenAgentHeartbeatMutationId_ = TMutationId();
+            // Heartbeat must succeed and not throw.
+            Disconnect();
+        }
 
-        context->Reply();
+        context->Reply(error);
     }
 
     // ISchedulerStrategyHost implementation
@@ -1121,6 +1134,7 @@ private:
 
     // TODO(babenko): multiple incarnations
     NControllerAgent::TIncarnationId AgentIncarnationId_;
+    TMutationId LastSeenAgentHeartbeatMutationId_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1600,6 +1614,8 @@ private:
             }
             IdToOperation_.clear();
         }
+
+        LastSeenAgentHeartbeatMutationId_ = TMutationId();
 
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();

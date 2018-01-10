@@ -51,8 +51,6 @@ message TOperationJobMetrics
 
 message TReqHeartbeat
 {
-    required NYT.NProto.TGuid agent_incarnation_id = 13;
-
     message TJobInterrupt
     {
         required NYT.NProto.TGuid job_id = 1;
@@ -127,6 +125,8 @@ message TReqHeartbeat
     repeated TOperationSuspension suspended_operations = 10;
     repeated TOperationAbort aborted_operations = 11;
     repeated TOperationFailure failed_operations = 12;
+
+    required NYT.NProto.TGuid agent_incarnation_id = 13;
 }
 
 message TRspHeartbeat

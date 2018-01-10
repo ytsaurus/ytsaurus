@@ -571,6 +571,9 @@ public:
     //! Controller agent-to-scheduler heartbeat timeout.
     TDuration ControllerAgentHeartbeatRpcTimeout;
 
+    //! Controller agent-to-scheduler heartbeat failure backoff.
+    TDuration ControllerAgentHeartbeatFailureBackoff;
+
     //! Period between requesting exec nodes from scheduler.
     TDuration ExecNodesRequestPeriod;
 
@@ -807,6 +810,9 @@ public:
 
         RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
             .Default(TDuration::Seconds(10));
+
+        RegisterParameter("controller_agent_heartbeat_failure_backoff", ControllerAgentHeartbeatFailureBackoff)
+            .Default(TDuration::MilliSeconds(100));
 
         RegisterParameter("exec_nodes_request_period", ExecNodesRequestPeriod)
             .Default(TDuration::Seconds(10));
