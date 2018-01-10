@@ -9,6 +9,8 @@
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
+#include <library/threading/blocking_queue/blocking_queue.h>
+
 #include <util/stream/output.h>
 #include <util/generic/buffer.h>
 #include <util/stream/buffer.h>
@@ -40,8 +42,9 @@ public:
         , BufferSize_(bufferSize)
         , ParentTransactionId_(parentId)
         , WriteTransaction_()
-        , Buffer_(BufferSize_ * 2)
-        , BufferOutput_(Buffer_)
+        , FilledBuffers_(2)
+        , EmptyBuffers_(2)
+        , Buffer_(bufferSize * 2)
         , Thread_(TThread::TParams{SendThread, this}.SetName("retryful_writer"))
     {
         Parameters_ = FormIORequestParameters(path, options);
@@ -58,8 +61,10 @@ public:
             WriteTransaction_.ConstructInPlace(auth, parentId);
             auto append = path.Append_.GetOrElse(false);
             auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
-            NDetail::Lock(Auth_, WriteTransaction_.GetRef().GetId(), path.Path_, lockMode, TLockOptions());
+            NDetail::Lock(Auth_, WriteTransaction_->GetId(), path.Path_, lockMode, TLockOptions());
         }
+
+        EmptyBuffers_.Push(TBuffer(bufferSize * 2));
     }
 
     ~TRetryfulWriter() override;
@@ -82,17 +87,14 @@ private:
     TTransactionId ParentTransactionId_;
     TMaybe<TPingableTransaction> WriteTransaction_;
 
+    NThreading::TBlockingQueue<TBuffer> FilledBuffers_;
+    NThreading::TBlockingQueue<TBuffer> EmptyBuffers_;
+
     TBuffer Buffer_;
-    TBufferOutput BufferOutput_;
-    TBuffer SecondaryBuffer_;
 
     TThread Thread_;
     bool Started_ = false;
-    bool Stopped_ = false;
     std::exception_ptr Exception_ = nullptr;
-
-    TAutoEvent HasDataOrStopped_;
-    TAutoEvent CanWrite_;
 
     enum EWriterState {
         Ok,
