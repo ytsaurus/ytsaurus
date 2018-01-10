@@ -97,8 +97,9 @@ DEFINE_ENUM(ETransactionType,
     (Async)
     (Input)
     (Output)
-    (Completion)
-    (DebugOutput)
+    (Debug)
+    (OutputCompletion)
+    (DebugCompletion)
 );
 
 DEFINE_ENUM(EIntermediateChunkUnstageMode,
@@ -431,8 +432,9 @@ protected:
     NApi::ITransactionPtr AsyncSchedulerTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
-    NApi::ITransactionPtr CompletionTransaction;
-    NApi::ITransactionPtr DebugOutputTransaction;
+    NApi::ITransactionPtr DebugTransaction;
+    NApi::ITransactionPtr OutputCompletionTransaction;
+    NApi::ITransactionPtr DebugCompletionTransaction;
     NApi::ITransactionPtr UserTransaction;
 
     bool CommitFinished = false;
@@ -607,8 +609,11 @@ protected:
     void CommitTransactions();
     virtual void CustomCommit();
 
-    void StartCompletionTransaction();
-    void CommitCompletionTransaction();
+    void StartOutputCompletionTransaction();
+    void CommitOutputCompletionTransaction();
+
+    void StartDebugCompletionTransaction();
+    void CommitDebugCompletionTransaction();
 
     void SetPartSize(const TNullable<TOutputTable>& table, size_t partSize);
 

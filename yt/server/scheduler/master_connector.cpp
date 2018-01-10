@@ -797,8 +797,15 @@ private:
                 "async_scheduler_transaction_id",
                 "input_transaction_id",
                 "output_transaction_id",
+
+                // COMPAT(ignat)
                 "completion_transaction_id",
                 "debug_output_transaction_id",
+                // Proper transactions
+                "debug_transaction_id",
+                "output_completion_transaction_id",
+                "debug_completion_transaction_id",
+
                 "spec",
                 "owners",
                 "authenticated_user",
@@ -1160,18 +1167,35 @@ private:
             true,
             "output transaction");
 
-        revivalDescriptor.ControllerTransactions->Completion = attachTransaction(
-            attributes.Get<TTransactionId>("completion_transaction_id", TTransactionId()),
+        revivalDescriptor.ControllerTransactions->OutputCompletion = attachTransaction(
+            attributes.Get<TTransactionId>(
+                "output_completion_transaction_id",
+                attributes.Get<TTransactionId>(
+                    "completion_transaction_id",
+                    NullTransactionId
+                )
+            ),
             true,
-            "completion transaction");
+            "output completion transaction");
 
         // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction
         // this default value can be removed as in other transactions above.
-        revivalDescriptor.ControllerTransactions->DebugOutput = attachTransaction(
-            attributes.Get<TTransactionId>("debug_output_transaction_id", NullTransactionId),
+        revivalDescriptor.ControllerTransactions->Debug = attachTransaction(
+            attributes.Get<TTransactionId>(
+                "debug_transaction_id",
+                attributes.Get<TTransactionId>(
+                    "debug_output_transaction_id",
+                    NullTransactionId
+                )
+            ),
             true,
-            "debug output transaction");
+            "debug transaction");
+
+        revivalDescriptor.ControllerTransactions->DebugCompletion = attachTransaction(
+            attributes.Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
+            true,
+            "debug completion transaction");
 
         TOperationSpecBasePtr spec;
         try {
