@@ -201,6 +201,21 @@ std::vector<TValue*> GetValuesSortedByKey(const yhash_set<TValue*>& entities)
     return values;
 }
 
+template <class TObject, class TValue>
+std::vector<std::pair<TObject*, TValue>> GetPairsSortedByKey(const yhash<TObject*, TValue>& entities)
+{
+    std::vector<std::pair<TObject*, TValue>> pairs;
+    for (auto& pair : entities) {
+        if (IsObjectAlive(pair.first)) {
+            pairs.push_back(pair);
+        }
+    }
+    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return TObjectRefComparer::Compare(lhs.first, rhs.first);
+    });
+    return pairs;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer
