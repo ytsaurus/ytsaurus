@@ -198,7 +198,7 @@ public:
             .Default(15_MB)
             .GreaterThan(0);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (GroupSize > WindowSize) {
                 THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
             }
@@ -292,12 +292,12 @@ public:
         RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
             .Default(10);
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             NodeChannel->RetryBackoffTime = TDuration::Seconds(10);
             NodeChannel->RetryAttempts = 100;
         });
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (SendWindowSize < GroupSize) {
                 THROW_ERROR_EXCEPTION("\"send_window_size\" cannot be less than \"group_size\"");
             }
@@ -537,7 +537,7 @@ public:
             .LessThanOrEqual(1000)
             .Default(512);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (MaxBufferSize < 2 * WindowSize) {
                 THROW_ERROR_EXCEPTION("\"max_buffer_size\" cannot be less than twice \"window_size\"");
             }

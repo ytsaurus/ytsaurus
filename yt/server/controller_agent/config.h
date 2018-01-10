@@ -274,7 +274,7 @@ public:
             .Default(20 * 100000)
             .GreaterThanOrEqual(100000);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (MaxSliceDataWeight < MinSliceDataWeight) {
                 THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
                         << TErrorAttribute("min_slice_data_weight", MinSliceDataWeight)
@@ -331,7 +331,7 @@ public:
         RegisterParameter("job_splitter", JobSplitter)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             DataWeightPerJob = 128_MB;
         });
     }
@@ -388,7 +388,7 @@ public:
         RegisterParameter("job_splitter", JobSplitter)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             DataWeightPerJob = 128_MB;
         });
     }
@@ -1024,7 +1024,7 @@ public:
         RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
             .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             EventLog->MaxRowWeight = 128_MB;
             if (!EventLog->Path) {
                 EventLog->Path = "//sys/scheduler/event_log";

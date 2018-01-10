@@ -127,7 +127,7 @@ public:
         RegisterParameter("medium_name", MediumName)
             .Default(NChunkClient::DefaultStoreMediumName);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (HighWatermark > LowWatermark) {
                 THROW_ERROR_EXCEPTION("\"high_full_watermark\" must be less than or equal to \"low_watermark\"");
             }
@@ -640,7 +640,7 @@ public:
             .LessThanOrEqual(1.0)
             .Default(0.0);
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
 
             BlockCache->CompressedData->Capacity = 1_GB;

@@ -196,7 +196,7 @@ TLockCommand::TLockCommand()
     RegisterParameter("attribute_key", Options.AttributeKey)
         .Optional();
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (Mode != NCypressClient::ELockMode::Shared) {
             if (Options.ChildKey) {
                 THROW_ERROR_EXCEPTION("\"child_key\" can only be specified for shared locks");

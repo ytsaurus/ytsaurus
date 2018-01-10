@@ -145,7 +145,7 @@ public:
         RegisterParameter("skynet_http_port", SkynetHttpPort)
             .Default(10080);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             NNodeTrackerClient::ValidateNodeTags(Tags);
         });
     }
