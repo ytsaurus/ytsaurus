@@ -218,7 +218,7 @@ public:
             .Default(true);
         RegisterParameter("warmup_time", WarmupTime)
             .Default(TDuration::Minutes(6));
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (EnableWarmup && WarmupTime < ExpirationTime) {
                 THROW_ERROR_EXCEPTION("\"warmup_time\" cannot be less than \"expiration_time\"");
             }

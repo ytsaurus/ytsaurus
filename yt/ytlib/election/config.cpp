@@ -58,7 +58,7 @@ TCellConfig::TCellConfig()
     // TODO(babenko): rename to peers?
     RegisterParameter("addresses", Peers);
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         auto type = TypeFromId(CellId);
         if (type != EObjectType::ClusterCell && type != EObjectType::TabletCell) {
             THROW_ERROR_EXCEPTION("Cell id %v has invalid type %Qlv",

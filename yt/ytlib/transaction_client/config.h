@@ -34,7 +34,7 @@ public:
         RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
             .Default(TDuration::Seconds(15));
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (DefaultTransactionTimeout <= DefaultPingPeriod) {
                 THROW_ERROR_EXCEPTION("\"default_transaction_timeout\" must be greater than \"default_ping_period\"");
             }

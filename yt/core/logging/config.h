@@ -23,7 +23,7 @@ public:
         RegisterParameter("file_name", FileName)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (Type == EWriterType::File && FileName.empty()) {
                 THROW_ERROR_EXCEPTION("Missing \"file_name\" attribute for \"file\" writer");
             } else if (Type != EWriterType::File && !FileName.empty()) {
@@ -115,7 +115,7 @@ public:
         RegisterParameter("suppressed_messages", SuppressedMessages)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             for (const auto& rule : Rules) {
                 for (const TString& writer : rule->Writers) {
                     if (WriterConfigs.find(writer) == WriterConfigs.end()) {

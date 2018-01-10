@@ -109,7 +109,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
                 << TErrorAttribute("aggressive_threshold", AggressivePreemptionSatisfactionThreshold)
@@ -245,7 +245,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
         .Default(TDuration::Seconds(1));
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {
             THROW_ERROR_EXCEPTION("Soft limit on concurrent heartbeats must be less than or equal to hard limit on concurrent heartbeats")
                 << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)

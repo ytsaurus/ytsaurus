@@ -119,7 +119,7 @@ public:
         RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
             .Default(true);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {
                 THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
             }
@@ -280,7 +280,7 @@ public:
         RegisterParameter("dynamic_table", DynamicTable)
             .Default(false);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (EnableRangeIndex && !EnableRowIndex) {
                 THROW_ERROR_EXCEPTION("\"enable_range_index\" must be set when \"enable_row_index\" is set");
             }
