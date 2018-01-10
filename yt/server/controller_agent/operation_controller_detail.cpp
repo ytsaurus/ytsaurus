@@ -302,7 +302,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         // NB: Async transaction is not checked.
         checkTransaction(controllerTransactions->Input);
         checkTransaction(controllerTransactions->Output);
-        checkTransaction(controllerTransactions->DebugOutput);
+        checkTransaction(controllerTransactions->Debug);
 
         for (const auto& pair : asyncCheckResults) {
             const auto& transaction = pair.first;
@@ -341,14 +341,15 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
         // NB: Async and Completion transactions are always aborted.
         scheduleAbort(controllerTransactions->Async);
-        scheduleAbort(controllerTransactions->Completion);
+        scheduleAbort(controllerTransactions->OutputCompletion);
+        scheduleAbort(controllerTransactions->DebugCompletion);
 
         if (cleanStart) {
             LOG_INFO("Aborting operation transactions");
             // NB: Don't touch user transaction.
             scheduleAbort(controllerTransactions->Input);
             scheduleAbort(controllerTransactions->Output);
-            scheduleAbort(controllerTransactions->DebugOutput);
+            scheduleAbort(controllerTransactions->Debug);
         } else {
             LOG_INFO("Reusing operation transactions");
 
@@ -359,7 +360,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
                 auto guard = Guard(TransactionsLock_);
                 InputTransaction = controllerTransactions->Input;
                 OutputTransaction = controllerTransactions->Output;
-                DebugOutputTransaction = controllerTransactions->DebugOutput;
+                DebugTransaction = controllerTransactions->Debug;
                 AsyncSchedulerTransaction = asyncSchedulerTransaction;
             }
         }
@@ -581,14 +582,14 @@ void TOperationControllerBase::SafePrepare()
         GetUserObjectBasicAttributes<TOutputTable>(
             Client,
             StderrTable_,
-            DebugOutputTransaction->GetId(),
+            DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
 
         GetUserObjectBasicAttributes<TOutputTable>(
             Client,
             CoreTable_,
-            DebugOutputTransaction->GetId(),
+            DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
 
@@ -798,7 +799,7 @@ void TOperationControllerBase::StartTransactions()
         StartTransaction(ETransactionType::Async, Client),
         StartTransaction(ETransactionType::Input, InputClient, GetInputTransactionParentId()),
         StartTransaction(ETransactionType::Output, OutputClient, GetOutputTransactionParentId()),
-        StartTransaction(ETransactionType::DebugOutput, Client),
+        StartTransaction(ETransactionType::Debug, Client),
     };
 
     auto results = WaitFor(CombineAll(asyncResults))
@@ -809,7 +810,7 @@ void TOperationControllerBase::StartTransactions()
         AsyncSchedulerTransaction = results[0].ValueOrThrow();
         InputTransaction = results[1].ValueOrThrow();
         OutputTransaction = results[2].ValueOrThrow();
-        DebugOutputTransaction = results[3].ValueOrThrow();
+        DebugTransaction = results[3].ValueOrThrow();
     }
 }
 
@@ -1115,10 +1116,10 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
     LOG_INFO("Finished loading snapshot");
 }
 
-void TOperationControllerBase::StartCompletionTransaction()
+void TOperationControllerBase::StartOutputCompletionTransaction()
 {
-    CompletionTransaction = WaitFor(StartTransaction(
-        ETransactionType::Completion,
+    OutputCompletionTransaction = WaitFor(StartTransaction(
+        ETransactionType::OutputCompletion,
         OutputClient,
         OutputTransaction->GetId()))
         .ValueOrThrow();
@@ -1131,13 +1132,13 @@ void TOperationControllerBase::StartCompletionTransaction()
 
         auto path = GetNewOperationPath(OperationId) + "/@completion_transaction_id";
         auto req = TYPathProxy::Set(path);
-        req->set_value(ConvertToYsonString(CompletionTransaction->GetId()).GetData());
+        req->set_value(ConvertToYsonString(OutputCompletionTransaction->GetId()).GetData());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
 }
 
-void TOperationControllerBase::CommitCompletionTransaction()
+void TOperationControllerBase::CommitOutputCompletionTransaction()
 {
     // Set committed flag.
     {
@@ -1147,17 +1148,54 @@ void TOperationControllerBase::CommitCompletionTransaction()
 
         auto path = GetNewOperationPath(OperationId) + "/@committed";
         auto req = TYPathProxy::Set(path);
-        SetTransactionId(req, CompletionTransaction->GetId());
+        SetTransactionId(req, OutputCompletionTransaction->GetId());
         req->set_value(ConvertToYsonString(true).GetData());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
 
-    WaitFor(CompletionTransaction->Commit())
+    WaitFor(OutputCompletionTransaction->Commit())
         .ThrowOnError();
-    CompletionTransaction.Reset();
+    OutputCompletionTransaction.Reset();
 
     CommitFinished = true;
+}
+
+void TOperationControllerBase::StartDebugCompletionTransaction()
+{
+    if (!DebugTransaction) {
+        return;
+    }
+
+    DebugCompletionTransaction = WaitFor(StartTransaction(
+        ETransactionType::DebugCompletion,
+        OutputClient,
+        DebugTransaction->GetId()))
+        .ValueOrThrow();
+
+    // Set transaction id to Cypress.
+    {
+        const auto& client = Host->GetClient();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto path = GetNewOperationPath(OperationId) + "/@debug_completion_transaction_id";
+        auto req = TYPathProxy::Set(path);
+        req->set_value(ConvertToYsonString(DebugCompletionTransaction->GetId()).GetData());
+        WaitFor(proxy.Execute(req))
+            .ThrowOnError();
+    }
+}
+
+void TOperationControllerBase::CommitDebugCompletionTransaction()
+{
+    if (!DebugTransaction) {
+        return;
+    }
+
+    WaitFor(DebugCompletionTransaction->Commit())
+        .ThrowOnError();
+    DebugCompletionTransaction.Reset();
 }
 
 void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitStage desiredStage)
@@ -1178,7 +1216,7 @@ void TOperationControllerBase::SetPartSize(const TNullable<TOutputTable>& table,
 
     auto path = NYPath::ToString(table->Path) + "/@part_size";
     auto req = TYPathProxy::Set(path);
-    SetTransactionId(req, DebugOutputTransaction->GetId());
+    SetTransactionId(req, DebugCompletionTransaction->GetId());
     req->set_value(ConvertToYsonString(partSize).GetData());
     WaitFor(proxy.Execute(req))
         .ThrowOnError();
@@ -1186,7 +1224,8 @@ void TOperationControllerBase::SetPartSize(const TNullable<TOutputTable>& table,
 
 void TOperationControllerBase::SafeCommit()
 {
-    StartCompletionTransaction();
+    StartOutputCompletionTransaction();
+    StartDebugCompletionTransaction();
 
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage1);
     BeginUploadOutputTables(UpdatingTables);
@@ -1211,9 +1250,10 @@ void TOperationControllerBase::SafeCommit()
             const TNullable<TOutputTable>& table,
             size_t partSize)
         {
+            // TODO(ignat): refactor it (avoid copy/paste).
             auto path = NYPath::ToString(table->Path) + "/@part_size";
             auto req = TYPathProxy::Set(path);
-            SetTransactionId(req, DebugOutputTransaction->GetId());
+            SetTransactionId(req, DebugCompletionTransaction->GetId());
             req->set_value(ConvertToYsonString(partSize).GetData());
             batchReq->AddRequest(req);
         };
@@ -1230,7 +1270,8 @@ void TOperationControllerBase::SafeCommit()
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Failed to set part_size attribute");
     }
 
-    CommitCompletionTransaction();
+    CommitOutputCompletionTransaction();
+    CommitDebugCompletionTransaction();
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
     CommitTransactions();
 
@@ -1252,7 +1293,7 @@ void TOperationControllerBase::CommitTransactions()
         std::swap(asyncSchedulerTransaction, AsyncSchedulerTransaction);
         std::swap(inputTransaction, InputTransaction);
         std::swap(outputTransaction, OutputTransaction);
-        std::swap(debugOutputTransaction, DebugOutputTransaction);
+        std::swap(debugOutputTransaction, DebugTransaction);
     }
 
     // TODO(babenko): consider running these commits in parallel
@@ -1277,7 +1318,7 @@ void TOperationControllerBase::TeleportOutputChunks()
         Config,
         OutputClient,
         CancelableInvoker,
-        CompletionTransaction->GetId(),
+        OutputCompletionTransaction->GetId(),
         Logger);
 
     for (auto& table : OutputTables_) {
@@ -2222,7 +2263,7 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
         AsyncSchedulerTransaction,
         InputTransaction,
         OutputTransaction,
-        DebugOutputTransaction
+        DebugTransaction
     };
     transactions.erase(
         std::remove_if(transactions.begin(), transactions.end(), [] (const auto& transaction) { return !transaction; }),
@@ -2243,6 +2284,8 @@ void TOperationControllerBase::DoAbort()
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
         try {
+            StartDebugCompletionTransaction();
+
             if (StderrTable_ && StderrTable_->IsPrepared()) {
                 BeginUploadOutputTables({StderrTable_.GetPtr()});
                 AttachOutputChunks({StderrTable_.GetPtr()});
@@ -2257,20 +2300,22 @@ void TOperationControllerBase::DoAbort()
                 SetPartSize(CoreTable_, GetCoreTableWriterConfig()->MaxPartSize);
             }
 
-            ITransactionPtr debugOutputTransaction;
+            CommitDebugCompletionTransaction();
+
+            ITransactionPtr debugTransaction;
             {
                 auto guard = Guard(TransactionsLock_);
-                std::swap(debugOutputTransaction, DebugOutputTransaction);
+                std::swap(debugTransaction, DebugTransaction);
             }
 
-            if (debugOutputTransaction) {
-                WaitFor(debugOutputTransaction->Commit())
+            if (debugTransaction) {
+                WaitFor(debugTransaction->Commit())
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {
             // Bad luck we can't commit transaction.
             // Such a pity can happen for example if somebody aborted our transaction manually.
-            LOG_ERROR(ex, "Failed to commit debug output transaction");
+            LOG_ERROR(ex, "Failed to commit debug transaction");
         }
     }
 
@@ -5190,14 +5235,18 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
 const TTransactionId& TOperationControllerBase::GetTransactionIdForOutputTable(const TOutputTable& table)
 {
     if (table.OutputType == EOutputTableType::Output) {
-        if (CompletionTransaction) {
-            return CompletionTransaction->GetId();
+        if (OutputCompletionTransaction) {
+            return OutputCompletionTransaction->GetId();
         } else {
             return OutputTransaction->GetId();
         }
     } else {
         YCHECK(table.OutputType == EOutputTableType::Stderr || table.OutputType == EOutputTableType::Core);
-        return DebugOutputTransaction->GetId();
+        if (DebugCompletionTransaction) {
+            return DebugCompletionTransaction->GetId();
+        } else {
+            return DebugTransaction->GetId();
+        }
     }
 }
 
@@ -5597,7 +5646,7 @@ void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluen
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
-        .Item("debug_output_transaction_id").Value(DebugOutputTransaction ? DebugOutputTransaction->GetId() : NullTransactionId)
+        .Item("debug_transaction_id").Value(DebugTransaction ? DebugTransaction->GetId() : NullTransactionId)
         .Item("user_transaction_id").Value(UserTransactionId);
 }
 
@@ -6194,7 +6243,7 @@ void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugOutputTransaction->GetId());
+    ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugTransaction->GetId());
 
     i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * *joblet->UserJobMemoryReserveFactor;
     // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).

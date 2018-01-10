@@ -35,8 +35,9 @@ struct TControllerTransactions
     NApi::ITransactionPtr Async;
     NApi::ITransactionPtr Input;
     NApi::ITransactionPtr Output;
-    NApi::ITransactionPtr Completion;
-    NApi::ITransactionPtr DebugOutput;
+    NApi::ITransactionPtr Debug;
+    NApi::ITransactionPtr OutputCompletion;
+    NApi::ITransactionPtr DebugCompletion;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
