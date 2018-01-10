@@ -407,13 +407,13 @@ TEST_F(TErasureMixture, WriterTest)
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
         auto filename = "part" + ToString(i + 1);
         if (i == 0) {
-            EXPECT_EQ(TString("ab"), TFileInput("part" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ(TString("ab"), TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
         } else if (i == 1) {
-            EXPECT_EQ(TString("Hello world"), TFileInput("part" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ(TString("Hello world"), TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
         } else if (i < 12) {
-            EXPECT_EQ("", TFileInput("part" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ("", TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
         } else {
-            EXPECT_EQ(64, TFileInput("part" + ToString(i + 1)).ReadAll().Size());
+            EXPECT_EQ(64, TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll().Size());
         }
     }
 

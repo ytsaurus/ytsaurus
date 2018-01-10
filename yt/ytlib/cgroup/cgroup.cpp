@@ -40,7 +40,7 @@ namespace {
 TString GetParentFor(const TString& type)
 {
 #ifdef _linux_
-    auto rawData = TFileInput("/proc/self/cgroup").ReadAll();
+    auto rawData = TUnbufferedFileInput("/proc/self/cgroup").ReadAll();
     auto result = ParseProcessCGroups(rawData);
     return result[type];
 #else
@@ -52,7 +52,7 @@ TString GetParentFor(const TString& type)
 
 std::vector<TString> ReadAllValues(const TString& fileName)
 {
-    auto raw = TFileInput(fileName).ReadAll();
+    auto raw = TUnbufferedFileInput(fileName).ReadAll();
     LOG_DEBUG(
         "File %v contains %Qv",
         fileName,
