@@ -700,7 +700,7 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
         LOG_WARNING("Stderr table boundary keys are absent");
         auto* stderrBoundaryKeys = schedulerJobResultExt->mutable_stderr_table_boundary_keys();
         stderrBoundaryKeys->set_sorted(true);
-        stderrBoundaryKeys->set_unique(true);
+        stderrBoundaryKeys->set_unique_keys(true);
     }
 }
 
