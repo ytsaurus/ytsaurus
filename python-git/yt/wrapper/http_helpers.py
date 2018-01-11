@@ -378,47 +378,63 @@ def _get_token_by_ssh_session(client):
 
     return token
 
-def get_token(token=None, client=None):
-    """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
-    if token is None:
-        if not get_config(client)["enable_token"]:
-            return None
-
-        token = get_config(client)["token"]
-        if token is None:
-            token_path = get_config(client=client)["token_path"]
-            if token_path is None:
-                token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
-            if os.path.isfile(token_path):
-                with open(token_path, "r") as token_file:
-                    token = token_file.read().strip()
-                logger.debug("Token got from file %s", token_path)
-        else:
-            logger.debug("Token got from environment variable or config")
-
-    if not token:
-        if get_option("_token_cached", client=client):
-            return get_option("_token", client=client)
-
-        receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"]
-        if receive_token_by_ssh_session:
-            token = _get_token_by_ssh_session(client)
-
-        if token is not None and get_config(client=client)["cache_token"]:
-            set_option("_token", token, client=client)
-            set_option("_token_cached", True, client=client)
-
-    # Empty token considered as missing.
-    if not token:
-        token = None
-
-    # Validate token.
+def validate_token(token, client):
     if token is not None:
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
 
     if token is None and get_config(client)["check_token"]:
         raise YtTokenError("Token must be specified, to disable this check set 'check_token' option to False")
+
+def _get_token_from_config(client):
+    token = get_config(client)["token"]
+    if token is not None:
+        logger.debug("Token got from environment variable or config")
+        return token
+
+def _get_token_from_file(client):
+    token_path = get_config(client=client)["token_path"]
+    if token_path is None:
+        token_path = os.path.join(os.path.expanduser("~"), ".yt", "token")
+    if os.path.isfile(token_path):
+        with open(token_path, "r") as token_file:
+            token = token_file.read().strip()
+        logger.debug("Token got from file %s", token_path)
+        return token
+
+def get_token(token=None, client=None):
+    """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
+    if token is not None:
+        validate_token(token, client)
+        return token
+
+    if not get_config(client)["enable_token"]:
+        return None
+
+    # NB: config has higher priority than cache.
+    if not token:
+        token = _get_token_from_config(client)
+
+    if not token and get_option("_token_cached", client=client):
+        logger.debug("Token got from cache")
+        return get_option("_token", client=client)
+
+    if not token:
+        token = _get_token_from_file(client)
+    if not token:
+        receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"]
+        if receive_token_by_ssh_session:
+            token = _get_token_by_ssh_session(client)
+
+    # Empty token considered as missing.
+    if not token:
+        token = None
+
+    validate_token(token, client)
+
+    if token is not None and get_config(client=client)["cache_token"]:
+        set_option("_token", token, client=client)
+        set_option("_token_cached", True, client=client)
 
     return token
 
