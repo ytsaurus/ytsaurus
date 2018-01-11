@@ -3,10 +3,12 @@
 #include "master_connector.h"
 #include "config.h"
 #include "private.h"
+#include "operation_controller_host.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
 #include <yt/server/scheduler/cache.h>
+#include <yt/server/scheduler/operation.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -203,52 +205,53 @@ public:
             MasterConnector_->UpdateConfig(config);
         }
 
-        for (const auto& pair : GetControllers()) {
-            const auto& controller = pair.second;
+        for (const auto& pair : GetOperations()) {
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
     }
 
 
-    void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller)
+    void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ControllerMap_.emplace(operationId, controller);
+        YCHECK(IdToOperation_.emplace(operationId, operation).second);
     }
 
-    void UnregisterController(const TOperationId& operationId)
+    void UnregisterOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(ControllerMap_.erase(operationId) == 1);
+        YCHECK(IdToOperation_.erase(operationId) == 1);
     }
 
-    IOperationControllerPtr FindController(const TOperationId& operationId)
+    TOperationPtr FindOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto it = ControllerMap_.find(operationId);
-        return it == ControllerMap_.end() ? nullptr : it->second;
+        auto it = IdToOperation_.find(operationId);
+        return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
-    IOperationControllerPtr GetControllerOrThrow(const TOperationId& operationId)
+    TOperationPtr GetOperationOrThrow(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto controller = FindController(operationId);
-        if (!controller) {
+        auto operation = FindOperation(operationId);
+        if (!operation) {
             THROW_ERROR_EXCEPTION("No such operation %v", operationId);
         }
-        return controller;
+        return operation;
     }
 
-    TOperationIdToControllerMap GetControllers()
+    TOperationIdToOperationMap GetOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ControllerMap_;
+        return IdToOperation_;
     }
 
 
@@ -262,13 +265,14 @@ public:
                 request.OperationId,
                 request.JobId);
 
-            auto controller = FindController(request.OperationId);
-            if (!controller) {
+            auto operation = FindOperation(request.OperationId);
+            if (!operation) {
                 asyncJobSpecs.push_back(MakeFuture<TSharedRef>(TError("No such operation %v",
                     request.OperationId)));
                 continue;
             }
 
+            auto controller = operation->GetController();
             auto asyncJobSpec = BIND(&IOperationController::ExtractJobSpec,
                 controller,
                 request.JobId)
@@ -279,23 +283,13 @@ public:
         }
 
         return CombineAll(asyncJobSpecs);
-        //int index = 0;
-        //for (const auto& result : jobSpecs) {
-        //    if (!result.IsOK()) {
-        //        const auto& jobId = jobSpecRequests[index].second;
-        //        LOG_DEBUG(result, "Failed to extract job spec (JobId: %v)", jobId);
-        //    }
-        //    ++index;
-        //}
-        //
-        //return jobSpecs;
     }
 
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto controller = GetControllerOrThrow(operationId);
+        auto controller = GetOperationOrThrow(operationId)->GetController();
         return BIND(&IOperationController::BuildOperationInfo, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
@@ -307,7 +301,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto controller = GetControllerOrThrow(operationId);
+        auto controller = GetOperationOrThrow(operationId)->GetController();
         return BIND(&IOperationController::BuildJobYson, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(jobId, /* outputStatistics */ true);
@@ -408,7 +402,7 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    TOperationIdToControllerMap ControllerMap_;
+    TOperationIdToOperationMap IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
@@ -467,11 +461,11 @@ private:
 
     void DoCleanup()
     {
-        for (const auto& pair : ControllerMap_) {
+        for (const auto& pair : IdToOperation_) {
             const auto& controller = pair.second;
             controller->Cancel();
         }
-        ControllerMap_.clear();
+        IdToOperation_.clear();
 
         if (CancelableContext_) {
             CancelableContext_->Cancel();
@@ -540,12 +534,13 @@ private:
             ResetHeartbeatRequest();
         }
 
-        auto controllers = GetControllers();
-        for (const auto& pair : controllers) {
+        auto operations = GetOperations();
+        for (const auto& pair : operations) {
             const auto& operationId = pair.first;
-            const auto& controller = pair.second;
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
 
-            auto event = controller->PullEvent();
+            auto event = operation->GetHost()->PullEvent();
             switch (event.Tag()) {
                 case TOperationControllerEvent::TagOf<TNullOperationEvent>():
                     break;
@@ -609,8 +604,9 @@ private:
         // TODO(ignat): add some backoff.
         {
             std::vector<TString> suspiciousJobsYsons;
-            for (const auto& pair : controllers) {
-                const auto& controller = pair.second;
+            for (const auto& pair : operations) {
+                const auto& operation = pair.second;
+                auto controller = operation->GetController();
                 suspiciousJobsYsons.push_back(controller->GetSuspiciousJobsYson().GetData());
             }
             req->set_suspicious_jobs(JoinSeq("", suspiciousJobsYsons));
@@ -766,24 +762,24 @@ void TControllerAgent::UpdateConfig(const TControllerAgentConfigPtr& config)
     Impl_->UpdateConfig(config);
 }
 
-void TControllerAgent::RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller)
+void TControllerAgent::RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation)
 {
-    Impl_->RegisterController(operationId, controller);
+    Impl_->RegisterOperation(operationId, operation);
 }
 
-void TControllerAgent::UnregisterController(const TOperationId& operationId)
+void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
 {
-    Impl_->UnregisterController(operationId);
+    Impl_->UnregisterOperation(operationId);
 }
 
-IOperationControllerPtr TControllerAgent::FindController(const TOperationId& operationId)
+TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
 {
-    return Impl_->FindController(operationId);
+    return Impl_->FindOperation(operationId);
 }
 
-TOperationIdToControllerMap TControllerAgent::GetControllers()
+TOperationIdToOperationMap TControllerAgent::GetOperations()
 {
-    return Impl_->GetControllers();
+    return Impl_->GetOperations();
 }
 
 TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(

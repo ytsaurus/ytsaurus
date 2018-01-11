@@ -26,8 +26,6 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NControllerAgent;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationEvent
@@ -75,7 +73,7 @@ struct IOperationStrategyHost
 
     virtual const TOperationId& GetId() const = 0;
 
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
+    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
     virtual NYTree::IMapNodePtr GetSpec() const = 0;
 
@@ -161,7 +159,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
 
     //! Controller that owns the operation.
-    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerSchedulerHostPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
+
+    //! Host for the controller.
+    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::TOperationControllerHostPtr, Host);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
@@ -215,7 +216,7 @@ public:
     //! Adds new sample to controller time statistics.
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
 
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;

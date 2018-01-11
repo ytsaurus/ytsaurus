@@ -97,6 +97,9 @@ using namespace NEventLog;
 
 using NControllerAgent::TControllerTransactionsPtr;
 using NControllerAgent::IOperationControllerSchedulerHost;
+using NControllerAgent::TOperationAlertMap;
+using NControllerAgent::IOperationControllerPtr;
+using NControllerAgent::TOperationControllerHost;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -1865,7 +1868,7 @@ private:
 
             RegisterOperation(operation);
             // TODO(babenko): rework when separating scheduler and agent
-            Bootstrap_->GetControllerAgent()->RegisterController(operation->GetId(), controller);
+            Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation);
 
             registered = true;
 
@@ -1975,6 +1978,7 @@ private:
             operation.Get(),
             MasterConnector_->GetCancelableControlInvoker(),
             Bootstrap_);
+        operation->SetHost(host);
         return CreateControllerForOperation(
             Bootstrap_->GetControllerAgent()->GetConfig(),
             host,
@@ -2025,7 +2029,7 @@ private:
         // NB: Should not throw!
         RegisterOperation(operation);
         // TODO(babenko): rework when separating scheduler and agent
-        Bootstrap_->GetControllerAgent()->RegisterController(operation->GetId(), controller);
+        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation);
     }
 
     void DoReviveOperation(const TOperationPtr& operation)
@@ -2164,14 +2168,13 @@ private:
     {
         YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
         for (const auto& nodeShard : NodeShards_) {
-            BIND(&TNodeShard::UnregisterOperation, nodeShard, operation->GetId())
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run();
+            nodeShard->GetInvoker()->Invoke(
+                BIND(&TNodeShard::UnregisterOperation, nodeShard, operation->GetId()));
         }
 
         Strategy_->UnregisterOperation(operation.Get());
 
-        Bootstrap_->GetControllerAgent()->UnregisterController(operation->GetId());
+        Bootstrap_->GetControllerAgent()->UnregisterOperation(operation->GetId());
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)",
             operation->GetId());

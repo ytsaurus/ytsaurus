@@ -732,7 +732,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
 
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
-    const NScheduler::TSimpleOperationOptionsPtr& options,
+    const TSimpleOperationOptionsPtr& options,
     i64 inputDataWeight,
     double dataWeightRatio,
     double compressionRatio)

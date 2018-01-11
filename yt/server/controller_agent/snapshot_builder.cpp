@@ -6,6 +6,7 @@
 #include "config.h"
 
 #include <yt/server/scheduler/scheduler.h>
+#include <yt/server/scheduler/operation.h>
 
 #include <yt/ytlib/api/file_writer.h>
 #include <yt/ytlib/api/transaction.h>
@@ -56,11 +57,11 @@ struct TBuildSnapshotJob
 
 TSnapshotBuilder::TSnapshotBuilder(
     TControllerAgentConfigPtr config,
-    TOperationIdToControllerMap controllers,
+    TOperationIdToOperationMap operations,
     IClientPtr client,
     IInvokerPtr ioInvoker)
     : Config_(config)
-    , Controllers_(std::move(controllers))
+    , Operations_(std::move(operations))
     , Client_(client)
     , IOInvoker_(ioInvoker)
     , ControlInvoker_(GetCurrentInvoker())
@@ -85,9 +86,10 @@ TFuture<void> TSnapshotBuilder::Run()
     std::vector<TFuture<TSnapshotCookie>> onSnapshotStartedFutures;
 
     // Capture everything needed.
-    for (const auto& pair : Controllers_) {
+    for (const auto& pair : Operations_) {
         const auto& operationId = pair.first;
-        const auto& controller = pair.second;
+        const auto& operation = pair.second;
+        auto controller = operation->GetController();
 
         if (!controller->IsRunning()) {
             continue;

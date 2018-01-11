@@ -94,10 +94,10 @@ public:
      */
     const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
 
-    void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller);
-    void UnregisterController(const TOperationId& operationId);
-    IOperationControllerPtr FindController(const TOperationId& operationId);
-    TOperationIdToControllerMap GetControllers();
+    void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation);
+    void UnregisterOperation(const TOperationId& operationId);
+    TOperationPtr FindOperation(const TOperationId& operationId);
+    TOperationIdToOperationMap GetOperations();
 
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);

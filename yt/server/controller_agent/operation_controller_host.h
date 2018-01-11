@@ -4,8 +4,41 @@
 
 #include <yt/server/cell_scheduler/public.h>
 
+#include <yt/core/misc/variant.h>
+
 namespace NYT {
 namespace NControllerAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNullOperationEvent
+{ };
+
+struct TOperationCompletedEvent
+{ };
+
+struct TOperationAbortedEvent
+{
+    TError Error;
+};
+
+struct TOperationFailedEvent
+{
+    TError Error;
+};
+
+struct TOperationSuspendedEvent
+{
+    TError Error;
+};
+
+using TOperationControllerEvent = TVariant<
+    TNullOperationEvent,
+    TOperationCompletedEvent,
+    TOperationAbortedEvent,
+    TOperationFailedEvent,
+    TOperationSuspendedEvent
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,12 +86,27 @@ public:
 
     virtual TFuture<void> GetHeartbeatSentFuture() override;
 
+    virtual void OnOperationCompleted() override;
+    virtual void OnOperationAborted(const TError& error) override;
+    virtual void OnOperationFailed(const TError& error) override;
+    virtual void OnOperationSuspended(const TError& error) override;
+
+    TOperationControllerEvent PullEvent();
+
 private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;
     NCellScheduler::TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
+
+    TSpinLock EventsLock_;
+    TError SuspensionError_;
+    TError AbortError_;
+    TError FailureError_;
+    bool Completed_ = false;
 };
+
+DEFINE_REFCOUNTED_TYPE(TOperationControllerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 

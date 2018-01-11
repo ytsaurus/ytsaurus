@@ -11,6 +11,8 @@ namespace NYT {
 namespace NScheduler {
 namespace {
 
+using namespace NControllerAgent;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulerStrategyHostMock
