@@ -272,17 +272,23 @@ private:
 
             const auto& rsp = rspOrError.Value();
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-            FromProto(&MD5Hasher_, rsp->md5_hasher());
+
+            if (Options_.ComputeMD5) {
+                if (Options_.Append) {
+                    FromProto(&MD5Hasher_, rsp->md5_hasher());
+                    if (!MD5Hasher_) {
+                        THROW_ERROR_EXCEPTION(
+                            "Non-empty file %v has no computed MD5 hash thus "
+                            "cannot append data and update the hash simultaneously",
+                            Path_);
+                    }
+                } else {
+                    MD5Hasher_ = TMD5Hasher();
+                }
+            }
 
             LOG_INFO("File upload parameters received (ChunkListId: %v)",
                 chunkListId);
-
-            if (Options_.Append && Options_.ComputeMD5 && !MD5Hasher_) {
-                THROW_ERROR_EXCEPTION(
-                    "Non-empty file %v has no computed MD5 hash thus "
-                    "cannot append data and update the hash simultaneously",
-                    Path_);
-            }
         }
 
         Writer_ = CreateFileMultiChunkWriter(
