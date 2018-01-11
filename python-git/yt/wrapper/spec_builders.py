@@ -761,7 +761,7 @@ class SpecBuilder(object):
             spec = self._build_job_io(spec, job_io_type=job_io_type, client=client)
 
         started_by = get_started_by()
-        spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
+        spec = update(get_config(client)["spec_defaults"], spec)
         spec = update({"started_by": started_by}, spec)
         if get_config(client)["pool"] is not None:
             spec = update({"pool": get_config(client)["pool"]}, spec)
