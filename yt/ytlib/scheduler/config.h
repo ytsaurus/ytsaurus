@@ -333,6 +333,8 @@ class TUserJobSpec
 public:
     TString Command;
 
+    TString TaskTitle;
+
     std::vector<NYPath::TRichYPath> FilePaths;
     std::vector<NYPath::TRichYPath> LayerPaths;
 

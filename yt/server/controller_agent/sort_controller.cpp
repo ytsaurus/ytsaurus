@@ -2945,47 +2945,16 @@ private:
         return Spec->CoreTableWriterConfig;
     }
 
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
-        // Combine mapper and reducer files into a single collection.
-        std::vector<TPathWithStage> result;
+        std::vector<TUserJobSpecPtr> result = {Spec->Reducer};
         if (Spec->Mapper) {
-            for (const auto& path : Spec->Mapper->FilePaths) {
-                result.push_back(std::make_pair(path, EOperationStage::Map));
-            }
+            result.emplace_back(Spec->Mapper);
         }
-
         if (Spec->ReduceCombiner) {
-            for (const auto& path : Spec->ReduceCombiner->FilePaths) {
-                result.push_back(std::make_pair(path, EOperationStage::ReduceCombiner));
-            }
+            result.emplace_back(Spec->ReduceCombiner);
         }
 
-        for (const auto& path : Spec->Reducer->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Reduce));
-        }
-        return result;
-    }
-
-    virtual std::vector<TPathWithStage> GetLayerPaths() const override
-    {
-        // Combine mapper and reducer files into a single collection.
-        std::vector<TPathWithStage> result;
-        if (Spec->Mapper) {
-            for (const auto& path : Spec->Mapper->LayerPaths) {
-                result.push_back(std::make_pair(path, EOperationStage::Map));
-            }
-        }
-
-        if (Spec->ReduceCombiner) {
-            for (const auto& path : Spec->ReduceCombiner->LayerPaths) {
-                result.push_back(std::make_pair(path, EOperationStage::ReduceCombiner));
-            }
-        }
-
-        for (const auto& path : Spec->Reducer->LayerPaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Reduce));
-        }
         return result;
     }
 
@@ -2996,24 +2965,9 @@ private:
         if (TotalEstimatedInputDataWeight == 0)
             return;
 
-        for (const auto& file : Files) {
-            switch (file.Stage) {
-                case EOperationStage::Map:
-                    MapperFiles.push_back(file);
-                    break;
-
-                case EOperationStage::ReduceCombiner:
-                    ReduceCombinerFiles.push_back(file);
-                    break;
-
-                case EOperationStage::Reduce:
-                    ReducerFiles.push_back(file);
-                    break;
-
-                default:
-                    Y_UNREACHABLE();
-            }
-        }
+        MapperFiles = UserJobFiles_[Spec->Mapper];
+        ReduceCombinerFiles = UserJobFiles_[Spec->ReduceCombiner];
+        ReducerFiles = UserJobFiles_[Spec->Reducer];
 
         InitJobIOConfigs();
         InitEdgeDescriptors();

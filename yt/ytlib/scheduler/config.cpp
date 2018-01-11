@@ -211,6 +211,8 @@ TUserJobSpec::TUserJobSpec()
 {
     RegisterParameter("command", Command)
         .NonEmpty();
+    RegisterParameter("task_title", TaskTitle)
+        .Default();
     RegisterParameter("file_paths", FilePaths)
         .Default();
     RegisterParameter("layer_paths", LayerPaths)
@@ -395,6 +397,7 @@ TMapOperationSpec::TMapOperationSpec()
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
         Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+        Mapper->TaskTitle = "Mapper";
     });
 }
 
@@ -468,6 +471,7 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
         Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+        Reducer->TaskTitle = "Reducer";
     });
 }
 
@@ -734,7 +738,12 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
 
         if (Mapper) {
             Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
+            Mapper->TaskTitle = "Mapper";
         }
+        if (ReduceCombiner) {
+            ReduceCombiner->TaskTitle = "Reduce combiner";
+        }
+        Reducer->TaskTitle = "Reducer";
         // NB(psushin): don't init input table index for reduce jobs,
         // they cannot have table index.
     });

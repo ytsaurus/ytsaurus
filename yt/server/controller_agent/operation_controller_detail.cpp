@@ -70,6 +70,8 @@
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/core/logging/log.h>
+
 #include <functional>
 
 namespace NYT {
@@ -99,6 +101,7 @@ using namespace NQueryClient;
 using namespace NProfiling;
 using namespace NScheduler;
 using namespace NEventLog;
+using namespace NLogging;
 
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
@@ -156,28 +159,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserFile::Persist(const TPersistenceContext& context)
-{
-    TUserObject::Persist(context);
-
-    using NYT::Persist;
-    Persist<TAttributeDictionaryRefSerializer>(context, Attributes);
-    Persist(context, Stage);
-    Persist(context, FileName);
-    Persist(context, ChunkSpecs);
-    Persist(context, ChunkCount);
-    Persist(context, Type);
-    Persist(context, Executable);
-    Persist(context, Format);
-    Persist(context, Schema);
-    Persist(context, IsDynamic);
-    if (context.GetVersion() >= 202000) {
-        Persist(context, IsLayer);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TOperationControllerBase::TStripeDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -214,7 +195,8 @@ TOperationControllerBase::TOperationControllerBase(
     , AuthenticatedMasterClient(CreateClient())
     , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
-    , Logger(OperationLogger)
+    , Logger(TLogger(OperationLogger)
+        .AddTag("OperationId: %v", OperationId))
     , CancelableContext(New<TCancelableContext>())
     , Invoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
@@ -491,30 +473,24 @@ void TOperationControllerBase::InitializeStructures()
 
     InitUpdatingTables();
 
-    for (const auto& pair : GetFilePaths()) {
-        TUserFile file;
-        file.Path = pair.first;
-        file.Stage = pair.second;
-        Files.push_back(file);
-    }
-
-    yhash_set<EOperationStage> layeredStages;
-    for (const auto& pair : GetLayerPaths()) {
-        TUserFile file;
-        file.Path = pair.first;
-        file.Stage = pair.second;
-        layeredStages.insert(file.Stage);
-        file.IsLayer = true;
-        Files.push_back(file);
-    }
-
-    if (Config->SystemLayerPath) {
-        for (auto stage : layeredStages) {
+    for (const auto& userJobSpec : GetUserJobSpecs()) {
+        auto& files = UserJobFiles_[userJobSpec];
+        for (const auto& path : userJobSpec->FilePaths) {
             TUserFile file;
-            file.Path = *Config->SystemLayerPath;
-            file.Stage = stage;
+            file.Path = path;
+            file.IsLayer = false;
+            files.emplace_back(std::move(file));
+        }
+
+        auto layerPaths = userJobSpec->LayerPaths;
+        if (Config->SystemLayerPath && !layerPaths.empty()) {
+            layerPaths.emplace_back(*Config->SystemLayerPath);
+        }
+        for (const auto& path : layerPaths) {
+            TUserFile file;
+            file.Path = path;
             file.IsLayer = true;
-            Files.push_back(file);
+            files.emplace_back(std::move(file));
         }
     }
 
@@ -4193,9 +4169,11 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
     }
 }
 
-void TOperationControllerBase::FetchUserFiles()
+void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files)
 {
-    for (auto& file : Files) {
+    auto Logger = TLogger(this->Logger)
+        .AddTag("TaskTitle: %v", userJobSpec->TaskTitle);
+    for (auto& file : files) {
         auto objectIdPath = FromObjectId(file.ObjectId);
         const auto& path = file.Path.GetPath();
 
@@ -4272,6 +4250,21 @@ void TOperationControllerBase::FetchUserFiles()
     }
 }
 
+void TOperationControllerBase::FetchUserFiles()
+{
+    for (auto& pair : UserJobFiles_) {
+        const auto& userJobSpec = pair.first;
+        auto& files = pair.second;
+        try {
+            DoFetchUserFiles(userJobSpec, files);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error fetching user files")
+                << TErrorAttribute("task_title", userJobSpec->TaskTitle)
+                << ex;
+        }
+    }
+}
+
 void TOperationControllerBase::LockUserFiles()
 {
     LOG_INFO("Locking user files");
@@ -4280,25 +4273,37 @@ void TOperationControllerBase::LockUserFiles()
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& file : Files) {
-        auto req = TCypressYPathProxy::Lock(file.Path.GetPath());
-        req->set_mode(static_cast<int>(ELockMode::Snapshot));
-        GenerateMutationId(req);
-        SetTransactionId(req, InputTransaction->GetId());
-        batchReq->AddRequest(req);
+    for (const auto& files : GetValues(UserJobFiles_)) {
+        for (const auto& file : files) {
+            auto req = TCypressYPathProxy::Lock(file.Path.GetPath());
+            req->set_mode(static_cast<int>(ELockMode::Snapshot));
+            GenerateMutationId(req);
+            SetTransactionId(req, InputTransaction->GetId());
+            batchReq->AddRequest(req);
+        }
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking user files");
 
     const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
-    for (int index = 0; index < Files.size(); ++index) {
-        auto& file = Files[index];
-        const auto& path = file.Path.GetPath();
-        const auto& rspOrError = batchRsp[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %Qv", path);
-        const auto& rsp = rspOrError.Value();
-        file.ObjectId = FromProto<TObjectId>(rsp->node_id());
+    int index = 0;
+    for (auto& pair : UserJobFiles_) {
+        const auto& userJobSpec = pair.first;
+        auto& files = pair.second;
+        try {
+            for (auto& file : files) {
+                const auto& path = file.Path.GetPath();
+                const auto& rspOrError = batchRsp[index++];
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %Qv", path);
+                const auto& rsp = rspOrError.Value();
+                file.ObjectId = FromProto<TObjectId>(rsp->node_id());
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error locking user files")
+                 << TErrorAttribute("task_title", userJobSpec->TaskTitle)
+                 << ex;
+        }
     }
 }
 
@@ -4306,35 +4311,41 @@ void TOperationControllerBase::GetUserFilesAttributes()
 {
     LOG_INFO("Getting user files attributes");
 
-    GetUserObjectBasicAttributes<TUserFile>(
-        AuthenticatedMasterClient,
-        Files,
-        InputTransaction->GetId(),
-        Logger,
-        EPermission::Read);
+    for (auto& pair : UserJobFiles_) {
+        const auto& userJobSpec = pair.first;
+        auto& files = pair.second;
+        GetUserObjectBasicAttributes<TUserFile>(
+            AuthenticatedMasterClient,
+            files,
+            InputTransaction->GetId(),
+            TLogger(Logger).AddTag("TaskTitle: %v", userJobSpec->TaskTitle),
+            EPermission::Read);
+    }
 
-    for (const auto& file : Files) {
-        const auto& path = file.Path.GetPath();
-        if (!file.IsLayer && file.Type != EObjectType::Table && file.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("User file %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                EObjectType::File,
-                file.Type);
-        } else if (file.IsLayer && file.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv , actual %Qlv",
-                path,
-                EObjectType::File,
-                file.Type);
+    for (const auto& files : GetValues(UserJobFiles_)) {
+        for (const auto& file : files) {
+            const auto& path = file.Path.GetPath();
+            if (!file.IsLayer && file.Type != EObjectType::Table && file.Type != EObjectType::File) {
+                THROW_ERROR_EXCEPTION("User file %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
+                    path,
+                    EObjectType::Table,
+                    EObjectType::File,
+                    file.Type);
+            } else if (file.IsLayer && file.Type != EObjectType::File) {
+                THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv , actual %Qlv",
+                    path,
+                    EObjectType::File,
+                    file.Type);
+            }
         }
     }
 
-    {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-        TObjectServiceProxy proxy(channel);
-        auto batchReq = proxy.ExecuteBatch();
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+    TObjectServiceProxy proxy(channel);
+    auto batchReq = proxy.ExecuteBatch();
 
-        for (const auto& file : Files) {
+    for (const auto& files : GetValues(UserJobFiles_)) {
+        for (const auto& file : files) {
             auto objectIdPath = FromObjectId(file.ObjectId);
             {
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
@@ -4374,125 +4385,130 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 batchReq->AddRequest(req, "get_link_attributes");
             }
         }
+    }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting attributes of user files");
-        const auto& batchRsp = batchRspOrError.Value();
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting attributes of user files");
+    const auto& batchRsp = batchRspOrError.Value();
 
-        TEnumIndexedVector<yhash_set<TString>, EOperationStage> userFileNames;
-        auto validateUserFileName = [&] (const TUserFile& file) {
-            // TODO(babenko): more sanity checks?
-            auto path = file.Path.GetPath();
-            const auto& fileName = file.FileName;
-            if (fileName.empty()) {
-                THROW_ERROR_EXCEPTION("Empty user file name for %v",
-                    path);
-            }
+    auto getAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_attributes");
+    auto getLinkAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_link_attributes");
 
-            if (!NFS::GetRealPath(NFS::CombinePaths("sandbox", fileName)).StartsWith(NFS::GetRealPath("sandbox"))) {
-                THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
-                    << TErrorAttribute("file_name", fileName);
-            }
+    int index = 0;
+    for (auto& pair : UserJobFiles_) {
+        const auto& userJobSpec = pair.first;
+        auto& files = pair.second;
+        yhash_set<TString> userFileNames;
+        try {
+            for (auto& file : files) {
+                const auto& path = file.Path.GetPath();
 
+                {
+                    const auto& rspOrError = getAttributesRspsOrError[index];
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file %Qv", path);
+                    const auto& rsp = rspOrError.Value();
+                    const auto& linkRsp = getLinkAttributesRspsOrError[index];
+                    index++;
 
-            if (!userFileNames[file.Stage].insert(fileName).second) {
-                THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
-                    fileName,
-                    path);
-            }
-        };
+                    file.Attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                    const auto& attributes = *file.Attributes;
 
-        auto getAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_attributes");
-        auto getLinkAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_link_attributes");
-        for (int index = 0; index < Files.size(); ++index) {
-            auto& file = Files[index];
-            const auto& path = file.Path.GetPath();
-
-            {
-                const auto& rspOrError = getAttributesRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file %Qv", path);
-                const auto& rsp = rspOrError.Value();
-                const auto& linkRsp = getLinkAttributesRspsOrError[index];
-
-                file.Attributes = ConvertToAttributes(TYsonString(rsp->value()));
-                const auto& attributes = *file.Attributes;
-
-                try {
-                    if (linkRsp.IsOK()) {
-                        auto linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
-                        file.FileName = linkAttributes->Get<TString>("key");
-                        file.FileName = linkAttributes->Find<TString>("file_name").Get(file.FileName);
-                    } else {
-                        file.FileName = attributes.Get<TString>("key");
-                        file.FileName = attributes.Find<TString>("file_name").Get(file.FileName);
+                    try {
+                        if (linkRsp.IsOK()) {
+                            auto linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
+                            file.FileName = linkAttributes->Get<TString>("key");
+                            file.FileName = linkAttributes->Find<TString>("file_name").Get(file.FileName);
+                        } else {
+                            file.FileName = attributes.Get<TString>("key");
+                            file.FileName = attributes.Find<TString>("file_name").Get(file.FileName);
+                        }
+                        file.FileName = file.Path.GetFileName().Get(file.FileName);
+                    } catch (const std::exception& ex) {
+                        // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
+                        THROW_ERROR_EXCEPTION("Error parsing attributes of user file %v",
+                            path) << ex;
                     }
-                    file.FileName = file.Path.GetFileName().Get(file.FileName);
-                } catch (const std::exception& ex) {
-                    // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
-                    THROW_ERROR_EXCEPTION("Error parsing attributes of user file %v",
-                        path) << ex;
-                }
 
-                switch (file.Type) {
-                    case EObjectType::File:
-                        file.Executable = attributes.Get<bool>("executable", false);
-                        file.Executable = file.Path.GetExecutable().Get(file.Executable);
-                        break;
+                    switch (file.Type) {
+                        case EObjectType::File:
+                            file.Executable = attributes.Get<bool>("executable", false);
+                            file.Executable = file.Path.GetExecutable().Get(file.Executable);
+                            break;
 
-                    case EObjectType::Table:
-                        file.IsDynamic = attributes.Get<bool>("dynamic");
-                        file.Schema = attributes.Get<TTableSchema>("schema");
-                        file.Format = attributes.FindYson("format");
-                        if (!file.Format) {
-                            file.Format = file.Path.GetFormat();
-                        }
-                        // Validate that format is correct.
-                        try {
+                        case EObjectType::Table:
+                            file.IsDynamic = attributes.Get<bool>("dynamic");
+                            file.Schema = attributes.Get<TTableSchema>("schema");
+                            file.Format = attributes.FindYson("format");
                             if (!file.Format) {
-                                THROW_ERROR_EXCEPTION("Format is missing");
+                                file.Format = file.Path.GetFormat();
                             }
-                            ConvertTo<TFormat>(file.Format);
-                        } catch (const std::exception& ex) {
-                            THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
-                                file.Path) << ex;
-                        }
-                        // Validate that timestamp is correct.
-                        ValidateDynamicTableTimestamp(file.Path, file.IsDynamic, file.Schema, attributes);
+                            // Validate that format is correct.
+                            try {
+                                if (!file.Format) {
+                                    THROW_ERROR_EXCEPTION("Format is missing");
+                                }
+                                ConvertTo<TFormat>(file.Format);
+                            } catch (const std::exception& ex) {
+                                THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
+                                    file.Path) << ex;
+                            }
+                            // Validate that timestamp is correct.
+                            ValidateDynamicTableTimestamp(file.Path, file.IsDynamic, file.Schema, attributes);
 
-                        break;
+                            break;
 
-                    default:
-                        Y_UNREACHABLE();
-                }
+                        default:
+                            Y_UNREACHABLE();
+                    }
 
-                i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
-                if (fileSize > Config->MaxFileSize) {
-                    THROW_ERROR_EXCEPTION(
-                        "User file %v exceeds size limit: %v > %v",
+                    i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
+                    if (fileSize > Config->MaxFileSize) {
+                        THROW_ERROR_EXCEPTION(
+                            "User file %v exceeds size limit: %v > %v",
+                            path,
+                            fileSize,
+                            Config->MaxFileSize);
+                    }
+
+                    i64 chunkCount = attributes.Get<i64>("chunk_count");
+                    if (chunkCount > Config->MaxChunksPerFetch) {
+                        THROW_ERROR_EXCEPTION(
+                            "User file %v exceeds chunk count limit: %v > %v",
+                            path,
+                            chunkCount,
+                            Config->MaxChunksPerFetch);
+                    }
+                    file.ChunkCount = chunkCount;
+
+                    LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v)",
                         path,
-                        fileSize,
-                        Config->MaxFileSize);
+                        userJobSpec->TaskTitle,
+                        file.FileName);
                 }
 
-                i64 chunkCount = attributes.Get<i64>("chunk_count");
-                if (chunkCount > Config->MaxChunksPerFetch) {
-                    THROW_ERROR_EXCEPTION(
-                        "User file %v exceeds chunk count limit: %v > %v",
-                        path,
-                        chunkCount,
-                        Config->MaxChunksPerFetch);
+                if (!file.IsLayer) {
+                    // TODO(babenko): more sanity checks?
+                    auto path = file.Path.GetPath();
+                    const auto& fileName = file.FileName;
+
+                    if (fileName.empty()) {
+                        THROW_ERROR_EXCEPTION("Empty user file name for %v", path);
+                    }
+
+                    if (!NFS::GetRealPath(NFS::CombinePaths("sandbox", fileName)).StartsWith(NFS::GetRealPath("sandbox"))) {
+                        THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
+                            << TErrorAttribute("file_name", fileName);
+                    }
+
+                    if (!userFileNames.insert(fileName).second) {
+                        THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v", fileName, path);
+                    }
                 }
-                file.ChunkCount = chunkCount;
-
-                LOG_INFO("User file locked (Path: %v, Stage: %v, FileName: %v)",
-                    path,
-                    file.Stage,
-                    file.FileName);
             }
-
-            if (!file.IsLayer) {
-                validateUserFileName(file);
-            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error getting user file attributes")
+                << TErrorAttribute("task_title", userJobSpec->TaskTitle)
+                << ex;
         }
     }
 }
@@ -5461,7 +5477,7 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelt
 
     return result;
 }
-    
+
 void TOperationControllerBase::SetPoolTreeSchedulingTagFilters(const std::vector<NScheduler::TSchedulingTagFilter>& filters)
 {
     PoolTreeSchedulingTagFilters_ = filters;
@@ -6092,16 +6108,6 @@ const TNodeDirectoryPtr& TOperationControllerBase::InputNodeDirectory() const
     return InputNodeDirectory_;
 }
 
-std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
-{
-    return std::vector<TPathWithStage>();
-}
-
-std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetLayerPaths() const
-{
-    return std::vector<TPathWithStage>();
-}
-
 bool TOperationControllerBase::IsRowCountPreserved() const
 {
     return false;
@@ -6205,43 +6211,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
-    for (const auto& file : files) {
-        auto* descriptor = file.IsLayer
-            ? jobSpec->add_layers()
-            : jobSpec->add_files();
-
-        ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
-
-        if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
-            auto dataSource = MakeVersionedDataSource(
-                file.GetPath(),
-                file.Schema,
-                file.Path.GetColumns(),
-                file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
-
-            ToProto(descriptor->mutable_data_source(), dataSource);
-        } else {
-            auto dataSource = file.Type == EObjectType::File
-                    ? MakeFileDataSource(file.GetPath())
-                    : MakeUnversionedDataSource(file.GetPath(), file.Schema, file.Path.GetColumns());
-
-            ToProto(descriptor->mutable_data_source(), dataSource);
-        }
-
-        if (!file.IsLayer) {
-            descriptor->set_file_name(file.FileName);
-            switch (file.Type) {
-                case EObjectType::File:
-                    descriptor->set_executable(file.Executable);
-                    break;
-                case EObjectType::Table:
-                    descriptor->set_format(file.Format.GetData());
-                    break;
-                default:
-                    Y_UNREACHABLE();
-            }
-        }
-    }
+    BuildFileSpecs(jobSpec, files);
 }
 
 void TOperationControllerBase::InitUserJobSpec(
@@ -6690,7 +6660,13 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrTable_);
     Persist(context, CoreTable_);
     Persist(context, IntermediateTable);
-    Persist(context, Files);
+    Persist<
+        TMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, UserJobFiles_);
     Persist(context, Tasks);
     Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
@@ -6795,6 +6771,11 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);
+}
+
+std::vector<TUserJobSpecPtr> TOperationControllerBase::GetUserJobSpecs() const
+{
+    return {};
 }
 
 EIntermediateChunkUnstageMode TOperationControllerBase::GetIntermediateChunkUnstageMode() const

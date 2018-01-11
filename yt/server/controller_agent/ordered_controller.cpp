@@ -767,7 +767,7 @@ private:
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec_->Mapper,
-            Files,
+            UserJobFiles_[Spec_->Mapper],
             Spec_->JobNodeAccount);
     }
 
@@ -813,22 +813,9 @@ private:
         return {EJobType::OrderedMap};
     }
 
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec_->Mapper->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
-    }
-
-    virtual std::vector<TPathWithStage> GetLayerPaths() const override
-    {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec_->Mapper->LayerPaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
+        return {Spec_->Mapper};
     }
 
     virtual void DoInitialize() override

@@ -69,14 +69,6 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes which part of the operation needs a particular file.
-DEFINE_ENUM(EOperationStage,
-    (None)
-    (Map)
-    (ReduceCombiner)
-    (Reduce)
-);
-
 DEFINE_ENUM(EInputChunkState,
     (Active)
     (Skipped)
@@ -467,24 +459,7 @@ protected:
 
     TIntermediateTable IntermediateTable;
 
-    struct TUserFile
-        : public TLockedUserObject
-    {
-        std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
-        EOperationStage Stage = EOperationStage::None;
-        TString FileName;
-        std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
-        i64 ChunkCount = -1;
-        bool Executable = false;
-        NYson::TYsonString Format;
-        NTableClient::TTableSchema Schema;
-        bool IsDynamic = false;
-        bool IsLayer = false;
-
-        void Persist(const TPersistenceContext& context);
-    };
-
-    std::vector<TUserFile> Files;
+    yhash<TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
 
     struct TInputQuery
     {
@@ -595,6 +570,7 @@ protected:
     virtual void PrepareOutputTables();
     void LockOutputTablesAndGetAttributes();
     void FetchUserFiles();
+    void DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void LockUserFiles();
     void GetUserFilesAttributes();
     void CreateLivePreviewTables();
@@ -658,6 +634,9 @@ protected:
     //! Called in jobs duration analyzer to get interesting for analysis jobs set.
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const = 0;
 
+    //! Is called by controller on stage of structure initialization.
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const;
+
     //! What to do with intermediate chunks that are not useful any more.
     virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const;
 
@@ -669,14 +648,6 @@ protected:
 
     //! Is called by controller when chunks are passed to master connector for unstaging.
     virtual void OnChunksReleased(int chunkCount);
-
-    typedef std::pair<NYPath::TRichYPath, EOperationStage> TPathWithStage;
-
-    //! Called to extract file paths from the spec.
-    virtual std::vector<TPathWithStage> GetFilePaths() const;
-
-    //! Called to extract layer paths from the spec.
-    virtual std::vector<TPathWithStage> GetLayerPaths() const;
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
@@ -919,6 +890,8 @@ protected:
     void FinishTaskInput(const TTaskPtr& task);
 
     void SetOperationAlert(EOperationAlertType type, const TError& alert);
+
+    void AddFiles(const TUserJobSpecPtr& userJobSpec, const std::vector<NYPath::TRichYPath>& path, bool isLayer);
 
 private:
     typedef TOperationControllerBase TThis;
