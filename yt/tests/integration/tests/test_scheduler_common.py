@@ -1239,7 +1239,7 @@ class TestSchedulerRevive(YTEnvSetup):
                     assert get("//sys/operations/{0}/@state".format(op.id)) == "failed"
         finally:
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
-            time.sleep(5)
+            time.sleep(2)
 
     def test_many_operations_hard(self):
         self._prepare_tables()
@@ -1273,7 +1273,7 @@ class TestSchedulerRevive(YTEnvSetup):
                     assert get("//sys/operations/{0}/@state".format(op.id)) == "failed"
         finally:
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
-            time.sleep(5)
+            time.sleep(2)
 
 ################################################################################
 

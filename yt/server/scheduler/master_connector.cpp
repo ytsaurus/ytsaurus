@@ -431,8 +431,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
-        DoDisconnect();
+        if (Config->TestingOptions->EnableRandomMasterDisconnection) {
+            LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
+            DoDisconnect();
+        }
     }
 
     void StartConnecting()
