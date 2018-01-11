@@ -475,8 +475,8 @@ private:
     const TPortoJobEnvironmentConfigPtr Config_;
 
     IContainerManagerPtr ContainerManager_;
+    IInstancePtr MetaInstance_;
     yhash<int, IInstancePtr> PortoInstances_;
-
 
     TSpinLock LimitsLock_;
     TNullable<double> CpuLimit_;
@@ -495,9 +495,27 @@ private:
             }
         });
 
+        auto getMetaContainer = [&] () -> IInstancePtr {
+            auto manager = CreatePortoManager(
+                "yt_job_meta_",
+                Null,
+                portoFatalErrorHandler,
+                { ECleanMode::All, Config_->PortoWaitTime, Config_->PortoPollPeriod });
+
+            if (Config_->ExternalJobContainer) {
+                return manager->GetInstance(*Config_->ExternalJobContainer);
+            }   else {
+                auto instance = manager->CreateInstance();
+                instance->SetIOWeight(Config_->JobsIOWeight);
+                return instance;
+            }
+        };
+
+        MetaInstance_ = getMetaContainer();
+
         ContainerManager_ = CreatePortoManager(
-            "yt_job-proxy_",
-            Config_->ExternalJobContainer,
+            "yt_job_proxy_",
+            MetaInstance_->GetName(),
             portoFatalErrorHandler,
             { ECleanMode::All, Config_->PortoWaitTime, Config_->PortoPollPeriod });
 
@@ -510,7 +528,7 @@ private:
             Bootstrap_->GetConfig()->DataNode->VolumeManager,
             Bootstrap_);
 
-        if (Config_->ResourceLimitsUpdatePeriod) {
+        if (Config_->ExternalJobContainer && Config_->ResourceLimitsUpdatePeriod) {
             LimitsUpdateExecutor_ = New<TPeriodicExecutor>(
                 ActionQueue_->GetInvoker(),
                 BIND(&TPortoJobEnvironment::UpdateLimits, MakeWeak(this)),
@@ -546,11 +564,7 @@ private:
     void UpdateLimits()
     {
         try {
-            auto container = Config_->ExternalJobContainer
-                ? ContainerManager_->GetInstance(*Config_->ExternalJobContainer)
-                : ContainerManager_->GetSelfInstance();
-
-            auto limits = container->GetResourceLimits();
+            auto limits = MetaInstance_->GetResourceLimits();
 
             auto guard = Guard(LimitsLock_);
             if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {

@@ -28,13 +28,6 @@ using namespace NYTree;
 // To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
 static constexpr int CpuShareMultiplier = 10;
 
-#ifdef _linux_
-
-// Used as porto io_weight parameter.
-static constexpr double RestrictedIOWeight = 0.05;
-
-#endif
-
 static const NLogging::TLogger Logger("ResourceController");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,12 +97,6 @@ public:
         if (CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
             CGroups_.Cpu.SetShare(share * CpuShareMultiplier);
         }
-    }
-
-    virtual void SetRestrictedIOWeight() override
-    {
-        // Do nothing for cgroup controller, since io
-        // weights for all jobs are set with chef.
     }
 
     virtual void SetIOThrottle(i64 operations) override
@@ -295,13 +282,6 @@ public:
     {
         if (UseResourceLimits_) {
             Container_->SetCpuShare(share);
-        }
-    }
-
-    virtual void SetRestrictedIOWeight() override
-    {
-        if (UseResourceLimits_) {
-            Container_->SetIOWeight(RestrictedIOWeight);
         }
     }
 
