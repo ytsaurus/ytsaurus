@@ -84,8 +84,6 @@ public:
 
     virtual TInstant GetConnectionTime() override;
 
-    virtual TFuture<void> GetHeartbeatSentFuture() override;
-
     virtual void OnOperationCompleted() override;
     virtual void OnOperationAborted(const TError& error) override;
     virtual void OnOperationFailed(const TError& error) override;

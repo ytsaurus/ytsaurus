@@ -4,6 +4,7 @@
 #include "operation_controller.h"
 #include "serialize.h"
 #include "config.h"
+#include "operation.h"
 
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/operation.h>

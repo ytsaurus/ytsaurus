@@ -1,11 +1,11 @@
 #include "operation_controller_detail.h"
-
 #include "auto_merge_task.h"
 #include "intermediate_chunk_scraper.h"
 #include "job_info.h"
 #include "job_helpers.h"
 #include "counter_manager.h"
 #include "task.h"
+#include "operation.h"
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>

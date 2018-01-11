@@ -18,7 +18,6 @@ using NScheduler::TExecNodeDescriptorListPtr;
 using NScheduler::EOperationType;
 using NScheduler::EJobType;
 using NScheduler::EJobState;
-using NScheduler::TOperation;
 using NScheduler::TOperationSpecBasePtr;
 // TODO(ignat): Move setting alerts from Scheduler to ControllerAgent.
 using NScheduler::EOperationAlertType;
@@ -64,9 +63,7 @@ DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 DECLARE_REFCOUNTED_CLASS(TOperationControllerHost)
 
-// XXX(babenko): remove after split
-using NScheduler::TOperation;
-using NScheduler::TOperationPtr;
+DECLARE_REFCOUNTED_CLASS(TOperation)
 using TOperationIdToOperationMap = yhash<TOperationId, TOperationPtr>;
 
 // XXX(babenko): move private

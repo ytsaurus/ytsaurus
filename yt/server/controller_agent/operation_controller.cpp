@@ -1,10 +1,11 @@
 #include "operation_controller.h"
-
 #include "helpers.h"
+#include "operation.h"
 #include "ordered_controller.h"
 #include "sort_controller.h"
 #include "sorted_controller.h"
 #include "unordered_controller.h"
+#include "operation_controller_host.h"
 
 #include <yt/server/scheduler/operation.h>
 
@@ -28,6 +29,8 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NYTree;
+
+using NControllerAgent::TOperation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,10 +310,10 @@ private:
 
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
     TOperation* operation)
 {
     IOperationControllerPtr controller;
+    auto host = operation->GetHost();
     switch (operation->GetType()) {
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());

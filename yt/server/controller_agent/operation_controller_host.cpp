@@ -1,10 +1,9 @@
 #include "operation_controller_host.h"
 #include "master_connector.h"
 #include "controller_agent.h"
+#include "operation.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
-
-#include <yt/server/scheduler/operation.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -145,11 +144,6 @@ TExecNodeDescriptorListPtr TOperationControllerHost::GetExecNodeDescriptors(cons
 TInstant TOperationControllerHost::GetConnectionTime()
 {
     return Bootstrap_->GetControllerAgent()->GetConnectionTime();
-}
-
-TFuture<void> TOperationControllerHost::GetHeartbeatSentFuture()
-{
-    return Bootstrap_->GetControllerAgent()->GetHeartbeatSentFuture();
 }
 
 const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpecSliceThrottler()

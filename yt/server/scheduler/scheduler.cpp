@@ -15,6 +15,7 @@
 #include <yt/server/controller_agent/master_connector.h>
 #include <yt/server/controller_agent/controller_agent.h>
 #include <yt/server/controller_agent/operation_controller_host.h>
+#include <yt/server/controller_agent/operation.h>
 
 #include <yt/server/exec_agent/public.h>
 
@@ -1861,14 +1862,16 @@ private:
 
         bool registered = false;
         try {
-            auto controller = CreateOperationController(operation);
+            auto agentOperation = CreateAgentOperation(operation);
+            auto controller = CreateOperationController(agentOperation);
             operation->SetController(controller);
+            agentOperation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             RegisterOperation(operation);
             // TODO(babenko): rework when separating scheduler and agent
-            Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation);
+            Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), agentOperation);
 
             registered = true;
 
@@ -1909,7 +1912,7 @@ private:
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
         // fashion.
         BIND(&TImpl::DoPrepareOperation, MakeStrong(this), operation)
-            .AsyncVia()
+            .AsyncVia(operation->GetCancelableControlInvoker())
             .Run();
 
         operation->SetStarted(TError());
@@ -1971,16 +1974,21 @@ private:
         // operation's fate.
     }
 
-    IOperationControllerPtr CreateOperationController(const TOperationPtr& operation)
+    NControllerAgent::TOperationPtr CreateAgentOperation(const TOperationPtr& operation)
     {
+        auto agentOperation = New<NControllerAgent::TOperation>(operation.Get());
         auto host = New<TOperationControllerHost>(
-            operation.Get(),
+            agentOperation.Get(),
             MasterConnector_->GetCancelableControlInvoker(),
             Bootstrap_);
-        operation->SetHost(host);
+        agentOperation->SetHost(host);
+        return agentOperation;
+    }
+
+    IOperationControllerPtr CreateOperationController(const NControllerAgent::TOperationPtr& operation)
+    {
         return CreateControllerForOperation(
             Bootstrap_->GetControllerAgent()->GetConfig(),
-            host,
             operation.Get());
     }
 
@@ -2007,9 +2015,12 @@ private:
         // and unregister the operation from Master Connector.
 
         IOperationControllerPtr controller;
+        NControllerAgent::TOperationPtr agentOperation;
         try {
-            controller = CreateOperationController(operation);
+            agentOperation = CreateAgentOperation(operation);
+            controller = CreateOperationController(agentOperation);
             operation->SetController(controller);
+            agentOperation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
@@ -2028,7 +2039,7 @@ private:
         // NB: Should not throw!
         RegisterOperation(operation);
         // TODO(babenko): rework when separating scheduler and agent
-        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation);
+        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), agentOperation);
     }
 
     void DoReviveOperation(const TOperationPtr& operation)

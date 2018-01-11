@@ -3,6 +3,7 @@
 #include "snapshot_downloader.h"
 #include "snapshot_builder.h"
 #include "controller_agent.h"
+#include "operation.h"
 #include "serialize.h"
 
 #include <yt/server/scheduler/config.h>

@@ -439,8 +439,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    NScheduler::TOperation* operation);
+    TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////
 
