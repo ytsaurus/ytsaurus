@@ -58,7 +58,7 @@ TDuration TJob::GetDuration() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobSummary::TJobSummary(const TJobPtr& job, TJobStatus* status)
+TJobSummary::TJobSummary(const TJobPtr& job, const TJobStatus* status)
     : Id(job->GetId())
     , State(job->GetState())
     , FinishTime(job->GetFinishTime())
@@ -77,8 +77,7 @@ TJobSummary::TJobSummary(const TJobPtr& job, TJobStatus* status)
         DownloadDuration = FromProto<TDuration>(status->download_duration());
     }
     if (status->has_exec_duration()) {
-        ExecDuration.Emplace();
-        FromProto(ExecDuration.GetPtr(), status->exec_duration());
+        ExecDuration = FromProto<TDuration>(status->exec_duration());
     }
     if (status->has_statistics()) {
         StatisticsYson = TYsonString(status->statistics());
@@ -112,9 +111,9 @@ void TJobSummary::Persist(const TPersistenceContext& context)
 TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, TJobStatus* status, bool abandoned)
     : TJobSummary(job, status)
     , Abandoned(abandoned)
+    , InterruptReason(job->GetInterruptReason())
 {
     const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    InterruptReason = job->GetInterruptReason();
     YCHECK(
         (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
         (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() != 0));
