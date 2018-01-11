@@ -474,7 +474,6 @@ struct TOperationInfo
     NYson::TYsonString BriefProgress;
     NYson::TYsonString RunningJobs;
     NYson::TYsonString JobSplitter;
-    NYson::TYsonString MemoryDigests;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

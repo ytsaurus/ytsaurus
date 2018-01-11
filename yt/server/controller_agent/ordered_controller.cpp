@@ -263,11 +263,6 @@ protected:
         return 1;
     }
 
-    virtual i64 GetUserJobMemoryReserve() const
-    {
-        return 0;
-    }
-
     virtual TUserJobSpecPtr GetUserJobSpec() const
     {
         return nullptr;
@@ -489,9 +484,7 @@ public:
             host,
             operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -662,10 +655,7 @@ public:
             operation)
         , Spec_(spec)
         , Options_(options)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
-    }
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -731,11 +721,6 @@ private:
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
             joblet);
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec_->Mapper);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -881,9 +866,7 @@ public:
             host,
             operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -1085,9 +1068,7 @@ public:
             operation)
         , Spec_(spec)
         , Options_(options)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     void Persist(const TPersistenceContext& context)
     {

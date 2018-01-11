@@ -2604,7 +2604,6 @@ private:
         auto controllerBriefProgress = rsp ? toYsonString(rsp->brief_progress()) : emptyMapFragment;
         auto controllerRunningJobs = rsp ? toYsonString(rsp->running_jobs()) : emptyMapFragment;
         auto controllerJobSplitterInfo = rsp ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
-        auto controllerMemoryDigests = rsp ? toYsonString(rsp->memory_digests()) : emptyMapFragment;
 
         return BuildYsonStringFluently()
             .BeginMap()
@@ -2631,7 +2630,6 @@ private:
                     .BeginMap()
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
-                .Items(controllerMemoryDigests)
                 .DoIf(!rspOrError.IsOK(), [&] (TFluentMap fluent) {
                     fluent.Item("controller_error").Value(TError(rspOrError));
                 })
