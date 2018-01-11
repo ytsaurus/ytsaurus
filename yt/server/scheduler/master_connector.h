@@ -104,7 +104,7 @@ public:
 
 private:
     class TImpl;
-    const TIntrusivePtr<TImpl> Impl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
