@@ -381,6 +381,8 @@ protected:
                 } else {
                     UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
                 }
+                RegisterTask(UnorderedTask);
+
                 UnorderedTask->AddInput(stripes);
                 FinishTaskInput(UnorderedTask);
                 for (int index = 0; index < AutoMergeTasks.size(); ++index) {
@@ -388,8 +390,6 @@ protected:
                         AutoMergeTasks[index]->FinishInput(UnorderedTask->GetJobType());
                     }
                 }
-
-                RegisterTask(UnorderedTask);
 
                 LOG_INFO("Inputs processed (JobCount: %v, IsExplicitJobCount: %v)",
                     UnorderedTask->GetPendingJobCount(),
@@ -468,11 +468,6 @@ protected:
         return 1;
     }
 
-    virtual i64 GetUserJobMemoryReserve() const
-    {
-        return 0;
-    }
-
     void InitJobIOConfig()
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
@@ -533,13 +528,7 @@ public:
             operation)
         , Spec(spec)
         , Options(options)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::Map, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
-        if (Spec->AutoMerge->Mode != EAutoMergeMode::Disabled) {
-            RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, Spec->JobProxyMemoryDigest);
-        }
-    }
+    { }
 
     virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
@@ -652,11 +641,6 @@ private:
         return Spec->Mapper->CpuLimit;
     }
 
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return ComputeUserJobMemoryReserve(EJobType::Map, Spec->Mapper);
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         TUnorderedControllerBase::InitJobSpecTemplate();
@@ -738,9 +722,7 @@ public:
             host,
             operation)
         , Spec(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override

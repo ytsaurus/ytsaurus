@@ -190,6 +190,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("started_by", StartedBy)
         .Default();
 
+    RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
+        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -365,9 +368,6 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
         .DefaultNew();
     RegisterParameter("stripe_list_extraction_order", StripeListExtractionOrder)
         .Default(NChunkPools::EStripeListExtractionOrder::DataSizeDescending);
-
-    RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
 }
 
 TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
@@ -552,11 +552,6 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
         .Default(true);
 
-    RegisterParameter("sort_job_proxy_memory_digest", SortJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
-    RegisterParameter("partition_job_proxy_memory_digest", PartitionJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
-
     RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
 
@@ -594,8 +589,11 @@ TSortOperationSpec::TSortOperationSpec()
     RegisterParameter("merge_locality_timeout", MergeLocalityTimeout)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("merge_job_proxy_memory_digest", MergeJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+    // For sorted_merge and sorted_reduce jobs.
+    TLogDigestConfigPtr SortedMergeJobProxyMemoryDigest;
+    // For final_sort and partition_reduce jobs.
+    TLogDigestConfigPtr FinalSortJobProxyMemoryDigest;
+
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
@@ -662,13 +660,6 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("map_selectivity_factor", MapSelectivityFactor)
         .Default(1.0)
         .GreaterThan(0);
-
-    RegisterParameter("sorted_reduce_job_proxy_memory_digest", SortedReduceJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
-    RegisterParameter("partition_reduce_job_proxy_memory_digest", PartitionReduceJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
-    RegisterParameter("reduce_combiner_job_proxy_memory_digest", ReduceCombinerJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
 
     RegisterParameter("data_weight_per_reduce_job", DataWeightPerSortedJob)
         .Alias("data_size_per_reduce_job")

@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/table_client/helpers.h>
 
+#include <yt/core/misc/digest.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -122,6 +124,9 @@ public:
     ITaskHost* GetTaskHost();
     void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
     void AddPendingHint();
+
+    IDigest* GetUserJobMemoryDigest() const;
+    IDigest* GetJobProxyMemoryDigest() const;
 
     virtual void SetupCallbacks();
 
@@ -233,6 +238,9 @@ private:
     using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInput*>;
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
+
+    mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
+    mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;
 
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
