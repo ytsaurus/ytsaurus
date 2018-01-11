@@ -1908,9 +1908,8 @@ private:
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
         // fashion.
-        auto controller = operation->GetController();
         BIND(&TImpl::DoPrepareOperation, MakeStrong(this), operation)
-            .AsyncVia(operation->GetCancelableControlInvoker())
+            .AsyncVia()
             .Run();
 
         operation->SetStarted(TError());
@@ -2134,9 +2133,8 @@ private:
     {
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
         for (const auto& nodeShard : NodeShards_) {
-            BIND(&TNodeShard::RegisterOperation, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run(operation->GetId(), operation->GetController());
+            nodeShard->GetInvoker()->Invoke(
+                BIND(&TNodeShard::RegisterOperation, nodeShard, operation->GetId(), operation->GetController()));
         }
 
         Strategy_->RegisterOperation(operation.Get());
