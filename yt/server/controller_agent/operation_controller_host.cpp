@@ -11,6 +11,7 @@ namespace NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,8 +137,7 @@ int TOperationControllerHost::GetExecNodeCount()
     return Bootstrap_->GetControllerAgent()->GetExecNodeCount();
 }
 
-TExecNodeDescriptorListPtr
-TOperationControllerHost::GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter)
+TExecNodeDescriptorListPtr TOperationControllerHost::GetExecNodeDescriptors(const TSchedulingTagFilter& filter)
 {
     return Bootstrap_->GetControllerAgent()->GetExecNodeDescriptors(filter);
 }
@@ -155,6 +155,51 @@ TFuture<void> TOperationControllerHost::GetHeartbeatSentFuture()
 const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpecSliceThrottler()
 {
     return Bootstrap_->GetControllerAgent()->GetJobSpecSliceThrottler();
+}
+
+void TOperationControllerHost::OnOperationCompleted()
+{
+    auto guard = Guard(EventsLock_);
+    Completed_ = true;
+}
+
+void TOperationControllerHost::OnOperationAborted(const TError& error)
+{
+    auto guard = Guard(EventsLock_);
+    AbortError_ = error;
+}
+
+void TOperationControllerHost::OnOperationFailed(const TError& error)
+{
+    auto guard = Guard(EventsLock_);
+    FailureError_ = error;
+}
+
+void TOperationControllerHost::OnOperationSuspended(const TError& error)
+{
+    auto guard = Guard(EventsLock_);
+    SuspensionError_ = error;
+}
+
+TOperationControllerEvent TOperationControllerHost::PullEvent()
+{
+    auto guard = Guard(EventsLock_);
+    if (!AbortError_.IsOK()) {
+        return TOperationAbortedEvent{AbortError_};
+    }
+    if (!FailureError_.IsOK()) {
+        return TOperationFailedEvent{FailureError_};
+    }
+    if (!SuspensionError_.IsOK()) {
+        // NB: Suspension error is non-sticky.
+        auto error = SuspensionError_;
+        SuspensionError_ = {};
+        return TOperationSuspendedEvent{error};
+    }
+    if (Completed_) {
+        return TOperationCompletedEvent{};
+    }
+    return TNullOperationEvent{};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -277,11 +277,6 @@ public:
         return Underlying_->GetSuspiciousJobsYson();
     }
 
-    virtual TOperationControllerEvent PullEvent() override
-    {
-        return Underlying_->PullEvent();
-    }
-
     virtual TSnapshotCookie OnSnapshotStarted() override
     {
         return Underlying_->OnSnapshotStarted();

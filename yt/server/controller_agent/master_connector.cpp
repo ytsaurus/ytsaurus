@@ -385,12 +385,12 @@ private:
 
         // Take a snapshot of all known operations.
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        auto controllerMap = controllerAgent->GetControllers();
 
         // Collect all transactions that are used by currently running operations.
         yhash_set<TTransactionId> watchSet;
-        for (const auto& pair : controllerMap) {
-            const auto& controller = pair.second;
+        for (const auto& pair : controllerAgent->GetOperations()) {
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
             for (const auto& transaction : controller->GetTransactions()) {
                 watchSet.insert(transaction->GetId());
             }
@@ -449,8 +449,9 @@ private:
         LOG_INFO("Transactions refreshed");
 
         // Check every transaction of every operation and raise appropriate notifications.
-        for (const auto& pair : controllerMap) {
-            const auto& controller = pair.second;
+        for (const auto& pair : controllerAgent->GetOperations()) {
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
             for (const auto& transaction : controller->GetTransactions()) {
                 if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
                     controller->GetCancelableInvoker()->Invoke(BIND(
@@ -546,10 +547,12 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        auto controller = controllerAgent->FindController(operationId);
-        if (!controller) {
+        auto operation = controllerAgent->FindOperation(operationId);
+        if (!operation) {
             return {};
         }
+
+        auto controller = operation->GetController();
 
         if (update->JobRequests.empty() &&
             update->LivePreviewRequests.empty() &&
@@ -565,7 +568,6 @@ private:
             update->LivePreviewTransactionId,
             Passed(std::move(update->JobRequests)),
             Passed(std::move(update->LivePreviewRequests)))
-            // XXX(babenko)
             .AsyncVia(CancelableControlInvoker_);
     }
 
@@ -574,8 +576,13 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        auto controller = controllerAgent->FindController(operationId);
-        if (!controller || !controller->HasProgress()) {
+        auto operation = controllerAgent->FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        auto controller = operation->GetController();
+        if (!controller->HasProgress()) {
             return;
         }
 
@@ -976,7 +983,7 @@ private:
         }
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        auto controllerMap = controllerAgent->GetControllers();
+        auto controllerMap = controllerAgent->GetOperations();
 
         auto builder = New<TSnapshotBuilder>(
             Config_,
@@ -997,7 +1004,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return !Bootstrap_->GetControllerAgent()->FindController(update->OperationId);
+        return !Bootstrap_->GetControllerAgent()->FindOperation(update->OperationId);
     }
 
     void OnOperationUpdateFailed(const TError& error)

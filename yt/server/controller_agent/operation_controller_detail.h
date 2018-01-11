@@ -353,8 +353,6 @@ public:
 
     virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() override;
 
-    virtual TOperationControllerEvent PullEvent() override;
-
     virtual TOperationAlertMap GetAlerts() override;
 
     virtual TOperationInfo BuildOperationInfo() override;
@@ -392,12 +390,6 @@ protected:
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> RevivedFromSnapshot = {false};
-
-    TSpinLock EventsLock_;
-    TError SuspensionError_;
-    TError AbortError_;
-    TError FailureError_;
-    bool Completed_ = false;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
@@ -889,7 +881,7 @@ protected:
     virtual void BuildAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
 
-    virtual NScheduler::TJobSplitterConfigPtr GetJobSplitterConfig() const;
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const;
 
     void CheckFailedJobsStatusReceived();
 

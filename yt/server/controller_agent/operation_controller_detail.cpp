@@ -1790,8 +1790,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     RemoveJoblet(joblet);
 
     if (abortReason == EAbortReason::AccountLimitExceeded) {
-        auto guard = Guard(EventsLock_);
-        SuspensionError_ = TError("Account limit exceeded");
+        Host->OnOperationSuspended(TError("Account limit exceeded"));
     }
 
     CheckFailedJobsStatusReceived();
@@ -3280,10 +3279,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     LogProgress(/* force */ true);
 
-    {
-        auto guard = Guard(EventsLock_);
-        Completed_ = true;
-    }
+    Host->OnOperationCompleted();
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
@@ -3304,10 +3300,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
         FlushOperationNode(/* checkFlushResult */ false);
     }
 
-    {
-        auto guard = Guard(EventsLock_);
-        FailureError_ = error;
-    }
+    Host->OnOperationFailed(error);
 }
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
@@ -3319,10 +3312,7 @@ void TOperationControllerBase::OnOperationAborted(const TError& error)
         return;
     }
 
-    {
-        auto guard = Guard(EventsLock_);
-        AbortError_ = error;
-    }
+    Host->OnOperationAborted(error);
 }
 
 TNullable<TDuration> TOperationControllerBase::GetTimeLimit() const
@@ -5431,27 +5421,6 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
     LastJobMetricsDeltaReportTime_ = now;
 
     return result;
-}
-
-TOperationControllerEvent TOperationControllerBase::PullEvent()
-{
-    auto guard = Guard(EventsLock_);
-    if (!AbortError_.IsOK()) {
-        return TOperationAbortedEvent{AbortError_};
-    }
-    if (!FailureError_.IsOK()) {
-        return TOperationFailedEvent{FailureError_};
-    }
-    if (!SuspensionError_.IsOK()) {
-        // NB: Suspension error is non-sticky.
-        auto error = SuspensionError_;
-        SuspensionError_ = {};
-        return TOperationSuspendedEvent{error};
-    }
-    if (Completed_) {
-        return TOperationCompletedEvent{};
-    }
-    return TNullOperationEvent{};
 }
 
 TOperationAlertMap TOperationControllerBase::GetAlerts()

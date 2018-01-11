@@ -117,7 +117,7 @@ bool TOperation::IsSchedulable() const
     return State_ == EOperationState::Running && !Suspended_;
 }
 
-IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
+NControllerAgent::IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
 {
     return Controller_;
 }

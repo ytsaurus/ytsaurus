@@ -20,7 +20,6 @@
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/yson/public.h>
 
@@ -115,6 +114,7 @@ struct IOperationControllerHost
     virtual const NEventLog::TEventLogWriterPtr& GetEventLogWriter() = 0;
     virtual const TCoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
 
     virtual int GetExecNodeCount() = 0;
     virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
@@ -123,7 +123,10 @@ struct IOperationControllerHost
     // XXX(babenko)
     virtual TFuture<void> GetHeartbeatSentFuture() = 0;
 
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
+    virtual void OnOperationCompleted() = 0;
+    virtual void OnOperationAborted(const TError& error) = 0;
+    virtual void OnOperationFailed(const TError& error) = 0;
+    virtual void OnOperationSuspended(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
@@ -290,37 +293,6 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNullOperationEvent
-{ };
-
-struct TOperationCompletedEvent
-{ };
-
-struct TOperationAbortedEvent
-{
-    TError Error;
-};
-
-struct TOperationFailedEvent
-{
-    TError Error;
-};
-
-struct TOperationSuspendedEvent
-{
-    TError Error;
-};
-
-using TOperationControllerEvent = TVariant<
-    TNullOperationEvent,
-    TOperationCompletedEvent,
-    TOperationAbortedEvent,
-    TOperationFailedEvent,
-    TOperationSuspendedEvent
->;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TOperationInfo
 {
     NYson::TYsonString Progress;
@@ -462,12 +434,6 @@ struct IOperationController
      *  \note Invoker affinity: any.
      */
     virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
-
-    //! Called to retrieve a new event from the controller and pass it to the scheduler.
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    virtual TOperationControllerEvent PullEvent() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
