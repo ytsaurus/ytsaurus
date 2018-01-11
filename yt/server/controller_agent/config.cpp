@@ -19,20 +19,6 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptionsBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions);
 
-void TControllerAgentConfig::OnLoaded()
-{
-    UpdateOptions(&MapOperationOptions, OperationOptions);
-    UpdateOptions(&ReduceOperationOptions, OperationOptions);
-    UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
-    UpdateOptions(&EraseOperationOptions, OperationOptions);
-    UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&MapReduceOperationOptions, OperationOptions);
-    UpdateOptions(&SortOperationOptions, OperationOptions);
-    UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent

@@ -198,7 +198,6 @@ private:
     NYPath::TRichYPath DestinationPath;
 
     virtual void DoExecute(ICommandContextPtr context) override;
-    virtual void OnLoaded() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

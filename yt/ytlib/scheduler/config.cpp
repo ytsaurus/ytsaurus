@@ -92,14 +92,13 @@ TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
     RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
         .Alias("scheduling_tag")
         .Default();
-}
 
-void TSupportsSchedulingTagsConfig::OnLoaded()
-{
-    if (SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
-        THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
-            MaxSchedulingTagRuleCount);
-    }
+    RegisterPostprocessor([&] {
+        if (SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
+            THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
+                 MaxSchedulingTagRuleCount);
+        }
+    });
 }
 
 TOperationSpecBase::TOperationSpecBase()
@@ -334,17 +333,16 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
 
     RegisterParameter("enable_job_splitting", EnableJobSplitting)
         .Default(true);
-}
 
-void TOperationWithUserJobSpec::OnLoaded()
-{
-    if (StderrTablePath) {
-        *StderrTablePath = StderrTablePath->Normalize();
-    }
+    RegisterPostprocessor([&] {
+        if (StderrTablePath) {
+            *StderrTablePath = StderrTablePath->Normalize();
+        }
 
-    if (CoreTablePath) {
-        *CoreTablePath = CoreTablePath->Normalize();
-    }
+        if (CoreTablePath) {
+            *CoreTablePath = CoreTablePath->Normalize();
+        }
+    });
 }
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
@@ -378,13 +376,10 @@ TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
     RegisterPreprocessor([&] () {
         JobIO->TableReader->MaxBufferSize = 256_MB;
     });
-}
 
-void TUnorderedOperationSpecBase::OnLoaded()
-{
-    TSimpleOperationSpecBase::OnLoaded();
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+    RegisterPostprocessor([&] {
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+    });
 }
 
 TMapOperationSpec::TMapOperationSpec()
@@ -395,15 +390,12 @@ TMapOperationSpec::TMapOperationSpec()
         .NonEmpty();
     RegisterParameter("ordered", Ordered)
         .Default(false);
-}
 
-void TMapOperationSpec::OnLoaded()
-{
-    TUnorderedOperationSpecBase::OnLoaded();
+    RegisterPostprocessor([&] {
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
-    OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-    Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+        Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+    });
 }
 
 TUnorderedMergeOperationSpec::TUnorderedMergeOperationSpec()
@@ -415,13 +407,10 @@ TUnorderedMergeOperationSpec::TUnorderedMergeOperationSpec()
         .Default(false);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-}
 
-void TUnorderedMergeOperationSpec::OnLoaded()
-{
-    TUnorderedOperationSpecBase::OnLoaded();
-
-    OutputTablePath = OutputTablePath.Normalize();
+    RegisterPostprocessor([&] {
+        OutputTablePath = OutputTablePath.Normalize();
+    });
 }
 
 TMergeOperationSpec::TMergeOperationSpec()
@@ -439,14 +428,11 @@ TMergeOperationSpec::TMergeOperationSpec()
         .Default();
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-}
 
-void TMergeOperationSpec::OnLoaded()
-{
-    TSimpleOperationSpecBase::OnLoaded();
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-    OutputTablePath = OutputTablePath.Normalize();
+    RegisterPostprocessor([&] {
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePath = OutputTablePath.Normalize();
+    });
 }
 
 TEraseOperationSpec::TEraseOperationSpec()
@@ -456,13 +442,10 @@ TEraseOperationSpec::TEraseOperationSpec()
         .Default(false);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-}
 
-void TEraseOperationSpec::OnLoaded()
-{
-    TSimpleOperationSpecBase::OnLoaded();
-
-    TablePath = TablePath.Normalize();
+    RegisterPostprocessor([&] {
+        TablePath = TablePath.Normalize();
+    });
 }
 
 TReduceOperationSpecBase::TReduceOperationSpecBase()
@@ -480,17 +463,12 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         if (!JoinBy.empty()) {
             NTableClient::ValidateKeyColumns(JoinBy);
         }
+
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
     });
-}
-
-void TReduceOperationSpecBase::OnLoaded()
-{
-    TSimpleOperationSpecBase::OnLoaded();
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-    OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-    Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
 }
 
 TReduceOperationSpec::TReduceOperationSpec()
@@ -519,21 +497,19 @@ TJoinReduceOperationSpec::TJoinReduceOperationSpec()
 {
     RegisterParameter("join_by", JoinBy)
         .NonEmpty();
-}
 
-void TJoinReduceOperationSpec::OnLoaded()
-{
-    TReduceOperationSpecBase::OnLoaded();
-    bool hasPrimary = false;
-    for (const auto& path: InputTablePaths) {
-        hasPrimary |= path.GetPrimary();
-    }
-    if (hasPrimary) {
-        for (auto& path: InputTablePaths) {
-            path.Attributes().Set("foreign", !path.GetPrimary());
-            path.Attributes().Remove("primary");
+    RegisterPostprocessor([&] {
+        bool hasPrimary = false;
+        for (const auto& path: InputTablePaths) {
+            hasPrimary |= path.GetPrimary();
         }
-    }
+        if (hasPrimary) {
+            for (auto& path: InputTablePaths) {
+                path.Attributes().Set("foreign", !path.GetPrimary());
+                path.Attributes().Remove("primary");
+            }
+        }
+    });
 }
 
 TSortOperationSpecBase::TSortOperationSpecBase()
@@ -579,14 +555,9 @@ TSortOperationSpecBase::TSortOperationSpecBase()
 
     RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
+
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
     });
-}
-
-void TSortOperationSpecBase::OnLoaded()
-{
-    TOperationSpecBase::OnLoaded();
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
 }
 
 TSortOperationSpec::TSortOperationSpec()
@@ -641,13 +612,10 @@ TSortOperationSpec::TSortOperationSpec()
 
         MapSelectivityFactor = 1.0;
     });
-}
 
-void TSortOperationSpec::OnLoaded()
-{
-    TSortOperationSpecBase::OnLoaded();
-
-    OutputTablePath = OutputTablePath.Normalize();
+    RegisterPostprocessor([&] {
+        OutputTablePath = OutputTablePath.Normalize();
+    });
 }
 
 TMapReduceOperationSpec::TMapReduceOperationSpec()
@@ -756,25 +724,20 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
                 << TErrorAttribute("mapper_output_table_count", MapperOutputTableCount)
                 << TErrorAttribute("output_table_count", OutputTablePaths.size());
         }
+
+        if (ReduceBy.empty()) {
+            ReduceBy = SortBy;
+        }
+
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        if (Mapper) {
+            Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
+        }
+        // NB(psushin): don't init input table index for reduce jobs,
+        // they cannot have table index.
     });
-}
-
-void TMapReduceOperationSpec::OnLoaded()
-{
-    TSortOperationSpecBase::OnLoaded();
-
-    if (ReduceBy.empty()) {
-        ReduceBy = SortBy;
-    }
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-    OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-    if (Mapper) {
-        Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
-    }
-    // NB(psushin): don't init input table index for reduce jobs,
-    // they cannot have table index.
 }
 
 TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
@@ -800,18 +763,15 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
         .Default(64_MB);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-}
 
-void TRemoteCopyOperationSpec::OnLoaded()
-{
-    TOperationSpecBase::OnLoaded();
+    RegisterPostprocessor([&] {
+        InputTablePaths = NYPath::Normalize(InputTablePaths);
+        OutputTablePath = OutputTablePath.Normalize();
 
-    InputTablePaths = NYPath::Normalize(InputTablePaths);
-    OutputTablePath = OutputTablePath.Normalize();
-
-    if (!ClusterName && !ClusterConnection) {
-        THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
-    }
+        if (!ClusterName && !ClusterConnection) {
+            THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
+        }
+    });
 }
 
 TResourceLimitsConfig::TResourceLimitsConfig()

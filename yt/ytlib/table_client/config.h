@@ -351,13 +351,15 @@ public:
             .Default(true);
         RegisterParameter("enable_integral_to_double_conversion", EnableIntegralToDoubleConversion)
             .Default(false);
-    }
 
-    virtual void OnLoaded() override
-    {
-        if (EnableTypeConversion) {
-            EnableStringToAllConversion = EnableAllToStringConversion = EnableIntegralTypeConversion = EnableIntegralToDoubleConversion = true;
-        }
+        RegisterPostprocessor([&] {
+            if (EnableTypeConversion) {
+                EnableStringToAllConversion = true;
+                EnableAllToStringConversion = true;
+                EnableIntegralTypeConversion = true;
+                EnableIntegralToDoubleConversion = true;
+            }
+        });
     }
 };
 

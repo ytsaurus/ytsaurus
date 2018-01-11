@@ -83,17 +83,15 @@ public:
             .DefaultNew();
         RegisterParameter("use_new_http_server", UseNewHttpServer)
             .Default(true);
-    }
 
-    virtual void OnLoaded() override
-    {
-        TYsonSerializable::OnLoaded();
-        if (RpcPort > 0) {
-            if (BusServer->Port || BusServer->UnixDomainName) {
-                THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+        RegisterPostprocessor([&] {
+            if (RpcPort > 0) {
+                if (BusServer->Port || BusServer->UnixDomainName) {
+                    THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+                }
+                BusServer->Port = RpcPort;
             }
-            BusServer->Port = RpcPort;
-        }
+        });
     }
 };
 

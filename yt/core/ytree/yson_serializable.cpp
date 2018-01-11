@@ -109,8 +109,6 @@ void TYsonSerializableLite::Load(
     if (postprocess) {
         Postprocess(path);
     }
-
-    OnLoaded();
 }
 
 void TYsonSerializableLite::Save(
@@ -178,9 +176,6 @@ void TYsonSerializableLite::SetDefaults()
         initializer();
     }
 }
-
-void TYsonSerializableLite::OnLoaded()
-{ }
 
 void TYsonSerializableLite::RegisterPreprocessor(const TPreprocessor& func)
 {
