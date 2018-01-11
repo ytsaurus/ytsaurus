@@ -39,29 +39,37 @@ static const auto& Logger = SchedulerLogger;
 
 void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
+    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    auto attributes = operation->ControllerAttributes().Attributes;
     fluent
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpec())
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
-        .Items(operation->ControllerAttributes().InitializationAttributes->Immutable)
-        .DoIf(static_cast<bool>(operation->ControllerAttributes().Attributes), [&] (TFluentMap fluent) {
+        .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
             fluent
-                .Items(*operation->ControllerAttributes().Attributes);
+                .Items(initializationAttributes->Immutable);
+        })
+        .DoIf(static_cast<bool>(attributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(*attributes);
         })
         .Do(BIND(&BuildMutableOperationAttributes, operation));
 }
 
 void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    auto controller = operation->GetController();
+    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
     fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
         .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
-        .Items(operation->ControllerAttributes().InitializationAttributes->Mutable);
+        .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(initializationAttributes->Mutable);
+        });
 }
 
 void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)
