@@ -629,22 +629,9 @@ private:
         return Spec->CoreTableWriterConfig;
     }
 
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec->Mapper->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
-    }
-
-    virtual std::vector<TPathWithStage> GetLayerPaths() const override
-    {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec->Mapper->LayerPaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
+        return {Spec->Mapper};
     }
 
     virtual void DoInitialize() override
@@ -677,7 +664,7 @@ private:
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
-            Files,
+            UserJobFiles_[Spec->Mapper],
             Spec->JobNodeAccount);
     }
 
