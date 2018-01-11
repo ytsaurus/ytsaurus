@@ -298,11 +298,11 @@ void TTask::ScheduleJob(
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
-    joblet->JobProxyMemoryReserveFactor = TaskHost_->GetJobProxyMemoryDigest(jobType)->GetQuantile(
+    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryDigest()->GetQuantile(
         TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
-        joblet->UserJobMemoryReserveFactor = TaskHost_->GetUserJobMemoryDigest(GetJobType())->GetQuantile(
+        joblet->UserJobMemoryReserveFactor = GetUserJobMemoryDigest()->GetQuantile(
             TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
     }
 
@@ -408,6 +408,9 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, EdgeDescriptors_);
     Persist(context, InputVertex_);
+
+    Persist(context, UserJobMemoryDigest_);
+    Persist(context, JobProxyMemoryDigest_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -594,6 +597,32 @@ void TTask::AddPendingHint()
     TaskHost_->AddTaskPendingHint(this);
 }
 
+IDigest* TTask::GetUserJobMemoryDigest() const
+{
+    if (!UserJobMemoryDigest_) {
+        const auto& userJobSpec = GetUserJobSpec();
+        YCHECK(userJobSpec);
+
+        auto config = New<TLogDigestConfig>();
+        config->LowerBound = userJobSpec->UserJobMemoryDigestLowerBound;
+        config->DefaultValue = userJobSpec->UserJobMemoryDigestDefaultValue;
+        config->UpperBound = 1.0;
+        config->RelativePrecision = TaskHost_->SchedulerConfig()->UserJobMemoryDigestPrecision;
+        UserJobMemoryDigest_ = CreateLogDigest(std::move(config));
+    }
+
+    return UserJobMemoryDigest_.get();
+}
+
+IDigest* TTask::GetJobProxyMemoryDigest() const
+{
+    if (!JobProxyMemoryDigest_) {
+        JobProxyMemoryDigest_ = CreateLogDigest(TaskHost_->Spec()->JobProxyMemoryDigest);
+    }
+
+    return JobProxyMemoryDigest_.get();
+}
+
 void TTask::AddLocalityHint(TNodeId nodeId)
 {
     TaskHost_->AddTaskLocalityHint(nodeId, this);
@@ -707,11 +736,11 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     result.SetCpu(jobResources.GetCpu());
     result.SetUserSlots(jobResources.GetUserSlots());
     i64 memory = jobResources.GetFootprintMemory();
-    memory += jobResources.GetJobProxyMemory() * TaskHost_->GetJobProxyMemoryDigest(
-        GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
+    memory += jobResources.GetJobProxyMemory() * GetJobProxyMemoryDigest()
+        ->GetQuantile(TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
     if (GetUserJobSpec()) {
-        memory += jobResources.GetUserJobMemory() * TaskHost_->GetUserJobMemoryDigest(
-            GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
+        memory += jobResources.GetUserJobMemory() * GetUserJobMemoryDigest()
+            ->GetQuantile(TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
     } else {
         YCHECK(jobResources.GetUserJobMemory() == 0);
     }

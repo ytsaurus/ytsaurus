@@ -1507,12 +1507,12 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant st
 
 void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics, bool resourceOverdraft)
 {
-    auto jobType = joblet->JobType;
     bool taskUpdateNeeded = false;
 
     auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory");
     if (userJobMaxMemoryUsage) {
-        auto* digest = GetUserJobMemoryDigest(jobType);
+        auto* digest = joblet->Task->GetUserJobMemoryDigest();
+        YCHECK(digest);
         double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
         if (resourceOverdraft) {
             // During resource overdraft actual max memory values may be outdated,
@@ -1521,7 +1521,7 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TSta
             actualFactor = std::max(actualFactor, *joblet->UserJobMemoryReserveFactor * Config->ResourceOverdraftFactor);
         }
         LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
-            jobType,
+            joblet->JobType,
             actualFactor,
             joblet->JobId);
         digest->AddSample(actualFactor);
@@ -1530,14 +1530,15 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TSta
 
     auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory");
     if (jobProxyMaxMemoryUsage) {
-        auto* digest = GetJobProxyMemoryDigest(jobType);
+        auto* digest = joblet->Task->GetJobProxyMemoryDigest();
+        YCHECK(digest);
         double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
         if (resourceOverdraft) {
             actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * Config->ResourceOverdraftFactor);
         }
         LOG_TRACE("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
-            jobType,
+            joblet->JobType,
             actualFactor,
             joblet->JobId);
         digest->AddSample(actualFactor);
@@ -3263,15 +3264,6 @@ std::vector<NScheduler::TJobResourcesWithQuota> TOperationControllerBase::GetMin
             FormatResources(pair.second));
     }
     return result;
-}
-
-i64 TOperationControllerBase::ComputeUserJobMemoryReserve(EJobType jobType, TUserJobSpecPtr userJobSpec) const
-{
-    if (userJobSpec) {
-        return userJobSpec->MemoryLimit * GetUserJobMemoryDigest(jobType)->GetQuantile(Config->UserJobMemoryReserveQuantile);
-    } else {
-        return 0;
-    }
 }
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
@@ -5543,12 +5535,6 @@ void TOperationControllerBase::BuildOperationInfo(NScheduler::NProto::TRspGetOpe
             .Do(std::bind(&TOperationControllerBase::BuildJobSplitterInfo, this, _1))
         .Finish()
         .GetData());
-
-    response->set_memory_digest(
-        BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildMemoryDigestStatistics, this, _1))
-        .Finish()
-        .GetData());
 }
 
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
@@ -6454,64 +6440,6 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     return false;
 }
 
-void TOperationControllerBase::BuildMemoryDigestStatistics(TFluentMap fluent) const
-{
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
-    fluent
-        .Item("job_proxy_memory_digest")
-        .DoMapFor(JobProxyMemoryDigests_, [&] (
-            TFluentMap fluent,
-            const TMemoryDigestMap::value_type& item)
-        {
-            fluent
-                .Item(ToString(item.first)).Value(
-                    item.second->GetQuantile(Config->JobProxyMemoryReserveQuantile));
-        })
-        .Item("user_job_memory_digest")
-        .DoMapFor(JobProxyMemoryDigests_, [&] (
-            TFluentMap fluent,
-            const TMemoryDigestMap::value_type& item)
-        {
-            fluent
-                .Item(ToString(item.first)).Value(
-                    item.second->GetQuantile(Config->UserJobMemoryReserveQuantile));
-        });
-}
-
-void TOperationControllerBase::RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor, double minMemoryReserveFactor)
-{
-    YCHECK(UserJobMemoryDigests_.find(jobType) == UserJobMemoryDigests_.end());
-    auto config = New<TLogDigestConfig>();
-    config->LowerBound = minMemoryReserveFactor;
-    config->DefaultValue = memoryReserveFactor;
-    config->UpperBound = 1.0;
-    config->RelativePrecision = Config->UserJobMemoryDigestPrecision;
-    UserJobMemoryDigests_[jobType] = CreateLogDigest(config);
-}
-
-IDigest* TOperationControllerBase::GetUserJobMemoryDigest(EJobType jobType)
-{
-    auto iter = UserJobMemoryDigests_.find(jobType);
-    YCHECK(iter != UserJobMemoryDigests_.end());
-    return iter->second.get();
-}
-
-const IDigest* TOperationControllerBase::GetUserJobMemoryDigest(EJobType jobType) const
-{
-    auto iter = UserJobMemoryDigests_.find(jobType);
-    YCHECK(iter != UserJobMemoryDigests_.end());
-    return iter->second.get();
-}
-
-void TOperationControllerBase::RegisterJobProxyMemoryDigest(EJobType jobType, const TLogDigestConfigPtr& config)
-{
-    if (JobProxyMemoryDigests_.has(jobType)) {
-        return;
-    }
-    JobProxyMemoryDigests_[jobType] = CreateLogDigest(config);
-}
-
 void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumns)
 {
     // We infer schema only for operations with one output table.
@@ -6621,21 +6549,6 @@ TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfig() const
     return nullptr;
 }
 
-IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobType)
-{
-    auto iter = JobProxyMemoryDigests_.find(jobType);
-    YCHECK(iter != JobProxyMemoryDigests_.end());
-    return iter->second.get();
-}
-
-const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobType) const
-{
-    auto iter = JobProxyMemoryDigests_.find(jobType);
-    YCHECK(iter != JobProxyMemoryDigests_.end());
-    return iter->second.get();
-}
-
-
 void TOperationControllerBase::WaitForHeartbeat()
 {
     Y_UNUSED(WaitFor(ControllerAgent->GetHeartbeatSentFuture()));
@@ -6681,20 +6594,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, ScheduleJobStatistics_);
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
-    Persist<
-        TMapSerializer<
-            TDefaultSerializer,
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, JobProxyMemoryDigests_);
-    Persist<
-        TMapSerializer<
-            TDefaultSerializer,
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, UserJobMemoryDigests_);
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
     Persist(context, CurrentInputDataSliceTag_);

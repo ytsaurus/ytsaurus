@@ -61,9 +61,6 @@ struct ITaskHost
     virtual bool IsJobInterruptible() const = 0;
     virtual bool ShouldSkipSanityCheck() = 0;
 
-    virtual const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const = 0;
-    virtual const IDigest* GetUserJobMemoryDigest(EJobType jobType) const = 0;
-
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const = 0;
 
     virtual const TChunkListPoolPtr& ChunkListPool() const = 0;

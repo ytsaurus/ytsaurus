@@ -2749,7 +2749,6 @@ private:
         auto controllerBriefProgress = isOK ? getValue(response.Value()->brief_progress()) : emptyMapFragment;
         auto controllerRunningJobs = isOK ? getValue(response.Value()->running_jobs()) : emptyMapFragment;
         auto controllerJobSplitterInfo = isOK ? getValue(response.Value()->job_splitter()) : emptyMapFragment;
-        auto controllerMemoryDigest = isOK ? getValue(response.Value()->memory_digest()) : emptyMapFragment;
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -2776,7 +2775,6 @@ private:
                     .BeginMap()
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
-                .Items(controllerMemoryDigest)
             .EndMap();
     }
 

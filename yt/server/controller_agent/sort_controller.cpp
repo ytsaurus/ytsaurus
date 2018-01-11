@@ -1406,16 +1406,6 @@ protected:
 
     };
 
-    virtual TUserJobSpecPtr GetPartitionUserJobSpec() const
-    {
-        return nullptr;
-    }
-
-    virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(const TPartitionPtr& partition) const
-    {
-        return nullptr;
-    }
-
     // Custom bits of preparation pipeline.
 
     virtual void DoInitialize() override
@@ -2051,6 +2041,8 @@ protected:
     virtual EJobType GetFinalSortJobType() const = 0;
     virtual EJobType GetSortedMergeJobType() const = 0;
 
+    virtual TUserJobSpecPtr GetPartitionUserJobSpec() const = 0;
+    virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(const TPartitionPtr& partition) const = 0;
     virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const = 0;
 
     virtual int GetSortedMergeKeyColumnCount() const = 0;
@@ -2078,14 +2070,7 @@ public:
             controllerAgent,
             operation)
         , Spec(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::Partition, spec->PartitionJobProxyMemoryDigest);
-        RegisterJobProxyMemoryDigest(EJobType::SimpleSort, spec->SortJobProxyMemoryDigest);
-        RegisterJobProxyMemoryDigest(EJobType::IntermediateSort, spec->SortJobProxyMemoryDigest);
-        RegisterJobProxyMemoryDigest(EJobType::FinalSort, spec->SortJobProxyMemoryDigest);
-        RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->MergeJobProxyMemoryDigest);
-        RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->MergeJobProxyMemoryDigest);
-    }
+    { }
 
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
@@ -2432,10 +2417,10 @@ private:
         shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
         shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
         PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
+        RegisterTask(PartitionTask);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         FinishTaskInput(PartitionTask);
-        RegisterTask(PartitionTask);
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
             partitionCount,
@@ -2475,6 +2460,16 @@ private:
     virtual EJobType GetSortedMergeJobType() const override
     {
         return EJobType::SortedMerge;
+    }
+
+    virtual TUserJobSpecPtr GetPartitionUserJobSpec() const override
+    {
+        return nullptr;
+    }
+
+    virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(const TPartitionPtr& partition) const override
+    {
+        return nullptr;
     }
 
     virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const override
@@ -2777,27 +2772,7 @@ public:
         , Spec(spec)
         , MapStartRowIndex(0)
         , ReduceStartRowIndex(0)
-    {
-        if (spec->Mapper) {
-            RegisterJobProxyMemoryDigest(EJobType::PartitionMap, spec->PartitionJobProxyMemoryDigest);
-            RegisterUserJobMemoryDigest(EJobType::PartitionMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
-        } else {
-            RegisterJobProxyMemoryDigest(EJobType::Partition, spec->PartitionJobProxyMemoryDigest);
-        }
-
-        if (spec->ReduceCombiner) {
-            RegisterJobProxyMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombinerJobProxyMemoryDigest);
-            RegisterUserJobMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombiner->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
-        } else {
-            RegisterJobProxyMemoryDigest(EJobType::IntermediateSort, spec->SortJobProxyMemoryDigest);
-        }
-
-        RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->SortedReduceJobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
-
-        RegisterJobProxyMemoryDigest(EJobType::PartitionReduce, spec->PartitionReduceJobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::PartitionReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
-    }
+    { }
 
     virtual void BuildBriefSpec(TFluentMap fluent) const override
     {

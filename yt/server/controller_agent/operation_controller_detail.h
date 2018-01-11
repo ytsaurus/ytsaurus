@@ -236,7 +236,6 @@ public:
 
     virtual void BuildProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
-    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap fluent) const;
     virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
 
@@ -293,9 +292,6 @@ public:
     virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const override;
     virtual TTaskGroupPtr GetAutoMergeTaskGroup() const override;
     virtual TAutoMergeDirector* GetAutoMergeDirector() override;
-
-    virtual const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const override;
-    virtual const IDigest* GetUserJobMemoryDigest(EJobType jobType) const override;
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const override;
 
@@ -857,14 +853,6 @@ protected:
 
     const std::vector<NScheduler::TExecNodeDescriptor>& GetExecNodeDescriptors();
 
-    virtual void RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor, double minMemoryReserveFactor);
-    IDigest* GetUserJobMemoryDigest(EJobType jobType);
-
-    virtual void RegisterJobProxyMemoryDigest(EJobType jobType, const TLogDigestConfigPtr& config);
-    IDigest* GetJobProxyMemoryDigest(EJobType jobType);
-
-    i64 ComputeUserJobMemoryReserve(EJobType jobType, NScheduler::TUserJobSpecPtr jobSpec) const;
-
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors();
@@ -987,10 +975,6 @@ private:
     TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
 
     const std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
-
-    typedef yhash<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
-    TMemoryDigestMap JobProxyMemoryDigests_;
-    TMemoryDigestMap UserJobMemoryDigests_;
 
     const TString CodicilData_;
 
