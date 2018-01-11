@@ -1133,8 +1133,6 @@ private:
     void DoAbort();
     void AbortAllJoblets();
 
-    void WaitForHeartbeat();
-
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
         : public NChunkPools::IChunkPoolInput

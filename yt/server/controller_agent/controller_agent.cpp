@@ -307,13 +307,6 @@ public:
             .Run(jobId, /* outputStatistics */ true);
     }
 
-    TFuture<void> GetHeartbeatSentFuture()
-    {
-        // In the a bit more far future this function will become unnecessary
-        // because of changes in processing operation statuses.
-        return HeartbeatExecutor_->GetExecutedEvent();
-    }
-
     TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -798,11 +791,6 @@ TFuture<TYsonString> TControllerAgent::BuildJobInfo(
     const TJobId& jobId)
 {
     return Impl_->BuildJobInfo(operationId, jobId);
-}
-
-TFuture<void> TControllerAgent::GetHeartbeatSentFuture()
-{
-    return Impl_->GetHeartbeatSentFuture();
 }
 
 int TControllerAgent::GetExecNodeCount() const

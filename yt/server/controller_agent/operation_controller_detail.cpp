@@ -3275,7 +3275,6 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     BuildAndSaveProgress();
     FlushOperationNode(/* checkFlushResult */ true);
-    WaitForHeartbeat();
 
     LogProgress(/* force */ true);
 
@@ -3293,7 +3292,6 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
     BuildAndSaveProgress();
     LogProgress(/* force */ true);
-    WaitForHeartbeat();
 
     if (flush) {
         // NB: Error ignored since we cannot do anything with it.
@@ -6590,11 +6588,6 @@ const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobTyp
     auto iter = JobProxyMemoryDigests_.find(jobType);
     YCHECK(iter != JobProxyMemoryDigests_.end());
     return iter->second.get();
-}
-
-void TOperationControllerBase::WaitForHeartbeat()
-{
-    Y_UNUSED(WaitFor(Host->GetHeartbeatSentFuture()));
 }
 
 void TOperationControllerBase::Persist(const TPersistenceContext& context)

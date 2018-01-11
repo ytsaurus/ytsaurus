@@ -105,9 +105,6 @@ public:
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId);
     TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, const TJobId& jobId);
 
-    // XXX(babenko)
-    TFuture<void> GetHeartbeatSentFuture();
-
     //! Returns the total number of online exec nodes.
     /*!
      *  \note Thread affinity: any
