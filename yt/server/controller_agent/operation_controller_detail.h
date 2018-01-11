@@ -615,7 +615,7 @@ protected:
     void StartDebugCompletionTransaction();
     void CommitDebugCompletionTransaction();
 
-    void SetPartSize(const TNullable<TOutputTable>& table, size_t partSize);
+    i64 GetPartSize(EOutputTableType tableType);
 
     // Revival.
     void ReinstallLivePreview();
