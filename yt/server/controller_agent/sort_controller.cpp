@@ -8,6 +8,7 @@
 #include "unordered_controller.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "operation.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/shuffle_chunk_pool.h>

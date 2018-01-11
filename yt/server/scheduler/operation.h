@@ -161,9 +161,6 @@ public:
     //! Controller that owns the operation.
     DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
 
-    //! Host for the controller.
-    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::TOperationControllerHostPtr, Host);
-
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
 

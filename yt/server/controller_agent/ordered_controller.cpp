@@ -5,6 +5,7 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "operation.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>

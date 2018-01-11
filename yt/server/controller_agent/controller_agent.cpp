@@ -4,6 +4,7 @@
 #include "config.h"
 #include "private.h"
 #include "operation_controller_host.h"
+#include "operation.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
@@ -455,7 +456,8 @@ private:
     void DoCleanup()
     {
         for (const auto& pair : IdToOperation_) {
-            const auto& controller = pair.second;
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
             controller->Cancel();
         }
         IdToOperation_.clear();

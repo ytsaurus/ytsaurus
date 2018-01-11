@@ -7,6 +7,7 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "operation.h"
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
