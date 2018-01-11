@@ -16,7 +16,7 @@ namespace NYtBlobTable {
 // Those parts are stored in the separate rows.
 //
 // Blob table have constaints on its schema.
-//  - There must be columns that identify blob (blob id columns). That columns might be of any type.
+//  - There must be columns that identify blob (blob id columns). These columns might be of any type.
 //  - There must be a column of int64 type that identify part inside the blob.
 //  - There must be a column of string type that stores actual data.
 //
