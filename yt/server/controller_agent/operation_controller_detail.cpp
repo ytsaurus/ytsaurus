@@ -1208,18 +1208,16 @@ void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitSta
     }
 }
 
-void TOperationControllerBase::SetPartSize(const TNullable<TOutputTable>& table, size_t partSize)
+i64 TOperationControllerBase::GetPartSize(EOutputTableType tableType)
 {
-    const auto& client = Host->GetClient();
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
+    if (tableType == EOutputTableType::Stderr) {
+        return GetStderrTableWriterConfig()->MaxPartSize;
+    }
+    if (tableType == EOutputTableType::Core) {
+        return GetCoreTableWriterConfig()->MaxPartSize;
+    }
 
-    auto path = NYPath::ToString(table->Path) + "/@part_size";
-    auto req = TYPathProxy::Set(path);
-    SetTransactionId(req, DebugCompletionTransaction->GetId());
-    req->set_value(ConvertToYsonString(partSize).GetData());
-    WaitFor(proxy.Execute(req))
-        .ThrowOnError();
+    Y_UNREACHABLE();
 }
 
 void TOperationControllerBase::SafeCommit()
@@ -1238,37 +1236,6 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage5);
 
     CustomCommit();
-
-    if (StderrTable_ || CoreTable_) {
-        const auto& client = Host->GetClient();
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-
-        auto batchReq = proxy.ExecuteBatch();
-
-        auto addRequest = [&] (
-            const TNullable<TOutputTable>& table,
-            size_t partSize)
-        {
-            // TODO(ignat): refactor it (avoid copy/paste).
-            auto path = NYPath::ToString(table->Path) + "/@part_size";
-            auto req = TYPathProxy::Set(path);
-            SetTransactionId(req, DebugCompletionTransaction->GetId());
-            req->set_value(ConvertToYsonString(partSize).GetData());
-            batchReq->AddRequest(req);
-        };
-
-        if (StderrTable_) {
-            addRequest(StderrTable_, GetStderrTableWriterConfig()->MaxPartSize);
-        }
-
-        if (CoreTable_) {
-            addRequest(CoreTable_, GetCoreTableWriterConfig()->MaxPartSize);
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Failed to set part_size attribute");
-    }
 
     CommitOutputCompletionTransaction();
     CommitDebugCompletionTransaction();
@@ -1499,6 +1466,14 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             SetTransactionId(req, table->UploadTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
+        }
+
+        if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
+            auto attributesPath = path + "/@part_size";
+            auto req = TYPathProxy::Set(attributesPath);
+            SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+            req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
+            batchReq->AddRequest(req, "set_part_size");
         }
     }
 
@@ -2283,39 +2258,37 @@ void TOperationControllerBase::DoAbort()
 
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
-        try {
-            StartDebugCompletionTransaction();
+        std::vector<TOutputTable*> tables;
+        if (StderrTable_ && StderrTable_->IsPrepared()) {
+            tables.push_back(&StderrTable_.Get());
+        }
+        if (CoreTable_ && CoreTable_->IsPrepared()) {
+            tables.push_back(&CoreTable_.Get());
+        }
 
-            if (StderrTable_ && StderrTable_->IsPrepared()) {
-                BeginUploadOutputTables({StderrTable_.GetPtr()});
-                AttachOutputChunks({StderrTable_.GetPtr()});
-                EndUploadOutputTables({StderrTable_.GetPtr()});
-                SetPartSize(StderrTable_, GetStderrTableWriterConfig()->MaxPartSize);
+        if (!tables.empty()) {
+            try {
+                StartDebugCompletionTransaction();
+                BeginUploadOutputTables(tables);
+                AttachOutputChunks(tables);
+                EndUploadOutputTables(tables);
+                CommitDebugCompletionTransaction();
+
+                ITransactionPtr debugTransaction;
+                {
+                    auto guard = Guard(TransactionsLock_);
+                    std::swap(debugTransaction, DebugTransaction);
+                }
+
+                if (debugTransaction) {
+                    WaitFor(debugTransaction->Commit())
+                        .ThrowOnError();
+                }
+            } catch (const std::exception& ex) {
+                // Bad luck we can't commit transaction.
+                // Such a pity can happen for example if somebody aborted our transaction manually.
+                LOG_ERROR(ex, "Failed to commit debug transaction");
             }
-
-            if (CoreTable_ && CoreTable_->IsPrepared()) {
-                BeginUploadOutputTables({CoreTable_.GetPtr()});
-                AttachOutputChunks({CoreTable_.GetPtr()});
-                EndUploadOutputTables({CoreTable_.GetPtr()});
-                SetPartSize(CoreTable_, GetCoreTableWriterConfig()->MaxPartSize);
-            }
-
-            CommitDebugCompletionTransaction();
-
-            ITransactionPtr debugTransaction;
-            {
-                auto guard = Guard(TransactionsLock_);
-                std::swap(debugTransaction, DebugTransaction);
-            }
-
-            if (debugTransaction) {
-                WaitFor(debugTransaction->Commit())
-                    .ThrowOnError();
-            }
-        } catch (const std::exception& ex) {
-            // Bad luck we can't commit transaction.
-            // Such a pity can happen for example if somebody aborted our transaction manually.
-            LOG_ERROR(ex, "Failed to commit debug transaction");
         }
     }
 
