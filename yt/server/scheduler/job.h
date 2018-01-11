@@ -117,7 +117,7 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 struct TJobSummary
 {
     TJobSummary() = default;
-    TJobSummary(const TJobPtr& job, TJobStatus* status);
+    TJobSummary(const TJobPtr& job, const TJobStatus* status);
     TJobSummary(const TJobId& id, EJobState state);
     virtual ~TJobSummary() = default;
 
@@ -152,10 +152,11 @@ struct TCompletedJobSummary
     void Persist(const NPhoenix::TPersistenceContext& context);
 
     bool Abandoned = false;
+    EInterruptReason InterruptReason = EInterruptReason::None;
 
+    // These fields are for controller's use only.
     std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
     std::vector<NChunkClient::TInputDataSlicePtr> ReadInputDataSlices;
-    EInterruptReason InterruptReason = EInterruptReason::None;
     int SplitJobCount = 1;
 };
 
