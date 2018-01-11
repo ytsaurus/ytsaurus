@@ -736,21 +736,18 @@ TSchedulerConfig::TSchedulerConfig()
                 << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)
                 << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
         }
-    });
-}
 
-void TSchedulerConfig::OnLoaded()
-{
-    UpdateOptions(&MapOperationOptions, OperationOptions);
-    UpdateOptions(&ReduceOperationOptions, OperationOptions);
-    UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
-    UpdateOptions(&EraseOperationOptions, OperationOptions);
-    UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&MapReduceOperationOptions, OperationOptions);
-    UpdateOptions(&SortOperationOptions, OperationOptions);
-    UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+        UpdateOptions(&MapOperationOptions, OperationOptions);
+        UpdateOptions(&ReduceOperationOptions, OperationOptions);
+        UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
+        UpdateOptions(&EraseOperationOptions, OperationOptions);
+        UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&MapReduceOperationOptions, OperationOptions);
+        UpdateOptions(&SortOperationOptions, OperationOptions);
+        UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

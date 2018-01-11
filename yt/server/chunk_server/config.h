@@ -43,6 +43,8 @@ public:
                     }
                 }
             }
+
+            CpuUpdateInterval = NProfiling::DurationToCpuDuration(UpdateInterval);
         });
     }
 
@@ -71,10 +73,6 @@ public:
     }
 
 private:
-    void OnLoaded() override
-    {
-        CpuUpdateInterval = NProfiling::DurationToCpuDuration(UpdateInterval);
-    }
 
     // src DC -> dst DC -> data size.
     // NB: that null DC is encoded as an empty string here.

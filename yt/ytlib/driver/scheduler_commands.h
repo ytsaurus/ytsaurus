@@ -148,7 +148,6 @@ private:
     NJobTrackerClient::TJobId JobId;
     NYTree::INodePtr Parameters;
 
-    virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
