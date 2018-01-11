@@ -6,7 +6,7 @@ from yt.yson.tokenizer import YsonTokenizer
 from yt.yson.parser import YsonParser
 from yt.yson.common import StreamWrap
 from yt.yson import YsonEntity
-from yt.common import flatten, update
+from yt.common import flatten, update_inplace
 
 from yt.packages.six import BytesIO, PY3
 
@@ -55,7 +55,7 @@ class RichYPath(object):
             return path
 
         parsed_attributes = parser._parse_attributes()
-        update(attributes, parsed_attributes)
+        update_inplace(attributes, parsed_attributes)
 
         str_without_attributes = stream.read()
         path_start = 0

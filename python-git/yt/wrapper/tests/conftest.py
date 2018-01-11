@@ -4,7 +4,7 @@ from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JO
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
-from yt.wrapper.common import update
+from yt.wrapper.common import update, update_inplace
 from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
@@ -119,17 +119,17 @@ class YtTestEnvironment(object):
 
         def modify_configs(configs, abi_version):
             for config in configs["scheduler"]:
-                update(config, common_delta_scheduler_config)
+                update_inplace(config, common_delta_scheduler_config)
                 if delta_scheduler_config:
-                    update(config, delta_scheduler_config)
+                    update_inplace(config, delta_scheduler_config)
             for config in configs["node"]:
-                update(config, common_delta_node_config)
+                update_inplace(config, common_delta_node_config)
                 if delta_node_config:
-                    update(config, delta_node_config)
+                    update_inplace(config, delta_node_config)
             for config in configs["proxy"]:
-                update(config, common_delta_proxy_config)
+                update_inplace(config, common_delta_proxy_config)
                 if delta_proxy_config:
-                    update(config, delta_proxy_config)
+                    update_inplace(config, delta_proxy_config)
 
         local_temp_directory = os.path.join(get_tests_sandbox(), "tmp_" + run_id)
         if not os.path.exists(local_temp_directory):
@@ -199,7 +199,7 @@ class YtTestEnvironment(object):
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory
-        update(yt.config.config, self.config)
+        update_inplace(yt.config.config, self.config)
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 

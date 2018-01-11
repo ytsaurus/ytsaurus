@@ -1,7 +1,6 @@
 from .helpers import TEST_DIR, get_test_file_path
 
-from yt.wrapper.common import parse_bool, update
-from yt.local import start
+from yt.wrapper.common import parse_bool, update_inplace
 
 import yt.yson as yson
 
@@ -46,7 +45,7 @@ def test_heavy_proxies():
     finally:
         reload_module(yt.http_driver)
         reload_module(yt.config)
-        update(yt.config.config, config)
+        update_inplace(yt.config.config, config)
 
 @pytest.mark.usefixtures("yt_env")
 def test_process_params():

@@ -24,7 +24,7 @@ class ParallelReadRetrier(Retrier):
             "count": get_config(client)["read_retries"]["retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(copy.deepcopy(get_config(client)["read_retries"]), remove_nones_from_dict(retry_config))
+        retry_config = update(get_config(client)["read_retries"], remove_nones_from_dict(retry_config))
         timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                             get_config(client)["proxy"]["heavy_request_timeout"])
 

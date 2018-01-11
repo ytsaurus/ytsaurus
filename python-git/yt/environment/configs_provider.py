@@ -3,7 +3,7 @@ from .helpers import canonize_uuid, WEB_INTERFACE_RESOURCES_PATH
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
-from yt.common import YtError, update, get_value
+from yt.common import YtError, update, update_inplace, get_value
 from yt.yson import to_yson_type
 
 from yt.packages.six import iteritems, add_metaclass
@@ -382,7 +382,7 @@ class ConfigsProvider_18(ConfigsProvider):
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                                  "master-{0}-{1}".format(cell_index, master_index), provision["enable_debug_logging"])
 
-                update(config, {
+                update_inplace(config, {
                     "tablet_manager": {
                         "cell_scan_period": 100
                     },
@@ -427,18 +427,18 @@ class ConfigsProvider_18(ConfigsProvider):
             }
         }
 
-        update(cluster_connection["primary_master"], _get_retrying_channel_config())
-        update(cluster_connection["primary_master"], _get_rpc_config())
+        update_inplace(cluster_connection["primary_master"], _get_retrying_channel_config())
+        update_inplace(cluster_connection["primary_master"], _get_rpc_config())
 
         cluster_connection["secondary_masters"] = []
         for tag in secondary_cell_tags:
             config = master_connection_configs[tag]
-            update(config, _get_retrying_channel_config())
-            update(config, _get_rpc_config())
+            update_inplace(config, _get_retrying_channel_config())
+            update_inplace(config, _get_rpc_config())
             cluster_connection["secondary_masters"].append(config)
 
         if config_template is not None:
-            cluster_connection = update(config_template, cluster_connection)
+            cluster_connection = update_inplace(config_template, cluster_connection)
 
         if enable_master_cache and master_cache_nodes:
             cluster_connection["master_cache"] = {
@@ -482,7 +482,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
     def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
         driver_config = default_configs.get_driver_config()
-        update(driver_config, self._build_cluster_connection_config(
+        update_inplace(driver_config, self._build_cluster_connection_config(
             master_connection_configs,
             master_cache_nodes=master_cache_nodes,
             enable_master_cache=provision["enable_master_cache"]))
@@ -593,7 +593,7 @@ class ConfigsProvider_18(ConfigsProvider):
             config = default_configs.get_driver_config()
             if cell_index == 0:
                 tag = primary_cell_tag
-                update(config, self._build_cluster_connection_config(
+                update_inplace(config, self._build_cluster_connection_config(
                     master_connection_configs,
                     master_cache_nodes=master_cache_nodes,
                     enable_master_cache=provision["enable_master_cache"]))
@@ -608,10 +608,10 @@ class ConfigsProvider_18(ConfigsProvider):
                         "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
                     }
                 }
-                update(cell_connection_config["primary_master"], _get_retrying_channel_config())
-                update(cell_connection_config["primary_master"], _get_rpc_config())
+                update_inplace(cell_connection_config["primary_master"], _get_retrying_channel_config())
+                update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
 
-                update(config, cell_connection_config)
+                update_inplace(config, cell_connection_config)
 
             configs[tag] = config
 

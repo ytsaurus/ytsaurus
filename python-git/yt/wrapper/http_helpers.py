@@ -196,7 +196,7 @@ class RequestRetrier(Retrier):
             "count": get_config(client)["proxy"]["request_retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(deepcopy(get_config(client)["proxy"]["retries"]), remove_nones_from_dict(retry_config))
+        retry_config = update(get_config(client)["proxy"]["retries"], remove_nones_from_dict(retry_config))
         if timeout is None:
             timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
                                 get_config(client)["proxy"]["request_timeout"])

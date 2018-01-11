@@ -7,6 +7,7 @@ from datetime import datetime
 from itertools import chain
 
 import calendar
+import copy
 import ctypes
 import errno
 import functools
@@ -255,22 +256,25 @@ def require(condition, exception_func):
     if not condition:
         raise exception_func()
 
-def update(object, patch):
+def update_inplace(object, patch):
     if isinstance(patch, Mapping) and isinstance(object, Mapping):
         for key, value in iteritems(patch):
             if key in object:
-                object[key] = update(object[key], value)
+                object[key] = update_inplace(object[key], value)
             else:
                 object[key] = value
     elif isinstance(patch, list) and isinstance(object, list):
         for index, value in enumerate(patch):
             if index < len(object):
-                object[index] = update(object[index], value)
+                object[index] = update_inplace(object[index], value)
             else:
                 object.append(value)
     else:
         object = patch
     return object
+
+def update(object, patch):
+    return update_inplace(copy.deepcopy(object), patch)
 
 def flatten(obj, list_types=(list, tuple, set, frozenset, types.GeneratorType)):
     """Create flat list from all elements."""
