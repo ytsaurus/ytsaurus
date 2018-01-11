@@ -100,6 +100,8 @@ public:
     TNullable<TString> ExternalJobRootVolume;
     yhash<TString, TString> ExternalBinds;
 
+    double JobsIOWeight;
+
     TPortoJobEnvironmentConfig()
     {
         RegisterParameter("porto_wait_time", PortoWaitTime)
@@ -119,6 +121,9 @@ public:
             .Default(Null);
         RegisterParameter("external_binds", ExternalBinds)
             .Default();
+
+        RegisterParameter("jobs_io_weight", JobsIOWeight)
+            .Default(0.05);
     }
 };
 

@@ -31,7 +31,6 @@ struct IResourceController
     virtual TDuration GetBlockIOWatchdogPeriod() const = 0;
     virtual void KillAll() = 0;
     virtual void SetCpuShare(double share) = 0;
-    virtual void SetRestrictedIOWeight() = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual IResourceControllerPtr CreateSubcontroller(const TString& name) = 0;
     virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) = 0;
