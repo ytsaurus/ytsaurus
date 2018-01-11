@@ -120,9 +120,6 @@ struct IOperationControllerHost
     virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
 
-    // XXX(babenko)
-    virtual TFuture<void> GetHeartbeatSentFuture() = 0;
-
     virtual void OnOperationCompleted() = 0;
     virtual void OnOperationAborted(const TError& error) = 0;
     virtual void OnOperationFailed(const TError& error) = 0;
