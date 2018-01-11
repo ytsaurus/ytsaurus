@@ -120,8 +120,6 @@ public:
     yhash_set<TString> GetRegisteredKeys() const;
 
 protected:
-    virtual void OnLoaded();
-
     template <class T>
     TParameter<T>& RegisterParameter(
         const TString& parameterName,

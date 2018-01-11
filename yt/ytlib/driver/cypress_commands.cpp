@@ -342,16 +342,13 @@ TConcatenateCommand::TConcatenateCommand()
 {
     RegisterParameter("source_paths", SourcePaths);
     RegisterParameter("destination_path", DestinationPath);
-}
 
-void TConcatenateCommand::OnLoaded()
-{
-    TCommandBase::OnLoaded();
-
-    for (auto& path : SourcePaths) {
-        path = path.Normalize();
-    }
-    DestinationPath = DestinationPath.Normalize();
+    RegisterPostprocessor([&] {
+        for (auto& path : SourcePaths) {
+            path = path.Normalize();
+        }
+        DestinationPath = DestinationPath.Normalize();
+    });
 }
 
 void TConcatenateCommand::DoExecute(ICommandContextPtr context)

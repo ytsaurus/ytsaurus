@@ -747,8 +747,6 @@ public:
 
     TSchedulerConfig();
 
-    virtual void OnLoaded() override;
-
 private:
     template <class TOptions>
     void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch);
