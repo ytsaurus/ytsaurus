@@ -35,6 +35,7 @@ class TRspGetOperationInfo;
 class TReqGetJobInfo;
 class TRspGetJobInfo;
 class TOutputResult;
+class TUserJobSpec;
 
 } // namespace NProto
 
