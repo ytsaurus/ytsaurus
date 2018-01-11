@@ -5,19 +5,23 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptionsBase);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions);
+TJobSizeAdjusterConfig::TJobSizeAdjusterConfig()
+{
+    RegisterParameter("min_job_time", MinJobTime)
+        .Default(TDuration::Seconds(60));
+
+    RegisterParameter("max_job_time", MaxJobTime)
+        .Default(TDuration::Minutes(10));
+
+    RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
+        .Default(20.0);
+}
+
+TIntermediateChunkScraperConfig::TIntermediateChunkScraperConfig()
+{
+    RegisterParameter("restart_timeout", RestartTimeout)
+        .Default(TDuration::Seconds(10));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
