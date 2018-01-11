@@ -332,16 +332,13 @@ TPollJobShellCommand::TPollJobShellCommand()
 {
     RegisterParameter("job_id", JobId);
     RegisterParameter("parameters", Parameters);
-}
 
-void TPollJobShellCommand::OnLoaded()
-{
-    TCommandBase::OnLoaded();
-
-    // Compatibility with initial job shell protocol.
-    if (Parameters->GetType() == NYTree::ENodeType::String) {
-        Parameters = NYTree::ConvertToNode(NYson::TYsonString(Parameters->AsString()->GetValue()));
-    }
+    RegisterPostprocessor([&] {
+        // Compatibility with initial job shell protocol.
+        if (Parameters->GetType() == NYTree::ENodeType::String) {
+            Parameters = NYTree::ConvertToNode(NYson::TYsonString(Parameters->AsString()->GetValue()));
+        }
+    });
 }
 
 void TPollJobShellCommand::DoExecute(ICommandContextPtr context)

@@ -1042,13 +1042,24 @@ public:
             UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
             UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
         });
+
+        RegisterPostprocessor([&] {
+            UpdateOptions(&MapOperationOptions, OperationOptions);
+            UpdateOptions(&ReduceOperationOptions, OperationOptions);
+            UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
+            UpdateOptions(&EraseOperationOptions, OperationOptions);
+            UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
+            UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
+            UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
+            UpdateOptions(&MapReduceOperationOptions, OperationOptions);
+            UpdateOptions(&SortOperationOptions, OperationOptions);
+            UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+        });
     }
 
 private:
     template <class TOptions>
     void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch);
-
-    virtual void OnLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)

@@ -45,8 +45,6 @@ public:
     TBooleanFormula SchedulingTagFilter;
 
     TSupportsSchedulingTagsConfig();
-
-    virtual void OnLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
@@ -406,8 +404,6 @@ public:
     bool EnableJobSplitting;
 
     TOperationWithUserJobSpec();
-
-    virtual void OnLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
@@ -456,8 +452,6 @@ public:
 
     TUnorderedOperationSpecBase();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase, 0x79aafe77);
 };
@@ -478,7 +472,6 @@ public:
 
     TMapOperationSpec();
 
-    virtual void OnLoaded() override;
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec, 0x4aa00f9d);
 };
@@ -498,8 +491,6 @@ public:
     ESchemaInferenceMode SchemaInferenceMode;
 
     TUnorderedMergeOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);
@@ -530,8 +521,6 @@ public:
     ESchemaInferenceMode SchemaInferenceMode;
 
     TMergeOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec, 0x646bd8cb);
@@ -573,8 +562,6 @@ public:
 
     TEraseOperationSpec();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec, 0xbaec2ff5);
 };
@@ -597,8 +584,6 @@ public:
     bool ConsiderOnlyPrimarySize;
 
     TReduceOperationSpecBase();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase, 0x7353c0af);
@@ -634,8 +619,6 @@ class TJoinReduceOperationSpec
 {
 public:
     TJoinReduceOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec, 0x788fac27);
@@ -713,8 +696,6 @@ public:
 
     TSortOperationSpecBase();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase, 0xdd19ecde);
 };
@@ -739,8 +720,6 @@ public:
     ESchemaInferenceMode SchemaInferenceMode;
 
     TSortOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpec, 0xa6709f80);
@@ -780,8 +759,6 @@ public:
 
     TMapReduceOperationSpec();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);
 };
@@ -815,8 +792,6 @@ public:
     ESchemaInferenceMode SchemaInferenceMode;
 
     TRemoteCopyOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec, 0x3c0ce9c0);
