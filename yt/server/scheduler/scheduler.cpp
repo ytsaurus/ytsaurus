@@ -2523,11 +2523,10 @@ private:
 
         // Notify controller that it is going to be disposed.
         if (auto controller = operation->GetController()) {
-            auto error = WaitFor(
+            Y_UNUSED(WaitFor(
                 BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller)
                     .AsyncVia(controller->GetInvoker())
-                    .Run());
-            YCHECK(error.IsOK() && "OnBeforeDisposal failed");
+                    .Run()));
         }
 
         LogOperationFinished(operation, logEventType, error);
