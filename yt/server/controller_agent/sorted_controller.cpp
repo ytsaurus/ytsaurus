@@ -434,8 +434,6 @@ protected:
 
     virtual void AdjustKeyColumns() = 0;
 
-    virtual i64 GetUserJobMemoryReserve() const = 0;
-
     virtual i64 GetForeignInputDataWeight() const = 0;
 
     virtual void PrepareOutputTables() override
@@ -577,9 +575,7 @@ public:
         TOperation* operation)
         : TSortedControllerBase(spec, controllerAgent->GetConfig()->SortedMergeOperationOptions, controllerAgent, operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
@@ -631,11 +627,6 @@ public:
     virtual TCpuResource GetCpuLimit() const override
     {
         return 1;
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return 0;
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -793,11 +784,6 @@ public:
     virtual TUserJobSpecPtr GetUserJobSpec() const
     {
         return Spec_->Reducer;
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return ComputeUserJobMemoryReserve(GetJobType(), Spec_->Reducer);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -972,10 +958,7 @@ public:
         TOperation* operation)
         : TSortedReduceControllerBase(spec, controllerAgent->GetConfig()->ReduceOperationOptions, controllerAgent, operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
-    }
+    { }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
@@ -1140,10 +1123,7 @@ public:
         TOperation* operation)
         : TSortedReduceControllerBase(spec, controllerAgent->GetConfig()->JoinReduceOperationOptions, controllerAgent, operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
-    }
+    { }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
     {

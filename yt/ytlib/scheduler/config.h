@@ -316,6 +316,9 @@ public:
     //! to not appear in unrecognized spec.
     NYTree::IMapNodePtr StartedBy;
 
+    // TODO(max42): make this field per-task.
+    TLogDigestConfigPtr JobProxyMemoryDigest;
+
     TOperationSpecBase();
 
 private:
@@ -430,11 +433,7 @@ public:
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
-    NChunkPools::EStripeListExtractionOrder StripeListExtractionOrder;
-
-    // Operations inherited from this class produce the only kind
-    // of jobs. This option corresponds to jobs of this kind.
-    TLogDigestConfigPtr JobProxyMemoryDigest;
+    NChunkPools::EStripeListExtractionOrder StripeListExtractionOrder;;
 
     TSimpleOperationSpecBase();
 
@@ -691,11 +690,6 @@ public:
     //! unavailable chunk tactics).
     bool EnableIntermediateOutputRecalculation;
 
-    // For all kinds of sort jobs: simple_sort, intermediate_sort, final_sort.
-    TLogDigestConfigPtr SortJobProxyMemoryDigest;
-    // For partition and partition_map jobs.
-    TLogDigestConfigPtr PartitionJobProxyMemoryDigest;
-
     TNullable<i64> DataWeightPerSortedJob;
 
     TSortOperationSpecBase();
@@ -717,9 +711,6 @@ public:
 
     // Desired number of samples per partition.
     int SamplesPerPartition;
-
-    // For sorted_merge and unordered_merge jobs.
-    TLogDigestConfigPtr MergeJobProxyMemoryDigest;
 
     ESchemaInferenceMode SchemaInferenceMode;
 
@@ -747,13 +738,6 @@ public:
     TUserJobSpecPtr Mapper;
     TUserJobSpecPtr ReduceCombiner;
     TUserJobSpecPtr Reducer;
-
-    // For sorted_reduce jobs.
-    TLogDigestConfigPtr SortedReduceJobProxyMemoryDigest;
-    // For partition_reduce jobs.
-    TLogDigestConfigPtr PartitionReduceJobProxyMemoryDigest;
-    // For reduce_combiner jobs.
-    TLogDigestConfigPtr ReduceCombinerJobProxyMemoryDigest;
 
     bool ForceReduceCombiners;
 
