@@ -100,7 +100,8 @@ message TRspFlushBlocks
 
 message TReqPopulateCache
 {
-    message TBlock {
+    message TBlock
+    {
         required TBlockId block_id = 1;
         optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor source_descriptor = 2;
     }

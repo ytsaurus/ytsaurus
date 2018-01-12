@@ -32,9 +32,6 @@
 namespace NYT {
 namespace NDataNode {
 
-static const auto& Logger = P2PLogger;
-static const auto& Profiler = P2PProfiler;
-
 using namespace NCellNode;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -46,6 +43,11 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = P2PLogger;
+static const auto& Profiler = P2PProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPeerBlockDistributor::TPeerBlockDistributor(TPeerBlockDistributorConfigPtr config, TBootstrap* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
@@ -53,10 +55,10 @@ TPeerBlockDistributor::TPeerBlockDistributor(TPeerBlockDistributorConfigPtr conf
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TPeerBlockDistributor::DoIteration, MakeWeak(this)),
-        Config_->Period))
+        Config_->IterationPeriod))
 { }
 
-void TPeerBlockDistributor::OnBlockRequested(TBlockId blockId, ui64 blockSize)
+void TPeerBlockDistributor::OnBlockRequested(TBlockId blockId, i64 blockSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -66,6 +68,8 @@ void TPeerBlockDistributor::OnBlockRequested(TBlockId blockId, ui64 blockSize)
 
 void TPeerBlockDistributor::Start()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     UpdateTransmittedBytes();
     PeriodicExecutor_->Start();
 }
@@ -85,8 +89,6 @@ void TPeerBlockDistributor::DoIteration()
 
 void TPeerBlockDistributor::SweepObsoleteRequests()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
-
     auto now = TInstant::Now();
     while (!RequestHistory_.empty()) {
         TBlockId blockId;
@@ -107,8 +109,6 @@ void TPeerBlockDistributor::SweepObsoleteRequests()
 
 void TPeerBlockDistributor::ProcessNewRequests()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
-
     auto now = TInstant::Now();
 
     RecentlyRequestedBlocks_.DequeueAll(true /* reversed */, [&] (const TBlockId& blockId) {
@@ -119,31 +119,29 @@ void TPeerBlockDistributor::ProcessNewRequests()
 
 bool TPeerBlockDistributor::ShouldDistributeBlocks()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
-
-    ui64 oldTransmittedBytes = TransmittedBytes_;
+    i64 oldTransmittedBytes = TransmittedBytes_;
     UpdateTransmittedBytes();
-    ui64 outTraffic = TransmittedBytes_ - oldTransmittedBytes;
+    i64 outTraffic = TransmittedBytes_ - oldTransmittedBytes;
 
-    ui64 outThrottlerQueueSize = Bootstrap_->GetOutThrottler(TWorkloadDescriptor())->GetQueueTotalCount();
-    ui64 defaultNetworkPendingOutBytes = 0;
+    i64 outThrottlerQueueSize = Bootstrap_->GetOutThrottler(TWorkloadDescriptor())->GetQueueTotalCount();
+    i64 defaultNetworkPendingOutBytes = 0;
     if (auto defaultNetwork = Bootstrap_->GetDefaultNetworkName()) {
         defaultNetworkPendingOutBytes = TTcpDispatcher::Get()->GetCounters(*defaultNetwork)->PendingOutBytes;
     }
-    ui64 totalOutQueueSize = outThrottlerQueueSize + defaultNetworkPendingOutBytes;
+    i64 totalOutQueueSize = outThrottlerQueueSize + defaultNetworkPendingOutBytes;
 
-    ui64 totalRequestedBlockSize = TotalRequestedBlockSize_;
+    i64 totalRequestedBlockSize = TotalRequestedBlockSize_;
 
     bool shouldDistributeBlocks =
         outTraffic >= Config_->OutTrafficActivationThreshold ||
         totalOutQueueSize >= Config_->OutQueueSizeActivationThreshold ||
         totalRequestedBlockSize >= Config_->TotalRequestedBlockSizeActivationThreshold;
 
-    LOG_INFO("Determining if blocks should be distributed (Period: %v, OutTraffic: %v, "
+    LOG_INFO("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
         "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, DefaultNetworkPendingOutBytes: %v, "
         "TotalOutQueueSize: %v, OutQueueSizeActivationThreshold: %v, TotalRequestedBlockSize: %v, "
         "TotalRequestedBlockSizeActivationThreshold: %v, ShouldDistributeBlocks: %v)",
-        Config_->Period,
+        Config_->IterationPeriod,
         outTraffic,
         Config_->OutTrafficActivationThreshold,
         outThrottlerQueueSize,
@@ -157,7 +155,7 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     // Do not forget to reset the requested block size for the next iteration.
     TotalRequestedBlockSize_ = 0;
 
-    // Carefully profile all related values.
+    // Profile all related values.
     Profiler.Enqueue("/out_traffic", outTraffic, EMetricType::Gauge);
     Profiler.Enqueue("/out_throttler_queue_size", outThrottlerQueueSize, EMetricType::Gauge);
     Profiler.Enqueue("/default_network_pending_out_bytes", defaultNetworkPendingOutBytes, EMetricType::Gauge);
@@ -230,7 +228,8 @@ void TPeerBlockDistributor::DistributeBlocks()
                 destinationAddress,
                 destinationNode,
                 blockId,
-                block.Size()));
+                block.Size())
+                .Via(Bootstrap_->GetControlInvoker()));
         }
     }
 }
@@ -247,13 +246,14 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
 
     auto now = TInstant::Now();
 
-    struct TBlockCandidate {
+    struct TBlockCandidate
+    {
         TBlockId BlockId;
         TInstant LastDistributionTime;
         int DistributionCount;
         int RequestCount;
 
-        bool operator <(const TBlockCandidate& other)
+        bool operator <(const TBlockCandidate& other) const
         {
             if (RequestCount != other.RequestCount) {
                 return RequestCount > other.RequestCount;
@@ -287,7 +287,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     std::vector<TBlock> blocks;
     std::vector<TBlockId> blockIds;
     std::vector<TReqPopulateCache> reqTemplates;
-    ui64 totalSize = 0;
+    i64 totalSize = 0;
 
     const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
 
@@ -304,7 +304,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
         int requestCount = candidate.RequestCount;
         auto lastDistributionTime = candidate.LastDistributionTime;
         int distributionCount = candidate.DistributionCount;
-        ui64 blockSize = cachedBlock->GetData().Size();
+        i64 blockSize = cachedBlock->GetData().Size();
         auto source = cachedBlock->Source();
         auto block = cachedBlock->GetData();
         if (!source) {
@@ -316,8 +316,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
             // Null source is current node.
             source = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
         }
-        if (totalSize + blockSize <= Config_->MaxPopulateRequestSize ||
-            Y_UNLIKELY(totalSize == 0)) // Force at least one block to be distributed even if it is huge.
+        if (totalSize + blockSize <= Config_->MaxPopulateRequestSize || totalSize == 0)
         {
             LOG_DEBUG("Block is ready for distribution (BlockId: %v, RequestCount: %v, LastDistributionTime: %v, "
                 "DistributionCount: %v, Source: %v, Size: %v)",
@@ -345,8 +344,6 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
 
 std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes() const
 {
-    std::vector<std::pair<double, TNodeDescriptor>> randomlyKeyedNodeDescriptors;
-
     auto localDescriptor = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
 
     struct TNodeCandidate
@@ -354,7 +351,7 @@ std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes() con
         double RandomKey;
         TNodeDescriptor descriptor;
 
-        bool operator <(const TNodeCandidate& other)
+        bool operator <(const TNodeCandidate& other) const
         {
             return RandomKey < other.RandomKey;
         }
@@ -391,8 +388,6 @@ std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes() con
 
 void TPeerBlockDistributor::UpdateTransmittedBytes()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     auto interfaceToStatistics = GetNetworkInterfaceStatistics();
     TransmittedBytes_ = 0;
     for (const auto& pair : interfaceToStatistics) {
@@ -408,9 +403,11 @@ void TPeerBlockDistributor::OnBlockDistributed(
     const TString& address,
     const TNodeDescriptor& descriptor,
     const TBlockId& blockId,
-    ui64 size,
+    i64 size,
     const TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError)
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
     if (rspOrError.IsOK()) {
         TInstant expirationTime;
         FromProto(&expirationTime, rspOrError.Value()->expiration_time());
@@ -422,8 +419,7 @@ void TPeerBlockDistributor::OnBlockDistributed(
             size);
         DistributedBytes_ += size;
         TPeerInfo peerInfo(descriptor, expirationTime);
-        Bootstrap_->GetControlInvoker()->Invoke(
-            BIND(&TPeerBlockTable::UpdatePeer, Bootstrap_->GetPeerBlockTable(), blockId, std::move(peerInfo)));
+        Bootstrap_->GetPeerBlockTable()->UpdatePeer(blockId, std::move(peerInfo));
     } else {
         LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
             address);

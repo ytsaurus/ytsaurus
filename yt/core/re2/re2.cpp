@@ -18,10 +18,14 @@ void Serialize(const TRe2Ptr& re, IYsonConsumer* consumer)
         .Value(re->pattern());
 }
 
-void Deserialize(TRe2Ptr& re, INodePtr& node)
+void Deserialize(TRe2Ptr& re, INodePtr node)
 {
-    auto pattern = node->AsString()->GetValue();
+    auto pattern = node->GetValue<TString>();
     re = New<TRe2>(pattern);
+    if (!re->ok()) {
+        THROW_ERROR_EXCEPTION("Error parsing RE2 regex")
+            << TErrorAttribute("error", re->error());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

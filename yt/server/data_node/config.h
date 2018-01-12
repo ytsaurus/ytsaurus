@@ -46,22 +46,22 @@ class TPeerBlockDistributorConfig
 {
 public:
     //! Period between distributor iterations.
-    TDuration Period;
+    TDuration IterationPeriod;
 
     //! Transmitted byte count during `Period` time window enough for P2P to become active.
-    ui64 OutTrafficActivationThreshold;
+    i64 OutTrafficActivationThreshold;
 
     //! Out queue size (Out throttler queue size + default network bus pending byte count) enough for P2P to become active.
-    ui64 OutQueueSizeActivationThreshold;
+    i64 OutQueueSizeActivationThreshold;
 
     //! Block throughput in bytes per `Period` enough for P2P to become active.
-    ui64 TotalRequestedBlockSizeActivationThreshold;
+    i64 TotalRequestedBlockSizeActivationThreshold;
 
     //! Regex for names of network interfaces considered when calculating transmitted byte count.
     NRe2::TRe2Ptr NetOutInterfaces;
 
     //! Maximum total size of blocks transmitted to a single node during the iteration.
-    ui64 MaxPopulateRequestSize;
+    i64 MaxPopulateRequestSize;
 
     //! Number of nodes to send blocks on a given iteration.
     int DestinationNodeCount;
@@ -88,7 +88,7 @@ public:
 
     TPeerBlockDistributorConfig()
     {
-        RegisterParameter("period", Period)
+        RegisterParameter("iteration_period", IterationPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("out_traffic_activation_threshold", OutTrafficActivationThreshold)
             .Default(768_MB);
