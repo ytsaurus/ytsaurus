@@ -564,7 +564,11 @@ private:
     void UpdateLimits()
     {
         try {
-            auto limits = MetaInstance_->GetResourceLimits();
+            auto container = Config_->ExternalJobContainer
+                ? MetaInstance_
+                : ContainerManager_->GetSelfInstance();
+
+            auto limits = container->GetResourceLimits();
 
             auto guard = Guard(LimitsLock_);
             if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {
