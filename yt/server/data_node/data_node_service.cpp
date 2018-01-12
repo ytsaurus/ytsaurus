@@ -10,6 +10,7 @@
 #include "master_connector.h"
 #include "peer_block_table.h"
 #include "peer_block_updater.h"
+#include "peer_block_distributor.h"
 #include "session.h"
 #include "session_manager.h"
 
@@ -444,6 +445,13 @@ private:
 
             auto blocks = WaitFor(asyncBlocks)
                 .ValueOrThrow();
+            for (int index = 0; index < blocks.size() && index < blockIndexes.size(); ++index) {
+                if (const auto& block = blocks[index]) {
+                    Bootstrap_->GetPeerBlockDistributor()->OnBlockRequested(
+                        TBlockId(chunkId, blockIndexes[index]),
+                        block.Size());
+                }
+            }
             SetRpcAttachedBlocks(response, blocks);
         }
 
