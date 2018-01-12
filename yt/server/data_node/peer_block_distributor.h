@@ -28,7 +28,7 @@ public:
     TPeerBlockDistributor(TPeerBlockDistributorConfigPtr config, NCellNode::TBootstrap* bootstrap);
 
     //! Method that should be called on each block request.
-    void OnBlockRequested(TBlockId blockId, ui64 blockSize);
+    void OnBlockRequested(TBlockId blockId, i64 blockSize);
 
     //! Starts periodic activity.
     void Start();
@@ -46,7 +46,8 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TBlockId> RecentlyRequestedBlocks_;
 
     //! History of what happened with block during the considered time window.
-    struct TDistributionEntry {
+    struct TDistributionEntry
+    {
         //! Number of times each block was accessed during the time window considered by the distributor
         //! (`Config_->WindowLength`).
         int RequestCount = 0;
@@ -67,11 +68,11 @@ private:
 
     //! Total number of transmitted bytes over the selected network interfaces from the beginning of times
     //! (taken from /proc/net/dev/).
-    ui64 TransmittedBytes_ = 0;
-    //! Total size of requested blocks from data node to the outworld during last `Config_->Period` window.
-    std::atomic<ui64> TotalRequestedBlockSize_ = {0};
+    i64 TransmittedBytes_ = 0;
+    //! Total size of requested blocks from data node to the outworld during last `Config_->IterationPeriod` window.
+    std::atomic<i64> TotalRequestedBlockSize_ = {0};
     //! Total number of bytes distributed up to this moment.
-    std::atomic<ui64> DistributedBytes_ = {0};
+    std::atomic<i64> DistributedBytes_ = {0};
 
     void DoIteration();
 
@@ -87,7 +88,7 @@ private:
         std::vector<NChunkClient::NProto::TReqPopulateCache> ReqTemplates;
         std::vector<NChunkClient::TBlock> Blocks;
         std::vector<TBlockId> BlockIds;
-        ui64 BlockTotalSize = 0;
+        i64 BlockTotalSize = 0;
     };
     TChosenBlocks ChooseBlocks();
 
@@ -101,7 +102,7 @@ private:
         const TString& address,
         const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
         const TBlockId& blockIds,
-        ui64 size,
+        i64 size,
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError);
 };
 
