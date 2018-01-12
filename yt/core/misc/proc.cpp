@@ -925,9 +925,9 @@ yhash<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics()
     }
     return interfaceToStatistics;
 #else
-    return {}
+    return {};
 #endif
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

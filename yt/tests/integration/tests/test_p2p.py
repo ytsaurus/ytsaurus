@@ -66,7 +66,7 @@ class TestBlockPeerDistributor(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "peer_block_distributor": {
-                "period": 100, # 0.1 sec
+                "iteration_period": 100, # 0.1 sec
                 "window_length": 1000, # 1 sec,
                 # In tests we are always trying to distribute something.
                 "out_traffic_activation_threshold": 0,
@@ -103,7 +103,7 @@ class TestBlockPeerDistributor(YTEnvSetup):
 
     @clear_everything_after_test
     def test_no_distribution(self):
-        with Profile(self.seed, "p2p/distributed_block_size") as p:
+        with Profile(self.seed, "data_node/p2p/distributed_block_size") as p:
             self._access()
             self._access()
             time.sleep(2)
@@ -111,7 +111,7 @@ class TestBlockPeerDistributor(YTEnvSetup):
 
     @clear_everything_after_test
     def test_simple_distribution(self):
-        with Profile(self.seed, "p2p/distributed_block_size") as p:
+        with Profile(self.seed, "data_node/p2p/distributed_block_size") as p:
             self._access()
             self._access()
             self._access()
@@ -124,7 +124,7 @@ class TestBlockPeerDistributor(YTEnvSetup):
             set("//sys/nodes/{0}/@user_tags".format(non_seed), ["tag42"])
         # Wait for node directory to become updated.
         time.sleep(2)
-        with Profile(self.seed, "p2p/distributed_block_size") as p:
+        with Profile(self.seed, "data_node/p2p/distributed_block_size") as p:
             self._access()
             self._access()
             self._access()
