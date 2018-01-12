@@ -46,6 +46,21 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    TExecNodeDescriptorListPtr GetCachedExecNodeDescriptors();
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    const std::vector<TNodeShardPtr>& GetNodeShards() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     bool IsConnected();
     /*!
      *  \note Thread affinity: any
@@ -72,6 +87,11 @@ public:
         const TError& error,
         const TString& user);
 
+    void OnOperationCompleted(const TOperationId& operationId);
+    void OnOperationAborted(const TOperationId& operationId, const TError& error);
+    void OnOperationFailed(const TOperationId& operationId, const TError& error);
+    void OnOperationSuspended(const TOperationId& operationId, const TError& error);
+
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);
     TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user);
@@ -88,12 +108,6 @@ public:
      *  \note Thread affinity: any
      */
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
-
-    using TCtxAgentHeartbeat = NRpc::TTypedServiceContext<
-        NScheduler::NProto::TReqHeartbeat,
-        NScheduler::NProto::TRspHeartbeat>;
-    using TCtxAgentHeartbeatPtr = TIntrusivePtr<TCtxAgentHeartbeat>;
-    void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context);
 
 private:
     class TImpl;

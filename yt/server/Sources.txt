@@ -351,6 +351,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_tag.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent_tracker.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account_proxy.cpp
