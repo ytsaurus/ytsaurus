@@ -2,6 +2,8 @@
 
 #include "job.h"
 
+#include <yt/ytlib/job_tracker_client/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -20,25 +22,42 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) = 0;
+    virtual void OnJobCompleted(
+        const TJobPtr& job,
+        const NJobTrackerClient::NProto::TJobStatus& status,
+        bool abandoned) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has failed.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) = 0;
+    virtual void OnJobFailed(
+        const TJobPtr& job,
+        const NJobTrackerClient::NProto::TJobStatus& status) = 0;
 
-    //! Called during preemption to notify the controller that a job has been aborted.
+    //! Called during heartheat processing to notify the controller that a job has been aborted.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobAborted(std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary) = 0;
+    virtual void OnJobAborted(
+        const TJobPtr& job,
+        const NJobTrackerClient::NProto::TJobStatus& status) = 0;
+
+    //! Called during scheduling to notify the controller that a job has been aborted.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void OnJobAborted(
+        const TJobPtr& job,
+        EAbortReason abortReason) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job is still running.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) = 0;
+    virtual void OnJobRunning(
+        const TJobPtr& job,
+        const NJobTrackerClient::NProto::TJobStatus& status) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

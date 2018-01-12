@@ -36,7 +36,9 @@ public:
         : Controller_(operation->GetController())
     { }
 
-    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
+    virtual void OnJobStarted(
+        const TJobId& jobId,
+        TInstant startTime) override
     {
         Controller_->GetCancelableInvoker()->Invoke(BIND(
             &NControllerAgent::IOperationControllerSchedulerHost::OnJobStarted,
@@ -45,36 +47,55 @@ public:
             startTime));
     }
 
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
+    virtual void OnJobCompleted(
+        const TJobPtr& job,
+        const NJobTrackerClient::NProto::TJobStatus& status,
+        bool abandoned) override
     {
         Controller_->GetCancelableInvoker()->Invoke(BIND(
             &NControllerAgent::IOperationControllerSchedulerHost::OnJobCompleted,
             Controller_,
-            Passed(std::move(jobSummary))));
+            Passed(std::make_unique<TCompletedJobSummary>(job, status, abandoned))));
     }
 
-    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
+    virtual void OnJobFailed(
+        const TJobPtr& job,
+        const NJobTrackerClient::NProto::TJobStatus& status) override
     {
         Controller_->GetCancelableInvoker()->Invoke(BIND(
             &NControllerAgent::IOperationControllerSchedulerHost::OnJobFailed,
             Controller_,
-            Passed(std::move(jobSummary))));
+            Passed(std::make_unique<TFailedJobSummary>(job, &status))));
     }
 
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
+    virtual void OnJobAborted(
+        const TJobPtr& job,
+        const NJobTrackerClient::NProto::TJobStatus& status) override
     {
         Controller_->GetCancelableInvoker()->Invoke(BIND(
             &NControllerAgent::IOperationControllerSchedulerHost::OnJobAborted,
             Controller_,
-            Passed(std::move(jobSummary))));
+            Passed(std::make_unique<TAbortedJobSummary>(job, status))));
     }
 
-    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
+    virtual void OnJobAborted(
+        const TJobPtr& job,
+        EAbortReason abortReason) override
+    {
+        Controller_->GetCancelableInvoker()->Invoke(BIND(
+            &NControllerAgent::IOperationControllerSchedulerHost::OnJobAborted,
+            Controller_,
+            Passed(std::make_unique<TAbortedJobSummary>(job->GetId(), abortReason))));
+    }
+
+    virtual void OnJobRunning(
+        const TJobPtr& job,
+        const NJobTrackerClient::NProto::TJobStatus& status) override
     {
         Controller_->GetCancelableInvoker()->Invoke(BIND(
             &NControllerAgent::IOperationControllerSchedulerHost::OnJobRunning,
             Controller_,
-            Passed(std::move(jobSummary))));
+            Passed(std::make_unique<TRunningJobSummary>(job, status))));
     }
 
 private:

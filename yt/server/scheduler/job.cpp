@@ -108,8 +108,8 @@ void TJobSummary::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, TJobStatus* status, bool abandoned)
-    : TJobSummary(job, status)
+TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, const TJobStatus& status, bool abandoned)
+    : TJobSummary(job, &status)
     , Abandoned(abandoned)
     , InterruptReason(job->GetInterruptReason())
 {
@@ -136,8 +136,8 @@ void TCompletedJobSummary::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job, TJobStatus* status)
-    : TJobSummary(job, status)
+TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job, const TJobStatus& status)
+    : TJobSummary(job, &status)
     , AbortReason(GetAbortReason(Result))
 { }
 
@@ -153,10 +153,10 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason ab
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRunningJobSummary::TRunningJobSummary(const TJobPtr& job, TJobStatus* status)
-    : TJobSummary(job, status)
-    , Progress(status->progress())
-    , StderrSize(status->stderr_size())
+TRunningJobSummary::TRunningJobSummary(const TJobPtr& job, const TJobStatus& status)
+    : TJobSummary(job, &status)
+    , Progress(status.progress())
+    , StderrSize(status.stderr_size())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -123,7 +123,7 @@ struct TJobSummary
 
     TJobResult Result;
     TJobId Id;
-    EJobState State;
+    EJobState State = EJobState::None;
 
     TNullable<TInstant> FinishTime;
     TNullable<TDuration> PrepareDuration;
@@ -145,7 +145,7 @@ using TFailedJobSummary = TJobSummary;
 struct TCompletedJobSummary
     : public TJobSummary
 {
-    TCompletedJobSummary(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
+    TCompletedJobSummary(const TJobPtr& job, const TJobStatus& status, bool abandoned = false);
     //! Only for testing purpose.
     TCompletedJobSummary() = default;
 
@@ -163,20 +163,20 @@ struct TCompletedJobSummary
 struct TAbortedJobSummary
     : public TJobSummary
 {
-    TAbortedJobSummary(const TJobPtr& job, TJobStatus* status);
+    TAbortedJobSummary(const TJobPtr& job, const TJobStatus& status);
     TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
 
-    const EAbortReason AbortReason;
+    EAbortReason AbortReason;
 };
 
 struct TRunningJobSummary
     : public TJobSummary
 {
-    TRunningJobSummary(const TJobPtr& job, TJobStatus* status);
+    TRunningJobSummary(const TJobPtr& job, const TJobStatus& status);
 
-    const double Progress;
-    const ui64 StderrSize;
+    double Progress;
+    ui64 StderrSize;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

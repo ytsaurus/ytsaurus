@@ -1381,9 +1381,7 @@ void TNodeShard::ProcessScheduledJobs(
                 job->GetOperationId());
             if (operationState && !operationState->Terminated) {
                 const auto& controller = operationState->Controller;
-                controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(
-                    job->GetId(),
-                    EAbortReason::SchedulingOperationSuspended));
+                controller->OnJobAborted(job, EAbortReason::SchedulingOperationSuspended);
                 CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
             }
             continue;
@@ -1444,7 +1442,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
-        controller->OnJobRunning(std::make_unique<TRunningJobSummary>(job, status));
+        controller->OnJobRunning(job, *status);
     }
 }
 
@@ -1477,7 +1475,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
             const auto& controller = operationState->Controller;
-            controller->OnJobCompleted(std::make_unique<TCompletedJobSummary>(job, status, abandoned));
+            controller->OnJobCompleted(job, *status, abandoned);
         }
     }
 
@@ -1497,7 +1495,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
             const auto& controller = operationState->Controller;
-            controller->OnJobFailed(std::make_unique<TFailedJobSummary>(job, status));
+            controller->OnJobFailed(job, *status);
         }
     }
 
@@ -1524,7 +1522,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState && !operationTerminated) {
             const auto& controller = operationState->Controller;
-            controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(job, status));
+            controller->OnJobAborted(job, *status);
         }
     }
 

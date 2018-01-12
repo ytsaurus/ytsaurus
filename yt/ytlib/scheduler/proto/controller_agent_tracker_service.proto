@@ -2,6 +2,7 @@ package NYT.NScheduler.NProto;
 
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
+import "yt/ytlib/job_tracker_client/job.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +46,18 @@ message TOperationJobMetrics
 {
     required NYT.NProto.TGuid operation_id = 1;
     repeated TTreeTaggedJobMetrics metrics = 2;
+}
+
+message TJobEvent
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required int32 event_type = 2; // EJobEvent
+    optional NYT.NJobTrackerClient.NProto.TJobStatus status = 3;
+    optional int32 state = 4; // EJobState
+    optional uint64 start_time = 5; // for EJobEvent::Started only
+    optional uint64 finish_time = 6;
+    optional bool abandoned = 7; // for EJobEvent::Completed only
+    optional int32 abort_reason = 8; // for EJobEvent::Aborted only
 }
 
 ////////////////////////////////////////////////////////////////////////////////
