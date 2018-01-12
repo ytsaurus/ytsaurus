@@ -225,6 +225,7 @@ public:
             agentOperation.Get(),
             CancelableInvoker_,
             OperationEventsOutbox_,
+            JobEventsOutbox_,
             Bootstrap_);
         agentOperation->SetHost(host);
         return agentOperation;
@@ -344,50 +345,6 @@ public:
         return static_cast<int>(CachedExecNodeDescriptors_->Descriptors.size());
     }
 
-    void InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason)
-    {
-        PopulateHeartbeatRequest(
-            incarnationId,
-            [&] (auto* request) {
-                auto* jobToInterrupt = request->add_jobs_to_interrupt();
-                ToProto(jobToInterrupt->mutable_job_id(), jobId);
-                jobToInterrupt->set_reason(static_cast<int>(reason));
-            });
-    }
-
-    void AbortJob(const TIncarnationId& incarnationId, const TJobId& jobId, const TError& error)
-    {
-        PopulateHeartbeatRequest(
-            incarnationId,
-            [&] (auto* request) {
-                auto* jobToAbort = request->add_jobs_to_abort();
-                ToProto(jobToAbort->mutable_job_id(), jobId);
-                ToProto(jobToAbort->mutable_error(), error);
-            });
-    }
-
-    void FailJob(const TIncarnationId& incarnationId, const TJobId& jobId)
-    {
-        PopulateHeartbeatRequest(
-            incarnationId,
-            [&] (auto* request) {
-                auto* jobToFail = request->add_jobs_to_fail();
-                ToProto(jobToFail->mutable_job_id(), jobId);
-            });
-    }
-
-    void ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds)
-    {
-        PopulateHeartbeatRequest(
-            incarnationId,
-            [&] (auto* request) {
-                for (const auto& jobId : jobIds) {
-                    auto* jobToRelease = request->add_jobs_to_release();
-                    ToProto(jobToRelease->mutable_job_id(), jobId);
-                }
-            });
-    }
-
     const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -423,10 +380,7 @@ private:
 
     TIncarnationId IncarnationId_;
     TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> OperationEventsOutbox_;
-
-    TSpinLock HeartbeatRequestLock_;
-    using TReqHeartbeatPtr = std::unique_ptr<NScheduler::NProto::TReqHeartbeat>;
-    TReqHeartbeatPtr HeartbeatRequest_;
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -449,16 +403,14 @@ private:
         OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TOperationEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: OperationEvents, IncarnationId: %v", IncarnationId_));
+        JobEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TJobEvent>>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: JobEvents, IncarnationId: %v", IncarnationId_));
     }
 
     void OnMasterConnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        {
-            auto guard = Guard(HeartbeatRequestLock_);
-            ResetHeartbeatRequest();
-        }
 
         CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
             BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
@@ -497,13 +449,9 @@ private:
             HeartbeatExecutor_.Reset();
         }
 
-        {
-            auto guard = Guard(HeartbeatRequestLock_);
-            HeartbeatRequest_.reset();
-        }
-
         IncarnationId_ = {};
         OperationEventsOutbox_.Reset();
+        JobEventsOutbox_.Reset();
     }
 
     void OnMasterDisconnected()
@@ -521,41 +469,27 @@ private:
             "Master is not connected");
     }
 
-    template <class F>
-    void PopulateHeartbeatRequest(const TIncarnationId& incarnationId, F callback)
+    std::unique_ptr<NScheduler::NProto::TReqHeartbeat> PrepareHeartbeatRequest(TCpuInstant now)
     {
-        auto guard = Guard(HeartbeatRequestLock_);
-        if (IncarnationId_ != incarnationId) {
-            return;
-        }
-        YCHECK(HeartbeatRequest_);
-        callback(HeartbeatRequest_.get());
-    }
+        auto req = std::make_unique<NScheduler::NProto::TReqHeartbeat>();
+        ToProto(req->mutable_agent_incarnation_id(), IncarnationId_);
 
-    void ResetHeartbeatRequest()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        VERIFY_SPINLOCK_AFFINITY(HeartbeatRequestLock_);
-
-        HeartbeatRequest_ = std::make_unique<NScheduler::NProto::TReqHeartbeat>();
-        ToProto(HeartbeatRequest_->mutable_agent_incarnation_id(), MasterConnector_->GetIncarnationId());
-    }
-
-    TReqHeartbeatPtr PrepareHeartbeatRequest(TCpuInstant now)
-    {
-        std::unique_ptr<NScheduler::NProto::TReqHeartbeat> req;
-        {
-            auto guard = Guard(HeartbeatRequestLock_);
-            YCHECK(HeartbeatRequest_);
-            req = std::move(HeartbeatRequest_);
-            ResetHeartbeatRequest();
-        }
-
-        OperationEventsOutbox_->BuildRequest(
-            req->mutable_operation_events_queue(),
+        OperationEventsOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_operation_events_queue(),
             [&] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.Type));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+                if (!event.Error.IsOK()) {
+                    ToProto(protoEvent->mutable_error(), event.Error);
+                }
+            });
+
+        JobEventsOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_job_events_queue(),
+            [&] (auto* protoEvent, const auto& event) {
+                protoEvent->set_event_type(static_cast<int>(event.Type));
+                ToProto(protoEvent->mutable_job_id(), event.JobId);
+                protoEvent->set_interrupt_reason(static_cast<int>(event.InterruptReason));
                 if (!event.Error.IsOK()) {
                     ToProto(protoEvent->mutable_error(), event.Error);
                 }
@@ -626,7 +560,8 @@ private:
 
         LOG_INFO("Heartbeat succeeded");
 
-        OperationEventsOutbox_->HandleResponse(rsp->operation_events_queue());
+        OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events_queue());
+        JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events_queue());
 
         if (rsp->has_exec_nodes()) {
             auto execNodeDescriptors = New<TExecNodeDescriptorList>();
@@ -784,26 +719,6 @@ int TControllerAgent::GetExecNodeCount() const
 TExecNodeDescriptorListPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
 {
     return Impl_->GetExecNodeDescriptors(filter);
-}
-
-void TControllerAgent::InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason)
-{
-    Impl_->InterruptJob(incarnationId, jobId, reason);
-}
-
-void TControllerAgent::AbortJob(const TIncarnationId& incarnationId, const TJobId& jobId, const TError& error)
-{
-    Impl_->AbortJob(incarnationId, jobId, error);
-}
-
-void TControllerAgent::FailJob(const TIncarnationId& incarnationId, const TJobId& jobId)
-{
-    Impl_->FailJob(incarnationId, jobId);
-}
-
-void TControllerAgent::ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds)
-{
-    Impl_->ReleaseJobs(incarnationId, jobIds);
 }
 
 const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() const

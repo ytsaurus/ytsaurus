@@ -15,9 +15,17 @@ namespace NControllerAgent {
 
 struct TOperationEvent
 {
-    NScheduler::EOperationEventType Type;
+    NScheduler::EAgentToSchedulerOperationEventType Type;
     TOperationId OperationId;
     TError Error;
+};
+
+struct TJobEvent
+{
+    NScheduler::EAgentToSchedulerJobEventType Type;
+    TJobId JobId;
+    TError Error;
+    EInterruptReason InterruptReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +38,7 @@ public:
         TOperation* operation,
         IInvokerPtr cancelableControlInvoker,
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> operationEventsOutbox,
+        TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> jobEventsOutbox,
         NCellScheduler::TBootstrap* bootstrap);
 
     virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override;
@@ -74,6 +83,7 @@ private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;
     const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> OperationEventsOutbox_;
+    const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
     NCellScheduler::TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
 };
