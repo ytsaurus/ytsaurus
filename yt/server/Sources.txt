@@ -254,10 +254,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stderr_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_write_controller.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/journal_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/journal_node.cpp
