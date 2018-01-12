@@ -3,7 +3,7 @@
 #include "config.h"
 #include "job_detail.h"
 #include "stderr_writer.h"
-#include "user_job_io.h"
+#include "user_job_write_controller.h"
 #include "job_satellite_connection.h"
 #include "user_job_synchronizer.h"
 #include "resource_controller.h"
@@ -160,11 +160,11 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
-        std::unique_ptr<TUserJobIO> userJobIO,
+        std::unique_ptr<TUserJobWriteController> userJobWriteController,
         IResourceControllerPtr resourceController)
         : TJob(host)
         , Logger(Host_->GetLogger())
-        , JobIO_(std::move(userJobIO))
+        , UserJobWriteController_(std::move(userJobWriteController))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
@@ -251,7 +251,7 @@ public:
     {
         LOG_DEBUG("Starting job process");
 
-        JobIO_->Init();
+        UserJobWriteController_->Init();
 
         Prepare();
 
@@ -308,7 +308,7 @@ public:
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         SaveErrorChunkId(schedulerResultExt);
-        JobIO_->PopulateStderrResult(schedulerResultExt);
+        UserJobWriteController_->PopulateStderrResult(schedulerResultExt);
 
         if (jobResultError) {
             try {
@@ -317,7 +317,7 @@ public:
                 LOG_ERROR(ex, "Failed to dump input context");
             }
         } else {
-            JobIO_->PopulateResult(schedulerResultExt);
+            UserJobWriteController_->PopulateResult(schedulerResultExt);
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -389,7 +389,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    const std::unique_ptr<TUserJobIO> JobIO_;
+    const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
     TUserJobReadControllerPtr UserJobReadController_;
 
     const TUserJobSpec& UserJobSpec_;
@@ -569,7 +569,7 @@ private:
         ErrorOutput_.reset(new TStderrWriter(
             UserJobSpec_.max_stderr_size()));
 
-        auto* stderrTableWriter = JobIO_->GetStderrTableWriter();
+        auto* stderrTableWriter = UserJobWriteController_->GetStderrTableWriter();
         if (stderrTableWriter) {
             StderrCombined_.reset(new TTeeOutput(ErrorOutput_.get(), stderrTableWriter));
             return StderrCombined_.get();
@@ -699,7 +699,7 @@ private:
     std::vector<IValueConsumer*> CreateValueConsumers(TTypeConversionConfigPtr typeConversionConfig)
     {
         std::vector<IValueConsumer*> valueConsumers;
-        for (const auto& writer : JobIO_->GetWriters()) {
+        for (const auto& writer : UserJobWriteController_->GetWriters()) {
             WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer, typeConversionConfig));
             valueConsumers.push_back(WritingValueConsumers_.back().get());
         }
@@ -721,7 +721,7 @@ private:
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
 
-        const auto& writers = JobIO_->GetWriters();
+        const auto& writers = UserJobWriteController_->GetWriters();
 
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
@@ -747,7 +747,7 @@ private:
             }
 
             std::vector<TFuture<void>> asyncResults;
-            for (auto writer : JobIO_->GetWriters()) {
+            for (auto writer : UserJobWriteController_->GetWriters()) {
                 asyncResults.push_back(writer->Close());
             }
 
@@ -937,7 +937,7 @@ private:
         }
 
         int i = 0;
-        for (const auto& writer : JobIO_->GetWriters()) {
+        for (const auto& writer : UserJobWriteController_->GetWriters()) {
             statistics.AddSample(
                 "/data/output/" + NYPath::ToYPathLiteral(i),
                 writer->GetDataStatistics());
@@ -1351,7 +1351,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     const TJobId& jobId,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
     auto subcontroller = host->GetResourceController()
         ? host->GetResourceController()->CreateSubcontroller(CGroupPrefix + ToString(jobId))
@@ -1360,7 +1360,7 @@ IJobPtr CreateUserJob(
         host,
         userJobSpec,
         jobId,
-        std::move(userJobIO),
+        std::move(userJobWriteController),
         subcontroller);
 }
 
@@ -1370,7 +1370,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
     const TJobId& jobId,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Unix");
 }

@@ -9,7 +9,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobIO;
+class TUserJobWriteController;
 
 DECLARE_REFCOUNTED_CLASS(TJobProxyConfig)
 
