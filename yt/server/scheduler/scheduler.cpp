@@ -101,7 +101,6 @@ using namespace NEventLog;
 using NControllerAgent::TControllerTransactionsPtr;
 using NControllerAgent::IOperationControllerSchedulerHost;
 using NControllerAgent::TOperationAlertMap;
-using NControllerAgent::IOperationControllerPtr;
 using NControllerAgent::TOperationControllerHost;
 
 using NNodeTrackerClient::TNodeId;
@@ -1746,6 +1745,8 @@ private:
             auto controller = CreateOperationController(agentOperation);
             operation->SetController(controller);
             agentOperation->SetController(controller);
+            auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent(), operation.Get());
+            operation->SetLocalController(localController);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
@@ -1865,7 +1866,7 @@ private:
         return agentOperation;
     }
 
-    IOperationControllerPtr CreateOperationController(const NControllerAgent::TOperationPtr& operation)
+    NControllerAgent::IOperationControllerPtr CreateOperationController(const NControllerAgent::TOperationPtr& operation)
     {
         return CreateControllerForOperation(
             Bootstrap_->GetControllerAgent()->GetConfig(),
@@ -1894,13 +1895,16 @@ private:
         // If the revival fails, we still need to update the node
         // and unregister the operation from Master Connector.
 
-        IOperationControllerPtr controller;
+        NControllerAgent::IOperationControllerPtr controller;
         NControllerAgent::TOperationPtr agentOperation;
         try {
+            // TODO(babenko)
             agentOperation = CreateAgentOperation(operation);
             controller = CreateOperationController(agentOperation);
             operation->SetController(controller);
             agentOperation->SetController(controller);
+            auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent(), operation.Get());
+            operation->SetLocalController(localController);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
@@ -2025,7 +2029,7 @@ private:
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(
-                BIND(&TNodeShard::RegisterOperation, nodeShard, operation->GetId(), operation->GetController()));
+                BIND(&TNodeShard::RegisterOperation, nodeShard, operation->GetId(), operation->GetLocalController()));
         }
 
         Strategy_->RegisterOperation(operation.Get());
@@ -2095,6 +2099,7 @@ private:
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
             operation->SetController(nullptr);
+            operation->SetLocalController(nullptr);
             UnregisterOperation(operation);
         }
     }

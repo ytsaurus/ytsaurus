@@ -51,6 +51,7 @@ struct ISchedulerStrategyHost;
 struct IOperationStrategyHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
+DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 // XXX(babenko): move to private
 class TMasterConnector;
