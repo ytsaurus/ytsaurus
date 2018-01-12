@@ -24,6 +24,10 @@ public:
     // TODO(babenko): multiagent support
     TControllerAgentPtr GetAgent();
 
+    IOperationControllerPtr CreateController(
+        const TControllerAgentPtr& agent,
+        TOperation* operation);
+
     using TCtxAgentHeartbeat = NRpc::TTypedServiceContext<
         NScheduler::NProto::TReqHeartbeat,
         NScheduler::NProto::TRspHeartbeat>;

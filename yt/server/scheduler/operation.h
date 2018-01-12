@@ -160,6 +160,8 @@ public:
 
     //! Controller that owns the operation.
     DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
+    // TODO(babenko)
+    DEFINE_BYVAL_RW_PROPERTY(NScheduler::IOperationControllerPtr, LocalController);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);

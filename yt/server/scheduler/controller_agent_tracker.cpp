@@ -5,6 +5,7 @@
 #include "controller_agent.h"
 #include "operation.h"
 #include "node_shard.h"
+#include "operation_controller.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
@@ -27,6 +28,61 @@ using NControllerAgent::TOperationAlertMap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOperationController
+    : public IOperationController
+{
+public:
+    explicit TOperationController(TOperation* operation)
+        : Controller_(operation->GetController())
+    { }
+
+    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
+    {
+        Controller_->GetCancelableInvoker()->Invoke(BIND(
+            &NControllerAgent::IOperationControllerSchedulerHost::OnJobStarted,
+            Controller_,
+            jobId,
+            startTime));
+    }
+
+    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
+    {
+        Controller_->GetCancelableInvoker()->Invoke(BIND(
+            &NControllerAgent::IOperationControllerSchedulerHost::OnJobCompleted,
+            Controller_,
+            Passed(std::move(jobSummary))));
+    }
+
+    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
+    {
+        Controller_->GetCancelableInvoker()->Invoke(BIND(
+            &NControllerAgent::IOperationControllerSchedulerHost::OnJobFailed,
+            Controller_,
+            Passed(std::move(jobSummary))));
+    }
+
+    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
+    {
+        Controller_->GetCancelableInvoker()->Invoke(BIND(
+            &NControllerAgent::IOperationControllerSchedulerHost::OnJobAborted,
+            Controller_,
+            Passed(std::move(jobSummary))));
+    }
+
+    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
+    {
+        Controller_->GetCancelableInvoker()->Invoke(BIND(
+            &NControllerAgent::IOperationControllerSchedulerHost::OnJobRunning,
+            Controller_,
+            Passed(std::move(jobSummary))));
+    }
+
+private:
+    const NControllerAgent::IOperationControllerPtr Controller_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentTracker::TImpl
     : public TRefCounted
 {
@@ -41,6 +97,13 @@ public:
     TControllerAgentPtr GetAgent()
     {
         return Agent_;
+    }
+
+    IOperationControllerPtr CreateController(
+        const TControllerAgentPtr& /*agent*/,
+        TOperation* operation)
+    {
+        return New<TOperationController>(operation);
     }
 
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
@@ -255,6 +318,13 @@ TControllerAgentTracker::~TControllerAgentTracker() = default;
 TControllerAgentPtr TControllerAgentTracker::GetAgent()
 {
     return Impl_->GetAgent();
+}
+
+IOperationControllerPtr TControllerAgentTracker::CreateController(
+    const TControllerAgentPtr& agent,
+    TOperation* operation)
+{
+    return Impl_->CreateController(agent, operation);
 }
 
 void TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)

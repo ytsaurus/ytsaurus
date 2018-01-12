@@ -3,8 +3,7 @@
 #include "helpers.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
-
-#include <yt/server/controller_agent/operation_controller.h>
+#include "operation_controller.h"
 
 #include <yt/server/exec_agent/public.h>
 
@@ -177,11 +176,11 @@ void TNodeShard::OnMasterDisconnected()
 
 void TNodeShard::RegisterOperation(
     const TOperationId& operationId,
-    const IOperationControllerSchedulerHostPtr& operationController)
+    const IOperationControllerPtr& controller)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    YCHECK(IdToOpertionState_.emplace(operationId, TOperationState(operationController)).second);
+    YCHECK(IdToOpertionState_.emplace(operationId, TOperationState(controller)).second);
 }
 
 void TNodeShard::UnregisterOperation(const TOperationId& operationId)
@@ -1382,12 +1381,9 @@ void TNodeShard::ProcessScheduledJobs(
                 job->GetOperationId());
             if (operationState && !operationState->Terminated) {
                 const auto& controller = operationState->Controller;
-                controller->GetCancelableInvoker()->Invoke(BIND(
-                    &IOperationControllerSchedulerHost::OnJobAborted,
-                    controller,
-                    Passed(std::make_unique<TAbortedJobSummary>(
-                        job->GetId(),
-                        EAbortReason::SchedulingOperationSuspended))));
+                controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(
+                    job->GetId(),
+                    EAbortReason::SchedulingOperationSuspended));
                 CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
             }
             continue;
@@ -1397,11 +1393,9 @@ void TNodeShard::ProcessScheduledJobs(
         IncreaseProfilingCounter(job, 1);
 
         const auto& controller = operationState->Controller;
-        controller->GetCancelableInvoker()->Invoke(BIND(
-            &IOperationControllerSchedulerHost::OnJobStarted,
-            controller,
+        controller->OnJobStarted(
             job->GetId(),
-            job->GetStartTime()));
+            job->GetStartTime());
 
         auto* startInfo = response->add_jobs_to_start();
         ToProto(startInfo->mutable_job_id(), job->GetId());
@@ -1450,11 +1444,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
-        BIND(&IOperationControllerSchedulerHost::OnJobRunning,
-            controller,
-            Passed(std::make_unique<TRunningJobSummary>(job, status)))
-            .Via(controller->GetCancelableInvoker())
-            .Run();
+        controller->OnJobRunning(std::make_unique<TRunningJobSummary>(job, status));
     }
 }
 
@@ -1487,10 +1477,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
             const auto& controller = operationState->Controller;
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationControllerSchedulerHost::OnJobCompleted,
-                controller,
-                Passed(std::make_unique<TCompletedJobSummary>(job, status, abandoned))));
+            controller->OnJobCompleted(std::make_unique<TCompletedJobSummary>(job, status, abandoned));
         }
     }
 
@@ -1510,10 +1497,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
             const auto& controller = operationState->Controller;
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationControllerSchedulerHost::OnJobFailed,
-                controller,
-                Passed(std::make_unique<TFailedJobSummary>(job, status))));
+            controller->OnJobFailed(std::make_unique<TFailedJobSummary>(job, status));
         }
     }
 
@@ -1540,10 +1524,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState && !operationTerminated) {
             const auto& controller = operationState->Controller;
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationControllerSchedulerHost::OnJobAborted,
-                controller,
-                Passed(std::make_unique<TAbortedJobSummary>(job, status))));
+            controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(job, status));
         }
     }
 
