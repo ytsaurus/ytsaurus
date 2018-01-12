@@ -17,10 +17,7 @@ using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSchedulerService)
-
 DECLARE_REFCOUNTED_CLASS(TOperation)
-
 DECLARE_REFCOUNTED_CLASS(TJob)
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
@@ -35,19 +32,23 @@ struct TCompletedJob;
 struct TExecNodeDescriptor;
 DECLARE_REFCOUNTED_STRUCT(TExecNodeDescriptorList);
 
+DECLARE_REFCOUNTED_CLASS(TNodeShard)
 DECLARE_REFCOUNTED_CLASS(TExecNode)
+DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyTreeConfig)
-
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
+
 DECLARE_REFCOUNTED_CLASS(TScheduler)
+DECLARE_REFCOUNTED_CLASS(TControllerAgentTracker)
 
 struct IEventLogHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
+struct IOperationStrategyHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 

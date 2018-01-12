@@ -101,7 +101,8 @@ public:
         INodeShardHost* host,
         NCellScheduler::TBootstrap* bootstrap);
 
-    const IInvokerPtr& GetInvoker();
+    int GetId() const;
+    const IInvokerPtr& GetInvoker() const;
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 

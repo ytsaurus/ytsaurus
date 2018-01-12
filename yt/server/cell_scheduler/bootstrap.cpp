@@ -15,6 +15,7 @@
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/scheduler_service.h>
 #include <yt/server/scheduler/controller_agent_tracker_service.h>
+#include <yt/server/scheduler/controller_agent_tracker.h>
 
 #include <yt/server/controller_agent/job_spec_service.h>
 #include <yt/server/controller_agent/controller_agent_service.h>
@@ -174,9 +175,11 @@ void TBootstrap::DoRun()
         NodeDirectory_);
     NodeDirectorySynchronizer_->Start();
 
-    ControllerAgent_ = New<TControllerAgent>(Config_->Scheduler, this);
+    ControllerAgent_ = New<NControllerAgent::TControllerAgent>(Config_->Scheduler, this);
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
+
+    ControllerAgentTracker_ = New<TControllerAgentTracker>(Config_->Scheduler, this);
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
@@ -292,7 +295,12 @@ const TSchedulerPtr& TBootstrap::GetScheduler() const
     return Scheduler_;
 }
 
-const TControllerAgentPtr& TBootstrap::GetControllerAgent() const
+const TControllerAgentTrackerPtr& TBootstrap::GetControllerAgentTracker() const
+{
+    return ControllerAgentTracker_;
+}
+
+const NControllerAgent::TControllerAgentPtr& TBootstrap::GetControllerAgent() const
 {
     return ControllerAgent_;
 }

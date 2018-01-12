@@ -9,6 +9,8 @@
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
 #include "cache.h"
+#include "controller_agent_tracker.h"
+#include "controller_agent.h"
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
@@ -303,11 +305,15 @@ public:
 
     const NApi::INativeClientPtr& GetMasterClient() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetMasterClient();
     }
 
     IYPathServicePtr GetOrchidService()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid))
@@ -319,6 +325,21 @@ public:
         return New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{staticOrchidService, dynamicOrchidService},
             Config_->OrchidKeysUpdatePeriod);
+    }
+
+    TExecNodeDescriptorListPtr GetCachedExecNodeDescriptors()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(ExecNodeDescriptorsLock_);
+        return CachedExecNodeDescriptors_;
+    }
+
+    const std::vector<TNodeShardPtr>& GetNodeShards() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return NodeShards_;
     }
 
     bool IsConnected()
@@ -685,6 +706,51 @@ public:
         return operation->GetFinished();
     }
 
+    void OnOperationCompleted(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        operation->GetCancelableControlInvoker()->Invoke(BIND(
+            &TImpl::DoCompleteOperation,
+            MakeStrong(this),
+            operation));
+    }
+
+    void OnOperationAborted(const TOperationId& operationId, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+            static_cast<void(TImpl::*)(const TOperationId&, const TError& error)>(&TImpl::DoAbortOperation),
+            MakeStrong(this),
+            operationId,
+            error));
+    }
+
+    void OnOperationFailed(const TOperationId& operationId, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
+    }
+
+    void OnOperationSuspended(const TOperationId& operationId, const TError& error)
+    {
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+            &TImpl::DoSuspendOperation,
+            MakeStrong(this),
+            operationId,
+            error,
+        /* abortRunningJobs */ true,
+        /* setAlert */ true));
+    }
+
     TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
@@ -757,144 +823,6 @@ public:
 
         const auto& nodeShard = GetNodeShard(nodeId);
         nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
-    }
-
-    void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!IsConnected()) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Scheduler is not able to accept agent heartbeats"));
-            return;
-        }
-
-        const auto* request = &context->Request();
-        auto* response = &context->Response();
-
-        auto agentIncarnationId = FromProto<NControllerAgent::TIncarnationId>(request->agent_incarnation_id());
-        if (agentIncarnationId != AgentIncarnationId_) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Wrong agent incarnation id: expected %v, got %v",
-                AgentIncarnationId_,
-                agentIncarnationId));
-            return;
-        }
-
-        context->SetRequestInfo("AgentIncarnationId: %v", agentIncarnationId);
-
-        // TODO(ignat): add controller agent id to distinguish different controller agents in future.
-        auto mutationId = context->GetMutationId();
-        if (mutationId == LastSeenAgentHeartbeatMutationId_) {
-            context->Reply();
-            return;
-        }
-
-        for (const auto& jobMetricsProto : request->job_metrics()) {
-            auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
-            GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
-        }
-
-        std::vector<TFuture<void>> asyncResults;
-
-        ProcessNodeShardRequests(
-            context,
-            &asyncResults,
-            request->jobs_to_interrupt(),
-            [] (const auto& nodeShard, const auto& subrequest) {
-                auto jobId = FromProto<TJobId>(subrequest.job_id());
-                auto reason = EInterruptReason(subrequest.reason());
-                nodeShard->InterruptJob(jobId, reason);
-            });
-
-        ProcessNodeShardRequests(
-            context,
-            &asyncResults,
-            request->jobs_to_abort(),
-            [] (const auto& nodeShard, const auto& subrequest) {
-                auto jobId = FromProto<TJobId>(subrequest.job_id());
-                auto error = FromProto<TError>(subrequest.error());
-                nodeShard->AbortJob(jobId, error);
-            });
-
-        ProcessNodeShardRequests(
-            context,
-            &asyncResults,
-            request->jobs_to_fail(),
-            [] (const auto& nodeShard, const auto& subrequest) {
-                auto jobId = FromProto<TJobId>(subrequest.job_id());
-                nodeShard->FailJob(jobId);
-            });
-
-        ProcessNodeShardRequests(
-            context,
-            &asyncResults,
-            request->jobs_to_release(),
-            [] (const auto& nodeShard, const auto& subrequest) {
-                auto jobId = FromProto<TJobId>(subrequest.job_id());
-                nodeShard->ReleaseJob(jobId);
-            });
-
-        for (const auto& protoOperationCompletion : request->completed_operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperationCompletion.operation_id());
-            OnOperationCompleted(operationId);
-        }
-
-        for (const auto& protoOperationSuspension : request->suspended_operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperationSuspension.operation_id());
-            auto error = FromProto<TError>(protoOperationSuspension.error());
-            OnOperationSuspended(operationId, error);
-        }
-
-        for (const auto& protoOperationAbort : request->aborted_operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperationAbort.operation_id());
-            auto error = FromProto<TError>(protoOperationAbort.error());
-            OnOperationAborted(operationId, error);
-        }
-
-        for (const auto& protoOperationFailure : request->failed_operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperationFailure.operation_id());
-            auto error = FromProto<TError>(protoOperationFailure.error());
-            OnOperationFailed(operationId, error);
-        }
-
-        for (const auto& protoOperationAlerts : request->operation_alerts()) {
-            auto operationId = FromProto<TOperationId>(protoOperationAlerts.operation_id());
-            TOperationAlertMap alerts;
-            for (const auto& protoAlert : protoOperationAlerts.alerts()) {
-                auto alertType = EOperationAlertType(protoAlert.type());
-                auto alert = FromProto<TError>(protoAlert.error());
-                YCHECK(alerts.emplace(alertType, std::move(alert)).second);
-            }
-            DoSetOperationAlerts(operationId, alerts);
-        }
-
-        if (request->exec_nodes_requested()) {
-            TExecNodeDescriptorListPtr execNodes;
-            {
-                TReaderGuard guard(ExecNodeDescriptorsLock_);
-                execNodes = CachedExecNodeDescriptors_;
-            }
-
-            for (const auto& execNode : execNodes->Descriptors) {
-                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
-            }
-        }
-
-        SuspiciousJobsYson_ = TYsonString(request->suspicious_jobs(), EYsonType::MapFragment);
-
-        auto error = WaitFor(Combine(asyncResults));
-        if (error.IsOK()) {
-            LastSeenAgentHeartbeatMutationId_ = mutationId;
-        } else {
-            LastSeenAgentHeartbeatMutationId_ = TMutationId();
-            // Heartbeat must succeed and not throw.
-            Disconnect();
-        }
-
-        context->Reply(error);
     }
 
     // ISchedulerStrategyHost implementation
@@ -1135,40 +1063,7 @@ private:
 
     std::atomic<int> OperationArchiveVersion_ = {-1};
 
-    TYsonString SuspiciousJobsYson_ = TYsonString("", EYsonType::MapFragment);
-
-    // TODO(babenko): multiple incarnations
-    NControllerAgent::TIncarnationId AgentIncarnationId_;
-    TMutationId LastSeenAgentHeartbeatMutationId_;
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-    template <class TContext, class TSubrequest, class F>
-    void ProcessNodeShardRequests(
-        const TContext& context,
-        std::vector<TFuture<void>>* asyncResults,
-        const google::protobuf::RepeatedPtrField<TSubrequest>& subrequests,
-        F handler)
-    {
-        std::vector<std::vector<const TSubrequest*>> groupedSubrequests(NodeShards_.size());
-        for (const auto& subrequest : subrequests) {
-            auto jobId = FromProto<TJobId>(subrequest.job_id());
-            auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
-            groupedSubrequests[shardId].push_back(&subrequest);
-        }
-
-        for (size_t shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-            const auto& nodeShard = NodeShards_[shardId];
-            asyncResults->push_back(
-                BIND([context, handler, nodeShard, this_ = MakeStrong(this), subrequests = std::move(groupedSubrequests[shardId])] {
-                    for (const auto* subrequest : subrequests) {
-                        handler(nodeShard, *subrequest);
-                    }
-                })
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run());
-        }
-    }
 
 
     void DoAttachJobContext(
@@ -1200,26 +1095,6 @@ private:
         }
 
         operation->MutableAlerts()[alertType] = alert;
-    }
-
-    void DoSetOperationAlerts(
-        const TOperationId& operationId,
-        const TOperationAlertMap& operationAlerts)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operation = FindOperation(operationId);
-        if (!operation) {
-            return;
-        }
-
-        for (const auto& pair : operationAlerts) {
-            const auto& alertType = pair.first;
-            const auto& alert = pair.second;
-            if (operation->Alerts()[alertType] != alert) {
-                operation->MutableAlerts()[alertType] = alert;
-            }
-        }
     }
 
 
@@ -1371,6 +1246,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // TODO(babenko): improve
         LOG_INFO("Preparing new incarnation of scheduler");
 
         // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
@@ -1378,8 +1254,10 @@ private:
         DoCleanup();
 
         // TODO(babenko): rework when multiple agents are supported
-        AgentIncarnationId_ = NControllerAgent::TIncarnationId::Create();
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnecting(AgentIncarnationId_);
+        const auto& controlerAgentTracker = Bootstrap_->GetControllerAgentTracker();
+        auto agent = controlerAgentTracker->GetAgent();
+        agent->SetIncarnationId(NControllerAgent::TIncarnationId::Create());
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnecting(agent->GetIncarnationId());
 
         // NB: Must start the keeper before registering operations.
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -1463,7 +1341,9 @@ private:
             IdToOperation_.clear();
         }
 
-        LastSeenAgentHeartbeatMutationId_ = TMutationId();
+        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
+        auto agent = controllerAgentTracker->GetAgent();
+        agent->SetLastSeenHeartbeatMutationId({});
 
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
@@ -2255,21 +2135,6 @@ private:
     }
 
 
-    void OnOperationCompleted(const TOperationId& operationId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operation = FindOperation(operationId);
-        if (!operation) {
-            return;
-        }
-
-        operation->GetCancelableControlInvoker()->Invoke(BIND(
-            &TImpl::DoCompleteOperation,
-            MakeStrong(this),
-            operation));
-    }
-
     void DoCompleteOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2343,15 +2208,6 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-
-    void OnOperationFailed(const TOperationId& operationId, const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
-    }
-
     void DoFailOperation(const TOperationId& operationId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2374,18 +2230,6 @@ private:
             EOperationState::Failed,
             ELogEventType::OperationFailed,
             error);
-    }
-
-
-    void OnOperationAborted(const TOperationId& operationId, const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
-            static_cast<void(TImpl::*)(const TOperationId&, const TError& error)>(&TImpl::DoAbortOperation),
-            MakeStrong(this),
-            operationId,
-            error));
     }
 
     void DoAbortOperation(const TOperationPtr& operation, const TError& error)
@@ -2418,18 +2262,6 @@ private:
         }
 
         DoAbortOperation(operation, error);
-    }
-
-
-    void OnOperationSuspended(const TOperationId& operationId, const TError& error)
-    {
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
-            &TImpl::DoSuspendOperation,
-            MakeStrong(this),
-            operationId,
-            error,
-            /* abortRunningJobs */ true,
-            /* setAlert */ true));
     }
 
     void DoSuspendOperation(
@@ -2698,6 +2530,10 @@ private:
 
         RemoveExpiredResourceLimitsTags();
 
+        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
+        // TODO(babenko): multiagent
+        auto agent = controllerAgentTracker->GetAgent();
+
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(IsConnected())
@@ -2717,7 +2553,7 @@ private:
                         })
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
-                    .Items(SuspiciousJobsYson_)
+                    .Items(agent->GetSuspiciousJobsYson())
                 .EndMap()
                 .Item("nodes").BeginMap()
                     .Do([=] (TFluentMap fluent) {
@@ -2971,6 +2807,21 @@ IYPathServicePtr TScheduler::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
+TExecNodeDescriptorListPtr TScheduler::GetCachedExecNodeDescriptors()
+{
+    return Impl_->GetCachedExecNodeDescriptors();
+}
+
+int TScheduler::GetNodeShardId(TNodeId nodeId) const
+{
+    return Impl_->GetNodeShardId(nodeId);
+}
+
+const std::vector<TNodeShardPtr>& TScheduler::GetNodeShards() const
+{
+    return Impl_->GetNodeShards();
+}
+
 bool TScheduler::IsConnected()
 {
     return Impl_->IsConnected();
@@ -3042,6 +2893,26 @@ TFuture<void> TScheduler::CompleteOperation(
     return Impl_->CompleteOperation(operation, error, user);
 }
 
+void TScheduler::OnOperationCompleted(const TOperationId& operationId)
+{
+    Impl_->OnOperationCompleted(operationId);
+}
+
+void TScheduler::OnOperationAborted(const TOperationId& operationId, const TError& error)
+{
+    Impl_->OnOperationAborted(operationId, error);
+}
+
+void TScheduler::OnOperationFailed(const TOperationId& operationId, const TError& error)
+{
+    Impl_->OnOperationFailed(operationId, error);
+}
+
+void TScheduler::OnOperationSuspended(const TOperationId& operationId, const TError& error)
+{
+    Impl_->OnOperationSuspended(operationId, error);
+}
+
 TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user)
 {
     return Impl_->DumpInputContext(jobId, path, user);
@@ -3080,11 +2951,6 @@ TFuture<void> TScheduler::AbortJob(const TJobId& jobId, TNullable<TDuration> int
 void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
     Impl_->ProcessNodeHeartbeat(context);
-}
-
-void TScheduler::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
-{
-    Impl_->ProcessAgentHeartbeat(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

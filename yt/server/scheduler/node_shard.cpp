@@ -89,7 +89,12 @@ TNodeShard::TNodeShard(
         .AddTag("NodeShardId: %v", Id_))
 { }
 
-const IInvokerPtr& TNodeShard::GetInvoker()
+int TNodeShard::GetId() const
+{
+    return Id_;
+}
+
+const IInvokerPtr& TNodeShard::GetInvoker() const
 {
     return ActionQueue_->GetInvoker();
 }
