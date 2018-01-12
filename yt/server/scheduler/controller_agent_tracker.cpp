@@ -10,6 +10,8 @@
 #include <yt/server/cell_scheduler/bootstrap.h>
 
 #include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/controller_agent/controller_agent.h>
+#include <yt/server/controller_agent/master_connector.h>
 
 #include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
@@ -115,6 +117,16 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
+    void OnAgentConnected()
+    {
+        Agent_ = New<TControllerAgent>(Bootstrap_->GetControllerAgent()->GetMasterConnector()->GetIncarnationId());
+    }
+
+    void OnAgentDisconected()
+    {
+        Agent_.Reset();
+    }
+
     TControllerAgentPtr GetAgent()
     {
         return Agent_;
@@ -131,9 +143,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // TODO(babenko): multiagent
-        auto agent = Agent_;
-
         const auto& scheduler = Bootstrap_->GetScheduler();
         if (!scheduler->IsConnected()) {
             context->Reply(TError(
@@ -141,6 +150,9 @@ public:
                 "Scheduler is not able to accept agent heartbeats"));
             return;
         }
+
+        // TODO(babenko): multiagent
+        auto agent = Agent_;
 
         const auto* request = &context->Request();
         auto* response = &context->Response();
@@ -156,13 +168,6 @@ public:
         }
 
         context->SetRequestInfo("AgentIncarnationId: %v", agentIncarnationId);
-
-        // TODO(ignat): add controller agent id to distinguish different controller agents in future.
-        auto mutationId = context->GetMutationId();
-        if (mutationId == agent->GetLastSeenHeartbeatMutationId()) {
-            context->Reply();
-            return;
-        }
 
         for (const auto& jobMetricsProto : request->job_metrics()) {
             auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
@@ -209,28 +214,31 @@ public:
                 nodeShard->ReleaseJob(jobId);
             });
 
-        for (const auto& protoOperationCompletion : request->completed_operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperationCompletion.operation_id());
-            scheduler->OnOperationCompleted(operationId);
-        }
+        agent->OperationEventsQueue().HandleResponse(
+            request->operation_events_queue(),
+            [&] (const auto& protoEvent) {
+                auto eventType = static_cast<EOperationEventType>(protoEvent.event_type());
+                auto operationId = FromProto<TOperationId>(protoEvent.operation_id());
+                auto error = FromProto<TError>(protoEvent.error());
+                switch (eventType) {
+                    case EOperationEventType::Completed:
+                        scheduler->OnOperationCompleted(operationId);
+                        break;
+                    case EOperationEventType::Suspended:
+                        scheduler->OnOperationSuspended(operationId, error);
+                        break;
+                    case EOperationEventType::Aborted:
+                        scheduler->OnOperationAborted(operationId, error);
+                        break;
+                    case EOperationEventType::Failed:
+                        scheduler->OnOperationFailed(operationId, error);
+                        break;
+                    default:
+                        Y_UNREACHABLE();
+                }
+            });
 
-        for (const auto& protoOperationSuspension : request->suspended_operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperationSuspension.operation_id());
-            auto error = FromProto<TError>(protoOperationSuspension.error());
-            scheduler->OnOperationSuspended(operationId, error);
-        }
-
-        for (const auto& protoOperationAbort : request->aborted_operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperationAbort.operation_id());
-            auto error = FromProto<TError>(protoOperationAbort.error());
-            scheduler->OnOperationAborted(operationId, error);
-        }
-
-        for (const auto& protoOperationFailure : request->failed_operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperationFailure.operation_id());
-            auto error = FromProto<TError>(protoOperationFailure.error());
-            scheduler->OnOperationFailed(operationId, error);
-        }
+        agent->OperationEventsQueue().BuildRequest(response->mutable_operation_events_queue());
 
         for (const auto& protoOperationAlerts : request->operation_alerts()) {
             auto operationId = FromProto<TOperationId>(protoOperationAlerts.operation_id());
@@ -252,14 +260,9 @@ public:
         Agent_->SetSuspiciousJobsYson(TYsonString(request->suspicious_jobs(), EYsonType::MapFragment));
 
         auto error = WaitFor(Combine(asyncResults));
-        if (error.IsOK()) {
-            agent->SetLastSeenHeartbeatMutationId(mutationId);
-        } else {
+        if (!error.IsOK()) {
             // Heartbeat must succeed and not throw.
             scheduler->Disconnect();
-
-            // TODO(babenko): move to agent disconnect handler
-            agent->SetLastSeenHeartbeatMutationId({});
         }
 
         context->Reply(error);
@@ -270,10 +273,9 @@ private:
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     // TODO(babenko): multiagent support
-    const TControllerAgentPtr Agent_ = New<TControllerAgent>();
+    TControllerAgentPtr Agent_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
 
     void DoSetOperationAlerts(
         const TOperationId& operationId,
@@ -339,6 +341,16 @@ TControllerAgentTracker::~TControllerAgentTracker() = default;
 TControllerAgentPtr TControllerAgentTracker::GetAgent()
 {
     return Impl_->GetAgent();
+}
+
+void TControllerAgentTracker::OnAgentConnected()
+{
+    Impl_->OnAgentConnected();
+}
+
+void TControllerAgentTracker::OnAgentDisconnected()
+{
+    Impl_->OnAgentDisconected();
 }
 
 IOperationControllerPtr TControllerAgentTracker::CreateController(

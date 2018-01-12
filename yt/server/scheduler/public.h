@@ -96,7 +96,16 @@ DEFINE_ENUM(EOperationAlertType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EJobEvent,
+DEFINE_ENUM(EOperationEventType,
+    ((Completed) (0))
+    ((Suspended) (1))
+    ((Failed)    (2))
+    ((Aborted)   (3))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EJobEventType,
     ((Started)   (0))
     ((Completed) (1))
     ((Failed)    (2))

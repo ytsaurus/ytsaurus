@@ -4,6 +4,8 @@
 
 #include <yt/server/cell_scheduler/public.h>
 
+#include <yt/server/scheduler/message_queue.h>
+
 #include <yt/core/misc/variant.h>
 
 namespace NYT {
@@ -11,34 +13,12 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNullOperationEvent
-{ };
-
-struct TOperationCompletedEvent
-{ };
-
-struct TOperationAbortedEvent
+struct TOperationEvent
 {
+    NScheduler::EOperationEventType Type;
+    TOperationId OperationId;
     TError Error;
 };
-
-struct TOperationFailedEvent
-{
-    TError Error;
-};
-
-struct TOperationSuspendedEvent
-{
-    TError Error;
-};
-
-using TOperationControllerEvent = TVariant<
-    TNullOperationEvent,
-    TOperationCompletedEvent,
-    TOperationAbortedEvent,
-    TOperationFailedEvent,
-    TOperationSuspendedEvent
->;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +29,7 @@ public:
     TOperationControllerHost(
         TOperation* operation,
         IInvokerPtr cancelableControlInvoker,
+        TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> operationEventsOutbox,
         NCellScheduler::TBootstrap* bootstrap);
 
     virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override;
@@ -89,19 +70,12 @@ public:
     virtual void OnOperationFailed(const TError& error) override;
     virtual void OnOperationSuspended(const TError& error) override;
 
-    TOperationControllerEvent PullEvent();
-
 private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;
+    const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> OperationEventsOutbox_;
     NCellScheduler::TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
-
-    TSpinLock EventsLock_;
-    TError SuspensionError_;
-    TError AbortError_;
-    TError FailureError_;
-    bool Completed_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationControllerHost)

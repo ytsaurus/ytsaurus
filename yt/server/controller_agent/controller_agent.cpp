@@ -10,6 +10,7 @@
 
 #include <yt/server/scheduler/cache.h>
 #include <yt/server/scheduler/operation.h>
+#include <yt/server/scheduler/message_queue.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -215,6 +216,20 @@ public:
     }
 
 
+    TOperationPtr CreateOperation(const NScheduler::TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto agentOperation = New<NControllerAgent::TOperation>(operation.Get());
+        auto host = New<TOperationControllerHost>(
+            agentOperation.Get(),
+            CancelableInvoker_,
+            OperationEventsOutbox_,
+            Bootstrap_);
+        agentOperation->SetHost(host);
+        return agentOperation;
+    }
+
     void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -406,9 +421,10 @@ private:
 
     TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
 
-    TSpinLock HeartbeatRequestLock_;
-    TIncarnationId HeartbeatIncarnationId_;
+    TIncarnationId IncarnationId_;
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> OperationEventsOutbox_;
 
+    TSpinLock HeartbeatRequestLock_;
     using TReqHeartbeatPtr = std::unique_ptr<NScheduler::NProto::TReqHeartbeat>;
     TReqHeartbeatPtr HeartbeatRequest_;
 
@@ -428,6 +444,11 @@ private:
         CancelableContext_ = New<TCancelableContext>();
         // TODO(babenko): better queue
         CancelableInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
+
+        IncarnationId_ = MasterConnector_->GetIncarnationId();
+        OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TOperationEvent>>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: OperationEvents, IncarnationId: %v", IncarnationId_));
     }
 
     void OnMasterConnected()
@@ -436,7 +457,6 @@ private:
 
         {
             auto guard = Guard(HeartbeatRequestLock_);
-            HeartbeatIncarnationId_ = MasterConnector_->GetIncarnationId();
             ResetHeartbeatRequest();
         }
 
@@ -479,9 +499,11 @@ private:
 
         {
             auto guard = Guard(HeartbeatRequestLock_);
-            HeartbeatIncarnationId_ = {};
             HeartbeatRequest_.reset();
         }
+
+        IncarnationId_ = {};
+        OperationEventsOutbox_.Reset();
     }
 
     void OnMasterDisconnected()
@@ -503,7 +525,7 @@ private:
     void PopulateHeartbeatRequest(const TIncarnationId& incarnationId, F callback)
     {
         auto guard = Guard(HeartbeatRequestLock_);
-        if (HeartbeatIncarnationId_ != incarnationId) {
+        if (IncarnationId_ != incarnationId) {
             return;
         }
         YCHECK(HeartbeatRequest_);
@@ -529,56 +551,26 @@ private:
             ResetHeartbeatRequest();
         }
 
+        OperationEventsOutbox_->BuildRequest(
+            req->mutable_operation_events_queue(),
+            [&] (auto* protoEvent, const auto& event) {
+                protoEvent->set_event_type(static_cast<int>(event.Type));
+                ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+                if (!event.Error.IsOK()) {
+                    ToProto(protoEvent->mutable_error(), event.Error);
+                }
+            });
+
         auto operations = GetOperations();
         for (const auto& pair : operations) {
             const auto& operationId = pair.first;
             const auto& operation = pair.second;
             auto controller = operation->GetController();
 
-            auto event = operation->GetHost()->PullEvent();
-            switch (event.Tag()) {
-                case TOperationControllerEvent::TagOf<TNullOperationEvent>():
-                    break;
-
-                case TOperationControllerEvent::TagOf<TOperationCompletedEvent>(): {
-                    auto* proto = req->add_completed_operations();
-                    ToProto(proto->mutable_operation_id(), operationId);
-                    break;
-                }
-
-                case TOperationControllerEvent::TagOf<TOperationAbortedEvent>(): {
-                    const auto& typedEvent = event.As<TOperationAbortedEvent>();
-                    auto* proto = req->add_aborted_operations();
-                    ToProto(proto->mutable_operation_id(), operationId);
-                    ToProto(proto->mutable_error(), typedEvent.Error);
-                    break;
-                }
-
-                case TOperationControllerEvent::TagOf<TOperationFailedEvent>(): {
-                    const auto& typedEvent = event.As<TOperationFailedEvent>();
-                    auto failedOperationProto = req->add_failed_operations();
-                    ToProto(failedOperationProto->mutable_operation_id(), operationId);
-                    ToProto(failedOperationProto->mutable_error(), typedEvent.Error);
-                    break;
-                }
-
-                case TOperationControllerEvent::TagOf<TOperationSuspendedEvent>(): {
-                    const auto& typedEvent = event.As<TOperationSuspendedEvent>();
-                    auto* proto = req->add_suspended_operations();
-                    ToProto(proto->mutable_operation_id(), operationId);
-                    ToProto(proto->mutable_error(), typedEvent.Error);
-                    break;
-                }
-
-                default:
-                    Y_UNREACHABLE();
-            }
-
             {
                 auto jobMetricsDelta = controller->PullJobMetricsDelta();
                 ToProto(req->add_job_metrics(), jobMetricsDelta);
             }
-
 
             {
                 auto* operationAlertsProto = req->add_operation_alerts();
@@ -610,47 +602,31 @@ private:
         return req;
     }
 
-    NLogging::TLogger CreateHeartbeatLogger(
-        const TMutationId& mutationId,
-        const TIncarnationId& agentIncarnationId)
-    {
-        return NLogging::TLogger(Logger)
-            .AddTag("MutationId: %v, AgentIncarnationId: %v",
-                mutationId,
-                agentIncarnationId);
-    }
-
     void SendHeartbeat()
     {
-        TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr rsp;
-
         auto now = GetCpuInstant();
-
         auto preparedRequest = PrepareHeartbeatRequest(now);
 
-        auto mutationId = GenerateMutationId();
-        auto agentIncarnationId = FromProto<TMutationId>(preparedRequest->agent_incarnation_id());
-
-        auto Logger = CreateHeartbeatLogger(mutationId, agentIncarnationId);
-
+        TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr rsp;
         while (true) {
             LOG_INFO("Sending heartbeat");
 
             auto req = SchedulerProxy_.Heartbeat();
             req->CopyFrom(*preparedRequest);
-            // Option 'retry' is not used in the #ProcessAgentHeartbeat.
-            req->SetMutationId(mutationId);
 
             auto rspOrError = WaitFor(req->Invoke());
             if (rspOrError.IsOK()) {
                 rsp = rspOrError.Value();
-                LOG_INFO("Heartbeat succeeded");
                 break;
-            } else {
-                LOG_WARNING(rspOrError, "Heartbeat failed");
-                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
             }
+
+            LOG_WARNING(rspOrError, "Heartbeat failed, retrying");
+            Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
         }
+
+        LOG_INFO("Heartbeat succeeded");
+
+        OperationEventsOutbox_->HandleResponse(rsp->operation_events_queue());
 
         if (rsp->has_exec_nodes()) {
             auto execNodeDescriptors = New<TExecNodeDescriptorList>();
@@ -755,6 +731,11 @@ const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 void TControllerAgent::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
+}
+
+TOperationPtr TControllerAgent::CreateOperation(const NScheduler::TOperationPtr& operation)
+{
+    return Impl_->CreateOperation(operation);
 }
 
 void TControllerAgent::RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation)

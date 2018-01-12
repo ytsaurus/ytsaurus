@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "message_queue.h"
 
 #include <yt/server/controller_agent/public.h>
 
@@ -21,11 +22,12 @@ class TControllerAgent
     : public TIntrinsicRefCounted
 {
 public:
-    TControllerAgent();
+    explicit TControllerAgent(const NControllerAgent::TIncarnationId& incarnationId);
+
+    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::TIncarnationId, IncarnationId);
 
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobsYson);
-    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::TIncarnationId, IncarnationId);
-    DEFINE_BYVAL_RW_PROPERTY(NRpc::TMutationId, LastSeenHeartbeatMutationId);
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, OperationEventsQueue);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

@@ -94,6 +94,8 @@ public:
      */
     const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
 
+    // TODO(babenko)
+    TOperationPtr CreateOperation(const NScheduler::TOperationPtr& operation);
     void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation);
     void UnregisterOperation(const TOperationId& operationId);
     TOperationPtr FindOperation(const TOperationId& operationId);
