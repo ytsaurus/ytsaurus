@@ -2735,23 +2735,35 @@ private:
             .EndMap();
     }
 
-    void BuildOperationYson(
-        const TOperationPtr& operation,
-        const TControllerAgentServiceProxy::TErrorOrRspGetOperationInfoPtr& rspOrError,
-        TFluentAny fluent) const
+    TYsonString BuildOperationYson(const TOperationId& operationId) const
     {
         static const auto emptyMapFragment = TYsonString(TString(), EYsonType::MapFragment);
 
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return TYsonString();
+        }
+
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        auto toYsonString = [] (const TProtoStringType& protoString) {
-            return protoString.empty() ? emptyMapFragment : TYsonString(protoString, EYsonType::MapFragment);
-        };
+        TControllerAgentServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        proxy.SetDefaultTimeout(Config_->ControllerAgentOperationRpcTimeout);
+        auto req = proxy.GetOperationInfo();
+        ToProto(req->mutable_operation_id(), operationId);
+        auto rspOrError = WaitFor(req->Invoke());
 
         bool isOK = rspOrError.IsOK();
         if (!isOK) {
             LOG_DEBUG(rspOrError, "Failed to get operation info from controller");
         }
+
+        if (!FindOperation(operationId)) {
+            return TYsonString();
+        }
+
+        auto toYsonString = [] (const TProtoStringType& protoString) {
+            return protoString.empty() ? emptyMapFragment : TYsonString(protoString, EYsonType::MapFragment);
+        };
 
         auto controllerProgress = isOK ? toYsonString(rspOrError.Value()->progress()) : emptyMapFragment;
         auto controllerBriefProgress = isOK ? toYsonString(rspOrError.Value()->brief_progress()) : emptyMapFragment;
@@ -2759,7 +2771,7 @@ private:
         auto controllerJobSplitterInfo = isOK ? toYsonString(rspOrError.Value()->job_splitter()) : emptyMapFragment;
         auto controllerMemoryDigests = isOK ? toYsonString(rspOrError.Value()->memory_digests()) : emptyMapFragment;
 
-        fluent
+        return BuildYsonStringFluently()
             .BeginMap()
                 .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
                 .Item("progress").BeginMap()
@@ -2846,26 +2858,10 @@ private:
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
             auto operationId = TOperationId::FromString(key);
-            auto operation = Scheduler_->FindOperation(operationId);
-            if (!operation) {
+            auto operationYson = Scheduler_->BuildOperationYson(operationId);
+            if (!operationYson) {
                 return nullptr;
             }
-
-            // TODO(ignat): move this to BuildOperationYson.
-            TControllerAgentServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
-            proxy.SetDefaultTimeout(Scheduler_->Config_->ControllerAgentOperationRpcTimeout);
-            auto request = proxy.GetOperationInfo();
-            ToProto(request->mutable_operation_id(), operationId);
-            auto rspOrError = WaitFor(request->Invoke());
-
-            // Operation can be unregistered, since request to controller agent is asynchronous.
-            if (!Scheduler_->FindOperation(operationId)) {
-                return nullptr;
-            }
-
-            auto operationYson = BuildYsonStringFluently()
-                .Do(BIND(&TScheduler::TImpl::BuildOperationYson, Unretained(Scheduler_), operation, rspOrError));
-
             return IYPathService::FromProducer(ConvertToProducer(std::move(operationYson)));
         }
 
