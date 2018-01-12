@@ -12,6 +12,9 @@ TControllerAgent::TControllerAgent(const NControllerAgent::TIncarnationId& incar
     , OperationEventsQueue_(NLogging::TLogger(SchedulerLogger)
         // TODO(babenko): agent id
         .AddTag("Kind: OperationEvents, IncarnationId: %v", IncarnationId_))
+    , JobEventsQueue_(NLogging::TLogger(SchedulerLogger)
+        // TODO(babenko): agent id
+        .AddTag("Kind: JobEvents, IncarnationId: %v", IncarnationId_))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

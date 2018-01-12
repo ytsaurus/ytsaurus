@@ -18,23 +18,34 @@ template <class TItem>
 TMessageQueueItemId TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 {
     auto guard = Guard(SpinLock_);
-    Queue_.push(std::move(item));
+    Queue_.emplace(std::move(item));
     return NextItemId_++;
 }
 
 template <class TItem>
-template <class TProtoRequest, class TBuilder>
-void TMessageQueueOutbox<TItem>::BuildRequest(TProtoRequest* request, TBuilder protoItemBuilder)
+template <class TItems>
+void TMessageQueueOutbox<TItem>::EnqueueMany(TItems&& items)
+{
+    auto guard = Guard(SpinLock_);
+    for (auto&& item : items) {
+        Queue_.emplace(std::move(item));
+        ++NextItemId_;
+    }
+}
+
+template <class TItem>
+template <class TProtoMessage, class TBuilder>
+void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder)
 {
     auto guard = Guard(SpinLock_);
     auto firstItemId = FirstItemId_;
     auto lastItemId = FirstItemId_ + Queue_.size() - 1;
-    request->set_first_item_id(firstItemId);
+    message->set_first_item_id(firstItemId);
     if (Queue_.empty()) {
         return;
     }
     for (auto it = Queue_.begin(); it != Queue_.end(); Queue_.move_forward(it)) {
-        protoItemBuilder(request->add_items(), *it);
+        protoItemBuilder(message->add_items(), *it);
     }
     guard.Release();
     LOG_DEBUG("Sending outbox items (ItemIds: %v-%v)",
@@ -43,13 +54,19 @@ void TMessageQueueOutbox<TItem>::BuildRequest(TProtoRequest* request, TBuilder p
 }
 
 template <class TItem>
-template <class TProtoResponse>
-void TMessageQueueOutbox<TItem>::HandleResponse(const TProtoResponse& response)
+template <class TProtoMessage>
+void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 {
     auto guard = Guard(SpinLock_);
-    auto nextExpectedItemId = response.next_expected_item_id();
-    YCHECK(nextExpectedItemId >= FirstItemId_ && nextExpectedItemId <= NextItemId_);
-    if (FirstItemId_  == nextExpectedItemId) {
+    auto nextExpectedItemId = message.next_expected_item_id();
+    YCHECK(nextExpectedItemId <= NextItemId_);
+    if (nextExpectedItemId == NextItemId_) {
+        return;
+    }
+    if (nextExpectedItemId < FirstItemId_) {
+        LOG_DEBUG("Stale outbox items confirmed (NextExpectedItemId: %v, FirstItemId: %v)",
+            nextExpectedItemId,
+            FirstItemId_);
         return;
     }
     auto firstConfirmedItemId = FirstItemId_;
@@ -72,7 +89,7 @@ inline TMessageQueueInbox::TMessageQueueInbox(const NLogging::TLogger& logger)
 { }
 
 template <class TProtoRequest>
-void TMessageQueueInbox::BuildRequest(TProtoRequest* request)
+void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 {
     request->set_next_expected_item_id(NextExpectedItemId_);
 
@@ -80,20 +97,17 @@ void TMessageQueueInbox::BuildRequest(TProtoRequest* request)
         NextExpectedItemId_);
 }
 
-template <class TProtoResponse, class TConsumer>
-void TMessageQueueInbox::HandleResponse(const TProtoResponse& response, TConsumer protoItemConsumer)
+template <class TProtoMessage, class TConsumer>
+void TMessageQueueInbox::HandleIncoming(const TProtoMessage& message, TConsumer protoItemConsumer)
 {
-    auto firstItemId = response.first_item_id();
-    YCHECK(firstItemId <= NextExpectedItemId_);
-
-    if (response.items_size() == 0) {
+    if (message.items_size() == 0) {
         return;
     }
 
     auto firstConsumedItemId = -1;
     auto lastConsumedItemId = -1;
-    auto itemId = firstItemId;
-    for (const auto& protoItem : response.items()) {
+    auto itemId = message.first_item_id();
+    for (const auto& protoItem : message.items()) {
         if (itemId == NextExpectedItemId_) {
             protoItemConsumer(protoItem);
             if (firstConsumedItemId < 0) {
@@ -105,9 +119,17 @@ void TMessageQueueInbox::HandleResponse(const TProtoResponse& response, TConsume
         ++itemId;
     }
 
-    LOG_DEBUG("Inbox inbox consumed (ItemIds: %v-%v)",
-        firstConsumedItemId,
-        lastConsumedItemId);
+    if (firstConsumedItemId >= 0) {
+        LOG_DEBUG("Inbox items handled (ReceivedIds: %v-%v, ConsumedIds: %v-%v)",
+            message.first_item_id(),
+            message.first_item_id() + message.items_size() - 1,
+            firstConsumedItemId,
+            lastConsumedItemId);
+    } else {
+        LOG_DEBUG("Inbox items handled but none consumed (ReceivedIds: %v-%v)",
+            message.first_item_id(),
+            message.first_item_id() + message.items_size() - 1);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

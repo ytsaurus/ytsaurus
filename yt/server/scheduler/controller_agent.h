@@ -28,6 +28,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobsYson);
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, OperationEventsQueue);
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, JobEventsQueue);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

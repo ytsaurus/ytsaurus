@@ -24,12 +24,14 @@ public:
     explicit TMessageQueueOutbox(const NLogging::TLogger& logger);
 
     TMessageQueueItemId Enqueue(TItem&& item);
+    template <class TItems>
+    void EnqueueMany(TItems&& items);
 
-    template <class TProtoRequest, class TBuilder>
-    void BuildRequest(TProtoRequest* request, TBuilder protoItemBuilder);
+    template <class TProtoMessage, class TBuilder>
+    void BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder);
 
-    template <class TProtoResponse>
-    void HandleResponse(const TProtoResponse& response);
+    template <class TProtoMessage>
+    void HandleStatus(const TProtoMessage& message);
 
 private:
     const NLogging::TLogger Logger;
@@ -50,11 +52,11 @@ class TMessageQueueInbox
 public:
     explicit TMessageQueueInbox(const NLogging::TLogger& logger);
 
-    template <class TProtoRequest>
-    void BuildRequest(TProtoRequest* request);
+    template <class TProtoMessage>
+    void ReportStatus(TProtoMessage* request);
 
-    template <class TProtoResponse, class TConsumer>
-    void HandleResponse(const TProtoResponse& response, TConsumer protoItemConsumer);
+    template <class TProtoMessage, class TConsumer>
+    void HandleIncoming(const TProtoMessage& message, TConsumer protoItemConsumer);
 
 private:
     const NLogging::TLogger Logger;

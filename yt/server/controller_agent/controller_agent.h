@@ -122,23 +122,6 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    void InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason);
-    /*!
-     *  \note Thread affinity: any
-     */
-    void AbortJob(const TIncarnationId& incarnationId, const TJobId& jobId, const TError& error);
-    /*!
-     *  \note Thread affinity: any
-     */
-    void FailJob(const TIncarnationId& incarnationId, const TJobId& jobId);
-    /*!
-     *  \note Thread affinity: any
-     */
-    void ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds);
-
-    /*!
-     *  \note Thread affinity: any
-     */
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const;
 
 private:

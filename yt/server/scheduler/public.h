@@ -96,14 +96,19 @@ DEFINE_ENUM(EOperationAlertType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EOperationEventType,
+DEFINE_ENUM(EAgentToSchedulerOperationEventType,
     ((Completed) (0))
     ((Suspended) (1))
     ((Failed)    (2))
     ((Aborted)   (3))
 );
 
-////////////////////////////////////////////////////////////////////////////////
+DEFINE_ENUM(EAgentToSchedulerJobEventType,
+    ((Interrupted) (0))
+    ((Aborted)     (1))
+    ((Failed)      (2))
+    ((Released)    (3))
+);
 
 DEFINE_ENUM(EJobEventType,
     ((Started)   (0))

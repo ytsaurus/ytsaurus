@@ -23,32 +23,59 @@ TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
     TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> operationEventsOutbox,
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> jobEventsOutbox,
     NCellScheduler::TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
+    , JobEventsOutbox_(std::move(jobEventsOutbox))
     , Bootstrap_(bootstrap)
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetMasterConnector()->GetIncarnationId())
 { }
 
 void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReason reason)
 {
-    Bootstrap_->GetControllerAgent()->InterruptJob(IncarnationId_, jobId, reason);
+    JobEventsOutbox_->Enqueue(TJobEvent{
+        EAgentToSchedulerJobEventType::Interrupted,
+        jobId,
+        {},
+        reason
+    });
 }
 
 void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error)
 {
-    Bootstrap_->GetControllerAgent()->AbortJob(IncarnationId_, jobId, error);
+    JobEventsOutbox_->Enqueue(TJobEvent{
+        EAgentToSchedulerJobEventType::Aborted,
+        jobId,
+        error,
+        {}
+    });
 }
 
 void TOperationControllerHost::FailJob(const TJobId& jobId)
 {
-    Bootstrap_->GetControllerAgent()->FailJob(IncarnationId_, jobId);
+    JobEventsOutbox_->Enqueue(TJobEvent{
+        EAgentToSchedulerJobEventType::Failed,
+        jobId,
+        {},
+        {}
+    });
 }
 
 void TOperationControllerHost::ReleaseJobs(const std::vector<TJobId>& jobIds)
 {
-    Bootstrap_->GetControllerAgent()->ReleaseJobs(IncarnationId_, jobIds);
+    std::vector<TJobEvent> events;
+    events.reserve(jobIds.size());
+    for (const auto& jobId : jobIds) {
+        events.emplace_back(TJobEvent{
+            EAgentToSchedulerJobEventType::Released,
+            jobId,
+            {},
+            {}
+        });
+    }
+    JobEventsOutbox_->EnqueueMany(std::move(events));
 }
 
 TFuture<TOperationSnapshot> TOperationControllerHost::DownloadSnapshot()
@@ -161,7 +188,7 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
 void TOperationControllerHost::OnOperationCompleted()
 {
     auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
-        EOperationEventType::Completed,
+        EAgentToSchedulerOperationEventType::Completed,
         OperationId_,
         TError()
     });
@@ -173,7 +200,7 @@ void TOperationControllerHost::OnOperationCompleted()
 void TOperationControllerHost::OnOperationAborted(const TError& error)
 {
     auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
-        EOperationEventType::Aborted,
+        EAgentToSchedulerOperationEventType::Aborted,
         OperationId_,
         error
     });
@@ -186,7 +213,7 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
 void TOperationControllerHost::OnOperationFailed(const TError& error)
 {
     auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
-        EOperationEventType::Failed,
+        EAgentToSchedulerOperationEventType::Failed,
         OperationId_,
         error
     });
@@ -199,7 +226,7 @@ void TOperationControllerHost::OnOperationFailed(const TError& error)
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
 {
     auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
-        EOperationEventType::Suspended,
+        EAgentToSchedulerOperationEventType::Suspended,
         OperationId_,
         error
     });

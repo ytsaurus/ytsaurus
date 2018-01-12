@@ -48,14 +48,22 @@ message TOperationJobMetrics
     repeated TTreeTaggedJobMetrics metrics = 2;
 }
 
-message TOperationEvent
+message TAgentToSchedulerOperationEvent
 {
     required NYT.NProto.TGuid operation_id = 1;
-    required int32 event_type = 2; // EOperationEventType
+    required int32 event_type = 2; // EAgentToSchedulerOperationEventType
     optional NYT.NProto.TError error = 3;
 }
 
-message TJobEvent
+message TAgentToSchedulerJobEvent
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required int32 event_type = 2; // EAgentToSchedulerJobEventType
+    optional NYT.NProto.TError error = 3;
+    optional int32 interrupt_reason = 4; // EInterruptReason
+}
+
+message TSchedulerToAgentJobEvent
 {
     required NYT.NProto.TGuid job_id = 1;
     required int32 event_type = 2; // EJobEvent
@@ -71,28 +79,6 @@ message TJobEvent
 
 message TReqHeartbeat
 {
-    message TJobInterrupt
-    {
-        required NYT.NProto.TGuid job_id = 1;
-        required int32 reason = 2;
-    }
-
-    message TJobAbort
-    {
-        required NYT.NProto.TGuid job_id = 1;
-        required NYT.NProto.TError error = 2;
-    }
-
-    message TJobFail
-    {
-        required NYT.NProto.TGuid job_id = 1;
-    }
-
-    message TJobsRelease
-    {
-        required NYT.NProto.TGuid job_id = 1;
-    }
-
     message TOperationAlerts
     {
         message TAlert
@@ -105,20 +91,21 @@ message TReqHeartbeat
         repeated TAlert alerts = 2;
     }
 
-    message TOperationEventQueue
+    message TAgentToSchedulerOperationEventQueue
     {
         required int64 first_item_id = 1;
-        repeated TOperationEvent items = 2;
+        repeated TAgentToSchedulerOperationEvent items = 2;
+    }
+
+    message TAgentToSchedulerJobEventQueue
+    {
+        required int64 first_item_id = 1;
+        repeated TAgentToSchedulerJobEvent items = 2;
     }
 
     required NYT.NProto.TGuid agent_incarnation_id = 13;
 
     repeated TOperationJobMetrics job_metrics = 1;
-
-    repeated TJobInterrupt jobs_to_interrupt = 2;
-    repeated TJobAbort jobs_to_abort = 3;
-    repeated TJobFail jobs_to_fail = 4;
-    repeated TJobsRelease jobs_to_release = 5;
 
     repeated TOperationAlerts operation_alerts = 6;
 
@@ -126,18 +113,20 @@ message TReqHeartbeat
 
     optional bytes suspicious_jobs = 8;
 
-    required TOperationEventQueue operation_events_queue = 9;
+    required TAgentToSchedulerOperationEventQueue agent_to_scheduler_operation_events_queue = 9;
+    required TAgentToSchedulerJobEventQueue agent_to_scheduler_job_events_queue = 10;
 }
 
 message TRspHeartbeat
 {
-    message TOperationEventQueue
+    message TEventQueue
     {
         required int64 next_expected_item_id = 1;
     }
 
     optional TExecNodeDescriptorList exec_nodes = 1;
-    required TOperationEventQueue operation_events_queue = 2;
+    required TEventQueue agent_to_scheduler_operation_events_queue = 2;
+    required TEventQueue agent_to_scheduler_job_events_queue = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
