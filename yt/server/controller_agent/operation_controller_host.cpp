@@ -2,6 +2,7 @@
 #include "master_connector.h"
 #include "controller_agent.h"
 #include "operation.h"
+#include "private.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
@@ -14,12 +15,18 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ControllerAgentLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> operationEventsOutbox,
     NCellScheduler::TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
+    , OperationEventsOutbox_(std::move(operationEventsOutbox))
     , Bootstrap_(bootstrap)
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetMasterConnector()->GetIncarnationId())
 { }
@@ -153,47 +160,53 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
 
 void TOperationControllerHost::OnOperationCompleted()
 {
-    auto guard = Guard(EventsLock_);
-    Completed_ = true;
+    auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
+        EOperationEventType::Completed,
+        OperationId_,
+        TError()
+    });
+    LOG_DEBUG("Operation completion event enqueued (ItemId: %v, OperationId: %v)",
+        itemId,
+        OperationId_);
 }
 
 void TOperationControllerHost::OnOperationAborted(const TError& error)
 {
-    auto guard = Guard(EventsLock_);
-    AbortError_ = error;
+    auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
+        EOperationEventType::Aborted,
+        OperationId_,
+        error
+    });
+    LOG_DEBUG("Operation abort event enqueued (ItemId: %v, OperationId: %v, Error: %v)",
+        itemId,
+        OperationId_,
+        error);
 }
 
 void TOperationControllerHost::OnOperationFailed(const TError& error)
 {
-    auto guard = Guard(EventsLock_);
-    FailureError_ = error;
+    auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
+        EOperationEventType::Failed,
+        OperationId_,
+        error
+    });
+    LOG_DEBUG("Operation failure event enqueued (ItemId: %v, OperationId: %v, Error: %v)",
+        itemId,
+        OperationId_,
+        error);
 }
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
 {
-    auto guard = Guard(EventsLock_);
-    SuspensionError_ = error;
-}
-
-TOperationControllerEvent TOperationControllerHost::PullEvent()
-{
-    auto guard = Guard(EventsLock_);
-    if (!AbortError_.IsOK()) {
-        return TOperationAbortedEvent{AbortError_};
-    }
-    if (!FailureError_.IsOK()) {
-        return TOperationFailedEvent{FailureError_};
-    }
-    if (!SuspensionError_.IsOK()) {
-        // NB: Suspension error is non-sticky.
-        auto error = SuspensionError_;
-        SuspensionError_ = {};
-        return TOperationSuspendedEvent{error};
-    }
-    if (Completed_) {
-        return TOperationCompletedEvent{};
-    }
-    return TNullOperationEvent{};
+    auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
+        EOperationEventType::Suspended,
+        OperationId_,
+        error
+    });
+    LOG_DEBUG("Operation suspension event enqueued (ItemId: %v, OperationId: %v, Error: %v)",
+        itemId,
+        OperationId_,
+        error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

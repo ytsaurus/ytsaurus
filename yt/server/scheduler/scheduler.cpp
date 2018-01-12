@@ -1253,10 +1253,7 @@ private:
         DoCleanup();
 
         // TODO(babenko): rework when multiple agents are supported
-        const auto& controlerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        auto agent = controlerAgentTracker->GetAgent();
-        agent->SetIncarnationId(NControllerAgent::TIncarnationId::Create());
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnecting(agent->GetIncarnationId());
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnecting(NControllerAgent::TIncarnationId::Create());
 
         // NB: Must start the keeper before registering operations.
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -1295,6 +1292,7 @@ private:
 
         // TODO(babenko)
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected();
+        Bootstrap_->GetControllerAgentTracker()->OnAgentConnected();
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;
             Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
@@ -1340,12 +1338,12 @@ private:
             IdToOperation_.clear();
         }
 
-        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        auto agent = controllerAgentTracker->GetAgent();
-        agent->SetLastSeenHeartbeatMutationId({});
-
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
+
+        // TODO(babenko): rework when separating scheduler and agent
+        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
+        Bootstrap_->GetControllerAgentTracker()->OnAgentDisconnected();
 
         CachedExecNodeMemoryDistributionByTags_->Stop();
 
@@ -1355,9 +1353,6 @@ private:
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // TODO(babenko): rework when separating scheduler and agent
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
 
         LogEventFluently(ELogEventType::MasterDisconnected)
             .Item("address").Value(ServiceAddress_);
@@ -1741,7 +1736,7 @@ private:
 
         bool registered = false;
         try {
-            auto agentOperation = CreateAgentOperation(operation);
+            auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
             auto controller = CreateOperationController(agentOperation);
             operation->SetController(controller);
             agentOperation->SetController(controller);
@@ -1855,17 +1850,6 @@ private:
         // operation's fate.
     }
 
-    NControllerAgent::TOperationPtr CreateAgentOperation(const TOperationPtr& operation)
-    {
-        auto agentOperation = New<NControllerAgent::TOperation>(operation.Get());
-        auto host = New<TOperationControllerHost>(
-            agentOperation.Get(),
-            MasterConnector_->GetCancelableControlInvoker(),
-            Bootstrap_);
-        agentOperation->SetHost(host);
-        return agentOperation;
-    }
-
     NControllerAgent::IOperationControllerPtr CreateOperationController(const NControllerAgent::TOperationPtr& operation)
     {
         return CreateControllerForOperation(
@@ -1899,7 +1883,7 @@ private:
         NControllerAgent::TOperationPtr agentOperation;
         try {
             // TODO(babenko)
-            agentOperation = CreateAgentOperation(operation);
+            agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
             controller = CreateOperationController(agentOperation);
             operation->SetController(controller);
             agentOperation->SetController(controller);
@@ -2538,6 +2522,7 @@ private:
         const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
         // TODO(babenko): multiagent
         auto agent = controllerAgentTracker->GetAgent();
+        auto suspiciousJobsYson = agent ? agent->GetSuspiciousJobsYson() : TYsonString(TString(), EYsonType::MapFragment);
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -2558,7 +2543,7 @@ private:
                         })
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
-                    .Items(agent->GetSuspiciousJobsYson())
+                    .Items(suspiciousJobsYson)
                 .EndMap()
                 .Item("nodes").BeginMap()
                     .Do([=] (TFluentMap fluent) {

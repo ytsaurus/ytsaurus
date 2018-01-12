@@ -48,6 +48,13 @@ message TOperationJobMetrics
     repeated TTreeTaggedJobMetrics metrics = 2;
 }
 
+message TOperationEvent
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required int32 event_type = 2; // EOperationEventType
+    optional NYT.NProto.TError error = 3;
+}
+
 message TJobEvent
 {
     required NYT.NProto.TGuid job_id = 1;
@@ -98,28 +105,13 @@ message TReqHeartbeat
         repeated TAlert alerts = 2;
     }
 
-    message TOperationCompletion
+    message TOperationEventQueue
     {
-        required NYT.NProto.TGuid operation_id = 1;
+        required int64 first_item_id = 1;
+        repeated TOperationEvent items = 2;
     }
 
-    message TOperationSuspension
-    {
-        required NYT.NProto.TGuid operation_id = 1;
-        required NYT.NProto.TError error = 2;
-    }
-
-    message TOperationAbort
-    {
-        required NYT.NProto.TGuid operation_id = 1;
-        required NYT.NProto.TError error = 2;
-    }
-
-    message TOperationFailure
-    {
-        required NYT.NProto.TGuid operation_id = 1;
-        required NYT.NProto.TError error = 2;
-    }
+    required NYT.NProto.TGuid agent_incarnation_id = 13;
 
     repeated TOperationJobMetrics job_metrics = 1;
 
@@ -134,17 +126,18 @@ message TReqHeartbeat
 
     optional bytes suspicious_jobs = 8;
 
-    repeated TOperationCompletion completed_operations = 9;
-    repeated TOperationSuspension suspended_operations = 10;
-    repeated TOperationAbort aborted_operations = 11;
-    repeated TOperationFailure failed_operations = 12;
-
-    required NYT.NProto.TGuid agent_incarnation_id = 13;
+    required TOperationEventQueue operation_events_queue = 9;
 }
 
 message TRspHeartbeat
 {
+    message TOperationEventQueue
+    {
+        required int64 next_expected_item_id = 1;
+    }
+
     optional TExecNodeDescriptorList exec_nodes = 1;
+    required TOperationEventQueue operation_events_queue = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

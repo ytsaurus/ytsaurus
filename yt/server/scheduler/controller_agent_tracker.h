@@ -23,7 +23,10 @@ public:
 
     // TODO(babenko): multiagent support
     TControllerAgentPtr GetAgent();
+    void OnAgentConnected();
+    void OnAgentDisconnected();
 
+    // TODO(babenko): eliminate
     IOperationControllerPtr CreateController(
         const TControllerAgentPtr& agent,
         TOperation* operation);
