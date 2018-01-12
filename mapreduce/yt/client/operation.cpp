@@ -123,6 +123,13 @@ bool IsLocalMode(const TAuth& auth)
     return isLocalMode;
 }
 
+void VerifyHasElements(const TVector<TRichYPath>& paths, const TString& name)
+{
+    if (paths.empty()) {
+        ythrow TApiUsageError() << "no " << name << " table is specified";
+    }
+}
+
 TString CreateProtoConfig(const TMultiFormatDesc& desc)
 {
     Y_VERIFY(desc.Format == TMultiFormatDesc::F_PROTO);
@@ -190,6 +197,9 @@ TSimpleOperationIo CreateSimpleOperationIo(
         formatFromTableAttribute = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
+    VerifyHasElements(spec.Inputs_, "input");
+    VerifyHasElements(spec.Outputs_, "output");
+
     return TSimpleOperationIo {
         CanonizePaths(auth, spec.Inputs_),
         CanonizePaths(auth, spec.Outputs_),
@@ -213,6 +223,10 @@ TSimpleOperationIo CreateSimpleOperationIo(
             ythrow TApiUsageError() << "Neither " << formatName << "format nor default format is specified for raw operation";
         }
     };
+
+    VerifyHasElements(spec.GetInputs(), "input");
+    VerifyHasElements(spec.GetOutputs(), "output");
+
     return TSimpleOperationIo {
         CanonizePaths(auth, spec.GetInputs()),
         CanonizePaths(auth, spec.GetOutputs()),
@@ -1565,6 +1579,9 @@ TOperationId ExecuteMapReduce(
     operationIo.MapOutputs = CanonizePaths(auth, spec.MapOutputs_);
     operationIo.Outputs = CanonizePaths(auth, spec.Outputs_);
 
+    VerifyHasElements(operationIo.Inputs, "inputs");
+    VerifyHasElements(operationIo.Outputs, "outputs");
+
     TVector<TSmallJobFile> mapperFiles;
     if (mapper) {
         mapperFiles = CreateFormatConfig(mapInputDesc, mapOutputDesc);
@@ -1610,6 +1627,9 @@ TOperationId ExecuteRawMapReduce(
     operationIo.Inputs = CanonizePaths(auth, spec.GetInputs());
     operationIo.MapOutputs = CanonizePaths(auth, spec.GetMapOutputs());
     operationIo.Outputs = CanonizePaths(auth, spec.GetOutputs());
+
+    VerifyHasElements(operationIo.Inputs, "inputs");
+    VerifyHasElements(operationIo.Outputs, "outputs");
 
     auto getFormatOrDefault = [&] (const TMaybe<TFormat>& maybeFormat, const TMaybe<TFormat> stageDefaultFormat, const char* formatName) {
         if (maybeFormat) {

@@ -780,7 +780,34 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
                 .MapperSpec(TUserJobSpec().AddLocalFile("localPath", TAddLocalFileOptions().PathInJob("path/in/job"))),
             new TMapperThatChecksFile("path/in/job"));
     }
+
+    SIMPLE_UNIT_TEST(TestFailWithNoInputOutput)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        {
+            UNIT_ASSERT_EXCEPTION(client->Map(
+                TMapOperationSpec()
+                .AddInput<TNode>("//testing/input"),
+                new TIdMapper), TApiUsageError);
+        }
+
+        {
+            UNIT_ASSERT_EXCEPTION(client->Map(
+                TMapOperationSpec()
+                .AddOutput<TNode>("//testing/output"),
+                new TIdMapper), TApiUsageError);
+        }
+    }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 SIMPLE_UNIT_TEST_SUITE(OperationWatch)
 {
