@@ -1070,8 +1070,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
     bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();
 
-    context->SetRequestInfo("Schema: %v, ChunkPropertiesUpdateNeeded: %v",
-        schema,
+    context->SetRequestInfo("ChunkPropertiesUpdateNeeded: %v",
         chunkPropertiesUpdateNeeded);
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
