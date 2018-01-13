@@ -40,7 +40,9 @@ public:
         TDuration timeLimit,
         const TString& treeId);
 
-    void AbortJob(std::unique_ptr<TAbortedJobSummary> abortedJobSummary);
+    void AbortJob(
+        const TJobId& jobId,
+        EAbortReason abortReason);
 
     int GetPendingJobCount() const;
     TJobResources GetNeededResources() const;

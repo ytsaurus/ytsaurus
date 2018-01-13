@@ -130,6 +130,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to NScheduler
 struct IOperationControllerStrategyHost
     : public virtual TRefCounted
 {
@@ -148,11 +149,13 @@ struct IOperationControllerStrategyHost
      */
     virtual IInvokerPtr GetCancelableInvoker() const = 0;
 
+    //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.
     /*!
-     *  \note Invoker affinity: Cancellable controller invoker
+     *  \note Thread affinity: any
      */
-    //! Called during preemption to notify the controller that a job has been aborted.
-    virtual void OnJobAborted(std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary) = 0;
+    virtual void OnNonscheduledJobAborted(
+        const TJobId& jobid,
+        EAbortReason abortReason) = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -177,6 +180,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): merge into NScheduler::IOperationController
 struct IOperationControllerSchedulerHost
     : public IOperationControllerStrategyHost
 {
@@ -268,6 +272,12 @@ struct IOperationControllerSchedulerHost
      */
     //! Called during heartbeat processing to notify the controller that a job has failed.
     virtual void OnJobFailed(std::unique_ptr<NScheduler::TFailedJobSummary> jobSummary) = 0;
+
+    /*!
+   *  \note Invoker affinity: Cancellable controller invoker
+   */
+    //! Called during preemption to notify the controller that a job has been aborted.
+    virtual void OnJobAborted(std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker

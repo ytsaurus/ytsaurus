@@ -202,10 +202,7 @@ TRunningJobSummary::TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobE
     : TJobSummary(event)
     , Progress(event->status().progress())
     , StderrSize(event->status().stderr_size())
-{
-    YCHECK(event->status().has_progress());
-    YCHECK(event->status().has_stderr_size());
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

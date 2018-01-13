@@ -1382,7 +1382,7 @@ void TNodeShard::ProcessScheduledJobs(
                 job->GetOperationId());
             if (operationState && !operationState->Terminated) {
                 const auto& controller = operationState->Controller;
-                controller->OnJobAborted(job, EAbortReason::SchedulingOperationSuspended);
+                controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
                 CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
             }
             continue;

@@ -126,7 +126,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
+    virtual void OnNonscheduledJobAborted(const TJobId&, EAbortReason) override
     {
         Y_UNREACHABLE();
     }

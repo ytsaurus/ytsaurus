@@ -2215,8 +2215,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
                 jobId,
                 OperationId_);
 
-            Controller_->AbortJob(
-                std::make_unique<TAbortedJobSummary>(jobId, EAbortReason::SchedulingResourceOvercommit));
+            Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
 
             // Reset result.
             scheduleJobResult = New<TScheduleJobResult>();

@@ -40,6 +40,7 @@ public:
         TOperation* operation)
         : JobEventsOutbox_(agent->GetJobEventsOutbox())
         , OperationId_(operation->GetId())
+        , AgentController_(operation->GetController())
     { }
 
     virtual void OnJobStarted(const TJobPtr& job) override
@@ -76,13 +77,23 @@ public:
         JobEventsOutbox_->Enqueue(std::move(event));
     }
 
-    virtual void OnJobAborted(
-        const TJobPtr& job,
+    virtual void OnNonscheduledJobAborted(
+        const TJobId& jobId,
         EAbortReason abortReason) override
     {
-        auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, false, nullptr);
-        event.AbortReason = abortReason;
-        JobEventsOutbox_->Enqueue(std::move(event));
+        auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
+        ToProto(status->mutable_job_id(), jobId);
+        JobEventsOutbox_->Enqueue(TJobEvent{
+            ESchedulerToAgentJobEventType::Aborted,
+            OperationId_,
+            false,
+            {},
+            {},
+            std::move(status),
+            abortReason,
+            {},
+            {}
+        });
     }
 
     virtual void OnJobRunning(
@@ -92,9 +103,43 @@ public:
         JobEventsOutbox_->Enqueue(BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status));
     }
 
+
+    // TODO(babenko)
+    virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
+        NScheduler::ISchedulingContextPtr context,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const TString& treeId) override
+    {
+        return AgentController_->ScheduleJob(
+            std::move(context),
+            jobLimits,
+            treeId);
+    }
+
+    virtual IInvokerPtr GetCancelableInvoker() const override
+    {
+        return AgentController_->GetCancelableInvoker();
+    }
+
+    virtual TJobResources GetNeededResources() const override
+    {
+        return AgentController_->GetNeededResources();
+    }
+
+    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override
+    {
+        return AgentController_->GetMinNeededJobResources();
+    }
+
+    virtual int GetPendingJobCount() const override
+    {
+        return AgentController_->GetPendingJobCount();
+    }
+
 private:
     const TIntrusivePtr<TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
     const TOperationId OperationId_;
+    const NControllerAgent::IOperationControllerPtr AgentController_;
 
     TJobEvent BuildEvent(
         ESchedulerToAgentJobEventType eventType,

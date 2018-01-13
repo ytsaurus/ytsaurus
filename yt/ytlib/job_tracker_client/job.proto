@@ -28,7 +28,7 @@ message TJobStatus
 {
     required NYT.NProto.TGuid job_id = 1;
     optional int32 job_type = 2;
-    required int32 state = 3;
+    optional int32 state = 3;
     optional int32 phase = 4;
     optional double progress = 5;
     optional TJobResult result = 6;
