@@ -25,7 +25,7 @@ struct TJobEvent
     NScheduler::EAgentToSchedulerJobEventType Type;
     TJobId JobId;
     TError Error;
-    EInterruptReason InterruptReason;
+    TNullable<EInterruptReason> InterruptReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

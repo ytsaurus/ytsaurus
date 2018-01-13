@@ -27,6 +27,7 @@ using namespace NProfiling;
 using namespace NPhoenix;
 
 using NScheduler::NProto::TSchedulerJobResultExt;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,11 +59,20 @@ TDuration TJob::GetDuration() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStartedJobSummary::TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : Id(FromProto<TJobId>(event->status().job_id()))
+    , StartTime(FromProto<TInstant>(event->start_time()))
+{
+    YCHECK(event->has_start_time());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobSummary::TJobSummary(const TJobPtr& job, const TJobStatus* status)
     : Id(job->GetId())
     , State(job->GetState())
     , FinishTime(job->GetFinishTime())
-    , ShouldLog(true)
+    , LogAndProfile(true)
 {
     // TODO(ignat): it is hacky way, we should avoid it by saving status in controller.
     if (!status) {
@@ -88,8 +98,30 @@ TJobSummary::TJobSummary(const TJobId& id, EJobState state)
     : Result()
     , Id(id)
     , State(state)
-    , ShouldLog(false)
+    , LogAndProfile(false)
 { }
+
+TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : Id(FromProto<TJobId>(event->status().job_id()))
+    , State(static_cast<EJobState>(event->status().state()))
+    , FinishTime(event->has_finish_time() ? MakeNullable(FromProto<TInstant>(event->finish_time())) : Null)
+    , LogAndProfile(event->log_and_profile())
+{
+    auto* status = event->mutable_status();
+    Result.Swap(status->mutable_result());
+    if (status->has_prepare_duration()) {
+        PrepareDuration = FromProto<TDuration>(status->prepare_duration());
+    }
+    if (status->has_download_duration()) {
+        DownloadDuration = FromProto<TDuration>(status->download_duration());
+    }
+    if (status->has_exec_duration()) {
+        ExecDuration = FromProto<TDuration>(status->exec_duration());
+    }
+    if (status->has_statistics()) {
+        StatisticsYson = TYsonString(status->statistics());
+    }
+}
 
 void TJobSummary::Persist(const TPersistenceContext& context)
 {
@@ -103,7 +135,7 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     Persist(context, ExecDuration);
     Persist(context, Statistics);
     Persist(context, StatisticsYson);
-    Persist(context, ShouldLog);
+    Persist(context, LogAndProfile);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +145,19 @@ TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, const TJobStatus&
     , Abandoned(abandoned)
     , InterruptReason(job->GetInterruptReason())
 {
+    const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    YCHECK(
+        (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
+        (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() != 0));
+}
+
+TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : TJobSummary(event)
+    , Abandoned(event->abandoned())
+    , InterruptReason(static_cast<EInterruptReason>(event->interrupt_reason()))
+{
+    YCHECK(event->has_abandoned());
+    YCHECK(event->has_interrupt_reason());
     const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
     YCHECK(
         (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
@@ -136,11 +181,6 @@ void TCompletedJobSummary::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job, const TJobStatus& status)
-    : TJobSummary(job, &status)
-    , AbortReason(GetAbortReason(Result))
-{ }
-
 TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
     : TJobSummary(id, EJobState::Aborted)
     , AbortReason(abortReason)
@@ -151,13 +191,21 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason ab
     , AbortReason(abortReason)
 { }
 
+TAbortedJobSummary::TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : TJobSummary(event)
+    , AbortReason(static_cast<EAbortReason>(event->abort_reason()))
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TRunningJobSummary::TRunningJobSummary(const TJobPtr& job, const TJobStatus& status)
-    : TJobSummary(job, &status)
-    , Progress(status.progress())
-    , StderrSize(status.stderr_size())
-{ }
+TRunningJobSummary::TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : TJobSummary(event)
+    , Progress(event->status().progress())
+    , StderrSize(event->status().stderr_size())
+{
+    YCHECK(event->status().has_progress());
+    YCHECK(event->status().has_stderr_size());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,7 +219,7 @@ TJobStatus JobStatusFromError(const TError& error)
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobStartRequest::TJobStartRequest(
-    TJobId id,
+    const TJobId& id,
     EJobType type,
     const TJobResources& resourceLimits,
     bool interruptible)

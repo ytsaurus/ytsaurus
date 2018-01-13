@@ -14,6 +14,21 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobEvent
+{
+    ESchedulerToAgentJobEventType EventType;
+    TOperationId OperationId;
+    bool LogAndProfile;
+    TInstant StartTime;
+    TNullable<TInstant> FinishTime;
+    std::unique_ptr<NJobTrackerClient::NProto::TJobStatus> Status;
+    TNullable<EAbortReason> AbortReason;
+    TNullable<bool> Abandoned;
+    TNullable<EInterruptReason> InterruptReason;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Scheduler-side representation of a controller agent.
 /*!
  *  Thread affinity: Control thread (unless noted otherwise)
@@ -27,8 +42,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::TIncarnationId, IncarnationId);
 
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobsYson);
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, OperationEventsQueue);
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, JobEventsQueue);
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, OperationEventsInbox);
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, JobEventsInbox);
+    DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TJobEvent>>, JobEventsOutbox);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

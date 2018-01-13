@@ -1254,6 +1254,7 @@ private:
 
         // TODO(babenko): rework when multiple agents are supported
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnecting(NControllerAgent::TIncarnationId::Create());
+        Bootstrap_->GetControllerAgentTracker()->OnAgentConnected();
 
         // NB: Must start the keeper before registering operations.
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -1292,7 +1293,6 @@ private:
 
         // TODO(babenko)
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected();
-        Bootstrap_->GetControllerAgentTracker()->OnAgentConnected();
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;
             Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
@@ -1740,7 +1740,7 @@ private:
             auto controller = CreateOperationController(agentOperation);
             operation->SetController(controller);
             agentOperation->SetController(controller);
-            auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent(), operation.Get());
+            auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
             operation->SetLocalController(localController);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
@@ -1887,7 +1887,7 @@ private:
             controller = CreateOperationController(agentOperation);
             operation->SetController(controller);
             agentOperation->SetController(controller);
-            auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent(), operation.Get());
+            auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
             operation->SetLocalController(localController);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());

@@ -110,11 +110,12 @@ DEFINE_ENUM(EAgentToSchedulerJobEventType,
     ((Released)    (3))
 );
 
-DEFINE_ENUM(EJobEventType,
+DEFINE_ENUM(ESchedulerToAgentJobEventType,
     ((Started)   (0))
     ((Completed) (1))
     ((Failed)    (2))
     ((Aborted)   (3))
+    ((Running)   (4))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

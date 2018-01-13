@@ -65,14 +65,20 @@ message TAgentToSchedulerJobEvent
 
 message TSchedulerToAgentJobEvent
 {
-    required NYT.NProto.TGuid job_id = 1;
-    required int32 event_type = 2; // EJobEvent
-    optional NYT.NJobTrackerClient.NProto.TJobStatus status = 3;
-    optional int32 state = 4; // EJobState
-    optional uint64 start_time = 5; // for EJobEvent::Started only
-    optional uint64 finish_time = 6;
-    optional bool abandoned = 7; // for EJobEvent::Completed only
-    optional int32 abort_reason = 8; // for EJobEvent::Aborted only
+    required NYT.NProto.TGuid operation_id = 1;
+    required int32 event_type = 3; // EJobEvent
+    required bool log_and_profile = 2;
+    required NYT.NJobTrackerClient.NProto.TJobStatus status = 4;
+    optional uint64 start_time = 6; // for EJobEvent::Started only
+    optional uint64 finish_time = 7;
+    optional bool abandoned = 8; // for EJobEvent::Completed only
+    optional int32 abort_reason = 9; // for EJobEvent::Aborted only
+    optional int32 interrupt_reason = 10; // EInterruptReason
+}
+
+message TEventQueueInbox
+{
+    required int64 next_expected_item_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,13 +97,13 @@ message TReqHeartbeat
         repeated TAlert alerts = 2;
     }
 
-    message TAgentToSchedulerOperationEventQueue
+    message TAgentToSchedulerOperationEventsOutbox
     {
         required int64 first_item_id = 1;
         repeated TAgentToSchedulerOperationEvent items = 2;
     }
 
-    message TAgentToSchedulerJobEventQueue
+    message TAgentToSchedulerJobEventsOutbox
     {
         required int64 first_item_id = 1;
         repeated TAgentToSchedulerJobEvent items = 2;
@@ -113,20 +119,23 @@ message TReqHeartbeat
 
     optional bytes suspicious_jobs = 8;
 
-    required TAgentToSchedulerOperationEventQueue agent_to_scheduler_operation_events_queue = 9;
-    required TAgentToSchedulerJobEventQueue agent_to_scheduler_job_events_queue = 10;
+    required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 9;
+    required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 10;
+    required TEventQueueInbox scheduler_to_agent_job_events = 11;
 }
 
 message TRspHeartbeat
 {
-    message TEventQueue
+    message TSchedulerToAgentJobEventOutbox
     {
-        required int64 next_expected_item_id = 1;
+        required int64 first_item_id = 1;
+        repeated TSchedulerToAgentJobEvent items = 2;
     }
 
     optional TExecNodeDescriptorList exec_nodes = 1;
-    required TEventQueue agent_to_scheduler_operation_events_queue = 2;
-    required TEventQueue agent_to_scheduler_job_events_queue = 3;
+    required TEventQueueInbox agent_to_scheduler_operation_events = 2;
+    required TEventQueueInbox agent_to_scheduler_job_events = 3;
+    required TSchedulerToAgentJobEventOutbox scheduler_to_agent_job_events = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

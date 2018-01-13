@@ -56,7 +56,7 @@ public:
     void ReportStatus(TProtoMessage* request);
 
     template <class TProtoMessage, class TConsumer>
-    void HandleIncoming(const TProtoMessage& message, TConsumer protoItemConsumer);
+    void HandleIncoming(TProtoMessage* message, TConsumer protoItemConsumer);
 
 private:
     const NLogging::TLogger Logger;

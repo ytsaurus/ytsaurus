@@ -11,6 +11,7 @@
 #include <yt/server/scheduler/cache.h>
 #include <yt/server/scheduler/operation.h>
 #include <yt/server/scheduler/message_queue.h>
+#include <yt/server/scheduler/job.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -47,6 +48,8 @@ using namespace NEventLog;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NRpc;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -381,6 +384,7 @@ private:
     TIncarnationId IncarnationId_;
     TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
+    std::unique_ptr<NScheduler::TMessageQueueInbox> JobEventsInbox_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -402,10 +406,13 @@ private:
         IncarnationId_ = MasterConnector_->GetIncarnationId();
         OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TOperationEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: OperationEvents, IncarnationId: %v", IncarnationId_));
+                .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_));
         JobEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TJobEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: JobEvents, IncarnationId: %v", IncarnationId_));
+                .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_));
+        JobEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_));
     }
 
     void OnMasterConnected()
@@ -475,8 +482,8 @@ private:
         ToProto(req->mutable_agent_incarnation_id(), IncarnationId_);
 
         OperationEventsOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_operation_events_queue(),
-            [&] (auto* protoEvent, const auto& event) {
+            req->mutable_agent_to_scheduler_operation_events(),
+            [] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.Type));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 if (!event.Error.IsOK()) {
@@ -485,15 +492,19 @@ private:
             });
 
         JobEventsOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_job_events_queue(),
-            [&] (auto* protoEvent, const auto& event) {
+            req->mutable_agent_to_scheduler_job_events(),
+            [] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.Type));
                 ToProto(protoEvent->mutable_job_id(), event.JobId);
-                protoEvent->set_interrupt_reason(static_cast<int>(event.InterruptReason));
+                if (event.InterruptReason) {
+                    protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
+                }
                 if (!event.Error.IsOK()) {
                     ToProto(protoEvent->mutable_error(), event.Error);
                 }
             });
+
+        JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
 
         auto operations = GetOperations();
         for (const auto& pair : operations) {
@@ -560,8 +571,50 @@ private:
 
         LOG_INFO("Heartbeat succeeded");
 
-        OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events_queue());
-        JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events_queue());
+        OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
+        JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events());
+
+        yhash<TOperationPtr, std::vector<NScheduler::NProto::TSchedulerToAgentJobEvent*>> groupedJobEvents;
+        JobEventsInbox_->HandleIncoming(
+            rsp->mutable_scheduler_to_agent_job_events(),
+            [&] (auto* protoEvent) {
+                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                auto operation = this->FindOperation(operationId);
+                if (!operation) {
+                    return;
+                }
+                groupedJobEvents[operation].push_back(protoEvent);
+            });
+
+        for (auto& pair : groupedJobEvents) {
+            const auto& operation = pair.first;
+            auto controller = operation->GetController();
+            controller->GetCancelableInvoker()->Invoke(
+                BIND([rsp, controller, this_ = MakeStrong(this), protoEvents = std::move(pair.second)] {
+                    for (auto* protoEvent : protoEvents) {
+                        auto eventType = static_cast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
+                        switch (eventType) {
+                            case ESchedulerToAgentJobEventType::Started:
+                                controller->OnJobStarted(std::make_unique<TStartedJobSummary>(protoEvent));
+                                break;
+                            case ESchedulerToAgentJobEventType::Completed:
+                                controller->OnJobCompleted(std::make_unique<TCompletedJobSummary>(protoEvent));
+                                break;
+                            case ESchedulerToAgentJobEventType::Failed:
+                                controller->OnJobFailed(std::make_unique<TFailedJobSummary>(protoEvent));
+                                break;
+                            case ESchedulerToAgentJobEventType::Aborted:
+                                controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(protoEvent));
+                                break;
+                            case ESchedulerToAgentJobEventType::Running:
+                                controller->OnJobRunning(std::make_unique<TRunningJobSummary>(protoEvent));
+                                break;
+                            default:
+                                Y_UNREACHABLE();
+                        }
+                    }
+                }));
+        }
 
         if (rsp->has_exec_nodes()) {
             auto execNodeDescriptors = New<TExecNodeDescriptorList>();

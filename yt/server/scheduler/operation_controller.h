@@ -16,7 +16,7 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) = 0;
+    virtual void OnJobStarted(const TJobPtr& job) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has completed.
     /*!
@@ -24,7 +24,7 @@ struct IOperationController
      */
     virtual void OnJobCompleted(
         const TJobPtr& job,
-        const NJobTrackerClient::NProto::TJobStatus& status,
+        NJobTrackerClient::NProto::TJobStatus* status,
         bool abandoned) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has failed.
@@ -33,7 +33,7 @@ struct IOperationController
      */
     virtual void OnJobFailed(
         const TJobPtr& job,
-        const NJobTrackerClient::NProto::TJobStatus& status) = 0;
+        NJobTrackerClient::NProto::TJobStatus* status) = 0;
 
     //! Called during heartheat processing to notify the controller that a job has been aborted.
     /*!
@@ -41,7 +41,7 @@ struct IOperationController
      */
     virtual void OnJobAborted(
         const TJobPtr& job,
-        const NJobTrackerClient::NProto::TJobStatus& status) = 0;
+        NJobTrackerClient::NProto::TJobStatus* status) = 0;
 
     //! Called during scheduling to notify the controller that a job has been aborted.
     /*!
@@ -57,7 +57,7 @@ struct IOperationController
      */
     virtual void OnJobRunning(
         const TJobPtr& job,
-        const NJobTrackerClient::NProto::TJobStatus& status) = 0;
+        NJobTrackerClient::NProto::TJobStatus* status) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

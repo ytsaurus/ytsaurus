@@ -122,12 +122,8 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                         LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
                             jobId,
                             this_->OperationId_);
-                        this_->Controller_->GetCancelableInvoker()->Invoke(
-                            BIND(&NControllerAgent::IOperationController::OnJobAborted,
-                                this_->Controller_,
-                                Passed(std::make_unique<TAbortedJobSummary>(
-                                    jobId,
-                                    EAbortReason::SchedulingTimeout))));
+                        this_->Controller_->OnJobAborted(
+                            std::make_unique<TAbortedJobSummary>(jobId, EAbortReason::SchedulingTimeout));
                     }
             }));
         }

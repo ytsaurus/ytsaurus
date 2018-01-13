@@ -28,7 +28,7 @@ public:
 
     // TODO(babenko): eliminate
     IOperationControllerPtr CreateController(
-        const TControllerAgentPtr& agent,
+        TControllerAgent* agent,
         TOperation* operation);
 
     using TCtxAgentHeartbeat = NRpc::TTypedServiceContext<
