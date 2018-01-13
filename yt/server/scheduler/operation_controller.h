@@ -4,13 +4,15 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/server/controller_agent/operation_controller.h>
+
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationController
-    : public virtual TRefCounted
+    : public NControllerAgent::IOperationControllerStrategyHost
 {
     //! Called in the end of heartbeat when scheduler agrees to run operation job.
     /*!
@@ -35,21 +37,13 @@ struct IOperationController
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) = 0;
 
-    //! Called during heartheat processing to notify the controller that a job has been aborted.
+    //! Called during heartbeat processing to notify the controller that a job has been aborted.
     /*!
      *  \note Thread affinity: any
      */
     virtual void OnJobAborted(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) = 0;
-
-    //! Called during scheduling to notify the controller that a job has been aborted.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void OnJobAborted(
-        const TJobPtr& job,
-        EAbortReason abortReason) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job is still running.
     /*!

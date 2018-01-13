@@ -1,4 +1,5 @@
 #include "operation.h"
+#include "operation_controller.h"
 #include "exec_node.h"
 #include "helpers.h"
 #include "job.h"
@@ -119,7 +120,7 @@ bool TOperation::IsSchedulable() const
 
 NControllerAgent::IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
 {
-    return Controller_;
+    return LocalController_;
 }
 
 void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
