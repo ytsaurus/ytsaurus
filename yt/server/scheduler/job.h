@@ -114,12 +114,25 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to controller agent
+// NB: This particular summary does not inherit from TJobSummary.
+struct TStartedJobSummary
+{
+    explicit TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+
+    TJobId Id;
+    TInstant StartTime;
+};
+
 struct TJobSummary
 {
     TJobSummary() = default;
     TJobSummary(const TJobPtr& job, const TJobStatus* status);
     TJobSummary(const TJobId& id, EJobState state);
+    explicit TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
     virtual ~TJobSummary() = default;
+
+    void Persist(const NPhoenix::TPersistenceContext& context);
 
     TJobResult Result;
     TJobId Id;
@@ -134,10 +147,7 @@ struct TJobSummary
     TNullable<NJobTrackerClient::TStatistics> Statistics;
     NYson::TYsonString StatisticsYson;
 
-    // TODO(ignat): rename, it is not only about logging.
-    bool ShouldLog;
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    bool LogAndProfile = false;
 };
 
 using TFailedJobSummary = TJobSummary;
@@ -148,6 +158,7 @@ struct TCompletedJobSummary
     TCompletedJobSummary(const TJobPtr& job, const TJobStatus& status, bool abandoned = false);
     //! Only for testing purpose.
     TCompletedJobSummary() = default;
+    explicit TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
 
     void Persist(const NPhoenix::TPersistenceContext& context);
 
@@ -163,9 +174,9 @@ struct TCompletedJobSummary
 struct TAbortedJobSummary
     : public TJobSummary
 {
-    TAbortedJobSummary(const TJobPtr& job, const TJobStatus& status);
     TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
+    explicit TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
 
     EAbortReason AbortReason;
 };
@@ -173,7 +184,7 @@ struct TAbortedJobSummary
 struct TRunningJobSummary
     : public TJobSummary
 {
-    TRunningJobSummary(const TJobPtr& job, const TJobStatus& status);
+    explicit TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
 
     double Progress;
     ui64 StderrSize;
@@ -188,7 +199,7 @@ TJobStatus JobStatusFromError(const TError& error);
 struct TJobStartRequest
 {
     TJobStartRequest(
-        TJobId id,
+        const TJobId& id,
         EJobType type,
         const TJobResources& resourceLimits,
         bool interruptible);

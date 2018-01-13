@@ -9,12 +9,15 @@ namespace NScheduler {
 TControllerAgent::TControllerAgent(const NControllerAgent::TIncarnationId& incarnationId)
     : IncarnationId_(incarnationId)
     , SuspiciousJobsYson_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
-    , OperationEventsQueue_(NLogging::TLogger(SchedulerLogger)
+    , OperationEventsInbox_(NLogging::TLogger(SchedulerLogger)
         // TODO(babenko): agent id
-        .AddTag("Kind: OperationEvents, IncarnationId: %v", IncarnationId_))
-    , JobEventsQueue_(NLogging::TLogger(SchedulerLogger)
+        .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_))
+    , JobEventsInbox_(NLogging::TLogger(SchedulerLogger)
         // TODO(babenko): agent id
-        .AddTag("Kind: JobEvents, IncarnationId: %v", IncarnationId_))
+        .AddTag("Kind: AgentToSchedulerAgentJobs, IncarnationId: %v", IncarnationId_))
+    , JobEventsOutbox_(New<TMessageQueueOutbox<TJobEvent>>(NLogging::TLogger(SchedulerLogger)
+        // TODO(babenko): agent id
+        .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_)))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

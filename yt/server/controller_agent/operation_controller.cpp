@@ -182,9 +182,9 @@ public:
         return Underlying_->GetMinNeededJobResources();
     }
 
-    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
+    virtual void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) override
     {
-        Underlying_->OnJobStarted(jobId, startTime);
+        Underlying_->OnJobStarted(std::move(jobSummary));
     }
 
     virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override

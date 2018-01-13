@@ -1053,9 +1053,10 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 
     for (auto& jobStatus : *request->mutable_jobs()) {
+        YCHECK(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
         // Skip jobs that are not issued by the scheduler.
-        if (jobType != EJobType::Unknown && (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)) {
+        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast) {
             continue;
         }
 
@@ -1391,9 +1392,7 @@ void TNodeShard::ProcessScheduledJobs(
         IncreaseProfilingCounter(job, 1);
 
         const auto& controller = operationState->Controller;
-        controller->OnJobStarted(
-            job->GetId(),
-            job->GetStartTime());
+        controller->OnJobStarted(job);
 
         auto* startInfo = response->add_jobs_to_start();
         ToProto(startInfo->mutable_job_id(), job->GetId());
@@ -1442,7 +1441,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
-        controller->OnJobRunning(job, *status);
+        controller->OnJobRunning(job, status);
     }
 }
 
@@ -1453,7 +1452,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         job->GetState() == EJobState::None)
     {
         // The value of status may be nullptr on abandoned jobs.
-        if (status != nullptr) {
+        if (status) {
             const auto& result = status->result();
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             if (schedulerResultExt.unread_chunk_specs_size() == 0) {
@@ -1475,7 +1474,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
             const auto& controller = operationState->Controller;
-            controller->OnJobCompleted(job, *status, abandoned);
+            controller->OnJobCompleted(job, status, abandoned);
         }
     }
 
@@ -1495,7 +1494,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
             const auto& controller = operationState->Controller;
-            controller->OnJobFailed(job, *status);
+            controller->OnJobFailed(job, status);
         }
     }
 
@@ -1522,7 +1521,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState && !operationTerminated) {
             const auto& controller = operationState->Controller;
-            controller->OnJobAborted(job, *status);
+            controller->OnJobAborted(job, status);
         }
     }
 

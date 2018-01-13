@@ -93,23 +93,23 @@ void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 {
     request->set_next_expected_item_id(NextExpectedItemId_);
 
-    LOG_DEBUG("Expecting inbox items (NextExpectedItemId: %v)",
+    LOG_DEBUG("Inbox status reported (NextExpectedItemId: %v)",
         NextExpectedItemId_);
 }
 
 template <class TProtoMessage, class TConsumer>
-void TMessageQueueInbox::HandleIncoming(const TProtoMessage& message, TConsumer protoItemConsumer)
+void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoItemConsumer)
 {
-    if (message.items_size() == 0) {
+    if (message->items_size() == 0) {
         return;
     }
 
     auto firstConsumedItemId = -1;
     auto lastConsumedItemId = -1;
-    auto itemId = message.first_item_id();
-    for (const auto& protoItem : message.items()) {
+    auto itemId = message->first_item_id();
+    for (auto& protoItem : *message->mutable_items()) {
         if (itemId == NextExpectedItemId_) {
-            protoItemConsumer(protoItem);
+            protoItemConsumer(&protoItem);
             if (firstConsumedItemId < 0) {
                 firstConsumedItemId = itemId;
             }
@@ -120,15 +120,15 @@ void TMessageQueueInbox::HandleIncoming(const TProtoMessage& message, TConsumer 
     }
 
     if (firstConsumedItemId >= 0) {
-        LOG_DEBUG("Inbox items handled (ReceivedIds: %v-%v, ConsumedIds: %v-%v)",
-            message.first_item_id(),
-            message.first_item_id() + message.items_size() - 1,
+        LOG_DEBUG("Inbox items received and consumed (ReceivedIds: %v-%v, ConsumedIds: %v-%v)",
+            message->first_item_id(),
+            message->first_item_id() + message->items_size() - 1,
             firstConsumedItemId,
             lastConsumedItemId);
     } else {
-        LOG_DEBUG("Inbox items handled but none consumed (ReceivedIds: %v-%v)",
-            message.first_item_id(),
-            message.first_item_id() + message.items_size() - 1);
+        LOG_DEBUG("Inbox items received but none consumed (ReceivedIds: %v-%v)",
+            message->first_item_id(),
+            message->first_item_id() + message->items_size() - 1);
     }
 }
 

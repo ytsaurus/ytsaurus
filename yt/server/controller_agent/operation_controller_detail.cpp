@@ -1481,16 +1481,16 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error finishing upload to output tables");
 }
 
-void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant startTime)
+void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary)
 {
-    LOG_DEBUG("Job started (JobId: %v)", jobId);
+    LOG_DEBUG("Job started (JobId: %v)", jobSummary->Id);
 
-    auto joblet = GetJoblet(jobId);
-    joblet->StartTime = startTime;
-    joblet->LastActivityTime = startTime;
+    auto joblet = GetJoblet(jobSummary->Id);
+    joblet->StartTime = jobSummary->StartTime;
+    joblet->LastActivityTime = jobSummary->StartTime;
 
     LogEventFluently(ELogEventType::JobStarted)
-        .Item("job_id").Value(jobId)
+        .Item("job_id").Value(jobSummary->Id)
         .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
@@ -1760,11 +1760,10 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         UpdateMemoryDigests(joblet, statistics, true /* resourceOverdraft */);
     }
 
-    if (jobSummary->ShouldLog) {
+    if (jobSummary->LogAndProfile) {
         FinalizeJoblet(joblet, jobSummary.get());
         LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
             .Item("reason").Value(abortReason);
-
         UpdateJobStatistics(joblet, *jobSummary);
     }
 
