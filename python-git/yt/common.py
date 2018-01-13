@@ -110,7 +110,7 @@ class YtResponseError(YtError):
 
     def is_shell_exited(self):
         """Shell exited."""
-        return self.contains_code(1800)
+        return self.contains_code(1800) or self.contains_code(1801)
 
     def contains_code(self, code):
         """Check if HTTP response has specified error code."""
