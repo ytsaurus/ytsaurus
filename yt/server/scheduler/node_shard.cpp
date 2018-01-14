@@ -1633,13 +1633,15 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
 
         CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
 
-        LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
+        LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
-            job->GetOperationId());
+            job->GetOperationId(),
+            job->GetState());
     } else {
-        LOG_DEBUG("Dangling job unregistered (JobId: %v, OperationId: %v)",
+        LOG_DEBUG("Dangling job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
-            job->GetOperationId());
+            job->GetOperationId(),
+            job->GetState());
     }
 }
 
