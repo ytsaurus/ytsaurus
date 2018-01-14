@@ -89,7 +89,7 @@ public:
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
-        event.AbortReason = GetAbortReason(status->result());
+        event.AbortReason = job->GetAbortReason();
         auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
         LOG_DEBUG("Job abort notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
             itemId,
