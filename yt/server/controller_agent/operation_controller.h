@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/job_tracker_client/job.pb.h>
+
 #include <yt/ytlib/event_log/public.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
@@ -78,6 +80,78 @@ struct TCreateJobNodeRequest
     NYson::TYsonString Attributes;
     NChunkClient::TChunkId StderrChunkId;
     NChunkClient::TChunkId FailContextChunkId;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: This particular summary does not inherit from TJobSummary.
+struct TStartedJobSummary
+{
+    explicit TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+
+    TJobId Id;
+    TInstant StartTime;
+};
+
+struct TJobSummary
+{
+    TJobSummary() = default;
+    TJobSummary(const TJobId& id, EJobState state);
+    explicit TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+    virtual ~TJobSummary() = default;
+
+    void Persist(const NPhoenix::TPersistenceContext& context);
+
+    NJobTrackerClient::NProto::TJobResult Result;
+    TJobId Id;
+    EJobState State = EJobState::None;
+
+    TNullable<TInstant> FinishTime;
+    TNullable<TDuration> PrepareDuration;
+    TNullable<TDuration> DownloadDuration;
+    TNullable<TDuration> ExecDuration;
+
+    // NB: The Statistics field will be set inside the controller in ParseStatistics().
+    TNullable<NJobTrackerClient::TStatistics> Statistics;
+    NYson::TYsonString StatisticsYson;
+
+    bool LogAndProfile = false;
+};
+
+struct TCompletedJobSummary
+    : public TJobSummary
+{
+    TCompletedJobSummary() = default;
+    explicit TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+
+    void Persist(const NPhoenix::TPersistenceContext& context);
+
+    bool Abandoned = false;
+    EInterruptReason InterruptReason = EInterruptReason::None;
+
+    // These fields are for controller's use only.
+    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
+    std::vector<NChunkClient::TInputDataSlicePtr> ReadInputDataSlices;
+    int SplitJobCount = 1;
+};
+
+struct TAbortedJobSummary
+    : public TJobSummary
+{
+    TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
+    TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
+    explicit TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+
+    EAbortReason AbortReason = EAbortReason::None;
+};
+
+struct TRunningJobSummary
+    : public TJobSummary
+{
+    explicit TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+
+    double Progress = 0;
+    i64 StderrSize = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,31 +333,31 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called in the end of heartbeat when scheduler agrees to run operation job.
-    virtual void OnJobStarted(std::unique_ptr<NScheduler::TStartedJobSummary> jobSummary) = 0;
+    virtual void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to notify the controller that a job has completed.
-    virtual void OnJobCompleted(std::unique_ptr<NScheduler::TCompletedJobSummary> jobSummary) = 0;
+    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to notify the controller that a job has failed.
-    virtual void OnJobFailed(std::unique_ptr<NScheduler::TFailedJobSummary> jobSummary) = 0;
+    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) = 0;
 
     /*!
    *  \note Invoker affinity: Cancellable controller invoker
    */
     //! Called during preemption to notify the controller that a job has been aborted.
-    virtual void OnJobAborted(std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary) = 0;
+    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to notify the controller that a job is still running.
-    virtual void OnJobRunning(std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary) = 0;
+    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) = 0;
 
     //! Build scheduler jobs from the joblets. Used during revival pipeline.
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;

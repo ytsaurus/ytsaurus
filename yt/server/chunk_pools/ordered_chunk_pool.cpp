@@ -5,6 +5,7 @@
 #include "output_order.h"
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 

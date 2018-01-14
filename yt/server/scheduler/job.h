@@ -6,7 +6,6 @@
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
@@ -114,78 +113,6 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): move to controller agent
-// NB: This particular summary does not inherit from TJobSummary.
-struct TStartedJobSummary
-{
-    explicit TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
-
-    TJobId Id;
-    TInstant StartTime;
-};
-
-struct TJobSummary
-{
-    TJobSummary() = default;
-    TJobSummary(const TJobId& id, EJobState state);
-    explicit TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
-    virtual ~TJobSummary() = default;
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
-
-    TJobResult Result;
-    TJobId Id;
-    EJobState State = EJobState::None;
-
-    TNullable<TInstant> FinishTime;
-    TNullable<TDuration> PrepareDuration;
-    TNullable<TDuration> DownloadDuration;
-    TNullable<TDuration> ExecDuration;
-
-    // NB: The Statistics field will be set inside the controller in ParseStatistics().
-    TNullable<NJobTrackerClient::TStatistics> Statistics;
-    NYson::TYsonString StatisticsYson;
-
-    bool LogAndProfile = false;
-};
-
-using TFailedJobSummary = TJobSummary;
-
-struct TCompletedJobSummary
-    : public TJobSummary
-{
-    TCompletedJobSummary() = default;
-    explicit TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
-
-    bool Abandoned = false;
-    EInterruptReason InterruptReason = EInterruptReason::None;
-
-    // These fields are for controller's use only.
-    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
-    std::vector<NChunkClient::TInputDataSlicePtr> ReadInputDataSlices;
-    int SplitJobCount = 1;
-};
-
-struct TAbortedJobSummary
-    : public TJobSummary
-{
-    TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
-    TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
-    explicit TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
-
-    EAbortReason AbortReason = EAbortReason::None;
-};
-
-struct TRunningJobSummary
-    : public TJobSummary
-{
-    explicit TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
-
-    double Progress = 0;
-    ui64 StderrSize = 0;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -158,11 +158,11 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
     IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
 
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (std::unique_ptr<NScheduler::TStartedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<NScheduler::TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<NScheduler::TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
 
     IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
     IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY_ANY(), false)
@@ -327,8 +327,8 @@ public:
     virtual const TNullable<TOutputTable>& StderrTable() const override;
     virtual const TNullable<TOutputTable>& CoreTable() const override;
 
-    virtual void RegisterStderr(const TJobletPtr& joblet, const NScheduler::TJobSummary& summary) override;
-    virtual void RegisterCores(const TJobletPtr& joblet, const NScheduler::TJobSummary& summary) override;
+    virtual void RegisterStderr(const TJobletPtr& joblet, const TJobSummary& summary) override;
+    virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) override;
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) override;
 
@@ -680,8 +680,8 @@ protected:
     //! `TOperationSpecBase::Spec`.
     virtual NYTree::TYsonSerializablePtr GetTypedSpec() const = 0;
 
-    int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
-    void ExtractInterruptDescriptor(NScheduler::TCompletedJobSummary& jobSummary) const;
+    int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
+    void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
     struct TStripeDescriptor
@@ -1074,8 +1074,8 @@ private:
     void GetExecNodesInformation();
     int GetExecNodeCount();
 
-    void UpdateJobStatistics(const TJobletPtr& joblet, const NScheduler::TJobSummary& jobSummary);
-    void UpdateJobMetrics(const TJobletPtr& joblet, const NScheduler::TJobSummary& jobSummary);
+    void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
 
     void LogProgress(bool force = false);
 
@@ -1091,12 +1091,12 @@ private:
     //! Sets finish time and other timing statistics.
     void FinalizeJoblet(
         const TJobletPtr& joblet,
-        NScheduler::TJobSummary* jobSummary);
+        TJobSummary* jobSummary);
 
     NEventLog::TFluentLogEvent LogFinishedJobFluently(
         NScheduler::ELogEventType eventType,
         const TJobletPtr& joblet,
-        const NScheduler::TJobSummary& jobSummary);
+        const TJobSummary& jobSummary);
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 
@@ -1112,7 +1112,7 @@ private:
 
     NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
 
-    void ProcessFinishedJobResult(std::unique_ptr<NScheduler::TJobSummary> summary, bool suggestCreateJobNodeByStatus);
+    void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
 
     void InitAutoMergeJobSpecTemplates();
 

@@ -4,6 +4,7 @@
 #include "helpers.h"
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/controller_agent.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

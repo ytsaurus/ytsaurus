@@ -1581,11 +1581,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     auto jobId = jobSummary->Id;
 
-    if (State != EControllerState::Running) {
-        LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
-        return;
-    }
-
     // NB: We should not explicitly tell node to remove abandoned job because it may be still
     // running at the node.
     if (!jobSummary->Abandoned) {
@@ -1597,6 +1592,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
         THROW_ERROR_EXCEPTION("Testing exception");
+    }
+
+    if (State != EControllerState::Running) {
+        LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
+        return;
     }
 
     const auto& result = jobSummary->Result;

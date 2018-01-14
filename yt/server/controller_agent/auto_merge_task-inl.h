@@ -60,21 +60,21 @@ public:
         return CanScheduleJob_;
     }
 
-    virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobAborted(joblet, jobSummary);
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary) override
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobFailed(joblet, jobSummary);
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary) override
+    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobCompleted(joblet, jobSummary);
 
