@@ -6004,11 +6004,6 @@ const TOperationSpecBasePtr& TOperationControllerBase::GetSpec() const
     return Spec_;
 }
 
-const std::vector<TOutputTable>& TOperationControllerBase::OutputTables() const
-{
-    return OutputTables_;
-}
-
 const TNullable<TOutputTable>& TOperationControllerBase::StderrTable() const
 {
     return StderrTable_;

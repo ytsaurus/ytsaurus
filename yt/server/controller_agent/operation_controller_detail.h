@@ -324,7 +324,6 @@ public:
     virtual TOperationId GetOperationId() const override;
     virtual EOperationType GetOperationType() const override;
 
-    const std::vector<TOutputTable>& OutputTables() const;
     virtual const TNullable<TOutputTable>& StderrTable() const override;
     virtual const TNullable<TOutputTable>& CoreTable() const override;
 
