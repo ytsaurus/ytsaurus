@@ -1580,6 +1580,12 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     auto jobId = jobSummary->Id;
+
+    if (State != EControllerState::Running) {
+        LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
+        return;
+    }
+
     // NB: We should not explicitly tell node to remove abandoned job because it may be still
     // running at the node.
     if (!jobSummary->Abandoned) {
@@ -1662,7 +1668,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ false);
 
-    RemoveJoblet(joblet);
+    UnregisterJoblet(joblet);
 
     UpdateTask(joblet->Task);
 
@@ -1724,7 +1730,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
-    RemoveJoblet(joblet);
+    UnregisterJoblet(joblet);
 
     LogProgress();
 
@@ -1748,6 +1754,11 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 {
     auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
+
+    if (State != EControllerState::Running) {
+        LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
+        return;
+    }
 
     JobCounter->Aborted(1, abortReason);
 
@@ -1786,7 +1797,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     bool requestJobNodeCreation = (abortReason == EAbortReason::UserRequest);
     ProcessFinishedJobResult(std::move(jobSummary), requestJobNodeCreation);
 
-    RemoveJoblet(joblet);
+    UnregisterJoblet(joblet);
 
     if (abortReason == EAbortReason::AccountLimitExceeded) {
         Host->OnOperationSuspended(TError("Account limit exceeded"));
@@ -1799,6 +1810,12 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
 {
     const auto& jobId = jobSummary->Id;
+
+    if (State != EControllerState::Running) {
+        LOG_DEBUG("Stale job running, ignored (JobId: %v)", jobId);
+        return;
+    }
+
     auto joblet = GetJoblet(jobSummary->Id);
 
     joblet->Progress = jobSummary->Progress;
