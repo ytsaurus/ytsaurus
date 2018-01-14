@@ -535,7 +535,7 @@ private:
         // TODO(ignat): add some backoff.
         {
             std::vector<TString> suspiciousJobsYsons;
-            for (const auto& pair : operations) {
+            for (const auto& pair : GetOperations()) {
                 const auto& operation = pair.second;
                 auto controller = operation->GetController();
                 suspiciousJobsYsons.push_back(controller->GetSuspiciousJobsYson().GetData());
