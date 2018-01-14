@@ -82,9 +82,9 @@ public:
         const TString& treeId,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
-    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary);
-    virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary);
-    virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary);
+    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 
     // First checks against a given node, then against all nodes if needed.

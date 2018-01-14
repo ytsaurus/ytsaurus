@@ -101,7 +101,7 @@ struct IChunkPoolOutput
 
     virtual TOutputOrderPtr GetOutputOrder() const = 0;
 
-    virtual void Completed(TCookie cookie, const NScheduler::TCompletedJobSummary& jobSummary) = 0;
+    virtual void Completed(TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
@@ -119,26 +119,17 @@ public:
     TChunkPoolOutputBase();
 
     // IChunkPoolOutput implementation.
-
     virtual i64 GetTotalDataWeight() const override;
-
     virtual i64 GetRunningDataWeight() const override;
-
     virtual i64 GetCompletedDataWeight() const override;
-
     virtual i64 GetPendingDataWeight() const override;
-
     virtual i64 GetTotalRowCount() const override;
-
     virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+    virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const override;
+    virtual TOutputOrderPtr GetOutputOrder() const override;
 
     // IPersistent implementation.
-
     virtual void Persist(const TPersistenceContext& context) override;
-
-    virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const override;
-
-    virtual TOutputOrderPtr GetOutputOrder() const override;
 
 public:
     DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)

@@ -80,8 +80,8 @@ struct ITaskHost
     virtual const TNullable<TOutputTable>& StderrTable() const = 0;
     virtual const TNullable<TOutputTable>& CoreTable() const = 0;
 
-    virtual void RegisterStderr(const TJobletPtr& joblet, const NScheduler::TJobSummary& summary) = 0;
-    virtual void RegisterCores(const TJobletPtr& joblet, const NScheduler::TJobSummary& summary) = 0;
+    virtual void RegisterStderr(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
+    virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
 

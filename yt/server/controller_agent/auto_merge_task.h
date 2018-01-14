@@ -89,9 +89,9 @@ public:
     virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
-    virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override;
-    virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary) override;
-    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary) override;
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override;
+    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
 
     void RegisterTeleportChunk(NChunkClient::TInputChunkPtr chunk);
 

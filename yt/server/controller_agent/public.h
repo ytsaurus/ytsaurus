@@ -66,6 +66,12 @@ DECLARE_REFCOUNTED_CLASS(TOperationControllerHost)
 DECLARE_REFCOUNTED_CLASS(TOperation)
 using TOperationIdToOperationMap = yhash<TOperationId, TOperationPtr>;
 
+struct TJobSummary;
+struct TCompletedJobSummary;
+struct TAbortedJobSummary;
+using TFailedJobSummary = TJobSummary;
+struct TRunningJobSummary;
+
 // XXX(babenko): move private
 class TMasterConnector;
 

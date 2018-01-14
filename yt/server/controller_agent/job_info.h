@@ -1,8 +1,8 @@
 #pragma once
 
 #include "task.h"
-#include "public.h"
 #include "serialize.h"
+#include "controller_agent.h"
 
 #include <yt/server/scheduler/job_metrics.h>
 #include <yt/server/scheduler/exec_node.h>
@@ -92,7 +92,7 @@ public:
 
     virtual void Persist(const TPersistenceContext& context) override;
 
-    NScheduler::TJobMetrics UpdateJobMetrics(const NScheduler::TJobSummary& jobSummary);
+    NScheduler::TJobMetrics UpdateJobMetrics(const TJobSummary& jobSummary);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)
@@ -106,10 +106,10 @@ struct TFinishedJobInfo
 
     TFinishedJobInfo(
         const TJobletPtr& joblet,
-        NScheduler::TJobSummary summary,
+        TJobSummary summary,
         NYson::TYsonString inputPaths);
 
-    NScheduler::TJobSummary Summary;
+    TJobSummary Summary;
     NYson::TYsonString InputPaths;
 
     virtual void Persist(const TPersistenceContext& context) override;

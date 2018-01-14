@@ -59,11 +59,6 @@ class TMasterConnector;
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobStatus;
 
-struct TJobSummary;
-struct TCompletedJobSummary;
-struct TAbortedJobSummary;
-struct TRunningJobSummary;
-
 class TSchedulingTagFilter;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/server/controller_agent/job_size_adjuster.h>
+#include <yt/server/controller_agent/controller_agent.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/ref_tracked.h>

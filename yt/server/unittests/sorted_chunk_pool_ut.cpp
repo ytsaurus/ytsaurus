@@ -3,6 +3,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
 
@@ -25,7 +26,8 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
-using NScheduler::TCompletedJobSummary;
+
+using NControllerAgent::TCompletedJobSummary;
 
 using namespace ::testing;
 
