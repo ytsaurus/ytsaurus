@@ -3281,6 +3281,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
 {
+    // XXX(babenko): cancelable controller invoker?
     VERIFY_THREAD_AFFINITY_ANY();
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
@@ -3301,6 +3302,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
 {
+    // XXX(babenko): cancelable controller invoker?
     VERIFY_THREAD_AFFINITY_ANY();
 
     // Cf. OnOperationFailed.
@@ -5535,7 +5537,7 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(const TJobId& jobId) const
     return joblet;
 }
 
-void TOperationControllerBase::RemoveJoblet(const TJobletPtr& joblet)
+void TOperationControllerBase::(const TJobletPtr& joblet)
 {
     const auto& jobId = joblet->JobId;
     YCHECK(JobletMap.erase(jobId) == 1);
