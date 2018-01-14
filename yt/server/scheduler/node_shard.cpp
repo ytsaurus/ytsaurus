@@ -1511,6 +1511,8 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
 
 void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated)
 {
+    Y_ASSERT(status);
+
     // Only update the status for the first time.
     // Typically the scheduler decides to abort the job on its own.
     // In this case we should ignore the status returned from the node
@@ -1519,9 +1521,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
     {
-        if (status) {
-            job->SetAbortReason(GetAbortReason(status->result()));
-        }
+        job->SetAbortReason(GetAbortReason(status->result()));
         SetJobState(job, EJobState::Aborted);
 
         OnJobFinished(job);
