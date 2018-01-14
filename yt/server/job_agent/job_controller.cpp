@@ -821,14 +821,11 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
     }
 
     std::vector<TJobSpec> specs(response->jobs_to_start_size());
-
     if (specs.empty()) {
         return;
     }
 
-    bool hasSpecsInAttachments = !response->Attachments().empty();
-
-    if (hasSpecsInAttachments) {
+    if (!response->Attachments().empty()) {
         int attachmentIndex = 0;
         for (const auto& info : response->jobs_to_start()) {
             TJobSpec spec;
