@@ -281,7 +281,7 @@ public:
 
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
         for (const auto& request : requests) {
-            LOG_DEBUG("Retrieving job spec (OperationId: %v, JobId: %v)",
+            LOG_DEBUG("Extracting job spec (OperationId: %v, JobId: %v)",
                 request.OperationId,
                 request.JobId);
 
