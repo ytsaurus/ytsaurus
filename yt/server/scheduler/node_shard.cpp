@@ -1437,11 +1437,10 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     }
 
     auto now = GetCpuInstant();
-    if (now > job->GetRunningJobUpdateDeadline()) {
-        job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
-    } else {
+    if (now < job->GetRunningJobUpdateDeadline()) {
         return;
     }
+    job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
 
     auto delta = status->resource_usage() - job->ResourceUsage();
     UpdatedJobs_.emplace_back(job->GetOperationId(), job->GetId(), delta, job->GetTreeId());
