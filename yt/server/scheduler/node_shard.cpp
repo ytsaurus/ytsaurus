@@ -1432,6 +1432,8 @@ void TNodeShard::ProcessScheduledJobs(
 
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
 {
+    YCHECK(status);
+
     if (!status->has_statistics()) {
         return;
     }
@@ -1455,6 +1457,8 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
 
 void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned)
 {
+    YCHECK(abandoned == !status);
+
     if (job->GetState() == EJobState::Running ||
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
@@ -1471,7 +1475,6 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
                 job->SetInterruptReason(EInterruptReason::Unknown);
             }
         } else {
-            YCHECK(abandoned);
             job->SetInterruptReason(EInterruptReason::None);
         }
 
@@ -1491,6 +1494,8 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
 
 void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
 {
+    YCHECK(status);
+
     if (job->GetState() == EJobState::Running ||
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
@@ -1511,7 +1516,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
 
 void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated)
 {
-    Y_ASSERT(status);
+    YCHECK(status);
 
     // Only update the status for the first time.
     // Typically the scheduler decides to abort the job on its own.
@@ -1541,20 +1546,21 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
     job->SetFinishTime(TInstant::Now());
     auto duration = job->GetDuration();
 
-    TWriterGuard guard(JobTimeStatisticsDeltaLock_);
-
-    switch (job->GetState()) {
-        case EJobState::Completed:
-            JobTimeStatisticsDelta_.CompletedJobTimeDelta += duration.MicroSeconds();
-            break;
-        case EJobState::Failed:
-            JobTimeStatisticsDelta_.FailedJobTimeDelta += duration.MicroSeconds();
-            break;
-        case EJobState::Aborted:
-            JobTimeStatisticsDelta_.AbortedJobTimeDelta += duration.MicroSeconds();
-            break;
-        default:
-            Y_UNREACHABLE();
+    {
+        TWriterGuard guard(JobTimeStatisticsDeltaLock_);
+        switch (job->GetState()) {
+            case EJobState::Completed:
+                JobTimeStatisticsDelta_.CompletedJobTimeDelta += duration.MicroSeconds();
+                break;
+            case EJobState::Failed:
+                JobTimeStatisticsDelta_.FailedJobTimeDelta += duration.MicroSeconds();
+                break;
+            case EJobState::Aborted:
+                JobTimeStatisticsDelta_.AbortedJobTimeDelta += duration.MicroSeconds();
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
     }
 }
 
