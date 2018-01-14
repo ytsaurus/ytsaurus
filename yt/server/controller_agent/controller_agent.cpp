@@ -267,7 +267,7 @@ public:
         return operation;
     }
 
-    TOperationIdToOperationMap GetOperations()
+    const TOperationIdToOperationMap& GetOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -506,8 +506,7 @@ private:
 
         JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
 
-        auto operations = GetOperations();
-        for (const auto& pair : operations) {
+        for (const auto& pair : GetOperations()) {
             const auto& operationId = pair.first;
             const auto& operation = pair.second;
             auto controller = operation->GetController();
@@ -741,7 +740,7 @@ TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
     return Impl_->FindOperation(operationId);
 }
 
-TOperationIdToOperationMap TControllerAgent::GetOperations()
+const TOperationIdToOperationMap& TControllerAgent::GetOperations()
 {
     return Impl_->GetOperations();
 }

@@ -99,7 +99,7 @@ public:
     void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation);
     void UnregisterOperation(const TOperationId& operationId);
     TOperationPtr FindOperation(const TOperationId& operationId);
-    TOperationIdToOperationMap GetOperations();
+    const TOperationIdToOperationMap& GetOperations();
 
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);
