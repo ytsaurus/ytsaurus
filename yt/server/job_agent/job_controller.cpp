@@ -735,7 +735,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
         for (const auto& jobId : SpeclessJobIds_) {
             auto* jobStatus = request->add_jobs();
             ToProto(jobStatus->mutable_job_id(), jobId);
-            jobStatus->set_job_type(static_cast<int>(EJobType::Unknown));
+            jobStatus->set_job_type(static_cast<int>(EJobType::SchedulerUnknown));
             jobStatus->set_state(static_cast<int>(EJobState::Aborted));
             jobStatus->set_phase(static_cast<int>(EJobPhase::Missing));
             jobStatus->set_progress(0.0);
