@@ -19,18 +19,22 @@ TMessageQueueItemId TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 {
     auto guard = Guard(SpinLock_);
     Queue_.emplace(std::move(item));
-    return NextItemId_++;
+    auto result = NextItemId_;
+    ++NextItemId_;
+    return result;
 }
 
 template <class TItem>
 template <class TItems>
-void TMessageQueueOutbox<TItem>::EnqueueMany(TItems&& items)
+TMessageQueueItemId TMessageQueueOutbox<TItem>::EnqueueMany(TItems&& items)
 {
     auto guard = Guard(SpinLock_);
+    auto result = NextItemId_;
     for (auto&& item : items) {
         Queue_.emplace(std::move(item));
         ++NextItemId_;
     }
+    return result;
 }
 
 template <class TItem>
