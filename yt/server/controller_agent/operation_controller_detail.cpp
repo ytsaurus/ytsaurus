@@ -5554,7 +5554,7 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(const TJobId& jobId) const
     return joblet;
 }
 
-void TOperationControllerBase::(const TJobletPtr& joblet)
+void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
     const auto& jobId = joblet->JobId;
     YCHECK(JobletMap.erase(jobId) == 1);
