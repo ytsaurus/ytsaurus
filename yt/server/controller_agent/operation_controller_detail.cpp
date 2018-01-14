@@ -1822,7 +1822,6 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
             .AsyncVia(Host->GetControllerThreadPoolInvoker())
             .Run();
 
-        // Resulting future is dropped intentionally.
         asyncResult.Subscribe(BIND(
             &TOperationControllerBase::AnalyzeBriefStatistics,
             MakeStrong(this),
