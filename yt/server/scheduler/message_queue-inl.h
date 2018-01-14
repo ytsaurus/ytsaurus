@@ -60,7 +60,7 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
     auto guard = Guard(SpinLock_);
     auto nextExpectedItemId = message.next_expected_item_id();
     YCHECK(nextExpectedItemId <= NextItemId_);
-    if (nextExpectedItemId == NextItemId_) {
+    if (nextExpectedItemId == FirstItemId_) {
         return;
     }
     if (nextExpectedItemId < FirstItemId_) {
