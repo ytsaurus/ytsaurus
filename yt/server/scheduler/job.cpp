@@ -68,32 +68,6 @@ TStartedJobSummary::TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobE
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobSummary::TJobSummary(const TJobPtr& job, const TJobStatus* status)
-    : Id(job->GetId())
-    , State(job->GetState())
-    , FinishTime(job->GetFinishTime())
-    , LogAndProfile(true)
-{
-    // TODO(ignat): it is hacky way, we should avoid it by saving status in controller.
-    if (!status) {
-        return;
-    }
-
-    Result = status->result();
-    if (status->has_prepare_duration()) {
-        PrepareDuration = FromProto<TDuration>(status->prepare_duration());
-    }
-    if (status->has_download_duration()) {
-        DownloadDuration = FromProto<TDuration>(status->download_duration());
-    }
-    if (status->has_exec_duration()) {
-        ExecDuration = FromProto<TDuration>(status->exec_duration());
-    }
-    if (status->has_statistics()) {
-        StatisticsYson = TYsonString(status->statistics());
-    }
-}
-
 TJobSummary::TJobSummary(const TJobId& id, EJobState state)
     : Result()
     , Id(id)
@@ -139,17 +113,6 @@ void TJobSummary::Persist(const TPersistenceContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, const TJobStatus& status, bool abandoned)
-    : TJobSummary(job, &status)
-    , Abandoned(abandoned)
-    , InterruptReason(job->GetInterruptReason())
-{
-    const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    YCHECK(
-        (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
-        (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() != 0));
-}
 
 TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : TJobSummary(event)

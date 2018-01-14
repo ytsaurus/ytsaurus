@@ -13,9 +13,6 @@ class TFairShareStrategyOperationController
     : public TIntrinsicRefCounted
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerStrategyHostPtr, Controller);
-
-public:
     explicit TFairShareStrategyOperationController(IOperationStrategyHost* operation);
 
     void DecreaseConcurrentScheduleJobCalls();
@@ -48,6 +45,7 @@ public:
     TJobResources GetNeededResources() const;
 
 private:
+    const NControllerAgent::IOperationControllerStrategyHostPtr Controller_;
     const TOperationId OperationId_;
 
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
