@@ -14,7 +14,7 @@ TControllerAgent::TControllerAgent(const NControllerAgent::TIncarnationId& incar
         .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_))
     , JobEventsInbox_(NLogging::TLogger(SchedulerLogger)
         // TODO(babenko): agent id
-        .AddTag("Kind: AgentToSchedulerAgentJobs, IncarnationId: %v", IncarnationId_))
+        .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_))
     , JobEventsOutbox_(New<TMessageQueueOutbox<TJobEvent>>(NLogging::TLogger(SchedulerLogger)
         // TODO(babenko): agent id
         .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_)))
