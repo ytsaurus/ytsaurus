@@ -31,6 +31,10 @@ using NControllerAgent::TOperationAlertMap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = SchedulerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationController
     : public IOperationController
 {
@@ -46,7 +50,11 @@ public:
     virtual void OnJobStarted(const TJobPtr& job) override
     {
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
-        JobEventsOutbox_->Enqueue(std::move(event));
+        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job start notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+            itemId,
+            OperationId_,
+            job->GetId());
     }
 
     virtual void OnJobCompleted(
@@ -57,7 +65,11 @@ public:
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Completed, job, true, status);
         event.Abandoned = abandoned;
         event.InterruptReason = job->GetInterruptReason();
-        JobEventsOutbox_->Enqueue(std::move(event));
+        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job completion notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+            itemId,
+            OperationId_,
+            job->GetId());
     }
 
     virtual void OnJobFailed(
@@ -65,7 +77,11 @@ public:
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
-        JobEventsOutbox_->Enqueue(std::move(event));
+        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job failure notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+            itemId,
+            OperationId_,
+            job->GetId());
     }
 
     virtual void OnJobAborted(
@@ -74,7 +90,11 @@ public:
     {
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
         event.AbortReason = GetAbortReason(status->result());
-        JobEventsOutbox_->Enqueue(std::move(event));
+        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job abort notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+            itemId,
+            OperationId_,
+            job->GetId());
     }
 
     virtual void OnNonscheduledJobAborted(
@@ -83,7 +103,7 @@ public:
     {
         auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
         ToProto(status->mutable_job_id(), jobId);
-        JobEventsOutbox_->Enqueue(TJobEvent{
+        auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
             ESchedulerToAgentJobEventType::Aborted,
             OperationId_,
             false,
@@ -94,6 +114,10 @@ public:
             {},
             {}
         });
+        LOG_DEBUG("Nonscheduled job abort event enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+            itemId,
+            OperationId_,
+            jobId);
     }
 
     virtual void OnJobRunning(

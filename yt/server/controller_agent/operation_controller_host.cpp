@@ -35,32 +35,44 @@ TOperationControllerHost::TOperationControllerHost(
 
 void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReason reason)
 {
-    JobEventsOutbox_->Enqueue(TJobEvent{
+    auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
         EAgentToSchedulerJobEventType::Interrupted,
         jobId,
         {},
         reason
     });
+    LOG_DEBUG("Job interrupt request enqueued (ItemId: %v, OperationId: %v, JobCount: %v)",
+        itemId,
+        OperationId_,
+        jobId);
 }
 
 void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error)
 {
-    JobEventsOutbox_->Enqueue(TJobEvent{
+    auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
         EAgentToSchedulerJobEventType::Aborted,
         jobId,
         error,
         {}
     });
+    LOG_DEBUG("Job abort request enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+        itemId,
+        OperationId_,
+        jobId);
 }
 
 void TOperationControllerHost::FailJob(const TJobId& jobId)
 {
-    JobEventsOutbox_->Enqueue(TJobEvent{
+    auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
         EAgentToSchedulerJobEventType::Failed,
         jobId,
         {},
         {}
     });
+    LOG_DEBUG("Job failure request enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+        itemId,
+        OperationId_,
+        jobId);
 }
 
 void TOperationControllerHost::ReleaseJobs(const std::vector<TJobId>& jobIds)
@@ -75,7 +87,11 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobId>& jobIds)
             {}
         });
     }
-    JobEventsOutbox_->EnqueueMany(std::move(events));
+    auto itemId = JobEventsOutbox_->EnqueueMany(std::move(events));
+    LOG_DEBUG("Jobs release request enqueued (FirstItemId: %v, OperationId: %v, JobCount: %v)",
+        itemId,
+        OperationId_,
+        jobIds.size());
 }
 
 TFuture<TOperationSnapshot> TOperationControllerHost::DownloadSnapshot()
@@ -192,7 +208,7 @@ void TOperationControllerHost::OnOperationCompleted()
         OperationId_,
         TError()
     });
-    LOG_DEBUG("Operation completion event enqueued (ItemId: %v, OperationId: %v)",
+    LOG_DEBUG("Operation completion notification enqueued (ItemId: %v, OperationId: %v)",
         itemId,
         OperationId_);
 }
@@ -204,7 +220,7 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation abort event enqueued (ItemId: %v, OperationId: %v, Error: %v)",
+    LOG_DEBUG("Operation abort notification enqueued (ItemId: %v, OperationId: %v, Error: %v)",
         itemId,
         OperationId_,
         error);
@@ -217,7 +233,7 @@ void TOperationControllerHost::OnOperationFailed(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation failure event enqueued (ItemId: %v, OperationId: %v, Error: %v)",
+    LOG_DEBUG("Operation failure notification enqueued (ItemId: %v, OperationId: %v, Error: %v)",
         itemId,
         OperationId_,
         error);
@@ -230,7 +246,7 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation suspension event enqueued (ItemId: %v, OperationId: %v, Error: %v)",
+    LOG_DEBUG("Operation suspension notification enqueued (ItemId: %v, OperationId: %v, Error: %v)",
         itemId,
         OperationId_,
         error);

@@ -25,7 +25,7 @@ public:
 
     TMessageQueueItemId Enqueue(TItem&& item);
     template <class TItems>
-    void EnqueueMany(TItems&& items);
+    TMessageQueueItemId EnqueueMany(TItems&& items);
 
     template <class TProtoMessage, class TBuilder>
     void BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder);
