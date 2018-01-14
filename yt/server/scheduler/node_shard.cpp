@@ -1246,22 +1246,31 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 LOG_DEBUG("Aborting job");
                 ToProto(response->add_jobs_to_abort(), jobId);
             } else {
-                LOG_DEBUG_IF(shouldLogJob, "Job is %lv", state);
                 SetJobState(job, state);
-                if (state == EJobState::Running) {
-                    OnJobRunning(job, jobStatus);
-                    if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
-                        LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
-                            CpuInstantToInstant(job->GetInterruptDeadline()),
-                            jobId,
-                            job->GetOperationId());
-                        ToProto(response->add_jobs_to_abort(), jobId);
-                    } else if (job->GetFailRequested()) {
-                        LOG_DEBUG("Job fail requested (JobId: %v)", jobId);
-                        ToProto(response->add_jobs_to_fail(), jobId);
-                    } else if (job->GetInterruptReason() != EInterruptReason::None) {
-                        ToProto(response->add_jobs_to_interrupt(), jobId);
-                    }
+                switch (state) {
+                    case EJobState::Running:
+                        LOG_DEBUG_IF(shouldLogJob, "Job is running", state);
+                        OnJobRunning(job, jobStatus);
+                        if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
+                            LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
+                                CpuInstantToInstant(job->GetInterruptDeadline()),
+                                jobId,
+                                job->GetOperationId());
+                            ToProto(response->add_jobs_to_abort(), jobId);
+                        } else if (job->GetFailRequested()) {
+                            LOG_DEBUG("Job fail requested (JobId: %v)", jobId);
+                            ToProto(response->add_jobs_to_fail(), jobId);
+                        } else if (job->GetInterruptReason() != EInterruptReason::None) {
+                            ToProto(response->add_jobs_to_interrupt(), jobId);
+                        }
+                        break;
+
+                    case EJobState::Waiting:
+                        LOG_DEBUG_IF(shouldLogJob, "Job is waiting", state);
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
                 }
             }
             break;
