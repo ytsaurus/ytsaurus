@@ -698,7 +698,7 @@ public:
             operation->GetId(),
             operation->GetState());
 
-        auto controller = operation->GetController();
+        const auto& controller = operation->GetController();
         YCHECK(controller);
         controller->Complete();
 
@@ -895,7 +895,7 @@ public:
             return;
         }
 
-        auto controller = operation->GetController();
+        const auto& controller = operation->GetController();
         if (controller->IsRevivedFromSnapshot()) {
             operation->SetState(EOperationState::RevivingJobs);
             RegisterJobsFromRevivedOperation(operation)
@@ -1811,7 +1811,7 @@ private:
 
         try {
             // Run async preparation.
-            auto controller = operation->GetController();
+            const auto& controller = operation->GetController();
             auto asyncResult = BIND(&IOperationControllerSchedulerHost::Prepare, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
@@ -1926,7 +1926,7 @@ private:
             operationId);
 
         try {
-            auto controller = operation->GetController();
+            const auto& controller = operation->GetController();
 
             {
                 auto asyncResult = BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, revivalDescriptor.ControllerTransactions)
@@ -2155,7 +2155,7 @@ private:
             }
 
             {
-                auto controller = operation->GetController();
+                const auto& controller = operation->GetController();
                 auto asyncResult = BIND(&IOperationControllerSchedulerHost::Commit, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
