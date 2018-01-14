@@ -1,6 +1,6 @@
 import pytest
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, wait
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 from yt.yson import YsonEntity
@@ -1343,7 +1343,7 @@ done
 
         operation_path = "//sys/operations/{0}".format(op.id)
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
-        _wait_for(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
+        wait(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
 
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
