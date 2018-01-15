@@ -75,8 +75,6 @@ public:
 
     virtual TTaskGroupPtr GetGroup() const override;
 
-    virtual TDuration GetLocalityTimeout() const override;
-
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
     virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const override;

@@ -1,5 +1,5 @@
 #include "sorted_controller.h"
-#include "private.h"
+
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_info.h"
@@ -369,23 +369,6 @@ protected:
         InitJobSpecTemplate();
     }
 
-    // Progress reporting.
-
-    virtual TString GetLoggingProgress() const override
-    {
-        return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-                "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
-            GetUnavailableInputChunkCount());
-    }
-
     virtual TNullable<int> GetOutputTeleportTableIndex() const = 0;
 
     //! Initializes #JobIOConfig.
@@ -641,8 +624,6 @@ public:
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
         SetInputDataSources(schedulerJobSpecExt);
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), PrimaryKeyColumns_);
@@ -821,8 +802,6 @@ public:
 
         SetInputDataSources(schedulerJobSpecExt);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         InitUserJobSpecTemplate(
@@ -835,14 +814,6 @@ public:
         ToProto(reduceJobSpecExt->mutable_key_columns(), SortKeyColumns_);
         reduceJobSpecExt->set_reduce_key_column_count(PrimaryKeyColumns_.size());
         reduceJobSpecExt->set_join_key_column_count(ForeignKeyColumns_.size());
-    }
-
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
-    {
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet);
     }
 
     virtual void DoInitialize() override

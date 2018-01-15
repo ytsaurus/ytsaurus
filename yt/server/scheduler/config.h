@@ -364,6 +364,32 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVanillaOperationOptions
+    : public TOperationOptions
+{
+public:
+    //! Maximum number of tasks allowed.
+    int MaxTaskCount;
+
+    //! Maximum total number of jobs.
+    int MaxTotalJobCount;
+
+    TVanillaOperationOptions()
+    {
+        RegisterParameter("max_task_count", MaxTaskCount)
+            .Default(100);
+        RegisterParameter("max_total_job_count", MaxTotalJobCount)
+            .Default(100 * 1000);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions, 0x93998ffa);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTestingOptions
     : public NYTree::TYsonSerializable
 {
@@ -603,6 +629,7 @@ public:
     TMapReduceOperationOptionsPtr MapReduceOperationOptions;
     TSortOperationOptionsPtr SortOperationOptions;
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
+    TVanillaOperationOptionsPtr VanillaOperationOptions;
 
     //! Default environment variables set for every job.
     yhash<TString, TString> Environment;

@@ -395,7 +395,7 @@ private:
     const NLogging::TLogger Logger;
 
     const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
-    TUserJobReadControllerPtr UserJobReadController_;
+    IUserJobReadControllerPtr UserJobReadController_;
 
     const TUserJobSpec& UserJobSpec_;
 
