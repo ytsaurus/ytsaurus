@@ -1483,19 +1483,21 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
 
 void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary)
 {
+    auto jobId = jobSummary->Id;
+
     if (State != EControllerState::Running) {
         LOG_DEBUG("Stale job started, ignored (JobId: %v)", jobId);
         return;
     }
 
-    LOG_DEBUG("Job started (JobId: %v)", jobSummary->Id);
+    LOG_DEBUG("Job started (JobId: %v)", jobId);
 
-    auto joblet = GetJoblet(jobSummary->Id);
+    auto joblet = GetJoblet(jobId);
     joblet->StartTime = jobSummary->StartTime;
     joblet->LastActivityTime = jobSummary->StartTime;
 
     LogEventFluently(ELogEventType::JobStarted)
-        .Item("job_id").Value(jobSummary->Id)
+        .Item("job_id").Value(jobId)
         .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
