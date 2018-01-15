@@ -113,17 +113,12 @@ protected:
             , Controller_(controller)
         {
             auto options = controller->GetSortedChunkPoolOptions();
-            options.Task = GetId();
+            options.Task = GetTitle();
             ChunkPool_ = CreateSortedChunkPool(
                 options,
                 controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory());
 
-        }
-
-        virtual TString GetId() const override
-        {
-            return Format("Sorted");
         }
 
         virtual TTaskGroupPtr GetGroup() const override

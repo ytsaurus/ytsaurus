@@ -66,11 +66,6 @@ public:
             , Controller(controller)
         { }
 
-        virtual TString GetId() const override
-        {
-            return "Unordered";
-        }
-
         virtual TTaskGroupPtr GetGroup() const override
         {
             return Controller->UnorderedTaskGroup;
@@ -382,7 +377,7 @@ protected:
                 FinishTaskInput(UnorderedTask);
                 for (int index = 0; index < AutoMergeTasks.size(); ++index) {
                     if (AutoMergeTasks[index]) {
-                        AutoMergeTasks[index]->FinishInput(UnorderedTask->GetJobType());
+                        AutoMergeTasks[index]->FinishInput(UnorderedTask->GetVertexDescriptor());
                     }
                 }
 

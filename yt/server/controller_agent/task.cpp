@@ -66,9 +66,19 @@ TTask::TTask(ITaskHostPtr taskHost)
 void TTask::Initialize()
 {
     Logger.AddTag("OperationId: %v", TaskHost_->GetOperationId());
-    Logger.AddTag("Task: %v", GetId());
+    Logger.AddTag("Task: %v", GetTitle());
 
     SetupCallbacks();
+}
+
+TString TTask::GetTitle() const
+{
+    return ToString(GetJobType());
+}
+
+TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
+{
+    return ToString(GetJobType());
 }
 
 int TTask::GetPendingJobCount() const
@@ -174,7 +184,7 @@ void TTask::FinishInput()
     GetChunkPoolInput()->Finish();
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     if (!progressCounter->Parent()) {
-        progressCounter->SetParent(TaskHost_->DataFlowGraph().JobCounter(GetJobType()));
+        TaskHost_->DataFlowGraph().RegisterTask(GetVertexDescriptor(), progressCounter, GetJobType());
     }
     AddPendingHint();
     CheckCompleted();
@@ -454,21 +464,20 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 inputStatistics.row_count(),
                 outputStatistics.row_count(),
-                GetId());
+                GetTitle());
             YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
         }
 
-        YCHECK(InputVertex_ > TDataFlowGraph::TVertexDescriptor::SchedulerFirst);
-        YCHECK(InputVertex_ < TDataFlowGraph::TVertexDescriptor::SchedulerLast);
+        YCHECK(InputVertex_ != "");
 
-        auto vertex = GetJobType();
+        auto vertex = GetVertexDescriptor();
         TaskHost_->DataFlowGraph().RegisterFlow(InputVertex_, vertex, inputStatistics);
         // TODO(max42): rewrite this properly one day.
         for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
             if (EdgeDescriptors_[index].IsFinalOutput) {
                 TaskHost_->DataFlowGraph().RegisterFlow(
                     vertex,
-                    TDataFlowGraph::TVertexDescriptor::Sink,
+                    TDataFlowGraph::SinkDescriptor,
                     outputStatisticsMap[index]);
             }
         }
@@ -566,7 +575,7 @@ void TTask::DoCheckResourceDemandSanity(
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError("No online node can satisfy the resource demand")
-                << TErrorAttribute("task", GetId())
+                << TErrorAttribute("task", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources));
     }
 }
@@ -766,7 +775,7 @@ void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& sta
 
 void TTask::FinishTaskInput(const TTaskPtr& task)
 {
-    task->FinishInput(GetJobType() /* inputVertex */);
+    task->FinishInput(GetVertexDescriptor() /* inputVertex */);
 }
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
