@@ -50,14 +50,6 @@ porto_delta_node_config = {
     }
 }
 
-def _wait_for(condition, error_msg, period=0.5, iterations=60):
-    for i in range(iterations):
-        if condition():
-            break
-        time.sleep(period)
-    else:
-        raise RuntimeError(error_msg + " (timeout = {0}".format(period * iterations))
-
 ##################################################################
 
 def get_pool_metrics(metric_key):
@@ -1333,8 +1325,8 @@ class TestJobRevival(YTEnvSetup):
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
         cypress_path = "//sys/operations/{0}".format(op.id)
 
-        _wait_for(lambda: ls("{0}/running_jobs".format(orchid_path)),
-                  "Job did not start")
+        wait(lambda: ls("{0}/running_jobs".format(orchid_path)),
+             "Job did not start")
         jobs = ls("{0}/running_jobs".format(orchid_path))
         assert len(jobs) == 1
         job_id = jobs[0]
@@ -1343,11 +1335,11 @@ class TestJobRevival(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        _wait_for(lambda: exists(orchid_path),
-                  "Operation did not re-appear within 30 seconds")
+        wait(lambda: exists(orchid_path),
+             "Operation did not re-appear within 30 seconds")
 
-        _wait_for(lambda: get("{0}/running_jobs".format(orchid_path)),
-                  "Job did not re-appear within 30 seconds")
+        wait(lambda: get("{0}/running_jobs".format(orchid_path)),
+             "Job did not re-appear within 30 seconds")
         jobs = get("{0}/running_jobs".format(orchid_path)).keys()
         assert len(jobs) == 1
         assert jobs[0] == job_id
@@ -1523,8 +1515,8 @@ class TestDisabledJobRevival(YTEnvSetup):
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
         cypress_path = "//sys/operations/{0}".format(op.id)
 
-        _wait_for(lambda: ls("{0}/running_jobs".format(orchid_path)),
-                  "Job did not start")
+        wait(lambda: ls("{0}/running_jobs".format(orchid_path)),
+             "Job did not start")
         jobs = ls("{0}/running_jobs".format(orchid_path))
         assert len(jobs) == 1
         job_id = jobs[0]
@@ -1533,11 +1525,11 @@ class TestDisabledJobRevival(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        _wait_for(lambda: exists(orchid_path),
-                  "Operation did not re-appear within 30 seconds")
+        wait(lambda: exists(orchid_path),
+             "Operation did not re-appear within 30 seconds")
 
-        _wait_for(lambda: get("{0}/running_jobs".format(orchid_path)),
-                  "Job did not re-appear within 30 seconds")
+        wait(lambda: get("{0}/running_jobs".format(orchid_path)),
+             "Job did not re-appear within 30 seconds")
         jobs = get("{0}/running_jobs".format(orchid_path)).keys()
         assert len(jobs) == 1
 
@@ -2627,8 +2619,8 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             out="//tmp/t_output",
             dont_track=True)
 
-        _wait_for(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
-                  "Failed waiting for the first job")
+        wait(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
+             "Failed waiting for the first job")
 
         jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         job_id = jobs.keys()[0]
@@ -2654,8 +2646,8 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             spec={"mapper" : {"memory_limit" : 50 * 1024 * 1024}},
             dont_track=True)
 
-        _wait_for(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
-                  "Failed waiting for the first job")
+        wait(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
+             "Failed waiting for the first job")
 
         jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         job_id = jobs.keys()[0]
