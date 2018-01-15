@@ -1483,6 +1483,11 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
 
 void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary)
 {
+    if (State != EControllerState::Running) {
+        LOG_DEBUG("Stale job started, ignored (JobId: %v)", jobId);
+        return;
+    }
+
     LOG_DEBUG("Job started (JobId: %v)", jobSummary->Id);
 
     auto joblet = GetJoblet(jobSummary->Id);
