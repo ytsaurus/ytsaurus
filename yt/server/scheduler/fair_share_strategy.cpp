@@ -2523,6 +2523,14 @@ private:
         }
 
         if (trees.empty()) {
+            // TODO(asaitgalin): Remove when all users are specified pool trees in spec.
+            if (spec->SchedulingTagFilter == MakeBooleanFormula("external")) {
+                if (spec->Pool) {
+                    return {{"cloud", *spec->Pool}};
+                }
+                return {{"cloud", operation->GetAuthenticatedUser()}};
+            }
+
             if (!DefaultFairShareTree_) {
                 THROW_ERROR_EXCEPTION("Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
