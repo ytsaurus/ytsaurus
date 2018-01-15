@@ -128,7 +128,7 @@ public:
         LOG_DEBUG("Job run notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
             itemId,
             OperationId_,
-            jobId->GetId());
+            job->GetId());
     }
 
 
