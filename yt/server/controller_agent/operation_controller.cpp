@@ -6,6 +6,7 @@
 #include "sorted_controller.h"
 #include "unordered_controller.h"
 #include "operation_controller_host.h"
+#include "vanilla_controller.h"
 
 #include <yt/server/scheduler/operation.h>
 
@@ -467,6 +468,10 @@ IOperationControllerPtr CreateControllerForOperation(
         }
         case EOperationType::RemoteCopy: {
             controller = CreateRemoteCopyController(config, host, operation);
+            break;
+        }
+        case EOperationType::Vanilla: {
+            controller = CreateVanillaController(config, host, operation);
             break;
         }
         default:

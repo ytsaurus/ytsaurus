@@ -2125,6 +2125,8 @@ private:
                 return Config_->MapReduceOperationOptions->SpecTemplate;
             case EOperationType::RemoteCopy:
                 return Config_->RemoteCopyOperationOptions->SpecTemplate;
+            case EOperationType::Vanilla:
+                return Config_->VanillaOperationOptions->SpecTemplate;
             default:
                 Y_UNREACHABLE();
         }

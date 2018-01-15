@@ -37,6 +37,8 @@ public:
     TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors);
     explicit TTask(ITaskHostPtr taskHost);
 
+    //! This method is called on task object creation (both at clean creation and at revival).
+    //! It may be used when calling virtual method is needed, but not allowed.
     void Initialize();
 
     //! Title of a data flow graph vertex that appears in a web interface and coincides with the job type
@@ -63,13 +65,11 @@ public:
 
     bool IsCoreTableEnabled() const;
 
-    virtual TDuration GetLocalityTimeout() const = 0;
+    virtual TDuration GetLocalityTimeout() const;
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
     virtual bool HasInputLocality() const;
 
     NScheduler::TJobResourcesWithQuota GetMinNeededResources() const;
-
-    virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
 
     void ResetCachedMinNeededResources();
 
@@ -78,7 +78,7 @@ public:
 
     // NB: This works well until there is no more than one input data flow vertex for any task.
     void FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex);
-    void FinishInput();
+    virtual void FinishInput();
 
     void CheckCompleted();
 
@@ -118,14 +118,9 @@ public:
 
     TNullable<i64> GetMaximumUsedTmpfsSize() const;
 
-    virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
-    virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
-
     virtual void Persist(const TPersistenceContext& context) override;
 
     virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
-
-    virtual EJobType GetJobType() const = 0;
 
     ITaskHost* GetTaskHost();
     void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
@@ -135,6 +130,14 @@ public:
     IDigest* GetJobProxyMemoryDigest() const;
 
     virtual void SetupCallbacks();
+
+
+    virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
+
+    virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
+    virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
+
+    virtual EJobType GetJobType() const = 0;
 
     //! This method shows if the jobs of this task have an "input_paths" attribute
     //! in Cypress. This depends on if this task gets it input directly from the
@@ -151,12 +154,9 @@ protected:
         NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits);
 
-    virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
-
     virtual void OnTaskCompleted();
 
     virtual void PrepareJoblet(TJobletPtr joblet);
-    virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
     virtual void OnJobStarted(TJobletPtr joblet);
 
@@ -222,6 +222,9 @@ protected:
     //! A convenience method for calling task->Finish() and
     //! task->SetInputVertex(this->GetJobType());
     void FinishTaskInput(const TTaskPtr& task);
+
+    virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
+    virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
 protected:
     //! Outgoing edges in data flow graph.

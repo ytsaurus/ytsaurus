@@ -619,6 +619,7 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
         case EJobType::PartitionMap:
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
+        case EJobType::Vanilla:
             break;
         default:
             THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it has type %Qlv",
