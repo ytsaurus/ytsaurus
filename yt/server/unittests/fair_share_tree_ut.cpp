@@ -221,7 +221,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual TOperationRuntimeParamsPtr GetRuntimeParams() const override
+    virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const override
     {
         Y_UNREACHABLE();
     }
@@ -288,7 +288,7 @@ TEST(FairShareTree, TestAttributes)
     auto operationElementX = New<TOperationElement>(
         treeConfig,
         New<TStrategyOperationSpec>(),
-        New<TOperationRuntimeParams>(),
+        New<TOperationFairShareStrategyTreeOptions>(),
         operationControllerX,
         config,
         host.Get(),
@@ -340,7 +340,7 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
     auto operationElementX = New<TOperationElement>(
         treeConfig,
         New<TStrategyOperationSpec>(),
-        New<TOperationRuntimeParams>(),
+        New<TOperationFairShareStrategyTreeOptions>(),
         operationControllerX,
         config,
         host.Get(),
@@ -408,7 +408,7 @@ TEST(FairShareTree, TestBestAllocationRatio)
     auto operationElementX = New<TOperationElement>(
         treeConfig,
         New<TStrategyOperationSpec>(),
-        New<TOperationRuntimeParams>(),
+        New<TOperationFairShareStrategyTreeOptions>(),
         operationControllerX,
         config,
         host.Get(),

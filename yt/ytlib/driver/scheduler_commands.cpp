@@ -139,21 +139,21 @@ void TListOperationsCommand::DoExecute(ICommandContextPtr context)
                                 fluent.Item("weight").Value(operation.Weight);
                             })
                         .EndMap();
-                })  
+                })
             .EndList()
             .Item("incomplete").Value(result.Incomplete)
             .DoIf(result.PoolCounts.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("pool_counts").BeginMap()
                 .DoFor(*result.PoolCounts, [] (TFluentMap fluent, const auto& item) {
                     fluent.Item(item.first).Value(item.second);
-                })  
+                })
                 .EndMap();
             })
             .DoIf(result.UserCounts.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("user_counts").BeginMap()
                 .DoFor(*result.UserCounts, [] (TFluentMap fluent, const auto& item) {
                     fluent.Item(item.first).Value(item.second);
-                })  
+                })
                 .EndMap();
             })
             .DoIf(result.StateCounts.operator bool(), [&] (TFluentMap fluent) {
@@ -163,7 +163,7 @@ void TListOperationsCommand::DoExecute(ICommandContextPtr context)
                     if (count) {
                         fluent.Item(FormatEnum(item)).Value(count);
                     }
-                })  
+                })
                 .EndMap();
             })
             .DoIf(result.TypeCounts.operator bool(), [&] (TFluentMap fluent) {
@@ -222,7 +222,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
 {
     auto result = WaitFor(context->GetClient()->ListJobs(OperationId, Options))
         .ValueOrThrow();
- 
+
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
             .Item("jobs").BeginList()
@@ -498,8 +498,38 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUpdateOperationParametersCommand::TUpdateOperationParametersCommand()
+{
+    RegisterParameter("operation_id", OperationId);
+    RegisterParameter("parameters", Parameters);
+
+    RegisterPostprocessor([&] {
+        auto parameters = Parameters->AsMap();
+
+        auto ownersNode = parameters->FindChild("owners");
+        if (ownersNode) {
+            std::vector<TString> owners;
+            Deserialize(owners, ownersNode);
+            Options.Owners = std::move(owners);
+        }
+
+        auto schedulingOptionsPerPoolTreeNode = parameters->FindChild("scheduling_options_per_pool_tree");
+        if (schedulingOptionsPerPoolTreeNode) {
+            Deserialize(Options.SchedulingOptionsPerPoolTree, schedulingOptionsPerPoolTreeNode);
+        }
+    });
+}
+
+void TUpdateOperationParametersCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->UpdateOperationParameters(OperationId, Options))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGetOperationCommand::TGetOperationCommand()
-{   
+{
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("attributes", Options.Attributes)
         .Optional();

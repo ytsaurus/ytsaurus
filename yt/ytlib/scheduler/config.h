@@ -3,6 +3,7 @@
 #include "public.h"
 #include "helpers.h"
 #include "job_resources.h"
+#include "resource_limits.h"
 
 #include <yt/ytlib/api/config.h>
 
@@ -50,18 +51,16 @@ DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceLimitsConfig
-    : public NYTree::TYsonSerializable
+    : public TResourceLimits
+    , public NYTree::TYsonSerializable
 {
 public:
-    TNullable<int> UserSlots;
-    TNullable<double> Cpu;
-    TNullable<int> Network;
-    TNullable<i64> Memory;
-
     TResourceLimitsConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulableConfig
     : public TSupportsSchedulingTagsConfig
@@ -838,29 +837,47 @@ DEFINE_REFCOUNTED_TYPE(TVanillaOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationStrategyRuntimeParams
+class TOperationFairShareStrategyTreeOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    double Weight;
+    TNullable<double> Weight;
 
     TResourceLimitsConfigPtr ResourceLimits;
 
-    TOperationStrategyRuntimeParams();
+    TOperationFairShareStrategyTreeOptions();
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationStrategyRuntimeParams)
+DEFINE_REFCOUNTED_TYPE(TOperationFairShareStrategyTreeOptions)
 
-class TOperationRuntimeParams
-    : public TOperationStrategyRuntimeParams
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationStrategyRuntimeParameters
+    : public NYTree::TYsonSerializable
+{
+private:
+    using TTreeParameters = TOperationFairShareStrategyTreeOptionsPtr;
+
+public:
+    yhash<TString, TTreeParameters> SchedulingOptionsPerPoolTree;
+
+    TOperationStrategyRuntimeParameters();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationStrategyRuntimeParameters)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationRuntimeParameters
+    : public TOperationStrategyRuntimeParameters
 {
 public:
-    std::vector<TString> Owners;
+    TNullable<std::vector<TString>> Owners;
 
-    TOperationRuntimeParams();
+    TOperationRuntimeParameters();
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParams)
+DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 

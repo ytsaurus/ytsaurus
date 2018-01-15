@@ -61,6 +61,11 @@ public:
         const TError& error,
         const TString& user);
 
+    void UpdateOperationParameters(
+        TOperationPtr operation,
+        const TString& user,
+        const TOperationRuntimeParametersPtr& parameters);
+
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);
     TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user);

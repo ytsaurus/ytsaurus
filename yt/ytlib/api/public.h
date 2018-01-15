@@ -93,6 +93,8 @@ DECLARE_REFCOUNTED_CLASS(TPersistentQueuePollerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TPrerequisiteRevisionConfig)
 
+DECLARE_REFCOUNTED_STRUCT(TSchedulingOptions)
+
 DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 
 ////////////////////////////////////////////////////////////////////////////////

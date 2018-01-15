@@ -630,14 +630,21 @@ public:
         auto operationId = MakeRandomId(
             EObjectType::Operation,
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
+
+        auto runtimeParams = New<TOperationRuntimeParameters>();
+        runtimeParams->Owners = operationSpec->Owners;
+        // NOTE: At this point not all runtime params are filled since there are options that
+        // are unknown until operation is registered in strategy (e.g. trees in which operation will run).
+        // These unknown runtime params will be filled inside strategy.
+
         auto operation = New<TOperation>(
             operationId,
             type,
             mutationId,
             transactionId,
             spec,
+            runtimeParams,
             user,
-            operationSpec->Owners,
             TInstant::Now(),
             GetControlInvoker(EControlQueue::Operation),
             operationSpec->TestingOperationOptions->CypressStorageMode);
@@ -779,6 +786,41 @@ public:
         controller->Complete();
 
         return operation->GetFinished();
+    }
+
+    void UpdateOperationParameters(
+        TOperationPtr operation,
+        const TString& user,
+        const TOperationRuntimeParametersPtr& runtimeParams)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
+
+        auto newRuntimeParams = UpdateYsonSerializable(
+            operation->GetRuntimeParameters(), ConvertToNode(runtimeParams));
+
+        // Not applying runtime params until they are persisted in Cypress.
+        auto resultOrError = MasterConnector_->UpdateOperationRuntimeParameters(operation, newRuntimeParams);
+        WaitFor(resultOrError)
+            .ThrowOnError();
+
+        if (newRuntimeParams->Owners && operation->GetOwners() != *newRuntimeParams->Owners) {
+            operation->SetOwners(*newRuntimeParams->Owners);
+        }
+
+        operation->SetRuntimeParameters(newRuntimeParams);
+        Strategy_->UpdateOperationRuntimeParameters(operation.Get());
+
+        // Updating ACL and other attributes.
+        WaitFor(MasterConnector_->FlushOperationNode(operation))
+            .ThrowOnError();
+
+        LogEventFluently(ELogEventType::RuntimeParametersInfo)
+            .Item("runtime_params").Value(newRuntimeParams);
+
+        LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
+            operation->GetId());
     }
 
     TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
@@ -1695,21 +1737,27 @@ private:
         LOG_INFO("Nodes information updated");
     }
 
+    // COMPAT(asaitgalin): Runtime params updates from Cypress will be replaced
+    // with separate command and removed.
     void RequestOperationRuntimeParams(
         TOperationPtr operation,
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        static auto runtimeParamsTemplate = New<TOperationRuntimeParams>();
+        static auto treeParamsTemplate = New<TOperationFairShareStrategyTreeOptions>();
+
+        auto keySet = treeParamsTemplate->GetRegisteredKeys();
+        std::vector<TString> keys(keySet.begin(), keySet.end());
+        keys.push_back("owners");
 
         {
             auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), runtimeParamsTemplate->GetRegisteredKeys());
+            ToProto(req->mutable_attributes()->mutable_keys(), keys);
             batchReq->AddRequest(req, "get_runtime_params");
         }
 
         {
             auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), runtimeParamsTemplate->GetRegisteredKeys());
+            ToProto(req->mutable_attributes()->mutable_keys(), keys);
             batchReq->AddRequest(req, "get_runtime_params_new");
         }
     }
@@ -1736,16 +1784,22 @@ private:
         auto runtimeParamsNode = ConvertToNode(TYsonString(rsp->value()));
 
         try {
-            auto newRuntimeParams = CloneYsonSerializable(operation->GetRuntimeParams());
-            if (ReconfigureYsonSerializable(newRuntimeParams, runtimeParamsNode)) {
-                if (operation->GetOwners() != newRuntimeParams->Owners) {
-                    operation->SetOwners(newRuntimeParams->Owners);
-                }
-                operation->SetRuntimeParams(newRuntimeParams);
-                Strategy_->UpdateOperationRuntimeParams(operation.Get(), newRuntimeParams);
-                LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
-                    operation->GetId());
+            auto runtimeParamsMap = runtimeParamsNode->AsMap();
+            std::vector<TString> ownerList;
+            auto owners = runtimeParamsMap->FindChild("owners");
+            if (owners) {
+                ownerList = ConvertTo<std::vector<TString>>(owners->AsList());
             }
+
+            auto treeParams = ConvertTo<TOperationFairShareStrategyTreeOptionsPtr>(runtimeParamsNode);
+            Strategy_->UpdateOperationRuntimeParameters(operation.Get(), treeParams);
+
+            if (operation->GetOwners() != ownerList) {
+                operation->SetOwners(ownerList);
+            }
+
+            LOG_INFO("Operation runtime parameters updated from Cypress (OperationId: %v)",
+                operation->GetId());
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing operation runtime parameters (OperationId: %v)",
                 operation->GetId());
@@ -3101,6 +3155,14 @@ TFuture<void> TScheduler::CompleteOperation(
     const TString& user)
 {
     return Impl_->CompleteOperation(operation, error, user);
+}
+
+void TScheduler::UpdateOperationParameters(
+    TOperationPtr operation,
+    const TString& user,
+    const TOperationRuntimeParametersPtr& runtimeParams)
+{
+    return Impl_->UpdateOperationParameters(operation, user, runtimeParams);
 }
 
 TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user)

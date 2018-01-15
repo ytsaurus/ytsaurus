@@ -26,8 +26,8 @@ TOperation::TOperation(
     const TMutationId& mutationId,
     TTransactionId userTransactionId,
     IMapNodePtr spec,
+    TOperationRuntimeParametersPtr runtimeParams,
     const TString& authenticatedUser,
-    const std::vector<TString>& owners,
     TInstant startTime,
     IInvokerPtr controlInvoker,
     EOperationCypressStorageMode storageMode,
@@ -41,8 +41,7 @@ TOperation::TOperation(
     , Activated_(false)
     , Prepared_(false)
     , UserTransactionId_(userTransactionId)
-    , RuntimeParams_(New<TOperationRuntimeParams>())
-    , Owners_(owners)
+    , RuntimeParameters_(std::move(runtimeParams))
     , Events_(events)
     , StorageMode_(storageMode)
     , Id_(id)
@@ -57,9 +56,9 @@ TOperation::TOperation(
     SecureVault_ = std::move(parsedSpec->SecureVault);
     Spec_->RemoveChild("secure_vault");
 
-    RuntimeParams_->Weight = parsedSpec->Weight.Get(1.0);
-    RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
-    RuntimeParams_->Owners = parsedSpec->Owners;
+    if (RuntimeParameters_->Owners) {
+        Owners_ = *RuntimeParameters_->Owners;
+    }
 }
 
 TOperationId TOperation::GetId() const

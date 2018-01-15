@@ -7,7 +7,9 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/resource_limits.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
+#include <yt/ytlib/scheduler/config.h>
 
 #include <yt/ytlib/api/native_client.h>
 
@@ -45,6 +47,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
     }
 
 private:
@@ -75,8 +78,9 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        if (ResponseKeeper_->TryReplyFrom(context))
+        if (ResponseKeeper_->TryReplyFrom(context)) {
             return;
+        }
 
         auto asyncResult = scheduler->StartOperation(
             type,
@@ -104,8 +108,9 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        if (ResponseKeeper_->TryReplyFrom(context))
+        if (ResponseKeeper_->TryReplyFrom(context)) {
             return;
+        }
 
         const auto& user = context->GetUser();
 
@@ -135,8 +140,9 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        if (ResponseKeeper_->TryReplyFrom(context))
+        if (ResponseKeeper_->TryReplyFrom(context)) {
             return;
+        }
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->SuspendOperation(
@@ -156,8 +162,9 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        if (ResponseKeeper_->TryReplyFrom(context))
+        if (ResponseKeeper_->TryReplyFrom(context)) {
             return;
+        }
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->ResumeOperation(
@@ -176,8 +183,9 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        if (ResponseKeeper_->TryReplyFrom(context))
+        if (ResponseKeeper_->TryReplyFrom(context)) {
             return;
+        }
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->CompleteOperation(
@@ -186,6 +194,45 @@ private:
             context->GetUser());
 
         context->ReplyFrom(asyncResult);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, UpdateOperationParameters)
+    {
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+
+        context->SetRequestInfo("OperationId: %v", operationId);
+
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        if (ResponseKeeper_->TryReplyFrom(context)) {
+            return;
+        }
+
+        auto parameters = New<TOperationRuntimeParameters>();
+        if (request->has_owner_list()) {
+            parameters->Owners = FromProto<std::vector<TString>>(request->owner_list().owners());
+        }
+
+        for (const auto& parametersProto : request->options()) {
+            const auto& treeId = FromProto<TString>(parametersProto.tree_id());
+            const auto& schedulingOptionsProto = parametersProto.scheduling_options();
+
+            auto treeParams = New<TOperationFairShareStrategyTreeOptions>();
+            if (schedulingOptionsProto.has_weight()) {
+                treeParams->Weight = schedulingOptionsProto.weight();
+            }
+            treeParams->ResourceLimits = New<TResourceLimitsConfig>();
+            if (schedulingOptionsProto.has_resource_limits()) {
+                FromProto(*treeParams->ResourceLimits, schedulingOptionsProto.resource_limits());
+            }
+
+            parameters->SchedulingOptionsPerPoolTree.emplace(treeId, treeParams);
+        }
+
+        auto operation = scheduler->GetOperationOrThrow(operationId);
+        scheduler->UpdateOperationParameters(operation, context->GetUser(), parameters);
+        context->Reply();
     }
 };
 

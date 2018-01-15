@@ -313,6 +313,21 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUpdateOperationParametersCommand
+    : public TTypedCommand<NApi::TUpdateOperationParametersOptions>
+{
+public:
+    TUpdateOperationParametersCommand();
+
+private:
+    NJobTrackerClient::TOperationId OperationId;
+    NYTree::INodePtr Parameters;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetOperationCommand
     : public TTypedCommand<NApi::TGetOperationOptions>
 {

@@ -113,6 +113,7 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.join_reduce;
 
     delete descriptors.complete_op;
+    delete descriptors.update_op_parameters;
 
     delete descriptors.execute_batch;
 
