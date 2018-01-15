@@ -114,7 +114,7 @@ public:
             {},
             {}
         });
-        LOG_DEBUG("Nonscheduled job abort event enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+        LOG_DEBUG("Nonscheduled job abort notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
             itemId,
             OperationId_,
             jobId);
@@ -124,7 +124,11 @@ public:
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
-        JobEventsOutbox_->Enqueue(BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status));
+        auto itemId = JobEventsOutbox_->Enqueue(BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status));
+        LOG_DEBUG("Job run notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
+            itemId,
+            OperationId_,
+            jobId->GetId());
     }
 
 
