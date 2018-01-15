@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/api/config.h>
 
-#include <yt/ytlib/chunk_pools/public.h>
-
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/config.h>
 
@@ -432,8 +430,6 @@ public:
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
-
-    NChunkPools::EStripeListExtractionOrder StripeListExtractionOrder;;
 
     TSimpleOperationSpecBase();
 
