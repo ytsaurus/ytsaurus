@@ -7,8 +7,11 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobReader::TJobReader(int fd)
-    : Fd_(fd)
-    , FdFile_(Duplicate(Fd_))
+    : TJobReader(Duplicate(fd))
+{ }
+
+TJobReader::TJobReader(const TFile& file)
+    : FdFile_(file)
     , FdInput_(FdFile_)
     , BufferedInput_(&FdInput_, BUFFER_SIZE)
 { }
