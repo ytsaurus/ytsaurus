@@ -29,7 +29,7 @@ struct TJobInfoBase
     TInstant LastActivityTime;
     TBriefJobStatisticsPtr BriefStatistics;
     double Progress = 0.0;
-    ui64 StderrSize = 0;
+    i64 StderrSize = 0;
     NYson::TYsonString StatisticsYson;
 
     virtual void Persist(const TPersistenceContext& context);
