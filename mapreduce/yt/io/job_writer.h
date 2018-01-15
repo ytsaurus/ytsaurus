@@ -16,6 +16,7 @@ class TJobWriter
 {
 public:
     explicit TJobWriter(size_t outputTableCount);
+    explicit TJobWriter(const TVector<TFile>& fileList);
 
     size_t GetStreamCount() const override;
     IOutputStream* GetStream(size_t tableIndex) const override;
@@ -28,6 +29,7 @@ private:
         TBufferedOutput BufferedOutput;
 
         explicit TStream(int fd);
+        explicit TStream(const TFile& file);
         ~TStream();
 
         static const size_t BUFFER_SIZE = 1 << 20;
