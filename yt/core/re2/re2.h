@@ -29,8 +29,6 @@ class TRe2
 
 DEFINE_REFCOUNTED_TYPE(TRe2)
 
-// NB: we cannot use raw RE2 as a field in yson serializable because RE2 is not
-// default-constructible. Thus we have to overload unique_ptr version of it.
 void Serialize(const TRe2Ptr& re, NYson::IYsonConsumer* consumer);
 void Deserialize(TRe2Ptr& re, NYTree::INodePtr node);
 

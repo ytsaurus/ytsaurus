@@ -13,6 +13,8 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 
+#include <util/digest/numeric.h>
+
 namespace NYT {
 namespace NNodeTrackerClient {
 
@@ -536,3 +538,24 @@ const TAddressMap& GetAddresses(const TNodeAddressMap& nodeAddresses, EAddressTy
 } // namespace NNodeTrackerClient
 } // namespace NYT
 
+////////////////////////////////////////////////////////////////////////////////
+
+size_t hash<NYT::NNodeTrackerClient::TNodeDescriptor>::operator()(
+    const NYT::NNodeTrackerClient::TNodeDescriptor& nodeDescriptor) const
+{
+    size_t result = 0;
+    THash<TString> stringHasher;
+    result = CombineHashes(result, stringHasher(nodeDescriptor.GetDefaultAddress()));
+    result = CombineHashes(result, stringHasher(nodeDescriptor.GetRack().Get("")));
+    result = CombineHashes(result, stringHasher(nodeDescriptor.GetDataCenter().Get("")));
+    for (const auto& pair : nodeDescriptor.Addresses()) {
+        result = CombineHashes(result, stringHasher(pair.first));
+        result = CombineHashes(result, stringHasher(pair.second));
+    }
+    for (const auto& tag : nodeDescriptor.GetTags()) {
+        result = CombineHashes(result, stringHasher(tag));
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
