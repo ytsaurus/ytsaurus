@@ -15,12 +15,12 @@ class TJobReader
 {
 public:
     explicit TJobReader(int fd);
+    explicit TJobReader(const TFile& file);
 
 protected:
     size_t DoRead(void* buf, size_t len) override;
 
 private:
-    int Fd_;
     TFile FdFile_;
     TUnbufferedFileInput FdInput_;
     TBufferedInput BufferedInput_;
