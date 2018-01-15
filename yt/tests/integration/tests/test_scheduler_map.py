@@ -1064,7 +1064,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
       }
     }
 
-    @flaky(max_runs=5)
+    @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in xrange(31)]
