@@ -624,6 +624,7 @@ print "x={0}\ty={1}".format(x, y)
                 assert job["job_type"] == "partition_reduce"
                 assert "input_paths" not in job
 
+    @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_reduce_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data
