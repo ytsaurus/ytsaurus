@@ -16,7 +16,7 @@ class TTopologicalOrderingTest
 {
 protected:
     std::vector<std::pair<int, int>> CurrentEdges_;
-    TIncrementalTopologicalOrdering IncrementalOrdering_;
+    TIncrementalTopologicalOrdering<int> IncrementalOrdering_;
 
     void AddEdgeAndValidate(int from, int to)
     {
@@ -41,7 +41,7 @@ protected:
 
     void Clear() {
         CurrentEdges_.clear();
-        IncrementalOrdering_ = TIncrementalTopologicalOrdering();
+        IncrementalOrdering_ = TIncrementalTopologicalOrdering<int>();
     }
 
     virtual void TearDown()

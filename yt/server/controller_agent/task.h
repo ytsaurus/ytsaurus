@@ -39,7 +39,13 @@ public:
 
     void Initialize();
 
-    virtual TString GetId() const = 0;
+    //! Title of a data flow graph vertex that appears in a web interface and coincides with the job type
+    //! for builtin tasks. For example, "SortedReduce" or "PartitionMap".
+    virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const;
+    //! Human-readable title of a particular task that appears in logging. For builtin tasks it coincides
+    //! with the vertex descriptor and a partition index in brackets (if applicable).
+    virtual TString GetTitle() const;
+
     virtual TTaskGroupPtr GetGroup() const = 0;
 
     virtual int GetPendingJobCount() const;
