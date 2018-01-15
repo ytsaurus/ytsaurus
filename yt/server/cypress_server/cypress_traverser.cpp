@@ -145,7 +145,7 @@ private:
             }
 
             {
-                NProfiling::TAggregatingTimingGuard timingGuard(&TotalTime_);
+                NProfiling::TWallTimingGuard timingGuard(&TotalTime_);
                 int currentNodeCount = 0;
                 while (currentNodeCount < MaxNodesPerIteration && !Stack_.empty()) {
                     auto& entry = Stack_.back();

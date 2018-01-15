@@ -25,6 +25,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/farm_hash.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -56,6 +57,31 @@ using namespace NConcurrency;
 using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
+
+class TYielder
+    : public NProfiling::TWallTimer
+    , private NConcurrency::TContextSwitchGuard
+{
+public:
+    static constexpr int YieldThreshold = 300;
+
+    TYielder()
+        : NConcurrency::TContextSwitchGuard(
+            [this] () noexcept { Stop(); },
+            [this] () noexcept { Restart(); })
+    { }
+
+    void Checkpoint(size_t processedRows)
+    {
+        if (GetElapsedTime().MilliSeconds() > YieldThreshold) {
+            LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
+                processedRows,
+                GetElapsedTime());
+            Yield();
+        }
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,12 +120,12 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
         auto& writer = context->Writer;
         bool shouldNotWait;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->WriteTime);
+            NProfiling::TCpuTimingGuard timingGuard(&statistics->WriteTime);
             shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->AsyncTime);
+            NProfiling::TWallTimingGuard timingGuard(&statistics->WaitOnReadyEventTime);
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -113,6 +139,10 @@ void ScanOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
+    auto finalLogger = Finally([&] () {
+        LOG_DEBUG("Finalizing scan helper");
+    });
+
     auto& reader = context->Reader;
 
     std::vector<TRow> rows;
@@ -129,12 +159,13 @@ void ScanOpHelper(
 
     auto* statistics = context->Statistics;
 
-    auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
+    TYielder yielder;
 
+    auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
     while (true) {
         bool hasMoreData;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->ReadTime);
+            NProfiling::TCpuTimingGuard timingGuard(&statistics->ReadTime);
             hasMoreData = reader->Read(&rows);
         }
 
@@ -163,6 +194,9 @@ void ScanOpHelper(
         }
 
         consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
+
+        yielder.Checkpoint(statistics->RowsRead);
+
         rows.clear();
         values.clear();
         rowBuffer->Clear();
@@ -172,7 +206,7 @@ void ScanOpHelper(
         }
 
         if (shouldWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->AsyncTime);
+            NProfiling::TWallTimingGuard timingGuard(&statistics->WaitOnReadyEventTime);
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -498,7 +532,7 @@ public:
             }
 
             if (shouldWait) {
-                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -568,7 +602,7 @@ public:
             }
 
             if (shouldWait) {
-                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -715,7 +749,7 @@ void JoinOpHelper(
                 while (true) {
                     bool hasMoreData;
                     {
-                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
+                        NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->ReadTime);
                         hasMoreData = reader->Read(&rows);
                     }
 
@@ -731,7 +765,7 @@ void JoinOpHelper(
                     }
 
                     if (shouldWait) {
-                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                        NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
                     }
@@ -787,6 +821,10 @@ void MultiJoinOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
+    auto finalLogger = Finally([&] () {
+        LOG_DEBUG("Finalizing multijoin helper");
+    });
+
     TMultiJoinClosure closure;
     closure.Buffer = New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
     closure.PrimaryRowSize = parameters->PrimaryRowSize;
@@ -898,7 +936,12 @@ void MultiJoinOpHelper(
             };
 
             while (currentKey != orderedKeys.end()) {
-                bool hasMoreData = reader->Read(&foreignRows);
+                bool hasMoreData;
+                {
+                    NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->ReadTime);
+                    hasMoreData = reader->Read(&foreignRows);
+                }
+
                 bool shouldWait = foreignRows.empty();
 
                 for (size_t rowIndex = 0; rowIndex < foreignRows.size(); ++rowIndex) {
@@ -922,7 +965,7 @@ void MultiJoinOpHelper(
                 }
 
                 if (shouldWait) {
-                    NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                    NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
                     WaitFor(reader->GetReadyEvent())
                         .ThrowOnError();
                 }
@@ -942,11 +985,17 @@ void MultiJoinOpHelper(
 
         auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
         std::vector<const TValue*> joinedRows;
+
+        TYielder yielder;
+        size_t processedRows = 0;
+
         auto consumeJoinedRows = [&] () {
             // Consume joined rows.
+            processedRows += joinedRows.size();
             consumeRows(consumeRowsClosure, intermediateBuffer.Get(), joinedRows.data(), joinedRows.size());
             joinedRows.clear();
             intermediateBuffer->Clear();
+            yielder.Checkpoint(processedRows);
         };
 
         // TODO: Join first row in place or join all rows in place and immediately consume them?
@@ -1081,6 +1130,10 @@ void GroupOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
+    auto finalLogger = Finally([&] () {
+        LOG_DEBUG("Finalizing group helper");
+    });
+
     TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
 
     try {
@@ -1095,10 +1148,16 @@ void GroupOpHelper(
 
     auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
+    TYielder yielder;
+    size_t processedRows = 0;
+
     for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
+        processedRows += size;
         consumeRows(consumeRowsClosure, intermediateBuffer.Get(), closure.GroupedRows.data() + index, size);
         intermediateBuffer->Clear();
+
+        yielder.Checkpoint(processedRows);
     }
 }
 
@@ -1123,6 +1182,10 @@ void OrderOpHelper(
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size),
     size_t rowSize)
 {
+    auto finalLogger = Finally([&] () {
+        LOG_DEBUG("Finalizing order helper");
+    });
+
     auto limit = context->Limit;
 
     TTopCollector topCollector(limit, comparer, rowSize);
@@ -1131,10 +1194,16 @@ void OrderOpHelper(
 
     auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
+    TYielder yielder;
+    size_t processedRows = 0;
+
     for (size_t index = 0; index < rows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, rows.size() - index);
+        processedRows += size;
         consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);
         rowBuffer->Clear();
+
+        yielder.Checkpoint(processedRows);
     }
 }
 
@@ -1160,12 +1229,12 @@ void WriteOpHelper(
     if (!closure.OutputRowsBatch.empty()) {
         bool shouldNotWait;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->WriteTime);
+            NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->WriteTime);
             shouldNotWait = context->Writer->Write(closure.OutputRowsBatch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+            NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
             WaitFor(context->Writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -1173,7 +1242,7 @@ void WriteOpHelper(
 
     LOG_DEBUG("Closing writer");
     {
-        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+        NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
         WaitFor(context->Writer->Close())
             .ThrowOnError();
     }
