@@ -147,3 +147,13 @@ DEFINE_REFCOUNTED_TYPE(TNodeDirectory)
 
 } // namespace NNodeTrackerClient
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct hash<NYT::NNodeTrackerClient::TNodeDescriptor>
+{
+    size_t operator()(const NYT::NNodeTrackerClient::TNodeDescriptor& value) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
