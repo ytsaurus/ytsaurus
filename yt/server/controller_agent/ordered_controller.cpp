@@ -120,7 +120,7 @@ protected:
             , Controller_(controller)
         {
             auto options = controller->GetOrderedChunkPoolOptions();
-            options.Task = GetId();
+            options.Task = GetTitle();
             ChunkPool_ = CreateOrderedChunkPool(options, controller->GetInputStreamDirectory());
         }
 
@@ -154,11 +154,6 @@ protected:
         TOrderedControllerBase* Controller_;
 
         std::unique_ptr<IChunkPool> ChunkPool_;
-
-        virtual TString GetId() const override
-        {
-            return Format("Ordered");
-        }
 
         virtual TTaskGroupPtr GetGroup() const override
         {

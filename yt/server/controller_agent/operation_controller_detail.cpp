@@ -2132,7 +2132,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
         completedJob->NodeDescriptor.Address,
         completedJob->JobId,
-        completedJob->SourceTask->GetId(),
+        completedJob->SourceTask->GetTitle(),
         completedJob->OutputCookie,
         completedJob->InputCookie,
         UnavailableIntermediateChunkCount);
@@ -2632,7 +2632,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources)) {
             OnOperationFailed(
                 TError("No online node can satisfy the resource demand")
-                    << TErrorAttribute("task_id", task->GetId())
+                    << TErrorAttribute("task_id", task->GetTitle())
                     << TErrorAttribute("needed_resources", neededResources)
                     << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));
         }
@@ -2716,7 +2716,7 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
     LOG_DEBUG_IF(
         newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
         "Task updated (Task: %v, PendingJobCount: %v -> %v, TotalJobCount: %v -> %v, NeededResources: %v)",
-        task->GetId(),
+        task->GetTitle(),
         oldPendingJobCount,
         newPendingJobCount,
         oldTotalJobCount,
@@ -2751,7 +2751,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
     i64 minMemory = neededResources.GetMemory();
     candidateTasks.insert(std::make_pair(minMemory, task));
     LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v)",
-        task->GetId(),
+        task->GetTitle(),
         minMemory / 1_MB);
 
 }
@@ -2761,7 +2761,7 @@ void TOperationControllerBase::AddTaskPendingHint(const TTaskPtr& task)
     if (task->GetPendingJobCount() > 0) {
         auto group = task->GetGroup();
         if (group->NonLocalTasks.insert(task).second) {
-            LOG_DEBUG("Task pending hint added (Task: %v)", task->GetId());
+            LOG_DEBUG("Task pending hint added (Task: %v)", task->GetTitle());
             MoveTaskToCandidates(task, group->CandidateTasks);
         }
     }
@@ -2780,7 +2780,7 @@ void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, TNodeId node
     auto group = task->GetGroup();
     if (group->NodeIdToTasks[nodeId].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %v, Address: %v)",
-            task->GetId(),
+            task->GetTitle(),
             InputNodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
     }
 }
@@ -2816,7 +2816,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
                 MoveTaskToCandidates(task, group->CandidateTasks);
             } else {
                 LOG_DEBUG("Task pending hint removed (Task: %v)",
-                    task->GetId());
+                    task->GetTitle());
                 YCHECK(group->NonLocalTasks.erase(task) == 1);
             }
         }
@@ -2902,7 +2902,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
             if (locality <= 0) {
                 localTasks.erase(jt);
                 LOG_TRACE("Task locality hint removed (Task: %v, Address: %v)",
-                    task->GetId(),
+                    task->GetTitle(),
                     address);
                 continue;
             }
@@ -2934,7 +2934,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
             LOG_DEBUG(
                 "Attempting to schedule a local job (Task: %v, Address: %v, Locality: %v, JobLimits: %v, "
                 "PendingDataWeight: %v, PendingJobCount: %v)",
-                bestTask->GetId(),
+                bestTask->GetTitle(),
                 address,
                 bestLocality,
                 FormatResources(jobLimits),
@@ -2996,11 +2996,11 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
             delayedTasks.erase(it);
             if (task->GetPendingJobCount() == 0) {
                 LOG_DEBUG("Task pending hint removed (Task: %v)",
-                    task->GetId());
+                    task->GetTitle());
                 YCHECK(nonLocalTasks.erase(task) == 1);
                 UpdateTask(task);
             } else {
-                LOG_DEBUG("Task delay deadline reached (Task: %v)", task->GetId());
+                LOG_DEBUG("Task delay deadline reached (Task: %v)", task->GetTitle());
                 MoveTaskToCandidates(task, candidateTasks);
             }
         }
@@ -3017,7 +3017,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 // Make sure that the task is ready to launch jobs.
                 // Remove pending hint if not.
                 if (task->GetPendingJobCount() == 0) {
-                    LOG_DEBUG("Task pending hint removed (Task: %v)", task->GetId());
+                    LOG_DEBUG("Task pending hint removed (Task: %v)", task->GetTitle());
                     candidateTasks.erase(it++);
                     YCHECK(nonLocalTasks.erase(task) == 1);
                     UpdateTask(task);
@@ -3044,7 +3044,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
-                        task->GetId(),
+                        task->GetTitle(),
                         deadline);
                     delayedTasks.insert(std::make_pair(deadline, task));
                     candidateTasks.erase(it++);
@@ -3060,7 +3060,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 LOG_DEBUG(
                     "Attempting to schedule a non-local job (Task: %v, Address: %v, JobLimits: %v, "
                     "PendingDataWeight: %v, PendingJobCount: %v)",
-                    task->GetId(),
+                    task->GetTitle(),
                     address,
                     FormatResources(jobLimits),
                     task->GetPendingDataWeight(),
@@ -6675,7 +6675,7 @@ const IThroughputThrottlerPtr& TOperationControllerBase::GetJobSpecSliceThrottle
 
 void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
 {
-    task->FinishInput(TDataFlowGraph::TVertexDescriptor::Source);
+    task->FinishInput(TDataFlowGraph::SourceDescriptor);
 }
 
 void TOperationControllerBase::SetOperationAlert(EOperationAlertType type, const TError& alert)

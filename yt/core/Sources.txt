@@ -125,7 +125,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/subprocess.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/signaler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/shutdown.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/topological_ordering.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/url.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/proto/error.proto

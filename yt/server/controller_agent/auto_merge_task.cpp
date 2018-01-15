@@ -139,7 +139,7 @@ TAutoMergeTask::TAutoMergeTask(
         autoMergeJobSizeConstraints,
         nullptr /* jobSizeAdjusterConfig */,
         EUnorderedChunkPoolMode::AutoMerge /* autoMergeMode */);
-    ChunkPool_->GetJobCounter()->SetParent(TaskHost_->GetDataFlowGraph()->JobCounter(EJobType::UnorderedMerge));
+    TaskHost_->GetDataFlowGraph()->RegisterTask(GetVertexDescriptor(), ChunkPool_->GetJobCounter(), GetJobType());
 
     ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(
         ChunkPool_.get(),
@@ -148,9 +148,14 @@ TAutoMergeTask::TAutoMergeTask(
         maxDataWeightPerJob);
 }
 
-TString TAutoMergeTask::GetId() const
+TString TAutoMergeTask::GetTitle() const
 {
-    return Format("AutoMergeTask(%v)", TableIndex_);
+    return Format("AutoMerge(%v)", TableIndex_);
+}
+
+TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptor() const
+{
+    return "AutoMerge";
 }
 
 TTaskGroupPtr TAutoMergeTask::GetGroup() const

@@ -70,7 +70,8 @@ public:
         i64 maxDataWeightPerJob,
         TEdgeDescriptor edgeDescriptor);
 
-    virtual TString GetId() const override;
+    virtual TString GetTitle() const override;
+    virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
 
     virtual TTaskGroupPtr GetGroup() const override;
 
