@@ -1143,6 +1143,44 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
     Evaluate("a, b FROM [//t] where a in (4.0, -10)", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, BigIn)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    TStringBuilder inBuilder;
+    inBuilder.AppendString("a in (");
+
+    for (int i = 0; i < 50; ++ i) {
+        if (i != 0) {
+            inBuilder.AppendString(", ");
+        }
+        inBuilder.AppendFormat("%v", i * 2);
+    }
+
+    inBuilder.AppendString(")");
+
+    std::vector<TString> source = {
+        "a=4",
+        "a=10",
+        "a=15",
+        "a=17",
+        "a=18",
+        "a=22",
+        "a=31",
+    };
+
+    auto result = YsonToRows({
+        "a=4",
+        "a=10",
+        "a=18",
+        "a=22",
+    }, split);
+
+    Evaluate("a FROM [//t] where " + inBuilder.Flush(), split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, SimpleInWithNull)
 {
     auto split = MakeSplit({
@@ -1188,6 +1226,54 @@ TEST_F(TQueryEvaluateTest, SimpleTransform)
     }, resultSplit);
 
     Evaluate("transform(a, (4.0, -10), (13, 17)) as x FROM [//t]", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, BigTransform)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    TStringBuilder transformBuilder;
+    transformBuilder.AppendString("transform(a, (");
+
+    for (int i = -50; i < 50; ++ i) {
+        if (i != -50) {
+            transformBuilder.AppendString(", ");
+        }
+        transformBuilder.AppendFormat("%v", i);
+    }
+
+    transformBuilder.AppendString("), (");
+
+    for (int i = -50; i < 50; ++ i) {
+        if (i != -50) {
+            transformBuilder.AppendString(", ");
+        }
+        transformBuilder.AppendFormat("%v", -i);
+    }
+
+    transformBuilder.AppendString("))");
+
+    std::vector<TString> source = {
+        "a=4",
+        "a=-10",
+        "a=7",
+        "a=60",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=-4",
+        "x=10",
+        "x=-7",
+        "",
+    }, resultSplit);
+
+    Evaluate(transformBuilder.Flush() + " as x FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleTransform2)
