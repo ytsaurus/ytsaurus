@@ -79,15 +79,27 @@ public:
 };
 
 //! Upon destruction, increments the value by the wall time passed since construction.
-class TAggregatingTimingGuard
+class TWallTimingGuard
+    : public TWallTimer
 {
 public:
-    explicit TAggregatingTimingGuard(TDuration* value);
-    ~TAggregatingTimingGuard();
+    explicit TWallTimingGuard(TDuration* value);
+    ~TWallTimingGuard();
 
 private:
     TDuration* const Value_;
-    const TCpuInstant StartInstant_;
+
+};
+
+class TCpuTimingGuard
+    : public TCpuTimer
+{
+public:
+    explicit TCpuTimingGuard(TDuration* value);
+    ~TCpuTimingGuard();
+
+private:
+    TDuration* const Value_;
 
 };
 
