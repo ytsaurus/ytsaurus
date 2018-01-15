@@ -75,31 +75,32 @@ struct IChunkPoolOutput
 
     virtual i64 GetTotalRowCount() const = 0;
 
-    virtual bool IsCompleted() const = 0;
-
-    virtual int GetTotalJobCount() const = 0;
-    virtual int GetPendingJobCount() const = 0;
     virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const = 0;
 
     virtual i64 GetDataSliceCount() const = 0;
 
-    //! Approximate average stripe list statistics to estimate memory usage.
-    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
+    virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const = 0;
+
+    virtual TOutputOrderPtr GetOutputOrder() const = 0;
 
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const = 0;
+
+    //! Approximate average stripe list statistics to estimate memory usage.
+    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
 
     virtual TCookie Extract(NNodeTrackerClient::TNodeId nodeId) = 0;
 
     virtual TChunkStripeListPtr GetStripeList(TCookie cookie) = 0;
 
+    virtual bool IsCompleted() const = 0;
+
+    virtual int GetTotalJobCount() const = 0;
+    virtual int GetPendingJobCount() const = 0;
+
     //! The main purpose of this method is to be much cheaper than #GetStripeList,
     //! and to eliminate creation/desctuction of a stripe list if we have already reached
     //! JobSpecSliceThrottler limit. This is particularly useful for a shuffle chunk pool.
     virtual int GetStripeListSliceCount(TCookie cookie) const = 0;
-
-    virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const = 0;
-
-    virtual TOutputOrderPtr GetOutputOrder() const = 0;
 
     virtual void Completed(TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
@@ -116,30 +117,73 @@ class TChunkPoolOutputBase
     : public virtual IChunkPoolOutput
 {
 public:
-    TChunkPoolOutputBase();
-
-    // IChunkPoolOutput implementation.
-    virtual i64 GetTotalDataWeight() const override;
-    virtual i64 GetRunningDataWeight() const override;
-    virtual i64 GetCompletedDataWeight() const override;
-    virtual i64 GetPendingDataWeight() const override;
-    virtual i64 GetTotalRowCount() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
     virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const override;
+
     virtual TOutputOrderPtr GetOutputOrder() const override;
 
-    // IPersistent implementation.
+    virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
+
     virtual void Persist(const TPersistenceContext& context) override;
 
 public:
     DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
 
 protected:
+    std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkPoolOutputWithCountersBase
+    : public TChunkPoolOutputBase
+{
+public:
+    TChunkPoolOutputWithCountersBase();
+
+    virtual i64 GetTotalDataWeight() const override;
+    virtual i64 GetRunningDataWeight() const override;
+    virtual i64 GetCompletedDataWeight() const override;
+    virtual i64 GetPendingDataWeight() const override;
+    virtual i64 GetTotalRowCount() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+
+    virtual void Persist(const TPersistenceContext& context) override;
+
+protected:
     NControllerAgent::TProgressCounterPtr DataWeightCounter;
     NControllerAgent::TProgressCounterPtr RowCounter;
     NControllerAgent::TProgressCounterPtr JobCounter;
+};
 
-    std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(max42): maybe make job manager implement IChunkPoolOutput itself?
+class TChunkPoolOutputWithJobManagerBase
+    : public TChunkPoolOutputBase
+{
+public:
+    TChunkPoolOutputWithJobManagerBase();
+
+    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
+    virtual int GetTotalJobCount() const override;
+    virtual int GetPendingJobCount() const override;
+    virtual IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
+    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override;
+    virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override;
+    virtual void Completed(IChunkPoolOutput::TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary) override;
+    virtual void Failed(IChunkPoolOutput::TCookie cookie) override;
+    virtual void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason) override;
+    virtual void Lost(IChunkPoolOutput::TCookie cookie) override;
+    virtual i64 GetTotalDataWeight() const override;
+    virtual i64 GetRunningDataWeight() const override;
+    virtual i64 GetCompletedDataWeight() const override;
+    virtual i64 GetPendingDataWeight() const override;
+    virtual i64 GetTotalRowCount() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+    virtual void Persist(const TPersistenceContext& context) override;
+
+protected:
+    TJobManagerPtr JobManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

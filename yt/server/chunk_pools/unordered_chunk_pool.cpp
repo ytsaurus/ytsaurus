@@ -51,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TExtractedStripeList)
 
 class TUnorderedChunkPool
     : public TChunkPoolInputBase
-    , public TChunkPoolOutputBase
+    , public TChunkPoolOutputWithCountersBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     , public TRefTracked<TUnorderedChunkPool>
@@ -415,7 +415,7 @@ public:
     virtual void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
-        TChunkPoolOutputBase::Persist(context);
+        TChunkPoolOutputWithCountersBase::Persist(context);
 
         using NYT::Persist;
         Persist(context, Stripes);
