@@ -1188,26 +1188,66 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char IsRowInArray(TComparerFunction* comparer, TValue* values, TSharedRange<TRow>* rows)
+char IsRowInRowset(
+    TComparerFunction* comparer,
+    THasherFunction* hasher,
+    TComparerFunction* eqComparer,
+    TValue* values,
+    TSharedRange<TRow>* rows,
+    std::unique_ptr<TLookupRows>* lookupRows)
 {
-    auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
-        return comparer(const_cast<TValue*>(row.Begin()), values);
-    });
+    if (rows->Size() < 32) {
+        auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
+            return comparer(const_cast<TValue*>(row.Begin()), values);
+        });
 
-    return found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()));
-}
-
-const TValue* TransformTuple(TComparerFunction* comparer, TValue* values, TSharedRange<TRow>* rows)
-{
-    auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
-        return comparer(const_cast<TValue*>(row.Begin()), values);
-    });
-
-    if (found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()))) {
-        return const_cast<TValue*>(found->Begin());
+        return found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()));
     }
 
-    return nullptr;
+    if (!*lookupRows) {
+        *lookupRows = std::make_unique<TLookupRows>(rows->Size(), hasher, eqComparer);
+        (*lookupRows)->set_empty_key(nullptr);
+
+        for (TRow row: *rows) {
+            (*lookupRows)->insert(row.Begin());
+        }
+    }
+
+    auto found = (*lookupRows)->find(values);
+    return found != (*lookupRows)->end();
+}
+
+const TValue* TransformTuple(
+    TComparerFunction* comparer,
+    THasherFunction* hasher,
+    TComparerFunction* eqComparer,
+    TValue* values,
+    TSharedRange<TRow>* rows,
+    std::unique_ptr<TLookupRows>* lookupRows)
+{
+    if (rows->Size() < 32) {
+        auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
+            return comparer(const_cast<TValue*>(row.Begin()), values);
+        });
+
+        if (found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()))) {
+            return const_cast<TValue*>(found->Begin());
+        }
+
+        return nullptr;
+    }
+
+    if (!*lookupRows) {
+        *lookupRows = std::make_unique<TLookupRows>(rows->Size(), hasher, eqComparer);
+        (*lookupRows)->set_empty_key(nullptr);
+
+        for (TRow row: *rows) {
+            (*lookupRows)->insert(row.Begin());
+        }
+    }
+
+    auto found = (*lookupRows)->find(values);
+    return found != (*lookupRows)->end() ? *found : nullptr;
 }
 
 size_t StringHash(
@@ -1772,7 +1812,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateBytes);
-    REGISTER_ROUTINE(IsRowInArray);
+    REGISTER_ROUTINE(IsRowInRowset);
     REGISTER_ROUTINE(TransformTuple);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);
