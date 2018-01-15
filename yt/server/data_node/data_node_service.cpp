@@ -352,7 +352,7 @@ private:
 
         auto blockManager = Bootstrap_->GetChunkBlockManager();
         for (size_t index = 0; index < blocks.size(); ++index) {
-            auto block = blocks[index];
+            const auto& block = blocks[index];
             const auto& protoBlock = request->blocks(index);
             TBlockId blockId;
             TNullable<TNodeDescriptor> sourceDescriptor;

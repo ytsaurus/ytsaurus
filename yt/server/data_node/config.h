@@ -48,13 +48,13 @@ public:
     //! Period between distributor iterations.
     TDuration IterationPeriod;
 
-    //! Transmitted byte count during `Period` time window enough for P2P to become active.
+    //! Transmitted byte count per second enough for P2P to become active.
     i64 OutTrafficActivationThreshold;
 
     //! Out queue size (Out throttler queue size + default network bus pending byte count) enough for P2P to become active.
     i64 OutQueueSizeActivationThreshold;
 
-    //! Block throughput in bytes per `Period` enough for P2P to become active.
+    //! Block throughput in bytes per second enough for P2P to become active.
     i64 TotalRequestedBlockSizeActivationThreshold;
 
     //! Regex for names of network interfaces considered when calculating transmitted byte count.
