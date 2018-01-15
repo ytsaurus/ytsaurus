@@ -132,7 +132,7 @@ class TestBlockPeerDistributor(YTEnvSetup):
         assert p.differentiate() == 0
 
     @clear_everything_after_test
-    def test_wow_block_so_hot_much_requests(self):
+    def test_wow_block_so_hot_such_much_requests(self):
         with Profile(self.seed, "data_node/block_cache/compressed_data/hit") as ps, \
             Profile(self.non_seeds[0], "data_node/block_cache/compressed_data/hit") as pns0, \
             Profile(self.non_seeds[1], "data_node/block_cache/compressed_data/hit") as pns1, \

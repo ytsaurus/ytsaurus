@@ -133,9 +133,9 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     i64 totalRequestedBlockSize = TotalRequestedBlockSize_;
 
     bool shouldDistributeBlocks =
-        outTraffic >= Config_->OutTrafficActivationThreshold ||
+        outTraffic >= Config_->OutTrafficActivationThreshold * Config_->IterationPeriod.Seconds() ||
         totalOutQueueSize >= Config_->OutQueueSizeActivationThreshold ||
-        totalRequestedBlockSize >= Config_->TotalRequestedBlockSizeActivationThreshold;
+        totalRequestedBlockSize >= Config_->TotalRequestedBlockSizeActivationThreshold * Config_->IterationPeriod.Seconds();
 
     LOG_INFO("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
         "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, DefaultNetworkPendingOutBytes: %v, "
@@ -171,7 +171,7 @@ void TPeerBlockDistributor::DistributeBlocks()
     const auto& reqTemplates = chosenBlocks.ReqTemplates;
     const auto& blocks = chosenBlocks.Blocks;
     const auto& blockIds = chosenBlocks.BlockIds;
-    auto totalBlockSize = chosenBlocks.BlockTotalSize;
+    auto totalBlockSize = chosenBlocks.TotalSize;
 
     if (blocks.empty()) {
         LOG_INFO("No blocks may be distributed on current iteration");
@@ -194,10 +194,19 @@ void TPeerBlockDistributor::DistributeBlocks()
         ->GetNativeConnection()
         ->GetChannelFactory();
 
+    // Filter nodes that are not local and that are allowed by node tag filter.
+    auto nodes = Bootstrap_->GetNodeDirectory()->GetAllDescriptors();
+    auto localDescriptor = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
+    nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [&] (const auto& nodeDescriptor) {
+        return
+            nodeDescriptor.GetDefaultAddress() == localDescriptor.GetDefaultAddress() ||
+            !Config_->NodeTagFilter.IsSatisfiedBy(nodeDescriptor.GetTags());
+    }), nodes.end());
+
     for (size_t index = 0; index < blocks.size(); ++index) {
         // TODO(max42): maybe we should try to avoid the nodes already having our block here
         // using the information from peer block table.
-        auto destinationNodes = ChooseDestinationNodes();
+        auto destinationNodes = ChooseDestinationNodes(nodes);
         if (destinationNodes.empty()) {
             LOG_WARNING("No suitable destination nodes found");
             // We have no chances to succeed with following blocks.
@@ -239,9 +248,10 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     // First we filter the blocks requested during the considered window (`Config->WindowLength` from now) such that:
     // 1) Block was not recently distributed (within `Config_->ConsecutiveDistributionDelay` from now);
     // 2) Block does not have many peers (at most `Config_->MaxBlockPeerCount`);
+    // 3) Block has been requested at least `Config_->MinRequestConit`.
     // These candidate blocks are sorted in a descending order of request count.
     // We iterate over the blocks forming a PopulateCache request of total size no more than
-    // `Config_->MaxPopulateRequestSize`, and finally deliver it to no more than
+    // `Config_->MaxPopulateRequestSize`, and finally deliver each of them to no more than
     // `Config_->DestinationNodeCountPerIteration` nodes, marking them as peers to the processed blocks.
 
     auto now = TInstant::Now();
@@ -298,6 +308,12 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
             // TODO(max42): the block is both hot enough to be distributed,
             // but missing in the block cache? Sounds strange, but maybe we
             // should fetch it from the disk then?
+            LOG_DEBUG("Candidate block is missing in chunk block manager cache (BlockId: %v, RequestCount: %v, "
+                "LastDistributionTime: %v, DistributionCount: %v)",
+                blockId,
+                candidate.RequestCount,
+                candidate.LastDistributionTime,
+                candidate.DistributionCount);
             continue;
         }
 
@@ -316,8 +332,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
             // Null source is current node.
             source = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
         }
-        if (totalSize + blockSize <= Config_->MaxPopulateRequestSize || totalSize == 0)
-        {
+        if (totalSize + blockSize <= Config_->MaxPopulateRequestSize || totalSize == 0) {
             LOG_DEBUG("Block is ready for distribution (BlockId: %v, RequestCount: %v, LastDistributionTime: %v, "
                 "DistributionCount: %v, Source: %v, Size: %v)",
                 blockId,
@@ -342,48 +357,16 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     return {std::move(reqTemplates), std::move(blocks), std::move(blockIds), totalSize};
 }
 
-std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes() const
+std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes(const std::vector<TNodeDescriptor>& nodes) const
 {
-    auto localDescriptor = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
+    yhash_set<TNodeDescriptor> destinationNodes;
 
-    struct TNodeCandidate
-    {
-        double RandomKey;
-        TNodeDescriptor descriptor;
-
-        bool operator <(const TNodeCandidate& other) const
-        {
-            return RandomKey < other.RandomKey;
-        }
-    };
-
-    std::vector<TNodeCandidate> candidates;
-
-    for (const auto& nodeDescriptor : Bootstrap_->GetNodeDirectory()->GetAllDescriptors()) {
-        if (nodeDescriptor.GetDefaultAddress() != localDescriptor.GetDefaultAddress() &&
-            Config_->NodeTagFilter.IsSatisfiedBy(nodeDescriptor.GetTags()))
-        {
-            candidates.emplace_back(TNodeCandidate{RandomNumber<double>(), nodeDescriptor});
-        }
+    while (destinationNodes.size() < Config_->DestinationNodeCount && destinationNodes.size() < nodes.size()) {
+        auto index = RandomNumber<size_t>(nodes.size());
+        destinationNodes.insert(nodes[index]);
     }
-    
-    int destinationNodeCount = std::min<int>(candidates.size(), Config_->DestinationNodeCount);
-        
-    // Pick `destinationNodeCount` uniformly at random.
-    std::nth_element(
-        candidates.begin(),
-        candidates.begin() + destinationNodeCount,
-        candidates.end());
-    candidates.resize(destinationNodeCount);
-    
-    std::vector<TNodeDescriptor> nodeDescriptors;
-    nodeDescriptors.reserve(destinationNodeCount);
-    
-    for (const auto& candidate : candidates) {
-        nodeDescriptors.emplace_back(candidate.descriptor);
-    }
-    
-    return nodeDescriptors;
+
+    return std::vector<TNodeDescriptor>(destinationNodes.begin(), destinationNodes.end());
 }
 
 void TPeerBlockDistributor::UpdateTransmittedBytes()
@@ -408,22 +391,22 @@ void TPeerBlockDistributor::OnBlockDistributed(
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-    if (rspOrError.IsOK()) {
-        TInstant expirationTime;
-        FromProto(&expirationTime, rspOrError.Value()->expiration_time());
-        LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
-            "(BlockId: %v, Address: %v, ExpirationTime: %v, Size: %v)",
-            blockId,
-            address,
-            expirationTime,
-            size);
-        DistributedBytes_ += size;
-        TPeerInfo peerInfo(descriptor, expirationTime);
-        Bootstrap_->GetPeerBlockTable()->UpdatePeer(blockId, std::move(peerInfo));
-    } else {
+    if (!rspOrError.IsOK()) {
         LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
             address);
     }
+
+    TInstant expirationTime;
+    FromProto(&expirationTime, rspOrError.Value()->expiration_time());
+    LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
+        "(BlockId: %v, Address: %v, ExpirationTime: %v, Size: %v)",
+        blockId,
+        address,
+        expirationTime,
+        size);
+    DistributedBytes_ += size;
+    TPeerInfo peerInfo(descriptor, expirationTime);
+    Bootstrap_->GetPeerBlockTable()->UpdatePeer(blockId, std::move(peerInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -88,11 +88,12 @@ private:
         std::vector<NChunkClient::NProto::TReqPopulateCache> ReqTemplates;
         std::vector<NChunkClient::TBlock> Blocks;
         std::vector<TBlockId> BlockIds;
-        i64 BlockTotalSize = 0;
+        i64 TotalSize = 0;
     };
     TChosenBlocks ChooseBlocks();
 
-    std::vector<NNodeTrackerClient::TNodeDescriptor> ChooseDestinationNodes() const;
+    std::vector<NNodeTrackerClient::TNodeDescriptor> ChooseDestinationNodes(
+        const std::vector<NNodeTrackerClient::TNodeDescriptor>& nodes) const;
 
     void UpdateTransmittedBytes();
 
