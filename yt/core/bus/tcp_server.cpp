@@ -142,19 +142,7 @@ protected:
 
     virtual void CreateServerSocket() = 0;
 
-    virtual void InitClientSocket(SOCKET clientSocket)
-    {
-        if (Config_->EnableNoDelay) {
-            if (!TrySetSocketNoDelay(clientSocket)) {
-                LOG_DEBUG("Failed to set socket no delay option");
-            }
-        }
-
-        if (!TrySetSocketKeepAlive(clientSocket)) {
-            LOG_DEBUG("Failed to set socket keep alive option");
-        }
-    }
-
+    virtual void InitClientSocket(SOCKET clientSocket) = 0;
 
     void OnConnectionTerminated(const TTcpConnectionPtr& connection, const TError& /*error*/)
     {
@@ -355,6 +343,19 @@ private:
         auto serverAddress = TNetworkAddress::CreateIPv6Any(Config_->Port.Get());
         BindSocket(serverAddress, Format("Failed to bind a server socket to port %v", Config_->Port));
     }
+
+    virtual void InitClientSocket(SOCKET clientSocket) override
+    {
+        if (Config_->EnableNoDelay) {
+            if (!TrySetSocketNoDelay(clientSocket)) {
+                LOG_DEBUG("Failed to set socket no delay option");
+            }
+        }
+
+        if (!TrySetSocketKeepAlive(clientSocket)) {
+            LOG_DEBUG("Failed to set socket keep alive option");
+        }
+    }
 };
 
 class TLocalTcpBusServer
@@ -386,6 +387,9 @@ private:
             BindSocket(netAddress, "Failed to bind a local server socket");
         }
     }
+
+    virtual void InitClientSocket(SOCKET clientSocket) override
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
