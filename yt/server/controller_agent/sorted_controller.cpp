@@ -524,7 +524,6 @@ protected:
         chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.OperationId = OperationId;
-        chunkPoolOptions.ExtractionOrder = Spec_->StripeListExtractionOrder;
         return chunkPoolOptions;
     }
 
