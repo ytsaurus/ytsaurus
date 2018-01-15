@@ -1,7 +1,5 @@
 #include "config.h"
 
-#include <yt/ytlib/chunk_pools/public.h>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -366,8 +364,6 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
         .Default(TDuration::Seconds(5));
     RegisterParameter("job_io", JobIO)
         .DefaultNew();
-    RegisterParameter("stripe_list_extraction_order", StripeListExtractionOrder)
-        .Default(NChunkPools::EStripeListExtractionOrder::DataSizeDescending);
 }
 
 TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
