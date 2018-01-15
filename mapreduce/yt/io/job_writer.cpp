@@ -9,7 +9,11 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobWriter::TStream::TStream(int fd)
-    : FdFile(Duplicate(fd))
+    : TStream(Duplicate(fd))
+{ }
+
+TJobWriter::TStream::TStream(const TFile& file)
+    : FdFile(file)
     , FdOutput(FdFile)
     , BufferedOutput(&FdOutput, BUFFER_SIZE)
 { }
@@ -18,10 +22,19 @@ TJobWriter::TStream::~TStream()
 {
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TJobWriter::TJobWriter(size_t outputTableCount)
 {
     for (size_t i = 0; i < outputTableCount; ++i) {
         Streams_.emplace_back(MakeHolder<TStream>(int(i * 3 + 1)));
+    }
+}
+
+TJobWriter::TJobWriter(const TVector<TFile>& fileList)
+{
+    for (const auto& f : fileList) {
+        Streams_.emplace_back(MakeHolder<TStream>(f));
     }
 }
 
