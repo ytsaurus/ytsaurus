@@ -20,6 +20,7 @@ struct TQueryStatistics
     TDuration ReadTime;
     TDuration WriteTime;
     TDuration CodegenTime;
+    TDuration WaitOnReadyEventTime;
     bool IncompleteInput = false;
     bool IncompleteOutput = false;
 
