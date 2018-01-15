@@ -528,7 +528,7 @@ private:
             Bootstrap_->GetConfig()->DataNode->VolumeManager,
             Bootstrap_);
 
-        if (Config_->ExternalJobContainer && Config_->ResourceLimitsUpdatePeriod) {
+        if (Config_->ResourceLimitsUpdatePeriod) {
             LimitsUpdateExecutor_ = New<TPeriodicExecutor>(
                 ActionQueue_->GetInvoker(),
                 BIND(&TPortoJobEnvironment::UpdateLimits, MakeWeak(this)),
