@@ -1812,11 +1812,13 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 TCodegenExpression MakeCodegenInExpr(
     std::vector<size_t> argIds,
     int arrayIndex,
+    int hashtableIndex,
     TComparerManagerPtr comparerManager)
 {
     return [
         MOVE(argIds),
         MOVE(arrayIndex),
+        MOVE(hashtableIndex),
         MOVE(comparerManager)
     ] (TCGExprContext& builder) {
         size_t keySize = argIds.size();
@@ -1831,11 +1833,14 @@ TCodegenExpression MakeCodegenInExpr(
         }
 
         Value* result = builder->CreateCall(
-            builder.Module->GetRoutine("IsRowInArray"),
+            builder.Module->GetRoutine("IsRowInRowset"),
             {
                 comparerManager->GetLessComparer(keyTypes, builder.Module),
+                comparerManager->GetHasher(keyTypes, builder.Module),
+                comparerManager->GetEqComparer(keyTypes, builder.Module),
                 newValues,
-                builder.GetOpaqueValue(arrayIndex)
+                builder.GetOpaqueValue(arrayIndex),
+                builder.GetOpaqueValue(hashtableIndex)
             });
 
         return TCGValue::CreateFromValue(
@@ -1851,6 +1856,7 @@ TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
     TNullable<size_t> defaultExprId,
     int arrayIndex,
+    int hashtableIndex,
     EValueType resultType,
     TComparerManagerPtr comparerManager)
 {
@@ -1858,6 +1864,7 @@ TCodegenExpression MakeCodegenTransformExpr(
         MOVE(argIds),
         MOVE(defaultExprId),
         MOVE(arrayIndex),
+        MOVE(hashtableIndex),
         resultType,
         MOVE(comparerManager)
     ] (TCGExprContext& builder) {
@@ -1876,8 +1883,11 @@ TCodegenExpression MakeCodegenTransformExpr(
             builder.Module->GetRoutine("TransformTuple"),
             {
                 comparerManager->GetLessComparer(keyTypes, builder.Module),
+                comparerManager->GetHasher(keyTypes, builder.Module),
+                comparerManager->GetEqComparer(keyTypes, builder.Module),
                 newValues,
-                builder.GetOpaqueValue(arrayIndex)
+                builder.GetOpaqueValue(arrayIndex),
+                builder.GetOpaqueValue(hashtableIndex)
             });
 
         return CodegenIf<TCGExprContext, TCGValue>(
