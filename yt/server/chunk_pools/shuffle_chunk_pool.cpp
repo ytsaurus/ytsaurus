@@ -319,11 +319,6 @@ private:
             return static_cast<int>(PendingRuns.size());
         }
 
-        virtual i64 GetLocality(TNodeId /*nodeId*/) const override
-        {
-            Y_UNREACHABLE();
-        }
-
         virtual TCookie Extract(TNodeId /*nodeId*/) override
         {
             if (GetPendingJobCount() == 0) {

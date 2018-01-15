@@ -49,7 +49,8 @@ DEFINE_ENUM(EJobType,
     ((IntermediateSort)  ( 13))
     ((OrderedMap)        ( 14))
     ((JoinReduce)        ( 15))
-    ((SchedulerUnknown)  ( 98)) // Used by node to report aborted jobs for which spec request has failed.
+    ((Vanilla)           ( 16))
+    ((SchedulerUnknown)  ( 98)) // Used by node to report aborted jobs for which spec request has failed
     ((SchedulerLast)     ( 99)) // Sentinel.
 
     // Master jobs

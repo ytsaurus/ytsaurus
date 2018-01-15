@@ -133,16 +133,16 @@ message TSchedulerJobSpecExt
         optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
     }
 
-    required NYT.NProto.TExtensionSet extensions = 18;
+    optional NYT.NProto.TExtensionSet extensions = 18;
 
     // Configuration for IO during job execution.
-    required bytes io_config = 1;
+    optional bytes io_config = 1;
 
     // The transaction used for writing output chunks.
-    required NYT.NProto.TGuid output_transaction_id = 2;
+    optional NYT.NProto.TGuid output_transaction_id = 2;
 
     // Job input.
-    required string table_reader_options = 19;
+    optional string table_reader_options = 19;
     repeated TTableInputSpec input_table_specs = 3;
     repeated TTableInputSpec foreign_input_table_specs = 15;
 

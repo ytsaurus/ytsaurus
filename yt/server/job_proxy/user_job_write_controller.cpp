@@ -119,7 +119,7 @@ std::vector<ISchemalessMultiChunkWriterPtr> TUserJobWriteController::GetWriters(
     if (Initialized_) {
         return Writers_;
     } else {
-        return std::vector<ISchemalessMultiChunkWriterPtr>();
+        return {};
     }
 }
 

@@ -315,6 +315,9 @@ public:
     // TODO(max42): make this field per-task.
     TLogDigestConfigPtr JobProxyMemoryDigest;
 
+    //! If set to true, any aborted/failed job will result in operation fail.
+    bool FailOnJobRestart;
+
     TOperationSpecBase();
 
 private:
@@ -377,6 +380,22 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVanillaTaskSpec
+    : public TUserJobSpec
+{
+public:
+    //! Number of jobs that will be run in this task. This field is mandatory.
+    int JobCount;
+
+    TJobIOConfigPtr JobIO;
+
+    TVanillaTaskSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -779,7 +798,25 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec, 0x3c0ce9c0);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVanillaOperationSpec
+    : public TOperationSpecBase
+    , public TOperationWithUserJobSpec
+{
+public:
+    //! Map consisting of pairs <task_name, task_spec>.
+    yhash<TString, TVanillaTaskSpecPtr> Tasks;
+
+    TVanillaOperationSpec();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec, 0x001004fe);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 

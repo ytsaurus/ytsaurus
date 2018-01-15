@@ -63,6 +63,15 @@ def init_drivers(clusters):
 def terminate_drivers():
     clusters_drivers.clear()
 
+def get_branch(dict, path):
+    root = dict
+    for field in path:
+        assert isinstance(field, str), "non-string keys are not allowed in command parameters"
+        if field not in root:
+            return None
+        root = root[field]
+    return root
+
 def set_branch(dict, path, value):
     root = dict
     for field in path[:-1]:
@@ -767,7 +776,7 @@ def start_op(op_type, **kwargs):
         op_name = "reducer"
 
     input_name = None
-    if op_type != "erase":
+    if op_type != "erase" and op_type != "vanilla":
         kwargs["in_"] = prepare_paths(kwargs["in_"])
         input_name = "input_table_paths"
 
@@ -788,22 +797,28 @@ def start_op(op_type, **kwargs):
     operation = Operation()
 
     wait_for_jobs = kwargs.get("wait_for_jobs", False)
-    for opt in ["command", "mapper_command", "reducer_command"]:
-        if opt in kwargs and wait_for_jobs:
+    if wait_for_jobs:
+        del kwargs["wait_for_jobs"]
+        paths = ["command", "mapper_command", "reducer_command"] + \
+                [["spec", "tasks", task_name, "command"] for task_name in kwargs.get("spec", {}).get("tasks", [])]
+        for path in paths:
             label = kwargs.get("label", "test")
             if not operation._tmpdir:
                 operation._tmpdir = create_tmpdir(label)
-            kwargs[opt] = (
-                "({1}\n"
-                "touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
-                "{2}\n"
-                "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n"
-                "{3}\n)"
-                .format(
-                    operation._tmpdir,
-                    kwargs.get("precommand", ""),
-                    kwargs[opt],
-                    kwargs.get("postcommand", "")))
+            flat_path = flatten(path)
+            command = get_branch(kwargs, flat_path)
+            if command is not None:
+                set_branch(kwargs, flat_path,
+                    "({1}\n"
+                    "touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
+                    "{2}\n"
+                    "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n"
+                    "{3}\n)"
+                    .format(
+                        operation._tmpdir,
+                        kwargs.get("precommand", ""),
+                        command,
+                        kwargs.get("postcommand", "")))
 
     change(kwargs, "table_path", ["spec", "table_path"])
     change(kwargs, "in_", ["spec", input_name])
@@ -824,7 +839,9 @@ def start_op(op_type, **kwargs):
     if "dont_track" in kwargs:
         del kwargs["dont_track"]
 
-    operation.id = yson.loads(execute_command(op_type, kwargs))
+    kwargs["operation_type"] = op_type
+
+    operation.id = yson.loads(execute_command("start_op", kwargs))
 
     if wait_for_jobs:
         wait_timeout = kwargs.get("wait_timeout", 20)
@@ -867,6 +884,9 @@ def join_reduce(**kwargs):
 
 def map_reduce(**kwargs):
     return start_op("map_reduce", **kwargs)
+
+def vanilla(**kwargs):
+    return start_op("vanilla", **kwargs)
 
 def erase(path, **kwargs):
     kwargs["table_path"] = path

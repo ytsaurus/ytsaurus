@@ -370,12 +370,19 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartOperationCommandBase::TStartOperationCommandBase()
+TStartOperationCommand::TStartOperationCommand()
 {
     RegisterParameter("spec", Spec);
+    RegisterParameter("operation_type", OperationType)
+        .Default();
 }
 
-void TStartOperationCommandBase::DoExecute(ICommandContextPtr context)
+EOperationType TStartOperationCommand::GetOperationType() const
+{
+    return OperationType;
+}
+
+void TStartOperationCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(
         GetOperationType(),

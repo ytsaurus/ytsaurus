@@ -70,8 +70,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read_table(self.table) == self.v[:2] + self.v[4:]
         assert get(self.table + "/@chunk_count") == 1
 
-
-
     def test_by_key_from_non_sorted(self):
         create("table", "//tmp/table")
         write_table("//tmp/table", {"v" : 42})

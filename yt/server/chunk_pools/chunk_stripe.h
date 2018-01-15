@@ -78,6 +78,9 @@ struct TChunkStripeList
 
     void Persist(const TPersistenceContext& context);
 
+    //! Setter that may be used in chain-like manner.
+    TChunkStripeList* SetSplittable(bool splittable);
+
     std::vector<TChunkStripePtr> Stripes;
 
     TNullable<int> PartitionTag;
@@ -97,6 +100,8 @@ struct TChunkStripeList
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripeList)
+
+extern const TChunkStripeListPtr NullStripeList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
