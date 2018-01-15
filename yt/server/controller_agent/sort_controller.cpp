@@ -219,11 +219,11 @@ protected:
             if (!controller->SimpleSort) {
                 UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this, controller->GetFinalEdgeDescriptors());
                 controller->RegisterTask(UnorderedMergeTask);
-                UnorderedMergeTask->SetInputVertex(controller->GetPartitionJobType());
+                UnorderedMergeTask->SetInputVertex(ToString(controller->GetPartitionJobType()));
             }
 
-            SortTask->SetInputVertex(controller->GetPartitionJobType());
-            SortedMergeTask->SetInputVertex(controller->GetIntermediateSortJobType());
+            SortTask->SetInputVertex(ToString(controller->GetPartitionJobType()));
+            SortedMergeTask->SetInputVertex(ToString(controller->GetIntermediateSortJobType()));
         }
 
         //! Sequential index (zero based).
@@ -330,11 +330,6 @@ protected:
             : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
         { }
-
-        virtual TString GetId() const override
-        {
-            return "Partition";
-        }
 
         virtual TTaskGroupPtr GetGroup() const override
         {
@@ -629,6 +624,11 @@ protected:
             , Partition(partition)
         { }
 
+        virtual TString GetTitle() const override
+        {
+            return Format("%v(%v)", GetJobType(), Partition->Index);
+        }
+
         virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
@@ -903,7 +903,7 @@ protected:
             : TSortTask(controller, partition, std::move(edgeDescriptors))
         { }
 
-        virtual TString GetId() const override
+        virtual TString GetTitle() const override
         {
             return Format("Sort(%v)", Partition->Index);
         }
@@ -995,16 +995,16 @@ protected:
             : TSortTask(controller, partition, std::move(edgeDescriptors))
         { }
 
-        virtual TString GetId() const override
-        {
-            return "SimpleSort";
-        }
-
         virtual TDuration GetLocalityTimeout() const override
         {
             return Controller->IsLocalityEnabled()
                 ? Controller->Spec->SimpleSortLocalityTimeout
                 : TDuration::Zero();
+        }
+
+        virtual TString GetTitle() const override
+        {
+            return Format("SimpleSort(%v)", Partition->Index);
         }
 
     private:
@@ -1060,13 +1060,8 @@ protected:
             std::vector<TEdgeDescriptor> edgeDescriptors)
             : TMergeTask(controller, partition, std::move(edgeDescriptors))
         {
-            ChunkPool_ = controller->CreateSortedMergeChunkPool(GetId());
+            ChunkPool_ = controller->CreateSortedMergeChunkPool(GetTitle());
             ChunkPoolInput_ = CreateHintAddingAdapter(ChunkPool_.get(), this);
-        }
-
-        virtual TString GetId() const override
-        {
-            return Format("SortedMerge(%v)", Partition->Index);
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -1184,10 +1179,11 @@ protected:
         void AbortAllActiveJoblets(const TError& error)
         {
             if (Finished_) {
-                LOG_WARNING(error, "Pool output has been invalidated, but the task has already finished (Task: %v)", GetId());
+                LOG_WARNING(error, "Pool output has been invalidated, but the task has already finished (Task: %v)",
+                    GetTitle());
                 return;
             }
-            LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetId());
+            LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetTitle());
             for (const auto& joblet : ActiveJoblets_) {
                 Controller->ControllerAgent->AbortJob(
                     joblet->JobId,
@@ -1297,11 +1293,6 @@ protected:
             std::vector<TEdgeDescriptor> edgeDescriptors)
             : TMergeTask(controller, partition, std::move(edgeDescriptors))
         { }
-
-        virtual TString GetId() const override
-        {
-            return Format("UnorderedMerge(%v)", Partition->Index);
-        }
 
         virtual i64 GetLocality(TNodeId /*nodeId*/) const override
         {
@@ -1578,7 +1569,7 @@ protected:
                         if (inputRowCount != outputRowCount) {
                             LOG_DEBUG("Input/output row count mismatch in sorted merge task "
                                 "(Task: %v, InputRowCount: %v, OutputRowCount: %v)",
-                                partition->SortedMergeTask->GetId(),
+                                partition->SortedMergeTask->GetTitle(),
                                 inputRowCount,
                                 outputRowCount);
                         }
@@ -2295,8 +2286,8 @@ private:
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
-        partition->SortTask->SetInputVertex(GetPartitionJobType());
-        partition->SortedMergeTask->SetInputVertex(GetIntermediateSortJobType());
+        partition->SortTask->SetInputVertex(ToString(GetPartitionJobType()));
+        partition->SortedMergeTask->SetInputVertex(ToString(GetIntermediateSortJobType()));
 
         partition->SortTask->FinishInput();
 

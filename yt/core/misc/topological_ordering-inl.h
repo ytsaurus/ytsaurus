@@ -1,3 +1,8 @@
+#pragma once
+#ifndef TOPOLOGICAL_ORDERING_INL_H_
+#error "Direct inclusion of this file is not allowed, include topological_ordering.h"
+#endif
+
 #include "topological_ordering.h"
 
 #include "serialize.h"
@@ -6,19 +11,22 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<int>& TIncrementalTopologicalOrdering::GetOrdering() const
+template <typename TVertexDescriptor>
+const std::vector<TVertexDescriptor>& TIncrementalTopologicalOrdering<TVertexDescriptor>::GetOrdering() const
 {
     return TopologicalOrdering_;
 }
 
-void TIncrementalTopologicalOrdering::AddEdge(int from, int to)
+template <typename TVertexDescriptor>
+void TIncrementalTopologicalOrdering<TVertexDescriptor>::AddEdge(const TVertexDescriptor& from, const TVertexDescriptor& to)
 {
     if (OutgoingEdges_[from].insert(to).second) {
         Rebuild();
     }
 }
 
-void TIncrementalTopologicalOrdering::Persist(const TStreamPersistenceContext& context)
+template <typename TVertexDescriptor>
+void TIncrementalTopologicalOrdering<TVertexDescriptor>::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -26,25 +34,26 @@ void TIncrementalTopologicalOrdering::Persist(const TStreamPersistenceContext& c
     Persist(context, TopologicalOrdering_);
 }
 
-void TIncrementalTopologicalOrdering::Rebuild()
+template <typename TVertexDescriptor>
+void TIncrementalTopologicalOrdering<TVertexDescriptor>::Rebuild()
 {
-    std::queue<int> queue;
-    yhash<int, int> inDegree;
+    std::queue<TVertexDescriptor> queue;
+    yhash<TVertexDescriptor, int> inDegree;
 
     // Initialize in-degrees of all vertices.
     for (const auto& pair : OutgoingEdges_) {
-        int vertex = pair.first;
+        auto vertex = pair.first;
         // Make an entry for the vertex appear in the inDegree.
         inDegree[vertex];
         const auto& vertexList = pair.second;
-        for (int nextVertex : vertexList) {
+        for (const auto& nextVertex : vertexList) {
             ++inDegree[nextVertex];
         }
     }
 
     // Put all sources in the queue.
     for (const auto& pair : inDegree) {
-        int vertex = pair.first;
+        const auto& vertex = pair.first;
         int inDegree = pair.second;
         if (inDegree == 0) {
             queue.push(vertex);
@@ -55,7 +64,7 @@ void TIncrementalTopologicalOrdering::Rebuild()
 
     // Extract sources and put them into the ordering while graph is non-empty.
     while (!queue.empty()) {
-        int vertex = queue.front();
+        const auto& vertex = queue.front();
         queue.pop();
 
         auto it = inDegree.find(vertex);
@@ -64,7 +73,7 @@ void TIncrementalTopologicalOrdering::Rebuild()
 
         TopologicalOrdering_.push_back(vertex);
 
-        for (int nextVertex : OutgoingEdges_[vertex]) {
+        for (const auto& nextVertex : OutgoingEdges_[vertex]) {
             if (--inDegree[nextVertex] == 0) {
                 queue.push(nextVertex);
             }
