@@ -23,6 +23,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, SuspendOperation);
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, ResumeOperation);
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, CompleteOperation);
+    DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, UpdateOperationParameters);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

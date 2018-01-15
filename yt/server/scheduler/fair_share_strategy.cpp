@@ -177,7 +177,7 @@ public:
     TOperationRegistrationUnregistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationStrategyRuntimeParamsPtr& runtimeParams)
+        const TOperationFairShareStrategyTreeOptionsPtr& runtimeParams)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -434,11 +434,13 @@ public:
         return {LastPoolsNodeUpdateError, true};
     }
 
-    void UpdateOperationRuntimeParams(const IOperationStrategyHost* operation, const TOperationStrategyRuntimeParamsPtr& runtimeParams)
+    void UpdateOperationRuntimeParameters(
+        const TOperationId& operationId,
+        const TOperationFairShareStrategyTreeOptionsPtr& runtimeParams)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        const auto& element = FindOperationElement(operation->GetId());
+        const auto& element = FindOperationElement(operationId);
         if (!element) {
             return;
         }
@@ -2004,9 +2006,43 @@ public:
                 std::make_pair(operation->GetId(), state)).second);
         }
 
+        auto runtimeParams = operation->GetRuntimeParameters();
+
+        if (runtimeParams->SchedulingOptionsPerPoolTree.empty()) {
+            for (const auto& pair : state->TreeIdToPoolIdMap()) {
+                const auto& treeId = pair.first;
+
+                auto emplaceResult = runtimeParams->SchedulingOptionsPerPoolTree.emplace(
+                    treeId,
+                    New<TOperationFairShareStrategyTreeOptions>());
+
+                YCHECK(emplaceResult.second);
+
+                auto& params = emplaceResult.first->second;
+                auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
+
+                // Intentionally not merging options from spec and from
+                // fair-share options per pool tree map here.
+                if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
+                    params->Weight = optionsIt->second->Weight;
+                    params->ResourceLimits = optionsIt->second->ResourceLimits;
+                } else {
+                    if (DefaultFairShareTree_ && treeId == *DefaultFairShareTree_) {
+                        params->Weight = spec->Weight;
+                        params->ResourceLimits = spec->ResourceLimits;
+                    }
+                }
+            }
+        }
+
         for (const auto& pair : state->TreeIdToPoolIdMap()) {
+            const auto& treeId = pair.first;
             const auto& tree = GetTree(pair.first);
-            auto registrationResult = tree->RegisterOperation(state, spec, operation->GetRuntimeParams());
+
+            auto paramsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
+            YCHECK(paramsIt != runtimeParams->SchedulingOptionsPerPoolTree.end());
+
+            auto registrationResult = tree->RegisterOperation(state, spec, paramsIt->second);
             ActivateOperations(registrationResult.OperationsToActivate);
         }
     }
@@ -2127,9 +2163,36 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operationId);
-        if (DefaultFairShareTree_ && state->TreeIdToPoolIdMap().find(*DefaultFairShareTree_)) {
+        const auto& pools = state->TreeIdToPoolIdMap();
+
+        if (DefaultFairShareTree_ && pools.find(*DefaultFairShareTree_) != pools.end()) {
             GetTree(*DefaultFairShareTree_)->BuildOperationAttributes(operationId, fluent);
         }
+    }
+
+    virtual void BuildOperationRuntimeParams(
+        const TOperationId& operationId,
+        const TOperationStrategyRuntimeParametersPtr& runtimeParams,
+        TFluentMap fluent) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        const auto& state = GetOperationState(operationId);
+        const auto& pools = state->TreeIdToPoolIdMap();
+
+        auto params = ConvertToAttributes(runtimeParams);
+        fluent
+            .Items(*params)
+            .DoIf(DefaultFairShareTree_ && pools.find(*DefaultFairShareTree_) != pools.end(), [&] (TFluentMap innerFluent) {
+                auto it = runtimeParams->SchedulingOptionsPerPoolTree.find(*DefaultFairShareTree_);
+                if (it == runtimeParams->SchedulingOptionsPerPoolTree.end()) {
+                    return;
+                }
+
+                auto serializedOptions = ConvertToAttributes(it->second);
+                innerFluent
+                    .Items(*serializedOptions);
+            });
     }
 
     virtual void BuildOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
@@ -2212,19 +2275,44 @@ public:
             });
     }
 
-    virtual void UpdateOperationRuntimeParams(
-        IOperationStrategyHost* operation,
-        const TOperationStrategyRuntimeParamsPtr& runtimeParams) override
+    virtual void UpdateOperationRuntimeParameters(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operation->GetId());
+        const auto& runtimeParams = operation->GetRuntimeParameters();
 
-        // TODO(asaitgalin): Support ability to specify runtime params
-        // separately for each fair share tree.
         for (const auto& pair : state->TreeIdToPoolIdMap()) {
             const auto& treeId = pair.first;
-            GetTree(treeId)->UpdateOperationRuntimeParams(operation, runtimeParams);
+
+            auto it = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
+            if (it == runtimeParams->SchedulingOptionsPerPoolTree.end()) {
+                continue;
+            }
+
+            GetTree(treeId)->UpdateOperationRuntimeParameters(operation->GetId(), it->second);
+        }
+    }
+
+    virtual void UpdateOperationRuntimeParameters(
+        IOperationStrategyHost* operation,
+        const TOperationFairShareStrategyTreeOptionsPtr& runtimeParams) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        const auto& state = GetOperationState(operation->GetId());
+        const auto& pools = state->TreeIdToPoolIdMap();
+
+        if (DefaultFairShareTree_ && pools.find(*DefaultFairShareTree_) != pools.end()) {
+            auto params = operation->GetRuntimeParameters();
+            auto defaultTreeOptionsIt = params->SchedulingOptionsPerPoolTree.find(*DefaultFairShareTree_);
+            YCHECK(defaultTreeOptionsIt != params->SchedulingOptionsPerPoolTree.end());
+
+            ReconfigureYsonSerializable(
+                defaultTreeOptionsIt->second,
+                ConvertToNode(runtimeParams));
+
+            GetTree(*DefaultFairShareTree_)->UpdateOperationRuntimeParameters(operation->GetId(), runtimeParams);
         }
     }
 

@@ -60,6 +60,10 @@ public:
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
+    TFuture<void> UpdateOperationRuntimeParameters(
+        TOperationPtr operation,
+        const TOperationRuntimeParametersPtr& params);
+
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);

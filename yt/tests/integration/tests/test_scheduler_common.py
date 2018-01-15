@@ -5,6 +5,7 @@ from yt.yson import *
 from yt.wrapper import JsonFormat
 
 import yt.environment.init_operation_archive as init_operation_archive
+from yt.environment.helpers import assert_almost_equal
 
 from operations_archive import clean_operations
 
@@ -2634,6 +2635,70 @@ class TestPoolMetrics(YTEnvSetup):
         time.sleep(1.0)
 
         wait(lambda: not get_alerts())
+
+    def test_update_runtime_parameters(self):
+        create_user("u")
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        op = map(
+            command="sleep 100",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={"weight": 5},
+            dont_track=True)
+
+        wait(lambda: op.get_state() == "running", iter=10)
+
+        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
+
+        update_op_parameters(op.id, parameters={"owners": ["u"]})
+        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "weight": 3.0,
+                    "resource_limits": {
+                        "user_slots": 0
+                    }
+                }
+            }
+        })
+
+        # Backward compatibility
+        assert assert_almost_equal(
+            get("//sys/operations/" + op.id + "/@weight"),
+            3.0)
+        assert get("//sys/operations/" + op.id + "/@resource_limits/user_slots") == 0
+
+        assert assert_almost_equal(
+            get("//sys/operations/" + op.id + "/@scheduling_options_per_pool_tree/default/weight"),
+            3.0)
+        assert get("//sys/operations/" + op.id + "/@scheduling_options_per_pool_tree/default/resource_limits/user_slots") == 0
+
+        assert assert_almost_equal(
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)),
+            3.0)
+
+        # wait() here is essential since resource limits are recomputed during fair-share update.
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0,
+             iter=5)
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        wait(lambda: op.get_state() == "running", iter=10)
+
+        assert assert_almost_equal(
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)),
+            3.0)
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
+
 
 ##################################################################
 

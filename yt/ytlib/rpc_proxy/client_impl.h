@@ -160,6 +160,13 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual TFuture<void> UpdateOperationParameters(
+        const NScheduler::TOperationId&,
+        const NApi::TUpdateOperationParametersOptions&) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
     virtual TFuture<NYson::TYsonString> GetOperation(
         const NScheduler::TOperationId&,
         const NApi::TGetOperationOptions&) override
