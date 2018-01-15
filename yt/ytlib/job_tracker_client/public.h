@@ -49,7 +49,7 @@ DEFINE_ENUM(EJobType,
     ((IntermediateSort)  ( 13))
     ((OrderedMap)        ( 14))
     ((JoinReduce)        ( 15))
-    ((SchedulerUnknown)  ( 97)) // Used by node to report aborted jobs for which spec request has failed
+    ((SchedulerUnknown)  ( 96)) // Used by node to report aborted jobs for which spec request has failed.
     ((Source)            ( 97)) // Fake job types for data flow graph
     ((Sink)              ( 98)) // denoting inputs and outputs.
     ((SchedulerLast)     ( 99)) // Sentinel.
