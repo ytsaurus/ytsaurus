@@ -203,6 +203,8 @@ public:
 
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
 
+    virtual TString GetLoggingProgress() const;
+
     virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const override;
     virtual NYson::TYsonString GetAttributes() const override;
 
@@ -271,8 +273,14 @@ public:
     virtual void AddTaskPendingHint(const TTaskPtr& task) override;
 
     virtual ui64 NextJobIndex() override;
+    virtual void InitUserJobSpecTemplate(
+        NScheduler::NProto::TUserJobSpec* proto,
+        NScheduler::TUserJobSpecPtr config,
+        const std::vector<TUserFile>& files,
+        const TString& fileAccount) override;
+    virtual const std::vector<TUserFile>& GetUserFiles(const TUserJobSpecPtr& userJobSpec) const override;
 
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override;
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override;
 
     virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) override;
@@ -817,23 +825,17 @@ protected:
         const IJobSizeConstraintsPtr& jobSizeConstraints,
         std::vector<NChunkPools::TChunkStripePtr>* result);
 
-    void InitUserJobSpecTemplate(
-        NScheduler::NProto::TUserJobSpec* proto,
-        NScheduler::TUserJobSpecPtr config,
-        const std::vector<TUserFile>& files,
-        const TString& fileAccount);
-
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
-        TJobletPtr joblet);
+        TJobletPtr joblet) const;
 
     void AddStderrOutputSpecs(
         NScheduler::NProto::TUserJobSpec* jobSpec,
-        TJobletPtr joblet);
+        TJobletPtr joblet) const;
 
     void AddCoreOutputSpecs(
         NScheduler::NProto::TUserJobSpec* jobSpec,
-        TJobletPtr joblet);
+        TJobletPtr joblet) const;
 
     void SetInputDataSources(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
     void SetIntermediateDataSource(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
@@ -880,6 +882,8 @@ protected:
     void SetOperationAlert(EOperationAlertType type, const TError& alert);
 
     void AddFiles(const TUserJobSpecPtr& userJobSpec, const std::vector<NYPath::TRichYPath>& path, bool isLayer);
+
+    void AbortAllJoblets();
 
 private:
     typedef TOperationControllerBase TThis;
@@ -1124,7 +1128,6 @@ private:
     NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
 
     void DoAbort();
-    void AbortAllJoblets();
 
     void WaitForHeartbeat();
 

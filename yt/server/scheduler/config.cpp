@@ -553,6 +553,8 @@ TSchedulerConfig::TSchedulerConfig()
         .DefaultNew();
     RegisterParameter("remote_copy_operation_options", RemoteCopyOperationOptions)
         .DefaultNew();
+    RegisterParameter("vanilla_operation_options", VanillaOperationOptions)
+        .DefaultNew();
 
     RegisterParameter("environment", Environment)
         .Default(yhash<TString, TString>())
@@ -765,6 +767,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptionsBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

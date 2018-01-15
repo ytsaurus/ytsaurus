@@ -191,6 +191,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
 
+    RegisterParameter("fail_on_job_restart", FailOnJobRestart)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -306,6 +309,14 @@ void TUserJobSpec::InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPt
     }
 
     jobIOConfig->ControlAttributes->EnableTableIndex = *EnableInputTableIndex;
+}
+
+TVanillaTaskSpec::TVanillaTaskSpec()
+{
+    RegisterParameter("job_count", JobCount)
+        .GreaterThanOrEqual(1);
+    RegisterParameter("job_io", JobIO)
+        .DefaultNew();
 }
 
 TInputlyQueryableSpec::TInputlyQueryableSpec()
@@ -770,6 +781,24 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
     });
 }
 
+TVanillaOperationSpec::TVanillaOperationSpec()
+{
+    RegisterParameter("tasks", Tasks)
+        .NonEmpty();
+
+    RegisterPostprocessor([&] {
+        for (auto& pair : Tasks) {
+            const auto& taskName = pair.first;
+            auto& taskSpec = pair.second;
+            if (taskName.empty()) {
+                THROW_ERROR_EXCEPTION("Empty task names are not allowed");
+            }
+
+            taskSpec->TaskTitle = taskName;
+        }
+    });
+}
+
 TResourceLimitsConfig::TResourceLimitsConfig()
 {
     RegisterParameter("user_slots", UserSlots)
@@ -916,6 +945,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

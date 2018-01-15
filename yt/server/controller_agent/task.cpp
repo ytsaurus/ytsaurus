@@ -154,6 +154,11 @@ i64 TTask::GetLocality(TNodeId nodeId) const
            : 0;
 }
 
+TDuration TTask::GetLocalityTimeout() const
+{
+    return TDuration::Zero();
+}
+
 bool TTask::HasInputLocality() const
 {
     return true;
@@ -181,7 +186,10 @@ void TTask::FinishInput()
 {
     LOG_DEBUG("Task input finished" );
 
-    GetChunkPoolInput()->Finish();
+    // GetChunkPoolInput() may return false on tasks that do not require input, such as for vanilla operation.
+    if (const auto& chunkPoolInput = GetChunkPoolInput()) {
+        chunkPoolInput->Finish();
+    }
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     if (!progressCounter->Parent()) {
         TaskHost_->DataFlowGraph().RegisterTask(GetVertexDescriptor(), progressCounter, GetJobType());

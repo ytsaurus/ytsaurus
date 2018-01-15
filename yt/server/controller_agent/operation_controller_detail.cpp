@@ -638,7 +638,7 @@ void TOperationControllerBase::SafeMaterialize()
 
         LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
 
-        if (InputChunkMap.empty() || IsCompleted()) {
+        if (IsCompleted()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
             // - Merge decided to teleport all input chunks
@@ -727,6 +727,10 @@ void TOperationControllerBase::SleepInRevive()
 void TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    if (Spec_->FailOnJobRestart) {
+        THROW_ERROR_EXCEPTION("Cannot revive operation when spec option fail_on_job_restart is set");
+    }
 
     if (!Snapshot.Data) {
         Prepare();
@@ -1587,9 +1591,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     auto jobId = jobSummary->Id;
+    auto abandoned = jobSummary->Abandoned;
+
     // NB: We should not explicitly tell node to remove abandoned job because it may be still
     // running at the node.
-    if (!jobSummary->Abandoned) {
+    if (!abandoned) {
         CompletedJobIdsReleaseQueue_.Push(jobId);
     }
 
@@ -1749,6 +1755,12 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     }
 
     CheckFailedJobsStatusReceived();
+
+    if (Spec_->FailOnJobRestart) {
+        OnOperationFailed(TError("Job failed; operation failed because spec option fail_on_job_restart is set")
+            << TErrorAttribute("job_id", joblet->JobId)
+            << error);
+    }
 }
 
 void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
@@ -1803,6 +1815,14 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     CheckFailedJobsStatusReceived();
     LogProgress();
+
+    if (Spec_->FailOnJobRestart &&
+        !(abortReason > EAbortReason::SchedulingFirst && abortReason < EAbortReason::SchedulingLast))
+    {
+        OnOperationFailed(TError("Job aborted; operation failed because spec option fail_on_job_restart is set")
+            << TErrorAttribute("job_id", joblet->JobId)
+            << TErrorAttribute("abort_reason", abortReason));
+    }
 }
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
@@ -2725,8 +2745,19 @@ void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
 void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /* joblet */)
 { }
 
-void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& /* joblet */, TJobSpec* /* jobSpec */)
-{ }
+void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) const
+{
+    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+    schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+    ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+
+    if (joblet->Task->GetUserJobSpec()) {
+        InitUserJobSpec(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            joblet);
+    }
+}
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
 {
@@ -2796,10 +2827,13 @@ void TOperationControllerBase::MoveTaskToCandidates(
 
 void TOperationControllerBase::AddTaskPendingHint(const TTaskPtr& task)
 {
-    if (task->GetPendingJobCount() > 0) {
+    auto pendingJobCount = task->GetPendingJobCount();
+    const auto& taskId = task->GetTitle();
+    LOG_TRACE("Adding task pending hint (Task: %v, PendingJobCount: %v)", taskId, pendingJobCount);
+    if (pendingJobCount > 0) {
         auto group = task->GetGroup();
         if (group->NonLocalTasks.insert(task).second) {
-            LOG_DEBUG("Task pending hint added (Task: %v)", task->GetTitle());
+            LOG_TRACE("Task pending hint added (Task: %v)", taskId);
             MoveTaskToCandidates(task, group->CandidateTasks);
         }
     }
@@ -4906,6 +4940,28 @@ bool TOperationControllerBase::IsLocalityEnabled() const
     return Config->EnableLocality && TotalEstimatedInputDataWeight > Spec_->MinLocalityInputDataWeight;
 }
 
+TString TOperationControllerBase::GetLoggingProgress() const
+{
+    return Format(
+        "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
+        "UnavailableInputChunks: %v",
+        JobCounter->GetTotal(),
+        JobCounter->GetRunning(),
+        JobCounter->GetCompletedTotal(),
+        GetPendingJobCount(),
+        JobCounter->GetFailed(),
+        JobCounter->GetAbortedTotal(),
+        JobCounter->GetInterruptedTotal(),
+        GetUnavailableInputChunkCount());
+}
+
+const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const
+{
+    auto it = UserJobFiles_.find(userJobSpec);
+    YCHECK(it != UserJobFiles_.end());
+    return it->second;
+}
+
 void TOperationControllerBase::SliceUnversionedChunks(
     const std::vector<TInputChunkPtr>& unversionedChunks,
     const IJobSizeConstraintsPtr& jobSizeConstraints,
@@ -6202,7 +6258,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet) const
 {
     ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugOutputTransaction->GetId());
 
@@ -6264,7 +6320,7 @@ void TOperationControllerBase::InitUserJobSpec(
 
 void TOperationControllerBase::AddStderrOutputSpecs(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet) const
 {
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
@@ -6279,7 +6335,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 
 void TOperationControllerBase::AddCoreOutputSpecs(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet) const
 {
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
@@ -6648,8 +6704,6 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         schedulerJobSpecExt->set_table_reader_options(
             ConvertToYsonString(CreateTableReaderOptions(Spec_->AutoMerge->JobIO)).GetData());
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-
         auto dataSourceDirectory = New<TDataSourceDirectory>();
         // NB: chunks read by auto-merge jobs have table index set to output table index,
         // so we need to specify several unused data sources before actual one.
@@ -6662,7 +6716,6 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
         ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
         SetProtoExtension(schedulerJobSpecExt->mutable_extensions(), dataSourceDirectoryExt);
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
     }
 }

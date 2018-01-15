@@ -404,22 +404,6 @@ protected:
         return result;
     }
 
-    // Progress reporting.
-    virtual TString GetLoggingProgress() const override
-    {
-        return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-            "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
-            GetUnavailableInputChunkCount());
-    }
-
     virtual void OnChunksReleased(int chunkCount) override
     {
         TOperationControllerBase::OnChunksReleased(chunkCount);
@@ -483,14 +467,11 @@ protected:
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
 
         SetInputDataSources(schedulerJobSpecExt);
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
     }
 };
@@ -640,17 +621,6 @@ private:
     {
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
-    }
-
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
-    {
-        if (joblet->JobType != EJobType::Map) {
-            return;
-        }
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet);
     }
 
     virtual bool IsInputDataSizeHistogramSupported() const override

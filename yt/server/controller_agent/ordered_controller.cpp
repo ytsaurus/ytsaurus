@@ -355,23 +355,6 @@ protected:
         InitJobSpecTemplate();
     }
 
-    // Progress reporting.
-
-    virtual TString GetLoggingProgress() const override
-    {
-        return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-            "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
-            GetUnavailableInputChunkCount());
-    }
-
     //! Initializes #JobIOConfig.
     void InitJobIOConfig()
     {
@@ -539,8 +522,6 @@ private:
         }
 
         SetInputDataSources(schedulerJobSpecExt);
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
     }
 
@@ -690,14 +671,6 @@ private:
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
-    {
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet);
-    }
-
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
@@ -740,8 +713,6 @@ private:
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         InitUserJobSpecTemplate(
@@ -977,8 +948,6 @@ private:
 
         SetInputDataSources(schedulerJobSpecExt);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
@@ -1210,8 +1179,6 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
             TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
         schedulerJobSpecExt->set_table_reader_options("");
         SetInputDataSources(schedulerJobSpecExt);

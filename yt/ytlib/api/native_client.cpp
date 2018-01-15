@@ -268,7 +268,7 @@ class TJobInputReader
     : public NConcurrency::IAsyncZeroCopyInputStream
 {
 public:
-    TJobInputReader(NJobProxy::TUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
+    TJobInputReader(NJobProxy::IUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
         : Invoker_(std::move(invoker))
         , UserJobReadController_(std::move(userJobReadController))
         , AsyncStreamPipe_(New<TAsyncStreamPipe>())
@@ -294,7 +294,7 @@ public:
 
 private:
     const IInvokerPtr Invoker_;
-    const NJobProxy::TUserJobReadControllerPtr UserJobReadController_;
+    const NJobProxy::IUserJobReadControllerPtr UserJobReadController_;
     const NConcurrency::TAsyncStreamPipePtr AsyncStreamPipe_;
 
     TFuture<void> TransferResultFuture_;
@@ -3366,7 +3366,7 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
-        auto userJobReader = CreateUserJobReadController(
+        auto userJobReadController = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
             GetConnection()->GetInvoker(),
@@ -3374,7 +3374,7 @@ private:
             BIND([] { }),
             Null);
 
-        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetInvoker());
+        auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
         jobInputReader->Open();
         return jobInputReader;
     }
