@@ -84,11 +84,14 @@ public:
                 query->GetTableSchema());
 
             TQueryStatistics statistics;
-            TDuration wallTime;
+            NProfiling::TWallTimer wallTime;
+            NProfiling::TCpuTimer syncTime;
+
+            auto finalLogger = Finally([&] () {
+                LOG_DEBUG("Finalizing evaluation");
+            });
 
             try {
-                NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
-
                 TCGVariables fragmentParams;
                 auto cgQuery = Codegen(
                     query,
@@ -131,7 +134,8 @@ public:
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
 
-            statistics.SyncTime = wallTime - statistics.AsyncTime;
+            statistics.SyncTime = syncTime.GetElapsedTime();
+            statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
             statistics.ExecuteTime =
                 statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
 
@@ -178,8 +182,8 @@ private:
 
         auto compileWithLogging = [&] () {
             TRACE_CHILD("QueryClient", "Compile") {
-                NProfiling::TAggregatingTimingGuard timingGuard(&statistics.CodegenTime);
                 LOG_DEBUG("Started compiling fragment");
+                NProfiling::TCpuTimingGuard timingGuard(&statistics.CodegenTime);
                 auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
                 LOG_DEBUG("Finished compiling fragment");
                 return cgQuery;
