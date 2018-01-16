@@ -243,7 +243,7 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Minutes(5));
 
     RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::Seconds(15));
 
     RegisterPostprocessor([&] () {
         if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {
