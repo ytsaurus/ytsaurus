@@ -247,7 +247,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterPostprocessor([&] () {
         if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {
-            THROW_ERROR_EXCEPTION("Soft limit on concurrent heartbeats must be less than or equal to hard limit on concurrent heartbeats")
+            THROW_ERROR_EXCEPTION("\"soft_limit\" must be less than or equal to \"hard_limit\"")
                 << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)
                 << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
         }
