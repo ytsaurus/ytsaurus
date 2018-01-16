@@ -3570,11 +3570,6 @@ private:
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
-        // Schedule propery update for deleted chunks.
-        for (auto* chunk : chunksToDetach) {
-            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
-        }
-
         // Get new tabet resource usage.
         auto newMemorySize = tablet->GetTabletStaticMemorySize();
         auto newStatistics = GetTabletStatistics(tablet);
@@ -3584,10 +3579,17 @@ private:
         cell->TotalStatistics() += deltaStatistics;
 
         // Update table resource usage.
+
         // Unstage just attached chunks.
         for (auto* chunk : chunksToAttach) {
             chunkManager->UnstageChunk(chunk->AsChunk());
         }
+
+        // Requisition update pursues two goals: updating resource usage and
+        // setting requisitions to correct values. The latter is required both
+        // for detached chunks (for obvious reasons) and attached chunks
+        // (because the protocol doesn't allow for creating chunks with correct
+        // requisitions from the start).
         for (auto* chunk : chunksToAttach) {
             chunkManager->ScheduleChunkRequisitionUpdate(chunk);
         }
