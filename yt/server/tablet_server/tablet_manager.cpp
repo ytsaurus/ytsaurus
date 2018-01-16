@@ -3559,6 +3559,12 @@ private:
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
+        // Schedule property update for newly created chunks (the protocol
+        // doesn't allow for creating chunks with correct properties from the start).
+        for (auto* chunk : chunksToAttach) {
+            chunkManager->ScheduleChunkPropertiesUpdate(chunk);
+        }
+
         // Schedule propery update for deleted chunks.
         for (auto* chunk : chunksToDetach) {
             chunkManager->ScheduleChunkPropertiesUpdate(chunk);
