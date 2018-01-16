@@ -2689,6 +2689,7 @@ class TestSchedulerDifferentOperationStorageModes(YTEnvSetup):
         return "//sys/operations/" + op_id
 
     def _run_operations(self):
+        create_user("u")
         create("table", "//tmp/t_input")
         write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
 
@@ -2713,6 +2714,7 @@ fi
                         "cypress_storage_mode": self.STORAGE_MODES[i]
                     },
                     "data_size_per_job": 1,
+                    "owners": ["u"]
                 },
                 dont_track=True)
 
@@ -2750,21 +2752,21 @@ fi
         # Simple hash buckets
         assert get(self._get_operation_path(ops[0].id) + "/@state") == "running"
         assert not exists(self._get_new_operation_path(ops[0].id) + "/@state")
-        ops[0].complete()
+        complete_op(ops[0].id, authenticated_user="u")
         assert exists(self._get_new_operation_path(ops[0].id) + "/@committed")
         assert exists(self._get_new_operation_path(ops[0].id) + "/@completion_transaction_id")
 
         # Hash buckets
         assert get(self._get_new_operation_path(ops[1].id) + "/@state") == "running"
         assert not exists(self._get_operation_path(ops[1].id))
-        ops[1].complete()
+        complete_op(ops[1].id, authenticated_user="u")
         assert exists(self._get_new_operation_path(ops[1].id) + "/@committed")
         assert exists(self._get_new_operation_path(ops[1].id) + "/@completion_transaction_id")
 
         # Compatible
         assert get(self._get_operation_path(ops[2].id) + "/@state") == "running"
         assert get(self._get_new_operation_path(ops[2].id) + "/@state") == "running"
-        ops[2].complete()
+        complete_op(ops[2].id, authenticated_user="u")
         # NOTE: This attribute is moved to hash buckets unconditionally in all modes.
         assert not exists(self._get_operation_path(ops[2].id) + "/@committed")
         assert exists(self._get_new_operation_path(ops[2].id) + "/@committed")

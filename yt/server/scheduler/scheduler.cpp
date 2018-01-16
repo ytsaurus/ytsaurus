@@ -562,29 +562,39 @@ public:
             user,
             ToString(operationId));
 
-        auto path = GetNewOperationPath(operationId);
-
         const auto& client = GetMasterClient();
-        auto asyncResult = client->CheckPermission(user, path, permission);
-        auto resultOrError = WaitFor(asyncResult);
-        if (!resultOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
-                operationId)
-                << resultOrError;
+
+        std::vector<NYTree::TYPath> paths = {
+            GetOperationPath(operationId),
+            GetNewOperationPath(operationId)
+        };
+
+        for (const auto& path : paths) {
+            auto asyncResult = client->CheckPermission(user, path, permission);
+            auto resultOrError = WaitFor(asyncResult);
+            if (!resultOrError.IsOK()) {
+                if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    continue;
+                }
+
+                THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
+                    operationId)
+                    << resultOrError;
+            }
+
+            const auto& result = resultOrError.Value();
+            if (result.Action == ESecurityAction::Allow) {
+                ValidateConnected();
+                LOG_DEBUG("Operation permission successfully validated");
+                return;
+            }
         }
 
-        const auto& result = resultOrError.Value();
-        if (result.Action == ESecurityAction::Deny) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AuthorizationError,
-                "User %Qv has been denied access to operation %v",
-                user,
-                operationId);
-        }
-
-        ValidateConnected();
-
-        LOG_DEBUG("Operation permission successfully validated");
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "User %Qv has been denied access to operation %v",
+            user,
+            operationId);
     }
 
     TFuture<TOperationPtr> StartOperation(
