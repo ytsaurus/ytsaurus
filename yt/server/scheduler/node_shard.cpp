@@ -397,7 +397,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         }
 
         if ((oldState != ENodeState::Online && newState == ENodeState::Online) || execNode->Tags() != tags) {
-            auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, tags));
+            auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
                 LOG_WARNING(updateResult, "Node tags update failed (NodeId: %v, Address: %v, NewTags: %v)",
                     nodeId,
@@ -410,7 +410,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
                     UpdateNodeState(execNode, ENodeState::Offline);
                 }
             } else {
-                if (oldState != ENodeState::Online) {
+                if (oldState != ENodeState::Online && newState == ENodeState::Online) {
                     AddNodeResources(execNode);
                 }
                 execNode->Tags() = tags;
@@ -909,6 +909,17 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
     return node;
 }
 
+void TNodeShard::OnNodeLeaseExpired(TNodeId nodeId)
+{
+    auto it = IdToNode_.find(nodeId);
+    YCHECK(it != IdToNode_.end());
+
+    LOG_INFO("Node lease expired, unregistering it (Address: %v)",
+        it->second->GetDefaultAddress());
+
+    UnregisterNode(it->second);
+}
+
 TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)
 {
     auto node = New<TExecNode>(nodeId, descriptor);
@@ -916,7 +927,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
 
     auto lease = TLeaseManager::CreateLease(
         Config_->NodeHeartbeatTimeout,
-        BIND(&TNodeShard::UnregisterNode, MakeWeak(this), node)
+        BIND(&TNodeShard::OnNodeLeaseExpired, MakeWeak(this), node->GetId())
             .Via(GetInvoker()));
 
     node->SetLease(lease);
@@ -948,7 +959,7 @@ void TNodeShard::DoUnregisterNode(TExecNodePtr node)
 
     YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
-    Host_->UnregisterNode(node->GetId());
+    Host_->UnregisterNode(node->GetId(), node->GetDefaultAddress());
 
     LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
 }

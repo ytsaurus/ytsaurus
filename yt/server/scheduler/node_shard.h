@@ -40,9 +40,10 @@ struct INodeShardHost
 
     virtual TFuture<void> RegisterOrUpdateNode(
         NNodeTrackerClient::TNodeId nodeId,
+        const TString& nodeAddress,
         const yhash_set<TString>& tags) = 0;
 
-    virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
+    virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId, const TString& nodeAddress) = 0;
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
@@ -285,6 +286,7 @@ private:
     TExecNodePtr RegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
     void UnregisterNode(TExecNodePtr node);
     void DoUnregisterNode(TExecNodePtr node);
+    void OnNodeLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
 
     void AbortJobsAtNode(TExecNodePtr node);
 
