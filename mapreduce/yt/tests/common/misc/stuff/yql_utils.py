@@ -507,7 +507,7 @@ def yson_to_csv(yson_content, columns=None, with_header=True, strict=False):
 
 def get_udfs_path():
     udfs_build_path = yatest.common.build_path('yql/udfs')
-    robot_udfs_build_path = yatest.common.build_path('robot/kwyt/yql/udfs')
+    robot_udfs_build_path = yatest.common.build_path('robot/rthub/yql/udfs')
 
     try:
         udfs_bin_path = yatest.common.binary_path('yql/udfs')
