@@ -1280,7 +1280,6 @@ class TestJobRevival(YTEnvSetup):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "snapshot_period": 500,
-            "lock_transaction_timeout": 3000,
             "operations_update_period": 100,
             "job_revival_abort_timeout": 2000,
         },
