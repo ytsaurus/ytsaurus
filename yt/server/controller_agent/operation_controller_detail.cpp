@@ -357,7 +357,6 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
                 .ValueOrThrow();
 
             {
-                auto guard = Guard(TransactionsLock_);
                 InputTransaction = controllerTransactions->Input;
                 OutputTransaction = controllerTransactions->Output;
                 DebugTransaction = controllerTransactions->Debug;
@@ -412,11 +411,11 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Operation initialized");
 }
 
-TOperationControllerInitializationAttributes TOperationControllerBase::GetInitializationAttributes() const
+TOperationControllerInitializationResult TOperationControllerBase::GetInitializationResult() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return InitializationAttributes_;
+    return InitializationResult_;
 }
 
 TYsonString TOperationControllerBase::GetAttributes() const
@@ -509,16 +508,21 @@ void TOperationControllerBase::FinishInitialization()
 {
     UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
 
-    InitializationAttributes_.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
+    TOperationControllerInitializationAttributes attributes;
+    attributes.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeImmutableAttributes, Unretained(this)))
         .Finish();
-    InitializationAttributes_.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
+    attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
         .Finish();
-    InitializationAttributes_.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
+    attributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildBriefSpec, Unretained(this)))
         .Finish();
-    InitializationAttributes_.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
+    attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
+
+    InitializationResult_.InitializationAttributes = attributes;
+
+    InitializationResult_.Transactions = GetTransactions();
 }
 
 void TOperationControllerBase::InitUpdatingTables()
@@ -806,7 +810,6 @@ void TOperationControllerBase::StartTransactions()
         .ValueOrThrow();
 
     {
-        auto guard = Guard(TransactionsLock_);
         AsyncSchedulerTransaction = results[0].ValueOrThrow();
         InputTransaction = results[1].ValueOrThrow();
         OutputTransaction = results[2].ValueOrThrow();
@@ -1251,32 +1254,22 @@ void TOperationControllerBase::CommitTransactions()
 {
     LOG_INFO("Committing scheduler transactions");
 
-    ITransactionPtr asyncSchedulerTransaction;
-    ITransactionPtr inputTransaction;
-    ITransactionPtr outputTransaction;
-    ITransactionPtr debugOutputTransaction;
-    {
-        auto guard = Guard(TransactionsLock_);
-        std::swap(asyncSchedulerTransaction, AsyncSchedulerTransaction);
-        std::swap(inputTransaction, InputTransaction);
-        std::swap(outputTransaction, OutputTransaction);
-        std::swap(debugOutputTransaction, DebugTransaction);
-    }
+    std::vector<TFuture<TTransactionCommitResult>> commitFutures;
 
-    // TODO(babenko): consider running these commits in parallel
-    WaitFor(outputTransaction->Commit())
-        .ThrowOnError();
+    commitFutures.push_back(OutputTransaction->Commit());
 
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage7);
 
-    WaitFor(debugOutputTransaction->Commit())
+    commitFutures.push_back(DebugTransaction->Commit());
+
+    WaitFor(Combine(commitFutures))
         .ThrowOnError();
 
     LOG_INFO("Scheduler transactions committed");
 
     // Fire-and-forget.
-    inputTransaction->Abort();
-    asyncSchedulerTransaction->Abort();
+    InputTransaction->Abort();
+    AsyncSchedulerTransaction->Abort();
 }
 
 void TOperationControllerBase::TeleportOutputChunks()
@@ -2253,7 +2246,6 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = Guard(TransactionsLock_);
     std::vector<ITransactionPtr> transactions = {
         UserTransaction,
         AsyncSchedulerTransaction,
@@ -2295,14 +2287,8 @@ void TOperationControllerBase::DoAbort()
                 EndUploadOutputTables(tables);
                 CommitDebugCompletionTransaction();
 
-                ITransactionPtr debugTransaction;
-                {
-                    auto guard = Guard(TransactionsLock_);
-                    std::swap(debugTransaction, DebugTransaction);
-                }
-
-                if (debugTransaction) {
-                    WaitFor(debugTransaction->Commit())
+                if (DebugTransaction) {
+                    WaitFor(DebugTransaction->Commit())
                         .ThrowOnError();
                 }
             } catch (const std::exception& ex) {
@@ -2311,16 +2297,6 @@ void TOperationControllerBase::DoAbort()
                 LOG_ERROR(ex, "Failed to commit debug transaction");
             }
         }
-    }
-
-    ITransactionPtr asyncSchedulerTransaction;
-    ITransactionPtr inputTransaction;
-    ITransactionPtr outputTransaction;
-    {
-        auto guard = Guard(TransactionsLock_);
-        std::swap(asyncSchedulerTransaction, AsyncSchedulerTransaction);
-        std::swap(inputTransaction, InputTransaction);
-        std::swap(outputTransaction, OutputTransaction);
     }
 
     std::vector<TFuture<void>> abortTransactionFutures;
@@ -2336,9 +2312,9 @@ void TOperationControllerBase::DoAbort()
     // NB: We do not abort input transaction synchronously since
     // it can belong to an unavailable remote cluster.
     // Moreover if input transaction abort failed it does not harm anything.
-    abortTransaction(inputTransaction, /* sync */ false);
-    abortTransaction(outputTransaction);
-    abortTransaction(asyncSchedulerTransaction, /* sync */ false);
+    abortTransaction(InputTransaction, /* sync */ false);
+    abortTransaction(OutputTransaction);
+    abortTransaction(AsyncSchedulerTransaction, /* sync */ false);
 
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();

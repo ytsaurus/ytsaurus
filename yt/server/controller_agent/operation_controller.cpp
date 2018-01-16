@@ -219,9 +219,9 @@ public:
         Underlying_->Cancel();
     }
 
-    virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const override
+    virtual TOperationControllerInitializationResult GetInitializationResult() const override
     {
-        return Underlying_->GetInitializationAttributes();
+        return Underlying_->GetInitializationResult();
     }
 
     virtual NYson::TYsonString GetAttributes() const override
@@ -232,11 +232,6 @@ public:
     virtual void OnTransactionAborted(const TTransactionId& transactionId) override
     {
         Underlying_->OnTransactionAborted(transactionId);
-    }
-
-    virtual std::vector<ITransactionPtr> GetTransactions() override
-    {
-        return Underlying_->GetTransactions();
     }
 
     virtual void Complete() override

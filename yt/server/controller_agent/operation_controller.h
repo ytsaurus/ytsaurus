@@ -57,6 +57,12 @@ struct TOperationControllerInitializationAttributes
     NYson::TYsonString UnrecognizedSpec;
 };
 
+struct TOperationControllerInitializationResult
+{
+    std::vector<NApi::ITransactionPtr> Transactions;
+    TOperationControllerInitializationAttributes InitializationAttributes;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSnapshotCookie
@@ -315,7 +321,7 @@ struct IOperationControllerSchedulerHost
     virtual void Complete() = 0;
 
     //! Returns controller attributes that determined during initialization.
-    virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const = 0;
+    virtual TOperationControllerInitializationResult GetInitializationResult() const = 0;
 
     //! Returns controller attributes that determined after operation is prepared.
     virtual NYson::TYsonString GetAttributes() const = 0;
@@ -391,12 +397,6 @@ struct TOperationInfo
 struct IOperationController
     : public IOperationControllerSchedulerHost
 {
-    //! Returns the list of all active controller transactions.
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    virtual std::vector<NApi::ITransactionPtr> GetTransactions() = 0;
-
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
 

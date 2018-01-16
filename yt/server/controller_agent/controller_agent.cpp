@@ -256,6 +256,16 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
+    TOperationPtr GetOperation(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        YCHECK(operation);
+
+        return operation;
+    }
+
     TOperationPtr GetOperationOrThrow(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -738,6 +748,16 @@ void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
 TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
 {
     return Impl_->FindOperation(operationId);
+}
+
+TOperationPtr TControllerAgent::GetOperation(const TOperationId& operationId)
+{
+    return Impl_->GetOperation(operationId);
+}
+
+TOperationPtr TControllerAgent::GetOperationOrThrow(const TOperationId& operationId)
+{
+    return Impl_->GetOperationOrThrow(operationId);
 }
 
 const TOperationIdToOperationMap& TControllerAgent::GetOperations()

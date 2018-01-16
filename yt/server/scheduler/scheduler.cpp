@@ -698,6 +698,8 @@ public:
             operation->GetId(),
             operation->GetState());
 
+        Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions({});
+
         const auto& controller = operation->GetController();
         YCHECK(controller);
         controller->Complete();
@@ -1759,7 +1761,9 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
-            operation->ControllerAttributes().InitializationAttributes = controller->GetInitializationAttributes();
+            auto initializationResult = controller->GetInitializationResult();
+            operation->ControllerAttributes().InitializationAttributes = initializationResult.InitializationAttributes;
+            Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions(initializationResult.Transactions);
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
@@ -1935,7 +1939,10 @@ private:
                 auto error = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
-                operation->ControllerAttributes().InitializationAttributes = controller->GetInitializationAttributes();
+                auto initializationResult = controller->GetInitializationResult();
+                operation->ControllerAttributes().InitializationAttributes = initializationResult.InitializationAttributes;
+                Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions(initializationResult.Transactions);
+
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -2331,6 +2338,7 @@ private:
         }
 
         operation->Cancel();
+        Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions({});
 
         if (auto controller = operation->GetController()) {
             try {

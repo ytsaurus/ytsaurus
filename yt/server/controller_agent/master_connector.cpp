@@ -391,8 +391,7 @@ private:
         yhash_set<TTransactionId> watchSet;
         for (const auto& pair : controllerAgent->GetOperations()) {
             const auto& operation = pair.second;
-            auto controller = operation->GetController();
-            for (const auto& transaction : controller->GetTransactions()) {
+            for (const auto& transaction : operation->GetTransactions()) {
                 watchSet.insert(transaction->GetId());
             }
         }
@@ -453,7 +452,7 @@ private:
         for (const auto& pair : controllerAgent->GetOperations()) {
             const auto& operation = pair.second;
             auto controller = operation->GetController();
-            for (const auto& transaction : controller->GetTransactions()) {
+            for (const auto& transaction : operation->GetTransactions()) {
                 if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
                     controller->GetCancelableInvoker()->Invoke(BIND(
                         &IOperationController::OnTransactionAborted,
