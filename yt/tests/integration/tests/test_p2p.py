@@ -131,11 +131,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
             time.sleep(2)
         assert p.differentiate() == 0
 
-class TestBlockPeerDistributorManyRequestsProduction(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 4
-    NUM_SCHEDULERS = 0
-
+class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSynthetic):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "peer_block_distributor": {
