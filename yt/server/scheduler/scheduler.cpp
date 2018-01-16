@@ -2561,10 +2561,11 @@ private:
             .EndMap();
     }
 
-    TYsonString BuildOperationYson(const TOperationId& operationId) const
+    TYsonString TryBuildOperationYson(const TOperationId& operationId) const
     {
         static const auto emptyMapFragment = TYsonString(TString(), EYsonType::MapFragment);
 
+        // First fast check.
         auto operation = FindOperation(operationId);
         if (!operation) {
             return TYsonString();
@@ -2580,9 +2581,12 @@ private:
 
         bool isOK = rspOrError.IsOK();
         if (!isOK) {
-            LOG_DEBUG(rspOrError, "Failed to get operation info from controller");
+            LOG_DEBUG(rspOrError, "Failed to get operation info from controller; assuming empty response");
         }
 
+        const auto& rsp = rspOrError.Value();
+
+        // Recheck to make sure operation is still alive.
         if (!FindOperation(operationId)) {
             return TYsonString();
         }
@@ -2591,11 +2595,11 @@ private:
             return protoString.empty() ? emptyMapFragment : TYsonString(protoString, EYsonType::MapFragment);
         };
 
-        auto controllerProgress = isOK ? toYsonString(rspOrError.Value()->progress()) : emptyMapFragment;
-        auto controllerBriefProgress = isOK ? toYsonString(rspOrError.Value()->brief_progress()) : emptyMapFragment;
-        auto controllerRunningJobs = isOK ? toYsonString(rspOrError.Value()->running_jobs()) : emptyMapFragment;
-        auto controllerJobSplitterInfo = isOK ? toYsonString(rspOrError.Value()->job_splitter()) : emptyMapFragment;
-        auto controllerMemoryDigests = isOK ? toYsonString(rspOrError.Value()->memory_digests()) : emptyMapFragment;
+        auto controllerProgress = isOK ? toYsonString(rsp->progress()) : emptyMapFragment;
+        auto controllerBriefProgress = isOK ? toYsonString(rsp->brief_progress()) : emptyMapFragment;
+        auto controllerRunningJobs = isOK ? toYsonString(rsp->running_jobs()) : emptyMapFragment;
+        auto controllerJobSplitterInfo = isOK ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
+        auto controllerMemoryDigests = isOK ? toYsonString(rsp->memory_digests()) : emptyMapFragment;
 
         return BuildYsonStringFluently()
             .BeginMap()
@@ -2623,6 +2627,9 @@ private:
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
                 .Items(controllerMemoryDigests)
+                .DoIf(!isOK, [&] (TFluentMap fluent) {
+                    fluent.Item("controller_error").Value(TError(rspOrError));
+                })
             .EndMap();
     }
 
@@ -2684,7 +2691,7 @@ private:
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
             auto operationId = TOperationId::FromString(key);
-            auto operationYson = Scheduler_->BuildOperationYson(operationId);
+            auto operationYson = Scheduler_->TryBuildOperationYson(operationId);
             if (!operationYson) {
                 return nullptr;
             }
