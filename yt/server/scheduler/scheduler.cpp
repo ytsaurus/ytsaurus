@@ -2578,13 +2578,10 @@ private:
         auto req = proxy.GetOperationInfo();
         ToProto(req->mutable_operation_id(), operationId);
         auto rspOrError = WaitFor(req->Invoke());
-
-        bool isOK = rspOrError.IsOK();
-        if (!isOK) {
+        auto rsp = rspOrError.IsOK() ? rspOrError.Value() : nullptr;
+        if (!rsp) {
             LOG_DEBUG(rspOrError, "Failed to get operation info from controller; assuming empty response");
         }
-
-        const auto& rsp = rspOrError.Value();
 
         // Recheck to make sure operation is still alive.
         if (!FindOperation(operationId)) {
@@ -2595,11 +2592,11 @@ private:
             return protoString.empty() ? emptyMapFragment : TYsonString(protoString, EYsonType::MapFragment);
         };
 
-        auto controllerProgress = isOK ? toYsonString(rsp->progress()) : emptyMapFragment;
-        auto controllerBriefProgress = isOK ? toYsonString(rsp->brief_progress()) : emptyMapFragment;
-        auto controllerRunningJobs = isOK ? toYsonString(rsp->running_jobs()) : emptyMapFragment;
-        auto controllerJobSplitterInfo = isOK ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
-        auto controllerMemoryDigests = isOK ? toYsonString(rsp->memory_digests()) : emptyMapFragment;
+        auto controllerProgress = rsp ? toYsonString(rsp->progress()) : emptyMapFragment;
+        auto controllerBriefProgress = rsp ? toYsonString(rsp->brief_progress()) : emptyMapFragment;
+        auto controllerRunningJobs = rsp ? toYsonString(rsp->running_jobs()) : emptyMapFragment;
+        auto controllerJobSplitterInfo = rsp ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
+        auto controllerMemoryDigests = rsp ? toYsonString(rsp->memory_digests()) : emptyMapFragment;
 
         return BuildYsonStringFluently()
             .BeginMap()
@@ -2627,7 +2624,7 @@ private:
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
                 .Items(controllerMemoryDigests)
-                .DoIf(!isOK, [&] (TFluentMap fluent) {
+                .DoIf(!rspOrError.IsOK(), [&] (TFluentMap fluent) {
                     fluent.Item("controller_error").Value(TError(rspOrError));
                 })
             .EndMap();
