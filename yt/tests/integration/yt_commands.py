@@ -621,7 +621,15 @@ class Operation(object):
         if timeout <= 0:
             raise TimeoutError("Jobs didn't become running within timeout")
 
-        self.jobs = list(frozenset(ls(jobs_path)) - self.resumed_jobs)
+        while timeout > 0:
+            self.jobs = list(frozenset(ls(jobs_path)) - self.resumed_jobs)
+            if len(self.jobs) >= running_count:
+                break
+            time.sleep(self._poll_frequency)
+            timeout -= self._poll_frequency
+
+        if timeout <= 0:
+            raise TimeoutError("Could not start jobs within timeout")
 
         self.wait_for_running_phase()
 
