@@ -58,7 +58,7 @@ def clear_everything_after_test(func):
             set("//sys/nodes/{0}/@user_tags".format(node), [])
     return wrapped
 
-class TestBlockPeerDistributor(YTEnvSetup):
+class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 4
     NUM_SCHEDULERS = 0
@@ -130,6 +130,31 @@ class TestBlockPeerDistributor(YTEnvSetup):
             self._access()
             time.sleep(2)
         assert p.differentiate() == 0
+
+class TestBlockPeerDistributorManyRequestsProduction(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 4
+    NUM_SCHEDULERS = 0
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "peer_block_distributor": {
+                "iteration_period": 100, # 0.1 sec
+                "window_length": 1000, # 1 sec,
+                # In tests we are always trying to distribute something.
+                "out_traffic_activation_threshold": 0,
+                "node_tag_filter": "!tag42",
+                "min_request_count": 3,
+                "max_distribution_count": 12, # As in production
+                "destination_node_count": 2,
+            },
+            "block_cache": {
+                "compressed_data": {
+                    "capacity": 256 * 1024 * 1024,
+                }
+            }
+        }
+    }
 
     @clear_everything_after_test
     def test_wow_block_so_hot_such_much_requests(self):
