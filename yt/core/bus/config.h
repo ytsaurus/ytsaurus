@@ -76,7 +76,7 @@ public:
         RegisterParameter("default_network", DefaultNetwork)
             .Default();
 
-        RegisterValidator([&] {
+        RegisterPreprocessor([&] {
             if (DefaultNetwork && !Networks.has(*DefaultNetwork)) {
                 THROW_ERROR_EXCEPTION("Default network is not present in network list");
             }
