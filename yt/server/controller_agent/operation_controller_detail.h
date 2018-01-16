@@ -215,12 +215,10 @@ public:
 
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
 
-    virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const override;
+    virtual TOperationControllerInitializationResult GetInitializationResult() const override;
     virtual NYson::TYsonString GetAttributes() const override;
 
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) override;
-
-    virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override;
 
@@ -1058,7 +1056,7 @@ private:
     TSpinLock AlertsLock_;
     TOperationAlertMap Alerts_;
 
-    TOperationControllerInitializationAttributes InitializationAttributes_;
+    TOperationControllerInitializationResult InitializationResult_;
     NYson::TYsonString Attributes_;
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
@@ -1084,6 +1082,8 @@ private:
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
     void InitializeStandardEdgeDescriptors();
+
+    std::vector<NApi::ITransactionPtr> GetTransactions();
 
     TNullable<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;

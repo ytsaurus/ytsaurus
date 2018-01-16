@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -26,6 +28,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
     DEFINE_BYVAL_RO_PROPERTY(std::vector<TString>, Owners);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
+
+    DEFINE_BYVAL_RW_PROPERTY(std::vector<NApi::ITransactionPtr>, Transactions);
 
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
     DEFINE_BYVAL_RW_PROPERTY(TOperationControllerHostPtr, Host);

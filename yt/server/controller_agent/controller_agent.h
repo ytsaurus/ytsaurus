@@ -99,6 +99,8 @@ public:
     void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation);
     void UnregisterOperation(const TOperationId& operationId);
     TOperationPtr FindOperation(const TOperationId& operationId);
+    TOperationPtr GetOperation(const TOperationId& operationId);
+    TOperationPtr GetOperationOrThrow(const TOperationId& operationId);
     const TOperationIdToOperationMap& GetOperations();
 
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
