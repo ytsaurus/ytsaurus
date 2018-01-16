@@ -1091,30 +1091,58 @@ public:
         return nodeId % NodeShards_.size();
     }
 
-    virtual TFuture<void> RegisterOrUpdateNode(TNodeId nodeId, const yhash_set<TString>& tags) override
+    virtual TFuture<void> RegisterOrUpdateNode(
+        TNodeId nodeId,
+        const TString& nodeAddress,
+        const yhash_set<TString>& tags) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoRegisterOrUpdateNodeTags, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run(nodeId, tags);
+            .Run(nodeId, nodeAddress, tags);
     }
 
-    void DoRegisterOrUpdateNodeTags(TNodeId nodeId, const yhash_set<TString>& tags)
+    void DoRegisterOrUpdateNodeTags(
+        TNodeId nodeId,
+        const TString& nodeAddress,
+        const yhash_set<TString>& tags)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Strategy_->ValidateNodeTags(tags);
-        NodeIdToTags_[nodeId] = tags;
+
+        auto it = NodeIdToTags_.find(nodeId);
+        if (it == NodeIdToTags_.end()) {
+            YCHECK(NodeIdToTags_.emplace(nodeId, tags).second);
+            LOG_INFO("Node is registered at scheduler (Address: %v, Tags: %v)",
+                nodeAddress,
+                tags);
+        } else {
+            it->second = tags;
+            LOG_INFO("Node tags were updated at scheduler (Address: %v, NewTags: %v)",
+                nodeAddress,
+                tags);
+        }
     }
 
-    virtual void UnregisterNode(TNodeId nodeId) override
+    virtual void UnregisterNode(TNodeId nodeId, const TString& nodeAddress) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        BIND([this, this_ = MakeStrong(this), nodeId] { YCHECK(NodeIdToTags_.erase(nodeId) == 1); })
-            .AsyncVia(GetControlInvoker())
-            .Run();
+        BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
+            // NOTE: If node is unregistered from node shard before it becomes online
+            // then its id can be missing in the map.
+            auto it = NodeIdToTags_.find(nodeId);
+            if (it == NodeIdToTags_.end()) {
+                LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
+            } else {
+                NodeIdToTags_.erase(it);
+                LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
+            }
+        })
+        .AsyncVia(GetControlInvoker())
+        .Run();
     }
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const override
