@@ -271,7 +271,7 @@ template <typename TDerived>
 struct TMapOperationSpecBase
     : public TUserOperationSpecBase<TMapOperationSpec>
 {
-    using TSelf = TMapOperationSpec;
+    using TSelf = TDerived;
 
     FLUENT_FIELD(TUserJobSpec, MapperSpec);
     FLUENT_FIELD_OPTION(bool, Ordered);
