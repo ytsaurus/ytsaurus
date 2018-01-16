@@ -150,9 +150,11 @@ private:
             if (name == "/") {
                 continue;
             }
-            if (!name.StartsWith(BaseName_ + Prefix_)) {
+            // ToDo(psushin) : fix this mess.
+            if (!name.StartsWith(BaseName_ + Prefix_) && !name.StartsWith(Prefix_)) {
                 continue;
             }
+
             if (PortoManagerConfig_.CleanMode == ECleanMode::Dead) {
                 auto state = GetState(name);
                 if (state != "dead") {
