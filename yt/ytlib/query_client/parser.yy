@@ -538,11 +538,11 @@ unary-op
 qualified-identifier
     : Identifier[name]
         {
-            $$ = New<TReferenceExpression>(@$, $name);
+            $$ = New<TReferenceExpression>(@$, TString($name));
         }
     | Identifier[table] Dot Identifier[name]
         {
-            $$ = New<TReferenceExpression>(@$, $name, $table);
+            $$ = New<TReferenceExpression>(@$, TString($name), TString($table));
         }
 ;
 
