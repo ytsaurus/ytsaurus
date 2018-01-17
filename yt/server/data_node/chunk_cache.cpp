@@ -819,12 +819,13 @@ private:
                     false, /* enableContextSaving */
                     New<TControlAttributesConfig>(),
                     0);
+                TPipeReaderToWriterOptions options;
+                options.BufferRowCount = TableArtifactBufferRowCount;
+                options.Throttler = location->GetInThrottler();
                 PipeReaderToWriter(
                     reader,
                     writer,
-                    TableArtifactBufferRowCount,
-                    false,
-                    location->GetInThrottler());
+                    std::move(options));
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);

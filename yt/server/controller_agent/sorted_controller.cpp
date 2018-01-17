@@ -516,6 +516,22 @@ protected:
         return chunkPoolOptions;
     }
 
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return
+            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+            TOperationControllerBase::IsJobInterruptible();
+    }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+            ? Options_->JobSplitter
+            : nullptr;
+    }
+
 private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
@@ -701,11 +717,6 @@ public:
         return 0;
     }
 
-    virtual bool IsJobInterruptible() const override
-    {
-        return false;
-    }
-
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
@@ -863,22 +874,6 @@ public:
             .Item("reducer").BeginMap()
                 .Item("command").Value(TrimCommandForBriefSpec(Spec_->Reducer->Command))
             .EndMap();
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return
-            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
-            TOperationControllerBase::IsJobInterruptible();
-    }
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
-            ? Options_->JobSplitter
-            : nullptr;
     }
 
     virtual bool IsInputDataSizeHistogramSupported() const override
