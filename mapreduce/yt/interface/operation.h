@@ -269,7 +269,7 @@ private:
 
 template <typename TDerived>
 struct TMapOperationSpecBase
-    : public TUserOperationSpecBase<TMapOperationSpec>
+    : public TUserOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
@@ -297,7 +297,7 @@ struct TRawMapOperationSpec
 
 template <typename TDerived>
 struct TReduceOperationSpecBase
-    : public TUserOperationSpecBase<TReduceOperationSpec>
+    : public TUserOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
