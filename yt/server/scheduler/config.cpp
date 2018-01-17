@@ -222,6 +222,9 @@ TOperationOptions::TOperationOptions()
         .Default(20 * 100000)
         .GreaterThanOrEqual(100000);
 
+    RegisterParameter("job_splitter", JobSplitter)
+        .DefaultNew();
+
     RegisterPostprocessor([&] () {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
@@ -250,8 +253,6 @@ TMapOperationOptions::TMapOperationOptions()
 {
     RegisterParameter("job_size_adjuster", JobSizeAdjuster)
         .DefaultNew();
-    RegisterParameter("job_splitter", JobSplitter)
-        .DefaultNew();
 
     RegisterPreprocessor([&] () {
         DataWeightPerJob = 128_MB;
@@ -262,9 +263,6 @@ TMapOperationOptions::TMapOperationOptions()
 
 TReduceOperationOptions::TReduceOperationOptions()
 {
-    RegisterParameter("job_splitter", JobSplitter)
-        .DefaultNew();
-
     RegisterPreprocessor([&] () {
         DataWeightPerJob = 128_MB;
     });

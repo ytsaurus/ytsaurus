@@ -15,6 +15,34 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+            "sorted_merge_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 3000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "median_excess_duration": 3000,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                },
+            },
+            "ordered_merge_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 3000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "median_excess_duration": 3000,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                },
+            },
+        }
+    }
+
     def _prepare_tables(self):
         t1 = "//tmp/t1"
         create("table", t1)
@@ -1006,6 +1034,82 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
+    @pytest.mark.parametrize("mode", ["sorted", "ordered"])
+    def test_merge_interrupt(self, mode):
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending"}
+            ]
+        })
+        create("table", "//tmp/t_out")
+        for i in range(15):
+            write_table("<append=%true>//tmp/t_in", {"a": i})
+        op = merge(
+            dont_track=True,
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                "mode": mode,
+                "job_io": {
+                    "testing_options": {"pipe_delay": 250},
+                    "buffer_row_count": 1,
+                }
+            })
+        while True:
+            jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+            if len(jobs) == 0:
+                sleep(0.1)
+            else:
+                break
+        # Make reader read at least several blocks.
+        sleep(0.5)
+        assert len(jobs) == 1
+        interrupt_job(jobs[0])
+        op.track()
+        rows = read_table("//tmp/t_out")
+        assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 2
+        assert rows == [{"a" : i} for i in range(15)]
+
+    @pytest.mark.parametrize("mode", ["sorted", "ordered"])
+    def test_merge_job_splitter(self, mode):
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "string"}
+            ]
+        })
+        create("table", "//tmp/t_out")
+        expected = []
+        for i in range(20):
+            row = {"a": i, "b": "x" * 10**4}
+            write_table("<append=%true>//tmp/t_in", row)
+            expected.append(row)
+
+        op = merge(
+            dont_track=True,
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                "mode": mode,
+                "job_io": {
+                    "testing_options": {"pipe_delay": 500},
+                    "buffer_row_count": 1,
+                }
+            })
+
+        sleep(1.0)
+        assert "job_splitter" in get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id), verbose=False)
+
+        op.track()
+
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        interrupted = completed["interrupted"]
+        assert completed["total"] >= 2
+        assert interrupted["job_split"] >= 1
+        rows = read_table("//tmp/t_out", verbose=False)
+        assert rows == expected
 
 ##################################################################
 
@@ -1177,4 +1281,3 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "1": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}},
                 "2": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}
             })
-

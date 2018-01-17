@@ -103,14 +103,11 @@ public:
             case NScheduler::EJobType::JoinReduce:
             case NScheduler::EJobType::ReduceCombiner:
             case NScheduler::EJobType::PartitionReduce:
+            case NScheduler::EJobType::SortedMerge:
+            case NScheduler::EJobType::OrderedMerge:
                 return true;
-
-            case NScheduler::EJobType::PartitionMap:
-            case NScheduler::EJobType::Vanilla:
-                return false;
-
             default:
-                Y_UNREACHABLE();
+                return false;
         }
     }
 

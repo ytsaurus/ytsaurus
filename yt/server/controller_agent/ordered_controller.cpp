@@ -581,9 +581,20 @@ private:
         return Spec_;
     }
 
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+            ? Options_->JobSplitter
+            : nullptr;
+    }
+
     virtual bool IsJobInterruptible() const override
     {
-        return false;
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return !IsExplicitJobCount_ &&
+            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+            TOperationControllerBase::IsJobInterruptible();
     }
 };
 
@@ -732,21 +743,6 @@ private:
         if (Spec_->InputQuery) {
             ParseInputQuery(*Spec_->InputQuery, Spec_->InputSchema);
         }
-    }
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
-            ? Options_->JobSplitter
-            : nullptr;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return !IsExplicitJobCount_ &&
-               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-               TOperationControllerBase::IsJobInterruptible();
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
@@ -966,11 +962,6 @@ private:
     {
         return Spec_;
     }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        return false;
-    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
@@ -998,7 +989,7 @@ public:
         , Options_(Config->RemoteCopyOperationOptions)
     { }
 
-    void Persist(const TPersistenceContext& context)
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TOrderedControllerBase::Persist(context);
         using NYT::Persist;

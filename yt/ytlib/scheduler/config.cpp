@@ -19,12 +19,15 @@ TJobIOConfig::TJobIOConfig()
         .DefaultNew();
 
     RegisterParameter("buffer_row_count", BufferRowCount)
-        .Default((i64) 10000)
+        .Default(10 * 1000)
         .GreaterThan(0);
 
     RegisterParameter("pipe_io_pool_size", PipeIOPoolSize)
         .Default(1)
         .GreaterThan(0);
+
+    RegisterParameter("testing_options", Testing)
+        .DefaultNew();
 
     RegisterPreprocessor([&] () {
         ErrorFileWriter->UploadReplicationFactor = 1;
@@ -194,6 +197,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("fail_on_job_restart", FailOnJobRestart)
         .Default(false);
 
+    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -344,9 +350,6 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         .Default();
     RegisterParameter("core_table_writer_config", CoreTableWriterConfig)
         .DefaultNew();
-
-    RegisterParameter("enable_job_splitting", EnableJobSplitting)
-        .Default(true);
 
     RegisterPostprocessor([&] {
         if (StderrTablePath) {
