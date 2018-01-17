@@ -690,6 +690,8 @@ void TOperationControllerBase::SafeMaterialize()
             JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
         }
 
+        LOG_DEBUG("XXX JOB SPLITTER %v", jobSplitterConfig.Get() != nullptr);
+
         auto expectedState = EControllerState::Preparing;
         State.compare_exchange_strong(expectedState, EControllerState::Running);
 

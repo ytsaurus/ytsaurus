@@ -964,9 +964,8 @@ print row + table_index
         jobs = get("//sys/operations/" + op.id + "/jobs/@count")
         assert jobs == 10
 
-    # ToDo(psushin): uncomment and use parameter after YT-7064.
-    # @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_job_splitter(self):
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_job_splitter(self, ordered):
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
@@ -988,7 +987,7 @@ done
 """
 
         op = map(
-            ordered=False,
+            ordered=ordered,
             dont_track=True,
             label="split_job",
             in_=input_,

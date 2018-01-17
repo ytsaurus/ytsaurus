@@ -161,13 +161,14 @@ private:
 
         FormatWriters_.push_back(writer);
 
-        auto bufferRowCount = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
-
-        return BIND([=, this_ = MakeStrong(this)] () {
+        TPipeReaderToWriterOptions options;
+        options.BufferRowCount = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
+        options.PipeDelay = JobSpecHelper_->GetJobIOConfig()->Testing->PipeDelay;
+        return BIND([=, this_ = MakeStrong(this)] {
             PipeReaderToWriter(
                 Reader_,
                 writer,
-                bufferRowCount);
+                std::move(options));
             WaitFor(asyncOutput->Close())
                 .ThrowOnError();
         }).AsyncVia(SerializedInvoker_);
