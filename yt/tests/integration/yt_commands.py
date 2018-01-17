@@ -758,15 +758,6 @@ def create_tmpdir(prefix):
     return tmpdir
 
 
-def track_path(path, timeout):
-    poll_frequency = 0.1
-    total_wait_time = 0
-    while total_wait_time < timeout:
-        if exists(path, verbose=False):
-            break
-        time.sleep(poll_frequency)
-        total_wait_time += poll_frequency
-
 def start_op(op_type, **kwargs):
     op_name = None
     if op_type == "map":
