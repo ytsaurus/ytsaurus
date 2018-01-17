@@ -111,10 +111,12 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
             dataStatistics.compressed_data_size());
     });
 
+    TPipeReaderToWriterOptions options;
+    options.BufferRowCount = context->GetConfig()->ReadBufferRowCount;
     PipeReaderToWriter(
         reader,
         writer,
-        context->GetConfig()->ReadBufferRowCount);
+        std::move(options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

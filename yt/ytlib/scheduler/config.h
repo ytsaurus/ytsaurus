@@ -171,10 +171,26 @@ public:
 
     int PipeIOPoolSize;
 
+    class TTestingOptions
+        : public TYsonSerializable
+    {
+    public:
+        TDuration PipeDelay;
+
+        TTestingOptions()
+        {
+            RegisterParameter("pipe_delay", PipeDelay)
+                .Default(TDuration::Zero());
+        }
+    };
+
+    TIntrusivePtr<TTestingOptions> Testing;
+
     TJobIOConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
+DEFINE_REFCOUNTED_TYPE(TJobIOConfig::TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -318,6 +334,8 @@ public:
     //! If set to true, any aborted/failed job will result in operation fail.
     bool FailOnJobRestart;
 
+    bool EnableJobSplitting;
+
     TOperationSpecBase();
 
 private:
@@ -422,8 +440,6 @@ public:
 
     TNullable<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
-
-    bool EnableJobSplitting;
 
     TOperationWithUserJobSpec();
 };

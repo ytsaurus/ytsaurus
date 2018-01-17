@@ -74,11 +74,10 @@ void TTableOutput::DoFinish()
 void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
-    int bufferRowCount,
-    bool validateValues,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    TPipeReaderToWriterOptions options)
 {
     TPeriodicYielder yielder(TDuration::Seconds(1));
+    int bufferRowCount = options.BufferRowCount;
 
     std::vector<TUnversionedRow> rows;
     rows.reserve(bufferRowCount);
@@ -91,7 +90,7 @@ void PipeReaderToWriter(
             continue;
         }
 
-        if (validateValues) {
+        if (options.ValidateValues) {
             for (const auto row : rows) {
                 for (const auto& value : row) {
                     ValidateStaticValue(value);
@@ -99,12 +98,17 @@ void PipeReaderToWriter(
             }
         }
 
-        if (throttler) {
+        if (options.Throttler) {
             i64 dataWeight = 0;
             for (const auto row : rows) {
                 dataWeight += GetDataWeight(row);
             }
-            WaitFor(throttler->Throttle(dataWeight))
+            WaitFor(options.Throttler->Throttle(dataWeight))
+                .ThrowOnError();
+        }
+
+        if (!rows.empty()) {
+            WaitFor(TDelayedExecutor::MakeDelayed(options.PipeDelay))
                 .ThrowOnError();
         }
 

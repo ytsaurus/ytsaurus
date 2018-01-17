@@ -156,6 +156,8 @@ public:
     //! Maximum number of output tables times job count an operation can have.
     int MaxOutputTablesTimesJobsCount;
 
+    TJobSplitterConfigPtr JobSplitter;
+
     TOperationOptions();
 };
 
@@ -188,7 +190,6 @@ private:
 
 public:
     NControllerAgent::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
-    TJobSplitterConfigPtr JobSplitter;
 
     TMapOperationOptions();
 };
@@ -237,8 +238,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions, 0x91371bf5);
 
 public:
-    TJobSplitterConfigPtr JobSplitter;
-
     TReduceOperationOptions();
 };
 
