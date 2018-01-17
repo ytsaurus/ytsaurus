@@ -1,9 +1,11 @@
 #include "ref_counted_tracker.h"
 #include "demangle.h"
+#include "shutdown.h"
 
 #include <yt/core/ytree/fluent.h>
 
 #include <util/system/tls.h>
+#include <util/system/sanitizers.h>
 
 #include <algorithm>
 
@@ -26,22 +28,29 @@ public:
     void Initialize(TRefCountedTracker* owner)
     {
         Owner_ = owner;
+        Statistics_.reset(new TAnonymousStatistics());
     }
 
     TAnonymousStatistics* GetStatistics()
     {
-        return &Statistics_;
+        return Statistics_.get();
     }
 
     ~TStatisticsHolder()
     {
         Owner_->FlushPerThreadStatistics(this);
+        if (IsShutdownStarted()) {
+            // During shutdown, the order of static objects destruction is undefined
+            // so use-after-free is possible. That's why we allow the leak here.
+            // Despite the destruction of TStatisticsHolder object a pointer to
+            // statistics is beforehand saved in TRefCountedTracker.
+            NSan::MarkAsIntentionallyLeaked(Statistics_.release());
+        }
     }
 
 private:
     TRefCountedTracker* Owner_ = nullptr;
-    TAnonymousStatistics Statistics_;
-
+    std::unique_ptr<TAnonymousStatistics> Statistics_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
