@@ -700,6 +700,7 @@ IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
             New<TNodeDirectory>(),
             LocalDescriptor_,
             GetBlockCache(),
+            /* trafficMeter */ nullptr,
             GetUnlimitedThrottler());
     }
 

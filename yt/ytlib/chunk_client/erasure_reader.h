@@ -29,6 +29,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
     IBlockCachePtr blockCache = GetNullBlockCache(),
+    TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

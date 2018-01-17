@@ -31,7 +31,7 @@ class TStderrWriter
     : public IOutputStream
 {
 public:
-    TStderrWriter(
+    explicit TStderrWriter(
         size_t sizeLimit = std::numeric_limits<size_t>::max());
 
     NChunkClient::TChunkId GetChunkId() const;
@@ -39,7 +39,8 @@ public:
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NApi::INativeClientPtr client,
-        const NObjectClient::TTransactionId& transactionId);
+        const NObjectClient::TTransactionId& transactionId,
+        NChunkClient::TTrafficMeterPtr trafficMeter);
 
     size_t GetCurrentSize() const;
     TString GetCurrentData() const;

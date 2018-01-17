@@ -280,7 +280,8 @@ private:
                 inputChunkId,
                 inputReplicas,
                 erasureCodec,
-                Host_->GetBlockCache());
+                Host_->GetBlockCache(),
+                Host_->GetTrafficMeter());
 
             chunkMeta = GetChunkMeta(readers.front());
 
@@ -290,7 +291,8 @@ private:
                 outputSessionId,
                 erasureCodec,
                 New<TNodeDirectory>(),
-                Host_->GetClient());
+                Host_->GetClient(),
+                Host_->GetTrafficMeter());
 
             YCHECK(readers.size() == writers.size());
 
@@ -355,7 +357,8 @@ private:
                 Host_->LocalDescriptor(),
                 inputChunkId,
                 inputReplicas,
-                Host_->GetBlockCache());
+                Host_->GetBlockCache(),
+                Host_->GetTrafficMeter());
 
             chunkMeta = GetChunkMeta(reader);
 
@@ -365,7 +368,9 @@ private:
                 outputSessionId,
                 TChunkReplicaList(),
                 New<TNodeDirectory>(),
-                Host_->GetClient());
+                Host_->GetClient(),
+                GetNullBlockCache(),
+                Host_->GetTrafficMeter());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
 

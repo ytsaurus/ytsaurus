@@ -1,5 +1,6 @@
 #include "replication_writer.h"
 #include "private.h"
+#include "traffic_meter.h"
 #include "block_cache.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_replica.h"
@@ -181,7 +182,8 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         INativeClientPtr client,
         IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache)
+        IBlockCachePtr blockCache,
+        TTrafficMeterPtr trafficMeter)
         : Config_(config)
         , Options_(options)
         , SessionId_(sessionId)
@@ -197,6 +199,7 @@ public:
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)
         , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
         , AllocateWriteTargetsTimestamp_(TInstant::Zero())
+        , TrafficMeter_(trafficMeter)
     {
         ClosePromise_.TrySetFrom(StateError_.ToFuture());
     }
@@ -360,6 +363,8 @@ private:
     int AllocateWriteTargetsRetryIndex_ = 0;
 
     std::vector<TString> BannedNodes_;
+
+    TTrafficMeterPtr TrafficMeter_;
 
     void DoOpen()
     {
@@ -835,6 +840,31 @@ private:
             GetByteSize(blocks));
     }
 
+    // Update traffic info: we've uploaded some data.
+    void AccountTraffic(
+        i64 transferredByteCount,
+        const TNodeDescriptor& dstDescriptor)
+    {
+        if (TrafficMeter_) {
+            auto dataCenter = dstDescriptor.GetDataCenter();
+            TrafficMeter_->IncrementOutboundByteCount(dataCenter, transferredByteCount);
+        }
+    }
+
+    // Update traffic info: we initiated data transfer between two non-local
+    // nodes and it has just completed.
+    void AccountTraffic(
+        i64 transferredByteCount,
+        const TNodeDescriptor& srcDescriptor,
+        const TNodeDescriptor& dstDescriptor)
+    {
+        if (TrafficMeter_) {
+            auto srcDataCenter = srcDescriptor.GetDataCenter();
+            auto dstDataCenter = dstDescriptor.GetDataCenter();
+            TrafficMeter_->IncrementByteCount(srcDataCenter, dstDataCenter, transferredByteCount);
+        }
+    }
+
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
 
@@ -927,6 +957,8 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     if (rspOrError.IsOK()) {
         SentTo_[node->Index] = true;
 
+        writer->AccountTraffic(Size_, node->Descriptor);
+
         LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
@@ -968,12 +1000,15 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
 
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.IsOK()) {
+            SentTo_[dstNode->Index] = true;
+
+            writer->AccountTraffic(Size_, srcNode->Descriptor, dstNode->Descriptor);
+
             LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
                 FirstBlockIndex_,
                 GetEndBlockIndex(),
                 srcNode->Descriptor.GetDefaultAddress(),
                 dstNode->Descriptor.GetDefaultAddress());
-            SentTo_[dstNode->Index] = true;
         } else {
             auto failedNode = (rspOrError.GetCode() == EErrorCode::SendBlocksFailed) ? dstNode : srcNode;
             writer->OnNodeFailed(failedNode, rspOrError);
@@ -1056,6 +1091,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TNodeDirectoryPtr nodeDirectory,
     INativeClientPtr client,
     IBlockCachePtr blockCache,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     return New<TReplicationWriter>(
@@ -1066,7 +1102,8 @@ IChunkWriterPtr CreateReplicationWriter(
         nodeDirectory,
         client,
         throttler,
-        blockCache);
+        blockCache,
+        trafficMeter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,6 +8,7 @@
 
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -204,6 +205,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkReaderAllowingRepair)
 DECLARE_REFCOUNTED_STRUCT(IReaderBase)
 DECLARE_REFCOUNTED_STRUCT(IReaderFactory)
 
+DECLARE_REFCOUNTED_CLASS(TTrafficMeter)
+
 DECLARE_REFCOUNTED_STRUCT(IChunkWriterBase)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkWriter)
 
@@ -241,6 +244,8 @@ struct TDataSliceDescriptor;
 struct TInterruptDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
+
+using TDataCenterName = TNullable<TString>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

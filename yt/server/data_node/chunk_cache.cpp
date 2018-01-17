@@ -343,7 +343,8 @@ public:
 
     TFuture<IChunkPtr> PrepareArtifact(
         const TArtifactKey& key,
-        TNodeDirectoryPtr nodeDirectory)
+        TNodeDirectoryPtr nodeDirectory,
+        TTrafficMeterPtr trafficMeter)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -391,7 +392,8 @@ public:
                 chunkId,
                 nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
                 sessionId,
-                Passed(std::move(cookie))));
+                Passed(std::move(cookie)),
+                trafficMeter));
 
         } else {
             LOG_INFO("Artifact is already cached");
@@ -580,7 +582,8 @@ private:
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TReadSessionId& sessionId,
-        TInsertCookie cookie)
+        TInsertCookie cookie,
+        TTrafficMeterPtr trafficMeter)
     {
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
@@ -603,6 +606,7 @@ private:
                 chunkId,
                 seedReplicas,
                 Bootstrap_->GetBlockCache(),
+                trafficMeter,
                 Bootstrap_->GetArtifactCacheInThrottler());
 
             auto fileName = location->GetChunkPath(chunkId);
@@ -689,7 +693,8 @@ private:
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TReadSessionId& sessionId,
-        TInsertCookie cookie)
+        TInsertCookie cookie,
+        TTrafficMeterPtr trafficMeter)
     {
         std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
 
@@ -705,6 +710,7 @@ private:
             nodeDirectory,
             sessionId,
             chunkSpecs,
+            trafficMeter,
             Bootstrap_->GetArtifactCacheInThrottler());
 
         try {
@@ -744,7 +750,8 @@ private:
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TReadSessionId& sessionId,
-        TInsertCookie cookie)
+        TInsertCookie cookie,
+        TTrafficMeterPtr trafficMeter)
     {
         static const TString CachedSourcePath = "<cached_data_source>";
 
@@ -803,7 +810,8 @@ private:
             sessionId,
             TColumnFilter(),
             TKeyColumns(),
-            Null,
+            /* partitionTag */ Null,
+            trafficMeter,
             Bootstrap_->GetArtifactCacheInThrottler());
 
         try {
@@ -1003,11 +1011,12 @@ int TChunkCache::GetChunkCount()
 
 TFuture<IChunkPtr> TChunkCache::PrepareArtifact(
     const TArtifactKey& key,
-    TNodeDirectoryPtr nodeDirectory)
+    TNodeDirectoryPtr nodeDirectory,
+    TTrafficMeterPtr trafficMeter)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl_->PrepareArtifact(key, nodeDirectory);
+    return Impl_->PrepareArtifact(key, nodeDirectory, trafficMeter);
 }
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkCache, std::vector<TCacheLocationPtr>, Locations, *Impl_);

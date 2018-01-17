@@ -41,9 +41,20 @@ struct IUserJobIOFactory
 };
 DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
 
+struct TUserJobIOFactoryBase
+    : public IUserJobIOFactory
+{
+    TUserJobIOFactoryBase(NChunkClient::TTrafficMeterPtr trafficMeter);
+
+protected:
+    NChunkClient::TTrafficMeterPtr TrafficMeter_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
-IUserJobIOFactoryPtr CreateUserJobIOFactory(const IJobSpecHelperPtr& jobSpecHelper);
+IUserJobIOFactoryPtr CreateUserJobIOFactory(
+    const IJobSpecHelperPtr& jobSpecHelper,
+    NChunkClient::TTrafficMeterPtr trafficMeter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

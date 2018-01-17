@@ -28,7 +28,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     i64 estimatedRowCount,
     bool isApproximate,
-    int partitionTag);
+    int partitionTag,
+    NChunkClient::TTrafficMeterPtr trafficMeter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

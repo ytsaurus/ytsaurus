@@ -24,6 +24,7 @@ IChunkWriterPtr CreateReplicationWriter(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::INativeClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),
+    TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

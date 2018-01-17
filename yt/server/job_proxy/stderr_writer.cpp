@@ -147,14 +147,16 @@ void TStderrWriter::Upload(
     NApi::TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
     NApi::INativeClientPtr client,
-    const NObjectClient::TTransactionId& transactionId)
+    const NObjectClient::TTransactionId& transactionId,
+    NChunkClient::TTrafficMeterPtr trafficMeter)
 {
     try {
         TFileChunkOutput fileChunkOutput(
             config,
             options,
             client,
-            transactionId);
+            transactionId,
+            trafficMeter);
         SaveCurrentDataTo(&fileChunkOutput);
         fileChunkOutput.Finish();
         ChunkId_ = fileChunkOutput.GetChunkId();

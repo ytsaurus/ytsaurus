@@ -3424,8 +3424,9 @@ private:
             MakeStrong(this),
             GetConnection()->GetInvoker(),
             TNodeDescriptor(),
-            BIND([] { }),
-            Null);
+            BIND([] { }) /* onNetworkRelease */,
+            Null /* udfDirectory */,
+            nullptr /* trafficMeter */);
 
         auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
         jobInputReader->Open();

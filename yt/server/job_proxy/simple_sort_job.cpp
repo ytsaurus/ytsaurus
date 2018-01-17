@@ -65,7 +65,11 @@ public:
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
-            TReadSessionId());
+            TReadSessionId(),
+            TColumnFilter(),
+            TKeyColumns(),
+            /* partitionTag */ Null,
+            Host_->GetTrafficMeter());
 
         Reader_ = CreateSchemalessSortingReader(reader, nameTable, keyColumns);
 
@@ -90,7 +94,8 @@ public:
             CellTagFromId(chunkListId),
             transactionId,
             chunkListId,
-            TChunkTimestamps{timestamp, timestamp});
+            TChunkTimestamps{timestamp, timestamp},
+            Host_->GetTrafficMeter());
     }
 
 private:

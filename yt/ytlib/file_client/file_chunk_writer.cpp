@@ -235,6 +235,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -258,6 +259,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         transactionId, 
         parentChunkListId, 
         createChunkWriter,
+        trafficMeter,
         throttler,
         blockCache);
 }

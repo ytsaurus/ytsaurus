@@ -74,7 +74,9 @@ public:
                 nameTable,
                 TReadSessionId(),
                 columnFilter,
-                TKeyColumns());
+                TKeyColumns(),
+                /* partitionTag */ Null,
+                Host_->GetTrafficMeter());
             return Reader_;
         };
 
@@ -100,7 +102,8 @@ public:
                 CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
-                CreatePartitioner());
+                CreatePartitioner(),
+                Host_->GetTrafficMeter());
             return Writer_;
         };
     }

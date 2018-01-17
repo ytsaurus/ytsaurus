@@ -20,6 +20,7 @@
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/traffic_meter.h>
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
@@ -59,6 +60,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NJobAgent;
 using namespace NJobProberClient;
+using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -91,10 +93,14 @@ public:
         , Invoker_(Bootstrap_->GetControlInvoker())
         , StartTime_(TInstant::Now())
         , ResourceUsage_(resourceUsage)
+        , TrafficMeter_(New<TTrafficMeter>(Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
+
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         JobSpec_.Swap(&jobSpec);
+
+        TrafficMeter_->Start();
 
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         AbortJobIfAccountLimitExceeded_ = schedulerJobSpecExt.abort_job_if_account_limit_exceeded();
@@ -571,6 +577,8 @@ private:
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
 
+    TTrafficMeterPtr TrafficMeter_;
+
     // Helpers.
 
     template <class... U>
@@ -882,6 +890,11 @@ private:
             }
         }
 
+        // Copy info from traffic meter to statistics.
+        auto deserializedStatistics = ConvertTo<NJobTrackerClient::TStatistics>(Statistics_);
+        FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, deserializedStatistics, TrafficMeter_);
+        Statistics_ = ConvertToYsonString(deserializedStatistics);
+
         LOG_INFO("Job finalized (Error: %v, JobState: %v)",
             error,
             GetState());
@@ -1055,7 +1068,7 @@ private:
                 artifact.SandboxKind);
 
             const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-            auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, nodeDirectory)
+            auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, nodeDirectory, TrafficMeter_)
                 .Apply(BIND([fileName = artifact.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                         "Failed to prepare user file %Qv",

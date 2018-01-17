@@ -1,6 +1,7 @@
 #include "statistics.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/traffic_meter.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -20,6 +21,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NPhoenix;
+using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,6 +508,47 @@ TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics)
         result += pair.second;
     }
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString ExecAgentTrafficStatisticsPrefix = "exec_agent";
+const TString JobProxyTrafficStatisticsPrefix = "job_proxy";
+
+void FillTrafficStatistics(
+    const TString& namePrefix,
+    NJobTrackerClient::TStatistics& statistics,
+    const NChunkClient::TTrafficMeterPtr& trafficMeter)
+{
+    statistics.AddSample(
+        Format("/%v/traffic/duration_ms", namePrefix),
+        trafficMeter->GetDuration().MilliSeconds());
+
+    // Empty data center names aren't allowed, so reducing a null data
+    // center to an empty string is safe. And convenient :-)
+
+    for (const auto& pair : trafficMeter->GetInboundByteCountBySource()) {
+        auto dataCenter = pair.first ? pair.first : TString();
+        auto byteCount = pair.second;
+        statistics.AddSample(
+            Format("/%v/traffic/inbound/from_%v", namePrefix, dataCenter),
+            byteCount);
+    }
+    for (const auto& pair : trafficMeter->GetOutboundByteCountByDestination()) {
+        auto dataCenter = pair.first ? pair.first : TString();
+        auto byteCount = pair.second;
+        statistics.AddSample(
+            Format("/%v/traffic/outbound/to_%v", namePrefix, dataCenter),
+            byteCount);
+    }
+    for (const auto& pair : trafficMeter->GetByteCountByDirection()) {
+        auto srcDataCenter = pair.first.first ? pair.first.first : TString();
+        auto dstDataCenter = pair.first.second ? pair.first.second : TString();
+        auto byteCount = pair.second;
+        statistics.AddSample(
+            Format("/%v/traffic/%v_to_%v", namePrefix, srcDataCenter, dstDataCenter),
+            byteCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

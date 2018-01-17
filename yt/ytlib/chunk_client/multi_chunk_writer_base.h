@@ -31,6 +31,7 @@ public:
         NObjectClient::TCellTag cellTag,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
+        TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
 
@@ -98,6 +99,7 @@ private:
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunksFullMeta_;
 
+    TTrafficMeterPtr TrafficMeter_;
 
     void InitSession();
     void FinishSession();
@@ -124,6 +126,7 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
+        TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : TNontemplateMultiChunkWriterBase(
@@ -133,6 +136,7 @@ public:
             cellTag,
             transactionId,
             parentChunkListId,
+            trafficMeter,
             throttler,
             blockCache)
         , CreateChunkWriter_(createChunkWriter)

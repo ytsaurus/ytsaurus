@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
@@ -93,6 +94,18 @@ void CreateBuildingYsonConsumer(std::unique_ptr<NYson::IBuildingYsonConsumer<TSt
 NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics);
 NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics);
 yhash<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
+
+extern const TString ExecAgentTrafficStatisticsPrefix;
+extern const TString JobProxyTrafficStatisticsPrefix;
+
+using TDataCenterName = TNullable<TString>;
+
+using TInterDCDirection = std::pair<NChunkClient::TDataCenterName, NChunkClient::TDataCenterName>;
+
+void FillTrafficStatistics(
+    const TString& namePrefix,
+    NJobTrackerClient::TStatistics& statistics,
+    const NChunkClient::TTrafficMeterPtr& trafficMeter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

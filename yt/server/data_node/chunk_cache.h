@@ -65,7 +65,8 @@ public:
      */
     TFuture<IChunkPtr> PrepareArtifact(
         const TArtifactKey& key,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr);
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr,
+        NChunkClient::TTrafficMeterPtr trafficMeter = nullptr);
 
     //! Cache locations.
     DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);

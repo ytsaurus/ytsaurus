@@ -349,6 +349,7 @@ IChunkReaderPtr CreateRemoteReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -397,6 +398,7 @@ IChunkReaderPtr CreateRemoteReader(
                 partId,
                 partReplicas,
                 blockCache,
+                trafficMeter,
                 throttler);
             readers.push_back(reader);
         }
@@ -414,6 +416,7 @@ IChunkReaderPtr CreateRemoteReader(
             chunkId,
             replicas,
             blockCache,
+            trafficMeter,
             throttler);
     }
 }

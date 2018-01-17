@@ -41,6 +41,7 @@ using NChunkClient::MaxMediumCount;
 using NChunkClient::MediumIndexBound;
 using NChunkClient::DefaultStoreMediumIndex;
 using NChunkClient::MaxMediumPriority;
+using NChunkClient::TDataCenterName;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;

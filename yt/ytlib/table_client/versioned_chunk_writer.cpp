@@ -710,6 +710,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         transactionId,
         parentChunkListId,
         createChunkWriter,
+        /* trafficMeter */ nullptr,
         throttler,
         blockCache);
 }

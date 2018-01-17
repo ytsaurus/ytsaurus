@@ -1805,6 +1805,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     std::vector<IReaderFactoryPtr> factories;
@@ -1825,6 +1826,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         nodeDirectory,
                         localDescriptor,
                         blockCache,
+                        trafficMeter,
                         throttler);
 
                     TReadRange range = {
@@ -1873,6 +1875,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         nameTable,
                         sessionId,
                         columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
+                        trafficMeter,
                         throttler);
                 };
 
@@ -1910,6 +1913,7 @@ public:
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
         TNullable<int> partitionTag,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
@@ -1964,6 +1968,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
     : TBase(
         config,
@@ -1982,6 +1987,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             columnFilter,
             keyColumns,
             partitionTag,
+            trafficMeter,
             throttler))
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
@@ -2111,6 +2117,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     auto reader = New<TSchemalessMultiChunkReader<TSequentialMultiReaderBase>>(
@@ -2127,6 +2134,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         columnFilter,
         keyColumns,
         partitionTag,
+        trafficMeter,
         throttler);
 
     reader->Open();
@@ -2149,6 +2157,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     auto reader = New<TSchemalessMultiChunkReader<TParallelMultiReaderBase>>(
@@ -2165,6 +2174,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         columnFilter,
         keyColumns,
         partitionTag,
+        trafficMeter,
         throttler);
 
     reader->Open();
@@ -2189,6 +2199,7 @@ public:
         TNameTablePtr nameTable,
         const TReadSessionId& sessionId,
         TColumnFilter columnFilter,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler);
 
     virtual TFuture<void> GetReadyEvent() override
@@ -2483,6 +2494,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     TNameTablePtr nameTable,
     const TReadSessionId& sessionId,
     TColumnFilter columnFilter,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     auto Logger = TableClientLogger;
@@ -2573,6 +2585,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         versionedReadSchema,
         performanceCounters,
         timestamp,
+        trafficMeter,
         throttler,
         Logger
     ] (int index) -> IVersionedReaderPtr {
@@ -2612,6 +2625,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             nodeDirectory,
             localDescriptor,
             blockCache,
+            trafficMeter,
             throttler);
 
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
@@ -2689,6 +2703,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TNameTablePtr nameTable,
     const TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
+    NChunkClient::TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     return TSchemalessMergingMultiChunkReader::Create(
@@ -2703,6 +2718,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         nameTable,
         sessionId,
         columnFilter,
+        trafficMeter,
         throttler);
 }
 

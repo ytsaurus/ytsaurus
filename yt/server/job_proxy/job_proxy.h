@@ -60,6 +60,8 @@ public:
     virtual TString GetPreparationPath() const override;
     virtual TString GetSlotPath() const override;
 
+    virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
+
 private:
     const TJobProxyConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;
@@ -112,6 +114,8 @@ private:
     IJobPtr Job_;
 
     IJobSpecHelperPtr JobSpecHelper_;
+
+    NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
     void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
 

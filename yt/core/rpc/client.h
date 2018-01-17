@@ -264,6 +264,9 @@ public:
 public:
     TSharedRefArray GetResponseMessage() const;
 
+    //! Returns total size: response message size plus attachments.
+    size_t GetTotalSize() const;
+
 protected:
     explicit TClientResponse(TClientContextPtr clientContext);
 

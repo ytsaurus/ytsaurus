@@ -21,6 +21,7 @@ using namespace NYson;
 using NConcurrency::WaitFor;
 using NCypressClient::TTransactionId;
 using NChunkClient::TChunkListId;
+using NChunkClient::TTrafficMeterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +52,8 @@ TBlobTableWriter::TBlobTableWriter(
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
     const TTransactionId& transactionId,
-    const TChunkListId& chunkListId)
+    const TChunkListId& chunkListId,
+    TTrafficMeterPtr trafficMeter)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
 {
     LOG_INFO("Creating blob writer (TransactionId: %v, ChunkListId %v)",
@@ -88,7 +90,9 @@ TBlobTableWriter::TBlobTableWriter(
         client,
         NObjectClient::CellTagFromId(chunkListId),
         transactionId,
-        chunkListId);
+        chunkListId,
+        TChunkTimestamps(),
+        trafficMeter);
 
     WaitFor(MultiChunkWriter_->Open())
         .ThrowOnError();

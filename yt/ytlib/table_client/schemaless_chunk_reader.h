@@ -97,6 +97,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns &keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
+    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,6 +116,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns &keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
+    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,6 +133,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TNameTablePtr nameTable,
     const NChunkClient::TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
+    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

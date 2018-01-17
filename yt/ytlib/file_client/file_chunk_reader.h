@@ -52,6 +52,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NChunkClient::TReadSessionId& sessionId,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

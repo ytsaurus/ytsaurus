@@ -56,7 +56,8 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         INativeClientPtr client,
         IBlockCachePtr blockCache,
-        IThroughputThrottlerPtr throttler)
+        IThroughputThrottlerPtr throttler,
+        TTrafficMeterPtr trafficMeter)
         : Config_(CloneYsonSerializable(config))
         , Options_(options)
         , CellTag_(cellTag)
@@ -68,6 +69,7 @@ public:
         , Throttler_(throttler)
         , Logger(NLogging::TLogger(ChunkClientLogger)
             .AddTag("TransactionId: %v", TransactionId_))
+        , TrafficMeter_(trafficMeter)
     {
         Config_->UploadReplicationFactor = std::min(
             Config_->UploadReplicationFactor,
@@ -182,6 +184,8 @@ private:
 
     NLogging::TLogger Logger;
 
+    TTrafficMeterPtr TrafficMeter_;
+
     void OpenSession()
     {
         auto finally = Finally([&] () {
@@ -217,6 +221,7 @@ private:
                 NodeDirectory_,
                 Client_,
                 BlockCache_,
+                TrafficMeter_,
                 Throttler_);
         }
 
@@ -232,6 +237,7 @@ private:
             erasureCodec,
             NodeDirectory_,
             Client_,
+            TrafficMeter_,
             Throttler_,
             BlockCache_);
         return CreateErasureWriter(
@@ -313,6 +319,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     INativeClientPtr client,
     IBlockCachePtr blockCache,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     return New<TConfirmingWriter>(
@@ -324,7 +331,8 @@ IChunkWriterPtr CreateConfirmingWriter(
         nodeDirectory,
         client,
         blockCache,
-        throttler);
+        throttler,
+        trafficMeter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

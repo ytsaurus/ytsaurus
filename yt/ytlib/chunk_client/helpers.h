@@ -116,6 +116,7 @@ IChunkReaderPtr CreateRemoteReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
+    TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr throttler);
 
 ////////////////////////////////////////////////////////////////////////////////

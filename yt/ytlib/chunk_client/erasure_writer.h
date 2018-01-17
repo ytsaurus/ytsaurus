@@ -33,6 +33,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     NErasure::ICodec* codec,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::INativeClientPtr client,
+    TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     IBlockCachePtr blockCache = GetNullBlockCache());
 

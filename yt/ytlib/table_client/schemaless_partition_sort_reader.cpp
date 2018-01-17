@@ -62,7 +62,8 @@ public:
         std::vector<TDataSliceDescriptor> dataSliceDescriptors,
         int estimatedRowCount,
         bool isApproximate,
-        int partitionTag)
+        int partitionTag,
+        TTrafficMeterPtr trafficMeter)
         : KeyColumns_(keyColumns)
         , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
         , OnNetworkReleased_(onNetworkReleased)
@@ -93,7 +94,8 @@ public:
             std::move(dataSliceDescriptors),
             nameTable,
             KeyColumns_,
-            partitionTag);
+            partitionTag,
+            trafficMeter);
 
         SortQueue_ = New<TActionQueue>("Sort");
         ReadyEvent_ = BIND(
@@ -555,7 +557,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     i64 estimatedRowCount,
     bool isApproximate,
-    int partitionTag)
+    int partitionTag,
+    TTrafficMeterPtr trafficMeter)
 {
     return New<TSchemalessPartitionSortReader>(
         config,
@@ -569,7 +572,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         dataSliceDescriptors,
         estimatedRowCount,
         isApproximate,
-        partitionTag);
+        partitionTag,
+        trafficMeter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

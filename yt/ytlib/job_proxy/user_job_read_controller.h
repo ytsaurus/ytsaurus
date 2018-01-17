@@ -64,7 +64,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
         IInvokerPtr invoker,
         NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
-        TNullable<TString> udfDirectory);
+        TNullable<TString> udfDirectory,
+        NChunkClient::TTrafficMeterPtr trafficMeter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

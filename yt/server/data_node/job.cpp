@@ -472,6 +472,7 @@ private:
             nodeDirectory,
             Bootstrap_->GetMasterClient(),
             GetNullBlockCache(),
+            /* trafficMeter */ nullptr,
             Bootstrap_->GetReplicationOutThrottler());
 
         WaitFor(writer->Open())
@@ -625,6 +626,7 @@ private:
                 partChunkId,
                 partReplicas,
                 Bootstrap_->GetBlockCache(),
+                /* trafficMeter */ nullptr,
                 Bootstrap_->GetRepairInThrottler());
             readers.push_back(reader);
         }
@@ -645,6 +647,7 @@ private:
                 nodeDirectory,
                 Bootstrap_->GetMasterClient(),
                 GetNullBlockCache(),
+                /* trafficMeter */ nullptr,
                 Bootstrap_->GetRepairOutThrottler());
             writers.push_back(writer);
         }
@@ -755,6 +758,7 @@ private:
                 chunkId,
                 sourceReplicas,
                 Bootstrap_->GetBlockCache(),
+                /* trafficMeter */ nullptr,
                 Bootstrap_->GetReplicationInThrottler());
 
             while (currentRowCount < sealRowCount) {
