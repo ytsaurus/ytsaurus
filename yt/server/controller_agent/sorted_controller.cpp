@@ -722,6 +722,11 @@ public:
         return 0;
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
+
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
