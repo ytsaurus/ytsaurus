@@ -857,6 +857,11 @@ private:
     {
         return Spec;
     }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
