@@ -1951,7 +1951,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
             spec={"data_weight_per_job": 1, "testing": testing_options})
 
         snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
-        track_path(snapshot_path, 10)
+        wait(lambda: exists(snapshot_path))
 
         # This is done to avoid read failures due to snapshot file rewriting.
         snapshot_backup_path = snapshot_path + ".backup"
@@ -1988,7 +1988,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         for op in ops:
             snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
-            track_path(snapshot_path, 10)
+            wait(lambda: exists(snapshot_path))
 
             snapshot_backup_path = snapshot_path + ".backup"
             copy(snapshot_path, snapshot_backup_path)
