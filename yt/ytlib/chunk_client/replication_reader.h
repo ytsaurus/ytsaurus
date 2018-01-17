@@ -29,6 +29,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
     IBlockCachePtr blockCache = GetNullBlockCache(),
+    TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -70,7 +70,8 @@ public:
             std::move(dataSliceDescriptors),
             TotalRowCount_,
             SchedulerJobSpecExt_.is_approximate(),
-            SortJobSpecExt_.partition_tag());
+            SortJobSpecExt_.partition_tag(),
+            Host_->GetTrafficMeter());
 
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
@@ -96,7 +97,8 @@ public:
             CellTagFromId(chunkListId),
             transactionId,
             chunkListId,
-            TChunkTimestamps{timestamp, timestamp});
+            TChunkTimestamps{timestamp, timestamp},
+            Host_->GetTrafficMeter());
     }
 
     virtual double GetProgress() const override

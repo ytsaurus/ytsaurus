@@ -1,5 +1,6 @@
 #include "replication_reader.h"
 #include "private.h"
+#include "traffic_meter.h"
 #include "block_cache.h"
 #include "block_id.h"
 #include "chunk_reader.h"
@@ -117,7 +118,8 @@ public:
         const TChunkId& chunkId,
         const TChunkReplicaList& seedReplicas,
         IBlockCachePtr blockCache,
-        IThroughputThrottlerPtr throttler)
+        IThroughputThrottlerPtr throttler,
+        TTrafficMeterPtr trafficMeter)
         : Config_(config)
         , Options_(options)
         , Client_(client)
@@ -127,6 +129,7 @@ public:
         , BlockCache_(blockCache)
         , Throttler_(throttler)
         , Networks_(client->GetNativeConnection()->GetNetworks())
+        , TrafficMeter_(trafficMeter)
         , LocateChunksInvoker_(CreateFixedPriorityInvoker(
             TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             // We locate chunks with batch workload category.
@@ -218,6 +221,7 @@ private:
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
     const TNetworkPreferenceList Networks_;
+    const TTrafficMeterPtr TrafficMeter_;
 
     const IInvokerPtr LocateChunksInvoker_;
 
@@ -396,6 +400,13 @@ private:
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
         return BannedForeverPeers_.has(peerAddress);
+    }
+
+    void AccountTraffic(i64 transferredByteCount, const TNodeDescriptor& srcDescriptor)
+    {
+        if (TrafficMeter_) {
+            TrafficMeter_->IncrementInboundByteCount(srcDescriptor.GetDataCenter(), transferredByteCount);
+        }
     }
 };
 
@@ -1216,6 +1227,11 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
+
+        reader->AccountTraffic(
+            rsp->GetTotalSize(),
+            maybePeer->NodeDescriptor);
+
         UpdatePeerBlockMap(rsp, reader);
 
         if (rsp->net_throttling() || rsp->disk_throttling()) {
@@ -1702,6 +1718,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     YCHECK(config);
@@ -1718,7 +1735,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         chunkId,
         seedReplicas,
         std::move(blockCache),
-        std::move(throttler));
+        std::move(throttler),
+        std::move(trafficMeter));
     reader->Initialize();
     return reader;
 }

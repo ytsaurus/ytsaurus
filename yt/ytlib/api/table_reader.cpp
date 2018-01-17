@@ -302,7 +302,8 @@ void TSchemalessTableReader::DoOpen()
             ReadSessionId_,
             TColumnFilter(),
             schema.GetKeyColumns(),
-            Null,
+            /* partitionTag */ Null,
+            /* trafficMeter */ nullptr,
             NConcurrency::GetUnlimitedThrottler());
     }
 

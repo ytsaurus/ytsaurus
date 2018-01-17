@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/traffic_meter.h>
 
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 
@@ -71,6 +72,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobProberClient;
+using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NCGroup;
@@ -150,6 +152,11 @@ void TJobProxy::Fail()
 IServerPtr TJobProxy::GetRpcServer() const
 {
     return RpcServer_;
+}
+
+TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
+{
+    return TrafficMeter_;
 }
 
 void TJobProxy::ValidateJobId(const TJobId& jobId)
@@ -405,6 +412,9 @@ TJobResult TJobProxy::DoRun()
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 
+        TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
+        TrafficMeter_->Start();
+
         RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this));
         RpcServer_->Start();
@@ -527,6 +537,8 @@ TStatistics TJobProxy::GetStatistics() const
     if (JobProxyMemoryReserve_ > 0) {
         statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
     }
+
+    FillTrafficStatistics(JobProxyTrafficStatisticsPrefix, statistics, TrafficMeter_);
 
     statistics.SetTimestamp(TInstant::Now());
 

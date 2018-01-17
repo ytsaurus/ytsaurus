@@ -197,7 +197,8 @@ public:
             PipeIOPool_->GetInvoker(),
             Host_->LocalDescriptor(),
             BIND(&IJobHost::ReleaseNetwork, Host_),
-            SandboxDirectoryNames[ESandboxKind::Udf]);
+            SandboxDirectoryNames[ESandboxKind::Udf],
+            Host_->GetTrafficMeter());
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
@@ -242,7 +243,7 @@ public:
 
             Host_->GetRpcServer()->RegisterService(CoreProcessorService_);
         }
-     }
+    }
 
     virtual void Initialize() override
     { }
@@ -632,7 +633,8 @@ private:
                 JobIOConfig_->ErrorFileWriter,
                 CreateFileOptions(),
                 Host_->GetClient(),
-                transactionId);
+                transactionId,
+                Host_->GetTrafficMeter());
 
             const auto& context = contexts[index];
             contextOutput.Write(context.Begin(), context.Size());
@@ -713,7 +715,8 @@ private:
                 JobIOConfig_->ErrorFileWriter,
                 CreateFileOptions(),
                 Host_->GetClient(),
-                FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()));
+                FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()),
+                Host_->GetTrafficMeter());
         }
     }
 

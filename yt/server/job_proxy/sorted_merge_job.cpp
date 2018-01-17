@@ -70,7 +70,9 @@ public:
                 nameTable,
                 TReadSessionId(),
                 TColumnFilter(),
-                keyColumns);
+                keyColumns,
+                /* partitionTag */ Null,
+                Host_->GetTrafficMeter());
 
             readers.push_back(reader);
         }
@@ -94,7 +96,8 @@ public:
             CellTagFromId(chunkListId),
             transactionId,
             chunkListId,
-            TChunkTimestamps{timestamp, timestamp});
+            TChunkTimestamps{timestamp, timestamp},
+            Host_->GetTrafficMeter());
     }
 
 private:

@@ -34,6 +34,7 @@ public:
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NApi::INativeClientPtr client,
         const NObjectClient::TTransactionId& transactionId,
+        NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
         i64 sizeLimit = std::numeric_limits<i64>::max());
 
     NChunkClient::TChunkId GetChunkId() const;

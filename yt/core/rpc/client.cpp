@@ -280,6 +280,18 @@ TSharedRefArray TClientResponse::GetResponseMessage() const
     return ResponseMessage_;
 }
 
+size_t TClientResponse::GetTotalSize() const
+{
+    Y_ASSERT(ResponseMessage_);
+    auto result = ResponseMessage_.ByteSize();
+
+    for (const auto& attachment : Attachments_) {
+        result += attachment.Size();
+    }
+
+    return result;
+}
+
 void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 {
     Y_ASSERT(responseMessage);

@@ -57,7 +57,8 @@ public:
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
         const NCypressClient::TTransactionId& transactionId,
-        const NChunkClient::TChunkListId& chunkListId);
+        const NChunkClient::TChunkListId& chunkListId,
+        NChunkClient::TTrafficMeterPtr trafficMeter);
 
     NScheduler::NProto::TOutputResult GetOutputResult() const;
 

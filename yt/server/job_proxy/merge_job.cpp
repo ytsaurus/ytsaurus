@@ -93,6 +93,7 @@ public:
                 columnFilter,
                 TKeyColumns(),
                 partitionTag,
+                Host_->GetTrafficMeter(),
                 NConcurrency::GetUnlimitedThrottler());
             return Reader_;
         };
@@ -118,7 +119,8 @@ public:
                 CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
-                TChunkTimestamps{timestamp, timestamp});
+                TChunkTimestamps{timestamp, timestamp},
+                Host_->GetTrafficMeter());
             return Writer_;
         };
     }

@@ -63,6 +63,7 @@ public:
         , Transaction_(transaction)
         , ChunkList_(chunkList)
         , ReadWriteTimeout_(readWriteTimeout)
+        , TrafficMeter_(jobHost->GetTrafficMeter())
     {
         BoundaryKeys_.set_empty(true);
         CoreResultPromise_ = MakePromise<TCoreResult>({CoreInfos_, BoundaryKeys_});
@@ -140,6 +141,8 @@ private:
 
     int NumberOfActiveCores_ = 0;
 
+    TTrafficMeterPtr TrafficMeter_;
+
     TFuture<TCoreResult> GetCoreResult() const
     {
         return CoreResultPromise_.ToFuture();
@@ -173,7 +176,8 @@ private:
                 BlobTableWriterConfig_,
                 TableWriterOptions_,
                 Transaction_,
-                ChunkList_);
+                ChunkList_,
+                TrafficMeter_);
 
             auto reader = CreateZeroCopyAdapter(namedPipe->CreateAsyncReader(), 1_MB /* blockSize */);
             auto writer = CreateZeroCopyAdapter(CreateAsyncAdapter(&blobWriter));

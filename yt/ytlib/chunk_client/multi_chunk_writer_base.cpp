@@ -45,6 +45,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
     : Logger(ChunkClientLogger)
@@ -57,6 +58,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , Throttler_(throttler)
     , BlockCache_(blockCache)
     , NodeDirectory_(New<TNodeDirectory>())
+    , TrafficMeter_(trafficMeter)
 {
     YCHECK(Config_);
     YCHECK(Options_);
@@ -173,6 +175,7 @@ void TNontemplateMultiChunkWriterBase::InitSession()
         NodeDirectory_,
         Client_,
         BlockCache_,
+        TrafficMeter_,
         Throttler_);
 
     CurrentSession_.TemplateWriter = CreateTemplateWriter(CurrentSession_.UnderlyingWriter);

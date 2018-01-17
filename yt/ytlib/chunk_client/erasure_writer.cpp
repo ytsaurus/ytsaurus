@@ -462,6 +462,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NApi::INativeClientPtr client,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -495,6 +496,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             nodeDirectory,
             client,
             blockCache,
+            trafficMeter,
             throttler));
     }
 

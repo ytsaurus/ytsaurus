@@ -45,7 +45,8 @@ public:
         TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
         IUserJobIOFactoryPtr userJobIOFactory,
-        TNullable<TString> udfDirectory)
+        TNullable<TString> udfDirectory,
+        NChunkClient::TTrafficMeterPtr trafficMeter)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , Client_(std::move(client))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
@@ -53,6 +54,7 @@ public:
         , OnNetworkRelease_(onNetworkRelease)
         , UserJobIOFactory_(userJobIOFactory)
         , UdfDirectory_(std::move(udfDirectory))
+        , TrafficMeter_(trafficMeter)
     { }
 
     //! Returns closure that launches data transfer to given async output.
@@ -296,7 +298,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     IInvokerPtr invoker,
     TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,
-    TNullable<TString> udfDirectory)
+    TNullable<TString> udfDirectory,
+    NChunkClient::TTrafficMeterPtr trafficMeter)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         return New<TUserJobReadController>(
@@ -305,8 +308,9 @@ IUserJobReadControllerPtr CreateUserJobReadController(
             invoker,
             nodeDescriptor,
             onNetworkRelease,
-            CreateUserJobIOFactory(jobSpecHelper),
-            udfDirectory);
+            CreateUserJobIOFactory(jobSpecHelper, trafficMeter),
+            udfDirectory,
+            trafficMeter);
     } else {
         return New<TVanillaUserJobReadController>();
     }

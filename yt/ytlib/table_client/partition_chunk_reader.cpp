@@ -150,7 +150,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    int partitionTag)
+    int partitionTag,
+    TTrafficMeterPtr trafficMeter)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
@@ -169,6 +170,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         nodeDirectory,
                         TNodeDescriptor(),
                         blockCache,
+                        trafficMeter,
                         GetUnlimitedThrottler());
 
                     YCHECK(!chunkSpec.has_lower_limit());

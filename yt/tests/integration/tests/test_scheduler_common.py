@@ -2159,6 +2159,11 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         assert statistics_appeared
 
+        traffic_statistics = statistics["job_proxy"]["traffic"]
+        assert traffic_statistics["inbound"]["from_"]["sum"] > 0
+        assert traffic_statistics["duration_ms"]["sum"] > 0
+        assert traffic_statistics["_to_"]["sum"] > 0
+
         events.release_breakpoint()
         op.track()
 

@@ -43,6 +43,7 @@ public:
 protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
+    NChunkClient::TTrafficMeterPtr TrafficMeter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

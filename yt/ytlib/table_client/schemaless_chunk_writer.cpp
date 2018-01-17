@@ -847,6 +847,7 @@ public:
         TNameTablePtr nameTable,
         const TTableSchema& schema,
         TOwningKey lastKey,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : TNontemplateMultiChunkWriterBase(
@@ -856,6 +857,7 @@ public:
             cellTag,
             transactionId,
             parentChunkListId,
+            trafficMeter,
             throttler,
             blockCache)
         , Config_(config)
@@ -1112,6 +1114,7 @@ public:
         TNameTablePtr nameTable,
         const TTableSchema& schema,
         IPartitionerPtr partitioner,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : TSchemalessMultiChunkWriterBase(
@@ -1124,6 +1127,7 @@ public:
             nameTable,
             schema,
             TOwningKey(),
+            trafficMeter,
             throttler,
             blockCache)
         , Partitioner_(partitioner)
@@ -1320,6 +1324,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     IPartitionerPtr partitioner,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -1333,6 +1338,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(nameTable),
         schema,
         std::move(partitioner),
+        std::move(trafficMeter),
         std::move(throttler),
         std::move(blockCache));
 }
@@ -1354,6 +1360,7 @@ public:
         TNameTablePtr nameTable,
         const TTableSchema& schema,
         TOwningKey lastKey,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : TSchemalessMultiChunkWriterBase(
@@ -1366,6 +1373,7 @@ public:
             nameTable,
             schema,
             lastKey,
+            trafficMeter,
             throttler,
             blockCache)
         , CreateChunkWriter_(createChunkWriter)
@@ -1420,6 +1428,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     const TChunkTimestamps& chunkTimestamps,
+    TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -1444,6 +1453,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         nameTable,
         schema,
         lastKey,
+        trafficMeter,
         throttler,
         blockCache);
 }
@@ -1737,6 +1747,7 @@ private:
             UploadTransaction_->GetId(),
             ChunkListId_,
             TChunkTimestamps{timestamp, timestamp},
+            /* trafficMeter */ nullptr,
             Throttler_,
             BlockCache_);
 

@@ -55,7 +55,7 @@ void TUserJobWriteController::Init()
         Initialized_ = true;
     });
 
-    auto userJobIOFactory = CreateUserJobIOFactory(Host_->GetJobSpecHelper());
+    auto userJobIOFactory = CreateUserJobIOFactory(Host_->GetJobSpecHelper(), Host_->GetTrafficMeter());
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
     auto transactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
@@ -110,7 +110,8 @@ void TUserJobWriteController::Init()
                 stderrTableWriterConfig,
                 options,
                 transactionId,
-                FromProto<TChunkListId>(outputTableSpec.chunk_list_id())));
+                FromProto<TChunkListId>(outputTableSpec.chunk_list_id()),
+                Host_->GetTrafficMeter()));
     }
 }
 

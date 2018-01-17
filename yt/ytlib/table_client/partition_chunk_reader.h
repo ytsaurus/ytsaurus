@@ -109,7 +109,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    int partitionTag);
+    int partitionTag,
+    NChunkClient::TTrafficMeterPtr trafficMeter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
