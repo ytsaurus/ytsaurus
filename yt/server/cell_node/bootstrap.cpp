@@ -70,7 +70,6 @@
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -236,18 +235,11 @@ void TBootstrap::DoRun()
 
     RpcServer = CreateBusServer(BusServer);
 
-    if (!Config->UseNewHttpServer) {
-        HttpServer.reset(new NXHttp::TServer(
-            Config->MonitoringPort,
-            Config->BusServer->BindRetryCount,
-            Config->BusServer->BindRetryBackoff));
-    } else {
-        Config->MonitoringServer->Port = Config->MonitoringPort;
-        Config->MonitoringServer->BindRetryCount = Config->BusServer->BindRetryCount;
-        Config->MonitoringServer->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
-        NewHttpServer = NHttp::CreateServer(
-            Config->MonitoringServer);
-    }
+    Config->MonitoringServer->Port = Config->MonitoringPort;
+    Config->MonitoringServer->BindRetryCount = Config->BusServer->BindRetryCount;
+    Config->MonitoringServer->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
+    HttpServer = NHttp::CreateServer(
+        Config->MonitoringServer);
 
     auto skynetHttpConfig = New<NHttp::TServerConfig>();
     skynetHttpConfig->Port = Config->SkynetHttpPort;
@@ -525,15 +517,9 @@ void TBootstrap::DoRun()
             ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
-    if (HttpServer) {
-        HttpServer->Register(
-            "/orchid",
-            NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
-    } else {
-        NewHttpServer->AddHandler(
-            "/orchid/",
-            NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
-    }
+    HttpServer->AddHandler(
+        "/orchid/",
+        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
     if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
         SkynetHttpServer->AddHandler(
@@ -569,11 +555,7 @@ void TBootstrap::DoRun()
     StartPartitionBalancer(Config->TabletNode, this);
 
     RpcServer->Start();
-    if (HttpServer) {
-        HttpServer->Start();
-    } else {
-        NewHttpServer->Start();
-    }
+    HttpServer->Start();
     SkynetHttpServer->Start();
 }
 

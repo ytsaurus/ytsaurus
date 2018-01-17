@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -76,8 +76,7 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
-    std::unique_ptr<NXHttp::TServer> HttpServer_;
-    NHttp::IServerPtr NewHttpServer_;
+    NHttp::IServerPtr HttpServer_;
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;
     NScheduler::TSchedulerPtr Scheduler_;

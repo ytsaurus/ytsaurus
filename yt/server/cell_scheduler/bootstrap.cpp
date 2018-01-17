@@ -31,7 +31,6 @@
 #include <yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/orchid/orchid_service.h>
@@ -154,18 +153,11 @@ void TBootstrap::DoRun()
 
     LocalRpcChannel_ = CreateLocalChannel(RpcServer_);
 
-    if (!Config_->UseNewHttpServer) {
-        HttpServer_.reset(new NXHttp::TServer(
-            Config_->MonitoringPort,
-            Config_->BusServer->BindRetryCount,
-            Config_->BusServer->BindRetryBackoff));
-    } else {
-        Config_->MonitoringServer->Port = Config_->MonitoringPort;
-        Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-        Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-        NewHttpServer_ = NHttp::CreateServer(
-            Config_->MonitoringServer);
-    }
+    Config_->MonitoringServer->Port = Config_->MonitoringPort;
+    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
+    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+    HttpServer_ = NHttp::CreateServer(
+        Config_->MonitoringServer);
 
     NodeDirectory_ = New<TNodeDirectory>();
 
@@ -229,15 +221,9 @@ void TBootstrap::DoRun()
         orchidRoot,
         GetControlInvoker()));
 
-    if (HttpServer_) {
-        HttpServer_->Register(
-            "/orchid",
-            NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
-    } else {
-        NewHttpServer_->AddHandler(
-            "/orchid/",
-            NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
-    }
+    HttpServer_->AddHandler(
+        "/orchid/",
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
@@ -247,11 +233,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateControllerAgentTrackerService(this));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-    if (HttpServer_) {
-        HttpServer_->Start();
-    } else {
-        NewHttpServer_->Start();
-    }
+    HttpServer_->Start();
 
     LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);

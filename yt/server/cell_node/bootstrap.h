@@ -22,13 +22,13 @@
 
 #include <yt/ytlib/misc/public.h>
 
-#include <yt/ytlib/monitoring/http_server.h>
-
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/public.h>
 
 #include <yt/ytlib/hive/public.h>
+
+#include <yt/ytlib/monitoring/public.h>
 
 #include <yt/core/bus/public.h>
 
@@ -132,8 +132,7 @@ private:
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     NRpc::IServicePtr MasterCacheService;
-    std::unique_ptr<NXHttp::TServer> HttpServer;
-    NHttp::IServerPtr NewHttpServer;
+    NHttp::IServerPtr HttpServer;
     NHttp::IServerPtr SkynetHttpServer;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
