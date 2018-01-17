@@ -348,11 +348,11 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TBinaryOpExpression>()) {
         builder->AppendChar('(');
-        FormatExpression(builder, typedExpr->Lhs, expandAliases);
+        FormatExpressions(builder, typedExpr->Lhs, expandAliases);
         builder->AppendChar(')');
         builder->AppendString(GetBinaryOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar('(');
-        FormatExpression(builder, typedExpr->Rhs, expandAliases);
+        FormatExpressions(builder, typedExpr->Rhs, expandAliases);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TInExpression>()) {
         builder->AppendChar('(');
