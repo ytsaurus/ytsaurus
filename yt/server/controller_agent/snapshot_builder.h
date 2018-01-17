@@ -24,7 +24,7 @@ struct TSnapshotJob
     : public TIntrinsicRefCounted
 {
     TOperationId OperationId;
-    IOperationControllerPtr Controller;
+    IOperationControllerSnapshotBuilderHostPtr Controller;
     NPipes::TAsyncReaderPtr Reader;
     std::unique_ptr<TFile> OutputFile;
     TSnapshotCookie Cookie;
