@@ -342,11 +342,6 @@ public:
         return Underlying_->HasProgress();
     }
 
-    virtual TString GetLoggingProgress() const override
-    {
-        return Underlying_->GetLoggingProgress();
-    }
-
     virtual TYsonString GetProgress() const override
     {
         return Underlying_->GetProgress();
