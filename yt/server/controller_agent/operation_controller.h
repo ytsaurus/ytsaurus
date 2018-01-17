@@ -269,7 +269,7 @@ struct IOperationControllerSchedulerHost
      *  If an exception is thrown then the operation fails immediately.
      *  The diagnostics is returned to the client, no Cypress node is created.
      *
-     *  \note Invoker affinity: Control invoker
+     *  \note Invoker affinity: cancelable Controller invoker
      */
     virtual void Initialize() = 0;
 
@@ -277,32 +277,38 @@ struct IOperationControllerSchedulerHost
     /*
      *  If an exception is thrown then the operation fails immediately.
      *
-     *  \note Invoker affinity: Control invoker
+     *  \note Invoker affinity: cancelable Controller invoker
      */
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) = 0;
 
-    /*!
-     *  \note Invoker affinity: Controller invoker
-     */
     //! Performs a lightweight initial preparation.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
     virtual void Prepare() = 0;
 
-    /*!
-     *  \note Invoker affinity: Controller invoker
-     */
     //! Performs a possibly lengthy materialization.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
     virtual void Materialize() = 0;
 
     //! Reactivates an already running operation, possibly restoring its progress.
     /*!
      *  This method is called during scheduler state recovery for each existing operation.
      *  Must be called after InitializeReviving().
+     *
+     *  \note Invoker affinity: cancelable Controller invoker
+     *
      */
     virtual void Revive() = 0;
 
     //! Called by a scheduler in operation complete pipeline.
     /*!
      *  The controller must commit the transactions related to the operation.
+     *
+     *  \note Invoker affinity: cancelable Controller invoker
+     *
      */
     virtual void Commit() = 0;
 
@@ -310,6 +316,9 @@ struct IOperationControllerSchedulerHost
     /*!
      *  All jobs are aborted automatically.
      *  The operation, however, may carry out any additional cleanup it finds necessary.
+     *
+     *  \note Invoker affinity: Control invoker
+     *
      */
     virtual void Abort() = 0;
 
@@ -317,6 +326,9 @@ struct IOperationControllerSchedulerHost
     /*!
      *  All running jobs are aborted automatically.
      *  The operation, however, may carry out any additional cleanup it finds necessary.
+     *
+     *  \note Invoker affinity: Control invoker
+     *
      */
     virtual void Complete() = 0;
 
@@ -335,44 +347,48 @@ struct IOperationControllerSchedulerHost
     //! Returns whether controller was revived from snapshot.
     virtual bool IsRevivedFromSnapshot() const = 0;
 
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
     //! Called in the end of heartbeat when scheduler agrees to run operation job.
+    /*!
+     *  \note Invoker affinity: cancellable Controller invoker
+     */
     virtual void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) = 0;
 
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
     //! Called during heartbeat processing to notify the controller that a job has completed.
+    /*!
+     *  \note Invoker affinity: cancellable Controller invoker
+     */
     virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) = 0;
 
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
     //! Called during heartbeat processing to notify the controller that a job has failed.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
     virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) = 0;
 
-    /*!
-   *  \note Invoker affinity: Cancellable controller invoker
-   */
     //! Called during preemption to notify the controller that a job has been aborted.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
     virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) = 0;
 
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
     //! Called during heartbeat processing to notify the controller that a job is still running.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
     virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) = 0;
 
     //! Build scheduler jobs from the joblets. Used during revival pipeline.
+    /*!
+     * XXX(ignat)
+     *  \note Invoker affinity: Control invoker
+     */
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;
 
-    /*!
-     *  \note Invoker affinity: controller invoker.
-     */
     //! Method that is called after operation results are committed and before
     //! controller is disposed.
+    /*!
+     *  \note Invoker affinity: Controller invoker.
+     */
     virtual void OnBeforeDisposal() = 0;
 };
 
@@ -488,23 +504,38 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker
      */
-    virtual TString GetLoggingProgress() const = 0;
+    //virtual TString GetLoggingProgress() const = 0;
 
     //! Called to get a cached YSON string representing the current progress.
+    /*!
+     *  \note Invoker affinity: any.
+     */
     virtual NYson::TYsonString GetProgress() const = 0;
 
     //! Called to get a cached YSON string representing the current brief progress.
+    /*!
+     *  \note Invoker affinity: any.
+     */
     virtual NYson::TYsonString GetBriefProgress() const = 0;
 
-    //! Extracts the job spec proto blob, which is being built at background.
-    //! After this call, the reference to this blob is released.
-    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
+    //! Called to get a YSON string representing suspicious jobs of operation.
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
 
     //! Returns metrics delta since the last call and resets the state.
     /*!
      * \note Invoker affinity: any.
      */
     virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() = 0;
+
+    //! Extracts the job spec proto blob, which is being built at background.
+    //! After this call, the reference to this blob is released.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
+    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
 
     //! Builds operation alerts.
     /*!
@@ -536,12 +567,6 @@ struct IOperationController
      *  \note Invoker affinity: Controller invoker.
      */
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
-
-    //! Called to get a YSON string representing suspicious jobs of operation.
-    /*!
-     *  \note Invoker affinity: any.
-     */
-    virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

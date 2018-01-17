@@ -626,6 +626,8 @@ protected:
 
     bool IsLocalityEnabled() const;
 
+    virtual TString GetLoggingProgress() const = 0;
+
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
 
