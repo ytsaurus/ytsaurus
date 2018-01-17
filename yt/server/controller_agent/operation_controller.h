@@ -380,6 +380,68 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IOperationControllerSnapshotBuilderHost
+    : public virtual TRefCounted
+{
+    //! Returns |true| as long as the operation can schedule new jobs.
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    virtual bool IsRunning() const = 0;
+
+    //! Returns the context that gets invalidated by #Abort and #Cancel.
+    virtual TCancelableContextPtr GetCancelableContext() const = 0;
+
+    /*!
+     *  Returns the operation controller invoker.
+     *  Most of const controller methods are expected to be run in this invoker.
+     */
+    virtual IInvokerPtr GetInvoker() const = 0;
+
+    /*!
+     *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
+     *  Most of non-const controller methods are expected to be run in this invoker.
+     */
+    virtual IInvokerPtr GetCancelableInvoker() const = 0;
+
+    //! Called right before the controller is suspended and snapshot builder forks.
+    //! Returns a certain opaque cookie.
+    //! This method should not throw.
+    /*!
+     *  \note Invoker affinity: Controller invoker.
+     */
+    virtual TSnapshotCookie OnSnapshotStarted() = 0;
+
+    //! Method that is called right after each snapshot is uploaded.
+    //! #cookie must be equal to the result of the last #OnSnapshotStarted call.
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker.
+     */
+    virtual void OnSnapshotCompleted(const TSnapshotCookie& cookie) = 0;
+
+    //! Suspends controller invoker and returns future that is set after last action in invoker is executed.
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
+    virtual TFuture<void> Suspend() = 0;
+
+    //! Resumes execution in controller invoker.
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
+    virtual void Resume() = 0;
+
+    //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
+    /*!
+     *  \note Invoker affinity: Control invoker in forked state.
+     */
+    virtual void SaveSnapshot(IOutputStream* stream) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IOperationControllerSnapshotBuilderHost)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TOperationInfo
 {
     NYson::TYsonString Progress;
@@ -396,39 +458,19 @@ struct TOperationInfo
  */
 struct IOperationController
     : public IOperationControllerSchedulerHost
+    , public IOperationControllerSnapshotBuilderHost
 {
+    virtual IInvokerPtr GetInvoker() const = 0;
+    virtual IInvokerPtr GetCancelableInvoker() const = 0;
+
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
-
-    //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
-    virtual void SaveSnapshot(IOutputStream* stream) = 0;
-
-    //! Returns the context that gets invalidated by #Abort and #Cancel.
-    virtual TCancelableContextPtr GetCancelableContext() const = 0;
-
-    //! Suspends controller invoker and returns future that is set after last action in invoker is executed.
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
-    virtual TFuture<void> Suspend() = 0;
-
-    //! Resumes execution in controller invoker.
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
-    virtual void Resume() = 0;
 
     //! Cancels the context returned by #GetCancelableContext.
     /*!
      *  \note Invoker affinity: Control invoker
      */
     virtual void Cancel() = 0;
-
-    //! Returns |true| as long as the operation can schedule new jobs.
-    /*!
-     *  \note Invoker affinity: Controller invoker
-     */
-    virtual bool IsRunning() const = 0;
 
     //! Marks that progress was dumped to Cypress.
     /*!
@@ -457,21 +499,6 @@ struct IOperationController
     //! Extracts the job spec proto blob, which is being built at background.
     //! After this call, the reference to this blob is released.
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
-
-    //! Called right before the controller is suspended and snapshot builder forks.
-    //! Returns a certain opaque cookie.
-    //! This method should not throw.
-    /*!
-     *  \note Invoker affinity: Controller invoker.
-     */
-    virtual TSnapshotCookie OnSnapshotStarted() = 0;
-
-    //! Method that is called right after each snapshot is uploaded.
-    //! #cookie must be equal to the result of the last #OnSnapshotStarted call.
-    /*!
-     *  \note Invoker affinity: cancellable Controller invoker.
-     */
-    virtual void OnSnapshotCompleted(const TSnapshotCookie& cookie) = 0;
 
     //! Returns metrics delta since the last call and resets the state.
     /*!

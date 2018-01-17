@@ -50,7 +50,7 @@ static const TString TmpSuffix = ".tmp";
 struct TBuildSnapshotJob
 {
     TOperationId OperationId;
-    IOperationControllerPtr Controller;
+    IOperationControllerSnapshotBuilderHostPtr Controller;
     std::unique_ptr<TFile> OutputFile;
 };
 
@@ -106,7 +106,8 @@ TFuture<void> TSnapshotBuilder::Run()
         job->Suspended = false;
         Jobs_.push_back(job);
 
-        onSnapshotStartedFutures.push_back(BIND(&IOperationController::OnSnapshotStarted, job->Controller)
+        // TODO(ignat): migrate here to cancelable invoker (introduce CombineAll that ignores cancellation of combined futures).
+        onSnapshotStartedFutures.push_back(BIND(&IOperationControllerSnapshotBuilderHost::OnSnapshotStarted, job->Controller)
             .AsyncVia(job->Controller->GetInvoker())
             .Run());
         operationIds.push_back(operationId);

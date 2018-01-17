@@ -32,6 +32,7 @@ DECLARE_REFCOUNTED_STRUCT(TScheduleJobStatistics)
 
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSchedulerHost)
+DECLARE_REFCOUNTED_STRUCT(IOperationControllerSnapshotBuilderHost)
 
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
