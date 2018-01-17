@@ -503,12 +503,16 @@ class UserJobSpecBuilder(object):
     def _set_spec_override(self, spec):
         self._spec_override = spec
 
-    def build(self, input_table_count, output_table_count, operation_type, local_files_to_remove=None, group_by=None, client=None):
+    def build(self, input_table_count, output_table_count, operation_type, requires_command,
+              local_files_to_remove=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
-        require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
         spec = update(self._spec_override, self._deepcopy_spec())
         self._spec_override = {}
 
+        if "command" not in spec and not requires_command:
+            return None
+
+        require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
         format_ = spec.pop("format", None)
         input_format, output_format = _prepare_formats(format_, spec.get("input_format"), spec.get("output_format"),
                                                        spec["command"], client)
@@ -684,7 +688,8 @@ class SpecBuilder(object):
         if single_output_table:
             spec[output_tables_param] = unlist(spec[output_tables_param])
 
-    def _build_user_job_spec(self, spec, job_type, operation_type, input_table_count, output_table_count, group_by=None, client=None):
+    def _build_user_job_spec(self, spec, job_type, operation_type, input_table_count,
+                             output_table_count, requires_command=True, group_by=None, client=None):
         if isinstance(spec[job_type], UserJobSpecBuilder):
             job_spec_builder = spec[job_type]
             spec[job_type] = job_spec_builder.build(group_by=group_by,
@@ -692,7 +697,10 @@ class SpecBuilder(object):
                                                     operation_type=operation_type,
                                                     input_table_count=input_table_count,
                                                     output_table_count=output_table_count,
+                                                    requires_command=requires_command,
                                                     client=client)
+            if spec[job_type] is None:
+                del spec[job_type]
         return spec
 
     def _build_job_io(self, spec, job_io_type="job_io", client=None):
@@ -1191,6 +1199,7 @@ class MapReduceSpecBuilder(SpecBuilder):
                                              operation_type=self.operation_type,
                                              input_table_count=len(self.get_input_table_paths()),
                                              output_table_count=mapper_output_table_count,
+                                             requires_command=False,
                                              client=client)
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
@@ -1207,6 +1216,7 @@ class MapReduceSpecBuilder(SpecBuilder):
                                              input_table_count=1,
                                              output_table_count=1,
                                              group_by=spec.get("reduce_by"),
+                                             requires_command=False,
                                              client=client)
         return spec
 

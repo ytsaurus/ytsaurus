@@ -1720,3 +1720,16 @@ if __name__ == "__main__":
         yt.run_operation(spec_builder)
         check([{"c": "d"}], list(yt.read_table(mapper_output_table)))
         check([{"a": "b"}], list(yt.read_table(output_table)))
+
+    def test_empty_job_command(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        spec = {"mapper": {"copy_files": True}, "reduce_combiner": {"copy_files": True}}
+        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
