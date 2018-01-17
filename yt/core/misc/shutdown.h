@@ -12,6 +12,9 @@ void RegisterShutdownCallback(double priority, void(*callback)());
 //! Invokes all registered shutdown callbacks.
 void Shutdown();
 
+//! Tells whether the shutdown process has already started.
+bool IsShutdownStarted();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_SHUTDOWN_CALLBACK(priority, callback) \
