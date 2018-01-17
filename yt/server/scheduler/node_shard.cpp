@@ -704,7 +704,11 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto job = GetJobOrThrow(jobId);
+    auto job = FindJob(jobId);
+    if (!job) {
+        LOG_DEBUG("Cannot abort job, it is already finished (JobId: %v)", jobId);
+        return;
+    }
     LOG_DEBUG(error, "Aborting job by internal request (JobId: %v, OperationId: %v)",
         jobId,
         job->GetOperationId());
@@ -717,7 +721,12 @@ void TNodeShard::FailJob(const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto job = GetJobOrThrow(jobId);
+    auto job = FindJob(jobId);
+    if (!job) {
+        LOG_DEBUG("Cannot fail job, it is already finished (JobId: %v)", jobId);
+        return;
+    }
+
     LOG_DEBUG("Failing job by internal request (JobId: %v, OperationId: %v)",
         jobId,
         job->GetOperationId());
