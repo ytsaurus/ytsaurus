@@ -624,6 +624,11 @@ private:
     {
         return Spec_;
     }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
@@ -1055,6 +1060,11 @@ private:
     {
         return Spec_;
     }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
@@ -1339,6 +1349,11 @@ private:
     virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
     }
 };
 

@@ -1614,11 +1614,6 @@ protected:
         TOperationControllerBase::OnOperationCompleted(interrupted);
     }
 
-    virtual bool IsJobInterruptible() const override
-    {
-        return false;
-    }
-
     void OnPartitionCompleted(TPartitionPtr partition)
     {
         YCHECK(!partition->Completed);
@@ -2051,6 +2046,11 @@ protected:
     {
         YCHECK(statistics);
         TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
     }
 
     virtual EJobType GetPartitionJobType() const = 0;
