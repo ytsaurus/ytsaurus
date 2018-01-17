@@ -1,5 +1,7 @@
 #include "bzip2.h"
 
+#include <yt/core/misc/finally.h>
+
 #include <contrib/libs/libbz2/bzlib.h>
 
 #include <util/generic/utility.h>
@@ -68,10 +70,11 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
     Zero(bzStream);
     int ret = ArcBZ2_bzCompressInit(&bzStream, level, 0, 0);
     YCHECK(ret == BZ_OK);
+    auto finally = Finally([&] { ArcBZ2_bzCompressEnd(&bzStream); });
 
     output->Reserve(std::max(
         MinBlobSize,
-        source->Available() / 8)); // just a heuristics
+        source->Available() / 8)); // just a heuristic
     output->Resize(0);
     while (source->Available()) {
         PeekInputBytes(source, &bzStream);
@@ -108,6 +111,7 @@ void Bzip2Decompress(StreamSource* source, TBlob* output)
 
         int ret = ArcBZ2_bzDecompressInit(&bzStream, 0, 0);
         YCHECK(ret == BZ_OK);
+        auto finally = Finally([&] { ArcBZ2_bzDecompressEnd(&bzStream); });
 
         do {
             PeekInputBytes(source, &bzStream);
