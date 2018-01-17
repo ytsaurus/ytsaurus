@@ -90,6 +90,7 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("a <= b");
     TestExpression("a >= b");
     TestExpression("a = b");
+    TestExpression("(a, b) > (1, 2)");
     TestExpression("a != b");
     TestExpression("a in (1)");
     TestExpression("a in (1, 2)");
