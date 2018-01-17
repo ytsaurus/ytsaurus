@@ -45,7 +45,6 @@ public:
 
     // COMPAT(babenko): get rid of this after switching to new HTTP implementation
     int MonitoringPort;
-    bool UseNewHttpServer;
     NHttp::TServerConfigPtr MonitoringServer;
 
     TServerConfig()
@@ -81,8 +80,6 @@ public:
             .LessThan(65536);
         RegisterParameter("monitoring_server", MonitoringServer)
             .DefaultNew();
-        RegisterParameter("use_new_http_server", UseNewHttpServer)
-            .Default(true);
 
         RegisterPostprocessor([&] {
             if (RpcPort > 0) {

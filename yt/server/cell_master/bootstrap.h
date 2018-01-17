@@ -30,7 +30,6 @@
 
 #include <yt/ytlib/election/public.h>
 
-#include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/public.h>
 
 #include <yt/ytlib/hive/public.h>
@@ -118,8 +117,7 @@ private:
     NRpc::IChannelPtr LocalRpcChannel_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
-    std::unique_ptr<NXHttp::TServer> HttpServer_;
-    NHttp::IServerPtr NewHttpServer_;
+    NHttp::IServerPtr HttpServer_;
     NHttp::IHttpHandlerPtr OrchidHttpHandler_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
