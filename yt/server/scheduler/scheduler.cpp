@@ -950,7 +950,10 @@ public:
             }
         }
 
-        SuspiciousJobsYson_ = TYsonString(request->suspicious_jobs(), EYsonType::MapFragment);
+        {
+            TGuard<TSpinLock> guard(SuspiciousJobsYsonLock_);
+            SuspiciousJobsYson_ = TYsonString(request->suspicious_jobs(), EYsonType::MapFragment);
+        }
     }
 
     // ISchedulerStrategyHost implementation
@@ -1261,6 +1264,7 @@ private:
 
     std::atomic<int> OperationArchiveVersion_ = {-1};
 
+    TSpinLock SuspiciousJobsYsonLock_;
     TYsonString SuspiciousJobsYson_ = TYsonString("", EYsonType::MapFragment);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -2703,7 +2707,10 @@ private:
                         })
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
-                    .Items(SuspiciousJobsYson_)
+                    .Do([=] (TFluentMap fluent) {
+                        TGuard<TSpinLock> guard(SuspiciousJobsYsonLock_);
+                        fluent.Items(SuspiciousJobsYson_);
+                    })
                 .EndMap()
                 .Item("nodes").BeginMap()
                     .Do([=] (TFluentMap fluent) {
