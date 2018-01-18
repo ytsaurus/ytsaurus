@@ -133,8 +133,18 @@ public:
 
             InitializeArtifacts();
 
+            i64 diskSpaceLimit = Config_->MinRequiredDiskSpace;
+
+            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            if (schedulerJobSpecExt.has_user_job_spec()) {
+                const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+                if (userJobSpec.has_disk_space_limit()) {
+                    diskSpaceLimit = userJobSpec.disk_space_limit();
+                }
+            }
+
             auto slotManager = Bootstrap_->GetExecSlotManager();
-            Slot_ = slotManager->AcquireSlot();
+            Slot_ = slotManager->AcquireSlot(diskSpaceLimit);
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
@@ -1177,7 +1187,7 @@ private:
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::AllLocationsDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::SlotNotFound) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||

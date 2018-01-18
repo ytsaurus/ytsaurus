@@ -32,7 +32,7 @@ public:
     void Initialize();
 
     //! Acquires a free slot, thows on error.
-    ISlotPtr AcquireSlot();
+    ISlotPtr AcquireSlot(i64 diskSpaceRequest);
 
     void ReleaseSlot(int slotIndex);
 
