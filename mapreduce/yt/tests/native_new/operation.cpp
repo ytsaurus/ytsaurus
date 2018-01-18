@@ -271,6 +271,22 @@ REGISTER_REDUCER(TReducerThatUsesEnv);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMapperThatWritesCustomStatistics : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    void Do(TReader* /* reader */, TWriter* /* writer */)
+    {
+        WriteCustomStatistics("some/path/to/stat", std::numeric_limits<i64>::min());
+        auto node = TNode()
+            ("second", TNode()("second-and-half", i64(-142)))
+            ("third", i64(42));
+        WriteCustomStatistics(node);
+    }
+};
+REGISTER_MAPPER(TMapperThatWritesCustomStatistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
 SIMPLE_UNIT_TEST_SUITE(Operations)
 {
     SIMPLE_UNIT_TEST(IncorrectTableId)
@@ -627,6 +643,29 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             .Output("//testing/output"));
         auto jobStatistics = operation->GetJobStatistics();
         UNIT_ASSERT(jobStatistics.GetStatistics("time/total").Max().Defined());
+    }
+
+    SIMPLE_UNIT_TEST(TestCustomStatistics)
+    {
+        auto client = CreateTestClient();
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+        auto operation = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output"),
+            new TMapperThatWritesCustomStatistics());
+
+        auto jobStatistics = operation->GetJobStatistics();
+
+        auto first = jobStatistics.GetCustomStatistics("some/path/to/stat").Max();
+        UNIT_ASSERT(*first == std::numeric_limits<i64>::min());
+
+        auto second = jobStatistics.GetCustomStatistics("second/second-and-half").Max();
+        UNIT_ASSERT(*second == -142);
     }
 
     SIMPLE_UNIT_TEST(GetBriefProgress)

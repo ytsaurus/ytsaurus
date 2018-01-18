@@ -1,11 +1,16 @@
 #include "job_statistics.h"
 
 #include <mapreduce/yt/node/node.h>
+#include <mapreduce/yt/node/serialize.h>
+
+#include <library/yson/writer.h>
 
 #include <util/datetime/base.h>
 #include <util/generic/hash_set.h>
 #include <util/generic/ptr.h>
+#include <util/stream/file.h>
 #include <util/string/cast.h>
+#include <util/system/file.h>
 
 namespace NYT {
 
@@ -58,11 +63,11 @@ public:
             const auto& nodeAsMap = node.AsMap();
             auto it = nodeAsMap.find(key);
             if (it == nodeAsMap.end()) {
-                ythrow yexception() << "Key `" << key << "' is not found";
+                ythrow yexception() << "Key '" << key << "' is not found";
             }
             const auto& valueNode = it->second;
             if (!valueNode.IsInt64()) {
-                ythrow yexception() << "Key `" << key << "' is not of int64 type";
+                ythrow yexception() << "Key '" << key << "' is not of int64 type";
             }
             return valueNode.AsInt64();
         };
@@ -171,6 +176,12 @@ TJobStatisticsEntry<i64> TJobStatistics::GetStatistics(TStringBuf name) const
     return GetStatisticsAs<i64>(name);
 }
 
+
+TJobStatisticsEntry<i64> TJobStatistics::GetCustomStatistics(TStringBuf name) const
+{
+    return GetCustomStatisticsAs<i64>(name);
+}
+
 TMaybe<TJobStatistics::TDataEntry> TJobStatistics::GetStatisticsImpl(TStringBuf name) const
 {
     const auto& state2Type2Data = Data_->Name2State2Type2Data.at(name);
@@ -219,6 +230,54 @@ TMaybe<TJobStatistics::TDataEntry> TJobStatistics::GetStatisticsImpl(TStringBuf 
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////
+
+namespace {
+
+constexpr int USER_STATISTICS_FILE_DESCRIPTOR = 5;
+constexpr char PATH_DELIMITER = '/';
+
+IOutputStream* GetStatisticsStream()
+{
+    static TFile file = Duplicate(USER_STATISTICS_FILE_DESCRIPTOR);
+    static TFileOutput stream(file);
+    return &stream;
+}
+
+template <typename T>
+void WriteCustomStatisticsAny(TStringBuf path, const T& value)
+{
+    TYsonWriter writer(GetStatisticsStream(), YF_BINARY, YT_LIST_FRAGMENT);
+    int depth = 0;
+    TStringBuf pathPart;
+    do {
+        writer.OnBeginMap();
+        path.NextTok(PATH_DELIMITER, pathPart);
+        writer.OnKeyedItem(pathPart);
+        ++depth;
+    } while (!path.Empty());
+    Serialize(value, &writer);
+    while (depth > 0) {
+        writer.OnEndMap();
+        --depth;
+    }
+}
+
+}
+
+////////////////////////////////////////////////////////////////////
+
+void WriteCustomStatistics(const TNode& statistics)
+{
+    TYsonWriter writer(GetStatisticsStream(), YF_BINARY, YT_LIST_FRAGMENT);
+    Serialize(statistics, &writer);
+}
+
+void WriteCustomStatistics(TStringBuf path, i64 value)
+{
+    WriteCustomStatisticsAny(path, value);
 }
 
 ////////////////////////////////////////////////////////////////////
