@@ -58,6 +58,12 @@ int io_getevents(
 
 #endif
 
+template <typename T>
+bool IsAligned(T value, i64 alignment)
+{
+    return ::AlignDown<T>(value, alignment) == value;
+}
+
 class TThreadedIOEngineConfig
     : public NYTree::TYsonSerializableLite
 {
@@ -110,6 +116,9 @@ public:
 
     virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
     {
+        YCHECK(!UseDirectIO_ || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
+        YCHECK(!UseDirectIO_ || IsAligned(data.Size(), Alignment_));
+        YCHECK(!UseDirectIO_ || IsAligned(offset, Alignment_));
         return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset)
             .AsyncVia(ThreadPool_.GetInvoker())
             .Run();
@@ -237,7 +246,11 @@ class TAioReadOperation
     : public TAioOperation
 {
 public:
-    TAioReadOperation(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 alignment)
+    TAioReadOperation(
+        const std::shared_ptr<TFileHandle>& fh,
+        size_t len,
+        i64 offset,
+        i64 alignment)
         : Data_(TSharedMutableRef::Allocate<TAioEngineDataBufferTag>(len + 3 * alignment, false))
         , FH_(fh)
         , Length_(len)
@@ -256,6 +269,10 @@ public:
         aio_buf = reinterpret_cast<ui64>(Data_.Begin());
         aio_offset = From_;
         aio_nbytes = To_ - From_;
+
+        YCHECK(IsAligned(aio_buf, alignment));
+        YCHECK(IsAligned(aio_nbytes, alignment));
+        YCHECK(IsAligned(aio_offset, alignment));
     }
 
     TFuture<TSharedMutableRef> Result()
@@ -293,7 +310,11 @@ class TAioWriteOperation
     : public TAioOperation
 {
 public:
-    TAioWriteOperation(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
+    TAioWriteOperation(
+        const std::shared_ptr<TFileHandle>& fh,
+        const TSharedMutableRef& data,
+        i64 offset,
+        i64 alignment)
         : Data_(data)
         , Fh_(fh)
     {
@@ -305,6 +326,10 @@ public:
         aio_buf = reinterpret_cast<ui64>(Data_.Begin());
         aio_offset = offset;
         aio_nbytes = data.Size();
+
+        YCHECK(IsAligned(aio_buf, alignment));
+        YCHECK(IsAligned(aio_nbytes, alignment));
+        YCHECK(IsAligned(aio_offset, alignment));
     }
 
     TFuture<void> Result()
@@ -377,7 +402,7 @@ public:
 
     virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
     {
-        auto op = New<TAioWriteOperation>(fh, data, offset);
+        auto op = New<TAioWriteOperation>(fh, data, offset, Alignment_);
         Submit(op);
         return op->Result();
     }
