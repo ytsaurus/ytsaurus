@@ -36,6 +36,7 @@ DEFINE_ENUM(EErrorCode,
     ((SlotLocationDisabled)          (1109))
     ((QuotaSettingFailed)            (1110))
     ((RootVolumePreparationFailed)   (1111))
+    ((NotEnoughDiskSpace)            (1112))
 );
 
 DEFINE_ENUM(ESandboxKind,
