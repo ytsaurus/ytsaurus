@@ -233,6 +233,18 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                   "//tmp/yt_wrapper/table_storage",
                   recursive=True,
                   ignore_existing=True)
+    client.create("map_node",
+                  "//tmp/yt_regular/table_storage",
+                  recursive=True,
+                  ignore_existing=True)
+    client.set("//tmp/yt_regular/@acl", [
+        {
+            "action": "allow",
+            "subjects": ["admins"],
+            "permissions": ["read", "write", "remove", "administer"]
+        }
+    ])
+    client.set("//tmp/yt_regular/@inherit_acl", False)
 
     if not client.exists("//sys/tablet_cell_bundles/sys"):
         client.create("tablet_cell_bundle", attributes={
