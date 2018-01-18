@@ -226,7 +226,8 @@ TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
             THROW_ERROR_EXCEPTION(EErrorCode::NotEnoughDiskSpace, "Not enough disk space to run job")
                 << TErrorAttribute("requested", diskSpaceLimit.Get(0))
                 << TErrorAttribute("usage", stat.usage())
-                << TErrorAttribute("limit", stat.limit());
+                << TErrorAttribute("limit", stat.limit())
+                << TErrorAttribute("path", path);
         }
 
         {
