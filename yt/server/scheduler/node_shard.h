@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "scheduler.h"
 #include "scheduling_tag.h"
 #include "cache.h"
@@ -189,10 +189,11 @@ public:
         //! in the next hearbeat response for each node defined by its id.
         DEFINE_BYREF_RW_PROPERTY(TNodeIdToJobIdsMapping, JobIdsToRemove);
 
+        DEFINE_BYVAL_RO_PROPERTY(EJobRevivalPhase, Phase, EJobRevivalPhase::Finished);
+
     public:
         explicit TRevivalState(TNodeShard* host);
 
-        bool ShouldSkipUnknownJobs() const;
         bool ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const;
 
         void OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId);
@@ -208,8 +209,6 @@ public:
         TNodeShard* const Host_;
         yhash_set<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
         yhash_set<TJobPtr> NotConfirmedJobs_;
-        bool Active_ = false;
-        bool ShouldSkipUnknownJobs_ = false;
 
         void FinalizeReviving();
     };
