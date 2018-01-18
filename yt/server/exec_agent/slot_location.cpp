@@ -1,4 +1,5 @@
 #include "slot_location.h"
+#include "slot_manager.h"
 #include "private.h"
 #include "config.h"
 #include "job_directory_manager.h"
@@ -72,6 +73,12 @@ TSlotLocation::TSlotLocation(
     HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
         .Via(LocationQueue_->GetInvoker()));
     HealthChecker_->Start();
+
+    DiskInfoUpdateExecutor_ = New<TPeriodicExecutor>(
+        LocationQueue_->GetInvoker(),
+        BIND(&TSlotLocation::UpdateDiskInfo, MakeWeak(this)),
+        Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskInfoUpdatePeriod);
+    DiskInfoUpdateExecutor_->Start();
 }
 
 TFuture<void> TSlotLocation::CreateSandboxDirectories(int slotIndex)
@@ -501,10 +508,8 @@ void TSlotLocation::Disable(const TError& error)
     masterConnector->RegisterAlert(alert);
 }
 
-NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() const
+void TSlotLocation::UpdateDiskInfo()
 {
-    // ToDo(psushin): return cached values and make periodic updates.
-
     auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
     i64 diskLimit = locationStatistics.TotalSpace;
     if (Config_->DiskQuota) {
@@ -545,10 +550,22 @@ NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() cons
 
     diskLimit -= Config_->DiskUsageWatermark;
 
-    NNodeTrackerClient::NProto::TDiskResourcesInfo result;
-    result.set_usage(diskUsage);
-    result.set_limit(diskLimit);
-    return result;
+    LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v)",
+        Config_->Path,
+        diskUsage,
+        diskLimit);
+
+    {
+        auto guard = TWriterGuard(DiskInfoLock_);
+        DiskInfo_.set_usage(diskUsage);
+        DiskInfo_.set_limit(diskLimit);
+    }
+}
+
+NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() const
+{
+    auto guard = TReaderGuard(DiskInfoLock_);
+    return DiskInfo_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
