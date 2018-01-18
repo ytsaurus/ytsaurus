@@ -61,6 +61,11 @@ include(Version)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_custom_target(compile-commands
+  ln -sf "${CMAKE_BINARY_DIR}/compile_commands.json" "${CMAKE_SOURCE_DIR}/compile_commands.json"
+  COMMENT "Linking compilation database from build dir to source tree..."
+)
+
 ################################################################################
 # Configure all the things!
 
@@ -411,5 +416,3 @@ add_custom_target(version
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Stamping YT..."
 )
-
-
