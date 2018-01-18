@@ -312,7 +312,8 @@ set_target_properties(${NAME}-core PROPERTIES COMPILE_FLAGS --std=c99)
 
 # Python
 
-if (${YT_BUILD_ENABLE_PYTHON_2_7} AND ${YT_BUILD_HAVE_CYTHON})
+if (${YT_BUILD_HAVE_CYTHON})
+  check_python_kind("2_7" "/usr/include/python2.7")
   cython(${BASE}/src/python/grpcio/grpc/_cython/cygrpc)
   target_link_libraries(cygrpc
     ${NAME}-core
