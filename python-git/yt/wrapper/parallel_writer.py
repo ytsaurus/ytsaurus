@@ -97,19 +97,14 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
                                 create_object, remote_temp_directory, client=None):
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
-    created = False
     if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
         create_object(path, client)
-        created = True
 
     title = "Python wrapper: {0} {1}".format(command_name, path)
     with Transaction(timeout=transaction_timeout,
                      attributes={"title": title},
                      client=client,
                      transaction_id=get_config(client)["write_retries"]["transaction_id"]) as tx:
-        if not created:
-            create_object(path, client)
-
         chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
         write_action = lambda chunk, params, client: _make_transactional_request(
