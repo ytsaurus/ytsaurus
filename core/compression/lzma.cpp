@@ -24,12 +24,12 @@ public:
         Free = &FreeWrap;
     }
 
-    static void* MallocWrap(void* , size_t len)
+    static void* MallocWrap(const ISzAlloc* , size_t len)
     {
         return malloc(len);
     }
 
-    static void FreeWrap(void* , void* ptr)
+    static void FreeWrap(const ISzAlloc* , void* ptr)
     {
         free(ptr);
     }
@@ -56,9 +56,9 @@ public:
         return size;
     }
 
-    static size_t WriteDataProc(void* lzmaWriteWrapper, const void* buffer, size_t size)
+    static size_t WriteDataProc(const ISeqOutStream* lzmaWriteWrapper, const void* buffer, size_t size)
     {
-        TLzmaWriteWrapper* pThis = static_cast<TLzmaWriteWrapper*>(lzmaWriteWrapper);
+        TLzmaWriteWrapper* pThis = const_cast<TLzmaWriteWrapper*>(static_cast<const TLzmaWriteWrapper*>(lzmaWriteWrapper));
         return pThis->WriteData(buffer, size);
     }
 
@@ -91,9 +91,9 @@ public:
         return SZ_OK;
     }
 
-    static SRes ReadDataProc(void* lzmaReadWrapper, void* buffer, size_t* size)
+    static SRes ReadDataProc(const ISeqInStream* lzmaReadWrapper, void* buffer, size_t* size)
     {
-        TLzmaReadWrapper* pThis = static_cast<TLzmaReadWrapper*>(lzmaReadWrapper);
+        TLzmaReadWrapper* pThis = const_cast<TLzmaReadWrapper*>(static_cast<const TLzmaReadWrapper*>(lzmaReadWrapper));
         return pThis->ReadData(buffer, size);
     }
 
