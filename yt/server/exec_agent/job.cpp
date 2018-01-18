@@ -1183,6 +1183,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::RootVolumePreparationFailed) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::NotEnoughDiskSpace) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
