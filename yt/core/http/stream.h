@@ -106,6 +106,7 @@ public:
     virtual const THeadersPtr& GetTrailers() override;
 
     virtual TFuture<TSharedRef> Read() override;
+    virtual TSharedRef ReadBody() override;
     
 private:
     const NConcurrency::IAsyncInputStreamPtr Reader_;

@@ -325,6 +325,25 @@ TFuture<TSharedRef> THttpInput::Read()
         .Run();
 }
 
+TSharedRef THttpInput::ReadBody()
+{
+    std::vector<TSharedRef> chunks;
+
+    // TODO(prime@): Add hard limit on body size.
+    while (true) {
+        auto chunk = WaitFor(Read())
+            .ValueOrThrow();
+
+        if (chunk.Empty()) {
+            break;
+        }
+
+        chunks.emplace_back(std::move(chunk));
+    }
+
+    return MergeRefsToRef<THttpParserTag>(std::move(chunks));
+}
+
 TSharedRef THttpInput::DoRead()
 {
     if (Parser_.GetState() == EParserState::MessageFinished) {

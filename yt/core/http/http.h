@@ -204,6 +204,8 @@ struct IRequest
     virtual const TUrlRef& GetUrl() = 0;
 
     virtual const THeadersPtr& GetHeaders() = 0;
+
+    virtual TSharedRef ReadBody() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRequest)
@@ -231,8 +233,12 @@ struct IResponse
     , public virtual NConcurrency::IAsyncZeroCopyInputStream
 {
     virtual EStatusCode GetStatusCode() = 0;
+
     virtual const THeadersPtr& GetHeaders() = 0;
+
     virtual const THeadersPtr& GetTrailers() = 0;
+
+    virtual TSharedRef ReadBody() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IResponse)
@@ -242,7 +248,7 @@ DEFINE_REFCOUNTED_TYPE(IResponse)
 struct IHttpHandler
     : public virtual TRefCounted
 {
-    virtual void HandleHttp(
+    virtual void HandleRequest(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) = 0;
 };

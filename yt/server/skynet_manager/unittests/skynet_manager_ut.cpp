@@ -35,7 +35,7 @@ class TMockReadTable
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
 
@@ -98,7 +98,7 @@ class TMockLocateSkynetShare
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         rsp->GetHeaders()->Add("X-Yt-Response-Code", "0");
