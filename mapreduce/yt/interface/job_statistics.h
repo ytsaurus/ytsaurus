@@ -2,6 +2,8 @@
 
 #include "fwd.h"
 
+#include <mapreduce/yt/node/node.h>
+
 #include <util/system/defaults.h>
 #include <util/generic/maybe.h>
 #include <util/generic/ptr.h>
@@ -107,6 +109,13 @@ public:
     template <typename T>
     TJobStatisticsEntry<T> GetStatisticsAs(TStringBuf name) const;
 
+    //
+    // Get custom statistics (those the user can write in operation with WriteCustomStatistics).
+    TJobStatisticsEntry<i64> GetCustomStatistics(TStringBuf name) const;
+
+    template <typename T>
+    TJobStatisticsEntry<T> GetCustomStatisticsAs(TStringBuf name) const;
+
 private:
     class TData;
     struct TFilter;
@@ -151,7 +160,7 @@ public:
     }
 
     //
-    // NOTE: Only jobs that emited statistics are taken into account.
+    // NOTE: Only jobs that emitted statistics are taken into account.
     TMaybe<T> Avg() const
     {
         if (Data_ && Data_->Count) {
@@ -198,6 +207,29 @@ TJobStatisticsEntry<T> TJobStatistics::GetStatisticsAs(TStringBuf name) const
 {
     return TJobStatisticsEntry<T>(GetStatisticsImpl(name));
 }
+
+template <typename T>
+TJobStatisticsEntry<T> TJobStatistics::GetCustomStatisticsAs(TStringBuf name) const
+{
+    TString fullName("custom/");
+    fullName += name;
+    return TJobStatisticsEntry<T>(GetStatisticsImpl(fullName));
+}
+
+////////////////////////////////////////////////////////////////////
+
+//
+// Write custom statistics (see wiki.yandex-team.ru/yt/userdoc/jobs/#polzovatelskiestatistiki)
+// by given slash-separated path (its length must not exceed 512 bytes).
+// The function must be called in job.
+// Total number of statistics (with different paths) must not exceed 128.
+void WriteCustomStatistics(TStringBuf path, i64 value);
+
+//
+// Write several custom statistics at once.
+// The argument must be a map with leaves of type i64.
+// Equivalent to calling WriteCustomStatistics(path, value) for every path in the given map.
+void WriteCustomStatistics(const TNode& statistics);
 
 ////////////////////////////////////////////////////////////////////
 

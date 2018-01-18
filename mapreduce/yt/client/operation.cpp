@@ -611,7 +611,6 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
         return {};
     }
 
-    // TODO: use raw request
     auto jobList = List(auth, TTransactionId(), jobsPath, TListOptions().AttributeFilter(
         TAttributeFilter()
             .AddAttribute("state")
