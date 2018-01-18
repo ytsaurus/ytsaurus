@@ -6,9 +6,12 @@ add_subdirectory(build)
 add_subdirectory(core)
 add_subdirectory(core/test_framework)
 add_subdirectory(ytlib)
-add_subdirectory(server)
 add_subdirectory(run_codec)
 add_subdirectory(python)
+
+if(YT_BUILD_ENABLE_SERVER_BINARIES)
+  add_subdirectory(server)
+endif()
 
 if(YT_BUILD_ENABLE_TESTS)
   add_subdirectory(server/skynet_manager/unittests)
