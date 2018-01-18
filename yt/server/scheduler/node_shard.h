@@ -181,10 +181,11 @@ private:
         using TJobIdsToRemove = yhash<NNodeTrackerClient::TNodeId, std::vector<TJobId>>;
         DEFINE_BYREF_RW_PROPERTY(TJobIdsToRemove, JobIdsToRemove);
 
+        DEFINE_BYVAL_RO_PROPERTY(EJobRevivalPhase, Phase, EJobRevivalPhase::Finished);
+
     public:
         explicit TRevivalState(TNodeShard* shard);
 
-        bool ShouldSkipUnknownJobs() const;
         bool ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const;
 
         void OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId);
@@ -202,8 +203,6 @@ private:
 
         yhash_set<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
         yhash_set<TJobPtr> NotConfirmedJobs_;
-        bool Active_ = false;
-        bool ShouldSkipUnknownJobs_ = false;
 
         void FinalizeReviving();
     };
