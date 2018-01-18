@@ -324,6 +324,8 @@ default_config = {
     "remote_temp_files_directory": "//tmp/yt_wrapper/file_storage",
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
+    "use_legacy_file_cache": None,
+
     # Expiration timeout for temporary objects (in milliseconds).
     "temp_expiration_timeout": 7 * 24 * 60 * 60 * 1000,
 
