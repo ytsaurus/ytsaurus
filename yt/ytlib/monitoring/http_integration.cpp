@@ -38,7 +38,7 @@ public:
         : Service_(service)
     { }
 
-    virtual void HandleHttp(
+    virtual void HandleRequest(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) override
     {
@@ -88,7 +88,7 @@ private:
 
 IHttpHandlerPtr GetOrchidYPathHttpHandler(const IYPathServicePtr& service)
 {
-    return WrapYtException(New<TYPathHttpHandler>(service));
+    return WrapYTException(New<TYPathHttpHandler>(service));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

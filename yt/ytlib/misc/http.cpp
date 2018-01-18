@@ -20,7 +20,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillYtErrorResponse(const IResponseWriterPtr& rsp, const TError& error)
+void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
 {
     TString errorJson;
     TStringOutput errorJsonOutput(errorJson);
@@ -28,10 +28,10 @@ void FillYtErrorResponse(const IResponseWriterPtr& rsp, const TError& error)
     Serialize(error, jsonWriter.get());
     jsonWriter->Flush();
             
-    rsp->GetTrailers()->Add("X-YT-Error", errorJson);
-    rsp->GetTrailers()->Add("X-YT-Response-Code",
+    rsp->GetHeaders()->Add("X-YT-Error", errorJson);
+    rsp->GetHeaders()->Add("X-YT-Response-Code",
         ToString(static_cast<i64>(error.GetCode())));
-    rsp->GetTrailers()->Add("X-YT-Response-Message", error.GetMessage());
+    rsp->GetHeaders()->Add("X-YT-Response-Message", error.GetMessage());
 }
 
 class TErrorWrappingHttpHandler
@@ -42,19 +42,17 @@ public:
         : Underlying_(underlying)
     { }
 
-    virtual void HandleHttp(
+    virtual void HandleRequest(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) override
     {
         try {
-            Underlying_->HandleHttp(req, rsp);
+            Underlying_->HandleRequest(req, rsp);
         } catch(const std::exception& ex) {
             LOG_ERROR(ex, "Error in %v", req->GetUrl().Path);
-            // Catching only TErrorException since I don't know how to
-            // translate generic std::exception to yson.
 
             TError error(ex);
-            FillYtErrorResponse(rsp, error);
+            FillYTErrorHeaders(rsp, error);
             rsp->WriteHeaders(EStatusCode::InternalServerError);
 
             WaitFor(rsp->Close())
@@ -66,7 +64,7 @@ private:
     IHttpHandlerPtr Underlying_;
 };
 
-IHttpHandlerPtr WrapYtException(const IHttpHandlerPtr& underlying)
+IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying)
 {
     return New<TErrorWrappingHttpHandler>(underlying);
 }

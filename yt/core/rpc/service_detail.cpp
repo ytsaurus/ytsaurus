@@ -25,6 +25,7 @@ namespace NRpc {
 using namespace NBus;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NProfiling;
 using namespace NRpc::NProto;
 using namespace NConcurrency;

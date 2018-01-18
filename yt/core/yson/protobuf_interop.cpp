@@ -102,6 +102,7 @@ public:
             descriptor->message_type()) : nullptr)
         , EnumType_(descriptor->type() == FieldDescriptor::TYPE_ENUM ? registry->ReflectEnumType(
             descriptor->enum_type()) : nullptr)
+        , IsYsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
     { }
 
     ui32 GetTag() const
@@ -144,6 +145,11 @@ public:
         return Underlying_->is_optional();
     }
 
+    bool IsYsonString() const
+    {
+        return IsYsonString_;
+    }
+
     const TProtobufMessageType* GetMessageType() const
     {
         return MessageType_;
@@ -159,6 +165,7 @@ private:
     const TStringBuf YsonName_;
     const TProtobufMessageType* MessageType_;
     const TProtobufEnumType* EnumType_;
+    const bool IsYsonString_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -414,6 +421,8 @@ public:
         , BodyCodedStream_(&BodyOutputStream_)
         , AttributeValueStream_(AttributeValue_)
         , AttributeValueWriter_(&AttributeValueStream_)
+        , YsonStringStream_(YsonString_)
+        , YsonStringWriter_(&YsonStringStream_)
     { }
 
 private:
@@ -473,6 +482,9 @@ private:
     TStringOutput AttributeValueStream_;
     TBufferedBinaryYsonWriter AttributeValueWriter_;
 
+    TString YsonString_;
+    TStringOutput YsonStringStream_;
+    TBufferedBinaryYsonWriter YsonStringWriter_;
 
     virtual void OnMyStringScalar(const TStringBuf& value) override
     {
@@ -641,6 +653,18 @@ private:
 
         FieldStack_.emplace_back(field, 0, false);
         YPathStack_.Push(field->GetYsonName());
+
+        if (field->IsYsonString()) {
+            YsonString_.clear();
+            Forward(&YsonStringWriter_, [this] {
+                YsonStringWriter_.Flush();
+
+                WriteScalar([this] {
+                    BodyCodedStream_.WriteVarint64(YsonString_.length());
+                    BodyCodedStream_.WriteRaw(YsonString_.begin(), static_cast<int>(YsonString_.length()));
+                });
+            });
+        }
     }
 
     void OnMyKeyedItemAttributeDictionary(const TStringBuf& key)
@@ -1266,7 +1290,11 @@ private:
                                 << TErrorAttribute("ypath", YPathStack_.GetPath());
                         }
                         ParseScalar([&] {
-                            Consumer_->OnStringScalar(TStringBuf(PooledString_.data(), length));
+                            if (field->IsYsonString()) {
+                                Consumer_->OnRaw(TStringBuf(PooledString_.data(), length), NYson::EYsonType::Node);
+                            } else {
+                                Consumer_->OnStringScalar(TStringBuf(PooledString_.data(), length));
+                            }
                         });
                         break;
                     }

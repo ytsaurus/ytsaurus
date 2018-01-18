@@ -10,12 +10,11 @@ namespace NHttp {
 ////////////////////////////////////////////////////////////////////////////////
 
 // We can't put this helpers into core/http because of dependency on json.
-
-void FillYtErrorResponse(const IResponseWriterPtr& rsp, const TError& error);
+void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error);
 
 //! Catches exception thrown from underlying handler body and
 //! translates it into HTTP error.
-IHttpHandlerPtr WrapYtException(const IHttpHandlerPtr& underlying);
+IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying);
 
 ////////////////////////////////////////////////////////////////////////////////
 
