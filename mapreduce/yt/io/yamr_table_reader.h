@@ -11,6 +11,9 @@ struct TAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMaybe<TNode> GetCommonTableFormat(
+    const TVector<TMaybe<TNode>>& formats);
+
 TMaybe<TNode> GetTableFormat(
     const TAuth& auth,
     const TTransactionId& transactionId,
