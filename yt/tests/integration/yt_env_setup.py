@@ -324,16 +324,20 @@ class YTEnvSetup(object):
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
             for config in configs["master"][tag]:
-                update(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
+                # TODO(ignat): use update_inplace
+                config = update(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
                 cls.modify_master_config(config)
         for config in configs["scheduler"]:
-            update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            # TODO(ignat): use update_inplace
+            config = update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
             cls.modify_scheduler_config(config)
         for config in configs["node"]:
-            update(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
+            # TODO(ignat): use update_inplace
+            config = update(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             cls.modify_node_config(config)
         for config in configs["driver"].values():
-            update(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+            # TODO(ignat): use update_inplace
+            config = update(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):
