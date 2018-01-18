@@ -557,11 +557,11 @@ class Mapper(object):
         failures = 0
         for i in xrange(5):
             yt.run_map(func, input, output)
-            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             assert len(files_in_cache) > 0
 
             yt.run_map(func, input, output)
-            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             if sorted(files_in_cache) != sorted(files_in_cache_again):
                 failures += 1
 

@@ -187,6 +187,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     if enable_parallel_writing:
+        force_create = True
         make_parallel_write_request(
             "write_table",
             input_stream,
