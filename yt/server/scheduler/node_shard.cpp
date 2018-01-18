@@ -1013,14 +1013,23 @@ void TNodeShard::ProcessHeartbeatJobs(
         node->SetLastCheckMissingJobsTime(now);
     }
 
+    // If some controller managed to revive and register its jobs first,
+    // we should not treat them as missing in the corresponding node hearbeats:
+    // they may be actually stored.
+    if (RevivalState_->GetPhase() == EJobRevivalPhase::RevivingControllers) {
+        checkMissingJobs = false;
+    }
+
     const auto& nodeId = node->GetId();
     const auto& nodeAddress = node->GetDefaultAddress();
 
-    if (request->stored_jobs_included()) {
+    if (request->stored_jobs_included() && RevivalState_->GetPhase() == EJobRevivalPhase::ConfirmingJobs) {
         RevivalState_->OnReceivedStoredJobs(nodeId);
     }
 
-    if (RevivalState_->ShouldSendStoredJobs(nodeId)) {
+    if (RevivalState_->GetPhase() == EJobRevivalPhase::ConfirmingJobs &&
+        RevivalState_->ShouldSendStoredJobs(nodeId))
+    {
         LOG_DEBUG("Asking node to include all stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
             nodeId,
             nodeAddress);
@@ -1135,7 +1144,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // we can decide what to do with these jobs only when all TJob's are revived.
         // Also we should not remove the completed jobs that were not
         // saved to the snapshot.
-        if (RevivalState_->ShouldSkipUnknownJobs() || RevivalState_->RecentlyCompletedJobIds().has(jobId)) {
+        if (RevivalState_->GetPhase() == EJobRevivalPhase::RevivingControllers ||
+            RevivalState_->RecentlyCompletedJobIds().has(jobId))
+        {
             return nullptr;
         }
         switch (state) {
@@ -1797,14 +1808,9 @@ TNodeShard::TRevivalState::TRevivalState(TNodeShard* host)
     : Host_(host)
 { }
 
-bool TNodeShard::TRevivalState::ShouldSkipUnknownJobs() const
-{
-    return ShouldSkipUnknownJobs_;
-}
-
 bool TNodeShard::TRevivalState::ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const
 {
-    return Active_ && !NodeIdsThatSentAllStoredJobs_.has(nodeId);
+    return !NodeIdsThatSentAllStoredJobs_.has(nodeId);
 }
 
 void TNodeShard::TRevivalState::OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId)
@@ -1831,8 +1837,7 @@ void TNodeShard::TRevivalState::UnregisterJob(const TJobPtr& job)
 
 void TNodeShard::TRevivalState::PrepareReviving()
 {
-    Active_ = false;
-    ShouldSkipUnknownJobs_ = true;
+    Phase_ = EJobRevivalPhase::RevivingControllers;
     NodeIdsThatSentAllStoredJobs_.clear();
     NotConfirmedJobs_.clear();
     RecentlyCompletedJobIds_.clear();
@@ -1843,9 +1848,7 @@ void TNodeShard::TRevivalState::StartReviving()
 {
     auto& Logger = Host_->Logger;
 
-    Active_ = true;
-    ShouldSkipUnknownJobs_ = false;
-
+    Phase_ = EJobRevivalPhase::ConfirmingJobs;
     LOG_INFO("Waiting for jobs to be confirmed (JobCount: %v)",
         NotConfirmedJobs_.size());
 
@@ -1859,7 +1862,8 @@ void TNodeShard::TRevivalState::StartReviving()
 void TNodeShard::TRevivalState::FinalizeReviving()
 {
     auto& Logger = Host_->Logger;
-    Active_ = false;
+
+    Phase_ = EJobRevivalPhase::Finished;
     if (NotConfirmedJobs_.empty()) {
         LOG_INFO("All revived jobs were confirmed");
         return;
