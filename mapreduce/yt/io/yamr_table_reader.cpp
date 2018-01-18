@@ -21,6 +21,48 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMaybe<TNode> GetCommonTableFormat(
+    const TVector<TMaybe<TNode>>& formats)
+{
+    TMaybe<TNode> result;
+    bool start = true;
+    for (auto& format : formats) {
+        if (start) {
+            result = format;
+            start = false;
+            continue;
+        }
+
+        if (result.Defined() != format.Defined()) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        if (!result.Defined()) {
+            continue;
+        }
+
+        auto& resultAttrs = result.Get()->GetAttributes();
+        auto& formatAttrs = format.Get()->GetAttributes();
+
+        if (resultAttrs["key_column_names"] != formatAttrs["key_column_names"]) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        bool hasSubkeyColumns = resultAttrs.HasKey("subkey_column_names");
+        if (hasSubkeyColumns != formatAttrs.HasKey("subkey_column_names")) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        if (hasSubkeyColumns &&
+            resultAttrs["subkey_column_names"] != formatAttrs["subkey_column_names"])
+        {
+            ythrow yexception() << "Different formats of input tables";
+        }
+    }
+
+    return result;
+}
+
 TMaybe<TNode> GetTableFormat(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -49,46 +91,12 @@ TMaybe<TNode> GetTableFormats(
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& inputs)
 {
-    TMaybe<TNode> result;
-
-    bool start = true;
+    TVector<TMaybe<TNode>> formats;
     for (auto& table : inputs) {
-        TMaybe<TNode> format = GetTableFormat(auth, transactionId, table);
-
-        if (start) {
-            result = format;
-            start = false;
-            continue;
-        }
-
-        if (result.Defined() != format.Defined()) {
-            ythrow yexception() << "Different formats of input tables";
-        }
-
-        if (!result.Defined()) {
-            continue;
-        }
-
-        auto& resultAttrs = result.Get()->Attributes();
-        auto& formatAttrs = format.Get()->Attributes();
-
-        if (resultAttrs["key_column_names"] != formatAttrs["key_column_names"]) {
-            ythrow yexception() << "Different formats of input tables";
-        }
-
-        bool hasSubkeyColumns = resultAttrs.HasKey("subkey_column_names");
-        if (hasSubkeyColumns != formatAttrs.HasKey("subkey_column_names")) {
-            ythrow yexception() << "Different formats of input tables";
-        }
-
-        if (hasSubkeyColumns &&
-            resultAttrs["subkey_column_names"] != formatAttrs["subkey_column_names"])
-        {
-            ythrow yexception() << "Different formats of input tables";
-        }
+        formats.push_back(GetTableFormat(auth, transactionId, table));
     }
 
-    return result;
+    return GetCommonTableFormat(formats);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
