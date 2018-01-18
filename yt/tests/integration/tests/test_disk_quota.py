@@ -1,20 +1,9 @@
 from yt_env_setup import (
-    YTEnvSetup,
-    SANDBOX_ROOTDIR,
     require_ytserver_root_privileges
 )
 from yt_commands import *
 
 from quota_mixin import QuotaMixin
-
-import os
-import os.path
-import uuid
-import subprocess
-import getpass
-import sys
-import errno
-import pytest
 
 class TestDiskQuota(QuotaMixin):
     NUM_SCHEDULERS = 1
@@ -32,7 +21,7 @@ class TestDiskQuota(QuotaMixin):
     def test_disk_usage(self):
         tables = self._init_tables()
         try:
-            operation = map(
+            map(
                 in_=tables[0],
                 out=tables[1],
                 command="/bin/bash -c 'dd if=/dev/zero of=zeros.txt count=20'",
@@ -49,7 +38,7 @@ class TestDiskQuota(QuotaMixin):
     def test_inodes_count(self):
         tables = self._init_tables()
         try:
-            operation = map(
+            map(
                 in_=tables[0],
                 out=tables[1],
                 command="/bin/bash -c 'touch {1..200}.txt'",
