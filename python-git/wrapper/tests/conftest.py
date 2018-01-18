@@ -35,13 +35,21 @@ def pytest_ignore_collect(path, config):
             path.startswith(os.path.join(get_tests_location(), "__pycache__"))
 
 if yatest_common is None:
+    @pytest.fixture(scope="session", autouse=True)
+    def interpreter():
+        pass
+
     def pytest_generate_tests(metafunc):
-        metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])], indirect=True)
+        metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])])
 
 if yatest_common is not None:
     @pytest.fixture(scope="session", autouse=True)
     def prepare_path(request):
-        arcadia_interop.prepare_path()
+        destination = os.path.join(yatest_common.work_path(), "build")
+        os.makedirs(destination)
+        path, node_path = arcadia_interop.prepare_yt_environment(destination)
+        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+        os.environ["NODE_PATH"] = node_path
 
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
