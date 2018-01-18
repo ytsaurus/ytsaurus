@@ -70,6 +70,7 @@ import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
+import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
@@ -403,21 +404,29 @@ public class ApiServiceClient {
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
-    public CompletableFuture<List<YtGuid>> getInSyncReplicas(String path, YtTimestamp timestamp, TableSchema schema) {
+    public CompletableFuture<List<YtGuid>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
         RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, RpcClientResponse<TRspGetInSyncReplicas>> builder =
                 service.getInSyncReplicas();
 
-        builder.body().setPath(path);
+        builder.body().setPath(request.getPath());
         builder.body().setTimestamp(timestamp.getValue());
-        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(schema));
+        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
+
+        request.serializeRowsetTo(builder.attachments());
 
         return RpcUtil.apply(builder.invoke(),
                 response ->
                         response.body().getReplicaIdsList().stream().map(YtGuid::fromProto).collect(Collectors.toList()));
     }
 
-    public CompletableFuture<List<YtGuid>> getInSyncReplicas(String path, TableSchema schema) {
-        return getInSyncReplicas(path, YtTimestamp.NULL, schema);
+    @Deprecated
+    public CompletableFuture<List<YtGuid>> getInSyncReplicas(
+            String path,
+            YtTimestamp timestamp,
+            TableSchema schema,
+            Iterable<? extends List<?>> keys)
+    {
+        return getInSyncReplicas(new GetInSyncReplicas(path, schema, keys), timestamp);
     }
 
     /* tables */
