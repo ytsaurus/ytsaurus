@@ -1,7 +1,6 @@
 from yt_env_setup import (
     YTEnvSetup,
     SANDBOX_ROOTDIR,
-    require_ytserver_root_privileges
 )
 from yt_commands import *
 
@@ -10,7 +9,6 @@ import os.path
 import uuid
 import subprocess
 import getpass
-import sys
 import errno
 import pytest
 

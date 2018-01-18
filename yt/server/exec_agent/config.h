@@ -180,6 +180,8 @@ public:
     //! and its job proxy RPC Unix Domain Socket name.
     TNullable<TString> JobProxySocketNameDirectory;
 
+    TDuration DiskInfoUpdatePeriod;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -197,6 +199,9 @@ public:
 
         RegisterParameter("job_proxy_socket_name_directory", JobProxySocketNameDirectory)
             .Default(Null);
+
+        RegisterParameter("disk_info_update_period", DiskInfoUpdatePeriod)
+            .Default(TDuration::Seconds(5));
     }
 };
 
@@ -258,6 +263,8 @@ public:
 
     TDuration CoreForwarderTimeout;
 
+    i64 MinRequiredDiskSpace;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -293,6 +300,9 @@ public:
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default(TDuration::Seconds(60))
             .GreaterThan(TDuration::Zero());
+
+        RegisterParameter("min_required_disk_space", MinRequiredDiskSpace)
+            .Default(100_MB);
     }
 };
 
