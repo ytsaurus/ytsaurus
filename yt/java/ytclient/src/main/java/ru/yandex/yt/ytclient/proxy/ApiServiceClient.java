@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
+import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TReqCopyNode;
@@ -32,6 +33,7 @@ import ru.yandex.yt.rpcproxy.TReqMoveNode;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
+import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
 import ru.yandex.yt.rpcproxy.TReqSetNode;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
@@ -40,6 +42,7 @@ import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
+import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspCommitTransaction;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TRspCopyNode;
@@ -59,6 +62,7 @@ import ru.yandex.yt.rpcproxy.TRspMoveNode;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
 import ru.yandex.yt.rpcproxy.TRspRemoveNode;
+import ru.yandex.yt.rpcproxy.TRspReshardTable;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspSetNode;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
@@ -68,10 +72,12 @@ import ru.yandex.yt.rpcproxy.TRspUnmountTable;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
+import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
+import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
@@ -81,7 +87,9 @@ import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
+import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
@@ -477,31 +485,46 @@ public class ApiServiceClient {
         return unmountTable(path, false);
     }
 
-    public CompletableFuture<Void> remountTable(String path) {
+    public CompletableFuture<Void> remountTable(RemountTable req) {
         RpcClientRequestBuilder<TReqRemountTable.Builder, RpcClientResponse<TRspRemountTable>> builder =
                 service.remountTable();
-        builder.body().setPath(path);
+        req.writeTo(builder.body());
+        return RpcUtil.apply(builder.invoke(), response -> null);
+    }
+
+    public CompletableFuture<Void> remountTable(String path) {
+        return remountTable(new RemountTable(path));
+    }
+
+    public CompletableFuture<Void> freezeTable(FreezeTable req) {
+        RpcClientRequestBuilder<TReqFreezeTable.Builder, RpcClientResponse<TRspFreezeTable>> builder =
+                service.freezeTable();
+        req.writeTo(builder.body());
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
     public CompletableFuture<Void> freezeTable(String path) {
-        RpcClientRequestBuilder<TReqFreezeTable.Builder, RpcClientResponse<TRspFreezeTable>> builder =
-                service.freezeTable();
-        builder.body().setPath(path);
+        return freezeTable(new FreezeTable(path));
+    }
+
+    public CompletableFuture<Void> unfreezeTable(FreezeTable req) {
+        RpcClientRequestBuilder<TReqUnfreezeTable.Builder, RpcClientResponse<TRspUnfreezeTable>> builder =
+                service.unfreezeTable();
+        req.writeTo(builder.body());
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
     public CompletableFuture<Void> unfreezeTable(String path) {
-        RpcClientRequestBuilder<TReqUnfreezeTable.Builder, RpcClientResponse<TRspUnfreezeTable>> builder =
-                service.unfreezeTable();
-        builder.body().setPath(path);
-        return RpcUtil.apply(builder.invoke(), response -> null);
+        return unfreezeTable(new FreezeTable(path));
     }
 
-    public CompletableFuture<Void> reshardTable() {
-        CompletableFuture<Void> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<Void> reshardTable(ReshardTable req) {
+        RpcClientRequestBuilder<TReqReshardTable.Builder, RpcClientResponse<TRspReshardTable>> builder =
+                service.reshardTable();
+
+        req.writeTo(builder.body());
+
+        return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
     public CompletableFuture<Void> trimTable(String path, int tableIndex, long trimmedRowCount) {
@@ -513,10 +536,12 @@ public class ApiServiceClient {
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
-    public CompletableFuture<Void> alterTable() {
-        CompletableFuture<Void> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<Void> alterTable(AlterTable req) {
+        RpcClientRequestBuilder<TReqAlterTable.Builder, RpcClientResponse<TRspAlterTable>> builder =
+                service.alterTable();
+
+        req.writeTo(builder.body());
+        return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
     public CompletableFuture<Void> alterTableReplica() {

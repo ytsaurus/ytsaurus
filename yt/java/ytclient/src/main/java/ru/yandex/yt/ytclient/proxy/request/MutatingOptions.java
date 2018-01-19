@@ -26,4 +26,8 @@ public class MutatingOptions {
         }
         return builder;
     }
+
+    public TMutatingOptions toProto() {
+        return writeTo(TMutatingOptions.newBuilder()).build();
+    }
 }
