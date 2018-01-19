@@ -411,11 +411,18 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Operation initialized");
 }
 
-TOperationControllerInitializationResult TOperationControllerBase::GetInitializationResult() const
+TOperationControllerInitializationResult TOperationControllerBase::GetInitializationResult()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return InitializationResult_;
+    return std::move(InitializationResult_);
+}
+
+TOperationControllerReviveResult TOperationControllerBase::GetReviveResult()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return std::move(ReviveResult_);
 }
 
 TYsonString TOperationControllerBase::GetAttributes() const
@@ -743,7 +750,7 @@ void TOperationControllerBase::Revive()
     DoLoadSnapshot(Snapshot);
     Snapshot = TOperationSnapshot();
 
-    RevivedFromSnapshot = true;
+    ReviveResult_.IsRevivedFromSnapshot = true;
 
     InitChunkListPool();
 
@@ -778,6 +785,11 @@ void TOperationControllerBase::Revive()
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
 
     FinishPrepare();
+
+    for (const auto& pair : JobletMap) {
+        const auto& joblet = pair.second;
+        ReviveResult_.Jobs.emplace_back(BuildJobFromJoblet(joblet));
+    }
 
     State = EControllerState::Running;
 }
@@ -3182,13 +3194,6 @@ int TOperationControllerBase::GetPendingJobCount() const
     return CachedPendingJobCount;
 }
 
-bool TOperationControllerBase::IsRevivedFromSnapshot() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return RevivedFromSnapshot;
-}
-
 void TOperationControllerBase::IncreaseNeededResources(const TJobResources& resourcesDelta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -5457,16 +5462,6 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
         .Finish();
 
     return result;
-}
-
-std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
-{
-    std::vector<TJobPtr> jobs;
-    for (const auto& pair : JobletMap) {
-        const auto& joblet = pair.second;
-        jobs.emplace_back(BuildJobFromJoblet(joblet));
-    }
-    return jobs;
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)

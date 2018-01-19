@@ -63,6 +63,12 @@ struct TOperationControllerInitializationResult
     TOperationControllerInitializationAttributes InitializationAttributes;
 };
 
+struct TOperationControllerReviveResult
+{
+    bool IsRevivedFromSnapshot = false;
+    std::vector<NScheduler::TJobPtr> Jobs;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSnapshotCookie
@@ -332,10 +338,24 @@ struct IOperationControllerSchedulerHost
      */
     virtual void Complete() = 0;
 
-    //! Returns controller attributes that determined during initialization.
-    virtual TOperationControllerInitializationResult GetInitializationResult() const = 0;
+    //! Returns controller attributes and transactions that determined during initialization.
+    //! Must be called once after initialization since result is moved to caller.
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
+    virtual TOperationControllerInitializationResult GetInitializationResult() = 0;
+
+    //! Returns result of revive process.
+    //! Must be called once after initialization since result is moved to caller.
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
+    virtual TOperationControllerReviveResult GetReviveResult() = 0;
 
     //! Returns controller attributes that determined after operation is prepared.
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
     virtual NYson::TYsonString GetAttributes() const = 0;
 
     /*!
@@ -343,9 +363,6 @@ struct IOperationControllerSchedulerHost
      *  Most of const controller methods are expected to be run in this invoker.
      */
     virtual IInvokerPtr GetInvoker() const = 0;
-
-    //! Returns whether controller was revived from snapshot.
-    virtual bool IsRevivedFromSnapshot() const = 0;
 
     //! Called in the end of heartbeat when scheduler agrees to run operation job.
     /*!
@@ -376,13 +393,6 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: cancelable Controller invoker
      */
     virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) = 0;
-
-    //! Build scheduler jobs from the joblets. Used during revival pipeline.
-    /*!
-     * XXX(ignat)
-     *  \note Invoker affinity: Control invoker
-     */
-    virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;
 
     //! Method that is called after operation results are committed and before
     //! controller is disposed.

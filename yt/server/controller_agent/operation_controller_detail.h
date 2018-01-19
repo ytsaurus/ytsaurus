@@ -215,7 +215,8 @@ public:
 
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
 
-    virtual TOperationControllerInitializationResult GetInitializationResult() const override;
+    virtual TOperationControllerInitializationResult GetInitializationResult() override;
+    virtual TOperationControllerReviveResult GetReviveResult() override;
     virtual NYson::TYsonString GetAttributes() const override;
 
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) override;
@@ -229,8 +230,6 @@ public:
     virtual TJobResources GetNeededResources() const override;
 
     virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override;
-
-    virtual bool IsRevivedFromSnapshot() const override;
 
     virtual bool IsRunning() const override;
 
@@ -342,8 +341,6 @@ public:
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() override;
 
-    virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override;
-
     virtual TSnapshotCookie OnSnapshotStarted() override;
 
     virtual void OnBeforeDisposal() override;
@@ -394,7 +391,6 @@ protected:
     IInvokerPtr CancelableInvoker;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
-    std::atomic<bool> RevivedFromSnapshot = {false};
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
@@ -1060,6 +1056,8 @@ private:
 
     TOperationControllerInitializationResult InitializationResult_;
     NYson::TYsonString Attributes_;
+
+    TOperationControllerReviveResult ReviveResult_;
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
