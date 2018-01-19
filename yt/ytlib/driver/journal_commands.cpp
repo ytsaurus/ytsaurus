@@ -291,6 +291,8 @@ void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
 
     WaitFor(writer->Close())
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

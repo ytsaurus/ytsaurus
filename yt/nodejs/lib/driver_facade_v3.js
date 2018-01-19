@@ -29,7 +29,7 @@ function YtDriverFacadeV3(logger, driver)
     var custom_commands = {};
 
     function defineCustomCommand(name, callback)
-    { 
+    {
         custom_commands[name] = {
             name: name,
             input_type: "null",
@@ -59,9 +59,9 @@ function YtDriverFacadeV3(logger, driver)
             { enumerable: false, value: callback });
     }
 
-    var application_versions = new YtApplicationVersions(driver); 
+    var application_versions = new YtApplicationVersions(driver);
 
-    defineCustomCommand("_discover_versions", function(output_stream) { 
+    defineCustomCommand("_discover_versions", function(output_stream) {
         return application_versions.get_versions();
     });
 
@@ -85,7 +85,9 @@ function YtDriverFacadeV3(logger, driver)
     this.driver = driver;
 }
 
-YtDriverFacadeV3.prototype.execute = function(name, user,
+YtDriverFacadeV3.prototype.execute = function(
+    api_version,
+    name, user,
     input_stream, input_compression,
     output_stream, output_compression,
     parameters, request_id, pause, response_parameters_consumer,
@@ -113,6 +115,7 @@ YtDriverFacadeV3.prototype.execute = function(name, user,
     }
 
     return this.driver.execute(
+        api_version,
         name, user,
         input_stream, input_compression,
         output_stream, output_compression,
@@ -120,15 +123,15 @@ YtDriverFacadeV3.prototype.execute = function(name, user,
         result_interceptor);
 };
 
-YtDriverFacadeV3.prototype.find_command_descriptor = function(name)
+YtDriverFacadeV3.prototype.find_command_descriptor = function(api_version, name)
 {
-    return this.custom_commands[name] || this.driver.find_command_descriptor(name);
+    return this.custom_commands[name] || this.driver.find_command_descriptor(api_version, name);
 };
 
-YtDriverFacadeV3.prototype.get_command_descriptors = function()
+YtDriverFacadeV3.prototype.get_command_descriptors = function(api_version)
 {
     return []
-        .concat(this.driver.get_command_descriptors())
+        .concat(this.driver.get_command_descriptors(api_version))
         .concat(Object.values(this.custom_commands));
 };
 

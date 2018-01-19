@@ -34,6 +34,8 @@ void TDumpJobContextCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->DumpJobContext(JobId, Path))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,8 +387,7 @@ void TGetJobCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(result));
+    ProduceSingleOutputValue(context, "job", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,8 +403,7 @@ void TStraceJobCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(result));
+    ProduceSingleOutputValue(context, "trace", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,6 +418,8 @@ void TSignalJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SignalJob(JobId, SignalName))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,6 +433,8 @@ void TAbandonJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbandonJob(JobId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,7 +461,7 @@ void TPollJobShellCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(result);
+    ProduceSingleOutputValue(context, "result", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -473,6 +477,8 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbortJob(JobId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -497,8 +503,7 @@ void TStartOperationCommand::DoExecute(ICommandContextPtr context)
     auto operationId = WaitFor(asyncOperationId)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(operationId));
+    ProduceSingleOutputValue(context, "operation_id", operationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -561,6 +566,8 @@ void TAbortOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbortOperation(OperationId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -575,6 +582,8 @@ void TSuspendOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SuspendOperation(OperationId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -583,6 +592,8 @@ void TResumeOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->ResumeOperation(OperationId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -591,6 +602,8 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->CompleteOperation(OperationId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
