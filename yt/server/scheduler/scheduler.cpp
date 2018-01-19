@@ -897,8 +897,7 @@ public:
             return;
         }
 
-        const auto& controller = operation->GetController();
-        if (controller->IsRevivedFromSnapshot()) {
+        if (operation->ReviveResult().IsRevivedFromSnapshot) {
             operation->SetState(EOperationState::RevivingJobs);
             RegisterJobsFromRevivedOperation(operation)
                 .Subscribe(
@@ -912,6 +911,7 @@ public:
                     })
                     .Via(operation->GetCancelableControlInvoker()));
         } else {
+            const auto& controller = operation->GetController();
             operation->SetState(EOperationState::Materializing);
             BIND(&IOperationControllerSchedulerHost::Materialize, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
@@ -1962,6 +1962,7 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
                 operation->ControllerAttributes().Attributes = controller->GetAttributes();
+                operation->ReviveResult() = controller->GetReviveResult();
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -1986,8 +1987,7 @@ private:
 
     TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
     {
-        const auto& controller = operation->GetController();
-        auto jobs = controller->BuildJobsFromJoblets();
+        auto jobs = std::move(operation->ReviveResult().Jobs);
         LOG_INFO("Registering running jobs from the revived operation (OperationId: %v, JobCount: %v)",
             operation->GetId(),
             jobs.size());

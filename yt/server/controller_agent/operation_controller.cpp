@@ -219,9 +219,14 @@ public:
         Underlying_->Cancel();
     }
 
-    virtual TOperationControllerInitializationResult GetInitializationResult() const override
+    virtual TOperationControllerInitializationResult GetInitializationResult() override
     {
-        return Underlying_->GetInitializationResult();
+        return std::move(Underlying_->GetInitializationResult());
+    }
+
+    virtual TOperationControllerReviveResult GetReviveResult() override
+    {
+        return std::move(Underlying_->GetReviveResult());
     }
 
     virtual NYson::TYsonString GetAttributes() const override
@@ -272,11 +277,6 @@ public:
     virtual bool IsRunning() const override
     {
         return Underlying_->IsRunning();
-    }
-
-    virtual bool IsRevivedFromSnapshot() const override
-    {
-        return Underlying_->IsRevivedFromSnapshot();
     }
 
     virtual TJobResources GetNeededResources() const override
@@ -395,11 +395,6 @@ public:
     virtual void OnBeforeDisposal() override
     {
         return Underlying_->OnBeforeDisposal();
-    }
-
-    virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override
-    {
-        return Underlying_->BuildJobsFromJoblets();
     }
 
     // TODO(babenko)

@@ -142,6 +142,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
 
+    DEFINE_BYREF_RW_PROPERTY(NControllerAgent::TOperationControllerReviveResult, ReviveResult);
+
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain
     // sensitive information.
