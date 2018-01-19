@@ -93,9 +93,9 @@ class TestListJobs(YTEnvSetup):
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
-            precommand="echo STDERR-OUTPUT >&2",
-            mapper_command='test $YT_JOB_INDEX -eq "1" && exit 1',
-            reducer_command="cat",
+            # Jobs write to stderr so they will be saved.
+            mapper_command='echo foo >&2 ; test $YT_JOB_INDEX -eq "1" && exit 1',
+            reducer_command="echo foo >&2 ; cat",
             sort_by="foo",
             reduce_by="foo",
             spec={

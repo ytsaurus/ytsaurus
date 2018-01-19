@@ -829,16 +829,14 @@ print row + table_index
             job_type = "ordered_map"
         create("table", output)
 
+        events = EventsOnFs()
         op = map(
             ordered=ordered,
             dont_track=True,
-            wait_for_jobs=True,
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
-            precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
-            command="true",
-            postcommand="cat",
+            command="""read; echo "${{REPLY/(???)/(job)}}"; echo "$REPLY" ; {breakpoint_cmd} ; cat""".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -850,8 +848,9 @@ print row + table_index
                 "enable_job_splitting": False,
             })
 
-        interrupt_job(op.jobs[0])
-        op.resume_jobs()
+        jobs = events.wait_breakpoint()
+        interrupt_job(jobs[0])
+        events.release_breakpoint()
         op.track()
 
         result = read_table("//tmp/output", verbose=False)

@@ -42,7 +42,6 @@ class TestGetOperation(YTEnvSetup):
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
-            precommand="echo STDERR-OUTPUT >&2",
             command="cat",
             spec={
                 "mapper": {
@@ -106,7 +105,6 @@ class TestGetOperation(YTEnvSetup):
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
-            precommand="echo STDERR-OUTPUT >&2",
             command="cat",
             spec={
                 "mapper": {
