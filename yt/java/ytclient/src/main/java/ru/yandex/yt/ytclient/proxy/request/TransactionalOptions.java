@@ -53,4 +53,8 @@ public class TransactionalOptions {
         builder.setSticky(sticky);
         return builder;
     }
+
+    public TTransactionalOptions toProto() {
+        return writeTo(TTransactionalOptions.newBuilder()).build();
+    }
 }
