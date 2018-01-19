@@ -221,12 +221,12 @@ public:
 
     virtual TOperationControllerInitializationResult GetInitializationResult() override
     {
-        return std::move(Underlying_->GetInitializationResult());
+        return Underlying_->GetInitializationResult();
     }
 
     virtual TOperationControllerReviveResult GetReviveResult() override
     {
-        return std::move(Underlying_->GetReviveResult());
+        return Underlying_->GetReviveResult();
     }
 
     virtual NYson::TYsonString GetAttributes() const override
