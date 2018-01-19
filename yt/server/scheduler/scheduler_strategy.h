@@ -149,7 +149,7 @@ struct ISchedulerStrategy
         std::vector<NScheduler::TCompletedJob>* completedJobs,
         std::vector<TJobId>* jobsToAbort) = 0;
 
-    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& operationJobMetrics) = 0;
+    virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
     virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
 

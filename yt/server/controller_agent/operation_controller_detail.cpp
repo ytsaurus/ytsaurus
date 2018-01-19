@@ -5461,7 +5461,6 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
     TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
     NScheduler::TOperationJobMetrics result;
-    result.OperationId = OperationId;
 
     auto now = NProfiling::GetCpuInstant();
 
@@ -5475,7 +5474,7 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
         const auto& treeId = pair.first;
         auto& delta = pair.second;
         if (!delta.IsEmpty()) {
-            result.Metrics.push_back({treeId, delta});
+            result.push_back({treeId, delta});
             delta = NScheduler::TJobMetrics();
         }
     }

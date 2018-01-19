@@ -20,6 +20,8 @@
 
 #include <yt/core/yson/public.h>
 
+#include <util/string/join.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -269,12 +271,44 @@ public:
             return;
         }
 
-        context->SetRequestInfo("AgentIncarnationId: %v", agentIncarnationId);
+        context->SetRequestInfo("AgentIncarnationId: %v, OperationCount: %v",
+            agentIncarnationId,
+            request->operations_size());
 
-        for (const auto& jobMetricsProto : request->job_metrics()) {
-            auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
-            scheduler->GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
+        TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
+        std::vector<TString> suspiciousJobsYsons;
+        for (const auto& protoOperation : request->operations()) {
+            auto operationId = FromProto<TOperationId>(protoOperation.operation_id());
+
+            const auto& scheduler = Bootstrap_->GetScheduler();
+            auto operation = scheduler->FindOperation(operationId);
+            if (!operation) {
+                LOG_DEBUG("Unknown operation is running at agent (OperationId: %v)",
+                    operationId);
+                // TODO(babenko,ignat): add some handling
+                return;
+            }
+
+            TOperationAlertMap alerts;
+            for (const auto& protoAlert : protoOperation.alerts()) {
+                auto alertType = EOperationAlertType(protoAlert.type());
+                auto alert = FromProto<TError>(protoAlert.error());
+                if (operation->Alerts()[alertType] != alert) {
+                    operation->MutableAlerts()[alertType] = alert;
+                }
+            }
+
+            auto operationJobMetrics = FromProto<TOperationJobMetrics>(protoOperation.job_metrics());
+            YCHECK(operationIdToOperationJobMetrics.emplace(operationId, operationJobMetrics).second);
+
+            if (protoOperation.has_suspicious_jobs()) {
+                suspiciousJobsYsons.push_back(protoOperation.suspicious_jobs());
+            }
         }
+
+        scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);
+
+        Agent_->SetSuspiciousJobsYson(TYsonString(JoinSeq("", suspiciousJobsYsons), EYsonType::MapFragment));
 
         const auto& nodeShards = scheduler->GetNodeShards();
         std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
@@ -344,24 +378,11 @@ public:
 
         agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
 
-        for (const auto& protoOperationAlerts : request->operation_alerts()) {
-            auto operationId = FromProto<TOperationId>(protoOperationAlerts.operation_id());
-            TOperationAlertMap alerts;
-            for (const auto& protoAlert : protoOperationAlerts.alerts()) {
-                auto alertType = EOperationAlertType(protoAlert.type());
-                auto alert = FromProto<TError>(protoAlert.error());
-                YCHECK(alerts.emplace(alertType, std::move(alert)).second);
-            }
-            DoSetOperationAlerts(operationId, alerts);
-        }
-
         if (request->exec_nodes_requested()) {
             for (const auto& execNode : scheduler->GetCachedExecNodeDescriptors()->Descriptors) {
                 ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
             }
         }
-
-        Agent_->SetSuspiciousJobsYson(TYsonString(request->suspicious_jobs(), EYsonType::MapFragment));
 
         auto error = WaitFor(Combine(asyncResults));
         if (!error.IsOK()) {
@@ -406,27 +427,6 @@ private:
     TControllerAgentPtr Agent_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-    void DoSetOperationAlerts(
-        const TOperationId& operationId,
-        const TOperationAlertMap& operationAlerts)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        auto operation = scheduler->FindOperation(operationId);
-        if (!operation) {
-            return;
-        }
-
-        for (const auto& pair : operationAlerts) {
-            const auto& alertType = pair.first;
-            const auto& alert = pair.second;
-            if (operation->Alerts()[alertType] != alert) {
-                operation->MutableAlerts()[alertType] = alert;
-            }
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

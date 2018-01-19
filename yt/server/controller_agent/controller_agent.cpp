@@ -33,8 +33,6 @@
 
 #include <yt/core/ytree/convert.h>
 
-#include <util/string/join.h>
-
 namespace NYT {
 namespace NControllerAgent {
 
@@ -521,37 +519,28 @@ private:
             const auto& operation = pair.second;
             auto controller = operation->GetController();
 
-            {
-                auto jobMetricsDelta = controller->PullJobMetricsDelta();
-                ToProto(req->add_job_metrics(), jobMetricsDelta);
-            }
+            auto* protoOperation = req->add_operations();
+            ToProto(protoOperation->mutable_operation_id(), operationId);
 
             {
-                auto* operationAlertsProto = req->add_operation_alerts();
-                ToProto(operationAlertsProto->mutable_operation_id(), operationId);
-                for (const auto& pair : controller->GetAlerts()) {
-                    auto alertType = pair.first;
-                    const auto& alert = pair.second;
-                    auto* protoAlert = operationAlertsProto->add_alerts();
-                    protoAlert->set_type(static_cast<int>(alertType));
-                    ToProto(protoAlert->mutable_error(), alert);
-                }
+                auto jobMetricsDelta = controller->PullJobMetricsDelta();
+                ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
             }
+
+            for (const auto& pair : controller->GetAlerts()) {
+                auto alertType = pair.first;
+                const auto& alert = pair.second;
+                auto* protoAlert = protoOperation->add_alerts();
+                protoAlert->set_type(static_cast<int>(alertType));
+                ToProto(protoAlert->mutable_error(), alert);
+            }
+
+            // TODO(ignat): add some backoff.
+            protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
         }
 
         bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
         req->set_exec_nodes_requested(shouldRequestExecNodes);
-
-        // TODO(ignat): add some backoff.
-        {
-            std::vector<TString> suspiciousJobsYsons;
-            for (const auto& pair : GetOperations()) {
-                const auto& operation = pair.second;
-                auto controller = operation->GetController();
-                suspiciousJobsYsons.push_back(controller->GetSuspiciousJobsYson().GetData());
-            }
-            req->set_suspicious_jobs(JoinSeq("", suspiciousJobsYsons));
-        }
 
         return req;
     }
