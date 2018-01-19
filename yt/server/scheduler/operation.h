@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
+#include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -20,6 +21,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/crash_handler.h>
+
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/ytree/node.h>
 
@@ -139,6 +142,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+
+    DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeDataPtr, RuntimeData);
 
     DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
 
@@ -274,6 +279,27 @@ private:
 #undef DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH
 
 DEFINE_REFCOUNTED_TYPE(TOperation)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationRuntimeData
+    : public TIntrinsicRefCounted
+{
+public:
+    int GetPendingJobCount() const;
+    void SetPendingJobCount(int value);
+
+    NScheduler::TJobResources GetNeededResources();
+    void SetNeededResources(const NScheduler::TJobResources& value);
+
+private:
+    std::atomic<int> PendingJobCount_ = {0};
+
+    mutable NConcurrency::TReaderWriterSpinLock NeededResourcesLock_;
+    NScheduler::TJobResources NeededResources_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 

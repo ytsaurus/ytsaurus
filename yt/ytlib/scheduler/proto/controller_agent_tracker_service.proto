@@ -54,6 +54,8 @@ message TOperationInfo
     repeated TTreeTaggedJobMetrics job_metrics = 2;
     repeated TOperationAlert alerts = 3;
     optional bytes suspicious_jobs = 4;
+    required int32 pending_job_count = 5;
+    required TJobResources needed_resources = 6;
 }
 
 message TAgentToSchedulerOperationEvent

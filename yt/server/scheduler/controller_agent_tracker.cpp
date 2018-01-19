@@ -46,10 +46,13 @@ public:
         TOperation* operation)
         : JobEventsOutbox_(agent->GetJobEventsOutbox())
         , OperationId_(operation->GetId())
+        , RuntimeData_(operation->GetRuntimeData())
     { }
 
     virtual void OnJobStarted(const TJobPtr& job) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
         auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
         LOG_DEBUG("Job start notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
@@ -63,6 +66,8 @@ public:
         NJobTrackerClient::NProto::TJobStatus* status,
         bool abandoned) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Completed, job, true, status);
         event.Abandoned = abandoned;
         event.InterruptReason = job->GetInterruptReason();
@@ -77,6 +82,8 @@ public:
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
         auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
         LOG_DEBUG("Job failure notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
@@ -89,6 +96,8 @@ public:
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
         event.AbortReason = job->GetAbortReason();
         auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
@@ -102,6 +111,8 @@ public:
         const TJobId& jobId,
         EAbortReason abortReason) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
         ToProto(status->mutable_job_id(), jobId);
         auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
@@ -125,6 +136,8 @@ public:
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto itemId = JobEventsOutbox_->Enqueue(BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status));
         LOG_DEBUG("Job run notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
             itemId,
@@ -133,13 +146,13 @@ public:
     }
 
 
-    // TODO(babenko)
     virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
         NScheduler::ISchedulingContextPtr context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
-        return GetAgentController()->ScheduleJob(
+        // TODO(babenko)
+        return AgentController_->ScheduleJob(
             std::move(context),
             jobLimits,
             treeId);
@@ -147,22 +160,28 @@ public:
 
     virtual IInvokerPtr GetCancelableInvoker() const override
     {
-        return GetAgentController()->GetCancelableInvoker();
+        // TODO(babenko)
+        return AgentController_->GetCancelableInvoker();
     }
 
     virtual TJobResources GetNeededResources() const override
     {
-        return GetAgentController()->GetNeededResources();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return RuntimeData_->GetNeededResources();
     }
 
     virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override
     {
-        return GetAgentController()->GetMinNeededJobResources();
+        // TODO(babenko)
+        return AgentController_->GetMinNeededJobResources();
     }
 
     virtual int GetPendingJobCount() const override
     {
-        return GetAgentController()->GetPendingJobCount();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return RuntimeData_->GetPendingJobCount();
     }
 
     virtual NControllerAgent::IOperationControllerPtr GetAgentController() const override
@@ -175,11 +194,12 @@ public:
     {
         AgentController_ = controller;
     }
-
+    
 private:
     const TIntrusivePtr<TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
     const TOperationId OperationId_;
-    NControllerAgent::IOperationControllerPtr AgentController_;
+    const NControllerAgent::IOperationControllerPtr AgentController_;
+    const TOperationRuntimeDataPtr RuntimeData_;
 
     TJobEvent BuildEvent(
         ESchedulerToAgentJobEventType eventType,
@@ -304,6 +324,10 @@ public:
             if (protoOperation.has_suspicious_jobs()) {
                 suspiciousJobsYsons.push_back(protoOperation.suspicious_jobs());
             }
+
+            auto runtimeData = operation->GetRuntimeData();
+            runtimeData->SetPendingJobCount(protoOperation.pending_job_count());
+            runtimeData->SetNeededResources(FromProto<TJobResources>(protoOperation.needed_resources()));
         }
 
         scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);

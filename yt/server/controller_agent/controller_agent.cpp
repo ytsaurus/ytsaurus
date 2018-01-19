@@ -537,6 +537,10 @@ private:
 
             // TODO(ignat): add some backoff.
             protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+
+            protoOperation->set_pending_job_count(controller->GetPendingJobCount());
+
+            ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
         }
 
         bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
