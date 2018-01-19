@@ -19,6 +19,7 @@ import ru.yandex.yt.rpcproxy.TReqCopyNode;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
+import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
@@ -45,6 +46,7 @@ import ru.yandex.yt.rpcproxy.TRspCopyNode;
 import ru.yandex.yt.rpcproxy.TRspCreateNode;
 import ru.yandex.yt.rpcproxy.TRspExistsNode;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
+import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
 import ru.yandex.yt.rpcproxy.TRspLinkNode;
@@ -427,6 +429,19 @@ public class ApiServiceClient {
             Iterable<? extends List<?>> keys)
     {
         return getInSyncReplicas(new GetInSyncReplicas(path, schema, keys), timestamp);
+    }
+
+    public CompletableFuture<YtTimestamp> generateTimestamps(int count) {
+        RpcClientRequestBuilder<TReqGenerateTimestamps.Builder, RpcClientResponse<TRspGenerateTimestamps>> builder =
+                service.generateTimestamps();
+
+        builder.body().setCount(count);
+        return RpcUtil.apply(builder.invoke(),
+                response -> YtTimestamp.valueOf(response.body().getTimestamp()));
+    }
+
+    public CompletableFuture<YtTimestamp> generateTimestamps() {
+        return generateTimestamps(1);
     }
 
     /* tables */
