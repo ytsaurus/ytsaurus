@@ -23,6 +23,24 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("time").Value(event.Time)
+            .Item("state").Value(event.State)
+        .EndMap();
+}
+
+void Deserialize(TOperationEvent& event, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    event.Time = ConvertTo<TInstant>(mapNode->GetChild("time"));
+    event.State = ConvertTo<EOperationState>(mapNode->GetChild("state"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
@@ -46,6 +64,7 @@ TOperation::TOperation(
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
     , RuntimeParams_(std::move(runtimeParams))
+    , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
     , Owners_(owners)
     , Events_(events)
@@ -173,20 +192,28 @@ void TOperation::Cancel()
     CancelableContext_->Cancel();
 }
 
-void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
+////////////////////////////////////////////////////////////////////////////////
+
+int TOperationRuntimeData::GetPendingJobCount() const
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("time").Value(event.Time)
-            .Item("state").Value(event.State)
-        .EndMap();
+    return PendingJobCount_.load();
 }
 
-void Deserialize(TOperationEvent& event, INodePtr node)
+void TOperationRuntimeData::SetPendingJobCount(int value)
 {
-    auto mapNode = node->AsMap();
-    event.Time = ConvertTo<TInstant>(mapNode->GetChild("time"));
-    event.State = ConvertTo<EOperationState>(mapNode->GetChild("state"));
+    PendingJobCount_.store(value);
+}
+
+NScheduler::TJobResources TOperationRuntimeData::GetNeededResources()
+{
+    NConcurrency::TReaderGuard guard(NeededResourcesLock_);
+    return NeededResources_;
+}
+
+void TOperationRuntimeData::SetNeededResources(const NScheduler::TJobResources& value)
+{
+    NConcurrency::TWriterGuard guard(NeededResourcesLock_);
+    NeededResources_ = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
