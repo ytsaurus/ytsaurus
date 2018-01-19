@@ -67,6 +67,9 @@ struct TTreeTaggedJobMetrics
     TJobMetrics Metrics;
 };
 
+using TOperationJobMetrics = std::vector<TTreeTaggedJobMetrics>;
+using TOperationIdToOperationJobMetrics = yhash<TOperationId, TOperationJobMetrics>;
+
 namespace NProto {
 
 void ToProto(
@@ -76,26 +79,6 @@ void ToProto(
 void FromProto(
     NScheduler::TTreeTaggedJobMetrics* jobMetrics,
     const NScheduler::NProto::TTreeTaggedJobMetrics& protoJobMetrics);
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOperationJobMetrics
-{
-    TOperationId OperationId;
-    std::vector<TTreeTaggedJobMetrics> Metrics;
-};
-
-namespace NProto {
-
-void ToProto(
-    NScheduler::NProto::TOperationJobMetrics* protoOperationJobMetrics,
-    const NScheduler::TOperationJobMetrics& operationJobMetrics);
-
-void FromProto(
-    NScheduler::TOperationJobMetrics* operationJobMetrics,
-    const NScheduler::NProto::TOperationJobMetrics& protoOperationJobMetrics);
 
 } // namespace NProto
 

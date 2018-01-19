@@ -2279,7 +2279,7 @@ public:
             });
     }
 
-    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& operationJobMetrics) override
+    virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2291,14 +2291,17 @@ public:
             snapshots = TreeIdToSnapshot_;
         }
 
-        for (const auto& metrics : operationJobMetrics.Metrics) {
-            auto snapshotIt = snapshots.find(metrics.TreeId);
-            if (snapshotIt == snapshots.end()) {
-                continue;
-            }
+        for (const auto& pair : operationIdToOperationJobMetrics) {
+            const auto& operationId = pair.first;
+            for (const auto& metrics : pair.second) {
+                auto snapshotIt = snapshots.find(metrics.TreeId);
+                if (snapshotIt == snapshots.end()) {
+                    continue;
+                }
 
-            const auto& snapshot = snapshotIt->second;
-            snapshot->ApplyJobMetricsDelta(operationJobMetrics.OperationId, metrics.Metrics);
+                const auto& snapshot = snapshotIt->second;
+                snapshot->ApplyJobMetricsDelta(operationId, metrics.Metrics);
+            }
         }
     }
 
