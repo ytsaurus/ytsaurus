@@ -120,7 +120,6 @@ struct IDriver
 
     //! Terminates the underlying connection.
     virtual void Terminate() = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IDriver)

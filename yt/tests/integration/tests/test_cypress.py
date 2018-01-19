@@ -1,15 +1,17 @@
 import pytest
 import time
 import datetime
+from copy import deepcopy
+from cStringIO import StringIO
+from datetime import timedelta
+from dateutil.tz import tzlocal
 
-from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_driver_bindings import Driver
 from yt.yson import to_yson_type, YsonEntity
 from yt.environment.helpers import assert_items_equal
 
-from datetime import timedelta
-
-from dateutil.tz import tzlocal
+from yt_env_setup import YTEnvSetup
+from yt_commands import *
 
 ##################################################################
 
@@ -1841,4 +1843,44 @@ class TestCypressWithoutSet(YTEnvSetup):
         create("document", "//tmp/doc")
         set("//tmp/doc", 10)
         assert get("//tmp/doc") == 10
+
+##################################################################
+
+class TestCypressApiVersion4(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+
+    @classmethod
+    def setup_class(cls):
+        super(TestCypressApiVersion4, cls).setup_class()
+        config = deepcopy(cls.Env.configs["driver"])
+        config["api_version"] = 4
+        cls.driver = Driver(config)
+
+    def _execute(self, command, **kwargs):
+        kwargs["driver"] = self.driver
+        input_stream = StringIO(kwargs.pop("input")) if "input" in kwargs else None
+        return yson.loads(execute_command(command, kwargs, input_stream=input_stream))
+
+    def test_create(self):
+        assert "node_id" in self._execute("create", type="map_node", path="//tmp/dir")
+
+    def test_set_and_get(self):
+        assert self._execute("set", path="//tmp/a", input='{"b"= 3}') == {}
+        assert self._execute("get", path="//tmp/a") == {"value": {"b": 3}}
+
+    def test_list(self):
+        self._execute("set", path="//tmp/map", input='{"a"= 1; "b"= 2; "c"= 3}')
+        assert self._execute("list", path="//tmp/map") == {"value": ["a", "b", "c"]}
+
+    def test_trasaction(self):
+        tx_result = self._execute("start_transaction")
+        assert "transaction_id" in tx_result
+
+    def test_lock(self):
+        self._execute("set", path="//tmp/a", input='{"a"= 1}')
+        result = self._execute("start_transaction")
+        tx = result["transaction_id"]
+        lock_result = self._execute("lock", path="//tmp/a", transaction_id=tx)
+        assert "lock_id" in lock_result and "node_id" in lock_result
 

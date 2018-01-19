@@ -110,6 +110,8 @@ void TWriteFileCommand::DoExecute(ICommandContextPtr context)
 
     WaitFor(writer->Close())
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

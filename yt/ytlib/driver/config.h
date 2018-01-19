@@ -23,6 +23,9 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int ApiVersion3 = 3;
+constexpr int ApiVersion4 = 4;
+
 class TDriverConfig
     : public NYTree::TYsonSerializable
 {
@@ -33,6 +36,7 @@ public:
     NTableClient::TTableWriterConfigPtr TableWriter;
     NApi::TJournalReaderConfigPtr JournalReader;
     NApi::TJournalWriterConfigPtr JournalWriter;
+    int ApiVersion;
 
     i64 ReadBufferRowCount;
     i64 ReadBufferSize;
@@ -65,6 +69,8 @@ public:
         RegisterParameter("client_cache", ClientCache)
             .DefaultNew();
 
+        RegisterParameter("api_version", ApiVersion)
+            .Default(ApiVersion3);
     }
 };
 

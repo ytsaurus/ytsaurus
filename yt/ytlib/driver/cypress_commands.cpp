@@ -39,7 +39,7 @@ void TGetCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(result);
+    ProduceSingleOutputValue(context, "value", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +61,8 @@ void TSetCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,6 +83,8 @@ void TRemoveCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +107,7 @@ void TListCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(result);
+    ProduceSingleOutputValue(context, "value", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,8 +157,7 @@ void TCreateNodeCommand::DoExecute(ICommandContextPtr context)
     auto nodeId = WaitFor(asyncNodeId)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(nodeId));
+    ProduceSingleOutputValue(context, "node_id", nodeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,8 +181,7 @@ void TCreateObjectCommand::DoExecute(ICommandContextPtr context)
     auto objectId = WaitFor(asyncObjectId)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(objectId));
+    ProduceSingleOutputValue(context, "object_id", objectId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,8 +222,18 @@ void TLockCommand::DoExecute(ICommandContextPtr context)
     auto lockResult = WaitFor(asyncLockResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(lockResult.LockId));
+    ProduceOutput(context,
+        [&](NYson::IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .Value(lockResult.LockId);
+        },
+        [&](NYson::IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("lock_id").Value(lockResult.LockId)
+                    .Item("node_id").Value(lockResult.NodeId)
+                .EndMap();
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,8 +265,7 @@ void TCopyCommand::DoExecute(ICommandContextPtr context)
     auto nodeId = WaitFor(asyncNodeId)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(nodeId));
+    ProduceSingleOutputValue(context, "node_id", nodeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,8 +293,7 @@ void TMoveCommand::DoExecute(ICommandContextPtr context)
     auto nodeId = WaitFor(asyncNodeId)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(nodeId));
+    ProduceSingleOutputValue(context, "node_id", nodeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,8 +311,7 @@ void TExistsCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(result));
+    ProduceSingleOutputValue(context, "value", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -334,8 +343,7 @@ void TLinkCommand::DoExecute(ICommandContextPtr context)
     auto nodeId = WaitFor(asyncNodeId)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(nodeId));
+    ProduceSingleOutputValue(context, "node_id", nodeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,6 +378,8 @@ void TConcatenateCommand::DoExecute(ICommandContextPtr context)
 
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
