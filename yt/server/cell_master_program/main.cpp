@@ -1,9 +1,9 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
 
-#include <yt/server/program/program.h>
-#include <yt/server/program/program_config_mixin.h>
-#include <yt/server/program/program_pdeathsig_mixin.h>
+#include <yt/ytlib/program/program.h>
+#include <yt/ytlib/program/program_config_mixin.h>
+#include <yt/ytlib/program/program_pdeathsig_mixin.h>
 
 #include <yt/server/misc/configure_singletons.h>
 

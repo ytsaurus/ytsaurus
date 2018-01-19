@@ -14,7 +14,7 @@
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/program/names.h>
+#include <yt/ytlib/program/names.h>
 
 #include <yt/server/shell/shell_manager.h>
 
