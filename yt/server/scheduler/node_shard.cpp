@@ -109,15 +109,19 @@ void TNodeShard::OnMasterConnected()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    DoCleanup();
+
     YCHECK(!Connected_);
     Connected_ = true;
 
+    YCHECK(!CancelableContext_);
     CancelableContext_ = New<TCancelableContext>();
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
     CachedExecNodeDescriptorsRefresher_->Start();
     CachedResourceLimitsByTags_->Start();
 
+    YCHECK(!RevivalState_);
     RevivalState_ = New<TNodeShard::TRevivalState>(this);
     RevivalState_->PrepareReviving();
 }
@@ -126,6 +130,11 @@ void TNodeShard::OnMasterDisconnected()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    DoCleanup();
+}
+
+void TNodeShard::DoCleanup()
+{
     Connected_ = false;
 
     if (CancelableContext_) {

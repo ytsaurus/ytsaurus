@@ -272,6 +272,8 @@ private:
     yhash<TOperationId, TOperationState> IdToOpertionState_;
 
 
+    void DoCleanup();
+
     void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);
