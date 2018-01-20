@@ -2456,6 +2456,14 @@ public:
         }
     }
 
+    virtual void OnOperationRunning(const TOperationId& operationId) override
+    {
+        const auto& state = GetOperationState(operationId);
+        if (state->GetHost()->IsSchedulable()) {
+            state->GetController()->InvokeMinNeededJobResourcesUpdate();
+        }
+    }
+
     virtual void ValidateNodeTags(const yhash_set<TString>& tags) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -2662,7 +2670,6 @@ private:
         for (const auto& operationId : operationIds) {
             const auto& state = GetOperationState(operationId);
             if (!state->GetActive()) {
-                state->GetController()->InvokeMinNeededJobResourcesUpdate();
                 Host->ActivateOperation(operationId);
                 state->SetActive(true);
             }

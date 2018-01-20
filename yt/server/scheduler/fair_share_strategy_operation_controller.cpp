@@ -1,5 +1,7 @@
 #include "fair_share_strategy_operation_controller.h"
 
+#include "operation_controller.h"
+
 namespace NYT {
 namespace NScheduler {
 

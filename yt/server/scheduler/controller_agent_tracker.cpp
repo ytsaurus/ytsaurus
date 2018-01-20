@@ -44,7 +44,6 @@ public:
         TOperation* operation)
         : JobEventsOutbox_(agent->GetJobEventsOutbox())
         , OperationId_(operation->GetId())
-        , AgentController_(operation->GetController())
     { }
 
     virtual void OnJobStarted(const TJobPtr& job) override
@@ -138,7 +137,7 @@ public:
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
-        return AgentController_->ScheduleJob(
+        return GetAgentController()->ScheduleJob(
             std::move(context),
             jobLimits,
             treeId);
@@ -146,28 +145,39 @@ public:
 
     virtual IInvokerPtr GetCancelableInvoker() const override
     {
-        return AgentController_->GetCancelableInvoker();
+        return GetAgentController()->GetCancelableInvoker();
     }
 
     virtual TJobResources GetNeededResources() const override
     {
-        return AgentController_->GetNeededResources();
+        return GetAgentController()->GetNeededResources();
     }
 
     virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override
     {
-        return AgentController_->GetMinNeededJobResources();
+        return GetAgentController()->GetMinNeededJobResources();
     }
 
     virtual int GetPendingJobCount() const override
     {
-        return AgentController_->GetPendingJobCount();
+        return GetAgentController()->GetPendingJobCount();
+    }
+
+    virtual NControllerAgent::IOperationControllerPtr GetAgentController() const override
+    {
+        YCHECK(AgentController_);
+        return AgentController_;
+    }
+
+    virtual void SetAgentController(const NControllerAgent::IOperationControllerPtr& controller) override
+    {
+        AgentController_ = controller;
     }
 
 private:
     const TIntrusivePtr<TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
     const TOperationId OperationId_;
-    const NControllerAgent::IOperationControllerPtr AgentController_;
+    NControllerAgent::IOperationControllerPtr AgentController_;
 
     TJobEvent BuildEvent(
         ESchedulerToAgentJobEventType eventType,

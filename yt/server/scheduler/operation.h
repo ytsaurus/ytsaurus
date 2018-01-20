@@ -160,8 +160,6 @@ public:
     using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
 
-    //! Controller that owns the operation.
-    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
     // TODO(babenko)
     DEFINE_BYVAL_RW_PROPERTY(NScheduler::IOperationControllerPtr, LocalController);
 

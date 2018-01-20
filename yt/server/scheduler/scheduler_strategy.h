@@ -141,6 +141,8 @@ struct ISchedulerStrategy
 
     //! Register jobs that are already created somewhere outside strategy.
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
+    
+    virtual void OnOperationRunning(const TOperationId& operationId) = 0;
 
     virtual void ProcessUpdatedAndCompletedJobs(
         std::vector<TUpdatedJob>* updatedJobs,
