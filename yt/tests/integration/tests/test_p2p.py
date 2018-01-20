@@ -143,6 +143,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
                 "min_request_count": 3,
                 "max_distribution_count": 12, # As in production
                 "destination_node_count": 2,
+                "consecutive_distribution_delay": 200,
             },
             "block_cache": {
                 "compressed_data": {
