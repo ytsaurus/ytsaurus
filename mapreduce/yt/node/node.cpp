@@ -427,6 +427,17 @@ TNode& TNode::operator[](const TStringBuf key)
     return Value_.As<TMapType>()[key];
 }
 
+const TNode& TNode::At(const TStringBuf key) const {
+    CheckType(Map);
+    const auto& map = Value_.As<TMapType>();
+    TMapType::const_iterator i = map.find(key);
+    if (i == map.end()) {
+        throw yexception() << "Cannot find key " << key;
+    } else {
+        return i->second;
+    }
+}
+
 bool TNode::HasAttributes() const
 {
     return Attributes_ && !Attributes_->Empty();
