@@ -2,7 +2,8 @@ from .queues import (Timer, ThreadSafeCounter, NonBlockingQueue,
                      queue_worker, run_workers, run_queue_workers,
                      run_batching_queue_workers, wait_for_queue)
 
-from yt.wrapper.http_helpers import get_token, get_proxy_url
+from yt.wrapper.http_helpers import get_token
+from yt.wrapper.http_driver import HeavyProxyProvider
 from yt.common import date_string_to_timestamp_mcs, datetime_to_string
 
 import yt.logger as logger
@@ -297,7 +298,9 @@ class StderrDownloader(object):
     def __call__(self, element):
         op, job_id = element
         token = get_token()
-        proxy_url = get_proxy_url(self.yt.config["proxy"]["url"])
+        client = yt.YtClient(self.yt.config["proxy"]["url"], token=token)
+        client.config["proxy"]["retries"]["count"] = 1
+        proxy_url = HeavyProxyProvider(client)()
         stderr = ""
         path = format_op_path(op)
 
@@ -305,6 +308,9 @@ class StderrDownloader(object):
             path = "http://{}/api/v3/read_file?path={}/jobs/{}/stderr".format(proxy_url, path, job_id)
 
             rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
+
+            if not str(rsp.status_code).startswith("2"):
+                raise yt.YtResponseError(json.loads(rsp.content))
 
             if not rsp.content:
                 return
