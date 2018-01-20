@@ -177,6 +177,7 @@ public:
 
     const TNode& operator[](const TStringBuf key) const;
     TNode& operator[](const TStringBuf key);
+    const TNode& At(const TStringBuf key) const;
 
     // attributes
     bool HasAttributes() const;
