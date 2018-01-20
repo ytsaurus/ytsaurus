@@ -11,6 +11,7 @@
 #include "cache.h"
 #include "controller_agent_tracker.h"
 #include "controller_agent.h"
+#include "operation_controller.h"
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
@@ -700,7 +701,7 @@ public:
 
         Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions({});
 
-        const auto& controller = operation->GetController();
+        const auto& controller = operation->GetLocalController()->GetAgentController();
         YCHECK(controller);
         controller->Complete();
 
@@ -901,28 +902,30 @@ public:
             operation->SetState(EOperationState::RevivingJobs);
             RegisterJobsFromRevivedOperation(operation)
                 .Subscribe(
-                    BIND([operation] (const TError& error) {
+                    BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
                         if (!error.IsOK()) {
                             return;
                         }
                         if (operation->GetState() == EOperationState::RevivingJobs) {
                             operation->SetState(EOperationState::Running);
+                            Strategy_->OnOperationRunning(operation->GetId());
                         }
                     })
                     .Via(operation->GetCancelableControlInvoker()));
         } else {
-            const auto& controller = operation->GetController();
+            const auto& controller = operation->GetLocalController()->GetAgentController();
             operation->SetState(EOperationState::Materializing);
             BIND(&IOperationControllerSchedulerHost::Materialize, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run()
                 .Subscribe(
-                    BIND([operation] (const TError& error) {
+                    BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
                         if (!error.IsOK()) {
                             return;
                         }
                         if (operation->GetState() == EOperationState::Materializing) {
                             operation->SetState(EOperationState::Running);
+                            Strategy_->OnOperationRunning(operation->GetId());
                         }
                     })
                     .Via(operation->GetCancelableControlInvoker()));
@@ -1740,9 +1743,9 @@ private:
         try {
             auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
             auto controller = CreateOperationController(agentOperation);
-            operation->SetController(controller);
             agentOperation->SetController(controller);
             auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
+            localController->SetAgentController(controller);
             operation->SetLocalController(localController);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
@@ -1815,7 +1818,7 @@ private:
 
         try {
             // Run async preparation.
-            const auto& controller = operation->GetController();
+            const auto& controller = operation->GetLocalController()->GetAgentController();
             auto asyncResult = BIND(&IOperationControllerSchedulerHost::Prepare, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
@@ -1889,9 +1892,9 @@ private:
             // TODO(babenko)
             agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
             controller = CreateOperationController(agentOperation);
-            operation->SetController(controller);
             agentOperation->SetController(controller);
             auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
+            localController->SetAgentController(controller);
             operation->SetLocalController(localController);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
@@ -1930,7 +1933,7 @@ private:
             operationId);
 
         try {
-            const auto& controller = operation->GetController();
+            const auto& controller = operation->GetLocalController()->GetAgentController();
 
             {
                 auto asyncResult = BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, revivalDescriptor.ControllerTransactions)
@@ -2089,7 +2092,6 @@ private:
     {
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
-            operation->SetController(nullptr);
             operation->SetLocalController(nullptr);
             UnregisterOperation(operation);
         }
@@ -2164,7 +2166,7 @@ private:
             }
 
             {
-                const auto& controller = operation->GetController();
+                const auto& controller = operation->GetLocalController()->GetAgentController();
                 auto asyncResult = BIND(&IOperationControllerSchedulerHost::Commit, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
@@ -2190,7 +2192,7 @@ private:
             }
 
             // Notify controller that it is going to be disposed.
-            if (const auto& controller = operation->GetController()) {
+            if (const auto& controller = operation->GetLocalController()->GetAgentController()) {
                 controller->GetInvoker()->Invoke(BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller));
             }
 
@@ -2342,7 +2344,7 @@ private:
         operation->Cancel();
         Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions({});
 
-        if (auto controller = operation->GetController()) {
+        if (auto controller = operation->GetLocalController()->GetAgentController()) {
             try {
                 controller->Abort();
             } catch (const std::exception& ex) {
@@ -2364,7 +2366,7 @@ private:
         }
 
         // Notify controller that it is going to be disposed.
-        if (auto controller = operation->GetController()) {
+        if (auto controller = operation->GetLocalController()->GetAgentController()) {
             Y_UNUSED(WaitFor(
                 BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller)
                     .AsyncVia(controller->GetInvoker())

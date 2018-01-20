@@ -52,6 +52,10 @@ struct IOperationController
     virtual void OnJobRunning(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) = 0;
+
+    // XXX(ignat): it is temporary methods.
+    virtual NControllerAgent::IOperationControllerPtr GetAgentController() const = 0;
+    virtual void SetAgentController(const NControllerAgent::IOperationControllerPtr& controller) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
