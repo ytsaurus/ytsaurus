@@ -1270,8 +1270,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ProcessHandshakeOperations(result.Operations);
-
         ValidateConfig();
 
         {
@@ -1290,6 +1288,8 @@ private:
                     << error;
             }
         }
+
+        ProcessHandshakeOperations(result.Operations);
     }
 
     void OnMasterConnected()
