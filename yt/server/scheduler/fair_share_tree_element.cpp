@@ -73,7 +73,7 @@ TFairShareContext::TFairShareContext(const ISchedulingContextPtr& schedulingCont
     : SchedulingContext(schedulingContext)
 { }
 
-void TFairShareContext::InitializeStructures(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters)
+void TFairShareContext::Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters)
 {
     YCHECK(!Initialized);
 
@@ -1800,7 +1800,7 @@ TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limi
 bool TOperationElement::HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const
 {
     for (const auto& jobResources : Controller_->GetDetailedMinNeededJobResources()) {
-        if (context.SchedulingContext->CanStartJobWithQuota(jobResources)) {
+        if (context.SchedulingContext->CanStartJob(jobResources)) {
             return true;
         }
     }
@@ -1945,7 +1945,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     const auto& jobStartRequest = scheduleJobResult->JobStartRequest.Get();
     context.SchedulingContext->ResourceUsage() += jobStartRequest.ResourceLimits;
     OnJobStarted(jobStartRequest.Id, jobStartRequest.ResourceLimits);
-    auto job = context.SchedulingContext->StartJob(GetTreeId(), OperationId_, jobStartRequest);
+    context.SchedulingContext->StartJob(GetTreeId(), OperationId_, jobStartRequest);
 
     UpdateDynamicAttributes(context.DynamicAttributesList);
     updateAncestorsAttributes();

@@ -35,41 +35,23 @@ const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
     return NodeDescriptor_;
 }
 
-TJobPtr TSchedulingContextBase::GetStartedJob(const TJobId& jobId) const
-{
-    // TODO(acid): Is it worth making it more efficient?
-    for (const auto& job : StartedJobs_) {
-        if (job->GetId() == jobId) {
-            return job;
-        }
-    }
-    Y_UNREACHABLE();
-}
-
-bool TSchedulingContextBase::HasEnoughResources(const TJobResources& neededResources) const
+bool TSchedulingContextBase::CanSatisfyResouceRequest(const TJobResources& jobResources) const
 {
     return Dominates(
         ResourceLimits_,
-        ResourceUsage_ + neededResources);
+        ResourceUsage_ + jobResources - ResourceUsageDiscount_);
 }
 
-bool TSchedulingContextBase::CanStartJob(const TJobResources& jobResources) const
+bool TSchedulingContextBase::CanStartJob(const TJobResourcesWithQuota& jobResourcesWithQuota) const
 {
-    return HasEnoughResources(jobResources - ResourceUsageDiscount());
-}
-
-bool TSchedulingContextBase::CanStartJobWithQuota(const TJobResourcesWithQuota& jobResourcesWithQuota) const
-{
-    if (!CanStartJob(jobResourcesWithQuota.ToJobResources())) {
-        return false;
-    }
-
-    return CanSatisfyDiskRequest(DiskInfo_, jobResourcesWithQuota.GetDiskQuota());
+    return
+        CanSatisfyResouceRequest(jobResourcesWithQuota.ToJobResources()) &&
+        CanSatisfyDiskRequest(DiskInfo_, jobResourcesWithQuota.GetDiskQuota());
 }
 
 bool TSchedulingContextBase::CanStartMoreJobs() const
 {
-    if (!CanStartJob(MinSpareNodeResources())) {
+    if (!CanSatisfyResouceRequest(MinSpareNodeResources())) {
         return false;
     }
 
@@ -86,7 +68,7 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
     return filter.IsEmpty() || filter.CanSchedule(NodeTags_);
 }
 
-TJobPtr TSchedulingContextBase::StartJob(
+void TSchedulingContextBase::StartJob(
     const TString& treeId,
     const TOperationId& operationId,
     const TJobStartRequest& jobStartRequest)
@@ -102,10 +84,9 @@ TJobPtr TSchedulingContextBase::StartJob(
         jobStartRequest.Interruptible,
         treeId);
     StartedJobs_.push_back(job);
-    return job;
 }
 
-void TSchedulingContextBase::PreemptJob(TJobPtr job)
+void TSchedulingContextBase::PreemptJob(const TJobPtr& job)
 {
     YCHECK(job->GetNode() == Node_);
     PreemptedJobs_.push_back(job);

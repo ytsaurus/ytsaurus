@@ -62,9 +62,9 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 
 struct TFairShareContext
 {
-    TFairShareContext(const ISchedulingContextPtr& schedulingContext);
+    explicit TFairShareContext(const ISchedulingContextPtr& schedulingContext);
 
-    void InitializeStructures(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
+    void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
     TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element) const;
