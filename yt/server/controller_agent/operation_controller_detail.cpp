@@ -175,6 +175,9 @@ TOperationControllerBase::TOperationControllerBase(
     , UserTransactionId(operation->GetUserTransactionId())
     , Logger(TLogger(OperationLogger)
         .AddTag("OperationId: %v", OperationId))
+    , CoreNotes_({
+        Format("OperationId: %v", OperationId)
+    })
     , CancelableContext(New<TCancelableContext>())
     , Invoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))

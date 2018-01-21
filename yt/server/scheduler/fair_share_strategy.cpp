@@ -960,7 +960,7 @@ private:
             while (context.SchedulingContext->CanStartMoreJobs()) {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
-                    context.InitializeStructures(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
+                    context.Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
                     rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
                     prescheduleDuration = prescheduleTimer.GetElapsedTime();
                     Profiler.Update(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter, DurationToCpuDuration(prescheduleDuration));
@@ -993,7 +993,7 @@ private:
         auto& config = rootElementSnapshot->Config;
 
         if (!context.Initialized) {
-            context.InitializeStructures(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
+            context.Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
         }
 
         if (!context.PrescheduledCalled) {
@@ -1171,7 +1171,7 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot)
     {
-        auto context = TFairShareContext(schedulingContext);
+        TFairShareContext context(schedulingContext);
 
         auto profileTimings = [&] (
             TProfilingCounters& counters,
