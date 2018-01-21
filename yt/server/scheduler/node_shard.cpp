@@ -188,14 +188,16 @@ void TNodeShard::RegisterOperation(
     const IOperationControllerPtr& controller)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-
+    YCHECK(Connected_);
+    
     YCHECK(IdToOpertionState_.emplace(operationId, TOperationState(controller)).second);
 }
 
 void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-
+    YCHECK(Connected_);
+    
     auto it = IdToOpertionState_.find(operationId);
     YCHECK(it != IdToOpertionState_.end());
     for (const auto& job : it->second.Jobs) {
@@ -362,7 +364,7 @@ TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
 void TNodeShard::UpdateExecNodeDescriptors()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-
+    
     auto result = New<TExecNodeDescriptorList>();
     result->Descriptors.reserve(IdToNode_.size());
     for (const auto& pair : IdToNode_) {
