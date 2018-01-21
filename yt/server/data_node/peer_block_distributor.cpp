@@ -394,6 +394,7 @@ void TPeerBlockDistributor::OnBlockDistributed(
     if (!rspOrError.IsOK()) {
         LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
             address);
+        return;
     }
 
     TInstant expirationTime;
