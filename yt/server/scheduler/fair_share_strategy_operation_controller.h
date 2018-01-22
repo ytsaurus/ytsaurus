@@ -20,7 +20,7 @@ public:
 
     void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
 
-    std::vector<TJobResourcesWithQuota> GetDetailedMinNeededJobResources() const;
+    TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
     TJobResources GetAggregatedMinNeededJobResources() const;
     void UpdateMinNeededJobResources();
 
@@ -29,7 +29,7 @@ public:
         int maxConcurrentScheduleJobCalls,
         TDuration scheduleJobFailBackoffTime) const;
 
-    TScheduleJobResultPtr ScheduleJob(
+    NControllerAgent::TScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& jobLimits,
         TDuration timeLimit,

@@ -22,10 +22,6 @@ DECLARE_REFCOUNTED_CLASS(TOperationRuntimeData)
 DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TJob)
 
-DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
-
-struct TJobStartRequest;
-
 using TJobList = std::list<TJobPtr>;
 
 struct TUpdatedJob;

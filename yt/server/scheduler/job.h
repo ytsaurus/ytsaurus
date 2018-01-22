@@ -113,62 +113,7 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobStatus JobStatusFromError(const TError& error);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TJobStartRequest
-{
-    TJobStartRequest(
-        const TJobId& id,
-        EJobType type,
-        const TJobResources& resourceLimits,
-        bool interruptible);
-
-    const TJobId Id;
-    const EJobType Type;
-    const TJobResources ResourceLimits;
-    const bool Interruptible;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EScheduleJobFailReason,
-    ((Unknown)                       ( 0))
-    ((OperationNotRunning)           ( 1))
-    ((NoPendingJobs)                 ( 2))
-    ((NotEnoughChunkLists)           ( 3))
-    ((NotEnoughResources)            ( 4))
-    ((Timeout)                       ( 5))
-    ((EmptyInput)                    ( 6))
-    ((NoLocalJobs)                   ( 7))
-    ((TaskDelayed)                   ( 8))
-    ((NoCandidateTasks)              ( 9))
-    ((ResourceOvercommit)            (10))
-    ((TaskRefusal)                   (11))
-    ((JobSpecThrottling)             (12))
-    ((IntermediateChunkLimitExceeded)(13))
-    ((DataBalancingViolation)        (14))
-);
-
-struct TScheduleJobResult
-    : public TIntrinsicRefCounted
-{
-    void RecordFail(EScheduleJobFailReason reason);
-    bool IsBackoffNeeded() const;
-    bool IsScheduleStopNeeded() const;
-
-    TNullable<TJobStartRequest> JobStartRequest;
-    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
-    TDuration Duration;
-};
-
-DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
-
-////////////////////////////////////////////////////////////////////////////////
 
 TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
 

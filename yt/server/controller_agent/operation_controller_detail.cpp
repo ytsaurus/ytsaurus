@@ -6,10 +6,10 @@
 #include "counter_manager.h"
 #include "task.h"
 #include "operation.h"
+#include "scheduling_context.h"
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/server/misc/job_table_schema.h>
 
@@ -2667,7 +2667,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 }
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
-    ISchedulingContextPtr context,
+    ISchedulingContext* context,
     const NScheduler::TJobResourcesWithQuota& jobLimits,
     const TString& treeId)
 {
@@ -2684,7 +2684,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 
     TWallTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
-    DoScheduleJob(context.Get(), jobLimits, treeId, scheduleJobResult.Get());
+    DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
         JobCounter->Start(1);
     }
@@ -3227,7 +3227,7 @@ TJobResources TOperationControllerBase::GetNeededResources() const
     return CachedNeededResources;
 }
 
-std::vector<NScheduler::TJobResourcesWithQuota> TOperationControllerBase::GetMinNeededJobResources() const
+TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededJobResources() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -3260,7 +3260,7 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
             }
         }
 
-        std::vector<NScheduler::TJobResourcesWithQuota> result;
+        TJobResourcesWithQuotaList result;
         for (const auto& pair : minNeededJobResources) {
             result.push_back(pair.second);
             LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",

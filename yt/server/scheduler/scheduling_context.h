@@ -3,9 +3,12 @@
 #include "public.h"
 #include "scheduling_tag.h"
 
+#include <yt/server/controller_agent/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/profiling/public.h>
@@ -20,15 +23,10 @@ namespace NScheduler {
 struct ISchedulingContext
     : public virtual TRefCounted
 {
-    virtual ~ISchedulingContext() = default;
-
-    // TODO(babenko): needed in controller
     virtual const TExecNodeDescriptor& GetNodeDescriptor() const = 0;
 
-    // TODO(babenko): needed in controller
     virtual const TJobResources& ResourceLimits() const = 0;
     virtual TJobResources& ResourceUsage() = 0;
-    // TODO(babenko): needed in controller
     virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const = 0;
     //! Used during preemption to allow second-chance scheduling.
     virtual TJobResources& ResourceUsageDiscount() = 0;
@@ -48,18 +46,16 @@ struct ISchedulingContext
     virtual void StartJob(
         const TString& treeId,
         const TOperationId& operationId,
-        const TJobStartRequest& jobStartRequest) = 0;
+        const NControllerAgent::TJobStartRequest& jobStartRequest) = 0;
 
     virtual void PreemptJob(const TJobPtr& job) = 0;
 
-    // TODO(babenko): needed in controller
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 
     //! Called by a controller to generate id for new job.
     /*!
      *  \note Thread affinity: any
      */
-    // TODO(babenko): needed in controller
     virtual TJobId GenerateJobId() = 0;
 };
 

@@ -27,6 +27,7 @@ using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NProfiling;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -19,6 +19,7 @@ using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
 using namespace NProfiling;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 

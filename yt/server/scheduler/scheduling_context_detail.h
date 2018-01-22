@@ -39,7 +39,7 @@ public:
     virtual void StartJob(
         const TString& treeId,
         const TOperationId& operationId,
-        const TJobStartRequest& jobStartRequest) override;
+        const NControllerAgent::TJobStartRequest& jobStartRequest) override;
 
     virtual void PreemptJob(const TJobPtr& job) override;
 

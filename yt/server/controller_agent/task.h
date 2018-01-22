@@ -85,10 +85,10 @@ public:
     virtual bool ValidateChunkCount(int chunkCount);
 
     void ScheduleJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const TJobResources& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        TScheduleJobResult* scheduleJobResult);
 
     virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
@@ -150,8 +150,8 @@ protected:
     //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
     ITaskHost* TaskHost_;
 
-    virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(
-        NScheduler::ISchedulingContext* context,
+    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
+        ISchedulingContext* context,
         const TJobResources& jobLimits);
 
     virtual void OnTaskCompleted();
