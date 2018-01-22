@@ -57,6 +57,7 @@ public:
         TDataNodeConfigPtr config,
         const NNodeTrackerClient::TAddressMap& rpcAddresses,
         const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
+        const NNodeTrackerClient::TAddressMap& monitoringHttpAddresses,
         const std::vector<TString>& nodeTags,
         NCellNode::TBootstrap* bootstrap);
 
@@ -108,6 +109,7 @@ private:
     const TDataNodeConfigPtr Config_;
     const NNodeTrackerClient::TAddressMap RpcAddresses_;
     const NNodeTrackerClient::TAddressMap SkynetHttpAddresses_;
+    const NNodeTrackerClient::TAddressMap MonitoringHttpAddresses_;
 
     const std::vector<TString> NodeTags_;
     const NCellNode::TBootstrap* Bootstrap_;
