@@ -348,14 +348,6 @@ public:
 
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 
-    // TODO(babenko)
-    virtual void OnNonscheduledJobAborted(
-        const TJobId& jobid,
-        EAbortReason abortReason) override
-    {
-        Y_UNREACHABLE();
-    }
-
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
