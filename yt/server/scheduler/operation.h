@@ -76,7 +76,7 @@ struct IOperationStrategyHost
 
     virtual const TOperationId& GetId() const = 0;
 
-    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
+    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
     virtual NYTree::IMapNodePtr GetSpec() const = 0;
 
@@ -220,7 +220,7 @@ public:
     //! Adds new sample to controller time statistics.
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
 
-    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;

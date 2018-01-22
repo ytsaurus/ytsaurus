@@ -4,6 +4,7 @@
 
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
+#include <yt/server/scheduler/operation_controller.h>
 
 #include <yt/ytlib/api/public.h>
 
@@ -248,66 +249,9 @@ DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): move to NScheduler
-struct IOperationControllerStrategyHost
-    : public virtual TRefCounted
-{
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
-    //! Called during heartbeat processing to request actions the node must perform.
-    virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContext* context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
-        const TString& treeId) = 0;
-
-    /*!
-     *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
-     *  Most of non-const controller methods are expected to be run in this invoker.
-     */
-    virtual IInvokerPtr GetCancelableInvoker() const = 0;
-
-    //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void OnNonscheduledJobAborted(
-        const TJobId& jobId,
-        EAbortReason abortReason) = 0;
-
-    //! Returns the total resources that are additionally needed.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual TJobResources GetNeededResources() const = 0;
-
-    //! Initiates updating min needed resources estimates.
-    //! Note that the actual update may happen in background.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void UpdateMinNeededJobResources() = 0;
-
-    //! Returns the cached min needed resources estimate.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
-
-    //! Returns the number of jobs the controller is able to start right away.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual int GetPendingJobCount() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO(babenko): merge into NScheduler::IOperationController
 struct IOperationControllerSchedulerHost
-    : public IOperationControllerStrategyHost
+    : public NScheduler::IOperationControllerStrategyHost
 {
     //! Performs controller inner state initialization. Starts all controller transactions.
     /*
