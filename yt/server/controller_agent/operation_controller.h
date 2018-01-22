@@ -251,7 +251,7 @@ DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
 
 // TODO(babenko): merge into NScheduler::IOperationController
 struct IOperationControllerSchedulerHost
-    : public NScheduler::IOperationControllerStrategyHost
+    : public virtual TRefCounted
 {
     //! Performs controller inner state initialization. Starts all controller transactions.
     /*
@@ -465,7 +465,8 @@ struct TOperationInfo
  *  \note Invoker affinity: Controller invoker
  */
 struct IOperationController
-    : public IOperationControllerSchedulerHost
+    : public NScheduler::IOperationControllerStrategyHost
+    , public IOperationControllerSchedulerHost
     , public IOperationControllerSnapshotBuilderHost
 {
     virtual IInvokerPtr GetInvoker() const = 0;
