@@ -49,6 +49,7 @@ DEFINE_ENUM(EErrorCode,
 DEFINE_ENUM(EAddressType,
     ((InternalRpc)    (0))
     ((SkynetHttp)     (1))
+    ((MonitoringHttp) (2))
 );
 
 using TNodeId = i32;
