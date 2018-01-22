@@ -92,11 +92,13 @@ TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
     const TAddressMap& rpcAddresses,
     const TAddressMap& skynetHttpAddresses,
+    const TAddressMap& monitoringHttpAddresses,
     const std::vector<TString>& nodeTags,
     TBootstrap* bootstrap)
     : Config_(config)
     , RpcAddresses_(rpcAddresses)
     , SkynetHttpAddresses_(skynetHttpAddresses)
+    , MonitoringHttpAddresses_(monitoringHttpAddresses)
     , NodeTags_(nodeTags)
     , Bootstrap_(bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
@@ -401,6 +403,10 @@ void TMasterConnector::RegisterAtPrimaryMaster()
     auto* skynetHttpAddresses = nodeAddresses->add_entries();
     skynetHttpAddresses->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
     ToProto(skynetHttpAddresses->mutable_addresses(), SkynetHttpAddresses_);
+
+    auto* monitoringHttpAddresses = nodeAddresses->add_entries();
+    monitoringHttpAddresses->set_address_type(static_cast<int>(EAddressType::MonitoringHttp));
+    ToProto(monitoringHttpAddresses->mutable_addresses(), MonitoringHttpAddresses_);
 
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
     ToProto(req->mutable_tags(), NodeTags_);

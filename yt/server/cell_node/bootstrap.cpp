@@ -177,7 +177,6 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     auto localRpcAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
-    auto localSkynetHttpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->SkynetHttpPort);
 
     if (!Config->ClusterConnection->Networks) {
         Config->ClusterConnection->Networks = GetLocalNetworks();
@@ -295,7 +294,8 @@ void TBootstrap::DoRun()
     MasterConnector = New<NDataNode::TMasterConnector>(
         Config->DataNode,
         localRpcAddresses,
-        localSkynetHttpAddresses,
+        NYT::GetLocalAddresses(Config->Addresses, Config->SkynetHttpPort),
+        NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort),
         Config->Tags,
         this);
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
