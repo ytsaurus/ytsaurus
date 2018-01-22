@@ -345,7 +345,7 @@ TSharedRef THttpInput::ReadBody()
             break;
         }
 
-        chunks.emplace_back(std::move(chunk));
+        chunks.emplace_back(TSharedRef::MakeCopy<THttpParserTag>(chunk));
     }
 
     return MergeRefsToRef<THttpParserTag>(std::move(chunks));
