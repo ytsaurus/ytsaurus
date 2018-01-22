@@ -298,26 +298,28 @@ class StderrDownloader(object):
     def __call__(self, element):
         op, job_id = element
         token = get_token()
-        client = yt.YtClient(self.yt.config["proxy"]["url"], token=token)
-        client.config["proxy"]["retries"]["count"] = 1
-        proxy_url = HeavyProxyProvider(client)()
-        stderr = ""
         path = format_op_path(op)
-
-        if proxy_url is not None:
-            path = "http://{}/api/v3/read_file?path={}/jobs/{}/stderr".format(proxy_url, path, job_id)
-
-            rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
-
-            if not str(rsp.status_code).startswith("2"):
-                raise yt.YtResponseError(json.loads(rsp.content))
-
-            if not rsp.content:
-                return
-
-            stderr = rsp.content
-        else:
+        if self.yt.config["proxy"]["url"] is None:
+            # This case used for tests.
             stderr = self.yt.read_file("{}/jobs/{}/stderr".format(path, job_id)).read()
+        else:
+            client = yt.YtClient(self.yt.config["proxy"]["url"], token=token)
+            client.config["proxy"]["retries"]["count"] = 1
+            proxy_url = HeavyProxyProvider(client)()
+            stderr = ""
+
+            if proxy_url is not None:
+                path = "http://{}/api/v3/read_file?path={}/jobs/{}/stderr".format(proxy_url, path, job_id)
+
+                rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
+
+                if not str(rsp.status_code).startswith("2"):
+                    raise yt.YtResponseError(json.loads(rsp.content))
+
+                if not rsp.content:
+                    return
+
+                stderr = rsp.content
 
         op_id_hi, op_id_lo = id_to_parts(op.id, self.version)
         id_hi, id_lo = id_to_parts(job_id, self.version)
