@@ -408,7 +408,7 @@ TEST(THttpInputTest, Simple)
         auto fake = New<TFakeConnection>();
         fake->Input = std::get<1>(testCase);
 
-        auto input = New<THttpInput>(fake, GetSyncInvoker(), std::get<0>(testCase), 1024);
+        auto input = New<THttpInput>(fake, TNetworkAddress(), GetSyncInvoker(), std::get<0>(testCase), 1024);
 
         try {
             std::get<2>(testCase)(input.Get());
