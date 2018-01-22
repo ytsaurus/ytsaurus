@@ -3466,9 +3466,17 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet)) {
+
+        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
+                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
+                tabletId,
+                transaction->GetId(),
+                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
             return;
         }
+
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
@@ -3481,12 +3489,7 @@ private:
             return;
         }
 
-        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
-                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
-                tabletId,
-                transaction->GetId(),
-                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
+        if (!IsObjectAlive(tablet)) {
             return;
         }
 
@@ -3582,10 +3585,6 @@ private:
         // Update table resource usage.
         for (auto* chunk : chunksToAttach) {
             chunkManager->UnstageChunk(chunk->AsChunk());
-        }
-
-        if (tablet->GetStoresUpdatePreparedTransaction() == transaction) {
-            tablet->SetStoresUpdatePreparedTransaction(nullptr);
         }
 
         // Update node resource usage.
