@@ -83,8 +83,7 @@ describe("YtApplicationVersions - discover versions", function() {
                     "$value": name
                 };
             });
-            console.log(name_result);
-    
+
             mock
                 .expects("executeSimple")
                 .once()
