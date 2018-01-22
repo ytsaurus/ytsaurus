@@ -222,10 +222,12 @@ struct THttpParserTag
 
 THttpInput::THttpInput(
     const IAsyncInputStreamPtr& reader,
+    const TNetworkAddress& remoteAddress,
     const IInvokerPtr& readInvoker,
     EMessageType messageType,
     size_t bufferSize)
     : Reader_(reader)
+    , RemoteAddress_(remoteAddress)
     , MessageType_(messageType)
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(bufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
@@ -278,6 +280,11 @@ const THeadersPtr& THttpInput::GetTrailers()
         return emptyTrailers;
     }
     return trailers;
+}
+
+const TNetworkAddress& THttpInput::GetRemoteAddress() const
+{
+    return RemoteAddress_;
 }
 
 void THttpInput::FinishHeaders()

@@ -3,11 +3,11 @@
 #include "http.h"
 
 #include <yt/core/net/public.h>
+#include <yt/core/net/address.h>
 
 #include <yt/contrib/http-parser/http_parser.h>
 
 #include <util/stream/buffer.h>
-
 
 namespace NYT {
 namespace NHttp {
@@ -93,6 +93,7 @@ class THttpInput
 public:
     THttpInput(
         const NConcurrency::IAsyncInputStreamPtr& reader,
+        const NNet::TNetworkAddress& peerAddress,
         const IInvokerPtr& readInvoker,
         EMessageType messageType,
         size_t bufferSize);
@@ -107,9 +108,12 @@ public:
 
     virtual TFuture<TSharedRef> Read() override;
     virtual TSharedRef ReadBody() override;
+
+    virtual const NNet::TNetworkAddress& GetRemoteAddress() const override;
     
 private:
     const NConcurrency::IAsyncInputStreamPtr Reader_;
+    const NNet::TNetworkAddress RemoteAddress_;
     const EMessageType MessageType_;
 
     TSharedMutableRef InputBuffer_;

@@ -12,6 +12,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/nullable.h>
 
+#include <yt/core/net/public.h>
+
 #include <util/stream/zerocopy.h>
 
 namespace NYT {
@@ -204,6 +206,8 @@ struct IRequest
     virtual const TUrlRef& GetUrl() = 0;
 
     virtual const THeadersPtr& GetHeaders() = 0;
+
+    virtual const NNet::TNetworkAddress& GetRemoteAddress() const = 0;
 
     virtual TSharedRef ReadBody() = 0;
 };

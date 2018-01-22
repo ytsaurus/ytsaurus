@@ -126,6 +126,7 @@ private:
 
         auto request = New<THttpInput>(
             connection,
+            connection->RemoteAddress(),
             Poller_->GetInvoker(),
             EMessageType::Request,
             Config_->ReadBufferSize);
