@@ -43,7 +43,7 @@ public:
     TJobResources GetNeededResources() const;
 
 private:
-    const NControllerAgent::IOperationControllerStrategyHostPtr Controller_;
+    const IOperationControllerStrategyHostPtr Controller_;
     const TOperationId OperationId_;
 
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};

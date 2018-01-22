@@ -49,6 +49,7 @@ struct ISchedulerStrategyHost;
 struct IOperationStrategyHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
+DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 // XXX(babenko): move to private
