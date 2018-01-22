@@ -1,18 +1,18 @@
 #pragma once
 
 #include "public.h"
-#include "helpers.h"
-#include "utf8_decoder.h"
+// #include "helpers.h"
 
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/tree_builder.h>
 
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/utf8_decoder.h>
 
 #include <queue>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,5 +122,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT

@@ -1,12 +1,12 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/formats/json_writer.h>
-#include <yt/ytlib/formats/config.h>
+#include <yt/core/json/json_writer.h>
+#include <yt/core/json/config.h>
 
 #include <yt/core/yson/consumer.h>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 namespace {
 
 using namespace NYson;
@@ -607,5 +607,5 @@ TEST(TJsonWriterTest, DISABLED_TestPrettyFormat)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT

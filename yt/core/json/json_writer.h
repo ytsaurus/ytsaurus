@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <yt/core/yson/public.h>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,5 +51,5 @@ std::unique_ptr<NYson::IFlushableYsonConsumer> CreateJsonConsumer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT

@@ -126,6 +126,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/signaler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/shutdown.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/url.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/utf8_decoder.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/proto/error.proto
   ${CMAKE_CURRENT_LIST_DIR}/misc/proto/bloom_filter.proto
@@ -253,4 +254,11 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/ytree/proto/ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/ytree/proto/attributes.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/json/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/json_callbacks.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/json_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/json_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/json_rpc_message_format.cpp
 )

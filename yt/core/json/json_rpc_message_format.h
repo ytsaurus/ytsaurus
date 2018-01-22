@@ -1,0 +1,14 @@
+#include <yt/core/rpc/helpers.h>
+
+namespace NYT {
+namespace NJson {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns pointer only for side effect of linking static object.
+NRpc::IMessageFormat* RegisterJsonRpcMessageFormat();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NJson
+} // namespace NYT

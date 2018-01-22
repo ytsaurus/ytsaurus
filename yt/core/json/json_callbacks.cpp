@@ -1,4 +1,5 @@
 #include "json_callbacks.h"
+#include "helpers.h"
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/node.h>
@@ -7,7 +8,7 @@
 #include <yt/core/ytree/convert.h>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 
 using namespace NYTree;
 using namespace NYson;
@@ -410,5 +411,5 @@ void TJsonCallbacksForwardingImpl::OnItemFinished()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT

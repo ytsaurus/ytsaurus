@@ -1,8 +1,7 @@
 #include "json_parser.h"
-#include "helpers.h"
 #include "json_callbacks.h"
-#include "utf8_decoder.h"
 
+#include <yt/core/misc/utf8_decoder.h>
 #include <yt/core/misc/error.h>
 
 #include <array>
@@ -10,7 +9,7 @@
 #include <contrib/libs/yajl/api/yajl_parse.h>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 
 using namespace NYson;
 using namespace NYTree;
@@ -218,6 +217,8 @@ TJsonParser::TJsonParser(
     : Impl_(new TImpl(consumer, config, type))
 { }
 
+TJsonParser::~TJsonParser() = default;
+
 void TJsonParser::Read(const TStringBuf& data)
 {
     Impl_->Read(data);
@@ -247,5 +248,5 @@ void ParseJson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT

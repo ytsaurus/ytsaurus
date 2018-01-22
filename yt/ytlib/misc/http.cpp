@@ -7,15 +7,15 @@
 
 #include <yt/core/yson/consumer.h>
 
-#include <yt/ytlib/formats/json_writer.h>
-#include <yt/ytlib/formats/config.h>
+#include <yt/core/json/json_writer.h>
+#include <yt/core/json/config.h>
 
 namespace NYT {
 namespace NHttp {
 
 static const auto& Logger = HttpLogger;
 
-using namespace NFormats;
+using namespace NJson;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

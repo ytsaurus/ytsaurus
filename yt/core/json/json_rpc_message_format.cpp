@@ -10,7 +10,7 @@
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 
 using namespace NYTree;
 using namespace NYson;
@@ -62,5 +62,5 @@ IMessageFormat* RegisterJsonRpcMessageFormat()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT

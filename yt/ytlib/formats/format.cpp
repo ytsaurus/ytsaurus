@@ -1,8 +1,6 @@
 #include "format.h"
 #include "dsv_parser.h"
 #include "dsv_writer.h"
-#include "json_parser.h"
-#include "json_writer.h"
 #include "protobuf_parser.h"
 #include "protobuf_writer.h"
 #include "schemaful_dsv_parser.h"
@@ -27,6 +25,9 @@
 
 #include <yt/core/yson/forwarding_consumer.h>
 
+#include <yt/core/json/json_parser.h>
+#include <yt/core/json/json_writer.h>
+
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/table_consumer.h>
 
@@ -36,6 +37,7 @@ namespace NFormats {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NJson;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -456,6 +458,30 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class TBase>
+struct TParserAdapter
+    : public TBase
+    , public IParser
+{
+public:
+    template<class... TArgs>
+    TParserAdapter(TArgs&&... args)
+        : TBase(std::forward<TArgs>(args)...)
+    { }
+
+    virtual void Read(const TStringBuf& data) override
+    {
+        TBase::Read(data);
+    }
+
+    virtual void Finish() override
+    {
+        TBase::Finish();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType dataType, IYsonConsumer* consumer)
 {
     switch (format.GetType()) {
@@ -463,7 +489,7 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
             return CreateParserForYson(consumer, DataTypeToYsonType(dataType));
         case EFormatType::Json: {
             auto config = ConvertTo<TJsonFormatConfigPtr>(&format.Attributes());
-            return std::unique_ptr<IParser>(new TJsonParser(consumer, config, DataTypeToYsonType(dataType)));
+            return std::unique_ptr<IParser>(new TParserAdapter<TJsonParser>(consumer, config, DataTypeToYsonType(dataType)));
         }
         case EFormatType::Dsv: {
             auto config = ConvertTo<TDsvFormatConfigPtr>(&format.Attributes());

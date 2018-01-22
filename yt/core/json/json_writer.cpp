@@ -1,14 +1,15 @@
 #include "json_writer.h"
 #include "config.h"
 #include "helpers.h"
-#include "utf8_decoder.h"
+
+#include <yt/core/misc/utf8_decoder.h>
 
 #include <contrib/libs/yajl/api/yajl_gen.h>
 
 #include <iostream>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 
 using namespace NYTree;
 using namespace NYson;
@@ -503,5 +504,5 @@ std::unique_ptr<IFlushableYsonConsumer> CreateJsonConsumer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT
