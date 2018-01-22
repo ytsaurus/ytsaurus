@@ -403,14 +403,6 @@ public:
         return Underlying_->OnBeforeDisposal();
     }
 
-    // TODO(babenko)
-    virtual void OnNonscheduledJobAborted(
-        const TJobId& jobid,
-        EAbortReason abortReason) override
-    {
-        Y_UNREACHABLE();
-    }
-
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

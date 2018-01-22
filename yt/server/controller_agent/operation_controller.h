@@ -465,12 +465,45 @@ struct TOperationInfo
  *  \note Invoker affinity: Controller invoker
  */
 struct IOperationController
-    : public NScheduler::IOperationControllerStrategyHost
-    , public IOperationControllerSchedulerHost
+    : public IOperationControllerSchedulerHost
     , public IOperationControllerSnapshotBuilderHost
 {
     virtual IInvokerPtr GetInvoker() const = 0;
     virtual IInvokerPtr GetCancelableInvoker() const = 0;
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
+    //! Called during heartbeat processing to request actions the node must perform.
+    virtual NControllerAgent::TScheduleJobResultPtr ScheduleJob(
+        ISchedulingContext* context,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const TString& treeId) = 0;
+
+    //! Returns the total resources that are additionally needed.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TJobResources GetNeededResources() const = 0;
+
+    //! Initiates updating min needed resources estimates.
+    //! Note that the actual update may happen in background.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void UpdateMinNeededJobResources() = 0;
+
+    //! Returns the cached min needed resources estimate.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
+
+    //! Returns the number of jobs the controller is able to start right away.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual int GetPendingJobCount() const = 0;
 
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
