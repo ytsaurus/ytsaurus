@@ -2,7 +2,6 @@
 
 #include <yt/core/json/config.h>
 #include <yt/core/json/json_writer.h>
-#include <yt/ytlib/misc/http.h>
 
 #include <yt/core/misc/url.h>
 
@@ -16,6 +15,7 @@
 #include <yt/core/ytree/ypath_proxy.h>
 
 #include <yt/core/http/http.h>
+#include <yt/core/http/helpers.h>
 
 #include <util/string/vector.h>
 #include <util/string/cgiparam.h>
