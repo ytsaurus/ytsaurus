@@ -140,14 +140,14 @@ describe("YtApplicationVersions - discover versions", function() {
                 "node2": {
                     "version": "3"
                 },
-                "node3": {"error":{"code":-2,"message":"Request to \'node3:80/orchid/service\' has responded with 503","attributes":{},"inner_errors":[]}}
+                "node3": {"error" :{"code":-2, "message":"Request to \'node3:80/orchid/service\' has responded with 503", "attributes": {}, "inner_errors": []}}
             }),
             "schedulers": createMock("scheduler/instances", { }),
             "proxies": createMock2("proxies", "/service", [], {
                 "proxy1": {
                     "version": "1"
                 },
-                "proxy2": {"error":{"code":-2,"message":"Request to \'proxy2:80/service\' has responded with 503","attributes":{},"inner_errors":[]}}
+                "proxy2": {"error": {"code":-2, "message": "Request to \'proxy2:80/service\' has responded with 503", "attributes": {},"inner_errors": []}}
             })
         };
 
