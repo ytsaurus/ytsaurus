@@ -6,6 +6,7 @@
 #include "operation.h"
 #include "node_shard.h"
 #include "operation_controller.h"
+#include "scheduling_context.h"
 #include "helpers.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
@@ -13,6 +14,7 @@
 #include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/controller_agent.h>
 #include <yt/server/controller_agent/master_connector.h>
+#include <yt/server/controller_agent/scheduling_context.h>
 
 #include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
@@ -33,6 +35,45 @@ using namespace NControllerAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchedulingContextAdapter
+    : public NControllerAgent::ISchedulingContext
+{
+public:
+    explicit TSchedulingContextAdapter(NScheduler::ISchedulingContextPtr underlying)
+        : Underlying_(std::move(underlying))
+    { }
+
+    virtual const TExecNodeDescriptor& GetNodeDescriptor() const override
+    {
+        return Underlying_->GetNodeDescriptor();
+    }
+
+    virtual const TJobResources& ResourceLimits() const override
+    {
+        return Underlying_->ResourceLimits();
+    }
+
+    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const override
+    {
+        return Underlying_->DiskInfo();
+    }
+
+    virtual TJobId GenerateJobId() override
+    {
+        return Underlying_->GenerateJobId();
+    }
+
+    virtual NProfiling::TCpuInstant GetNow() const override
+    {
+        return NProfiling::GetCpuInstant();
+    }
+
+private:
+    const NScheduler::ISchedulingContextPtr Underlying_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,13 +188,14 @@ public:
 
 
     virtual TScheduleJobResultPtr ScheduleJob(
-        NControllerAgent::ISchedulingContext* context,
+        const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
+        TSchedulingContextAdapter adapter(context);
         // TODO(babenko)
         return AgentController_->ScheduleJob(
-            context,
+            &adapter,
             jobLimits,
             treeId);
     }

@@ -1,7 +1,4 @@
 #include "fair_share_strategy_operation_controller.h"
-#include "scheduling_context.h"
-
-#include <yt/server/controller_agent/scheduling_context.h>
 
 #include "operation_controller.h"
 
@@ -14,45 +11,6 @@ using namespace NControllerAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchedulingContextAdapter
-    : public NControllerAgent::ISchedulingContext
-{
-public:
-    explicit TSchedulingContextAdapter(NScheduler::ISchedulingContextPtr underlying)
-        : Underlying_(std::move(underlying))
-    { }
-
-    virtual const TExecNodeDescriptor& GetNodeDescriptor() const override
-    {
-        return Underlying_->GetNodeDescriptor();
-    }
-
-    virtual const TJobResources& ResourceLimits() const override
-    {
-        return Underlying_->ResourceLimits();
-    }
-
-    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const override
-    {
-        return Underlying_->DiskInfo();
-    }
-
-    virtual TJobId GenerateJobId() override
-    {
-        return Underlying_->GenerateJobId();
-    }
-
-    virtual NProfiling::TCpuInstant GetNow() const override
-    {
-        return NProfiling::GetCpuInstant();
-    }
-
-private:
-    const NScheduler::ISchedulingContextPtr Underlying_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,13 +77,9 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     TDuration timeLimit,
     const TString& treeId)
 {
-    auto scheduleJobResultFuture =
-        BIND([controller = Controller_, context, jobLimits, treeId] {
-            TSchedulingContextAdapter adapter(context);
-            return controller->ScheduleJob(&adapter, jobLimits, treeId);
-        })
+    auto scheduleJobResultFuture = BIND(&IOperationController::ScheduleJob, Controller_)
         .AsyncVia(Controller_->GetCancelableInvoker())
-        .Run();
+        .Run(context, jobLimits, treeId);
 
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
         .WithTimeout(timeLimit);
