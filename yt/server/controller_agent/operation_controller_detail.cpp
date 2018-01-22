@@ -664,6 +664,8 @@ void TOperationControllerBase::SafeMaterialize()
         InitInputChunkScraper();
         InitIntermediateChunkScraper();
 
+        UpdateMinNeededJobResources();
+
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
@@ -745,6 +747,8 @@ void TOperationControllerBase::Revive()
     // Input chunk scraper initialization should be the last step to avoid races.
     InitInputChunkScraper();
     InitIntermediateChunkScraper();
+
+    UpdateMinNeededJobResources();
 
     ReinstallLivePreview();
 
@@ -3222,34 +3226,50 @@ TJobResources TOperationControllerBase::GetNeededResources() const
 
 std::vector<NScheduler::TJobResourcesWithQuota> TOperationControllerBase::GetMinNeededJobResources() const
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    yhash<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
+    NConcurrency::TReaderGuard guard(CachedMinNeededResourcesJobLock);
+    return CachedMinNeededJobResources;
+}
 
-    for (const auto& task : Tasks) {
-        if (task->GetPendingJobCount() == 0) {
-            continue;
+void TOperationControllerBase::UpdateMinNeededJobResources()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    CancelableInvoker->Invoke(BIND([=, this_ = MakeStrong(this)] {
+        VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+        yhash<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
+
+        for (const auto& task : Tasks) {
+            if (task->GetPendingJobCount() == 0) {
+                continue;
+            }
+
+            auto jobType = task->GetJobType();
+            auto resources = task->GetMinNeededResources();
+
+            auto resIt = minNeededJobResources.find(jobType);
+            if (resIt == minNeededJobResources.end()) {
+                minNeededJobResources[jobType] = resources;
+            } else {
+                resIt->second = Min(resIt->second, resources);
+            }
         }
 
-        auto jobType = task->GetJobType();
-        auto resources = task->GetMinNeededResources();
-
-        auto resIt = minNeededJobResources.find(jobType);
-        if (resIt == minNeededJobResources.end()) {
-            minNeededJobResources[jobType] = resources;
-        } else {
-            resIt->second = Min(resIt->second, resources);
+        std::vector<NScheduler::TJobResourcesWithQuota> result;
+        for (const auto& pair : minNeededJobResources) {
+            result.push_back(pair.second);
+            LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
+                pair.first,
+                FormatResources(pair.second));
         }
-    }
 
-    std::vector<NScheduler::TJobResourcesWithQuota> result;
-    for (const auto& pair : minNeededJobResources) {
-        result.push_back(pair.second);
-        LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
-            pair.first,
-            FormatResources(pair.second));
-    }
-    return result;
+        {
+            NConcurrency::TWriterGuard guard(CachedMinNeededResourcesJobLock);
+            CachedMinNeededJobResources.swap(result);
+        }
+    }));
 }
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)

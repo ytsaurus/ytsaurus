@@ -221,6 +221,7 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
+    virtual void UpdateMinNeededJobResources() override;
     virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override;
 
     virtual bool IsRunning() const override;
@@ -880,8 +881,11 @@ private:
 
     std::atomic<int> CachedPendingJobCount = {0};
 
-    TJobResources CachedNeededResources;
     NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
+    TJobResources CachedNeededResources;
+
+    NConcurrency::TReaderWriterSpinLock CachedMinNeededResourcesJobLock;
+    std::vector<NScheduler::TJobResourcesWithQuota> CachedMinNeededJobResources;
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
     NConcurrency::TReaderWriterSpinLock CachedSuspiciousJobsYsonLock_;

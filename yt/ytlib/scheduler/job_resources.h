@@ -202,6 +202,9 @@ namespace NProto {
 void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler::TJobResources& resources);
 void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::TJobResources& protoResources);
 
+void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const NScheduler::TJobResourcesWithQuota& resources);
+void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::NProto::TJobResourcesWithQuota& protoResources);
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

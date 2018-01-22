@@ -237,6 +237,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(IdToOperation_.emplace(operationId, operation).second);
+        LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
     void UnregisterOperation(const TOperationId& operationId)
@@ -244,6 +245,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(IdToOperation_.erase(operationId) == 1);
+        LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
     TOperationPtr FindOperation(const TOperationId& operationId)
@@ -390,9 +392,10 @@ private:
     TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
 
     TIncarnationId IncarnationId_;
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> OperationEventsOutbox_;
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
     std::unique_ptr<NScheduler::TMessageQueueInbox> JobEventsInbox_;
+    std::unique_ptr<NScheduler::TMessageQueueInbox> OperationEventsInbox_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -412,15 +415,18 @@ private:
         CancelableInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
 
         IncarnationId_ = MasterConnector_->GetIncarnationId();
-        OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TOperationEvent>>(
+        OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_));
-        JobEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TJobEvent>>(
+        JobEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_));
         JobEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_));
+        OperationEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: SchedulerToAgentOperation, IncarnationId: %v", IncarnationId_));
     }
 
     void OnMasterConnected()
@@ -492,17 +498,25 @@ private:
         OperationEventsOutbox_->BuildOutcoming(
             req->mutable_agent_to_scheduler_operation_events(),
             [] (auto* protoEvent, const auto& event) {
-                protoEvent->set_event_type(static_cast<int>(event.Type));
+                protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
-                if (!event.Error.IsOK()) {
-                    ToProto(protoEvent->mutable_error(), event.Error);
+                switch (event.EventType) {
+                    case EAgentToSchedulerOperationEventType::Completed:
+                        break;
+                    case EAgentToSchedulerOperationEventType::Aborted:
+                    case EAgentToSchedulerOperationEventType::Failed:
+                    case EAgentToSchedulerOperationEventType::Suspended:
+                        ToProto(protoEvent->mutable_error(), event.Error);
+                        break;
+                    default:
+                        Y_UNREACHABLE();
                 }
             });
 
         JobEventsOutbox_->BuildOutcoming(
             req->mutable_agent_to_scheduler_job_events(),
             [] (auto* protoEvent, const auto& event) {
-                protoEvent->set_event_type(static_cast<int>(event.Type));
+                protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_job_id(), event.JobId);
                 if (event.InterruptReason) {
                     protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
@@ -513,6 +527,8 @@ private:
             });
 
         JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
+
+        OperationEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_operation_events());
 
         for (const auto& pair : GetOperations()) {
             const auto& operationId = pair.first;
@@ -541,6 +557,8 @@ private:
             protoOperation->set_pending_job_count(controller->GetPendingJobCount());
 
             ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
+
+            ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
         }
 
         bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
@@ -617,6 +635,30 @@ private:
                     }
                 }));
         }
+
+        OperationEventsInbox_->HandleIncoming(
+            rsp->mutable_scheduler_to_agent_operation_events(),
+            [&] (const auto* protoEvent) {
+                auto eventType = static_cast<ESchedulerToAgentOperationEventType>(protoEvent->event_type());
+                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                auto operation = this->FindOperation(operationId);
+                if (!operation) {
+                    return;
+                }
+
+                switch (eventType) {
+                    case ESchedulerToAgentOperationEventType::Abandon:
+                        // TODO(babenko)
+                        break;
+
+                    case ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources:
+                        operation->GetController()->UpdateMinNeededJobResources();
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
+                }
+            });
 
         if (rsp->has_exec_nodes()) {
             auto execNodeDescriptors = New<TExecNodeDescriptorList>();

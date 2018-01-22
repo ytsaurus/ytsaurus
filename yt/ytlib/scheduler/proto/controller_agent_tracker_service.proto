@@ -14,6 +14,16 @@ message TJobResources
     optional int32 network = 4;
 }
 
+// TODO(babenko): consider renaming
+message TJobResourcesWithQuota
+{
+    optional int32 user_slots = 1;
+    optional double cpu = 2;
+    optional int64 memory = 3;
+    optional int32 network = 4;
+    optional int64 disk_quota = 5;
+}
+
 message TExecNodeDescriptor
 {
     required int32 node_id = 1;
@@ -56,12 +66,15 @@ message TOperationInfo
     optional bytes suspicious_jobs = 4;
     required int32 pending_job_count = 5;
     required TJobResources needed_resources = 6;
+    repeated TJobResourcesWithQuota min_needed_job_resources = 7;
 }
 
 message TAgentToSchedulerOperationEvent
 {
     required NYT.NProto.TGuid operation_id = 1;
     required int32 event_type = 2; // EAgentToSchedulerOperationEventType
+
+    // for Suspended, Aborted, Failed
     optional NYT.NProto.TError error = 3;
 }
 
@@ -69,21 +82,39 @@ message TAgentToSchedulerJobEvent
 {
     required NYT.NProto.TGuid job_id = 1;
     required int32 event_type = 2; // EAgentToSchedulerJobEventType
+
+    // for Aborted
     optional NYT.NProto.TError error = 3;
+
+    // for Interrupted
     optional int32 interrupt_reason = 4; // EInterruptReason
 }
 
 message TSchedulerToAgentJobEvent
 {
     required NYT.NProto.TGuid operation_id = 1;
-    required int32 event_type = 3; // EJobEvent
+    required int32 event_type = 3; // ESchedulerToAgentJobEventType
     required bool log_and_profile = 2;
     required NYT.NJobTrackerClient.NProto.TJobStatus status = 4;
-    optional uint64 start_time = 6; // for EJobEvent::Started only
     optional uint64 finish_time = 7;
-    optional bool abandoned = 8; // for EJobEvent::Completed only
-    optional int32 abort_reason = 9; // for EJobEvent::Aborted only
+
+    // for Started
+    optional uint64 start_time = 6;
+
+    // for Completed
+    optional bool abandoned = 8;
+
+    // for Aborted
+    optional int32 abort_reason = 9;
+
+    // for Completed
     optional int32 interrupt_reason = 10; // EInterruptReason
+}
+
+message TSchedulerToAgentOperationEvent
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required int32 event_type = 2; // ESchedulerToAgentOperationEventType
 }
 
 message TEventQueueInbox
@@ -117,6 +148,7 @@ message TReqHeartbeat
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 5;
     required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 6;
     required TEventQueueInbox scheduler_to_agent_job_events = 7;
+    required TEventQueueInbox scheduler_to_agent_operation_events = 8;
 }
 
 message TRspHeartbeat
@@ -127,10 +159,17 @@ message TRspHeartbeat
         repeated TSchedulerToAgentJobEvent items = 2;
     }
 
+    message TSchedulerToAgentOperationEventOutbox
+    {
+        required int64 first_item_id = 1;
+        repeated TSchedulerToAgentOperationEvent items = 2;
+    }
+
     optional TExecNodeDescriptorList exec_nodes = 1;
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
     required TEventQueueInbox agent_to_scheduler_job_events = 3;
     required TSchedulerToAgentJobEventOutbox scheduler_to_agent_job_events = 4;
+    required TSchedulerToAgentOperationEventOutbox scheduler_to_agent_operation_events = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

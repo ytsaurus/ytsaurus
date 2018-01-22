@@ -121,7 +121,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual IInvokerPtr GetCancelableInvoker() const
+    virtual IInvokerPtr GetCancelableInvoker() const override
     {
         Y_UNREACHABLE();
     }
@@ -131,7 +131,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual TJobResources GetNeededResources() const
+    virtual TJobResources GetNeededResources() const override
     {
         TJobResources totalResources;
         for (const auto& resources : JobResourcesList) {
@@ -140,7 +140,10 @@ public:
         return totalResources;
     }
 
-    virtual std::vector<TJobResourcesWithQuota> GetMinNeededJobResources() const
+    virtual void UpdateMinNeededJobResources() override
+    { }
+
+    virtual std::vector<TJobResourcesWithQuota> GetMinNeededJobResources() const override
     {
         std::vector<TJobResourcesWithQuota> minNeededResourcesList;
         for (const auto& resources : JobResourcesList) {
@@ -158,11 +161,12 @@ public:
         return minNeededResourcesList;
     }
 
-    virtual int GetPendingJobCount() const
+    virtual int GetPendingJobCount() const override
     {
         return JobResourcesList.size();
     }
 
+private:
     std::vector<TJobResourcesWithQuota> JobResourcesList;
 };
 

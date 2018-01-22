@@ -216,6 +216,18 @@ void TOperationRuntimeData::SetNeededResources(const NScheduler::TJobResources& 
     NeededResources_ = value;
 }
 
+std::vector<TJobResourcesWithQuota> TOperationRuntimeData::GetMinNeededJobResources() const
+{
+    NConcurrency::TReaderGuard guard(MinNeededResourcesJobLock_);
+    return MinNeededJobResources_;
+}
+
+void TOperationRuntimeData::SetMinNeededJobResources(std::vector<TJobResourcesWithQuota> value)
+{
+    NConcurrency::TWriterGuard guard(MinNeededResourcesJobLock_);
+    MinNeededJobResources_ = std::move(value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

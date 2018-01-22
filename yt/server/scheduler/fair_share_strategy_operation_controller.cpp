@@ -34,42 +34,23 @@ void TFairShareStrategyOperationController::SetLastScheduleJobFailTime(NProfilin
     LastScheduleJobFailTime_ = now;
 }
 
-void TFairShareStrategyOperationController::SetMinNeededJobResources(std::vector<TJobResourcesWithQuota> jobResourcesList)
+std::vector<TJobResourcesWithQuota> TFairShareStrategyOperationController::GetDetailedMinNeededJobResources() const
 {
-    TWriterGuard guard(CachedMinNeededJobResourcesLock_);
-    CachedMinNeededJobResourcesList_ = std::move(jobResourcesList);
+    return Controller_->GetMinNeededJobResources();
+}
 
-    CachedMinNeededJobResources_ = InfiniteJobResourcesWithQuota();
-    for (const auto& jobResources : CachedMinNeededJobResourcesList_) {
-        CachedMinNeededJobResources_ = Min(CachedMinNeededJobResources_, jobResources);
+TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededJobResources() const
+{
+    auto result = InfiniteJobResourcesWithQuota();
+    for (const auto& jobResources : GetDetailedMinNeededJobResources()) {
+        result = Min(result, jobResources);
     }
+    return result.ToJobResources();
 }
 
-std::vector<TJobResourcesWithQuota> TFairShareStrategyOperationController::GetMinNeededJobResourcesList() const
+void TFairShareStrategyOperationController::UpdateMinNeededJobResources()
 {
-    TReaderGuard guard(CachedMinNeededJobResourcesLock_);
-    return CachedMinNeededJobResourcesList_;
-}
-
-TJobResourcesWithQuota TFairShareStrategyOperationController::GetMinNeededJobResources() const
-{
-    TReaderGuard guard(CachedMinNeededJobResourcesLock_);
-    return CachedMinNeededJobResources_;
-}
-
-void TFairShareStrategyOperationController::InvokeMinNeededJobResourcesUpdate()
-{
-    BIND(&NControllerAgent::IOperationControllerSchedulerHost::GetMinNeededJobResources, Controller_)
-        .AsyncVia(Controller_->GetCancelableInvoker())
-        .Run()
-        .Subscribe(
-            BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TJobResourcesWithQuota>>& resultOrError) {
-                if (!resultOrError.IsOK()) {
-                    LOG_WARNING(resultOrError, "Failed to update min needed resources from controller");
-                    return;
-                }
-                SetMinNeededJobResources(std::move(resultOrError.Value()));
-        }));
+    Controller_->UpdateMinNeededJobResources();
 }
 
 bool TFairShareStrategyOperationController::IsBlocked(

@@ -22,8 +22,8 @@ static const auto& Logger = ControllerAgentLogger;
 TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> operationEventsOutbox,
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> jobEventsOutbox,
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
     NCellScheduler::TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
@@ -35,7 +35,7 @@ TOperationControllerHost::TOperationControllerHost(
 
 void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReason reason)
 {
-    auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
+    auto itemId = JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Interrupted,
         jobId,
         {},
@@ -49,7 +49,7 @@ void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReaso
 
 void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error)
 {
-    auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
+    auto itemId = JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Aborted,
         jobId,
         error,
@@ -63,7 +63,7 @@ void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error
 
 void TOperationControllerHost::FailJob(const TJobId& jobId)
 {
-    auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
+    auto itemId = JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Failed,
         jobId,
         {},
@@ -77,10 +77,10 @@ void TOperationControllerHost::FailJob(const TJobId& jobId)
 
 void TOperationControllerHost::ReleaseJobs(const std::vector<TJobId>& jobIds)
 {
-    std::vector<TJobEvent> events;
+    std::vector<TAgentToSchedulerJobEvent> events;
     events.reserve(jobIds.size());
     for (const auto& jobId : jobIds) {
-        events.emplace_back(TJobEvent{
+        events.emplace_back(TAgentToSchedulerJobEvent{
             EAgentToSchedulerJobEventType::Released,
             jobId,
             {},
@@ -203,10 +203,10 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
 
 void TOperationControllerHost::OnOperationCompleted()
 {
-    auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
+    auto itemId = OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::Completed,
         OperationId_,
-        TError()
+        {}
     });
     LOG_DEBUG("Operation completion notification enqueued (ItemId: %v, OperationId: %v)",
         itemId,
@@ -215,7 +215,7 @@ void TOperationControllerHost::OnOperationCompleted()
 
 void TOperationControllerHost::OnOperationAborted(const TError& error)
 {
-    auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
+    auto itemId = OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::Aborted,
         OperationId_,
         error
@@ -228,7 +228,7 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
 
 void TOperationControllerHost::OnOperationFailed(const TError& error)
 {
-    auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
+    auto itemId = OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::Failed,
         OperationId_,
         error
@@ -241,7 +241,7 @@ void TOperationControllerHost::OnOperationFailed(const TError& error)
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
 {
-    auto itemId = OperationEventsOutbox_->Enqueue(TOperationEvent{
+    auto itemId = OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::Suspended,
         OperationId_,
         error

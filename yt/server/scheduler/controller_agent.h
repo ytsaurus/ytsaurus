@@ -14,7 +14,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobEvent
+struct TSchedulerToAgentJobEvent
 {
     ESchedulerToAgentJobEventType EventType;
     TOperationId OperationId;
@@ -25,6 +25,14 @@ struct TJobEvent
     TNullable<EAbortReason> AbortReason;
     TNullable<bool> Abandoned;
     TNullable<EInterruptReason> InterruptReason;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSchedulerToAgentOperationEvent
+{
+    ESchedulerToAgentOperationEventType EventType;
+    TOperationId OperationId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +52,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobsYson);
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, OperationEventsInbox);
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, JobEventsInbox);
-    DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TJobEvent>>, JobEventsOutbox);
+    DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>, JobEventsOutbox);
+    DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>, OperationEventsOutbox);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)
