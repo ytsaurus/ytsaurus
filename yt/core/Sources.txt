@@ -149,6 +149,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/http/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/http/server.cpp
   ${CMAKE_CURRENT_LIST_DIR}/http/stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/http/helpers.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/pipes/async_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/async_writer.cpp

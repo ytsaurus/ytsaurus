@@ -1,9 +1,9 @@
+#include "helpers.h"
+
 #include "http.h"
+#include "private.h"
 
 #include <yt/core/concurrency/scheduler.h>
-
-#include <yt/core/http/http.h>
-#include <yt/core/http/private.h>
 
 #include <yt/core/yson/consumer.h>
 
@@ -67,6 +67,37 @@ private:
 IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying)
 {
     return New<TErrorWrappingHttpHandler>(underlying);
+}
+
+bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
+{
+    auto headersWhitelist = "Content-Type, Accept, X-YT-Error, X-YT-Response-Code, X-YT-Response-Message";
+
+    auto origin = req->GetHeaders()->Find("Origin");
+    if (origin) {
+        auto url = ParseUrl(*origin);
+        bool allow = url.Host == "localhost"
+            || url.Host.EndsWith(".yandex.net")
+            || url.Host.EndsWith(".yandex-team.ru");
+
+        if (allow) {
+            rsp->GetHeaders()->Add("Access-Control-Allow-Origin", *origin);
+            rsp->GetHeaders()->Add("Access-Control-Allow-Methods", "POST, OPTIONS");
+            rsp->GetHeaders()->Add("Access-Control-Max-Age", "3600");
+
+            if (req->GetMethod() == EMethod::Options) {
+                rsp->GetHeaders()->Add("Access-Control-Allow-Headers", headersWhitelist);
+                rsp->WriteHeaders(EStatusCode::Ok);
+                WaitFor(rsp->Close())
+                    .ThrowOnError();
+                return true;
+            } else {
+                rsp->GetHeaders()->Add("Access-Control-Expose-Headers", headersWhitelist);
+            }
+        }
+    }
+
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

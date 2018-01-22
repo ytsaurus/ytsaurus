@@ -197,7 +197,6 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/workload.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/workload.proto
-  ${CMAKE_CURRENT_LIST_DIR}/misc/http.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/monitoring/http_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/monitoring/monitoring_manager.cpp
