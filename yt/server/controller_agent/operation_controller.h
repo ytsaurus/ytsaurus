@@ -243,16 +243,23 @@ struct IOperationControllerStrategyHost
         const TJobId& jobid,
         EAbortReason abortReason) = 0;
 
+    //! Returns the total resources that are additionally needed.
     /*!
      *  \note Thread affinity: any
      */
-    //! Returns the total resources that are additionally needed.
     virtual TJobResources GetNeededResources() const = 0;
 
+    //! Initiates updating min needed resources estimates.
+    //! Note that the actual update may happen in background.
     /*!
-     *  \note Invoker affinity: Cancellable controller invoker
+     *  \note Thread affinity: any
      */
-    //! Called periodically during heartbeat to obtain min needed resources to schedule any operation job.
+    virtual void UpdateMinNeededJobResources() = 0;
+
+    //! Returns the cached min needed resources estimate.
+    /*!
+     *  \note Thread affinity: any
+     */
     virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const = 0;
 
     //! Returns the number of jobs the controller is able to start right away.

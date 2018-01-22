@@ -94,10 +94,10 @@ DEFINE_ENUM(EOperationAlertType,
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
-    ((Completed) (0))
-    ((Suspended) (1))
-    ((Failed)    (2))
-    ((Aborted)   (3))
+    ((Completed)                (0))
+    ((Suspended)                (1))
+    ((Failed)                   (2))
+    ((Aborted)                  (3))
 );
 
 DEFINE_ENUM(EAgentToSchedulerJobEventType,
@@ -113,6 +113,11 @@ DEFINE_ENUM(ESchedulerToAgentJobEventType,
     ((Failed)    (2))
     ((Aborted)   (3))
     ((Running)   (4))
+);
+
+DEFINE_ENUM(ESchedulerToAgentOperationEventType,
+    ((Abandon)                    (0))
+    ((UpdateMinNeededJobResources)(1))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

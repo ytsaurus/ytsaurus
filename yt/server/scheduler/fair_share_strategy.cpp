@@ -1955,7 +1955,7 @@ public:
         for (const auto& pair : OperationIdToOperationState_) {
             const auto& state = pair.second;
             if (state->GetHost()->IsSchedulable()) {
-                state->GetController()->InvokeMinNeededJobResourcesUpdate();
+                state->GetController()->UpdateMinNeededJobResources();
             }
         }
 
@@ -2463,7 +2463,7 @@ public:
     {
         const auto& state = GetOperationState(operationId);
         if (state->GetHost()->IsSchedulable()) {
-            state->GetController()->InvokeMinNeededJobResourcesUpdate();
+            state->GetController()->UpdateMinNeededJobResources();
         }
     }
 

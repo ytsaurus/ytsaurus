@@ -94,8 +94,8 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
 
 TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : TJobSummary(event)
-      , Abandoned(event->abandoned())
-      , InterruptReason(static_cast<EInterruptReason>(event->interrupt_reason()))
+    , Abandoned(event->abandoned())
+    , InterruptReason(static_cast<EInterruptReason>(event->interrupt_reason()))
 {
     YCHECK(event->has_abandoned());
     YCHECK(event->has_interrupt_reason());
@@ -285,7 +285,12 @@ public:
         return Underlying_->GetNeededResources();
     }
 
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const
+    virtual void UpdateMinNeededJobResources() override
+    {
+        Underlying_->UpdateMinNeededJobResources();
+    }
+
+    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override
     {
         return Underlying_->GetMinNeededJobResources();
     }
