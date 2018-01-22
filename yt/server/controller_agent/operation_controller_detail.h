@@ -162,13 +162,13 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY_ANY(), false)
 
     IMPLEMENT_SAFE_METHOD(
-        NScheduler::TScheduleJobResultPtr,
+        TScheduleJobResultPtr,
         ScheduleJob,
-        (NScheduler::ISchedulingContextPtr context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
+        (ISchedulingContext* context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
         INVOKER_AFFINITY(CancelableInvoker),
         true,
-        New<NScheduler::TScheduleJobResult>())
+        New<TScheduleJobResult>())
 
     //! Callback called by TChunkScraper when get information on some chunk.
     IMPLEMENT_SAFE_VOID_METHOD(
@@ -222,7 +222,7 @@ public:
     virtual TJobResources GetNeededResources() const override;
 
     virtual void UpdateMinNeededJobResources() override;
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override;
+    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
 
     virtual bool IsRunning() const override;
 
@@ -508,22 +508,22 @@ protected:
     void UpdateCachedMaxAvailableExecNodeResources();
 
     void DoScheduleJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const TJobResources& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const TJobResources& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        TScheduleJobResult* scheduleJobResult);
 
 
     TJobletPtr FindJoblet(const TJobId& jobId) const;
@@ -886,7 +886,7 @@ private:
     TJobResources CachedNeededResources;
 
     NConcurrency::TReaderWriterSpinLock CachedMinNeededResourcesJobLock;
-    std::vector<NScheduler::TJobResourcesWithQuota> CachedMinNeededJobResources;
+    NScheduler::TJobResourcesWithQuotaList CachedMinNeededJobResources;
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
     NConcurrency::TReaderWriterSpinLock CachedSuspiciousJobsYsonLock_;

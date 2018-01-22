@@ -216,6 +216,38 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobStartRequest
+{
+    TJobStartRequest(
+        const TJobId& id,
+        EJobType type,
+        const TJobResources& resourceLimits,
+        bool interruptible);
+
+    const TJobId Id;
+    const EJobType Type;
+    const TJobResources ResourceLimits;
+    const bool Interruptible;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TScheduleJobResult
+    : public TIntrinsicRefCounted
+{
+    void RecordFail(EScheduleJobFailReason reason);
+    bool IsBackoffNeeded() const;
+    bool IsScheduleStopNeeded() const;
+
+    TNullable<TJobStartRequest> JobStartRequest;
+    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
+    TDuration Duration;
+};
+
+DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(babenko): move to NScheduler
 struct IOperationControllerStrategyHost
     : public virtual TRefCounted
@@ -224,8 +256,8 @@ struct IOperationControllerStrategyHost
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
-        NScheduler::ISchedulingContextPtr context,
+    virtual TScheduleJobResultPtr ScheduleJob(
+        ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId) = 0;
 
@@ -240,7 +272,7 @@ struct IOperationControllerStrategyHost
      *  \note Thread affinity: any
      */
     virtual void OnNonscheduledJobAborted(
-        const TJobId& jobid,
+        const TJobId& jobId,
         EAbortReason abortReason) = 0;
 
     //! Returns the total resources that are additionally needed.
@@ -260,7 +292,7 @@ struct IOperationControllerStrategyHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const = 0;
+    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
 
     //! Returns the number of jobs the controller is able to start right away.
     /*!

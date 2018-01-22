@@ -6,6 +6,7 @@
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
 #include <yt/core/misc/fixed_point_number.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -118,6 +119,7 @@ public:
 };
 
 using TJobResourcesWithQuota = TResourcesWithQuota<TJobResources>;
+using TJobResourcesWithQuotaList = SmallVector<TJobResourcesWithQuota, 8>;
 
 TString FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
 TString FormatResourceUsage(

@@ -28,8 +28,7 @@ namespace NScheduler {
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NYson;
-
-using NControllerAgent::TOperationAlertMap;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,13 +147,13 @@ public:
 
 
     virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
+        NControllerAgent::ISchedulingContext* context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
         // TODO(babenko)
         return AgentController_->ScheduleJob(
-            std::move(context),
+            context,
             jobLimits,
             treeId);
     }
@@ -185,7 +184,7 @@ public:
             OperationId_);
     }
 
-    virtual std::vector<TJobResourcesWithQuota> GetMinNeededJobResources() const override
+    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -352,7 +351,7 @@ public:
             auto runtimeData = operation->GetRuntimeData();
             runtimeData->SetPendingJobCount(protoOperation.pending_job_count());
             runtimeData->SetNeededResources(FromProto<TJobResources>(protoOperation.needed_resources()));
-            runtimeData->SetMinNeededJobResources(FromProto<std::vector<TJobResourcesWithQuota>>(protoOperation.min_needed_job_resources()));
+            runtimeData->SetMinNeededJobResources(FromProto<TJobResourcesWithQuotaList>(protoOperation.min_needed_job_resources()));
         }
 
         scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);

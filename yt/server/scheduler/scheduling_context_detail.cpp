@@ -10,6 +10,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NObjectClient;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 

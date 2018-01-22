@@ -292,8 +292,8 @@ public:
     TJobResources GetNeededResources();
     void SetNeededResources(const TJobResources& value);
 
-    std::vector<TJobResourcesWithQuota> GetMinNeededJobResources() const;
-    void SetMinNeededJobResources(std::vector<TJobResourcesWithQuota> value);
+    TJobResourcesWithQuotaList GetMinNeededJobResources() const;
+    void SetMinNeededJobResources(const TJobResourcesWithQuotaList& value);
 
 private:
     std::atomic<int> PendingJobCount_ = {0};
@@ -302,7 +302,7 @@ private:
     TJobResources NeededResources_;
 
     mutable NConcurrency::TReaderWriterSpinLock MinNeededResourcesJobLock_;
-    std::vector<TJobResourcesWithQuota> MinNeededJobResources_;
+    TJobResourcesWithQuotaList MinNeededJobResources_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeData)

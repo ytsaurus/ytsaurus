@@ -77,7 +77,7 @@ struct TFairShareContext
     const ISchedulingContextPtr SchedulingContext;
     TDuration TotalScheduleJobDuration;
     TDuration ExecScheduleJobDuration;
-    TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
+    TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
     bool HasAggressivelyStarvingNodes = false;
 
     int ActiveOperationCount = 0;
@@ -765,7 +765,10 @@ private:
         NProfiling::TCpuInstant now,
         const TJobResources& minNeededResources);
 
-    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount);
+    NControllerAgent::TScheduleJobResultPtr DoScheduleJob(
+        TFairShareContext& context,
+        const TJobResources& jobLimits,
+        const TJobResources& jobResourceDiscount);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;

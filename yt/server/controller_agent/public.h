@@ -68,6 +68,12 @@ DECLARE_REFCOUNTED_CLASS(TOperationControllerHost)
 DECLARE_REFCOUNTED_CLASS(TOperation)
 using TOperationIdToOperationMap = yhash<TOperationId, TOperationPtr>;
 
+DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
+
+struct ISchedulingContext;
+
+struct TJobStartRequest;
+
 struct TJobSummary;
 struct TCompletedJobSummary;
 struct TAbortedJobSummary;
@@ -82,6 +88,26 @@ DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 class TDataFlowGraph;
 
 using TIncarnationId = TGuid;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EScheduleJobFailReason,
+    ((Unknown)                       ( 0))
+    ((OperationNotRunning)           ( 1))
+    ((NoPendingJobs)                 ( 2))
+    ((NotEnoughChunkLists)           ( 3))
+    ((NotEnoughResources)            ( 4))
+    ((Timeout)                       ( 5))
+    ((EmptyInput)                    ( 6))
+    ((NoLocalJobs)                   ( 7))
+    ((TaskDelayed)                   ( 8))
+    ((NoCandidateTasks)              ( 9))
+    ((ResourceOvercommit)            (10))
+    ((TaskRefusal)                   (11))
+    ((JobSpecThrottling)             (12))
+    ((IntermediateChunkLimitExceeded)(13))
+    ((DataBalancingViolation)        (14))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

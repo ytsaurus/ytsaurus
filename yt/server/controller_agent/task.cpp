@@ -6,9 +6,9 @@
 #include "job_memory.h"
 #include "helpers.h"
 #include "task_host.h"
+#include "scheduling_context.h"
 
 #include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 
@@ -25,7 +25,6 @@
 #include <yt/core/misc/digest.h>
 
 #include <yt/core/ytree/convert.h>
-
 
 namespace NYT {
 namespace NControllerAgent {

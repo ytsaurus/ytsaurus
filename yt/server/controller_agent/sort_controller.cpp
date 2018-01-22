@@ -9,6 +9,7 @@
 #include "operation_controller_detail.h"
 #include "task.h"
 #include "operation.h"
+#include "scheduling_context.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/shuffle_chunk_pool.h>
@@ -17,7 +18,6 @@
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>

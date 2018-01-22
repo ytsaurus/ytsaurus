@@ -290,7 +290,7 @@ public:
         Underlying_->UpdateMinNeededJobResources();
     }
 
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override
+    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
         return Underlying_->GetMinNeededJobResources();
     }
@@ -321,11 +321,11 @@ public:
     }
 
     virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
+        ISchedulingContext* context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
-        return Underlying_->ScheduleJob(std::move(context), jobLimits, treeId);
+        return Underlying_->ScheduleJob(context, jobLimits, treeId);
     }
 
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override
@@ -416,6 +416,42 @@ private:
     const IOperationControllerPtr Underlying_;
     const IInvokerPtr DtorInvoker_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobStartRequest::TJobStartRequest(
+    const TJobId& id,
+    EJobType type,
+    const TJobResources& resourceLimits,
+    bool interruptible)
+    : Id(id)
+    , Type(type)
+    , ResourceLimits(resourceLimits)
+    , Interruptible(interruptible)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
+{
+    ++Failed[reason];
+}
+
+bool TScheduleJobResult::IsBackoffNeeded() const
+{
+    return
+        !JobStartRequest &&
+        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
+        Failed[EScheduleJobFailReason::NoLocalJobs] == 0 &&
+        Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
+}
+
+bool TScheduleJobResult::IsScheduleStopNeeded() const
+{
+    return
+        Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
+        Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
