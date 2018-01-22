@@ -8,7 +8,7 @@
 #include <yt/core/yson/consumer.h>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 
 // See json_writer.h for details on how YSON is mapped to JSON.
 // This implementation of TJsonParser is DOM-based (and is thus suboptimal).
@@ -16,16 +16,16 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJsonParser
-    : public IParser
 {
 public:
     TJsonParser(
         NYson::IYsonConsumer* consumer,
         TJsonFormatConfigPtr config = nullptr,
         NYson::EYsonType type = NYson::EYsonType::Node);
+    ~TJsonParser();
 
-    virtual void Read(const TStringBuf& data);
-    virtual void Finish();
+    void Read(const TStringBuf& data);
+    void Finish();
 
     void Parse(IInputStream* input);
 
@@ -44,5 +44,5 @@ void ParseJson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT

@@ -2,10 +2,10 @@
 
 #include <yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/ytlib/formats/json_parser.h>
+#include <yt/core/json/json_parser.h>
 
 namespace NYT {
-namespace NFormats {
+namespace NJson {
 namespace {
 
 using namespace NYson;
@@ -804,5 +804,5 @@ TEST(TJsonParserTest, MemoryLimit4)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
+} // namespace NJson
 } // namespace NYT

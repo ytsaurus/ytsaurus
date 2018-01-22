@@ -1,7 +1,7 @@
 #include "http_integration.h"
 
-#include <yt/ytlib/formats/config.h>
-#include <yt/ytlib/formats/json_writer.h>
+#include <yt/core/json/config.h>
+#include <yt/core/json/json_writer.h>
 #include <yt/ytlib/misc/http.h>
 
 #include <yt/core/misc/url.h>
@@ -27,6 +27,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NHttp;
 using namespace NConcurrency;
+using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +72,7 @@ public:
         rsp->WriteHeaders(EStatusCode::Ok);
 
         auto syncOutput = CreateBufferedSyncAdapter(rsp);
-        auto writer = NFormats::CreateJsonConsumer(syncOutput.get());
+        auto writer = CreateJsonConsumer(syncOutput.get());
 
         Serialize(TYsonString(ypathRsp->value()), writer.get());
         
