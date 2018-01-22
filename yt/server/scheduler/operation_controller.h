@@ -16,9 +16,8 @@ struct IOperationControllerStrategyHost
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to request actions the node must perform.
-    // TODO(babenko): fix context type
     virtual NControllerAgent::TScheduleJobResultPtr ScheduleJob(
-        NControllerAgent::ISchedulingContext* context,
+        const ISchedulingContextPtr& context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId) = 0;
 
