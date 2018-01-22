@@ -376,6 +376,11 @@ class OperationCleaner(object):
             if error.is_resolve_error():
                 continue
 
+            # This kind or error is expected. It can happen if operation started under transaction
+            # and transaction is still alive.
+            if error.is_concurrent_transaction_lock_conflict():
+                continue
+
             errors.append(error)
 
         if errors:
@@ -411,6 +416,11 @@ class SimpleHashBucketOperationsCleaner(object):
                 error = yt.YtResponseError(rsp["error"])
                 if error.is_resolve_error():
                     unresolved += 1
+                    continue
+
+                # This kind or error is expected. It can happen if operation started under transaction
+                # and transaction is still alive.
+                if error.is_concurrent_transaction_lock_conflict():
                     continue
 
                 errors.append(error)
