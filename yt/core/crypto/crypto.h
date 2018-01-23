@@ -32,7 +32,7 @@ public:
 
     const TMD5State& GetState() const;
 
-    void Persist(const NYT::TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 
 private:
     //! Erasing openssl struct type... brutally.
