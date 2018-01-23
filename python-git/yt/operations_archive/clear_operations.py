@@ -2,9 +2,8 @@ from .queues import (Timer, ThreadSafeCounter, NonBlockingQueue,
                      queue_worker, run_workers, run_queue_workers,
                      run_batching_queue_workers, wait_for_queue)
 
-from yt.wrapper.http_helpers import get_token
-from yt.wrapper.http_driver import HeavyProxyProvider
-from yt.common import date_string_to_timestamp_mcs, datetime_to_string
+from yt.common import date_string_to_timestamp_mcs, datetime_to_string, update
+from yt.wrapper.config import get_config
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -19,6 +18,7 @@ from itertools import izip
 # Import is necessary due to: http://bugs.python.org/issue7980
 import _strptime
 from datetime import datetime, timedelta
+from copy import deepcopy
 
 from time import mktime
 
@@ -92,20 +92,19 @@ class NullMetrics(object):
         pass
 
 class JobsCountGetter(object):
-    def __init__(self, client, operations_with_job_counts):
+    def __init__(self, client_factory, operations_with_job_counts):
         self.operations_with_job_counts = operations_with_job_counts
-        self.yt = client
+        self.client = client_factory()
 
     def __call__(self, operations):
-        responses = self.yt.execute_batch(requests=[{
-                "command": "get",
-                "parameters": {
-                    "path": format_op_path(op) + "/jobs/@count",
-                }
-            } for op in operations])
+        batch_client = yt.create_batch_client(max_batch_size=100, client=self.client)
+        responses = []
+        for op in operations:
+            responses.append(batch_client.get(format_op_path(op) + "/jobs/@count"))
+        batch_client.commit_batch()
 
         for op, rsp in zip(operations, responses):
-            self.operations_with_job_counts.append((op, 0 if "error" in rsp else rsp["output"]))
+            self.operations_with_job_counts.append((op, 0 if not rsp.is_ok() else rsp.get_result()))
 
 class OperationArchiver(object):
     ATTRIBUTES = [
@@ -122,15 +121,15 @@ class OperationArchiver(object):
         "uncompressed_data_size"
     ]
 
-    def __init__(self, client, clean_queue, stderr_queue, version, archive_jobs, metrics=NullMetrics()):
+    def __init__(self, client_factory, clean_queue, stderr_queue, version, archive_jobs, metrics=NullMetrics()):
         self.clean_queue = clean_queue
         self.stderr_queue = stderr_queue
         self.version = version
         self.archive_jobs = archive_jobs
         self.metrics = metrics
-        self.yt = client
+        self.client = client_factory()
 
-        if not self.yt.exists(BY_ID_ARCHIVE_PATH) or not self.yt.exists(BY_START_TIME_ARCHIVE_PATH):
+        if not self.client.exists(BY_ID_ARCHIVE_PATH) or not self.client.exists(BY_START_TIME_ARCHIVE_PATH):
             raise Exception("Operations archive tables do not exist")
 
     def get_archive_rows(self, op_id, data):
@@ -215,27 +214,25 @@ class OperationArchiver(object):
 
     def do_insert_rows(self, path, rows):
         atomicity = "none" if self.version >= 16 else "full"
-        self.yt.insert_rows(path, rows, update=True, atomicity=atomicity)
+        self.client.insert_rows(path, rows, update=True, atomicity=atomicity)
 
     def do_archive_jobs(self, ops):
-        responses = self.yt.execute_batch(requests=[{
-                "command": "get",
-                "parameters": {
-                    "path": format_op_path(op) + "/jobs",
-                    "attributes": self.ATTRIBUTES
-                }
-            } for op in ops])
+        batch_client = yt.create_batch_client(max_batch_size=32, client=self.client)
+        responses = []
+        for op in ops:
+            responses.append(batch_client.get(format_op_path(op) + "/jobs", attributes=self.ATTRIBUTES))
+        batch_client.commit_batch()
 
         archived_ops = []
         rows = []
         failed_count = 0
         for op, rsp in zip(ops, responses):
-            if "error" in rsp:
+            if not rsp.is_ok():
                 failed_count += 1
                 logger.info("Failed to get jobs for operations %s", op.id)
             else:
                 archived_ops.append(op)
-                rows.extend(self.get_insert_rows(op, rsp["output"]))
+                rows.extend(self.get_insert_rows(op, rsp.get_result()))
 
         logger.info("Inserting %d jobs", len(rows))
 
@@ -251,30 +248,29 @@ class OperationArchiver(object):
         self.clean_queue.put_many([op.id for op in archived_ops])
 
     def __call__(self, ops):
-        responses = self.yt.execute_batch(requests=[{
-                "command": "get",
-                "parameters": {
-                    "path": format_op_path(op) + "/@"
-                }
-            } for op in ops])
+        batch_client = yt.create_batch_client(max_batch_size=32, client=self.client)
+        responses = []
+        for op in ops:
+            responses.append(batch_client.get(format_op_path(op) + "/@"))
+        batch_client.commit_batch()
 
         by_id_rows = []
         by_start_time_rows = []
         archived_ops = []
         failed_count = 0
         for op, rsp in zip(ops, responses):
-            if "error" in rsp:
+            if not rsp.is_ok():
                 failed_count += 1
                 logger.info("Failed to get attributes of operations %s", op.id)
             else:
-                by_id_row, by_start_time_row = self.get_archive_rows(op.id, rsp["output"])
+                by_id_row, by_start_time_row = self.get_archive_rows(op.id, rsp.get_result())
                 by_id_rows.append(by_id_row)
                 by_start_time_rows.append(by_start_time_row)
                 archived_ops.append(op)
 
         try:
-            self.yt.insert_rows(BY_ID_ARCHIVE_PATH, by_id_rows, update=True)
-            self.yt.insert_rows(BY_START_TIME_ARCHIVE_PATH, by_start_time_rows, update=True)
+            self.client.insert_rows(BY_ID_ARCHIVE_PATH, by_id_rows, update=True)
+            self.client.insert_rows(BY_START_TIME_ARCHIVE_PATH, by_start_time_rows, update=True)
         except:
             failed_count += len(by_id_rows)
             raise
@@ -289,37 +285,18 @@ class OperationArchiver(object):
             self.clean_queue.put_many([op.id for op in archived_ops])
 
 class StderrDownloader(object):
-    def __init__(self, client, insert_queue, version, metrics=NullMetrics()):
+    def __init__(self, client_factory, insert_queue, version, metrics=NullMetrics()):
         self.insert_queue = insert_queue
         self.version = version
         self.metrics = metrics
-        self.yt = client
+        self.client = client_factory()
+        self.client.config["proxy"]["retries"]["count"] = 1
 
     def __call__(self, element):
         op, job_id = element
-        token = get_token()
         path = format_op_path(op)
-        if self.yt.config["proxy"]["url"] is None:
-            # This case used for tests.
-            stderr = self.yt.read_file("{}/jobs/{}/stderr".format(path, job_id)).read()
-        else:
-            client = yt.YtClient(self.yt.config["proxy"]["url"], token=token)
-            client.config["proxy"]["retries"]["count"] = 1
-            proxy_url = HeavyProxyProvider(client)()
-            stderr = ""
 
-            if proxy_url is not None:
-                path = "http://{}/api/v3/read_file?path={}/jobs/{}/stderr".format(proxy_url, path, job_id)
-
-                rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
-
-                if not str(rsp.status_code).startswith("2"):
-                    raise yt.YtResponseError(json.loads(rsp.content))
-
-                if not rsp.content:
-                    return
-
-                stderr = rsp.content
+        stderr = self.client.read_file("{}/jobs/{}/stderr".format(path, job_id)).read()
 
         op_id_hi, op_id_lo = id_to_parts(op.id, self.version)
         id_hi, id_lo = id_to_parts(job_id, self.version)
@@ -333,46 +310,39 @@ class StderrDownloader(object):
         self.insert_queue.put(row)
 
 class StderrInserter(object):
-    def __init__(self, client, metrics=NullMetrics()):
+    def __init__(self, client_factory, metrics=NullMetrics()):
         self.metrics = metrics
-        self.yt = client
+        self.client = client_factory()
 
     def __call__(self, rowset):
         logger.info("Inserting %d stderrs", len(rowset))
 
-        self.yt.insert_rows(STDERRS_PATH, rowset, update=True)
+        self.client.insert_rows(STDERRS_PATH, rowset, update=True)
 
         self.metrics.add("archived_stderr_count", len(rowset))
         self.metrics.add("archived_stderr_size", sum(len(row["stderr"]) for row in rowset))
 
 class OperationCleaner(object):
-    def __init__(self, client):
-        self.yt = client
+    def __init__(self, client_factory):
+        self.client = client_factory()
 
     def __call__(self, op_ids):
         for op_id in op_ids:
             logger.info("Removing operation %s", op_id)
 
-        requests = []
+        batch_client = yt.create_batch_client(max_batch_size=256, client=self.client)
+        responses = []
         for op_id in op_ids:
             for path in (get_op_path(op_id), get_op_new_path(op_id)):
-                requests.append(
-                    {
-                        "command": "remove",
-                        "parameters": {
-                            "path": path,
-                            "recursive": True
-                        }
-                    })
-
-        responses = self.yt.execute_batch(requests)
+                responses.append(batch_client.remove(path, recursive=True))
+        batch_client.commit_batch()
 
         errors = []
         for rsp in responses:
-            if "error" not in rsp:
+            if rsp.is_ok():
                 continue
 
-            error = yt.YtResponseError(rsp["error"])
+            error = yt.YtResponseError(rsp.get_error())
             if error.is_resolve_error():
                 continue
 
@@ -387,47 +357,40 @@ class OperationCleaner(object):
             raise yt.YtError("Failed to remove operations", inner_errors=errors)
 
 class SimpleHashBucketOperationsCleaner(object):
-    def __init__(self, client):
-        self.yt = client
+    def __init__(self, client_factory):
+        self.client = client_factory()
 
     def __call__(self, op_paths):
-        for to_remove in iter_chunks(op_paths, 200):
-            for op_path in to_remove:
-                logger.info("Removing node %s", op_path)
+        batch_client = yt.create_batch_client(max_batch_size=200, client=self.client)
 
-            requests = []
-            for op_path in to_remove:
-                requests.append(
-                    {
-                        "command": "remove",
-                        "parameters": {
-                            "path": "//sys/operations/" + op_path,
-                        }
-                    })
+        responses = []
+        for op_path in op_paths:
+            logger.info("Removing node %s", op_path)
+            responses.append(batch_client.remove("//sys/operations/" + op_path))
+        batch_client.commit_batch()
 
-            responses = self.yt.execute_batch(requests)
+        unresolved = 0
+        errors = []
+        for rsp in responses:
+            if rsp.is_ok():
+                continue
 
-            unresolved = 0
-            errors = []
-            for rsp in responses:
-                if "error" not in rsp:
-                    continue
+            error = yt.YtResponseError(rsp.get_error())
 
-                error = yt.YtResponseError(rsp["error"])
-                if error.is_resolve_error():
-                    unresolved += 1
-                    continue
+            if error.is_resolve_error():
+                unresolved += 1
+                continue
 
-                # This kind or error is expected. It can happen if operation started under transaction
-                # and transaction is still alive.
-                if error.is_concurrent_transaction_lock_conflict():
-                    continue
+            # This kind or error is expected. It can happen if operation started under transaction
+            # and transaction is still alive.
+            if error.is_concurrent_transaction_lock_conflict():
+                continue
 
-                errors.append(error)
+            errors.append(error)
 
-            logger.warning("Number of paths that was failed to resolve: %d", unresolved)
-            if errors:
-                logger.warning("%s", str(yt.YtError("Failed to remove operation new nodes", inner_errors=errors)))
+        logger.warning("Number of paths that was failed to resolve: %d", unresolved)
+        if errors:
+            logger.warning("%s", str(yt.YtError("Failed to remove operation new nodes", inner_errors=errors)))
 
 # Push metrics
 
@@ -469,50 +432,59 @@ def request_operations_recursive(yt_client, root_operation_ids, prefixes):
     candidates_to_remove = []
     operations = []
 
-    for prefixes_to_request in iter_chunks(prefixes, 32):
-        list_responses = yt_client.execute_batch([
-            {
-                "command": "list",
-                "parameters": {
-                    "path": "//sys/operations/{}".format(prefix),
-                    "attributes": ["state", "authenticated_user", "start_time", "finish_time"]
-                }
-            }
-            for prefix in prefixes_to_request])
+    batch_client = yt.create_batch_client(max_batch_size=32, client=yt_client)
+    responses = []
+    for prefix in prefixes:
+        rsp = batch_client.list(
+            "//sys/operations/" + prefix,
+            attributes=["state", "authenticated_user", "start_time", "finish_time"])
+        responses.append(rsp)
+    batch_client.commit_batch()
 
-        for prefix, response in izip(prefixes_to_request, list_responses):
-            if "error" in response:
-                error = yt.YtResponseError(response["error"])
-                if not error.is_resolve_error():
-                    raise
-            else:
-                for op in response["output"]:
-                    if str(op) not in root_operation_ids:
-                        if "state" in op.attributes:
-                            operations.append(create_operation_from_node(op, STORAGE_MODE_HASH_BUCKETS))
-                        else:
-                            candidates_to_remove.append((prefix, op))
+    for prefix, response in izip(prefixes, responses):
+        if response.is_ok():
+            for op in response.get_result():
+                if str(op) not in root_operation_ids:
+                    if "state" in op.attributes:
+                        operations.append(create_operation_from_node(op, STORAGE_MODE_HASH_BUCKETS))
+                    else:
+                        candidates_to_remove.append((prefix, op))
+        else:
+            error = yt.YtResponseError(response.get_error())
+            if not error.is_resolve_error():
+                raise
 
     # It is important to make additional existance check due to possible races.
     exists_responses = []
-    for exists_requests in iter_chunks(candidates_to_remove, 200):
-        exists_responses += yt_client.execute_batch([
-            {
-                "command": "exists",
-                "parameters": {
-                    "path": "//sys/operations/{}".format(op)
-                }
-            }
-            for prefix, op in exists_requests])
+    batch_client = yt.create_batch_client(max_batch_size=200, client=yt_client)
+    for _, op in candidates_to_remove:
+        exists_responses.append(batch_client.exists("//sys/operations/" + op))
+    batch_client.commit_batch()
 
     to_remove = []
     for candidate, response in izip(candidates_to_remove, exists_responses):
-        if "error" in response:
-            raise yt.YtResponseError(response["error"])
-        if not response["output"]:
+        if not response.is_ok():
+            raise yt.YtResponseError(response.get_error())
+        if not response.get_result():
             to_remove.append("/".join(candidate))
 
     return operations, NonBlockingQueue(to_remove)
+
+class ClientFactory(object):
+    def __init__(self, base_client):
+        patch = {
+            # Fail fast.
+            "read_retries": {
+                "enable": False
+            },
+            "dynamic_table_retries": {
+                "enable": False
+            }
+        }
+        self.config = update(deepcopy(get_config(base_client)), patch)
+
+    def __call__(self):
+        return yt.YtClient(config=deepcopy(self.config))
 
 def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, execution_timeout,
                      max_operations_per_user, robots, archive, archive_jobs, thread_count,
@@ -521,6 +493,8 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
     now = datetime.utcnow()
     end_time_limit = now + execution_timeout
     archiving_time_limit = now + execution_timeout * 7 / 8
+
+    client_factory = ClientFactory(client)
 
     #
     # Step 1: Fetch data from Cypress.
@@ -581,7 +555,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
             simple_hash_bucket_operations_to_remove_queue,
             SimpleHashBucketOperationsCleaner,
             thread_count,
-            args=(client,),
+            args=(client_factory,),
             batch_size=8,
             failed_items=failed_to_remove_stale)
 
@@ -613,7 +587,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
     operations_with_job_counts = []
     with timers["getting_job_counts"]:
         consider_queue = NonBlockingQueue(operations_to_consider)
-        run_batching_queue_workers(consider_queue, JobsCountGetter, thread_count, (client, operations_with_job_counts,))
+        run_batching_queue_workers(consider_queue, JobsCountGetter, thread_count, (client_factory, operations_with_job_counts,))
         wait_for_queue(consider_queue, "get_job_count", archiving_time_limit)
 
     user_counts = Counter()
@@ -663,7 +637,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
                 archive_queue,
                 OperationArchiver,
                 thread_count,
-                (client, remove_queue, stderr_queue, version, archive_jobs, thread_safe_metrics),
+                (client_factory, remove_queue, stderr_queue, version, archive_jobs, thread_safe_metrics),
                 batch_size=32,
                 failed_items=failed_to_archive)
             failed_to_archive.extend(wait_for_queue(archive_queue, "archive_operation", operation_archiving_time_limit))
@@ -673,8 +647,8 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
 
             with timers["archiving_stderrs"]:
                 insert_queue = NonBlockingQueue()
-                run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (client, insert_queue, version, thread_safe_metrics))
-                run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (client, thread_safe_metrics,))
+                run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (client_factory, insert_queue, version, thread_safe_metrics))
+                run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (client_factory, thread_safe_metrics,))
 
                 failed_stderr_count = 0
                 failed_stderr_count += len(wait_for_queue(stderr_queue, "fetch_stderr", archiving_time_limit))
@@ -691,7 +665,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
 
     failed_to_remove = []
     with timers["removing_operations"]:
-        run_batching_queue_workers(remove_queue, OperationCleaner, thread_count, args=(client,), batch_size=8, failed_items=failed_to_remove)
+        run_batching_queue_workers(remove_queue, OperationCleaner, thread_count, args=(client_factory,), batch_size=8, failed_items=failed_to_remove)
         failed_to_remove.extend(wait_for_queue(remove_queue, "remove_operations", end_time_limit))
 
     now_after_clean = datetime.utcnow()
