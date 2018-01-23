@@ -77,9 +77,7 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     TDuration timeLimit,
     const TString& treeId)
 {
-    auto scheduleJobResultFuture = BIND(&IOperationController::ScheduleJob, Controller_)
-        .AsyncVia(Controller_->GetCancelableInvoker())
-        .Run(context, jobLimits, treeId);
+    auto scheduleJobResultFuture = Controller_->ScheduleJob(context, jobLimits, treeId);
 
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
         .WithTimeout(timeLimit);

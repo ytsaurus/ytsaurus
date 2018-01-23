@@ -113,15 +113,10 @@ public:
         : JobResourcesList(jobResourcesList)
     { }
 
-    virtual TScheduleJobResultPtr ScheduleJob(
-        NControllerAgent::ISchedulingContext* context,
+    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
+        const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& /* treeId */) override
-    {
-        Y_UNREACHABLE();
-    }
-
-    virtual IInvokerPtr GetCancelableInvoker() const override
     {
         Y_UNREACHABLE();
     }
