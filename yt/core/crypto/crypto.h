@@ -32,6 +32,8 @@ public:
 
     const TMD5State& GetState() const;
 
+    void Persist(const NYT::TStreamPersistenceContext& context);
+
 private:
     //! Erasing openssl struct type... brutally.
     TMD5State State_;
@@ -66,36 +68,6 @@ void ToProto(NProto::TMD5Hasher* protoHasher, const TNullable<NYT::TMD5Hasher>& 
 void FromProto(TNullable<NYT::TMD5Hasher>* hasher, const NProto::TMD5Hasher& protoHasher);
 
 } // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TMD5HasherSerializer
-{
-    template <class C>
-    static void Save(C& context, const TMD5Hasher& value)
-    {
-        using NYT::Save;
-
-        TNullable<TMD5State> state;
-        Save(context, value.GetState());
-    }
-
-    template <class C>
-    static void Load(C& context, TMD5Hasher& value)
-    {
-        using NYT::Load;
-
-        TNullable<TMD5State> state;
-        Load(context, state);
-        value = TMD5Hasher(state.Get());
-    }
-};
-
-template <class C>
-struct TSerializerTraits<TMD5Hasher, C, void>
-{
-    typedef TMD5HasherSerializer TSerializer;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
