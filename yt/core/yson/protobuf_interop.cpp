@@ -945,6 +945,21 @@ private:
                     break;
                 }
 
+                case FieldDescriptor::TYPE_ENUM: {
+                    auto i32Value = CheckedCast<i32>(value, STRINGBUF("i32"));
+                    const auto* enumType = field->GetEnumType();
+                    auto literal = enumType->FindLiteralByValue(i32Value);
+                    if (!literal) {
+                        THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
+                            i32Value,
+                            YPathStack_.GetPath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath())
+                            << TErrorAttribute("proto_field", field->GetFullName());
+                    }
+                    BodyCodedStream_.WriteVarint32SignExtended(i32Value);
+                    break;
+                }
+
                 default:
                     THROW_ERROR_EXCEPTION("Field %v cannot be parsed from integer values",
                         YPathStack_.GetPath())
