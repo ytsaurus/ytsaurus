@@ -187,23 +187,22 @@ public:
     }
 
 
-    virtual TScheduleJobResultPtr ScheduleJob(
+    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
-        TSchedulingContextAdapter adapter(context);
         // TODO(babenko)
-        return AgentController_->ScheduleJob(
-            &adapter,
-            jobLimits,
-            treeId);
-    }
-
-    virtual IInvokerPtr GetCancelableInvoker() const override
-    {
-        // TODO(babenko)
-        return AgentController_->GetCancelableInvoker();
+        return
+            BIND([context, controller = AgentController_, jobLimits, treeId] {
+                TSchedulingContextAdapter adapter(context);
+                return controller->ScheduleJob(
+                    &adapter,
+                    jobLimits,
+                    treeId);
+            })
+            .AsyncVia(AgentController_->GetCancelableInvoker())
+            .Run();
     }
 
     virtual TJobResources GetNeededResources() const override
