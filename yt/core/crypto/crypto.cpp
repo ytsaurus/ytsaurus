@@ -70,6 +70,13 @@ TString TMD5Hasher::GetHexDigestLower()
     return to_lower(GetHexDigestUpper());
 }
 
+void TMD5Hasher::Persist(const NYT::TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, State_);
+}
+
 const TMD5State& TMD5Hasher::GetState() const
 {
     return State_;
