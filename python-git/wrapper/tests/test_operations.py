@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path, check,
-                      set_config_option, build_python_egg, get_tests_sandbox, run_python_script_with_check,
+                      set_config_option, get_tests_sandbox, run_python_script_with_check,
                       ENABLE_JOB_CONTROL, dumps_yt_config, get_python)
 
 # Necessary for tests.
@@ -1173,33 +1173,6 @@ if __name__ == "__main__":
 
         finally:
             logger.LOGGER.setLevel(old_level)
-
-    @pytest.mark.usefixtures("test_dynamic_library")
-    @add_failed_operation_stderrs_to_error_message
-    def test_enable_dynamic_libraries_collection(self, test_dynamic_library):
-        libs_dir, so_file = test_dynamic_library
-        def mapper(rec):
-            assert "_shared" in os.environ["LD_LIBRARY_PATH"]
-            for root, dirs, files in os.walk("."):
-                if so_file in files:
-                    break
-            else:
-                assert False, "Dependency {0} not collected".format(so_file)
-            yield rec
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1, "y": 1}])
-
-        old_ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
-        os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([old_ld_library_path, libs_dir])
-        try:
-            with set_config_option("pickling/dynamic_libraries/enable_auto_collection", True):
-                 with set_config_option("pickling/dynamic_libraries/library_filter",
-                                        lambda lib: not lib.startswith("/lib")):
-                    yt.run_map(mapper, table, TEST_DIR + "/out")
-        finally:
-            if old_ld_library_path:
-                os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
 
     @add_failed_operation_stderrs_to_error_message
     def test_mount_tmpfs_in_sandbox(self, yt_env):
