@@ -1281,11 +1281,19 @@ if __name__ == "__main__":
             yt.config["operation_tracker"]["stderr_download_thread_count"] = old_thread_count
 
         binary = get_test_file_path("stderr_download.py")
-        process = subprocess.Popen(["python", binary, operation.id], env=self.env, stderr=subprocess.PIPE)
+        process = subprocess.Popen([get_python(), binary, operation.id], env=self.env, stderr=subprocess.PIPE)
 
         time.sleep(0.5)
         os.kill(process.pid, signal.SIGINT)
-        process.wait(3)
+
+        timeout = 3.0
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if process.poll() is not None:
+                break
+            time.sleep(0.05)
+        else:
+            assert False, "Process did not terminate after {0:.2f} seconds".format(timeout)
 
     @add_failed_operation_stderrs_to_error_message
     def test_sandbox_file_name_specification(self, yt_env):
