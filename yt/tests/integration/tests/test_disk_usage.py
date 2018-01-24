@@ -50,7 +50,6 @@ class TestDiskUsage(QuotaMixin):
             "in_": tables[0],
             "out": tables[1],
             "dont_track": True,
-            "wait_for_jobs": True,
         }
 
         options.update(fatty_options)
@@ -74,7 +73,6 @@ class TestDiskUsage(QuotaMixin):
         op.abort()
 
         events.notify_event("finish_job")
-        first.resume_jobs()
         first.track()
 
         map(**check_op)
