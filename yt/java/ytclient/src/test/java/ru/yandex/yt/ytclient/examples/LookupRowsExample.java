@@ -17,20 +17,21 @@ public class LookupRowsExample {
 
     public static void main(String[] args) {
         TableSchema schema = new TableSchema.Builder()
-                .addKey("ClientID", ColumnValueType.UINT64)
-                .addKey("cid", ColumnValueType.UINT64)
-                .addKey("GroupExportID", ColumnValueType.UINT64)
-                .addKey("PhraseID", ColumnValueType.UINT64)
-                .addKey("OrderID", ColumnValueType.UINT64)
-                .addKey("UpdateTime", ColumnValueType.INT64)
+                .addKey("timestamp", ColumnValueType.INT64)
+                .addKey("host", ColumnValueType.STRING)
+                .addKey("rack", ColumnValueType.STRING)
+                .addValue("utc_time", ColumnValueType.STRING)
+                .addValue("data", ColumnValueType.STRING)
                 .build();
-        ExamplesUtil.runExample(client -> {
+        ExamplesUtil.runExampleWithBalancing(client -> {
             long t0 = System.nanoTime();
-            LookupRowsRequest request = new LookupRowsRequest("//yabs/GPStat3.dynamic", schema)
-                    .addFilter(8102567, 16145160, 1158063745, 844923, 7590772, 1452978000)
-                    .addFilter(8139356, 16270816, 1472956303, 105660307, 9058766, 1461963600)
-                    .addFilter(2317001, 15108415, 1011501759, 169044313, 6853052, 1448571600)
-                    .addLookupColumns("OrderID", "UpdateTime", "ClientID", "Shows", "Clicks");
+            LookupRowsRequest request = new LookupRowsRequest("//home/dev/andozer/autorestart_nodes_copy", schema.toLookup())
+                    .addFilter(1486113922563016L, "s04-sas.hahn.yt.yandex.net", "SAS2.4.3-13")
+                    .addFilter(1486113924172063L, "s04-sas.hahn.yt.yandex.net", "SAS2.4.3-13")
+                    .addFilter(1486113992045484L, "s04-sas.hahn.yt.yandex.net", "SAS2.4.3-13")
+                    .addFilter(1486113992591731L, "s04-sas.hahn.yt.yandex.net", "SAS2.4.3-13")
+                    .addFilter(1486113997734536L, "n4137-sas.hahn.yt.yandex.net", "SAS2.4.3-13")
+                    .addLookupColumns("utc_time", "data");
             long t1 = System.nanoTime();
             UnversionedRowset rowset = client.lookupRows(request).join();
             long t2 = System.nanoTime();
