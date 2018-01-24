@@ -13,10 +13,10 @@ public class SelectRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(SelectRowsExample.class);
 
     public static void main(String[] args) {
-        ExamplesUtil.runExample(client -> {
+        ExamplesUtil.runExampleWithBalancing(client -> {
             long t0 = System.nanoTime();
             UnversionedRowset rowset = client.selectRows(
-                    "OrderID, UpdateTime, ClientID, Shows, Clicks FROM [//yabs/GPStat3.dynamic] LIMIT 10")
+                    "timestamp, host, rack, utc_time, data FROM [//home/dev/andozer/autorestart_nodes_copy] LIMIT 10")
                     .join();
             long t1 = System.nanoTime();
             logger.info("Request time: {}", (t1 - t0) / 1000000.0);

@@ -8,8 +8,8 @@ public class GetNodeExample {
 
     public static void main(String[] args) {
         ExamplesUtil.runExample(client -> {
-            logger.info("Table dynamic: {}", client.getNode("//yabs/GPStat3.dynamic/@dynamic").join());
-            logger.info("Table schema: {}", client.getNode("//yabs/GPStat3.dynamic/@schema").join());
+            logger.info("Table dynamic: {}", client.getNode("//home/dev/andozer/autorestart_nodes_copy/@dynamic").join());
+            logger.info("Table schema: {}", client.getNode("//home/dev/andozer/autorestart_nodes_copy/@schema").join());
         });
     }
 }
