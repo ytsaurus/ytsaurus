@@ -111,12 +111,12 @@ class TestOperationsPickling(object):
         try:
             with set_config_option("pickling/dynamic_libraries/enable_auto_collection", True):
                 with set_config_option("pickling/enable_modules_compatibility_filter", True):
-                    yt.run_map(check_platforms_are_different, table, TEST_DIR + "/out")
-                yt.run_map(check_platforms_are_same, table, TEST_DIR + "/out")
+                    yt.run_map(check_platforms_are_different, table, TEST_DIR + "/out", format=yt.JsonFormat())
+                yt.run_map(check_platforms_are_same, table, TEST_DIR + "/out", format=yt.JsonFormat())
 
                 sys.platform = old_platform
                 with set_config_option("pickling/enable_modules_compatibility_filter", True):
-                    yt.run_map(check_platforms_are_same, table, TEST_DIR + "/out")
+                    yt.run_map(check_platforms_are_same, table, TEST_DIR + "/out", format=yt.JsonFormat())
         finally:
             if old_ld_library_path:
                 os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
