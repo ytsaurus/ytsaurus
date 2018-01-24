@@ -172,6 +172,9 @@ public:
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
 
+    //! Update PutBlocks wall time profiling counter.
+    void UpdatePutBlocksWallTimeCounter(NProfiling::TValue value);
+
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
 protected:
@@ -219,6 +222,8 @@ private:
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
     std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;
+
+    NProfiling::TAggregateCounter PutBlocksWallTimeCounter_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleCounter& GetPendingIOSizeCounter(

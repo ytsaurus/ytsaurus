@@ -62,6 +62,7 @@ using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NProfiling;
 
 using NYT::FromProto;
 
@@ -250,22 +251,25 @@ private:
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v",
-            sessionId,
-            firstBlockIndex,
-            lastBlockIndex,
-            populateCache,
-            flushBlocks);
-
         ValidateConnected();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-
         auto location = session->GetStoreLocation();
+
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v",
+            sessionId,
+            firstBlockIndex,
+            lastBlockIndex,
+            populateCache,
+            flushBlocks,
+            location->GetMediumName());
+
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
+
+        TWallTimer timer;
 
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
@@ -279,6 +283,12 @@ private:
                 return session->FlushBlocks(lastBlockIndex);
             }));
         }
+
+        result.Subscribe(BIND([=] (const TError& error) {
+            if (error.IsOK()) {
+                location->UpdatePutBlocksWallTimeCounter(DurationToValue(timer.GetElapsedTime()));
+            }
+        }));
 
         context->ReplyFrom(result);
     }
