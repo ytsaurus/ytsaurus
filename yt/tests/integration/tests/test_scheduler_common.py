@@ -341,30 +341,27 @@ class TestJobStderr(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(20)])
 
-        # All jobs with index < 19 will successfuly finish on "exit 0;"
-        # The job with index 19 will be waiting because of wait_for_jobs=True
-        # until it is manualy resumed.
-        command = """grep -v row_19 > /dev/null;
+        events = EventsOnFs()
+        command = """
+                {breakpoint_cmd};
+                grep -v row_19 > /dev/null;
                 IS_FAILING_JOB=$?;
                 echo stderr 1>&2;
                 if [ $IS_FAILING_JOB -eq 1 ]; then
-                    trap "exit 125" EXIT
+                    exit 125;
                 else
                     exit 0;
-                fi;"""
-
+                fi;""".format(breakpoint_cmd=events.breakpoint_cmd())
         op = map(
             dont_track=True,
-            wait_timeout=120,
-            wait_for_jobs=True,
             label="stderr_of_failed_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
             spec={"max_failed_job_count": 1, "max_stderr_count": 10, "job_count": 20})
 
+        events.release_breakpoint()
         with pytest.raises(YtError):
-            op.resume_jobs()
             op.track()
 
         # The default number of stderr is 10. We check that we have 11-st stderr of failed job,
@@ -719,23 +716,24 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={"test_flag": to_yson_type("value", attributes={"attr": 0})})
 
-        progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0]))
+        jobs = events.wait_breakpoint()
+        progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, jobs[0]))
         assert progress >= 0
 
         test_flag = get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/test_flag".format(op.id))
         assert str(test_flag) == "value"
         assert test_flag.attributes == {"attr": 0}
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
     def test_job_stderr_size(self):
@@ -744,22 +742,19 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
 
         events = EventsOnFs()
-
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="echo FOOBAR >&2 ; {wait_cmd}; cat".format(wait_cmd= events.wait_event_cmd("checked_stderr")))
-        op.resume_jobs()
+            command="echo FOOBAR >&2 ; {breakpoint_cmd}; cat".format(breakpoint_cmd=events.breakpoint_cmd()))
 
+        jobs = events.wait_breakpoint()
         def get_stderr_size():
-            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, op.jobs[0]))
+            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
         wait(lambda: get_stderr_size() == len("FOOBAR\n"))
 
-        events.notify_event("checked_stderr")
-
+        events.release_breakpoint()
         op.track()
 
     def test_estimated_statistics(self):
@@ -815,13 +810,13 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "input_format": "json",
@@ -829,14 +824,14 @@ class TestSchedulerCommon(YTEnvSetup):
                 }
             })
 
+        jobs = events.wait_breakpoint()
         # Wait till job starts reading input
-        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0])
-        while get(progress_path) < 0.5:
-            time.sleep(1)
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, jobs[0])
+        wait(lambda : get(progress_path) >= 0.5)
 
-        dump_job_context(op.jobs[0], "//tmp/input_context")
+        dump_job_context(jobs[0], "//tmp/input_context")
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
         context = read_file("//tmp/input_context")
@@ -1069,12 +1064,12 @@ class TestSchedulerCommon(YTEnvSetup):
         for i in xrange(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
+        events = EventsOnFs()
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="echo job_index=$YT_JOB_INDEX",
+            command="echo job_index=$YT_JOB_INDEX ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -1082,9 +1077,10 @@ class TestSchedulerCommon(YTEnvSetup):
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
             })
+        jobs = events.wait_breakpoint(job_count=5)
 
-        for job_id in op.jobs[:3]:
-            op.resume_job(job_id)
+        for job_id in jobs[:3]:
+            events.release_breakpoint(job_id=job_id)
 
         path = "//sys/operations/{0}/@state".format(op.id)
         assert get(path) != "completed"
@@ -1680,16 +1676,18 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
 
+        events = EventsOnFs()
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             in_="//tmp/in",
             out="//tmp/out",
             spec={"data_size_per_job": 1})
 
-        op.resume_job(op.jobs[0])
-        op.resume_job(op.jobs[1])
+        jobs = events.wait_breakpoint(job_count=3)
+
+        for job_id in jobs[:2]:
+            events.release_breakpoint(job_id=job_id)
 
         operation_path = "//sys/operations/{0}".format(op.id)
         for iter in xrange(100):
@@ -1705,7 +1703,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         assert len(read_table(operation_path + "/output_0", tx=transaction_id)) == 2
         assert get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
 ##################################################################
@@ -1942,10 +1940,10 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         testing_options = {"scheduling_delay": 500}
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             in_="//tmp/in",
             out="//tmp/out",
             spec={"data_weight_per_job": 1, "testing": testing_options})
@@ -1961,7 +1959,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         ts = get("//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/last_successful_snapshot_time")
         assert time.time() - datetime_str_to_ts(ts) < 60
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
     def test_parallel_snapshots(self):
@@ -1975,13 +1973,13 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         operation_count = 5
         ops = []
+        events = EventsOnFs()
         for index in range(operation_count):
             output = "//tmp/output" + str(index)
             create("table", output)
             ops.append(
                 map(dont_track=True,
-                    wait_for_jobs=True,
-                    command="cat",
+                    command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
                     in_="//tmp/input",
                     out=[output],
                     spec={"data_size_per_job": 1, "testing": testing_options}))
@@ -1993,7 +1991,9 @@ class TestSchedulerSnapshots(YTEnvSetup):
             snapshot_backup_path = snapshot_path + ".backup"
             copy(snapshot_path, snapshot_backup_path)
             assert len(read_file(snapshot_backup_path, verbose=False)) > 0
-            op.resume_jobs()
+
+        # All our operations use 'default' breakpoint so we release it and all operations continue execution.
+        events.release_breakpoint()
 
         for op in ops:
             op.track()
@@ -2102,14 +2102,16 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
-            command="cat")
+            command="{breakpoint_cmd} ; cat".format(breakpoint_cmd=events.breakpoint_cmd()))
 
+        events.wait_breakpoint()
         running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         job_id = running_jobs.keys()[0]
         job_info = running_jobs.values()[0]
@@ -2131,19 +2133,20 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         self._create_table("//tmp/out")
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
-            command="cat")
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()))
 
+        events.wait_breakpoint()
         running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         job_id = running_jobs.keys()[0]
 
         statistics_appeared = False
-        for iter in xrange(30):
+        for iter in xrange(300):
             statistics = get("//sys/scheduler/orchid/scheduler/jobs/{0}/statistics".format(job_id))
             data = statistics.get("data", {})
             _input = data.get("input", {})
@@ -2152,11 +2155,11 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             if _sum == 10:
                 statistics_appeared = True
                 break
-            time.sleep(1.0)
+            time.sleep(0.1)
 
         assert statistics_appeared
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
 ##################################################################
@@ -2426,14 +2429,12 @@ class TestPoolMetrics(YTEnvSetup):
         op11 = map(
             in_="//t_input",
             out="//t_output",
-            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child1"},
         )
         op12 = map(
             in_="//t_input",
             out="//t_output",
-            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child1"},
         )
@@ -2441,7 +2442,6 @@ class TestPoolMetrics(YTEnvSetup):
         op2 = map(
             in_="//t_input",
             out="//t_output",
-            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child2"},
         )
