@@ -350,19 +350,19 @@ private:
                         Y_UNREACHABLE();
                 }
             }
-            if (rowIndexFieldIndex != MissingSystemColumn || rowIndexFieldIndex != MissingSystemColumn) {
+            if (rowIndexFieldIndex != MissingSystemColumn || rangeIndexFieldIndex != MissingSystemColumn) {
                 bool needUpdateRangeIndex = tableIndex != TableIndex_;
                 if (rangeIndexValueId != static_cast<ui32>(-1)) {
                     YCHECK(row[rangeIndexValueId].Type == EValueType::Int64);
                     const auto rangeIndex = row[rangeIndexValueId].Data.Int64;
                     needUpdateRangeIndex = needUpdateRangeIndex || rangeIndex != RangeIndex_;
-                    if (rowIndexFieldIndex != MissingSystemColumn) {
+                    if (rangeIndexFieldIndex != MissingSystemColumn) {
                         if (needUpdateRangeIndex) {
                             DenseIndexes_[rangeIndexFieldIndex] = rangeIndexValueId;
                         }
                     }
                     RangeIndex_ = rangeIndex;
-                } else if (rowIndexFieldIndex != MissingSystemColumn) {
+                } else if (rangeIndexFieldIndex != MissingSystemColumn) {
                     THROW_ERROR_EXCEPTION("Range index requested but reader did not return it")
                         << GetRowPositionErrorAttributes();
                 }
