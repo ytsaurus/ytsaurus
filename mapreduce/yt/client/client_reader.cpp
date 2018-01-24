@@ -131,8 +131,9 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             header.SetToken(Auth_.Token);
             auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
             header.AddTransactionId(transactionId);
-            header.AddParam("control_attributes[enable_row_index]", true);
-            header.AddParam("control_attributes[enable_range_index]", true);
+            header.AddParameter("control_attributes", TNode()
+                ("enable_row_index", true)
+                ("enable_range_index", true));
             header.SetOutputFormat(Format_);
 
             header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
@@ -152,7 +153,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
                 ranges.begin()->LowerLimit(TReadLimit().RowIndex(*rowIndex));
             }
 
-            header.SetParameters(FormIORequestParameters(Path_, Options_));
+            header.MergeParameters(FormIORequestParameters(Path_, Options_));
 
             Request_.Reset(new THttpRequest(proxyName));
             requestId = Request_->GetRequestId();

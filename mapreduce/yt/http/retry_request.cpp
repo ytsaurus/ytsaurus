@@ -74,10 +74,10 @@ TResponseInfo RetryRequestWithPolicy(
 
             if (useMutationId) {
                 if (retryWithSameMutationId) {
-                    header.AddParam("retry", "true");
+                    header.AddParameter("retry", true, /* overwrite = */ true);
                 } else {
-                    header.RemoveParam("retry");
-                    header.AddMutationId();
+                    header.RemoveParameter("retry");
+                    header.AddMutationId(/* overwrite = */ true);
                 }
             }
 

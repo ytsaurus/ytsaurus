@@ -63,7 +63,7 @@ TNode Get(
     const TGetOptions& options)
 {
     THttpHeader header("GET", "get");
-    header.SetParameters(NDetail::SerializeParamsForGet(transactionId, path, options));
+    header.MergeParameters(NDetail::SerializeParamsForGet(transactionId, path, options));
     return NodeFromYsonString(RetryRequest(auth, header));
 }
 
@@ -76,7 +76,7 @@ void Set(
 {
     THttpHeader header("PUT", "set");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForSet(transactionId, path, options));
+    header.MergeParameters(NDetail::SerializeParamsForSet(transactionId, path, options));
     RetryRequest(auth, header, NodeToYsonString(value));
 }
 
@@ -86,7 +86,7 @@ bool Exists(
     const TYPath& path)
 {
     THttpHeader header("GET", "exists");
-    header.SetParameters(NDetail::SerializeParamsForExists(transactionId, path));
+    header.MergeParameters(NDetail::SerializeParamsForExists(transactionId, path));
     return ParseBoolFromResponse(RetryRequest(auth, header));
 }
 
@@ -99,7 +99,7 @@ TNodeId Create(
 {
     THttpHeader header("POST", "create");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForCreate(transactionId, path, type, options));
+    header.MergeParameters(NDetail::SerializeParamsForCreate(transactionId, path, type, options));
     return ParseGuidFromResponse(RetryRequest(auth, header));
 }
 
@@ -111,7 +111,7 @@ void Remove(
 {
     THttpHeader header("POST", "remove");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForRemove(transactionId, path, options));
+    header.MergeParameters(NDetail::SerializeParamsForRemove(transactionId, path, options));
     RetryRequest(auth, header);
 }
 
@@ -129,7 +129,7 @@ TNode::TListType List(
     if (path.empty() && updatedPath.EndsWith('/')) {
         updatedPath.pop_back();
     }
-    header.SetParameters(NDetail::SerializeParamsForList(transactionId, updatedPath, options));
+    header.MergeParameters(NDetail::SerializeParamsForList(transactionId, updatedPath, options));
     return NodeFromYsonString(RetryRequest(auth, header)).AsList();
 }
 
@@ -142,7 +142,7 @@ TNodeId Link(
 {
     THttpHeader header("POST", "link");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForLink(transactionId, targetPath, linkPath, options));
+    header.MergeParameters(NDetail::SerializeParamsForLink(transactionId, targetPath, linkPath, options));
     return ParseGuidFromResponse(RetryRequest(auth, header));
 }
 
@@ -155,7 +155,7 @@ TLockId Lock(
 {
     THttpHeader header("POST", "lock");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForLock(transactionId, path, mode, options));
+    header.MergeParameters(NDetail::SerializeParamsForLock(transactionId, path, mode, options));
     return ParseGuidFromResponse(RetryRequest(auth, header));
 }
 

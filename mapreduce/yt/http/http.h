@@ -27,17 +27,15 @@ class THttpHeader
 public:
     THttpHeader(const TString& method, const TString& command, bool isApi = true);
 
-    void AddParam(const TString& key, const char* value);
-    void AddParam(const TString& key, const TString& value);
-    void AddParam(const TString& key, i64 value);
-    void AddParam(const TString& key, ui64 value);
-    void AddParam(const TString& key, bool value);
-    void RemoveParam(const TString& key);
+    void AddParameter(const TString& key, TNode value, bool overwrite = false);
+    void RemoveParameter(const TString& key);
+    void MergeParameters(const TNode& parameters, bool overwrite = false);
+    TNode GetParameters() const;
 
-    void AddTransactionId(const TTransactionId& transactionId);
-    void AddPath(const TString& path);
-    void AddOperationId(const TOperationId& operationId);
-    void AddMutationId();
+    void AddTransactionId(const TTransactionId& transactionId, bool overwrite = false);
+    void AddPath(const TString& path, bool overwrite = false);
+    void AddOperationId(const TOperationId& operationId, bool overwrite = false);
+    void AddMutationId(bool overwrite = false);
     bool HasMutationId() const;
 
     void SetToken(const TString& token);
@@ -46,10 +44,6 @@ public:
 
     void SetOutputFormat(const TMaybe<TFormat>& format);
     TMaybe<TFormat> GetOutputFormat() const;
-
-    void SetParameters(const TString& parameters);
-    void SetParameters(const TNode& parameters);
-    TString GetParameters() const;
 
     void SetRequestCompression(const TString& compression);
     void SetResponseCompression(const TString& compression);
@@ -63,17 +57,13 @@ private:
     const TString Command;
     const bool IsApi;
 
-    THashMap<TString, TString> Params;
-
+    TNode::TMapType Parameters;
     TString Token;
-
     TNode Attributes;
-
 
 private:
     TMaybe<TFormat> InputFormat = TFormat::YsonText();
     TMaybe<TFormat> OutputFormat = TFormat::YsonText();
-    TString Parameters;
 
     TString RequestCompression = "identity";
     TString ResponseCompression = "identity";

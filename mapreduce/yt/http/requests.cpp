@@ -89,7 +89,7 @@ TRichYPath CanonizePath(const TAuth& auth, const TRichYPath& path)
     if (path.Path_.find_first_of("<>{}[]") != TString::npos) {
         THttpHeader header("GET", "parse_ypath");
         auto pathNode = PathToNode(path);
-        header.SetParameters(TNode()("path", pathNode));
+        header.AddParameter("path", pathNode);
         auto response = NodeFromYsonString(RetryRequest(auth, header));
         for (const auto& item : pathNode.GetAttributes().AsMap()) {
             response.Attributes()[item.first] = item.second;
@@ -125,10 +125,10 @@ TTransactionId StartTransaction(
     header.AddTransactionId(parentId);
 
     header.AddMutationId();
-    header.AddParam("timeout",
-        (timeout ? timeout : TConfig::Get()->TxTimeout)->MilliSeconds());
+    header.AddParameter("timeout",
+        static_cast<i64>((timeout ? timeout : TConfig::Get()->TxTimeout)->MilliSeconds()));
     if (pingAncestors) {
-        header.AddParam("ping_ancestor_transactions", "true");
+        header.AddParameter("ping_ancestor_transactions", true);
     }
 
     if (maybeAttributes && !maybeAttributes->IsMap()) {
@@ -142,7 +142,7 @@ TTransactionId StartTransaction(
         attributes["title"] = GetDefaultTransactionTitle(*TProcessState::Get());
     }
 
-    header.SetParameters(AttributesToYsonString(attributes));
+    header.AddParameter("attributes", attributes);
 
     auto txId = ParseGuidFromResponse(RetryRequest(auth, header));
     LOG_INFO("Transaction %s started", ~GetGuidAsString(txId));
@@ -257,9 +257,9 @@ TString RetryRequest(
             }
 
             if (needRetry) {
-                header.AddParam("retry", "true");
+                header.AddParameter("retry", true, /* overwrite = */ true);
             } else {
-                header.RemoveParam("retry");
+                header.RemoveParameter("retry");
                 needRetry = true;
             }
 

@@ -33,7 +33,7 @@ struct TIOOptionsTraits<TTableWriterOptions>
 };
 
 template <class TOptions>
-TString FormIORequestParameters(
+TNode FormIORequestParameters(
     const TRichYPath& path,
     const TOptions& options)
 {
@@ -41,11 +41,11 @@ TString FormIORequestParameters(
     if (options.Config_) {
         params[TIOOptionsTraits<TOptions>::ConfigName] = *options.Config_;
     }
-    return NodeToYsonString(params);
+    return params;
 }
 
 template <>
-inline TString FormIORequestParameters(
+inline TNode FormIORequestParameters(
     const TRichYPath& path,
     const TFileReaderOptions& options)
 {
@@ -59,11 +59,11 @@ inline TString FormIORequestParameters(
     if (options.Length_) {
         params["length"] = *options.Length_;
     }
-    return NodeToYsonString(params);
+    return params;
 }
 
 template <>
-inline TString FormIORequestParameters<TTableWriterOptions>(
+inline TNode FormIORequestParameters<TTableWriterOptions>(
     const TRichYPath& path,
     const TTableWriterOptions& options)
 {
@@ -75,7 +75,7 @@ inline TString FormIORequestParameters<TTableWriterOptions>(
     if (!tableWriter.Empty()) {
         params[TIOOptionsTraits<TTableWriterOptions>::ConfigName] = std::move(tableWriter);
     }
-    return NodeToYsonString(params);
+    return params;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -69,6 +69,10 @@ TNode::TNode(bool b)
     : Value_(TVariantTypeTag<bool>(), b)
 { }
 
+TNode::TNode(TMapType map)
+    : Value_(TVariantTypeTag<TMapType>(), std::move(map))
+{ }
+
 TNode::TNode(const TNode& rhs)
     : TNode()
 {

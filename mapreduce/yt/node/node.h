@@ -86,6 +86,7 @@ public:
     TNode(unsigned long long ui);
     TNode(double d);
     TNode(bool b);
+    TNode(TMapType map);
 
     TNode(const TNode& rhs);
     TNode& operator=(const TNode& rhs);

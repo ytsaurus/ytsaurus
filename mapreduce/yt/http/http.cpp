@@ -27,56 +27,51 @@ THttpHeader::THttpHeader(const TString& method, const TString& command, bool isA
     , IsApi(isApi)
 { }
 
-void THttpHeader::AddParam(const TString& key, const char* value)
+void THttpHeader::AddParameter(const TString& key, TNode value, bool overwrite)
 {
-    Params[key] = value;
-}
-
-void THttpHeader::AddParam(const TString& key, const TString& value)
-{
-    Params[key] = value;
-}
-
-void THttpHeader::AddParam(const TString& key, i64 value)
-{
-    Params[key] = Sprintf("%" PRIi64, value);
-}
-
-void THttpHeader::AddParam(const TString& key, ui64 value)
-{
-    Params[key] = Sprintf("%" PRIu64, value);
-}
-
-void THttpHeader::AddParam(const TString& key, bool value)
-{
-    Params[key] = value ? "true" : "false";
-}
-
-void THttpHeader::RemoveParam(const TString& key)
-{
-    Params.erase(key);
-}
-
-void THttpHeader::AddTransactionId(const TTransactionId& transactionId)
-{
-    if (transactionId) {
-        AddParam("transaction_id", GetGuidAsString(transactionId));
-    } else {
-        RemoveParam("transaction_id");
+    auto res = Parameters.emplace(key, std::move(value));
+    if (!res.second && !overwrite) {
+        ythrow yexception() << "Duplicate key: " << key;
     }
 }
 
-void THttpHeader::AddPath(const TString& path)
+void THttpHeader::MergeParameters(const TNode& newParameters, bool overwrite)
 {
-    AddParam("path", path);
+    for (const auto& p : newParameters.AsMap()) {
+        AddParameter(p.first, p.second, overwrite);
+    }
 }
 
-void THttpHeader::AddOperationId(const TOperationId& operationId)
+void THttpHeader::RemoveParameter(const TString& key)
 {
-    AddParam("operation_id", GetGuidAsString(operationId));
+    Parameters.erase(key);
 }
 
-void THttpHeader::AddMutationId()
+TNode THttpHeader::GetParameters() const
+{
+    return Parameters;
+}
+
+void THttpHeader::AddTransactionId(const TTransactionId& transactionId, bool overwrite)
+{
+    if (transactionId) {
+        AddParameter("transaction_id", GetGuidAsString(transactionId), overwrite);
+    } else {
+        RemoveParameter("transaction_id");
+    }
+}
+
+void THttpHeader::AddPath(const TString& path, bool overwrite)
+{
+    AddParameter("path", path, overwrite);
+}
+
+void THttpHeader::AddOperationId(const TOperationId& operationId, bool overwrite)
+{
+    AddParameter("operation_id", GetGuidAsString(operationId), overwrite);
+}
+
+void THttpHeader::AddMutationId(bool overwrite)
 {
     TGUID guid;
 
@@ -88,12 +83,12 @@ void THttpHeader::AddMutationId()
     CreateGuid(&guid);
     guid.dw[2] = GetPID() ^ MicroSeconds();
 
-    AddParam("mutation_id", GetGuidAsString(guid));
+    AddParameter("mutation_id", GetGuidAsString(guid), overwrite);
 }
 
 bool THttpHeader::HasMutationId() const
 {
-    return Params.has("mutation_id");
+    return Parameters.has("mutation_id");
 }
 
 void THttpHeader::SetToken(const TString& token)
@@ -114,21 +109,6 @@ void THttpHeader::SetOutputFormat(const TMaybe<TFormat>& format)
 TMaybe<TFormat> THttpHeader::GetOutputFormat() const
 {
     return OutputFormat;
-}
-
-void THttpHeader::SetParameters(const TString& parameters)
-{
-    Parameters = parameters;
-}
-
-void THttpHeader::SetParameters(const TNode& parameters)
-{
-    Parameters = NodeToYsonString(parameters);
-}
-
-TString THttpHeader::GetParameters() const
-{
-    return Parameters;
 }
 
 void THttpHeader::SetRequestCompression(const TString& compression)
@@ -154,18 +134,6 @@ TString THttpHeader::GetUrl() const
         url << "/api/" << TConfig::Get()->ApiVersion << "/" << Command;
     } else {
         url << "/" << Command;
-    }
-
-    if (!Params.empty()) {
-        url << "?";
-        bool first = true;
-        for (const auto& p : Params) {
-            if (!first) {
-                url << "&";
-            }
-            url << p.first << "=" << CGIEscapeRet(p.second);
-            first = false;
-        }
     }
 
     return url.Str();
@@ -222,7 +190,7 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
     if (OutputFormat) {
         printYTHeader("X-YT-Output-Format", NodeToYsonString(OutputFormat->Config));
     }
-    printYTHeader("X-YT-Parameters", Parameters);
+    printYTHeader("X-YT-Parameters", NodeToYsonString(Parameters));
 
     header << "\r\n";
     return header.Str();
@@ -646,9 +614,10 @@ THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
 
     auto parameters = header.GetParameters();
     if (!parameters.Empty()) {
+        auto parametersStr = NodeToYsonString(parameters);
         LOG_DEBUG("REQ %s - X-YT-Parameters: %s",
             ~RequestId,
-            ~parameters);
+            ~parametersStr);
     }
 
     auto outputFormat = header.GetOutputFormat();

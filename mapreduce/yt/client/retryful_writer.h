@@ -81,8 +81,8 @@ private:
     TMaybe<TFormat> Format_;
     const size_t BufferSize_;
 
-    TString Parameters_;
-    TString SecondaryParameters_;
+    TNode Parameters_;
+    TNode SecondaryParameters_;
 
     TTransactionId ParentTransactionId_;
     TMaybe<TPingableTransaction> WriteTransaction_;

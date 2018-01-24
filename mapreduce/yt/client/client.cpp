@@ -67,7 +67,7 @@ TNodeId TClientBase::Create(
 {
     THttpHeader header("POST", "create");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForCreate(TransactionId_, path, type, options));
+    header.MergeParameters(NDetail::SerializeParamsForCreate(TransactionId_, path, type, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -77,7 +77,7 @@ void TClientBase::Remove(
 {
     THttpHeader header("POST", "remove");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForRemove(TransactionId_, path, options));
+    header.MergeParameters(NDetail::SerializeParamsForRemove(TransactionId_, path, options));
     RetryRequest(Auth_, header);
 }
 
@@ -115,7 +115,7 @@ TNodeId TClientBase::Copy(
 {
     THttpHeader header("POST", "copy");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForCopy(TransactionId_, sourcePath, destinationPath, options));
+    header.MergeParameters(NDetail::SerializeParamsForCopy(TransactionId_, sourcePath, destinationPath, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -126,7 +126,7 @@ TNodeId TClientBase::Move(
 {
     THttpHeader header("POST", "move");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForMove(TransactionId_, sourcePath, destinationPath, options));
+    header.MergeParameters(NDetail::SerializeParamsForMove(TransactionId_, sourcePath, destinationPath, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -149,7 +149,7 @@ void TClientBase::Concatenate(
 
     TRichYPath path(AddPathPrefix(destinationPath));
     path.Append(options.Append_);
-    header.SetParameters(BuildYsonStringFluently().BeginMap()
+    header.MergeParameters(BuildYsonNodeFluently().BeginMap()
         .Item("source_paths").DoListFor(sourcePaths,
             [] (TFluentList fluent, const TYPath& thePath) {
                 fluent.Item().Value(AddPathPrefix(thePath));
@@ -416,7 +416,7 @@ void TClientBase::AlterTable(
 {
     THttpHeader header("POST", "alter_table");
     header.AddMutationId();
-    header.SetParameters(SerializeParamsForAlterTable(TransactionId_, path, options));
+    header.MergeParameters(SerializeParamsForAlterTable(TransactionId_, path, options));
     RetryRequest(Auth_, header);
 }
 
@@ -612,9 +612,9 @@ void TClient::MountTable(
     THttpHeader header("POST", "mount_table");
     SetTabletParams(header, path, options);
     if (options.CellId_) {
-        header.AddParam("cell_id", GetGuidAsString(*options.CellId_));
+        header.AddParameter("cell_id", GetGuidAsString(*options.CellId_));
     }
-    header.AddParam("freeze", options.Freeze_);
+    header.AddParameter("freeze", options.Freeze_);
     RetryRequest(Auth_, header);
 }
 
@@ -624,7 +624,7 @@ void TClient::UnmountTable(
 {
     THttpHeader header("POST", "unmount_table");
     SetTabletParams(header, path, options);
-    header.AddParam("force", options.Force_);
+    header.AddParameter("force", options.Force_);
     RetryRequest(Auth_, header);
 }
 
@@ -662,9 +662,7 @@ void TClient::ReshardTable(
 {
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
-    header.SetParameters(BuildYsonStringFluently().BeginMap()
-        .Item("pivot_keys").List(keys)
-    .EndMap());
+    header.AddParameter("pivot_keys", BuildYsonNodeFluently().List(keys));
     RetryRequest(Auth_, header);
 }
 
@@ -675,7 +673,7 @@ void TClient::ReshardTable(
 {
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
-    header.AddParam("tablet_count", static_cast<i64>(tabletCount));
+    header.AddParameter("tablet_count", static_cast<i64>(tabletCount));
     RetryRequest(Auth_, header);
 }
 
@@ -686,7 +684,7 @@ void TClient::InsertRows(
 {
     THttpHeader header("PUT", "insert_rows");
     header.SetInputFormat(TFormat::YsonBinary());
-    header.SetParameters(NDetail::SerializeParametersForInsertRows(path, options));
+    header.MergeParameters(NDetail::SerializeParametersForInsertRows(path, options));
 
     auto body = NodeListToYsonString(rows);
     RetryRequest(Auth_, header, body, true);
@@ -699,7 +697,7 @@ void TClient::DeleteRows(
 {
     THttpHeader header("PUT", "delete_rows");
     header.SetInputFormat(TFormat::YsonBinary());
-    header.SetParameters(NDetail::SerializeParametersForDeleteRows(path, options));
+    header.MergeParameters(NDetail::SerializeParametersForDeleteRows(path, options));
 
     auto body = NodeListToYsonString(keys);
     RetryRequest(Auth_, header, body, true);
@@ -716,7 +714,7 @@ TNode::TListType TClient::LookupRows(
     header.SetInputFormat(TFormat::YsonBinary());
     header.SetOutputFormat(TFormat::YsonBinary());
 
-    header.SetParameters(BuildYsonStringFluently().BeginMap()
+    header.MergeParameters(BuildYsonNodeFluently().BeginMap()
         .DoIf(options.Timeout_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("timeout").Value(static_cast<i64>(options.Timeout_->MilliSeconds()));
         })
@@ -739,7 +737,7 @@ TNode::TListType TClient::SelectRows(
     header.SetInputFormat(TFormat::YsonBinary());
     header.SetOutputFormat(TFormat::YsonBinary());
 
-    header.SetParameters(BuildYsonStringFluently().BeginMap()
+    header.MergeParameters(BuildYsonNodeFluently().BeginMap()
         .Item("query").Value(query)
         .DoIf(options.Timeout_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("timeout").Value(static_cast<i64>(options.Timeout_->MilliSeconds()));
@@ -763,14 +761,14 @@ TNode::TListType TClient::SelectRows(
 void TClient::EnableTableReplica(const TReplicaId& replicaid)
 {
     THttpHeader header("POST", "enable_table_replica");
-    header.AddParam("replica_id", GetGuidAsString(replicaid));
+    header.AddParameter("replica_id", GetGuidAsString(replicaid));
     RetryRequest(Auth_, header);
 }
 
 void TClient::DisableTableReplica(const TReplicaId& replicaid)
 {
     THttpHeader header("POST", "disable_table_replica");
-    header.AddParam("replica_id", GetGuidAsString(replicaid));
+    header.AddParameter("replica_id", GetGuidAsString(replicaid));
     RetryRequest(Auth_, header);
 }
 
@@ -778,7 +776,7 @@ void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableRe
 {
     THttpHeader header("POST", "alter_table_replica");
     header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForAlterTableReplica(replicaId, options));
+    header.MergeParameters(NDetail::SerializeParamsForAlterTableReplica(replicaId, options));
     RetryRequest(Auth_, header);
 }
 
@@ -814,10 +812,10 @@ void TClient::SetTabletParams(
 {
     header.AddPath(AddPathPrefix(path));
     if (options.FirstTabletIndex_) {
-        header.AddParam("first_tablet_index", *options.FirstTabletIndex_);
+        header.AddParameter("first_tablet_index", *options.FirstTabletIndex_);
     }
     if (options.LastTabletIndex_) {
-        header.AddParam("last_tablet_index", *options.LastTabletIndex_);
+        header.AddParameter("last_tablet_index", *options.LastTabletIndex_);
     }
 }
 
