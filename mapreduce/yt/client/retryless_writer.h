@@ -32,7 +32,7 @@ public:
     {
         THttpHeader header("PUT", command);
         header.SetInputFormat(format);
-        header.SetParameters(FormIORequestParameters(path, options));
+        header.MergeParameters(FormIORequestParameters(path, options));
         header.AddTransactionId(parentId);
         header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
 

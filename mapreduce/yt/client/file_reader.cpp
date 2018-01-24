@@ -120,7 +120,7 @@ THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTrans
         FileReaderOptions_.Length(*EndOffset_ - currentOffset);
     }
     FileReaderOptions_.Offset(currentOffset);
-    header.SetParameters(FormIORequestParameters(Path_, FileReaderOptions_));
+    header.MergeParameters(FormIORequestParameters(Path_, FileReaderOptions_));
 
     header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
 
@@ -171,7 +171,7 @@ THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const T
         params["data_column_name"] = *Options_.DataColumnName_;
     }
     params["part_size"] = Options_.PartSize_;
-    header.SetParameters(params);
+    header.MergeParameters(params);
     header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
 
     auto request = MakeHolder<THttpRequest>(proxyName);

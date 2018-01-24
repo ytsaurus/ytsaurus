@@ -100,7 +100,7 @@ void TRetryfulWriter::Send(const TBuffer& buffer)
 {
     THttpHeader header("PUT", Command_);
     header.SetInputFormat(Format_);
-    header.SetParameters(Parameters_);
+    header.MergeParameters(Parameters_);
 
     auto streamMaker = [&buffer] () {
         return new TBufferInput(buffer);
