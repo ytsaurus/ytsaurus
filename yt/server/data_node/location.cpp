@@ -68,6 +68,7 @@ TLocation::TLocation(
     , TabletPreloadOutThrottler_(CreateReconfigurableThroughputThrottler(config->TabletPreloadOutThrottler))
     , TabletRecoveryOutThrottler_(CreateReconfigurableThroughputThrottler(config->TabletRecoveryOutThrottler))
     , IOEngine_(CreateIOEngine(Config_->IOEngineType, Config_->IOConfig))
+    , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
@@ -478,6 +479,11 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
         default:
             return GetUnlimitedThrottler();
     }
+}
+
+void TLocation::UpdatePutBlocksWallTimeCounter(NProfiling::TValue value)
+{
+    Profiler_.Update(PutBlocksWallTimeCounter_, value);
 }
 
 TString TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
