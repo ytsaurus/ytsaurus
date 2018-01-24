@@ -584,9 +584,16 @@ class EventsOnFs(object):
             breakpoint_released=breakpoint_released,
             wait_limit=wait_limit)
 
-    def wait_breakpoint(self, breakpoint_name="default", job_id=None, timeout=timedelta(seconds=60)):
+    def wait_breakpoint(self, breakpoint_name="default", job_id=None, job_count=None, check_fn=None, timeout=timedelta(seconds=60)):
         """ Wait until some job reaches breakpoint.
             Return list of all jobs that are currently waiting on this breakpoint """
+
+        if job_id is not None and check_fn is None:
+            check_fn = lambda job_id_list: job_id in job_id_list
+
+        if job_count is not None and check_fn is None:
+            check_fn = lambda job_id_list: len(job_id_list) >= job_count
+
         deadline = datetime.now() + timeout
         breakpoint_prefix = "breakpoint_" + breakpoint_name + "_"
         while True:
@@ -600,8 +607,12 @@ class EventsOnFs(object):
                     raise RuntimeError("Breakpoint {0} was released for all jobs".format(breakpoint_name))
                 job_id_list.append(cur_job_id)
 
-            if job_id is None and job_id_list or job_id in job_id_list:
-                return job_id_list
+            if check_fn is None:
+                if job_id_list:
+                    return job_id_list
+            else:
+                if check_fn(job_id_list):
+                    return job_id_list
 
             if datetime.now() > deadline:
                 raise TimeoutError("Timeout exceeded while waiting for breakpoint {0}".format(breakpoint_name))

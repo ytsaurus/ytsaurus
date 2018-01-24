@@ -107,11 +107,11 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_stderr")
         write_table("//tmp/t_input", [{"key": i} for i in xrange(2)])
 
+        events = EventsOnFs()
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""echo GG >&2 ; cat ; if [ "$YT_JOB_INDEX" == "0" ] ; then sleep 1000 ; fi""",
-            wait_for_jobs=True,
+            command="""{breakpoint_cmd} ; echo GG >&2 ; cat""".format(breakpoint_cmd=events.breakpoint_cmd()),
             dont_track=True,
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
@@ -119,8 +119,10 @@ class TestStderrTable(YTEnvSetup):
                 "data_size_per_sort_job": 10,
             }
         )
-        assert len(op.jobs) == 2
-        op.resume_jobs()
+
+        jobs = events.wait_breakpoint(job_count=2)
+
+        events.release_breakpoint(job_id=jobs[0])
         wait(lambda: op.get_job_count("running") == 1);
 
         op.abort()
@@ -401,21 +403,24 @@ class TestStderrTable(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             command=(
-                # one job completes before scheduler is dead
-                # second job completes while scheduler is dead
-                # third one completes after scheduler restart
                 "cat > input\n"
-                     "grep complete_while_scheduler_dead input >/dev/null "
-                     "  && {wait_scheduler_dead} "
-                     "  && echo complete_while_scheduler_dead >&2\n"
-                     "grep complete_after_scheduler_restart input >/dev/null "
-                     "  && {wait_scheduler_restart} "
-                     "  && echo complete_after_scheduler_restart >&2\n"
-                     "grep complete_before_scheduler_dies input >/dev/null "
-                     "  && echo complete_before_scheduler_dies >&2\n"
-                     "cat input"
+
+                # one job completes before scheduler is dead
+                "grep complete_before_scheduler_dies input >/dev/null "
+                "  && echo complete_before_scheduler_dies >&2\n"
+
+                # second job completes while scheduler is dead
+                "grep complete_while_scheduler_dead input >/dev/null "
+                "  && {wait_scheduler_dead} "
+                "  && echo complete_while_scheduler_dead >&2 \n"
+
+                # third one completes after scheduler restart
+                "grep complete_after_scheduler_restart input >/dev/null "
+                "  && {wait_scheduler_restart} "
+                "  && echo complete_after_scheduler_restart >&2\n"
+
+                "cat input"
             ).format(
                 wait_scheduler_dead=events.wait_event_cmd("scheduler_dead"),
                 wait_scheduler_restart=events.wait_event_cmd("scheduler_restart")),
@@ -429,10 +434,11 @@ class TestStderrTable(YTEnvSetup):
                 "stderr_table_path": "//tmp/t_stderr",
             }
         )
-        assert op.get_job_count("total") == 3
-        op.resume_jobs()
 
+        wait(lambda: op.get_job_count("completed") == 1);
         wait(lambda: op.get_job_count("running") == 2);
+
+        assert op.get_job_count("total") == 3
 
         self.Env.kill_schedulers()
 
@@ -500,6 +506,7 @@ class TestCoreTable(YTEnvSetup):
 
     def setup(self):
         create("table", self.CORE_TABLE)
+        self.events = EventsOnFs()
 
     def teardown(self):
         core_path = os.environ.get("YT_CORE_PATH")
@@ -526,14 +533,15 @@ class TestCoreTable(YTEnvSetup):
         open(correspondence_file_path, "w").close()
         os.chmod(correspondence_file_path, 0777)
 
+        command = "echo $YT_JOB_ID $UID >>{correspondence_file_path} && cat ; {breakpoint_cmd} ; ".format(
+            correspondence_file_path=correspondence_file_path,
+            breakpoint_cmd=self.events.breakpoint_cmd())
+
         if kill_self:
-            command="trap 'kill -ABRT $$' exit; echo $YT_JOB_ID $UID >>{0} && cat".format(correspondence_file_path)
-        else:
-            command="echo $YT_JOB_ID $UID >>{0} && cat".format(correspondence_file_path)
+            command += "kill -ABRT $$ ;"
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             command=command,
             in_=[in_table],
             out=out_table,
@@ -546,16 +554,19 @@ class TestCoreTable(YTEnvSetup):
         return (op, correspondence_file_path)
 
     def _get_job_uid_correspondence(self, op, correspondence_file_path):
-        op.ensure_jobs_running()
+        op.ensure_running()
+        total_jobs = op.get_job_count("total")
+        jobs = frozenset(self.events.wait_breakpoint(job_count=total_jobs))
 
-        job_id_to_uid = dict()
+        job_id_to_uid = {}
 
-        for line in open(correspondence_file_path):
-            job_id, uid = line.split()
-            if job_id in op.jobs:
-                job_id_to_uid[job_id] = uid
+        with open(correspondence_file_path) as inf:
+            for line in inf:
+                job_id, uid = line.split()
+                if job_id in jobs:
+                    job_id_to_uid[job_id] = uid
 
-        assert len(job_id_to_uid) == len(op.jobs)
+        assert len(job_id_to_uid) == total_jobs
         return job_id_to_uid
 
     # This method starts a core forwarder process and passes given iterable
@@ -619,8 +630,7 @@ class TestCoreTable(YTEnvSetup):
     @unix_only
     def test_no_cores(self):
         op, correspondence_file_path = self._start_operation(2)
-
-        op.resume_jobs()
+        self.events.release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {}
@@ -640,7 +650,7 @@ class TestCoreTable(YTEnvSetup):
         t.join()
         assert ret_dict["return_code"] == 0
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
@@ -660,7 +670,7 @@ class TestCoreTable(YTEnvSetup):
         t.join()
         assert ret_dict["return_code"] == 0
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
@@ -703,7 +713,7 @@ class TestCoreTable(YTEnvSetup):
         assert ret_dict1["return_code"] == 0
         assert ret_dict2["return_code"] == 0
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job: [ret_dict1["core_info"], ret_dict2["core_info"]]}
@@ -723,7 +733,7 @@ class TestCoreTable(YTEnvSetup):
         t.join()
         assert ret_dict["return_code"] == 0
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
         with pytest.raises(YtError):
             op.track()
 
@@ -761,7 +771,8 @@ class TestCoreTable(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        op.resume_job(job)
+        for job_id in self.events.wait_breakpoint():
+            self.events.release_breakpoint(job_id=job_id)
 
         q.put("def")
         q.put(None)
@@ -790,7 +801,7 @@ class TestCoreTable(YTEnvSetup):
 
         assert ret_dict2["return_code"] == 0
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job: [ret_dict2["core_info"]]}
@@ -813,7 +824,7 @@ class TestCoreTable(YTEnvSetup):
         q.put(None)
         t.join()
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
         op.track()
         core_infos = self._get_core_infos(op)
         assert len(core_infos[job]) == 1
@@ -833,7 +844,7 @@ class TestCoreTable(YTEnvSetup):
 
         job, uid = job_id_to_uid.items()[0]
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
 
         time.sleep(2)
 
@@ -857,7 +868,7 @@ class TestCoreTable(YTEnvSetup):
 
         job, uid = job_id_to_uid.items()[0]
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
 
         time.sleep(7)
 
@@ -885,7 +896,7 @@ class TestCoreTablePorto(YTEnvSetup):
 
         job, uid = job_id_to_uid.items()[0]
 
-        op.resume_jobs()
+        self.events.release_breakpoint()
 
         time.sleep(2)
 
