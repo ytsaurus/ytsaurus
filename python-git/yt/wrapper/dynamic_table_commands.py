@@ -1,5 +1,5 @@
 from .driver import make_request
-from .table_helpers import _prepare_format, _to_chunk_stream
+from .table_helpers import _prepare_command_format, _to_chunk_stream
 from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
@@ -106,7 +106,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
     params = {
         "query": query,
         "output_format": format.to_yson_type()}
@@ -153,7 +153,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
         raw = get_config(client)["default_value_of_raw_option"]
 
     table = TablePath(table, client=client)
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
 
     params = {}
     params["path"] = table
@@ -164,8 +164,13 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
 
-    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
-                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        format,
+        raw,
+        split_rows=False,
+        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
     retry_config["enable"] = retry_config["enable"] and \
@@ -198,7 +203,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
         raw = get_config(client)["default_value_of_raw_option"]
 
     table = TablePath(table, client=client)
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
 
     params = {}
     params["path"] = table
@@ -207,8 +212,13 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
 
-    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
-                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        format,
+        raw,
+        split_rows=False,
+        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
     retry_config["enable"] = retry_config["enable"] and \
@@ -237,7 +247,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
         raw = get_config(client)["default_value_of_raw_option"]
 
     table = TablePath(table, client=client)
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
 
     params = {}
     params["path"] = table
@@ -247,8 +257,13 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "column_names", column_names)
     set_param(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
 
-    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
-                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        format,
+        raw,
+        split_rows=False,
+        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     _check_transaction_type(client)
 

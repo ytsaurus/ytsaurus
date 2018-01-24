@@ -60,7 +60,7 @@ def convert_callable_to_generator(func):
                               ' Did you mean "yield" instead of "return"?')
     return generator
 
-def extract_operation_methods(operation, context):
+def extract_operation_methods(operation, context, with_skiff_schemas, skiff_input_schemas, skiff_output_schemas):
     if hasattr(operation, "start") and inspect.ismethod(operation.start):
         start = convert_callable_to_generator(operation.start)
     else:
@@ -72,11 +72,19 @@ def extract_operation_methods(operation, context):
         finish = lambda: EMPTY_GENERATOR
 
 
+    kwargs = {}
+
     if context is not None:
-        operation_func = lambda *args: operation(*args, context=context)
+        kwargs["context"] = context
+
+    if with_skiff_schemas:
+        kwargs["skiff_input_schemas"] = skiff_input_schemas
+        kwargs["skiff_output_schemas"] = skiff_output_schemas
+
+    if kwargs:
+        operation_func = lambda *args: operation(*args, **kwargs)
     else:
         operation_func = operation
-
     return start, convert_callable_to_generator(operation_func), finish
 
 def extract_context(rows, set_zero_table_index):
@@ -168,7 +176,18 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         set_zero_table_index = params.operation_type in ("reduce", "map") \
             and params.input_table_count == 1
         rows, context = extract_context(rows, set_zero_table_index)
-    start, run, finish = yt.wrapper.py_runner_helpers.extract_operation_methods(operation, context)
+
+    skiff_input_schemas = None
+    skiff_output_schemas = None
+    with_skiff_schemas = params.attributes.get("with_skiff_schemas", False)
+    if with_skiff_schemas:
+        assert params.input_format.name() == "skiff"
+        assert params.output_format.name() == "skiff"
+        skiff_input_schemas = params.input_format.get_schemas()
+        skiff_output_schemas = params.output_format.get_schemas()
+
+    start, run, finish = yt.wrapper.py_runner_helpers.extract_operation_methods(
+        operation, context, with_skiff_schemas, skiff_input_schemas, skiff_output_schemas)
     wrap_stdin = wrap_stdout = yt.wrapper.config["pickling"]["safe_stream_mode"]
     with yt.wrapper.py_runner_helpers.WrappedStreams(wrap_stdin, wrap_stdout):
         if params.attributes.get("is_aggregator", False):
