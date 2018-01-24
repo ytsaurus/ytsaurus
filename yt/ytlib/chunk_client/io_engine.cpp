@@ -124,12 +124,44 @@ public:
             .Run();
     }
 
+    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh) override
+    {
+        if (UseDirectIO_) {
+            return TrueFuture;
+        } else {
+            return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), fh)
+                .AsyncVia(ThreadPool_.GetInvoker())
+                .Run();
+        }
+    }
+
+    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh) override
+    {
+        if (UseDirectIO_) {
+            return TrueFuture;
+        } else {
+            return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), fh)
+                .AsyncVia(ThreadPool_.GetInvoker())
+                .Run();
+        }
+    }
+
 private:
     const size_t MaxPortion_ = size_t(1 << 30);
     NConcurrency::TThreadPool ThreadPool_;
 
     bool UseDirectIO_;
     const i64 Alignment_ = 512;
+
+    bool DoFlushData(const std::shared_ptr<TFileHandle>& fh)
+    {
+        return fh->FlushData();
+    }
+
+    bool DoFlush(const std::shared_ptr<TFileHandle>& fh)
+    {
+        return fh->Flush();
+    }
 
     TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& fh, size_t numBytes, i64 offset)
     {
@@ -405,6 +437,16 @@ public:
         auto op = New<TAioWriteOperation>(fh, data, offset, Alignment_);
         Submit(op);
         return op->Result();
+    }
+
+    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh) override
+    {
+        return TrueFuture;
+    }
+
+    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh) override
+    {
+        return TrueFuture;
     }
 
     virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
