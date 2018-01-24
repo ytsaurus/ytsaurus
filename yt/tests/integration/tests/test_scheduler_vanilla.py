@@ -141,36 +141,35 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         # Abandoning vanilla job is ok.
         op = vanilla(
             dont_track=True,
-            wait_for_jobs=True,
             spec={
                 "tasks": {
                     "tasks_a": {
                         "job_count": 1,
-                        "command": "exit 0",
+                        "command": "{breakpoint_cmd} ; exit 0".format(breakpoint_cmd=self.events.breakpoint_cmd()),
                     }
                 },
                 "fail_on_job_restart": True
             })
+        job_id = self.events.wait_breakpoint()[0]
         jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         assert len(jobs) == 1
-        job_id = jobs[0]
         abandon_job(job_id)
-        op.resume_jobs()
+        self.events.release_breakpoint()
         op.track()
 
     def test_non_interruptible(self):
         op = vanilla(
             dont_track=True,
-            wait_for_jobs=True,
             spec={
                 "tasks": {
                     "tasks_a": {
                         "job_count": 1,
-                        "command": "exit 0",
+                        "command": "{breakpoint_cmd} ; exit 0".format(breakpoint_cmd=self.events.breakpoint_cmd()),
                     }
                 },
                 "fail_on_job_restart": True
             })
+        self.events.wait_breakpoint()
         jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         assert len(jobs) == 1
         job_id = jobs[0]

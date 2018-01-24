@@ -36,13 +36,13 @@ class TestGetOperation(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "input_format": "json",
@@ -52,6 +52,7 @@ class TestGetOperation(YTEnvSetup):
                     "cypress_storage_mode": storage_mode,
                 },
             })
+        events.wait_breakpoint()
 
         def check(res1, res2):
             for key in ["authenticated_user", "brief_progress", "brief_spec", "finish_time", "operation_type", "result", "start_time", "state", "suspended", "title", "weight"]:
@@ -74,7 +75,7 @@ class TestGetOperation(YTEnvSetup):
             if key != "build_time":
                 assert key in res_get_operation_progress
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
         res_cypress_finished = get(get_operation_path(op.id, storage_mode) + "/@")
@@ -99,13 +100,13 @@ class TestGetOperation(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "input_format": "json",
@@ -115,6 +116,7 @@ class TestGetOperation(YTEnvSetup):
                     "cypress_storage_mode": storage_mode,
                 },
             })
+        events.wait_breakpoint()
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
 
@@ -125,7 +127,7 @@ class TestGetOperation(YTEnvSetup):
         assert sorted(list(res_cypress)) == ["progress", "state"]
         assert res_get_operation["state"] == res_cypress["state"]
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
         clean_operations(self.Env.create_native_client())
