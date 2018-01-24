@@ -4,12 +4,13 @@ from .batch_helpers import batch_apply, create_batch_client
 from .common import flatten, update, get_value, chunk_iter_stream, require, get_disk_size
 from .config import get_config
 from .errors import YtError
-from .format import create_format, YsonFormat, YamrFormat
+from .format import create_format, YsonFormat, YamrFormat, SkiffFormat
 from .ypath import TablePath
-from .cypress_commands import exists, get_attribute, get_type, remove
+from .cypress_commands import exists, get, get_attribute, get_type, remove
 from .transaction_commands import abort_transaction
 from .file_commands import upload_file_to_cache, is_executable, LocalFile
 from .transaction import Transaction, null_transaction_id
+from .skiff import convert_to_skiff_schema
 
 import yt.logger as logger
 import yt.yson as yson
@@ -27,10 +28,16 @@ except ImportError:  # Python 3
     from io import BytesIO
 
 import collections
+import itertools
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
-def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
+def iter_by_chunks(iterable, count):
+    iterator = iter(iterable)
+    for first in iterator:
+        yield itertools.chain([first], itertools.islice(iterator, count - 1))
+
+def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_size):
     if isinstance(stream, (text_type, binary_type)):
         if isinstance(stream, text_type):
             if not PY3:
@@ -60,11 +67,15 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
         if is_filelike:
             raise YtError("Incorrect input type, it must be generator or list")
         # is_iterable
-        for row in stream:
-            yield format.dumps_row(row)
+        if split_rows:
+            for row in stream:
+                yield format.dumps_row(row)
+        else:
+            for chunk in iter_by_chunks(stream, rows_chunk_size):
+                yield format.dumps_rows(chunk)
 
 
-def _prepare_format(format, raw, client):
+def _prepare_command_format(format, raw, client):
     if format is None:
         format = get_config(client)["tabular_data_format"]
     if not raw and format is None:
@@ -165,27 +176,65 @@ class FileUploader(object):
 def _is_python_function(binary):
     return isinstance(binary, types.FunctionType) or hasattr(binary, "__call__")
 
-def _prepare_formats(format, input_format, output_format, binary, client):
+def _prepare_format(format, default_format=None):
     if format is None:
-        format = get_config(client)["tabular_data_format"]
-    if format is None and _is_python_function(binary):
-        format = YsonFormat(boolean_as_string=False)
+        return default_format
     if isinstance(format, str):
-        format = create_format(format)
-    if isinstance(input_format, str):
-        input_format = create_format(input_format)
-    if isinstance(output_format, str):
-        output_format = create_format(output_format)
+        return create_format(format)
+    return format
+
+def _prepare_format_from_binary(format, binary, format_type):
+    format_from_binary = getattr(binary, "attributes", {}).get(format_type, None)
+    if format is None:
+        return format_from_binary
+    if format_from_binary is None:
+        return format
+    raise YtError("'{}' specified both implicitely and as function attribute".format(format_type))
+
+def _get_skiff_schema_from_tables(tables, client):
+    def _get_schema(table):
+        if table is None:
+            return None
+        try:
+            return get(table + "/@schema", client=client)
+        except YtError as err:
+            if err.is_resolve_error():
+                return None
+            raise
+
+    schemas = []
+    for table in tables:
+        schema = _get_schema(table)
+        if schema is None:
+            return None
+        schemas.append(schema)
+    return list(imap(convert_to_skiff_schema, schemas))
+
+def _prepare_default_format(binary, format_type, tables, client):
+    is_python_function = _is_python_function(binary)
+    if is_python_function and getattr(binary, "attributes", {}).get("with_skiff_schemas", False):
+        skiff_schema = _get_skiff_schema_from_tables(tables, client)
+        if skiff_schema is not None:
+            return SkiffFormat(skiff_schema)
+    format = _prepare_format(get_config(client)["tabular_data_format"])
+    if format is None and is_python_function:
+        return YsonFormat(boolean_as_string=False)
+    if format is None:
+        raise YtError("You should specify " + format_type)
+    return format
+
+def _prepare_operation_formats(format, input_format, output_format, binary, input_tables, output_tables, client):
+    format = _prepare_format(format)
+    input_format = _prepare_format(input_format, format)
+    output_format = _prepare_format(output_format, format)
+
+    input_format = _prepare_format_from_binary(input_format, binary, "input_format")
+    output_format = _prepare_format_from_binary(output_format, binary, "output_format")
 
     if input_format is None:
-        input_format = format
-    require(input_format is not None,
-            lambda: YtError("You should specify input format"))
-
+        input_format = _prepare_default_format(binary, "input_format", input_tables, client)
     if output_format is None:
-        output_format = format
-    require(output_format is not None,
-            lambda: YtError("You should specify output format"))
+        output_format = _prepare_default_format(binary, "output_format", output_tables, client)
 
     return input_format, output_format
 

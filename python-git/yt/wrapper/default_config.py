@@ -458,6 +458,8 @@ default_config = {
             # Parent transaction wrapping whole write process.
             # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,
+            #
+            "rows_chunk_size": 100,
         }),
 
     # Retries for start operation requests.

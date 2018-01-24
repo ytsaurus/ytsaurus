@@ -5,10 +5,14 @@ parameters, and then by kwargs options.
 """
 
 from .config import get_config
-from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool, declare_deprecated
+from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool, declare_deprecated, flatten
 from .mappings import FrozenDict
 from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
+try:
+    from . import skiff
+except ImportError:
+    skiff = None
 
 from yt.common import to_native_str
 import yt.json_wrapper as json
@@ -268,6 +272,12 @@ class Format(object):
         self.dump_row(row, stream)
         return stream.getvalue()
 
+    def dumps_rows(self, rows, raw=None):
+        """Converts parsed row to string."""
+        stream = BytesIO()
+        self.dump_rows(rows, stream, raw=raw)
+        return stream.getvalue()
+
     def loads_row(self, string):
         """Converts string to parsed row."""
         stream = BytesIO(string)
@@ -325,6 +335,76 @@ class Format(object):
                                   table_index_column_name, row_index_column_name, range_index_column_name)
         else:
             return rows
+
+
+class SkiffFormat(Format):
+    """Efficient schemaful format
+
+    .. seealso:: `Skiff on wiki <https://wiki.yandex-team.ru/yt/userdoc/skiff/>`_
+    """
+
+    def __init__(self, schemas, schema_registry=None, attributes=None, raw=None):
+        skiff.check_skiff_bindings()
+
+        schemas = flatten(schemas)
+        kwargs = {
+            "schemas": schemas,
+            "schema_registry": schema_registry,
+            "attributes": attributes,
+            "raw": raw
+        }
+        self._state = kwargs
+
+        self._range_index_column_name = "@range_index"
+        self._row_index_column_name = "@row_index"
+
+        attributes = get_value(attributes, {})
+        attributes["table_skiff_schemas"] = schemas
+        if schema_registry is not None:
+            attributes["skiff_schema_registry"] = schema_registry
+
+        self._schemas = [
+            skiff.SkiffSchema(
+                [schema],
+                get_value(schema_registry, {}),
+                self._range_index_column_name,
+                self._row_index_column_name
+            )
+            for schema in schemas
+        ]
+
+        super(SkiffFormat, self).__init__("skiff", attributes=attributes, raw=raw)
+
+    def load_row(self, stream, raw=None):
+        """Not supported."""
+        raise YtFormatError("load_row is not supported in Skiff")
+
+    def load_rows(self, stream, raw=None):
+        rows = skiff.load(
+            stream,
+            self._schemas,
+            self._range_index_column_name,
+            self._row_index_column_name,
+            raw=raw)
+        # TODO(ostyakov): process input rows
+        return rows
+
+    def get_schemas(self):
+        """Get schemas."""
+        return self._schemas
+
+    def _dump_row(self, row, stream):
+        self._dump_rows([row], stream)
+
+    def _dump_rows(self, rows, stream_or_streams):
+        streams = stream_or_streams if isinstance(stream_or_streams, list) else [stream_or_streams]
+        skiff.dump(rows, streams, self._schemas)
+
+    def __getstate__(self):
+        return self._state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
 
 class DsvFormat(Format):
     """Tabular format widely used in Statistics.
@@ -1139,7 +1219,8 @@ def create_format(yson_name, attributes=None, **kwargs):
         "yamred_dsv": YamredDsvFormat,
         "schemaful_dsv": SchemafulDsvFormat,
         "yson": YsonFormat,
-        "json": JsonFormat
+        "json": JsonFormat,
+        "skiff": SkiffFormat
     }
 
     if name not in NAME_TO_FORMAT:
@@ -1168,4 +1249,3 @@ def create_table_switch(table_index):
     table_switch = yson.YsonEntity()
     table_switch.attributes["table_index"] = table_index
     return table_switch
-
