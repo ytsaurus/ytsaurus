@@ -902,7 +902,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
 {
     RegisterParameter("pool", Pool)
         .Default();
-    RegisterParameter("fair_share_options_per_pool_tree", FairShareOptionsPerPoolTree)
+    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
+        .Alias("fair_share_options_per_pool_tree")
         .Default();
     RegisterParameter("pool_trees", PoolTrees)
         .Default();

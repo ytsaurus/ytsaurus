@@ -1750,12 +1750,12 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert op2.id in other_tree_operations
         assert op2.id not in default_tree_operations
 
-class TestFairShareOptionsPerTree(YTEnvSetup):
+class TestSchedulingOptionsPerTree(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
 
-    def test_fair_share_options_per_tree(self):
+    def test_scheduling_options_per_tree(self):
         other_nodes = ls("//sys/nodes")[:3]
         for node in other_nodes:
             set("//sys/nodes/" + node + "/@user_tags/end", "other")
@@ -1775,7 +1775,7 @@ class TestFairShareOptionsPerTree(YTEnvSetup):
             out="//tmp/t_out",
             spec={
                 "pool_trees": ["default", "other"],
-                "fair_share_options_per_pool_tree": {
+                "scheduling_options_per_pool_tree": {
                     "default": {
                         "max_share_ratio": 0.4,
                         "min_share_ratio": 0.37,
@@ -1808,3 +1808,6 @@ class TestFairShareOptionsPerTree(YTEnvSetup):
         assert_almost_equal(get_value("other", op.id, "usage_ratio"), 0.66)
         assert_almost_equal(get_value("other", op.id, "usage_ratio"), 0.66)
         assert get_value("other", op.id, "pool") == "superpool"
+
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/other/pool"
+            .format(op.id)) == "superpool"
