@@ -254,8 +254,10 @@ private:
     const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
     const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     const TOperationId OperationId_;
-    const NControllerAgent::IOperationControllerPtr AgentController_;
     const TOperationRuntimeDataPtr RuntimeData_;
+
+    NControllerAgent::IOperationControllerPtr AgentController_;
+
 
     TSchedulerToAgentJobEvent BuildEvent(
         ESchedulerToAgentJobEventType eventType,
