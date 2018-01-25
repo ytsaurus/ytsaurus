@@ -33,7 +33,7 @@ void RetryHeavyWriteRequest(
             THttpRequest request(proxyName);
             requestId = request.GetRequestId();
 
-            header.AddTransactionId(attemptTx.GetId());
+            header.AddTransactionId(attemptTx.GetId(), /* overwrite = */ true);
             header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
 
             request.Connect();
