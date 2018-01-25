@@ -14,9 +14,11 @@
 #include <yt/server/scheduler/private.h>
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/scheduler_service.h>
-#include <yt/server/scheduler/controller_agent_service.h>
+#include <yt/server/scheduler/controller_agent_tracker_service.h>
+#include <yt/server/scheduler/controller_agent_tracker.h>
 
 #include <yt/server/controller_agent/job_spec_service.h>
+#include <yt/server/controller_agent/controller_agent_service.h>
 #include <yt/server/controller_agent/controller_agent.h>
 
 #include <yt/ytlib/api/native_client.h>
@@ -29,7 +31,6 @@
 #include <yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/orchid/orchid_service.h>
@@ -111,7 +112,6 @@ TBootstrap::~TBootstrap() = default;
 void TBootstrap::Run()
 {
     ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
-    ControllerAgentQueue_ = New<TActionQueue>("ControllerAgent");
 
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(GetControlInvoker())
@@ -153,18 +153,11 @@ void TBootstrap::DoRun()
 
     LocalRpcChannel_ = CreateLocalChannel(RpcServer_);
 
-    if (!Config_->UseNewHttpServer) {
-        HttpServer_.reset(new NXHttp::TServer(
-            Config_->MonitoringPort,
-            Config_->BusServer->BindRetryCount,
-            Config_->BusServer->BindRetryBackoff));
-    } else {
-        Config_->MonitoringServer->Port = Config_->MonitoringPort;
-        Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-        Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-        NewHttpServer_ = NHttp::CreateServer(
-            Config_->MonitoringServer);
-    }
+    Config_->MonitoringServer->Port = Config_->MonitoringPort;
+    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
+    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+    HttpServer_ = NHttp::CreateServer(
+        Config_->MonitoringServer);
 
     NodeDirectory_ = New<TNodeDirectory>();
 
@@ -174,9 +167,11 @@ void TBootstrap::DoRun()
         NodeDirectory_);
     NodeDirectorySynchronizer_->Start();
 
-    ControllerAgent_ = New<TControllerAgent>(Config_->Scheduler, this);
+    ControllerAgent_ = New<NControllerAgent::TControllerAgent>(Config_->Scheduler, this);
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
+
+    ControllerAgentTracker_ = New<TControllerAgentTracker>(Config_->Scheduler, this);
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
@@ -226,28 +221,19 @@ void TBootstrap::DoRun()
         orchidRoot,
         GetControlInvoker()));
 
-    if (HttpServer_) {
-        HttpServer_->Register(
-            "/orchid",
-            NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
-    } else {
-        NewHttpServer_->AddHandler(
-            "/orchid/",
-            NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
-    }
+    HttpServer_->AddHandler(
+        "/orchid/",
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));
+    RpcServer_->RegisterService(CreateControllerAgentTrackerService(this));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-    if (HttpServer_) {
-        HttpServer_->Start();
-    } else {
-        NewHttpServer_->Start();
-    }
+    HttpServer_->Start();
 
     LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
@@ -286,17 +272,17 @@ IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
     return ControlQueue_->GetInvoker(static_cast<int>(queue));
 }
 
-const IInvokerPtr& TBootstrap::GetControllerAgentInvoker() const
-{
-    return ControllerAgentQueue_->GetInvoker();
-}
-
 const TSchedulerPtr& TBootstrap::GetScheduler() const
 {
     return Scheduler_;
 }
 
-const TControllerAgentPtr& TBootstrap::GetControllerAgent() const
+const TControllerAgentTrackerPtr& TBootstrap::GetControllerAgentTracker() const
+{
+    return ControllerAgentTracker_;
+}
+
+const NControllerAgent::TControllerAgentPtr& TBootstrap::GetControllerAgent() const
 {
     return ControllerAgent_;
 }

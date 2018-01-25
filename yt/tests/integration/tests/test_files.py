@@ -1,3 +1,4 @@
+import hashlib
 import pytest
 
 from yt_env_setup import YTEnvSetup
@@ -212,6 +213,43 @@ class TestFiles(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_file("<append=true;compression_codec=none>//tmp/f", "a")
+
+    def test_compute_hash(self):
+        create("file", "//tmp/fcache")
+        create("file", "//tmp/fcache2")
+        create("file", "//tmp/fcache3")
+        create("file", "//tmp/fcache4")
+        create("file", "//tmp/fcache5")
+
+        write_file("<append=%true>//tmp/fcache", "abacaba", compute_md5=True)
+
+        assert get("//tmp/fcache/@md5") == "129296d4fd2ade2b2dbc402d4564bf81" == hashlib.md5("abacaba").hexdigest()
+
+        write_file("<append=%true>//tmp/fcache", "new", compute_md5=True)
+        assert get("//tmp/fcache/@md5") == "12ef1dfdbbb50c2dfd2b4119bac9dee5" == hashlib.md5("abacabanew").hexdigest()
+
+        write_file("//tmp/fcache2", "abacaba")
+        assert not exists("//tmp/fcache2/@md5")
+
+        write_file("//tmp/fcache3", "test", compute_md5=True)
+        assert get("//tmp/fcache3/@md5") == "098f6bcd4621d373cade4e832627b4f6" == hashlib.md5("test").hexdigest()
+
+        write_file("//tmp/fcache3", "test2", compute_md5=True)
+        assert get("//tmp/fcache3/@md5") == hashlib.md5("test2").hexdigest()
+
+        assert not exists("//tmp/fcache4/@md5")
+        concatenate(["//tmp/fcache", "//tmp/fcache3"], "//tmp/fcache4")
+        assert not exists("//tmp/fcache4/@md5")
+
+        with pytest.raises(YtError):
+            write_file("<append=%true>//tmp/fcache4", "data", compute_md5=True)
+
+        with pytest.raises(YtError):
+            set("//tmp/fcache/@md5", "test")
+
+        write_file("//tmp/fcache5", "", compute_md5=True)
+        assert get("//tmp/fcache5/@md5") == "d41d8cd98f00b204e9800998ecf8427e" == hashlib.md5("").hexdigest()
+
 
 ##################################################################
 

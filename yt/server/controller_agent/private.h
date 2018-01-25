@@ -15,8 +15,6 @@ extern const TString IntermediatePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IOperationController)
-
 DECLARE_REFCOUNTED_STRUCT(TSnapshotJob)
 
 DECLARE_REFCOUNTED_CLASS(TSnapshotBuilder)
@@ -25,8 +23,6 @@ DECLARE_REFCOUNTED_CLASS(TSnapshotDownloader)
 class TOperationControllerBase;
 
 DECLARE_REFCOUNTED_CLASS(TChunkListPool)
-
-DECLARE_REFCOUNTED_CLASS(TMasterConnector)
 
 DECLARE_REFCOUNTED_STRUCT(TFinishedJobInfo)
 DECLARE_REFCOUNTED_STRUCT(TJobInfo)
@@ -62,10 +58,6 @@ extern const NLogging::TLogger MasterConnectorLogger;
 extern const NLogging::TLogger ControllerAgentLogger;
 
 extern const NProfiling::TProfiler ControllerAgentProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TOperationIdToControllerMap = yhash<TOperationId, IOperationControllerPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

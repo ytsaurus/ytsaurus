@@ -74,7 +74,7 @@ struct INode
      *
      *  This method must not be called explicitly.
      */
-    virtual void SetParent(ICompositeNodePtr parent) = 0;
+    virtual void SetParent(const ICompositeNodePtr& parent) = 0;
 
     //! A helper method for retrieving a scalar value from a node.
     //! Invokes the appropriate |AsSomething| followed by |GetValue|.
@@ -170,11 +170,11 @@ struct ICompositeNode
 
     //! Replaces one child by the other.
     //! #newChild must be a root.
-    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild) = 0;
+    virtual void ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild) = 0;
 
     //! Removes a child.
     //! The removed child becomes a root.
-    virtual void RemoveChild(INodePtr child) = 0;
+    virtual void RemoveChild(const INodePtr& child) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICompositeNode)
@@ -191,7 +191,7 @@ struct IMapNode
     /*!
      *  Map items are returned in unspecified order.
      */
-    virtual std::vector< std::pair<TString, INodePtr> > GetChildren() const = 0;
+    virtual std::vector<std::pair<TString, INodePtr>> GetChildren() const = 0;
 
     //! Returns map keys.
     /*!
@@ -215,7 +215,7 @@ struct IMapNode
      *  \note
      *  #child must be a root.
      */
-    virtual bool AddChild(INodePtr child, const TString& key) = 0;
+    virtual bool AddChild(const INodePtr& child, const TString& key) = 0;
 
     //! Removes a child by its key.
     /*!
@@ -229,10 +229,17 @@ struct IMapNode
 
     //! Returns the key for a given child.
     /*!
-     *  \param child A node that must be a child.
+     *  \param child A possible child.
+     *  \return Child's key or null if the node is not a child.
+     */
+    virtual TNullable<TString> FindChildKey(const IConstNodePtr& child) = 0;
+
+    //! Returns the key for a given child or throws if the node is not a child.
+    /*!
+     *  \param child A possible child.
      *  \return Child's key.
      */
-    virtual TString GetChildKey(IConstNodePtr child) = 0;
+    TString GetChildKeyOrThrow(const IConstNodePtr& child);
 };
 
 DEFINE_REFCOUNTED_TYPE(IMapNode)
@@ -265,7 +272,7 @@ struct IListNode
      *  #child must be a root.
      */
 
-    virtual void AddChild(INodePtr child, int beforeIndex = -1) = 0;
+    virtual void AddChild(const INodePtr& child, int beforeIndex = -1) = 0;
 
     //! Removes a child by its index.
     /*!
@@ -274,15 +281,22 @@ struct IListNode
      */
     virtual bool RemoveChild(int index) = 0;
 
-    //! Similar to #FindChild but fails if the index is not valid.
+    //! Similar to #FindChild but throws if the index is not valid.
     INodePtr GetChild(int index) const;
 
-    //! Returns the index for a given child.
+    //! Returns the index for a given child or null if the node is not a child.
+    /*!
+     *  \param child A node that must be a child.
+     *  \return Child's index or null if the node is not a child.
+     */
+    virtual TNullable<int> FindChildIndex(const IConstNodePtr& child) = 0;
+
+    //! Returns the index for a given child or throws if the node is not a child.
     /*!
      *  \param child A node that must be a child.
      *  \return Child's index.
      */
-    virtual int GetChildIndex(IConstNodePtr child) = 0;
+    int GetChildIndexOrThrow(const IConstNodePtr& child);
 
     //! Normalizes negative indexes (by adding child count).
     //! Throws if the index is invalid.
@@ -291,7 +305,6 @@ struct IListNode
      *  \returns Adjusted (valid non-negative) index.
      */
     int AdjustChildIndex(int index) const;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IListNode)

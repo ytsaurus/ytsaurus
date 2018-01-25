@@ -15,6 +15,7 @@
 #include <yt/server/data_node/journal_dispatcher.h>
 #include <yt/server/data_node/location.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/peer_block_distributor.h>
 #include <yt/server/data_node/peer_block_table.h>
 #include <yt/server/data_node/peer_block_updater.h>
 #include <yt/server/data_node/private.h>
@@ -69,7 +70,6 @@
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -152,6 +152,9 @@ TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
     : TBootstrapBase(CellNodeLogger, config)
     , Config(std::move(config))
     , ConfigNode(std::move(configNode))
+    , QueryThreadPool(BIND([this] () {
+        return CreateFairShareThreadPool(Config->QueryAgent->ThreadPoolSize, "Query");
+    }))
 { }
 
 TBootstrap::~TBootstrap() = default;
@@ -174,7 +177,6 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     auto localRpcAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
-    auto localSkynetHttpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort);
 
     if (!Config->ClusterConnection->Networks) {
         Config->ClusterConnection->Networks = GetLocalNetworks();
@@ -188,7 +190,6 @@ void TBootstrap::DoRun()
     MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
         Config->ResourceLimits->Memory,
         std::vector<std::pair<EMemoryCategory, i64>>{
-            {EMemoryCategory::Jobs, Config->ExecAgent->JobController->ResourceLimits->Memory},
             {EMemoryCategory::TabletStatic, Config->TabletNode->ResourceLimits->TabletStaticMemory},
             {EMemoryCategory::TabletDynamic, Config->TabletNode->ResourceLimits->TabletDynamicMemory}
         },
@@ -219,10 +220,6 @@ void TBootstrap::DoRun()
         NodeDirectory);
     NodeDirectorySynchronizer->Start();
 
-    QueryThreadPool = New<TThreadPool>(
-        Config->QueryAgent->ThreadPoolSize,
-        "Query");
-
     LookupThreadPool = New<TThreadPool>(
         Config->QueryAgent->LookupThreadPoolSize,
         "Lookup");
@@ -237,18 +234,17 @@ void TBootstrap::DoRun()
 
     RpcServer = CreateBusServer(BusServer);
 
-    if (!Config->UseNewHttpServer) {
-        HttpServer.reset(new NXHttp::TServer(
-            Config->MonitoringPort,
-            Config->BusServer->BindRetryCount,
-            Config->BusServer->BindRetryBackoff));
-    } else {
-        Config->MonitoringServer->Port = Config->MonitoringPort;
-        Config->MonitoringServer->BindRetryCount = Config->BusServer->BindRetryCount;
-        Config->MonitoringServer->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
-        NewHttpServer = NHttp::CreateServer(
-            Config->MonitoringServer);
-    }
+    Config->MonitoringServer->Port = Config->MonitoringPort;
+    Config->MonitoringServer->BindRetryCount = Config->BusServer->BindRetryCount;
+    Config->MonitoringServer->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
+    HttpServer = NHttp::CreateServer(
+        Config->MonitoringServer);
+
+    auto skynetHttpConfig = New<NHttp::TServerConfig>();
+    skynetHttpConfig->Port = Config->SkynetHttpPort;
+    skynetHttpConfig->BindRetryCount = Config->BusServer->BindRetryCount;
+    skynetHttpConfig->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
+    SkynetHttpServer = NHttp::CreateServer(skynetHttpConfig);
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
@@ -282,8 +278,8 @@ void TBootstrap::DoRun()
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
-    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
-
+    PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
+    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable, this);
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
@@ -291,7 +287,8 @@ void TBootstrap::DoRun()
     MasterConnector = New<NDataNode::TMasterConnector>(
         Config->DataNode,
         localRpcAddresses,
-        localSkynetHttpAddresses,
+        NYT::GetLocalAddresses(Config->Addresses, Config->SkynetHttpPort),
+        NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort),
         Config->Tags,
         this);
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
@@ -346,6 +343,10 @@ void TBootstrap::DoRun()
         TotalOutThrottler,
         createThrottler(Config->DataNode->ArtifactCacheOutThrottler, "ArtifactCacheOut")
     });
+    SkynetOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->SkynetOutThrottler, "SkynetOut")
+    });
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
@@ -353,9 +354,15 @@ void TBootstrap::DoRun()
 
     JobProxyConfigTemplate = New<NJobProxy::TJobProxyConfig>();
 
+    // Singletons.
+    JobProxyConfigTemplate->FiberStackPoolSizes = Config->FiberStackPoolSizes;
+    JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
+    JobProxyConfigTemplate->RpcDispatcher = Config->RpcDispatcher;
+    JobProxyConfigTemplate->ChunkClientDispatcher = Config->ChunkClientDispatcher;
+
     JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
-    auto patchMasterConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
+    auto patchMasterConnectionConfig = [&] (const TMasterConnectionConfigPtr& config) {
         config->Addresses = {localAddress};
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
@@ -370,20 +377,18 @@ void TBootstrap::DoRun()
     }
 
     JobProxyConfigTemplate->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
-    // TODO(babenko): consider making this priority configurable
-    JobProxyConfigTemplate->SupervisorConnection->Priority = 6;
+    JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
     JobProxyConfigTemplate->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
 
-    JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
     JobProxyConfigTemplate->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
 
     JobProxyConfigTemplate->JobEnvironment = Config->ExecAgent->SlotManager->JobEnvironment;
 
     JobProxyConfigTemplate->Logging = Config->ExecAgent->JobProxyLogging;
     JobProxyConfigTemplate->Tracing = Config->ExecAgent->JobProxyTracing;
+    JobProxyConfigTemplate->TestRootFS = Config->ExecAgent->TestRootFS;
 
     JobProxyConfigTemplate->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
 
@@ -420,6 +425,7 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::RemoteCopy,        createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::OrderedMap,        createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::JoinReduce,        createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::Vanilla,           createExecJob);
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
@@ -512,20 +518,14 @@ void TBootstrap::DoRun()
             ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
-    if (HttpServer) {
-        HttpServer->Register(
-            "/orchid",
-            NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
-    } else {
-        NewHttpServer->AddHandler(
-            "/orchid/",
-            NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
+    HttpServer->AddHandler(
+        "/orchid/",
+        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
-        if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
-            NewHttpServer->AddHandler(
-                "/read_skynet_part",
-                MakeSkynetHttpHandler(this));
-        }
+    if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
+        SkynetHttpServer->AddHandler(
+            "/read_skynet_part",
+            MakeSkynetHttpHandler(this));
     }
 
     RpcServer->RegisterService(CreateOrchidService(
@@ -544,8 +544,10 @@ void TBootstrap::DoRun()
     ChunkStore->Initialize();
     ChunkCache->Initialize();
     ExecSlotManager->Initialize();
+    JobController->Initialize();
     MonitoringManager_->Start();
     PeerBlockUpdater->Start();
+    PeerBlockDistributor->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
@@ -554,11 +556,8 @@ void TBootstrap::DoRun()
     StartPartitionBalancer(Config->TabletNode, this);
 
     RpcServer->Start();
-    if (HttpServer) {
-        HttpServer->Start();
-    } else {
-        NewHttpServer->Start();
-    }
+    HttpServer->Start();
+    SkynetHttpServer->Start();
 }
 
 const TCellNodeConfigPtr& TBootstrap::GetConfig() const
@@ -571,9 +570,9 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue->GetInvoker();
 }
 
-const IInvokerPtr& TBootstrap::GetQueryPoolInvoker() const
+IInvokerPtr TBootstrap::GetQueryPoolInvoker(const TFairShareThreadPoolTag& tag) const
 {
-    return QueryThreadPool->GetInvoker();
+    return QueryThreadPool->GetInvoker(tag);
 }
 
 const IInvokerPtr& TBootstrap::GetLookupPoolInvoker() const
@@ -681,9 +680,19 @@ const IBlockCachePtr& TBootstrap::GetBlockCache() const
     return BlockCache;
 }
 
+const TPeerBlockDistributorPtr& TBootstrap::GetPeerBlockDistributor() const
+{
+    return PeerBlockDistributor;
+}
+
 const TPeerBlockTablePtr& TBootstrap::GetPeerBlockTable() const
 {
     return PeerBlockTable;
+}
+
+const TPeerBlockUpdaterPtr& TBootstrap::GetPeerBlockUpdater() const
+{
+    return PeerBlockUpdater;
 }
 
 const TBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
@@ -758,6 +767,11 @@ const IThroughputThrottlerPtr& TBootstrap::GetArtifactCacheOutThrottler() const
     return ArtifactCacheOutThrottler;
 }
 
+const IThroughputThrottlerPtr& TBootstrap::GetSkynetOutThrottler() const
+{
+    return SkynetOutThrottler;
+}
+
 const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
     switch (descriptor.Category) {
@@ -797,6 +811,11 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
     return Config->Addresses.empty()
         ? DefaultNetworkPreferences
         : GetIths<0>(Config->Addresses);
+}
+
+TNullable<TString> TBootstrap::GetDefaultNetworkName()
+{
+    return Config->BusServer->DefaultNetwork;
 }
 
 TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const

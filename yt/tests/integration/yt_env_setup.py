@@ -2,7 +2,7 @@ import yt_commands
 
 from yt.environment import YTInstance
 from yt.common import makedirp, update, YtError, format_error
-from yt.environment.porto_helpers import porto_avaliable
+from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 
 import pytest
 
@@ -26,6 +26,18 @@ SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox
 SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 
 ##################################################################
+
+
+try:
+    from yt.environment.helpers import wait
+except ImportError:
+    # COMPAT(ignat)
+    def wait(predicate, iter=100, sleep_backoff=0.3):
+        for _ in xrange(iter):
+            if predicate():
+                return
+            sleep(sleep_backoff)
+        pytest.fail("wait failed")
 
 def patch_subclass(parent, skip_condition, reason=""):
     """Work around a pytest.mark.skipif bug
@@ -119,13 +131,6 @@ def resolve_test_paths(name):
     path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
 
-def wait(predicate, iter=100, sleep_backoff=0.3):
-    for _ in xrange(iter):
-        if predicate():
-            return
-        sleep(sleep_backoff)
-    pytest.fail("wait failed")
-
 def _pytest_finalize_func(environment, process_call_args):
     print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
     environment.stop()
@@ -164,6 +169,9 @@ class YTEnvSetup(object):
     ENABLE_MULTICELL_TEARDOWN = True
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
+    ENABLE_PROXY = False
+    ENABLE_RPC_PROXY = False
+    NUM_SKYNET_MANAGERS = 0
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
@@ -217,6 +225,9 @@ class YTEnvSetup(object):
             secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             node_count=cls.get_param("NUM_NODES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
+            has_proxy=cls.get_param("ENABLE_PROXY", index),
+            has_rpc_proxy=cls.get_param("ENABLE_RPC_PROXY", index),
+            skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
@@ -266,7 +277,7 @@ class YTEnvSetup(object):
         yt_commands.path_to_run_tests = cls.path_to_run
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)
 
-        cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
+        cls.Env.start(use_proxy_from_package=False, start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
         for index, env in enumerate(cls.remote_envs):
             env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
 
@@ -312,17 +323,21 @@ class YTEnvSetup(object):
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
-            for config in configs["master"][tag]:
-                update(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
-                cls.modify_master_config(config)
-        for config in configs["scheduler"]:
-            update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
-            cls.modify_scheduler_config(config)
-        for config in configs["node"]:
-            update(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
-            cls.modify_node_config(config)
-        for config in configs["driver"].values():
-            update(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+            for index, config in enumerate(configs["master"][tag]):
+                # TODO(ignat): use update_inplace
+                configs["master"][tag][index] = update(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
+                cls.modify_master_config(configs["master"][tag][index])
+        for index, config in enumerate(configs["scheduler"]):
+            # TODO(ignat): use update_inplace
+            configs["scheduler"][index] = update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            cls.modify_scheduler_config(configs["scheduler"][index])
+        for index, config in enumerate(configs["node"]):
+            # TODO(ignat): use update_inplace
+            configs["node"][index] = update(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
+            cls.modify_node_config(configs["node"][index])
+        for key, config in configs["driver"].iteritems():
+            # TODO(ignat): use update_inplace
+            configs["driver"][key] = update(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):
@@ -342,20 +357,34 @@ class YTEnvSetup(object):
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
-            # XXX(dcherednik): Delete named pipes
-            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
-            # XXX(asaitgalin): Unmount everything
-            subprocess.check_call(["find", cls.path_to_run, "-type", "d", "-exec",
+            # XXX(psushin): unlink all porto volumes.
+            remove_all_volumes(cls.path_to_run)
+
+            # XXX(asaitgalin): Unmount everything.
+            subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
                                    "mountpoint", "-q", "{}", ";", "-exec", "sudo",
                                    "umount", "{}", ";"])
 
             # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
             chown_command = ["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run]
+
             p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
             _, stderr = p.communicate()
             if p.returncode != 0:
                 print >>sys.stderr, stderr
                 raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
+
+            # XXX(psushin): porto volume directories may have weirdest permissions ever.
+            chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
+
+            p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)
+            _, stderr = p.communicate()
+            if p.returncode != 0:
+                print >>sys.stderr, stderr
+                raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
+
+            # XXX(dcherednik): Delete named pipes.
+            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):

@@ -600,6 +600,9 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
         if (chunk->IsJobScheduled()) {
             continue;
         }
+        if (chunk->IsJournal() && replica.GetReplicaIndex() == UnsealedChunkReplicaIndex) {
+            continue;
+        }
         result.push_back(replica);
     }
 

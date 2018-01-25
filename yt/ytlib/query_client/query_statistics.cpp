@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -12,54 +14,45 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryStatistics& TQueryStatistics::operator+=(const TQueryStatistics& other)
+void TQueryStatistics::AddInnerStatistics(const TQueryStatistics& statistics)
 {
-    RowsRead += other.RowsRead;
-    BytesRead += other.BytesRead;
-    RowsWritten += other.RowsWritten;
-    SyncTime += other.SyncTime;
-    AsyncTime += other.AsyncTime;
-    ExecuteTime += other.ExecuteTime;
-    ReadTime += other.ReadTime;
-    WriteTime += other.WriteTime;
-    CodegenTime += other.CodegenTime;
-    IncompleteInput |= other.IncompleteInput;
-    IncompleteOutput |= other.IncompleteOutput;
-    return *this;
+    InnerStatistics.push_back(statistics);
+    IncompleteInput |= statistics.IncompleteInput;
+    IncompleteOutput |= statistics.IncompleteOutput;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& queryResult)
+void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& original)
 {
-    serialized->set_rows_read(queryResult.RowsRead);
-    serialized->set_bytes_read(queryResult.BytesRead);
-    serialized->set_rows_written(queryResult.RowsWritten);
-    serialized->set_sync_time(ToProto<i64>(queryResult.SyncTime));
-    serialized->set_async_time(ToProto<i64>(queryResult.AsyncTime));
-    serialized->set_execute_time(ToProto<i64>(queryResult.ExecuteTime));
-    serialized->set_read_time(ToProto<i64>(queryResult.ReadTime));
-    serialized->set_write_time(ToProto<i64>(queryResult.WriteTime));
-    serialized->set_codegen_time(ToProto<i64>(queryResult.CodegenTime));
-    serialized->set_incomplete_input(queryResult.IncompleteInput);
-    serialized->set_incomplete_output(queryResult.IncompleteOutput);
+    serialized->set_rows_read(original.RowsRead);
+    serialized->set_bytes_read(original.BytesRead);
+    serialized->set_rows_written(original.RowsWritten);
+    serialized->set_sync_time(ToProto<i64>(original.SyncTime));
+    serialized->set_async_time(ToProto<i64>(original.AsyncTime));
+    serialized->set_execute_time(ToProto<i64>(original.ExecuteTime));
+    serialized->set_read_time(ToProto<i64>(original.ReadTime));
+    serialized->set_write_time(ToProto<i64>(original.WriteTime));
+    serialized->set_codegen_time(ToProto<i64>(original.CodegenTime));
+    serialized->set_incomplete_input(original.IncompleteInput);
+    serialized->set_incomplete_output(original.IncompleteOutput);
+    ToProto(serialized->mutable_inner_statistics(), original.InnerStatistics);
 }
 
-TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
+void FromProto(TQueryStatistics* original, const NProto::TQueryStatistics& serialized)
 {
-    TQueryStatistics result;
-    result.RowsRead = serialized.rows_read();
-    result.BytesRead = serialized.bytes_read();
-    result.RowsWritten = serialized.rows_written();
-    result.SyncTime = FromProto<TDuration>(serialized.sync_time());
-    result.AsyncTime = FromProto<TDuration>(serialized.async_time());
-    result.ExecuteTime = FromProto<TDuration>(serialized.execute_time());
-    result.ReadTime = FromProto<TDuration>(serialized.read_time());
-    result.WriteTime = FromProto<TDuration>(serialized.write_time());
-    result.CodegenTime = FromProto<TDuration>(serialized.codegen_time());
-    result.IncompleteInput = serialized.incomplete_input();
-    result.IncompleteOutput = serialized.incomplete_output();
-    return result;
+    original->RowsRead = serialized.rows_read();
+    original->BytesRead = serialized.bytes_read();
+    original->RowsWritten = serialized.rows_written();
+    original->SyncTime = FromProto<TDuration>(serialized.sync_time());
+    original->AsyncTime = FromProto<TDuration>(serialized.async_time());
+    original->ExecuteTime = FromProto<TDuration>(serialized.execute_time());
+    original->ReadTime = FromProto<TDuration>(serialized.read_time());
+    original->WriteTime = FromProto<TDuration>(serialized.write_time());
+    original->CodegenTime = FromProto<TDuration>(serialized.codegen_time());
+    original->IncompleteInput = serialized.incomplete_input();
+    original->IncompleteOutput = serialized.incomplete_output();
+    FromProto(&original->InnerStatistics, serialized.inner_statistics());
 }
 
 TString ToString(const TQueryStatistics& stats)
@@ -67,8 +60,8 @@ TString ToString(const TQueryStatistics& stats)
     return Format(
         "{"
         "RowsRead: %v, BytesRead: %v, RowsWritten: %v, "
-        "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, "
-        "IncompleteInput: %v, IncompleteOutput: %v"
+        "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, CodegenTime: %v, "
+        "WaitOnReadyEventTime: %v, IncompleteInput: %v, IncompleteOutput: %v"
         "}",
         stats.RowsRead,
         stats.BytesRead,
@@ -78,8 +71,38 @@ TString ToString(const TQueryStatistics& stats)
         stats.ExecuteTime,
         stats.ReadTime,
         stats.WriteTime,
+        stats.CodegenTime,
+        stats.WaitOnReadyEventTime,
         stats.IncompleteInput,
         stats.IncompleteOutput);
+}
+
+void Serialize(const TQueryStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("rows_read").Value(statistics.RowsRead)
+            .Item("bytes_read").Value(statistics.BytesRead)
+            .Item("rows_written").Value(statistics.RowsWritten)
+            .Item("sync_time").Value(statistics.SyncTime.MilliSeconds())
+            .Item("async_time").Value(statistics.AsyncTime.MilliSeconds())
+            .Item("execute_time").Value(statistics.ExecuteTime.MilliSeconds())
+            .Item("read_time").Value(statistics.ReadTime.MilliSeconds())
+            .Item("write_time").Value(statistics.WriteTime.MilliSeconds())
+            .Item("codegen_time").Value(statistics.CodegenTime.MilliSeconds())
+            .Item("incomplete_input").Value(statistics.IncompleteInput)
+            .Item("incomplete_output").Value(statistics.IncompleteOutput)
+            .DoIf(!statistics.InnerStatistics.empty(), [&] (NYTree::TFluentMap fluent) {
+                fluent
+                    .Item("inner_statistics").DoListFor(statistics.InnerStatistics, [=] (
+                        NYTree::TFluentList fluent,
+                        const TQueryStatistics& statistics)
+                    {
+                        fluent
+                            .Item().Value(statistics);
+                    });
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

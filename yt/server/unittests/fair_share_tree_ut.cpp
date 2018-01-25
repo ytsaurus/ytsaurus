@@ -11,6 +11,8 @@ namespace NYT {
 namespace NScheduler {
 namespace {
 
+using namespace NControllerAgent;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulerStrategyHostMock
@@ -63,7 +65,14 @@ struct TSchedulerStrategyHostMock
         return result;
     }
 
-    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& /* filter */) const override
+    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(
+        const TSchedulingTagFilter& /* filter */) const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
+        const TSchedulingTagFilter& /* filter */) const override
     {
         return {};
     }
@@ -117,7 +126,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
+    virtual void OnNonscheduledJobAborted(const TJobId&, EAbortReason) override
     {
         Y_UNREACHABLE();
     }
@@ -199,12 +208,12 @@ public:
         return "root";
     }
 
-    virtual TOperationId GetId() const
+    virtual const TOperationId& GetId() const
     {
         return Id_;
     }
 
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override
+    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override
     {
         return Controller_;
     }

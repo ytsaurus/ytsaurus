@@ -63,6 +63,15 @@ def init_drivers(clusters):
 def terminate_drivers():
     clusters_drivers.clear()
 
+def get_branch(dict, path):
+    root = dict
+    for field in path:
+        assert isinstance(field, str), "non-string keys are not allowed in command parameters"
+        if field not in root:
+            return None
+        root = root[field]
+    return root
+
 def set_branch(dict, path, value):
     root = dict
     for field in path[:-1]:
@@ -86,7 +95,8 @@ def prepare_path(path):
     if isinstance(path, yson.YsonString):
         attributes = path.attributes
     result = yson.loads(execute_command("parse_ypath", parameters={"path": path}, verbose=False))
-    update(result.attributes, attributes)
+    # TODO(ignat): use update_inplace
+    result.attributes = update(result.attributes, attributes)
     return result
 
 def prepare_paths(paths):
@@ -234,41 +244,41 @@ def list_jobs(operation_id, **kwargs):
 
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
-    result = execute_command('strace_job', kwargs)
+    result = execute_command("strace_job", kwargs)
     return yson.loads(result)
 
 def signal_job(job_id, signal_name, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["signal_name"] = signal_name
-    execute_command('signal_job', kwargs)
+    execute_command("signal_job", kwargs)
 
 def abandon_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
-    execute_command('abandon_job', kwargs)
+    execute_command("abandon_job", kwargs)
 
 def poll_job_shell(job_id, authenticated_user=None, **kwargs):
     kwargs = {"job_id": job_id, "parameters": kwargs}
     if authenticated_user:
         kwargs["authenticated_user"] = authenticated_user
-    return yson.loads(execute_command('poll_job_shell', kwargs))
+    return yson.loads(execute_command("poll_job_shell", kwargs))
 
 def abort_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
-    execute_command('abort_job', kwargs)
+    execute_command("abort_job", kwargs)
 
 def interrupt_job(job_id, interrupt_timeout=10000, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["interrupt_timeout"] = interrupt_timeout
-    execute_command('abort_job', kwargs)
+    execute_command("abort_job", kwargs)
 
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
-    return yson.loads(execute_command('lock', kwargs))
+    return yson.loads(execute_command("lock", kwargs))
 
 def remove(path, **kwargs):
     kwargs["path"] = path
-    return execute_command('remove', kwargs)
+    return execute_command("remove", kwargs)
 
 def get(path, is_raw=False, **kwargs):
     kwargs["path"] = path
@@ -282,8 +292,8 @@ def get(path, is_raw=False, **kwargs):
         raise
     return result if is_raw else yson.loads(result)
 
-def get_operation(operationId, is_raw=False,  **kwargs):
-    kwargs["operation_id"] = operationId
+def get_operation(operation_id, is_raw=False, **kwargs):
+    kwargs["operation_id"] = operation_id
     result = execute_command("get_operation", kwargs)
     return result if is_raw else yson.loads(result)
 
@@ -291,7 +301,7 @@ def set(path, value, is_raw=False, **kwargs):
     if not is_raw:
         value = yson.dumps(value)
     kwargs["path"] = path
-    return execute_command('set', kwargs, input_stream=StringIO(value))
+    return execute_command("set", kwargs, input_stream=StringIO(value))
 
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
@@ -510,13 +520,16 @@ class TimeoutError(Exception):
 class EventsOnFs(object):
     """ EventsOnFs helps to exchange information between test code
     and test MR jobs about different events."""
+
+    BREAKPOINT_ALL_RELEASED = "all_released"
+
     def __init__(self, label="eventdir"):
         self._tmpdir = create_tmpdir(label)
 
     def notify_event(self, event_name):
         file_name = self._get_event_filename(event_name)
         print >>sys.stderr, "touching", file_name
-        with open(file_name, 'w'):
+        with open(file_name, "w"):
             pass
 
     def notify_event_cmd(self, event_name):
@@ -547,6 +560,87 @@ class EventsOnFs(object):
                 event_file_name=self._get_event_filename(event_name),
                 wait_limit=timeout.seconds*10)
 
+    def breakpoint_cmd(self, breakpoint_name="default", timeout=timedelta(seconds=60)):
+        """ Returns shell command that inserts breakpoint into job.
+            Once job reaches breakpoint it pauses its execution and waits until this breakpoint
+            is released for this job or for all jobs."""
+        job_breakpoint = self._get_breakpoint_filename(breakpoint_name, "$YT_JOB_ID")
+        breakpoint_released = self._get_breakpoint_filename(breakpoint_name, self.BREAKPOINT_ALL_RELEASED)
+        wait_limit = timeout.seconds * 10
+
+        return (
+            """ {{ wait_limit={wait_limit}\n """
+            """ touch {job_breakpoint}\n """
+            """ while [ -f {job_breakpoint} -a ! -f {breakpoint_released} ] ; do \n """
+            """   sleep 0.1 ; ((wait_limit--)) ;\n """
+            """   if [ $wait_limit -le 0 ] ; then \n """
+            """       echo timeout for breakpoint {breakpoint_name} exceeded >&2 ; exit 1 ;\n """
+            """   fi\n """
+            """ done\n """
+            """ }} """
+        ).format(
+            breakpoint_name=breakpoint_name,
+            job_breakpoint=job_breakpoint,
+            breakpoint_released=breakpoint_released,
+            wait_limit=wait_limit)
+
+    def wait_breakpoint(self, breakpoint_name="default", job_id=None, job_count=None, check_fn=None, timeout=timedelta(seconds=60)):
+        """ Wait until some job reaches breakpoint.
+            Return list of all jobs that are currently waiting on this breakpoint """
+
+        if job_id is not None and check_fn is None:
+            check_fn = lambda job_id_list: job_id in job_id_list
+
+        if job_count is not None and check_fn is None:
+            check_fn = lambda job_id_list: len(job_id_list) >= job_count
+
+        deadline = datetime.now() + timeout
+        breakpoint_prefix = "breakpoint_" + breakpoint_name + "_"
+        while True:
+            file_name_list = os.listdir(self._tmpdir)
+            job_id_list = []
+            for file_name in file_name_list:
+                if not file_name.startswith(breakpoint_prefix):
+                    continue
+                cur_job_id = file_name[len(breakpoint_prefix):]
+                if cur_job_id == self.BREAKPOINT_ALL_RELEASED:
+                    raise RuntimeError("Breakpoint {0} was released for all jobs".format(breakpoint_name))
+                job_id_list.append(cur_job_id)
+
+            if check_fn is None:
+                if job_id_list:
+                    return job_id_list
+            else:
+                if check_fn(job_id_list):
+                    return job_id_list
+
+            if datetime.now() > deadline:
+                raise TimeoutError("Timeout exceeded while waiting for breakpoint {0}".format(breakpoint_name))
+
+            time.sleep(0.1)
+
+    def release_breakpoint(self, breakpoint_name="default", job_id=None):
+        """ Releases breakpoint so given job or all jobs can continue execution.
+
+            job_id: id of a job that should continue execution,
+                    if job_id is None than all jobs continue execution and all future jobs
+                    will skip this breakpoint. """
+        if job_id is None:
+            with open(self._get_breakpoint_filename(breakpoint_name, self.BREAKPOINT_ALL_RELEASED), "w"):
+                pass
+        else:
+            file_name = self._get_breakpoint_filename(breakpoint_name, job_id)
+            if not os.path.exists(file_name):
+                raise RuntimeError("Job: {0} is not waiting on breakpoint {1}".format(job_id, breakpoint_name))
+            os.remove(file_name)
+
+    def _get_breakpoint_filename(self, breakpoint_name, job_id):
+        if not breakpoint_name:
+            raise ValueError("breakpoint_name must be non empty")
+        return os.path.join(self._tmpdir, "breakpoint_{name}_{job_id}".format(
+            name=breakpoint_name,
+            job_id=job_id))
+
     def _get_event_filename(self, event_name):
         if not event_name:
             raise ValueError("event_name must be non empty")
@@ -559,6 +653,12 @@ class Operation(object):
 
         self._tmpdir = ""
         self._poll_frequency = 0.1
+
+    def _get_new_operation_path(self):
+        return "//sys/operations/{0:02x}/{1}".format(int(self.id.split("-")[-1], 16) % 256, self.id)
+
+    def _get_operation_path(self):
+        return "//sys/operations/" + self.id
 
     def get_job_phase(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
@@ -669,7 +769,13 @@ class Operation(object):
         return get(path, verbose=False)
 
     def get_state(self, **kwargs):
-        return get("//sys/operations/{0}/@state".format(self.id), **kwargs)
+        try:
+            return get(self._get_operation_path() + "/@state", verbose_error=False, **kwargs)
+        except YtResponseError as err:
+            if not err.is_resolve_error():
+                raise
+
+        return get(self._get_new_operation_path() + "/@state", **kwargs)
 
     def track(self):
         def build_progress():
@@ -746,15 +852,6 @@ def create_tmpdir(prefix):
     return tmpdir
 
 
-def track_path(path, timeout):
-    poll_frequency = 0.1
-    total_wait_time = 0
-    while total_wait_time < timeout:
-        if exists(path, verbose=False):
-            break
-        time.sleep(poll_frequency)
-        total_wait_time += poll_frequency
-
 def start_op(op_type, **kwargs):
     op_name = None
     if op_type == "map":
@@ -763,7 +860,7 @@ def start_op(op_type, **kwargs):
         op_name = "reducer"
 
     input_name = None
-    if op_type != "erase":
+    if op_type != "erase" and op_type != "vanilla":
         kwargs["in_"] = prepare_paths(kwargs["in_"])
         input_name = "input_table_paths"
 
@@ -784,22 +881,24 @@ def start_op(op_type, **kwargs):
     operation = Operation()
 
     wait_for_jobs = kwargs.get("wait_for_jobs", False)
-    for opt in ["command", "mapper_command", "reducer_command"]:
-        if opt in kwargs and wait_for_jobs:
+    if wait_for_jobs:
+        del kwargs["wait_for_jobs"]
+        paths = ["command", "mapper_command", "reducer_command"] + \
+                [["spec", "tasks", task_name, "command"] for task_name in kwargs.get("spec", {}).get("tasks", [])]
+        for path in paths:
             label = kwargs.get("label", "test")
             if not operation._tmpdir:
                 operation._tmpdir = create_tmpdir(label)
-            kwargs[opt] = (
-                "({1}\n"
-                "touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
-                "{2}\n"
-                "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n"
-                "{3}\n)"
-                .format(
-                    operation._tmpdir,
-                    kwargs.get("precommand", ""),
-                    kwargs[opt],
-                    kwargs.get("postcommand", "")))
+            flat_path = flatten(path)
+            command = get_branch(kwargs, flat_path)
+            if command is not None:
+                set_branch(kwargs, flat_path,
+                    " ( touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
+                    " {1}\n"
+                    " while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n ) "
+                    .format(
+                        operation._tmpdir,
+                        command))
 
     change(kwargs, "table_path", ["spec", "table_path"])
     change(kwargs, "in_", ["spec", input_name])
@@ -820,7 +919,9 @@ def start_op(op_type, **kwargs):
     if "dont_track" in kwargs:
         del kwargs["dont_track"]
 
-    operation.id = yson.loads(execute_command(op_type, kwargs))
+    kwargs["operation_type"] = op_type
+
+    operation.id = yson.loads(execute_command("start_op", kwargs))
 
     if wait_for_jobs:
         wait_timeout = kwargs.get("wait_timeout", 20)
@@ -863,6 +964,9 @@ def join_reduce(**kwargs):
 
 def map_reduce(**kwargs):
     return start_op("map_reduce", **kwargs)
+
+def vanilla(**kwargs):
+    return start_op("vanilla", **kwargs)
 
 def erase(path, **kwargs):
     kwargs["table_path"] = path

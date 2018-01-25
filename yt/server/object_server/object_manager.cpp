@@ -764,9 +764,6 @@ void TObjectManager::FillAttributes(
     }
 
     auto proxy = GetProxy(object, nullptr);
-    std::vector<ISystemAttributeProvider::TAttributeDescriptor> systemDescriptors;
-    proxy->ListBuiltinAttributes(&systemDescriptors);
-
     std::sort(keys.begin(), keys.end());
     for (const auto& key : keys) {
         auto value = attributes.GetYson(key);

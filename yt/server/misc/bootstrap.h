@@ -1,3 +1,5 @@
+#pragma once
+
 #include "private.h"
 
 #include <yt/core/logging/log.h>
@@ -11,7 +13,9 @@ namespace NYT {
 class TBootstrapBase
 {
 public:
-    TBootstrapBase(NLogging::TLogger logger, const NYTree::TYsonSerializablePtr& config);
+    TBootstrapBase(
+        const NLogging::TLogger& logger,
+        const NYTree::TYsonSerializablePtr& config);
 
 protected:
     const NLogging::TLogger Logger;

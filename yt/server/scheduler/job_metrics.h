@@ -1,7 +1,8 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/ytlib/job_tracker_client/statistics.h>
-#include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/ytlib/scheduler/public.h>
 

@@ -47,6 +47,9 @@ private:
 };
 
 template <class TCallback>
+TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback) Y_WARN_UNUSED_RESULT;
+
+template <class TCallback>
 TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback)
 {
     return TFinallyGuard<typename std::decay<TCallback>::type>(std::forward<TCallback>(callback));

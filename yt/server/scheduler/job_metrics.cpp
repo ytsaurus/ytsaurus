@@ -1,9 +1,11 @@
 #include "job_metrics.h"
 
 #include <yt/ytlib/scheduler/public.h>
-#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/core/profiling/profiler.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NScheduler {

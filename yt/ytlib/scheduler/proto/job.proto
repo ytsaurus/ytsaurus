@@ -3,7 +3,6 @@ package NYT.NScheduler.NProto;
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/protobuf_helpers.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
-import "yt/ytlib/chunk_client/data_slice_descriptor.proto";
 import "yt/ytlib/chunk_client/data_source.proto";
 import "yt/ytlib/core_dump/core_info.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
@@ -17,15 +16,10 @@ import "yt/ytlib/table_client/chunk_meta.proto";
 
 message TFileDescriptor
 {
-    // Deprecated = 2.
-    required string file_name = 3;
-
-    // Deprecated.
-    repeated NYT.NChunkClient.NProto.TDataSliceDescriptor data_slice_descriptors = 4;
+    optional string file_name = 3;
     optional bool executable = 6;
     optional bytes format = 7;
     required NChunkClient.NProto.TDataSource data_source = 8;
-
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 9;
 }
 
@@ -40,8 +34,7 @@ message TUserJobSpec
 {
     // Additional files (tables) to be placed into the sandbox.
     repeated TFileDescriptor files = 1;
-
-    // Deprecated = 6;
+    repeated TFileDescriptor layers = 34;
 
     // The user command to be executed.
     required string shell_command = 2;
@@ -110,9 +103,6 @@ message TQuerySpec
 message TTableInputSpec
 {
     // Table slice descriptors comprising the input.
-    // Deprecated.
-    repeated NYT.NChunkClient.NProto.TDataSliceDescriptor data_slice_descriptors = 1;
-
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 2;
     repeated int32 chunk_spec_count_per_data_slice = 3;
 }
@@ -143,16 +133,16 @@ message TSchedulerJobSpecExt
         optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
     }
 
-    required NYT.NProto.TExtensionSet extensions = 18;
+    optional NYT.NProto.TExtensionSet extensions = 18;
 
     // Configuration for IO during job execution.
-    required bytes io_config = 1;
+    optional bytes io_config = 1;
 
     // The transaction used for writing output chunks.
-    required NYT.NProto.TGuid output_transaction_id = 2;
+    optional NYT.NProto.TGuid output_transaction_id = 2;
 
     // Job input.
-    required string table_reader_options = 19;
+    optional string table_reader_options = 19;
     repeated TTableInputSpec input_table_specs = 3;
     repeated TTableInputSpec foreign_input_table_specs = 15;
 

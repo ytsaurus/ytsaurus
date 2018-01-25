@@ -1,6 +1,6 @@
 import pytest
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, wait
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 from yt.yson import YsonEntity
@@ -969,8 +969,6 @@ echo {v = 2} >&7
 
         create("table", "//tmp/output")
         op = reduce(
-            wait_for_jobs=True,
-            dont_track=True,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
             command="cat",
@@ -983,10 +981,6 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1
             })
 
-        for i in xrange(3):
-            op.resume_job(op.jobs[0])
-
-        op.track()
         assert len(read_table("//tmp/output")) == 3
 
     @unix_only
@@ -1205,15 +1199,14 @@ echo {v = 2} >&7
 
         create("table", "//tmp/output")
 
+        events = EventsOnFs()
+
         op = reduce(
             dont_track=True,
-            wait_for_jobs=True,
             label="interrupt_job",
             in_=in_,
             out="<sorted_by=[key]>//tmp/output",
-            precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
-            command="true",
-            postcommand="cat",
+            command="""read; echo "${{REPLY/(???)/(job)}}" ; echo "$REPLY" ; {breakpoint_cmd} ; cat""".format(breakpoint_cmd=events.breakpoint_cmd()),
             reduce_by=["key", "value"],
             spec={
                 "reducer": {
@@ -1228,8 +1221,10 @@ echo {v = 2} >&7
             },
             **kwargs)
 
-        interrupt_job(op.jobs[0], interrupt_timeout=2000000)
-        op.resume_jobs()
+        jobs = events.wait_breakpoint()
+        interrupt_job(jobs[0], interrupt_timeout=2000000)
+        events.release_breakpoint()
+
         op.track()
 
         result = read_table("//tmp/output", verbose=False)
@@ -1343,7 +1338,7 @@ done
 
         operation_path = "//sys/operations/{0}".format(op.id)
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
-        assert exists(operation_path + "/output_0", tx=scheduler_transaction_id)
+        wait(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
 
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]

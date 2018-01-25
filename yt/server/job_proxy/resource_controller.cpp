@@ -16,9 +16,8 @@
 namespace NYT {
 namespace NJobProxy {
 
-#ifdef _linux_
+
 using namespace NContainers;
-#endif
 using namespace NCGroup;
 using namespace NExecAgent;
 using namespace NYTree;
@@ -195,9 +194,9 @@ class TPortoResourceController
     : public IResourceController
 {
 public:
-    static IResourceControllerPtr Create(TPortoJobEnvironmentConfigPtr config)
+    static IResourceControllerPtr Create(TPortoJobEnvironmentConfigPtr config, const TNullable<TRootFS>& rootFS)
     {
-        auto resourceController = New<TPortoResourceController>(config->BlockIOWatchdogPeriod, config->UseResourceLimits);
+        auto resourceController = New<TPortoResourceController>(config->BlockIOWatchdogPeriod, config->UseResourceLimits, rootFS);
         resourceController->Init(config->PortoWaitTime, config->PortoPollPeriod);
         return resourceController;
     }
@@ -296,6 +295,9 @@ public:
     virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override
     {
         auto instance = ContainerManager_->CreateInstance();
+        if (RootFS_) {
+            instance->SetRoot(*RootFS_);
+        }
         return New<TPortoResourceController>(ContainerManager_, instance, BlockIOWatchdogPeriod_, UseResourceLimits_);
     }
 
@@ -319,13 +321,16 @@ private:
     const TDuration StatUpdatePeriod_;
     const TDuration BlockIOWatchdogPeriod_;
     const bool UseResourceLimits_;
+    const TNullable<TRootFS> RootFS_;
 
     TPortoResourceController(
         TDuration blockIOWatchdogPeriod,
-        bool useResourceLimits)
+        bool useResourceLimits,
+        const TNullable<TRootFS>& rootFS)
         : StatUpdatePeriod_(TDuration::MilliSeconds(100))
         , BlockIOWatchdogPeriod_(blockIOWatchdogPeriod)
         , UseResourceLimits_(useResourceLimits)
+        , RootFS_(rootFS)
     { }
 
     TPortoResourceController(
@@ -375,6 +380,7 @@ private:
         auto errorHandler = BIND(&TPortoResourceController::OnFatalError, MakeStrong(this));
         ContainerManager_ = CreatePortoManager(
             "",
+            Null,
             errorHandler,
             { ECleanMode::None,
             waitTime,
@@ -390,19 +396,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IResourceControllerPtr CreateResourceController(NYTree::INodePtr config)
+IResourceControllerPtr CreateResourceController(NYTree::INodePtr config, const TNullable<TRootFS>& rootFS)
 {
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
     switch (environmentConfig->Type) {
         case EJobEnvironmentType::Cgroups:
+            if (rootFS) {
+                THROW_ERROR_EXCEPTION("Cgroups job environment does not support custom root FS");
+            }
             return New<TCGroupResourceController>(ConvertTo<TCGroupJobEnvironmentConfigPtr>(config));
 
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return TPortoResourceController::Create(ConvertTo<TPortoJobEnvironmentConfigPtr>(config));
+            return TPortoResourceController::Create(ConvertTo<TPortoJobEnvironmentConfigPtr>(config), rootFS);
 #endif
 
         case EJobEnvironmentType::Simple:
+            if (rootFS) {
+                THROW_ERROR_EXCEPTION("Simple job environment does not support custom root FS");
+            }
             return nullptr;
 
         default:

@@ -13,7 +13,7 @@ class TOrchidServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TOrchidServiceProxy, RPC_PROXY_DESC(OrchidService));
+    DEFINE_RPC_PROXY(TOrchidServiceProxy, OrchidService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
 };

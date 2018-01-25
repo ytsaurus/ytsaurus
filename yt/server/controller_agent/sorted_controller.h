@@ -8,15 +8,18 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateSortedMergeController(
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation);
 
 IOperationControllerPtr CreateSortedReduceController(
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation);
 
 IOperationControllerPtr CreateJoinReduceController(
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,10 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/api/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -13,18 +17,32 @@ namespace NScheduler {
 
 NYPath::TYPath GetOperationsPath();
 NYPath::TYPath GetOperationPath(const TOperationId& operationId);
-NYPath::TYPath GetNewOperationPath(const TOperationId& operationId);
-NYPath::TYPath GetOperationAttributesPath(const TOperationId& operationId);
-NYPath::TYPath GetOperationsProgressFromScheduler(const TOperationId& operationId);
+NYPath::TYPath GetOperationProgressFromOrchid(const TOperationId& operationId);
 NYPath::TYPath GetJobsPath(const TOperationId& operationId);
 NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex);
-NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId);
-NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
+NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
+
+// TODO(babenko): remove "New" infix once we fully migrate to this scheme
+NYPath::TYPath GetNewJobsPath(const TOperationId& operationId);
+NYPath::TYPath GetNewJobPath(const TOperationId& operationId, const TJobId& jobId);
+NYPath::TYPath GetNewOperationPath(const TOperationId& operationId);
+NYPath::TYPath GetNewSecureVaultPath(const TOperationId& operationId);
+NYPath::TYPath GetNewSnapshotPath(const TOperationId& operationId);
+NYPath::TYPath GetNewStderrPath(const TOperationId& operationId, const TJobId& jobId);
+
+std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    EOperationCypressStorageMode mode,
+    const TString& resourceName = "");
+
+std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
+    const TOperationId& operationId,
+    EOperationCypressStorageMode mode,
+    const TString& resourceName = "");
 
 const NYPath::TYPath& GetPoolsPath();
 const NYPath::TYPath& GetOperationsArchivePathOrderedById();
@@ -44,6 +62,21 @@ int GetJobSpecVersion();
 bool IsSchedulingReason(EAbortReason reason);
 bool IsNonSchedulingReason(EAbortReason reason);
 bool IsSentinelReason(EAbortReason reason);
+
+TError GetSchedulerTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
+TError GetUserTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobFile
+{
+    TJobId JobId;
+    NYPath::TYPath Path;
+    NChunkClient::TChunkId ChunkId;
+    TString DescriptionType;
+};
+
+void SaveJobFiles(NApi::INativeClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files);
 
 ////////////////////////////////////////////////////////////////////////////////
 

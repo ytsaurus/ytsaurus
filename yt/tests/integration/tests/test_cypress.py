@@ -326,8 +326,14 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/a")
         assert get("//tmp/c/b/@path") == "//tmp/c/b"
 
-    def test_copy_simple6(self):
+    def test_copy_simple6a(self):
         with pytest.raises(YtError): copy("//tmp", "//tmp/a")
+
+    def test_copy_simple6b(self):
+        tx = start_transaction()
+        create("map_node", "//tmp/a", tx=tx)
+        create("map_node", "//tmp/a/b", tx=tx)
+        with pytest.raises(YtError): copy("//tmp/a", "//tmp/a/b/c", tx=tx)
 
     def test_copy_simple7(self):
         tx = start_transaction()
@@ -1265,6 +1271,14 @@ class TestCypress(YTEnvSetup):
         time.sleep(0.1)
         assert not exists("//tmp/t2")
 
+    def test_expire_orphaned_node_yt_8064(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        node_id = create("table", "//tmp/t", attributes={"expiration_time": str(self._now() + timedelta(seconds=2.0))}, tx=tx1)
+        lock("#" + node_id, tx=tx2, mode="snapshot")
+        abort_transaction(tx1)
+        time.sleep(2.0)
+
     def test_copy_preserve_creation_time(self):
         create("table", "//tmp/t1")
         creation_time = get("//tmp/t1/@creation_time")
@@ -1704,4 +1718,58 @@ class TestCypressMulticell(TestCypress):
         # Unfortunately, it's difficult to actually check anything here.
         create("table", "//tmp/t", attributes={"external_cell_bias": 0.0})
         assert not exists("//tmp/t/@external_cell_bias")
+
+##################################################################
+
+class TestCypressWithoutSet(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "forbid_set_command": True,
+        }
+    }
+
+    def test_map(self):
+        with pytest.raises(YtError):
+            set("//tmp/dir", {})
+
+        create("map_node", "//tmp/dir")
+        with pytest.raises(YtError):
+            set("//tmp/dir", {})
+
+    def test_attrs(self):
+        create("map_node", "//tmp/dir")
+        set("//tmp/dir/@my_attr", 10)
+        assert get("//tmp/dir/@my_attr") == 10
+
+        set("//tmp/dir/@acl/end", {"action": "allow", "subjects": ["root"], "permissions": ["write"]})
+        assert len(get("//tmp/dir/@acl")) == 1
+
+    def test_document(self):
+        create("document", "//tmp/doc")
+        set("//tmp/doc", {})
+        set("//tmp/doc/value", 10)
+        assert get("//tmp/doc/value") == 10
+
+    def test_list(self):
+        create("list_node", "//tmp/list")
+        set("//tmp/list/end", 0)
+        with pytest.raises(YtError):
+            set("//tmp/list/0", 1)
+        set("//tmp/list/end", 2)
+        assert get("//tmp/list") == [0, 2]
+
+    def test_scalars(self):
+        with pytest.raises(YtError):
+            set("//tmp/integer", 10)
+        create("int64_node", "//tmp/integer")
+        with pytest.raises(YtError):
+            set("//tmp/integer", 20)
+        remove("//tmp/integer")
+
+        create("document", "//tmp/doc")
+        set("//tmp/doc", 10)
+        assert get("//tmp/doc") == 10
 

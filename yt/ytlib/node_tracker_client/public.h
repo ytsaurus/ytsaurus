@@ -49,9 +49,10 @@ DEFINE_ENUM(EErrorCode,
 DEFINE_ENUM(EAddressType,
     ((InternalRpc)    (0))
     ((SkynetHttp)     (1))
+    ((MonitoringHttp) (2))
 );
 
-using TNodeId = i32;
+using TNodeId = ui32;
 const TNodeId InvalidNodeId = 0;
 const TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
 
@@ -86,11 +87,12 @@ DEFINE_ENUM(EMemoryCategory,
     ((Footprint)                   (0))
     ((BlockCache)                  (1))
     ((ChunkMeta)                   (2))
-    ((Jobs)                        (3))
+    ((UserJobs)                    (3))
     ((TabletStatic)                (4))
     ((TabletDynamic)               (5))
     ((BlobSession)                 (6))
     ((CachedVersionedChunkMeta)    (7))
+    ((SystemJobs)                  (8))
 );
 
 using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;

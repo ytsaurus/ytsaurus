@@ -2,6 +2,7 @@ package NYT.NChunkClient.NProto;
 
 // Basic YPath RPC for all types of chunk list owners (tables, files, and journals).
 
+import "yt/core/crypto/proto/crypto.proto";
 import "yt/core/misc/proto/guid.proto";
 import "yt/ytlib/node_tracker_client/node_directory.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
@@ -44,6 +45,7 @@ message TRspGetUploadParams
 {
     optional NYT.NProto.TGuid chunk_list_id = 1;
     optional bytes last_key = 2;
+    optional NYT.NProto.TMD5Hasher md5_hasher = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +58,7 @@ message TReqEndUpload
     optional int32 optimize_for = 8;
     optional int32 compression_codec = 9;
     optional int32 erasure_codec = 10;
+    optional NYT.NProto.TMD5Hasher md5_hasher = 11;
 }
 
 message TRspEndUpload

@@ -81,14 +81,13 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="signal_job_with_no_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            precommand='trap "echo got=SIGUSR1" USR1\ntrap "echo got=SIGUSR2" USR2\n',
-            command="cat\n",
+            command="""(trap "echo got=SIGUSR1" USR1 ; trap "echo got=SIGUSR2" USR2 ; cat ; {breakpoint_cmd})""".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -96,10 +95,12 @@ class TestJobProber(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-        signal_job(op.jobs[0], "SIGUSR1")
-        signal_job(op.jobs[0], "SIGUSR2")
+        jobs = events.wait_breakpoint()
 
-        op.resume_jobs()
+        signal_job(jobs[0], "SIGUSR1")
+        signal_job(jobs[0], "SIGUSR2")
+
+        events.release_breakpoint()
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
@@ -107,20 +108,18 @@ class TestJobProber(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
     @unix_only
-    @flaky(max_runs=5)
     def test_signal_job_with_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            precommand='trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1\n',
-            command='cat\n',
+            command="""(trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1 ; cat ; {breakpoint_cmd})""".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -128,12 +127,11 @@ class TestJobProber(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-        # Send signal and wait for a new job
-        signal_job(op.jobs[0], "SIGUSR1")
-        op.resume_job(op.jobs[0])
-        op.ensure_jobs_running()
+        jobs = events.wait_breakpoint()
 
-        op.resume_jobs()
+        signal_job(jobs[0], "SIGUSR1")
+        events.release_breakpoint()
+
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1

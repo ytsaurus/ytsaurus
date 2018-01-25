@@ -1,10 +1,5 @@
 #include "node_detail.h"
-//#include "convert.h"
-//#include "tree_builder.h"
-//#include "tree_visitor.h"
-//#include "ypath_client.h"
-//#include "ypath_detail.h"
-//#include "ypath_service.h"
+#include "tree_visitor.h"
 
 #include <yt/core/misc/singleton.h>
 
@@ -90,11 +85,11 @@ void TNodeBase::GetKeySelf(
     TString key;
     switch (parent->GetType()) {
         case ENodeType::Map:
-            key = parent->AsMap()->GetChildKey(this);
+            key = parent->AsMap()->GetChildKeyOrThrow(this);
             break;
 
         case ENodeType::List:
-            key = ToString(parent->AsList()->GetChildIndex(this));
+            key = ToString(parent->AsList()->GetChildIndexOrThrow(this));
             break;
 
         default:
@@ -160,12 +155,12 @@ TYPath TNodeBase::GetPath() const
         TString token;
         switch (parent->GetType()) {
             case ENodeType::List: {
-                auto index = parent->AsList()->GetChildIndex(current);
+                auto index = parent->AsList()->GetChildIndexOrThrow(current);
                 token = ToYPathLiteral(index);
                 break;
             }
             case ENodeType::Map: {
-                auto key = parent->AsMap()->GetChildKey(current);
+                auto key = parent->AsMap()->GetChildKeyOrThrow(current);
                 token = ToYPathLiteral(key);
                 break;
             }
@@ -377,7 +372,8 @@ void TMapNodeMixin::SetChild(
 
             bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
             if (!recursive && !lastStep) {
-                THROW_ERROR_EXCEPTION("%v has no child %Qv; consider using \"recursive\" option to force its creation",
+                THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+                    "%v has no child %Qv; consider using \"recursive\" option to force its creation",
                     currentNode->GetPath(),
                     key);
             }

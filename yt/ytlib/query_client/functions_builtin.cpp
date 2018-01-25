@@ -922,7 +922,7 @@ TConstRangeExtractorMapPtr CreateBuiltinRangeExtractorMap()
 
 const TConstRangeExtractorMapPtr BuiltinRangeExtractorMap = CreateBuiltinRangeExtractorMap();
 
-TConstFunctionProfilerMapPtr CreateBuiltinFunctionCG()
+TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
 {
     auto result = New<TFunctionProfilerMap>();
 
@@ -940,9 +940,9 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionCG()
     return result;
 }
 
-const TConstFunctionProfilerMapPtr BuiltinFunctionCG = CreateBuiltinFunctionCG();
+const TConstFunctionProfilerMapPtr BuiltinFunctionProfilers = CreateBuiltinFunctionProfilers();
 
-TConstAggregateProfilerMapPtr CreateBuiltinAggregateCG()
+TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
 {
     auto result = New<TAggregateProfilerMap>();
 
@@ -951,7 +951,7 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateCG()
     return result;
 }
 
-const TConstAggregateProfilerMapPtr BuiltinAggregateCG = CreateBuiltinAggregateCG();
+const TConstAggregateProfilerMapPtr BuiltinAggregateProfilers = CreateBuiltinAggregateProfilers();
 
 ////////////////////////////////////////////////////////////////////////////////
 

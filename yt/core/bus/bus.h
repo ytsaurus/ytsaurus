@@ -41,12 +41,6 @@ struct TTcpDispatcherStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EDeliveryTrackingLevel,
-    (None)
-    (ErrorOnly)
-    (Full)
-);
-
 struct TSendOptions
 {
     static constexpr int AllParts = -1;
@@ -85,6 +79,12 @@ struct IBus
      *  \note Thread affinity: any
      */
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) = 0;
+
+    //! For socket buses, updates the TOS level.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void SetTosLevel(TTosLevel tosLevel) = 0;
 
     //! Terminates the bus.
     /*!

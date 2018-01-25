@@ -31,15 +31,15 @@ public:
 
     typedef T TValueType;
 
-    TNullable()
+    TNullable() noexcept
         : HasValue_(false)
     { }
 
-    TNullable(TNull)
+    TNullable(TNull) noexcept
         : HasValue_(false)
     { }
 
-    TNullable(const T& value)
+    TNullable(const T& value) noexcept(std::is_nothrow_copy_constructible<T>::value)
 #ifndef NDEBUG
         : HasValue_(false)
 #endif
@@ -47,7 +47,7 @@ public:
         Construct(value);
     }
 
-    TNullable(T&& value)
+    TNullable(T&& value) noexcept(std::is_nothrow_move_constructible<T>::value)
 #ifndef NDEBUG
         : HasValue_(false)
 #endif
@@ -55,7 +55,7 @@ public:
         Construct(std::move(value));
     }
 
-    TNullable(const TNullable& other)
+    TNullable(const TNullable& other) noexcept(std::is_nothrow_copy_constructible<T>::value)
         : HasValue_(false)
     {
         if (other.HasValue_) {
@@ -74,7 +74,7 @@ public:
         }
     }
 
-    TNullable(TNullable&& other)
+    TNullable(TNullable&& other) noexcept(std::is_nothrow_move_constructible<T>::value)
         : HasValue_(false)
     {
         if (other.HasValue_) {
@@ -95,7 +95,7 @@ public:
         }
     }
 
-    TNullable(bool condition, const T& value)
+    TNullable(bool condition, const T& value) noexcept(std::is_nothrow_copy_constructible<T>::value)
         : HasValue_(false)
     {
         if (condition) {
@@ -103,7 +103,7 @@ public:
         }
     }
 
-    TNullable(bool condition, T&& value)
+    TNullable(bool condition, T&& value) noexcept(std::is_nothrow_move_constructible<T>::value)
         : HasValue_(false)
     {
         if (condition) {

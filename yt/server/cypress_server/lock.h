@@ -72,7 +72,7 @@ struct TCypressNodeLockingState
     bool IsEmpty() const;
     void Persist(NCellMaster::TPersistenceContext& context);
 
-    static TCypressNodeLockingState Empty;
+    static const TCypressNodeLockingState Empty;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

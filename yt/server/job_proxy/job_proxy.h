@@ -57,6 +57,9 @@ public:
 
     virtual NRpc::IServerPtr GetRpcServer() const override;
 
+    virtual TString GetPreparationPath() const override;
+    virtual TString GetSlotPath() const override;
+
 private:
     const TJobProxyConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;

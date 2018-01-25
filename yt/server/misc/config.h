@@ -31,6 +31,7 @@ public:
     // Singletons.
     yhash<TString, int> FiberStackPoolSizes;
     NNet::TAddressResolverConfigPtr AddressResolver;
+    NRpc::TDispatcherConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NLogging::TLogConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;
@@ -42,16 +43,17 @@ public:
     //! RPC interface port number.
     int RpcPort;
 
-    //! HTTP monitoring interface port number.
+    // COMPAT(babenko): get rid of this after switching to new HTTP implementation
     int MonitoringPort;
     NHttp::TServerConfigPtr MonitoringServer;
-    bool UseNewHttpServer;
 
     TServerConfig()
     {
         RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
             .Default({});
         RegisterParameter("address_resolver", AddressResolver)
+            .DefaultNew();
+        RegisterParameter("rpc_dispatcher", RpcDispatcher)
             .DefaultNew();
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
@@ -78,19 +80,15 @@ public:
             .LessThan(65536);
         RegisterParameter("monitoring_server", MonitoringServer)
             .DefaultNew();
-        RegisterParameter("use_new_http_server", UseNewHttpServer)
-            .Default(false);
-    }
 
-    virtual void OnLoaded() override
-    {
-        TYsonSerializable::OnLoaded();
-        if (RpcPort > 0) {
-            if (BusServer->Port || BusServer->UnixDomainName) {
-                THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+        RegisterPostprocessor([&] {
+            if (RpcPort > 0) {
+                if (BusServer->Port || BusServer->UnixDomainName) {
+                    THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+                }
+                BusServer->Port = RpcPort;
             }
-            BusServer->Port = RpcPort;
-        }
+        });
     }
 };
 
@@ -112,7 +110,7 @@ public:
             .NonEmpty();
         RegisterParameter("min_disk_space", MinDiskSpace)
             .GreaterThanOrEqual(0)
-            .Default(TNullable<i64>());
+            .Default();
     }
 };
 

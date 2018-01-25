@@ -420,8 +420,9 @@ public:
             if (replica->GetClusterName() == clusterName &&
                 replica->GetReplicaPath() == replicaPath)
             {
-                THROW_ERROR_EXCEPTION("Replica table %v at cluster %Qv already exists",
+                THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::TableReplicaAlreadyExists,
+                    "Replica table %v at cluster %Qv already exists",
                     replicaPath,
                     clusterName);
             }
@@ -832,6 +833,10 @@ public:
         for (auto* tablet : action->Tablets()) {
             try {
                 if (!IsObjectAlive(tablet)) {
+                    continue;
+                }
+
+                if (!IsObjectAlive(tablet->GetTable())) {
                     continue;
                 }
 
@@ -1492,7 +1497,7 @@ public:
                 hiveManager->PostMessage(mailbox, req);
             }
 
-            for (auto& pair  : tablet->Replicas()) {
+            for (auto& pair : GetPairsSortedByKey(tablet->Replicas())) {
                 auto* replica = pair.first;
                 auto& replicaInfo = pair.second;
                 if (replica->GetState() != ETableReplicaState::Enabled) {
@@ -1800,7 +1805,7 @@ public:
         int newTabletCount,
         const std::vector<TOwningKey>& pivotKeys)
     {
-        if (!pivotKeys.empty() || !table->IsSorted()) {
+        if (!pivotKeys.empty() || !table->IsPhysicallySorted()) {
             DoReshardTable(
                 table,
                 firstTabletIndex,
@@ -3477,9 +3482,17 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet)) {
+
+        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
+                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
+                tabletId,
+                transaction->GetId(),
+                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
             return;
         }
+
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
@@ -3492,12 +3505,7 @@ private:
             return;
         }
 
-        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
-                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
-                tabletId,
-                transaction->GetId(),
-                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
+        if (!IsObjectAlive(tablet)) {
             return;
         }
 

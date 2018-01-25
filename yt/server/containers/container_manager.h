@@ -25,8 +25,9 @@ DEFINE_ENUM(ECleanMode,
 struct IContainerManager
     : public TRefCounted
 {
-    virtual IInstancePtr CreateInstance() = 0;
+    virtual IInstancePtr CreateInstance(bool autoDestroy = true) = 0;
     virtual IInstancePtr GetSelfInstance() = 0;
+    virtual IInstancePtr GetInstance(const TString& name) = 0;
     virtual TFuture<std::vector<TString>> GetInstanceNames() const = 0;
 };
 
@@ -45,6 +46,7 @@ struct TPortoManagerConfig
 
 IContainerManagerPtr CreatePortoManager(
     const TString& prefix,
+    const TNullable<TString>& rootContainer,
     TCallback<void(const TError&)> errorHandler,
     const TPortoManagerConfig& portoManagerConfig);
 

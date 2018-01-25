@@ -795,7 +795,8 @@ private:
     yhash<TString, TRack*> NameToRackMap_;
     yhash<TString, TDataCenter*> NameToDataCenterMap_;
 
-    TPeriodicExecutorPtr NodeStatesGossipExecutor_;
+    TPeriodicExecutorPtr IncrementalNodeStatesGossipExecutor_;
+    TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
 
     int PendingRegisterNodeMutationCount_ = 0;
 
@@ -1206,11 +1207,17 @@ private:
 
         // NB: Node states gossip is one way: secondary-to-primary.
         if (Bootstrap_->IsSecondaryMaster()) {
-            NodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
+            IncrementalNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
-                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this)),
-                Config_->NodeStatesGossipPeriod);
-            NodeStatesGossipExecutor_->Start();
+                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), true),
+                Config_->IncrementalNodeStatesGossipPeriod);
+            IncrementalNodeStatesGossipExecutor_->Start();
+
+            FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false),
+                Config_->IncrementalNodeStatesGossipPeriod);
+            FullNodeStatesGossipExecutor_->Start();
         }
 
         PendingRegisterNodeMutationCount_ = 0;
@@ -1227,9 +1234,14 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        if (NodeStatesGossipExecutor_) {
-            NodeStatesGossipExecutor_->Stop();
-            NodeStatesGossipExecutor_.Reset();
+        if (IncrementalNodeStatesGossipExecutor_) {
+            IncrementalNodeStatesGossipExecutor_->Stop();
+            IncrementalNodeStatesGossipExecutor_.Reset();
+        }
+
+        if (FullNodeStatesGossipExecutor_) {
+            FullNodeStatesGossipExecutor_->Stop();
+            FullNodeStatesGossipExecutor_.Reset();
         }
     }
 
@@ -1415,27 +1427,38 @@ private:
     }
 
 
-    void OnNodeStatesGossip()
+    void OnNodeStatesGossip(bool incremental)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
             return;
         }
 
-        LOG_INFO("Sending node states gossip message");
-
         TReqSetNodeStates request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            if (!IsObjectAlive(node))
+            if (!IsObjectAlive(node)) {
                 continue;
+            }
+
+            auto state = node->GetLocalState();
+            if (incremental && state == node->GetLastGossipState()) {
+                continue;
+            }
 
             auto* entry = request.add_entries();
             entry->set_node_id(node->GetId());
-            entry->set_state(static_cast<int>(node->GetLocalState()));
+            entry->set_state(static_cast<int>(state));
+            node->SetLastGossipState(state);
         }
 
+        if (request.entries_size() == 0) {
+            return;
+        }
+
+        LOG_INFO("Sending node states gossip message (Incremental: %v)",
+            incremental);
         multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
     }
 

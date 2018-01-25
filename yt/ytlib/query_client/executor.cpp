@@ -127,7 +127,9 @@ private:
             Schema_,
             false,
             Logger);
-        return FromProto(response->query_statistics());
+        TQueryStatistics statistics;
+        FromProto(&statistics, response->query_statistics());
+        return statistics;
     }
 };
 
@@ -147,10 +149,10 @@ public:
     TQueryExecutor(
         INativeConnectionPtr connection,
         INodeChannelFactoryPtr nodeChannelFactory,
-        const TFunctionImplCachePtr& functionImplCache)
+        TFunctionImplCachePtr functionImplCache)
         : Connection_(std::move(connection))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
-        , FunctionImplCache_(functionImplCache)
+        , FunctionImplCache_(std::move(functionImplCache))
     { }
 
     virtual TFuture<TQueryStatistics> Execute(
@@ -455,10 +457,10 @@ private:
     }
 
     TQueryStatistics DoCoordinateAndExecute(
-        TConstQueryPtr query,
+        const TConstQueryPtr& query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
-        ISchemafulWriterPtr writer,
+        const ISchemafulWriterPtr& writer,
         int subrangesCount,
         std::function<std::pair<std::vector<TDataRanges>, TString>(int)> getSubsources)
     {
@@ -472,9 +474,9 @@ private:
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
-        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
-        FetchImplementations(
+        MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
+        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+        FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
             externalCGInfo,
@@ -503,6 +505,7 @@ private:
                     std::move(topQuery),
                     std::move(reader),
                     std::move(writer),
+                    nullptr,
                     functionGenerators,
                     aggregateGenerators,
                     options);
@@ -633,11 +636,11 @@ private:
             proxy.SetDefaultTimeout(config->QueryTimeout);
 
             auto req = proxy.Execute();
-            req->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
+            req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
 
             TDuration serializationTime;
             {
-                NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
+                NProfiling::TCpuTimingGuard timingGuard(&serializationTime);
                 ToProto(req->mutable_query(), query);
                 req->mutable_query()->set_input_row_limit(options.InputRowLimit);
                 req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
@@ -675,9 +678,12 @@ DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
 IExecutorPtr CreateQueryExecutor(
     INativeConnectionPtr connection,
     INodeChannelFactoryPtr nodeChannelFactory,
-    const TFunctionImplCachePtr& functionImplCache)
+    TFunctionImplCachePtr functionImplCache)
 {
-    return New<TQueryExecutor>(connection, nodeChannelFactory, functionImplCache);
+    return New<TQueryExecutor>(
+        std::move(connection),
+        std::move(nodeChannelFactory),
+        std::move(functionImplCache));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/public.h>
 
 #include <yt/core/bus/public.h>
 
@@ -54,8 +54,7 @@ private:
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
-    std::unique_ptr<NXHttp::TServer> HttpServer_;
-    NHttp::IServerPtr NewHttpServer_;
+    NHttp::IServerPtr HttpServer_;
     TCoreDumperPtr CoreDumper_;
 
     NApi::INativeConnectionPtr NativeConnection_;

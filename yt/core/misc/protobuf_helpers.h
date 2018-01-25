@@ -31,6 +31,11 @@ inline void FromProto(TInstant* original, ::google::protobuf::int64 serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline void ToProto(::google::protobuf::uint64* serialized, TInstant original);
+inline void FromProto(TInstant* original, ::google::protobuf::uint64 serialized);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
     T* serialized,
@@ -169,6 +174,9 @@ void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
+TSharedRef PushEnvelope(const TSharedRef& data);
+TSharedRef PopEnvelope(const TSharedRef& data);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBinaryProtoSerializer
@@ -271,9 +279,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Protobuf messages are currently not movable.
+//! This simple adapter helps workarounding the issue and could be useful
+//! in, e.g., lambda capture.
+template <class T>
+class TMovableProto
+{
+public:
+    TMovableProto() = default;
+    TMovableProto(TMovableProto<T>&& other);
+    TMovableProto(T&& other);
+    TMovableProto(const TMovableProto<T>& other) = delete;
+
+    TMovableProto<T>& operator = (TMovableProto<T>&& other);
+    TMovableProto<T>& operator = (T&& other);
+    TMovableProto<T>& operator = (const TMovableProto<T>& other) = delete;
+
+    operator T&();
+    operator const T&() const;
+
+    T& Unwrap();
+    const T& Unwrap() const;
+
+private:
+    T Underlying_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define PROTOBUF_HELPERS_INL_H_
 #include "protobuf_helpers-inl.h"
 #undef PROTOBUF_HELPERS_INL_H_
-

@@ -1045,7 +1045,7 @@ private:
             i64 flushDataSize = 0;
 
             auto req = node->HeavyProxy.PutBlocks();
-            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             ToProto(req->mutable_session_id(), CurrentSession_->Id);
             req->set_first_block_index(node->FirstPendingBlockIndex);
             req->set_flush_blocks(true);

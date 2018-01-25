@@ -400,7 +400,10 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         }
 
         TRequestHeader subrequestHeader;
-        YCHECK(ParseRequestHeader(subrequestMessage, &subrequestHeader));
+        if (!ParseRequestHeader(subrequestMessage, &subrequestHeader)) {
+            THROW_ERROR_EXCEPTION("Malformed subrequest message: failed to parse header");
+        }
+
         const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
 
         TKey key(

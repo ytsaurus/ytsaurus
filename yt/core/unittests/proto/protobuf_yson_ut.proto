@@ -39,6 +39,7 @@ message TMessage
     repeated int32 repeated_int32_field = 17;
     repeated TNestedMessage repeated_nested_message = 18;
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 19;
+    optional bytes yson_field = 20 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 message TNestedMessageWithRequriedFields

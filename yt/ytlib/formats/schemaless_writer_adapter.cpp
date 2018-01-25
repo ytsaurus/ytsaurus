@@ -194,6 +194,21 @@ bool TSchemalessFormatWriterBase::IsRangeIndexColumnId(int id) const
     return id == RangeIndexId_;
 }
 
+int TSchemalessFormatWriterBase::GetRangeIndexColumnId() const
+{
+    return RangeIndexId_;
+}
+
+int TSchemalessFormatWriterBase::GetRowIndexColumnId() const
+{
+    return RowIndexId_;
+}
+
+int TSchemalessFormatWriterBase::GetTableIndexColumnId() const
+{
+    return TableIndexId_;
+}
+
 void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
 {
     if (!EnableRowControlAttributes_) {
@@ -248,6 +263,11 @@ void TSchemalessFormatWriterBase::WriteRangeIndex(i64 rangeIndex)
 
 void TSchemalessFormatWriterBase::WriteRowIndex(i64 rowIndex)
 { }
+
+bool TSchemalessFormatWriterBase::HasError() const
+{
+    return !Error_.IsOK();
+}
 
 void TSchemalessFormatWriterBase::RegisterError(const TError& error)
 {
@@ -346,33 +366,40 @@ void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
         }
 
         Consumer_->OnKeyedItem(NameTableReader_->GetName(value.Id));
-        switch (value.Type) {
-            case EValueType::Int64:
-                Consumer_->OnInt64Scalar(value.Data.Int64);
-                break;
-            case EValueType::Uint64:
-                Consumer_->OnUint64Scalar(value.Data.Uint64);
-                break;
-            case EValueType::Double:
-                Consumer_->OnDoubleScalar(value.Data.Double);
-                break;
-            case EValueType::Boolean:
-                Consumer_->OnBooleanScalar(value.Data.Boolean);
-                break;
-            case EValueType::String:
-                Consumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                break;
-            case EValueType::Null:
-                Consumer_->OnEntity();
-                break;
-            case EValueType::Any:
-                Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
-                break;
-            default:
-                Y_UNREACHABLE();
-        }
+        WriteYsonValue(Consumer_.get(), value);
     }
     Consumer_->OnEndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void WriteYsonValue(IYsonConsumer* writer, const TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Int64:
+            writer->OnInt64Scalar(value.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            writer->OnUint64Scalar(value.Data.Uint64);
+            break;
+        case EValueType::Double:
+            writer->OnDoubleScalar(value.Data.Double);
+            break;
+        case EValueType::Boolean:
+            writer->OnBooleanScalar(value.Data.Boolean);
+            break;
+        case EValueType::String:
+            writer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+            break;
+        case EValueType::Null:
+            writer->OnEntity();
+            break;
+        case EValueType::Any:
+            writer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

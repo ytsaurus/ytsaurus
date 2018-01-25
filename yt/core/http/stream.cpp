@@ -222,10 +222,12 @@ struct THttpParserTag
 
 THttpInput::THttpInput(
     const IAsyncInputStreamPtr& reader,
+    const TNetworkAddress& remoteAddress,
     const IInvokerPtr& readInvoker,
     EMessageType messageType,
     size_t bufferSize)
     : Reader_(reader)
+    , RemoteAddress_(remoteAddress)
     , MessageType_(messageType)
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(bufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
@@ -280,6 +282,11 @@ const THeadersPtr& THttpInput::GetTrailers()
     return trailers;
 }
 
+const TNetworkAddress& THttpInput::GetRemoteAddress() const
+{
+    return RemoteAddress_;
+}
+
 void THttpInput::FinishHeaders()
 {
     HeadersReceived_ = true;
@@ -323,6 +330,25 @@ TFuture<TSharedRef> THttpInput::Read()
     return BIND(&THttpInput::DoRead, MakeStrong(this))
         .AsyncVia(ReadInvoker_)
         .Run();
+}
+
+TSharedRef THttpInput::ReadBody()
+{
+    std::vector<TSharedRef> chunks;
+
+    // TODO(prime@): Add hard limit on body size.
+    while (true) {
+        auto chunk = WaitFor(Read())
+            .ValueOrThrow();
+
+        if (chunk.Empty()) {
+            break;
+        }
+
+        chunks.emplace_back(TSharedRef::MakeCopy<THttpParserTag>(chunk));
+    }
+
+    return MergeRefsToRef<THttpParserTag>(std::move(chunks));
 }
 
 TSharedRef THttpInput::DoRead()
@@ -376,6 +402,15 @@ THttpOutput::THttpOutput(
 const THeadersPtr& THttpOutput::GetHeaders()
 {
     return Headers_;
+}
+
+void THttpOutput::SetHost(TStringBuf host, TStringBuf port)
+{
+    if (!port.empty()) {
+        HostHeader_ = Format("%v:%v", host, port);
+    } else {
+        HostHeader_ = TString(host);
+    }
 }
 
 void THttpOutput::SetHeaders(const THeadersPtr& headers)
@@ -447,8 +482,11 @@ TSharedRef THttpOutput::GetHeadersPart(TNullable<size_t> contentLength)
         messageHeaders << "Connection: close\r\n";
     }
 
+    if (HostHeader_) {
+        messageHeaders << "Host: " << *HostHeader_ << "\r\n";
+    }
+
     Headers_->WriteTo(&messageHeaders, &FilteredHeaders_);
-    messageHeaders << "\r\n";
 
     TString headers;
     messageHeaders.Buffer().AsString(headers);
@@ -460,7 +498,6 @@ TSharedRef THttpOutput::GetTrailersPart()
     TBufferOutput messageTrailers;
 
     Trailers_->WriteTo(&messageTrailers, &FilteredHeaders_);
-    messageTrailers << "\r\n";
 
     TString trailers;
     messageTrailers.Buffer().AsString(trailers);
@@ -482,6 +519,7 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
     if (!HeadersFlushed_) {
         HeadersFlushed_ = true;
         writeRefs.emplace_back(GetHeadersPart(Null));
+        writeRefs.emplace_back(CrLf);
     }
 
     if (data.Size() != 0) {
@@ -513,6 +551,7 @@ TFuture<void> THttpOutput::FinishChunked()
     if (Trailers_) {
         writeRefs.emplace_back(ZeroCrLf);
         writeRefs.emplace_back(GetTrailersPart());
+        writeRefs.emplace_back(CrLf);
     } else {
         writeRefs.emplace_back(ZeroCrLfCrLf);
     }
@@ -530,11 +569,13 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
         writeRefs = TSharedRefArray({
             GetHeadersPart(smallBody.Size()),
             GetTrailersPart(),
+            CrLf,
             smallBody
         });
     } else {
         writeRefs = TSharedRefArray({
             GetHeadersPart(smallBody.Size()),
+            CrLf,
             smallBody
         });
     }
@@ -549,7 +590,8 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
 const yhash_set<TString> THttpOutput::FilteredHeaders_ = {
     "transfer-encoding",
     "content-length",
-    "connection"
+    "connection",
+    "host"
 };
 
 const TSharedRef THttpOutput::CrLf = TSharedRef::FromString("\r\n");

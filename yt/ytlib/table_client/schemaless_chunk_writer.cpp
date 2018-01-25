@@ -915,7 +915,8 @@ protected:
         std::vector<TUnversionedRow> result;
         result.reserve(rows.Size());
 
-        for (auto row : rows) {
+        for (size_t rowIndex = 0; rowIndex < rows.Size(); ++rowIndex) {
+            auto row = rows[rowIndex];
             ValidateDuplicateIds(row);
 
             int maxColumnCount = Schema_.Columns().size() + (Schema_.GetStrict() ? 0 : row.GetCount());
@@ -967,7 +968,7 @@ protected:
             mutableRow.SetCount(columnCount);
 
             EvaluateComputedColumns(mutableRow);
-            EvaluateSkynetColumns(mutableRow);
+            EvaluateSkynetColumns(mutableRow, rowIndex + 1 == rows.Size());
 
             result.push_back(mutableRow);
         }
@@ -999,10 +1000,10 @@ private:
         }
     }
 
-    void EvaluateSkynetColumns(TMutableUnversionedRow row)
+    void EvaluateSkynetColumns(TMutableUnversionedRow row, bool isLastRow)
     {
         if (SkynetColumnEvaluator_) {
-            SkynetColumnEvaluator_->ValidateAndComputeHashes(row, RowBuffer_);
+            SkynetColumnEvaluator_->ValidateAndComputeHashes(row, RowBuffer_, isLastRow);
         }
     }
 

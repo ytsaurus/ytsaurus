@@ -1573,37 +1573,32 @@ private:
         const TLock* lockToIgnore = nullptr)
     {
         Y_ASSERT(trunkNode->IsTrunk());
-        YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
+        Y_ASSERT(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
 
         if (!transaction) {
             return true;
         }
 
         const auto& lockingState = trunkNode->LockingState();
-        const auto& sharedLocks = lockingState.SharedLocks;
-        const auto& exclusiveLocks = lockingState.ExclusiveLocks;
-
-        auto checkExistingLock = [&] (const TLock* existingLock) {
-            auto* existingTransaction = existingLock->GetTransaction();
-            return
-                transaction == existingTransaction &&
-                existingLock->Request() == request &&
-                existingLock != lockToIgnore;
-        };
-
         switch (request.Mode) {
             case ELockMode::Exclusive:
-                for (auto* existingLock : exclusiveLocks) {
-                    if (checkExistingLock(existingLock)) {
+                for (auto* existingLock : lockingState.ExclusiveLocks) {
+                    if (existingLock != lockToIgnore &&
+                        existingLock->GetTransaction() == transaction &&
+                        existingLock->Request().Key == request.Key)
+                    {
                         return true;
                     }
                 }
                 break;
 
             case ELockMode::Shared: {
-                auto range = sharedLocks.equal_range(request.Key);
+                auto range = lockingState.SharedLocks.equal_range(request.Key);
                 for (auto it = range.first; it != range.second; ++it) {
-                    if (checkExistingLock(it->second)) {
+                    const auto* existingLock = it->second;
+                    if (existingLock != lockToIgnore &&
+                        existingLock->GetTransaction() == transaction)
+                    {
                         return true;
                     }
                 }
@@ -1615,18 +1610,6 @@ private:
         }
 
         return false;
-    }
-
-    static bool IsRedundantLockRequest(
-        const TLockRequest& newRequest,
-        const TLockRequest& existingRequest)
-    {
-        Y_ASSERT(newRequest.Mode != ELockMode::Snapshot);
-        Y_ASSERT(existingRequest.Mode != ELockMode::Snapshot);
-
-        return
-            existingRequest.Mode > newRequest.Mode ||
-            existingRequest.Mode == newRequest.Mode && existingRequest.Key == newRequest.Key;
     }
 
     static bool IsParentTransaction(
@@ -1975,12 +1958,10 @@ private:
         const auto& handler = GetHandler(branchedNode);
 
         auto* trunkNode = branchedNode->GetTrunkNode();
-        auto branchedId = branchedNode->GetVersionedId();
-        auto* parentTransaction = transaction->GetParent();
-        auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
-
+        auto branchedNodeId = branchedNode->GetVersionedId();
+        
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
-            auto* originatingNode = NodeMap_.Get(originatingId);
+            auto* originatingNode = branchedNode->GetOriginator();
 
             // Merge changes back.
             Y_ASSERT(branchedNode->GetTransaction() == transaction);
@@ -1991,7 +1972,7 @@ private:
             // (We don't have any mutation context at hand to provide a synchronized timestamp.)
             // Later on, Cypress is initialized and filled with nodes.
             // At this point we set the root's creation time.
-            if (trunkNode == RootNode_ && !parentTransaction) {
+            if (trunkNode == RootNode_ && !transaction->GetParent()) {
                 originatingNode->SetCreationTime(originatingNode->GetModificationTime());
             }
         } else {
@@ -1999,16 +1980,16 @@ private:
             Y_ASSERT(branchedNode->GetTransaction() == transaction);
             handler->Destroy(branchedNode);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedId);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
 
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
         // Remove the branched copy.
-        NodeMap_.Remove(branchedId);
+        NodeMap_.Remove(branchedNodeId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedId);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
     void MergeNodes(TTransaction* transaction)
@@ -2029,16 +2010,13 @@ private:
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
-
+        
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
             // Cleanup the branched node.
-            auto branchedId = branchedNode->GetVersionedId();
-            auto* parentTransaction = transaction->GetParent();
-            auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
-            auto* originatingNode = NodeMap_.Get(originatingId);
+            auto* originatingNode = branchedNode->GetOriginator();
             handler->Unbranch(originatingNode, branchedNode);
         }
 

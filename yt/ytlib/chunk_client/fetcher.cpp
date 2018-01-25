@@ -252,7 +252,8 @@ void TFetcherBase::StartFetchingRound()
         }
     }
 
-    if (!unavailableChunks.empty() && ChunkScraper_) {
+    if (!unavailableChunks.empty()) {
+        YCHECK(ChunkScraper_);
         LOG_DEBUG("Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
             unavailableChunks.size());
         auto error = WaitFor(ChunkScraper_->ScrapeChunks(std::move(unavailableChunks)));

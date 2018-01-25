@@ -5,9 +5,15 @@
 
 #include <yt/core/ytree/helpers.h>
 
+#include <yt/core/yson/protobuf_interop.h>
+
+#include <contrib/libs/protobuf/io/coded_stream.h>
+#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+
 namespace NYT {
 namespace NRpc {
 
+using namespace NYson;
 using namespace NRpc::NProto;
 using namespace NTracing;
 
@@ -375,6 +381,80 @@ void SetMutationId(const IClientRequestPtr& request, const TMutationId& id, bool
 void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry)
 {
     SetMutationId(request, id ? id : TMutationId::Create(), retry);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+yhash<EMessageFormat, IMessageFormat*>& GetMessageFormatRegistry()
+{
+    static yhash<EMessageFormat, IMessageFormat*> Registry;
+    return Registry;
+}
+
+IMessageFormat* GetMessageFormatOrThrow(EMessageFormat format)
+{
+    const auto& registry = GetMessageFormatRegistry();
+    auto it = registry.find(format);
+    if (it == registry.end()) {
+        THROW_ERROR_EXCEPTION("Unsupported message format")
+            << TErrorAttribute("format", ToString(format));
+    }
+    return it->second;
+}
+
+void RegisterCustomMessageFormat(EMessageFormat format, IMessageFormat* formatHandler)
+{
+    YCHECK(!GetMessageFormatRegistry()[format]);
+    GetMessageFormatRegistry()[format] = formatHandler;
+}
+
+namespace {
+
+class TYsonMessageFormat
+    : public IMessageFormat
+{
+public:
+    TYsonMessageFormat()
+    {
+        RegisterCustomMessageFormat(EMessageFormat::Yson, this);
+    }
+
+    virtual TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType) override
+    {
+        auto ysonBuffer = PopEnvelope(message);
+        TString protoBuffer;
+        {
+            google::protobuf::io::StringOutputStream output(&protoBuffer);
+            auto converter = CreateProtobufWriter(&output, messageType);
+            ParseYsonSharedRefArray(TSharedRefArray{ysonBuffer}, EYsonType::Node, converter.get());
+        }
+        return PushEnvelope(TSharedRef::FromString(protoBuffer));
+    }
+
+    virtual TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType) override
+    {
+        auto protoBuffer = PopEnvelope(message);
+        google::protobuf::io::ArrayInputStream stream(protoBuffer.Begin(), protoBuffer.Size());
+        TString ysonBuffer;
+        {
+            TStringOutput output(ysonBuffer);
+            TYsonWriter writer{&output, EYsonFormat::Text};
+            ParseProtobuf(&writer, &stream, messageType);
+        }
+        return PushEnvelope(TSharedRef::FromString(ysonBuffer));
+    }
+} YsonFormat;
+
+} // namespace
+
+TSharedRef ConvertMessageToFormat(const TSharedRef& message, EMessageFormat format, const TProtobufMessageType* messageType)
+{
+    return GetMessageFormatOrThrow(format)->ConvertTo(message, messageType);
+}
+
+TSharedRef ConvertMessageFromFormat(const TSharedRef& message, EMessageFormat format, const TProtobufMessageType* messageType)
+{
+    return GetMessageFormatOrThrow(format)->ConvertFrom(message, messageType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -238,7 +238,7 @@ public:
             .Default(true);
 
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
                 THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
             }
@@ -317,7 +317,9 @@ public:
     i64 PoolChunkSize;
     double MaxPoolSmallBlockRatio;
 
-    TDuration ErrorBackoffTime;
+    TDuration PreloadBackoffTime;
+    TDuration CompactionBackoffTime;
+    TDuration FlushBackoffTime;
 
     TDuration MaxBlockedRowWaitTime;
 
@@ -345,7 +347,11 @@ public:
         RegisterParameter("max_blocked_row_wait_time", MaxBlockedRowWaitTime)
             .Default(TDuration::Seconds(5));
 
-        RegisterParameter("error_backoff_time", ErrorBackoffTime)
+        RegisterParameter("preload_backoff_time", PreloadBackoffTime)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("compaction_backoff_time", CompactionBackoffTime)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("flush_backoff_time", FlushBackoffTime)
             .Default(TDuration::Minutes(1));
 
         RegisterParameter("changelog_codec", ChangelogCodec)

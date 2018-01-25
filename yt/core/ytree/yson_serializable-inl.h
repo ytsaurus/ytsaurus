@@ -4,6 +4,7 @@
 #endif
 
 #include "convert.h"
+#include "serialize.h"
 #include "tree_visitor.h"
 
 #include <yt/core/yson/consumer.h>
@@ -329,28 +330,6 @@ inline void InvokeForComposites(const Map<T...>* parameter, const F& func)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// all
-inline bool HasValue(const void* /* parameter */)
-{
-    return true;
-}
-
-// TIntrusivePtr
-template <class T>
-inline bool HasValue(TIntrusivePtr<T>* parameter)
-{
-    return (bool) (*parameter);
-}
-
-// TNullable
-template <class T>
-inline bool HasValue(TNullable<T>* parameter)
-{
-    return parameter->HasValue();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NDetail
 
 template <class T>
@@ -371,13 +350,13 @@ void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYP
 }
 
 template <class T>
-void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) const
+void TYsonSerializableLite::TParameter<T>::Postprocess(const NYPath::TYPath& path) const
 {
-    for (const auto& validator : Validators) {
+    for (const auto& postprocessor : Postprocessors) {
         try {
-            validator(Parameter);
+            postprocessor(Parameter);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Validation failed at %v",
+            THROW_ERROR_EXCEPTION("Postprocess failed at %v",
                 path.empty() ? "root" : path)
                 << ex;
         }
@@ -388,7 +367,7 @@ void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) 
         path,
         [] (TIntrusivePtr<TYsonSerializable> obj, const NYPath::TYPath& subpath) {
             if (obj) {
-                obj->Validate(subpath);
+                obj->Postprocess(subpath);
             }
         });
 }
@@ -457,9 +436,9 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Defa
 }
 
 template <class T>
-TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::CheckThat(TValidator validator)
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::CheckThat(TPostprocessor postprocessor)
 {
-    Validators.push_back(std::move(validator));
+    Postprocessors.push_back(std::move(postprocessor));
     return *this;
 }
 
@@ -483,9 +462,9 @@ void TYsonSerializableLite::TParameter<T>::SetKeepUnrecognizedRecursively()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Standard validators
+// Standard postprocessors
 
-#define DEFINE_VALIDATOR(method, condition, error) \
+#define DEFINE_POSTPROCESSOR(method, condition, error) \
     template <class T> \
     TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::method \
     { \
@@ -501,43 +480,43 @@ void TYsonSerializableLite::TParameter<T>::SetKeepUnrecognizedRecursively()
         }); \
     }
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     GreaterThan(TValueType expected),
     actual > expected,
     TError("Expected > %v, found %v", expected, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     GreaterThanOrEqual(TValueType expected),
     actual >= expected,
     TError("Expected >= %v, found %v", expected, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     LessThan(TValueType expected),
     actual < expected,
     TError("Expected < %v, found %v", expected, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     LessThanOrEqual(TValueType expected),
     actual <= expected,
     TError("Expected <= %v, found %v", expected, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     InRange(TValueType lowerBound, TValueType upperBound),
     lowerBound <= actual && actual <= upperBound,
     TError("Expected in range [%v,%v], found %v", lowerBound, upperBound, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     NonEmpty(),
     actual.size() > 0,
     TError("Value must not be empty")
 )
 
-#undef DEFINE_VALIDATOR
+#undef DEFINE_POSTPROCESSOR
 
 ////////////////////////////////////////////////////////////////////////////////
 

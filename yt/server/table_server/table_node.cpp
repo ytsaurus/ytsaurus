@@ -109,14 +109,15 @@ void TTableNode::EndUpload(
     const TDataStatistics* statistics,
     const TTableSchema& schema,
     ETableSchemaMode schemaMode,
-    TNullable<NTableClient::EOptimizeFor> optimizeFor)
+    TNullable<NTableClient::EOptimizeFor> optimizeFor,
+    const TNullable<TMD5Hasher>& md5Hasher)
 {
     SchemaMode_ = schemaMode;
     TableSchema_ = schema;
     if (optimizeFor) {
         OptimizeFor_.Set(*optimizeFor);
     }
-    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor);
+    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
 }
 
 TClusterResources TTableNode::GetDeltaResourceUsage() const

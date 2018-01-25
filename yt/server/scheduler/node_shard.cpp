@@ -3,8 +3,7 @@
 #include "helpers.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
-
-#include <yt/server/controller_agent/operation_controller.h>
+#include "operation_controller.h"
 
 #include <yt/server/exec_agent/public.h>
 
@@ -18,11 +17,14 @@
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
 
-#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
+
+#include <yt/core/actions/cancelable_context.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -64,18 +66,16 @@ static NProfiling::TAggregateCounter ScheduleTimeCounter;
 
 TNodeShard::TNodeShard(
     int id,
-    const TCellTag& primaryMasterCellTag,
+    TCellTag primaryMasterCellTag,
     TSchedulerConfigPtr config,
     INodeShardHost* host,
     TBootstrap* bootstrap)
     : Id_(id)
-    , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
     , PrimaryMasterCellTag_(primaryMasterCellTag)
-    , Config_(config)
+    , Config_(std::move(config))
     , Host_(host)
     , Bootstrap_(bootstrap)
-    , RevivalState_(New<TNodeShard::TRevivalState>(this))
-    , Logger(SchedulerLogger)
+    , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
     , CachedExecNodeDescriptorsRefresher_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
@@ -84,11 +84,16 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::CalculateResourceLimits, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
+    , Logger(NLogging::TLogger(SchedulerLogger)
+        .AddTag("NodeShardId: %v", Id_))
+{ }
+
+int TNodeShard::GetId() const
 {
-    Logger.AddTag("NodeShardId: %v", Id_);
+    return Id_;
 }
 
-IInvokerPtr TNodeShard::GetInvoker()
+const IInvokerPtr& TNodeShard::GetInvoker() const
 {
     return ActionQueue_->GetInvoker();
 }
@@ -104,62 +109,109 @@ void TNodeShard::OnMasterConnected()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    YCHECK(!Connected_);
+    Connected_ = true;
+
+    CancelableContext_ = New<TCancelableContext>();
+    CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
+
     CachedExecNodeDescriptorsRefresher_->Start();
     CachedResourceLimitsByTags_->Start();
+
+    RevivalState_ = New<TNodeShard::TRevivalState>(this);
+    RevivalState_->PrepareReviving();
 }
 
 void TNodeShard::OnMasterDisconnected()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    Connected_ = false;
+
+    if (CancelableContext_) {
+        CancelableContext_->Cancel();
+        CancelableContext_.Reset();
+    }
+
+    CancelableInvoker_.Reset();
+
     CachedExecNodeDescriptorsRefresher_->Stop();
     CachedResourceLimitsByTags_->Stop();
 
     for (const auto& pair : IdToNode_) {
-        auto node = pair.second;
-        node->Jobs().clear();
-        node->IdToJob().clear();
+        const auto& node = pair.second;
+        TLeaseManager::CloseLease(node->GetLease());
     }
+
+    IdToOpertionState_.clear();
+
+    IdToNode_.clear();
+    ExecNodeCount_ = 0;
+    TotalNodeCount_ = 0;
 
     ActiveJobCount_ = 0;
 
-    for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            JobCounter_[state][type] = 0;
-            for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-                AbortedJobCounter_[reason][state][type] = 0;
-            }
-            for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
-                CompletedJobCounter_[reason][state][type] = 0;
+    {
+        TWriterGuard guard(JobCounterLock_);
+        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
+            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+                JobCounter_[state][type] = 0;
+                for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+                    AbortedJobCounter_[reason][state][type] = 0;
+                }
+                for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+                    CompletedJobCounter_[reason][state][type] = 0;
+                }
             }
         }
     }
 
-    SubmitUpdatedAndCompletedJobsToStrategy();
+    UpdatedJobs_.clear();
+    CompletedJobs_.clear();
+
+    ConcurrentHeartbeatCount_ = 0;
+
+    RevivalState_.Reset();
 }
 
-void TNodeShard::RegisterOperation(const TOperationId& operationId, const IOperationControllerSchedulerHostPtr& operationController)
+void TNodeShard::RegisterOperation(
+    const TOperationId& operationId,
+    const IOperationControllerPtr& controller)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    YCHECK(OperationStates_.emplace(operationId, operationController).second);
+    YCHECK(IdToOpertionState_.emplace(operationId, TOperationState(controller)).second);
 }
 
 void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto it = OperationStates_.find(operationId);
-    YCHECK(it != OperationStates_.end());
+    auto it = IdToOpertionState_.find(operationId);
+    YCHECK(it != IdToOpertionState_.end());
     for (const auto& job : it->second.Jobs) {
         YCHECK(job.second->GetHasPendingUnregistration());
     }
-    OperationStates_.erase(it);
+    IdToOpertionState_.erase(it);
 }
 
-void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
+void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    if (!Connected_) {
+        context->Reply(TError(
+            NRpc::EErrorCode::Unavailable,
+            "Scheduler is not able to accept node heartbeats"));
+        return;
+    }
+
+    CancelableInvoker_->Invoke(BIND(&TNodeShard::DoProcessHeartbeat, MakeStrong(this), context));
+}
+
+void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker_);
 
     auto* request = &context->Request();
     auto* response = &context->Response();
@@ -172,20 +224,20 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
     context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v, JobCount: %v, StoredJobsIncluded: %v",
         nodeId,
         descriptor.GetDefaultAddress(),
-        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits)),
+        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits), request->disk_info()),
         request->jobs().size(),
         request->stored_jobs_included());
 
     YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
 
     auto node = GetOrRegisterNode(nodeId, descriptor);
+
     // NB: Resource limits and usage of node should be updated even if
     // node is offline to avoid getting incorrect total limits when node becomes online.
     UpdateNodeResources(node,
         request->resource_limits(),
         request->resource_usage(),
-        request->disk_limits(),
-        request->disk_usage());
+        request->disk_info());
 
     if (node->GetMasterState() != ENodeState::Online) {
         context->Reply(TError("Node is not online"));
@@ -194,7 +246,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
 
     // We should process only one heartbeat at a time from the same node.
     if (node->GetHasOngoingHeartbeat()) {
-        context->Reply(TError("Node has ongoing heartbeat"));
+        context->Reply(TError("Node already has an ongoing heartbeat"));
         return;
     }
 
@@ -219,83 +271,70 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
     response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
     response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
 
-    auto scheduleJobsAsyncResult = VoidFuture;
+    BeginNodeHeartbeatProcessing(node);
+    auto finallyGuard = Finally([&] { EndNodeHeartbeatProcessing(node); });
 
-    {
-        BeginNodeHeartbeatProcessing(node);
-        auto heartbeatGuard = Finally([&] {
-            EndNodeHeartbeatProcessing(node);
-        });
+    std::vector<TJobPtr> runningJobs;
+    bool hasWaitingJobs = false;
+    PROFILE_AGGREGATED_TIMING (AnalysisTimeCounter) {
+        ProcessHeartbeatJobs(
+            node,
+            request,
+            response,
+            &runningJobs,
+            &hasWaitingJobs);
+    }
 
-        // NB: No exception must leave this try/catch block.
-        try {
-            std::vector<TJobPtr> runningJobs;
-            bool hasWaitingJobs = false;
-            PROFILE_AGGREGATED_TIMING (AnalysisTimeCounter) {
-                ProcessHeartbeatJobs(
-                    node,
-                    request,
-                    response,
-                    &runningJobs,
-                    &hasWaitingJobs);
-            }
-
-            if (hasWaitingJobs || isThrottlingActive) {
-                if (hasWaitingJobs) {
-                    LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-                }
-                if (isThrottlingActive) {
-                    LOG_DEBUG("Throttling is active, suppressing new jobs scheduling");
-                }
-                response->set_scheduling_skipped(true);
-            } else {
-                auto schedulingContext = CreateSchedulingContext(
-                    Config_,
-                    node,
-                    Host_->GetJobSpecSliceThrottler(),
-                    runningJobs,
-                    PrimaryMasterCellTag_);
-
-                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-                    SubmitUpdatedAndCompletedJobsToStrategy();
-                }
-
-                PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
-                    node->SetHasOngoingJobsScheduling(true);
-                    WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext))
-                        .ThrowOnError();
-                    node->SetHasOngoingJobsScheduling(false);
-                }
-
-                TotalResourceUsage_ -= node->GetResourceUsage();
-                node->SetResourceUsage(schedulingContext->ResourceUsage());
-                TotalResourceUsage_ += node->GetResourceUsage();
-
-                ProcessScheduledJobs(
-                    schedulingContext,
-                    context);
-
-                // NB: some jobs maybe considered aborted after processing scheduled jobs.
-                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-                    SubmitUpdatedAndCompletedJobsToStrategy();
-                }
-
-                response->set_scheduling_skipped(false);
-            }
-
-            std::vector<TJobPtr> jobsWithPendingUnregistration;
-            for (const auto& job : node->Jobs()) {
-                if (job->GetHasPendingUnregistration()) {
-                    jobsWithPendingUnregistration.push_back(job);
-                }
-            }
-
-            for (const auto& job : jobsWithPendingUnregistration) {
-                DoUnregisterJob(job);
-            }
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to process heartbeat");
+    if (hasWaitingJobs || isThrottlingActive) {
+        if (hasWaitingJobs) {
+            LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
         }
+        if (isThrottlingActive) {
+            LOG_DEBUG("Throttling is active, suppressing new jobs scheduling");
+        }
+        response->set_scheduling_skipped(true);
+    } else {
+        auto schedulingContext = CreateSchedulingContext(
+            Config_,
+            node,
+            runningJobs,
+            PrimaryMasterCellTag_);
+
+        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+            SubmitUpdatedAndCompletedJobsToStrategy();
+        }
+
+        PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
+            node->SetHasOngoingJobsScheduling(true);
+            Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
+            node->SetHasOngoingJobsScheduling(false);
+        }
+
+        TotalResourceUsage_ -= node->GetResourceUsage();
+        node->SetResourceUsage(schedulingContext->ResourceUsage());
+        TotalResourceUsage_ += node->GetResourceUsage();
+
+        ProcessScheduledJobs(
+            schedulingContext,
+            context);
+
+        // NB: some jobs maybe considered aborted after processing scheduled jobs.
+        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+            SubmitUpdatedAndCompletedJobsToStrategy();
+        }
+
+        response->set_scheduling_skipped(false);
+    }
+
+    std::vector<TJobPtr> jobsWithPendingUnregistration;
+    for (const auto& job : node->Jobs()) {
+        if (job->GetHasPendingUnregistration()) {
+            jobsWithPendingUnregistration.push_back(job);
+        }
+    }
+
+    for (const auto& job : jobsWithPendingUnregistration) {
+        DoUnregisterJob(job);
     }
 
     context->Reply();
@@ -349,13 +388,12 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     if (HasOngoingNodesAttributesUpdate_) {
-        LOG_WARNING("Node shard %v is handling nodes attributes update for too long, skipping new update",
-            Id_);
+        LOG_WARNING("Node shard is handling nodes attributes update for too long, skipping new update");
         return;
     }
 
     HasOngoingNodesAttributesUpdate_ = true;
-    Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
+    auto finallyGuard = Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
 
     for (const auto& nodeMap : nodeMaps) {
         const auto& address = nodeMap.first;
@@ -392,7 +430,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
             // NOTE: Tags will be validated when node become online, no need in additional check here.
             execNode->Tags() = tags;
             SubtractNodeResources(execNode);
-            AbortJobsAtNode(execNode);
+            AbortAllJobsAtNode(execNode);
             UpdateNodeState(execNode, newState);
             return;
         }
@@ -407,7 +445,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
 
                 if (oldState == ENodeState::Online) {
                     SubtractNodeResources(execNode);
-                    AbortJobsAtNode(execNode);
+                    AbortAllJobsAtNode(execNode);
                     UpdateNodeState(execNode, ENodeState::Offline);
                 }
             } else {
@@ -417,21 +455,6 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
                 execNode->Tags() = tags;
                 UpdateNodeState(execNode, newState);
             }
-        }
-    }
-}
-
-void TNodeShard::AbortAllJobs(const TError& abortReason)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    for (auto& pair : OperationStates_) {
-        auto& state = pair.second;
-        state.JobsAborted = true;
-        auto jobs = state.Jobs;
-        for (const auto& job : jobs) {
-            auto status = JobStatusFromError(abortReason);
-            OnJobAborted(job.second, &status);
         }
     }
 }
@@ -596,6 +619,7 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
         case EJobType::PartitionMap:
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
+        case EJobType::Vanilla:
             break;
         default:
             THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it has type %Qlv",
@@ -648,7 +672,7 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
     return TYsonString(rsp->result());
 }
 
-void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
+void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -726,51 +750,49 @@ void TNodeShard::FailJob(const TJobId& jobId)
     job->SetFailRequested(true);
 }
 
+void TNodeShard::ReleaseJob(const TJobId& jobId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    // NB: While we kept job id in operation controller, its execution node
+    // could have been unregistered.
+    auto nodeId = NodeIdFromJobId(jobId);
+    if (auto execNode = FindNodeByJob(jobId)) {
+        LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v)",
+            jobId,
+            nodeId,
+            execNode->GetDefaultAddress());
+        RevivalState_->JobIdsToRemove()[nodeId].emplace_back(jobId);
+    } else {
+        LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
+            jobId,
+            nodeId);
+    }
+}
+
 void TNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    for (auto& node : IdToNode_) {
-        BuildNodeYson(node.second, fluent);
+    for (const auto& pair : IdToNode_) {
+        BuildNodeYson(pair.second, fluent);
     }
 }
 
-void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
+void TNodeShard::RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    for (const auto& jobId : jobIds) {
-        // NB: While we kept job id in operation controller, its execution node
-        // could have unregistered.
-        const auto& nodeId = NodeIdFromJobId(jobId);
-        if (auto execNode = GetNodeByJob(jobId)) {
-            LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v)",
-                jobId,
-                nodeId,
-                execNode->GetDefaultAddress());
-            RevivalState_->JobIdsToRemove()[nodeId].emplace_back(jobId);
-        } else {
-            LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
-                jobId,
-                nodeId);
-        }
+    auto* operationState = FindOperationState(operationId);
+    if (!operationState || operationState->JobsAborted) {
+        return;
     }
-}
 
-void TNodeShard::RegisterRevivedJobs(const std::vector<TJobPtr>& jobs)
-{
-    for (auto& job : jobs) {
+    for (const auto& job : jobs) {
         job->SetNode(GetOrRegisterNode(
             job->RevivedNodeDescriptor().Id,
             TNodeDescriptor(job->RevivedNodeDescriptor().Address)));
         RegisterJob(job);
         RevivalState_->RegisterRevivedJob(job);
     }
-}
-
-void TNodeShard::PrepareReviving()
-{
-    RevivalState_->PrepareReviving();
 }
 
 void TNodeShard::StartReviving()
@@ -923,7 +945,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
     return node;
 }
 
-void TNodeShard::UnregisterNode(TExecNodePtr node)
+void TNodeShard::UnregisterNode(const TExecNodePtr& node)
 {
     if (node->GetHasOngoingHeartbeat()) {
         LOG_INFO("Node unregistration postponed until heartbeat is finished (Address: %v)",
@@ -934,13 +956,13 @@ void TNodeShard::UnregisterNode(TExecNodePtr node)
     }
 }
 
-void TNodeShard::DoUnregisterNode(TExecNodePtr node)
+void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 {
     if (node->GetMasterState() == ENodeState::Online) {
         SubtractNodeResources(node);
     }
 
-    AbortJobsAtNode(node);
+    AbortAllJobsAtNode(node);
 
     YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
@@ -949,7 +971,7 @@ void TNodeShard::DoUnregisterNode(TExecNodePtr node)
     LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
 }
 
-void TNodeShard::AbortJobsAtNode(TExecNodePtr node)
+void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node)
 {
     // Make a copy, the collection will be modified.
     auto jobs = node->Jobs();
@@ -967,7 +989,7 @@ void TNodeShard::AbortJobsAtNode(TExecNodePtr node)
 }
 
 void TNodeShard::ProcessHeartbeatJobs(
-    TExecNodePtr node,
+    const TExecNodePtr& node,
     NJobTrackerClient::NProto::TReqHeartbeat* request,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     std::vector<TJobPtr>* runningJobs,
@@ -989,14 +1011,23 @@ void TNodeShard::ProcessHeartbeatJobs(
         node->SetLastCheckMissingJobsTime(now);
     }
 
+    // If some controller managed to revive and register its jobs first,
+    // we should not treat them as missing in the corresponding node hearbeats:
+    // they may be actually stored.
+    if (RevivalState_->GetPhase() == EJobRevivalPhase::RevivingControllers) {
+        checkMissingJobs = false;
+    }
+
     const auto& nodeId = node->GetId();
     const auto& nodeAddress = node->GetDefaultAddress();
 
-    if (request->stored_jobs_included()) {
+    if (request->stored_jobs_included() && RevivalState_->GetPhase() == EJobRevivalPhase::ConfirmingJobs) {
         RevivalState_->OnReceivedStoredJobs(nodeId);
     }
 
-    if (RevivalState_->ShouldSendStoredJobs(nodeId)) {
+    if (RevivalState_->GetPhase() == EJobRevivalPhase::ConfirmingJobs &&
+        RevivalState_->ShouldSendStoredJobs(nodeId))
+    {
         LOG_DEBUG("Asking node to include all stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
             nodeId,
             nodeAddress);
@@ -1032,9 +1063,10 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 
     for (auto& jobStatus : *request->mutable_jobs()) {
+        YCHECK(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
         // Skip jobs that are not issued by the scheduler.
-        if (jobType != EJobType::Unknown && (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)) {
+        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast) {
             continue;
         }
 
@@ -1093,7 +1125,7 @@ NLogging::TLogger TNodeShard::CreateJobLogger(const TJobId& jobId, EJobState sta
 }
 
 TJobPtr TNodeShard::ProcessJobHeartbeat(
-    TExecNodePtr node,
+    const TExecNodePtr& node,
     NJobTrackerClient::NProto::TReqHeartbeat* request,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     TJobStatus* jobStatus,
@@ -1111,7 +1143,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // we can decide what to do with these jobs only when all TJob's are revived.
         // Also we should not remove the completed jobs that were not
         // saved to the snapshot.
-        if (RevivalState_->ShouldSkipUnknownJobs() || RevivalState_->RecentlyCompletedJobIds().has(jobId)) {
+        if (RevivalState_->GetPhase() == EJobRevivalPhase::RevivingControllers ||
+            RevivalState_->RecentlyCompletedJobIds().has(jobId))
+        {
             return nullptr;
         }
         switch (state) {
@@ -1224,22 +1258,31 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 LOG_DEBUG("Aborting job");
                 ToProto(response->add_jobs_to_abort(), jobId);
             } else {
-                LOG_DEBUG_IF(shouldLogJob, "Job is %lv", state);
                 SetJobState(job, state);
-                if (state == EJobState::Running) {
-                    OnJobRunning(job, jobStatus);
-                    if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
-                        LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
-                            CpuInstantToInstant(job->GetInterruptDeadline()),
-                            jobId,
-                            job->GetOperationId());
-                        ToProto(response->add_jobs_to_abort(), jobId);
-                    } else if (job->GetFailRequested()) {
-                        LOG_DEBUG("Job fail requested (JobId: %v)", jobId);
-                        ToProto(response->add_jobs_to_fail(), jobId);
-                    } else if (job->GetInterruptReason() != EInterruptReason::None) {
-                        ToProto(response->add_jobs_to_interrupt(), jobId);
-                    }
+                switch (state) {
+                    case EJobState::Running:
+                        LOG_DEBUG_IF(shouldLogJob, "Job is running", state);
+                        OnJobRunning(job, jobStatus);
+                        if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
+                            LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
+                                CpuInstantToInstant(job->GetInterruptDeadline()),
+                                jobId,
+                                job->GetOperationId());
+                            ToProto(response->add_jobs_to_abort(), jobId);
+                        } else if (job->GetFailRequested()) {
+                            LOG_DEBUG("Job fail requested (JobId: %v)", jobId);
+                            ToProto(response->add_jobs_to_fail(), jobId);
+                        } else if (job->GetInterruptReason() != EInterruptReason::None) {
+                            ToProto(response->add_jobs_to_interrupt(), jobId);
+                        }
+                        break;
+
+                    case EJobState::Waiting:
+                        LOG_DEBUG_IF(shouldLogJob, "Job is waiting", state);
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
                 }
             }
             break;
@@ -1255,7 +1298,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     return job;
 }
 
-void TNodeShard::SubtractNodeResources(TExecNodePtr node)
+void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
     TWriterGuard guard(ResourcesLock_);
 
@@ -1267,7 +1310,7 @@ void TNodeShard::SubtractNodeResources(TExecNodePtr node)
     }
 }
 
-void TNodeShard::AddNodeResources(TExecNodePtr node)
+void TNodeShard::AddNodeResources(const TExecNodePtr& node)
 {
     TWriterGuard guard(ResourcesLock_);
 
@@ -1284,11 +1327,10 @@ void TNodeShard::AddNodeResources(TExecNodePtr node)
 }
 
 void TNodeShard::UpdateNodeResources(
-    TExecNodePtr node,
+    const TExecNodePtr& node,
     const TJobResources& limits,
     const TJobResources& usage,
-    const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskUsage)
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
 {
     auto oldResourceLimits = node->GetResourceLimits();
     auto oldResourceUsage = node->GetResourceUsage();
@@ -1300,8 +1342,7 @@ void TNodeShard::UpdateNodeResources(
         }
         node->SetResourceLimits(limits);
         node->SetResourceUsage(usage);
-        node->SetDiskUsage(diskUsage);
-        node->SetDiskLimits(diskLimits);
+        node->SetDiskInfo(diskInfo);
     } else {
         if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == ENodeState::Online) {
             ExecNodeCount_ -= 1;
@@ -1326,17 +1367,17 @@ void TNodeShard::UpdateNodeResources(
     }
 }
 
-void TNodeShard::BeginNodeHeartbeatProcessing(TExecNodePtr node)
+void TNodeShard::BeginNodeHeartbeatProcessing(const TExecNodePtr& node)
 {
+    YCHECK(!node->GetHasOngoingHeartbeat());
     node->SetHasOngoingHeartbeat(true);
 
     ConcurrentHeartbeatCount_ += 1;
 }
 
-void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
+void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 {
     YCHECK(node->GetHasOngoingHeartbeat());
-
     node->SetHasOngoingHeartbeat(false);
 
     ConcurrentHeartbeatCount_ -= 1;
@@ -1349,7 +1390,7 @@ void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
 
 void TNodeShard::ProcessScheduledJobs(
     const ISchedulingContextPtr& schedulingContext,
-    const TScheduler::TCtxHeartbeatPtr& rpcContext)
+    const TScheduler::TCtxNodeHeartbeatPtr& rpcContext)
 {
     auto* response = &rpcContext->Response();
 
@@ -1362,12 +1403,7 @@ void TNodeShard::ProcessScheduledJobs(
                 job->GetOperationId());
             if (operationState && !operationState->Terminated) {
                 const auto& controller = operationState->Controller;
-                controller->GetCancelableInvoker()->Invoke(BIND(
-                    &IOperationControllerSchedulerHost::OnJobAborted,
-                    controller,
-                    Passed(std::make_unique<TAbortedJobSummary>(
-                        job->GetId(),
-                        EAbortReason::SchedulingOperationSuspended))));
+                controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
                 CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
             }
             continue;
@@ -1377,11 +1413,7 @@ void TNodeShard::ProcessScheduledJobs(
         IncreaseProfilingCounter(job, 1);
 
         const auto& controller = operationState->Controller;
-        controller->GetCancelableInvoker()->Invoke(BIND(
-            &IOperationControllerSchedulerHost::OnJobStarted,
-            controller,
-            job->GetId(),
-            job->GetStartTime()));
+        controller->OnJobStarted(job);
 
         auto* startInfo = response->add_jobs_to_start();
         ToProto(startInfo->mutable_job_id(), job->GetId());
@@ -1412,16 +1444,17 @@ void TNodeShard::ProcessScheduledJobs(
 
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
 {
+    YCHECK(status);
+
     if (!status->has_statistics()) {
         return;
     }
 
     auto now = GetCpuInstant();
-    if (now > job->GetRunningJobUpdateDeadline()) {
-        job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
-    } else {
+    if (now < job->GetRunningJobUpdateDeadline()) {
         return;
     }
+    job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
 
     auto delta = status->resource_usage() - job->ResourceUsage();
     UpdatedJobs_.emplace_back(job->GetOperationId(), job->GetId(), delta, job->GetTreeId());
@@ -1430,27 +1463,20 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
-        BIND(&IOperationControllerSchedulerHost::OnJobRunning,
-            controller,
-            Passed(std::make_unique<TRunningJobSummary>(job, status)))
-            .Via(controller->GetCancelableInvoker())
-            .Run();
+        controller->OnJobRunning(job, status);
     }
-}
-
-void TNodeShard::OnJobWaiting(const TJobPtr& /*job*/)
-{
-    // Do nothing.
 }
 
 void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned)
 {
+    YCHECK(abandoned == !status);
+
     if (job->GetState() == EJobState::Running ||
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
     {
         // The value of status may be nullptr on abandoned jobs.
-        if (status != nullptr) {
+        if (status) {
             const auto& result = status->result();
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             if (schedulerResultExt.unread_chunk_specs_size() == 0) {
@@ -1461,7 +1487,6 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
                 job->SetInterruptReason(EInterruptReason::Unknown);
             }
         } else {
-            YCHECK(abandoned);
             job->SetInterruptReason(EInterruptReason::None);
         }
 
@@ -1472,10 +1497,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
             const auto& controller = operationState->Controller;
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationControllerSchedulerHost::OnJobCompleted,
-                controller,
-                Passed(std::make_unique<TCompletedJobSummary>(job, status, abandoned))));
+            controller->OnJobCompleted(job, status, abandoned);
         }
     }
 
@@ -1484,6 +1506,8 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
 
 void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
 {
+    YCHECK(status);
+
     if (job->GetState() == EJobState::Running ||
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
@@ -1495,10 +1519,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
             const auto& controller = operationState->Controller;
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationControllerSchedulerHost::OnJobFailed,
-                controller,
-                Passed(std::make_unique<TFailedJobSummary>(job, status))));
+            controller->OnJobFailed(job, status);
         }
     }
 
@@ -1507,6 +1528,8 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
 
 void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated)
 {
+    YCHECK(status);
+
     // Only update the status for the first time.
     // Typically the scheduler decides to abort the job on its own.
     // In this case we should ignore the status returned from the node
@@ -1515,9 +1538,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
     {
-        if (status) {
-            job->SetAbortReason(GetAbortReason(status->result()));
-        }
+        job->SetAbortReason(GetAbortReason(status->result()));
         SetJobState(job, EJobState::Aborted);
 
         OnJobFinished(job);
@@ -1525,10 +1546,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState && !operationTerminated) {
             const auto& controller = operationState->Controller;
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationControllerSchedulerHost::OnJobAborted,
-                controller,
-                Passed(std::make_unique<TAbortedJobSummary>(job, status))));
+            controller->OnJobAborted(job, status);
         }
     }
 
@@ -1540,20 +1558,21 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
     job->SetFinishTime(TInstant::Now());
     auto duration = job->GetDuration();
 
-    TWriterGuard guard(JobTimeStatisticsDeltaLock_);
-
-    switch (job->GetState()) {
-        case EJobState::Completed:
-            JobTimeStatisticsDelta_.CompletedJobTimeDelta += duration.MicroSeconds();
-            break;
-        case EJobState::Failed:
-            JobTimeStatisticsDelta_.FailedJobTimeDelta += duration.MicroSeconds();
-            break;
-        case EJobState::Aborted:
-            JobTimeStatisticsDelta_.AbortedJobTimeDelta += duration.MicroSeconds();
-            break;
-        default:
-            Y_UNREACHABLE();
+    {
+        TWriterGuard guard(JobTimeStatisticsDeltaLock_);
+        switch (job->GetState()) {
+            case EJobState::Completed:
+                JobTimeStatisticsDelta_.CompletedJobTimeDelta += duration.MicroSeconds();
+                break;
+            case EJobState::Failed:
+                JobTimeStatisticsDelta_.FailedJobTimeDelta += duration.MicroSeconds();
+                break;
+            case EJobState::Aborted:
+                JobTimeStatisticsDelta_.AbortedJobTimeDelta += duration.MicroSeconds();
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
     }
 }
 
@@ -1640,13 +1659,15 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
 
         CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
 
-        LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
+        LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
-            job->GetOperationId());
+            job->GetOperationId(),
+            job->GetState());
     } else {
-        LOG_DEBUG("Dangling job unregistered (JobId: %v, OperationId: %v)",
+        LOG_DEBUG("Dangling job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
-            job->GetOperationId());
+            job->GetOperationId(),
+            job->GetState());
     }
 }
 
@@ -1697,14 +1718,11 @@ void TNodeShard::InterruptJob(const TJobId& jobId, EInterruptReason reason)
     }
 }
 
-TExecNodePtr TNodeShard::GetNodeByJob(const TJobId& jobId)
+TExecNodePtr TNodeShard::FindNodeByJob(const TJobId& jobId)
 {
     auto nodeId = NodeIdFromJobId(jobId);
     auto it = IdToNode_.find(nodeId);
-    if (it == IdToNode_.end()) {
-        return nullptr;
-    }
-    return it->second;
+    return it == IdToNode_.end() ? nullptr : it->second;
 }
 
 TJobPtr TNodeShard::FindJob(const TJobId& jobId, const TExecNodePtr& node)
@@ -1716,7 +1734,7 @@ TJobPtr TNodeShard::FindJob(const TJobId& jobId, const TExecNodePtr& node)
 
 TJobPtr TNodeShard::FindJob(const TJobId& jobId)
 {
-    auto node = GetNodeByJob(jobId);
+    auto node = FindNodeByJob(jobId);
     if (!node) {
         return nullptr;
     }
@@ -1743,23 +1761,23 @@ TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
 
 bool TNodeShard::OperationExists(const TOperationId& operationId) const
 {
-    return OperationStates_.find(operationId) != OperationStates_.end();
+    return IdToOpertionState_.find(operationId) != IdToOpertionState_.end();
 }
 
 TNodeShard::TOperationState* TNodeShard::FindOperationState(const TOperationId& operationId)
 {
-    auto it = OperationStates_.find(operationId);
-    return it != OperationStates_.end() ? &it->second : nullptr;
+    auto it = IdToOpertionState_.find(operationId);
+    return it != IdToOpertionState_.end() ? &it->second : nullptr;
 }
 
 TNodeShard::TOperationState& TNodeShard::GetOperationState(const TOperationId& operationId)
 {
-    auto it = OperationStates_.find(operationId);
-    YCHECK(it != OperationStates_.end());
+    auto it = IdToOpertionState_.find(operationId);
+    YCHECK(it != IdToOpertionState_.end());
     return it->second;
 }
 
-void TNodeShard::BuildNodeYson(TExecNodePtr node, TFluentMap fluent)
+void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
 {
     fluent
         .Item(node->GetDefaultAddress()).BeginMap()
@@ -1771,18 +1789,14 @@ void TNodeShard::BuildNodeYson(TExecNodePtr node, TFluentMap fluent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeShard::TRevivalState::TRevivalState(TNodeShard* host)
-    : Host_(host)
+TNodeShard::TRevivalState::TRevivalState(TNodeShard* shard)
+    : Shard_(shard)
+    , Logger(Shard_->Logger)
 { }
-
-bool TNodeShard::TRevivalState::ShouldSkipUnknownJobs() const
-{
-    return ShouldSkipUnknownJobs_;
-}
 
 bool TNodeShard::TRevivalState::ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const
 {
-    return Active_ && !NodeIdsThatSentAllStoredJobs_.has(nodeId);
+    return !NodeIdsThatSentAllStoredJobs_.has(nodeId);
 }
 
 void TNodeShard::TRevivalState::OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId)
@@ -1809,8 +1823,7 @@ void TNodeShard::TRevivalState::UnregisterJob(const TJobPtr& job)
 
 void TNodeShard::TRevivalState::PrepareReviving()
 {
-    Active_ = false;
-    ShouldSkipUnknownJobs_ = true;
+    Phase_ = EJobRevivalPhase::RevivingControllers;
     NodeIdsThatSentAllStoredJobs_.clear();
     NotConfirmedJobs_.clear();
     RecentlyCompletedJobIds_.clear();
@@ -1819,10 +1832,7 @@ void TNodeShard::TRevivalState::PrepareReviving()
 
 void TNodeShard::TRevivalState::StartReviving()
 {
-    auto& Logger = Host_->Logger;
-
-    Active_ = true;
-    ShouldSkipUnknownJobs_ = false;
+    Phase_ = EJobRevivalPhase::ConfirmingJobs;
 
     LOG_INFO("Waiting for jobs to be confirmed (JobCount: %v)",
         NotConfirmedJobs_.size());
@@ -1830,21 +1840,22 @@ void TNodeShard::TRevivalState::StartReviving()
     //! Give some time for nodes to confirm the jobs.
     TDelayedExecutor::Submit(
         BIND(&TNodeShard::TRevivalState::FinalizeReviving, MakeWeak(this))
-            .Via(Host_->GetInvoker()),
-        Host_->Config_->JobRevivalAbortTimeout);
+            .Via(Shard_->GetInvoker()),
+        Shard_->Config_->JobRevivalAbortTimeout);
 }
 
 void TNodeShard::TRevivalState::FinalizeReviving()
 {
-    auto& Logger = Host_->Logger;
-    Active_ = false;
+    Phase_ = EJobRevivalPhase::Finished;
+
     if (NotConfirmedJobs_.empty()) {
         LOG_INFO("All revived jobs were confirmed");
         return;
     }
+
     LOG_WARNING("Aborting revived jobs that were not confirmed (JobCount: %v, JobRevivalAbortTimeout: %v)",
         NotConfirmedJobs_.size(),
-        Host_->Config_->JobRevivalAbortTimeout);
+        Shard_->Config_->JobRevivalAbortTimeout);
 
     // NB: DoUnregisterJob attempts to erase job from the revival state, so we need to
     // eliminate set modification during its traversal by moving it to the local variable.
@@ -1855,7 +1866,7 @@ void TNodeShard::TRevivalState::FinalizeReviving()
         auto status = JobStatusFromError(
             TError("Job not confirmed")
                 << TErrorAttribute("abort_reason", EAbortReason::RevivalConfirmationTimeout));
-        Host_->OnJobAborted(job, &status);
+        Shard_->OnJobAborted(job, &status);
     }
 }
 

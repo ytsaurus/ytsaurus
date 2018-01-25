@@ -30,6 +30,8 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ENodeState,
+    // Used internally.
+    ((Unknown)    (-1))
     // Not registered.
     ((Offline)     (0))
     // Registered but did not report the first heartbeat yet.
@@ -48,17 +50,18 @@ class TNode
 {
 public:
     // Import third-party types into the scope.
-    typedef NChunkServer::TChunkPtrWithIndexes TChunkPtrWithIndexes;
-    typedef NChunkServer::TChunkPtrWithIndex TChunkPtrWithIndex;
-    typedef NChunkServer::TChunkId TChunkId;
-    typedef NChunkServer::TChunk TChunk;
-    typedef NChunkServer::TJobPtr TJobPtr;
+    using TChunkPtrWithIndexes = NChunkServer::TChunkPtrWithIndexes;
+    using TChunkPtrWithIndex = NChunkServer::TChunkPtrWithIndex;
+    using TChunkId = NChunkServer::TChunkId;
+    using TChunk = NChunkServer::TChunk;
+    using TJobPtr = NChunkServer::TJobPtr;
     template <typename T>
     using TPerMediumArray = NChunkServer::TPerMediumArray<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
     // Transient properties.
     DEFINE_BYREF_RW_PROPERTY(TPerMediumArray<double>, IOWeights);
+    DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
 
     ui64 GetVisitMark(int mediumIndex);
     void SetVisitMark(int mediumIndex, ui64 mark);
@@ -120,7 +123,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, Replicas);
 
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
-    typedef yhash<TChunkPtrWithIndexes, TInstant> TUnapprovedReplicaMap;
+    using TUnapprovedReplicaMap = yhash<TChunkPtrWithIndexes, TInstant>;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -145,7 +148,7 @@ public:
     //!   Indicates an unsealed chunk.
     //! Value:
     //!   Indicates media where seal of this chunk is scheduled.
-    typedef yhash<TChunk*, TMediumIndexSet> TChunkSealQueue;
+    using TChunkSealQueue = yhash<TChunk*, TMediumIndexSet>;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     // Tablet Manager stuff.
@@ -166,8 +169,7 @@ public:
 
     TNodeId GetId() const;
 
-    TNodeDescriptor GetDescriptor(
-        NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc) const;
+    TNodeDescriptor GetDescriptor(NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc) const;
 
     const TNodeAddressMap& GetNodeAddresses() const;
     void SetNodeAddresses(const TNodeAddressMap& nodeAddresses);
@@ -268,12 +270,12 @@ private:
 
     TPerMediumArray<TMediumReplicaSet::iterator> RandomReplicaIters_;
 
-    TPerMediumArray<ui64> VisitMarks_;
+    TPerMediumArray<ui64> VisitMarks_{};
 
     TPerMediumArray<TNullable<double>> FillFactors_;
 
-    ENodeState* LocalStatePtr_;
-    ENodeState AggregatedState_;
+    ENodeState* LocalStatePtr_ = nullptr;
+    ENodeState AggregatedState_ = ENodeState::Unknown;
 
     void ComputeAggregatedState();
     void ComputeDefaultAddress();

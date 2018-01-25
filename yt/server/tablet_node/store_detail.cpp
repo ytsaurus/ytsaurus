@@ -39,7 +39,6 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NApi;
-using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDataNode;
@@ -50,6 +49,10 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+
+using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::TChunkSpec;
+using NChunkClient::NProto::TMiscExt;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 
@@ -749,7 +752,7 @@ bool TChunkStoreBase::IsPreloadAllowed() const
 
 void TChunkStoreBase::UpdatePreloadAttempt()
 {
-    AllowedPreloadTimestamp_ = Now() + Config_->ErrorBackoffTime;
+    AllowedPreloadTimestamp_ = Now() + Config_->PreloadBackoffTime;
 }
 
 bool TChunkStoreBase::IsCompactionAllowed() const
@@ -759,7 +762,7 @@ bool TChunkStoreBase::IsCompactionAllowed() const
 
 void TChunkStoreBase::UpdateCompactionAttempt()
 {
-    AllowedCompactionTimestamp_ = Now() + Config_->ErrorBackoffTime;
+    AllowedCompactionTimestamp_ = Now() + Config_->CompactionBackoffTime;
 }
 
 EInMemoryMode TChunkStoreBase::GetInMemoryMode() const

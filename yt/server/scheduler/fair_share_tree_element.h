@@ -88,8 +88,9 @@ struct TFairShareContext
     bool PrescheduledCalled = false;
 
     // Information saved for logging.
-    int PreemptiveScheduleJobCount = 0;
-    int NonPreemptiveScheduleJobCount = 0;
+    int ControllerScheduleJobCount = 0;
+    int PreemptiveScheduleJobAttempts = 0;
+    int NonPreemptiveScheduleJobAttempts = 0;
     TJobResources ResourceUsageDiscount = ZeroJobResources();
     int ScheduledDuringPreemption = 0;
     int PreemptableJobCount = 0;

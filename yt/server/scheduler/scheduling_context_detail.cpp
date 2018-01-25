@@ -21,8 +21,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     : ResourceUsageDiscount_(ZeroJobResources())
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
-    , DiskUsage_(node->GetDiskUsage())
-    , DiskLimits_(node->GetDiskLimits())
+    , DiskInfo_(node->GetDiskInfo())
     , RunningJobs_(runningJobs)
     , Config_(config)
     , CellTag_(cellTag)
@@ -65,7 +64,7 @@ bool TSchedulingContextBase::CanStartJobWithQuota(const TJobResourcesWithQuota& 
         return false;
     }
 
-    return CanSatisfyDiskRequest(DiskLimits_, DiskUsage_, jobResourcesWithQuota.GetDiskQuota());
+    return CanSatisfyDiskRequest(DiskInfo_, jobResourcesWithQuota.GetDiskQuota());
 }
 
 bool TSchedulingContextBase::CanStartMoreJobs() const

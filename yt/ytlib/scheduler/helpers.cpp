@@ -1,15 +1,41 @@
 #include "helpers.h"
 
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/transaction.h>
+
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/ypath/token.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <util/string/ascii.h>
 
 namespace NYT {
 namespace NScheduler {
 
+using namespace NApi;
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYPath;
+using namespace NYson;
+using namespace NChunkClient;
+using namespace NCypressClient;
+using namespace NObjectClient;
+using namespace NFileClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,9 +46,7 @@ TYPath GetOperationsPath()
 
 TYPath GetOperationPath(const TOperationId& operationId)
 {
-    return
-        "//sys/operations/" +
-        ToYPathLiteral(ToString(operationId));
+    return "//sys/operations/" + ToYPathLiteral(ToString(operationId));
 }
 
 TYPath GetNewOperationPath(const TOperationId& operationId)
@@ -35,13 +59,7 @@ TYPath GetNewOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetOperationAttributesPath(const TOperationId& operationId)
-{
-    return
-        GetOperationPath(operationId) + "/@";
-}
-
-TYPath GetOperationsProgressFromScheduler(const TOperationId& operationId)
+TYPath GetOperationProgressFromOrchid(const TOperationId& operationId)
 {
     return
         "//sys/scheduler/orchid/scheduler/operations/" +
@@ -56,6 +74,13 @@ TYPath GetJobsPath(const TOperationId& operationId)
         "/jobs";
 }
 
+TYPath GetNewJobsPath(const TOperationId& operationId)
+{
+    return
+        GetNewOperationPath(operationId) +
+        "/jobs";
+}
+
 TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
@@ -63,10 +88,24 @@ TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
         ToYPathLiteral(ToString(jobId));
 }
 
+TYPath GetNewJobPath(const TOperationId& operationId, const TJobId& jobId)
+{
+    return
+        GetNewJobsPath(operationId) + "/" +
+        ToYPathLiteral(ToString(jobId));
+}
+
 TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
         GetJobPath(operationId, jobId)
+        + "/stderr";
+}
+
+TYPath GetNewStderrPath(const TOperationId& operationId, const TJobId& jobId)
+{
+    return
+        GetNewJobPath(operationId, jobId)
         + "/stderr";
 }
 
@@ -84,6 +123,13 @@ TYPath GetSnapshotPath(const TOperationId& operationId)
         + "/snapshot";
 }
 
+TYPath GetNewSnapshotPath(const TOperationId& operationId)
+{
+    return
+        GetNewOperationPath(operationId)
+        + "/snapshot";
+}
+
 TYPath GetSecureVaultPath(const TOperationId& operationId)
 {
     return
@@ -91,25 +137,56 @@ TYPath GetSecureVaultPath(const TOperationId& operationId)
         + "/secure_vault";
 }
 
-TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
+TYPath GetNewSecureVaultPath(const TOperationId& operationId)
 {
     return
-        GetOperationPath(operationId)
-        + "/output_" + ToString(tableIndex);
+        GetNewOperationPath(operationId)
+        + "/secure_vault";
 }
 
-TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId)
+std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    EOperationCypressStorageMode mode,
+    const TString& resourceName)
 {
-    return
-        GetOperationPath(operationId)
-        + "/stderr";
+    TString suffix;
+    if (!resourceName.empty()) {
+        suffix = "/" + resourceName;
+    }
+
+    switch (mode) {
+        case EOperationCypressStorageMode::Compatible:
+            return {GetJobPath(operationId, jobId) + suffix, GetNewJobPath(operationId, jobId) + suffix};
+        case EOperationCypressStorageMode::SimpleHashBuckets:
+            return {GetJobPath(operationId, jobId) + suffix};
+        case EOperationCypressStorageMode::HashBuckets:
+            return {GetNewJobPath(operationId, jobId) + suffix};
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
-TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
+std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
+    const TOperationId& operationId,
+    EOperationCypressStorageMode mode,
+    const TString& resourceName)
 {
-    return
-        GetOperationPath(operationId)
-        + "/intermediate";
+    TString suffix;
+    if (!resourceName.empty()) {
+        suffix = "/" + resourceName;
+    }
+
+    switch (mode) {
+        case EOperationCypressStorageMode::Compatible:
+            return {GetOperationPath(operationId) + suffix, GetNewOperationPath(operationId) + suffix};
+        case EOperationCypressStorageMode::SimpleHashBuckets:
+            return {GetOperationPath(operationId) + suffix};
+        case EOperationCypressStorageMode::HashBuckets:
+            return {GetNewOperationPath(operationId) + suffix};
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 const TYPath& GetPoolsPath()
@@ -214,6 +291,194 @@ bool IsSentinelReason(EAbortReason reason)
     return
         reason == EAbortReason::SchedulingFirst ||
         reason == EAbortReason::SchedulingLast;
+}
+
+TError GetSchedulerTransactionAbortedError(const TTransactionId& transactionId)
+{
+    return TError("Scheduler transaction %v has expired or was aborted", transactionId);
+}
+
+TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
+{
+    return TError("User transaction %v has expired or was aborted", transactionId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
+{
+    if (files.empty()) {
+        return;
+    }
+
+    auto connection = client->GetNativeConnection();
+
+    ITransactionPtr transaction;
+    {
+        NApi::TTransactionStartOptions options;
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Saving job files of operation %v", operationId));
+        options.Attributes = std::move(attributes);
+
+        transaction = WaitFor(client->StartTransaction(ETransactionType::Master, options))
+            .ValueOrThrow();
+    }
+
+    const auto& transactionId = transaction->GetId();
+
+    yhash<TCellTag, std::vector<TJobFile>> cellTagToFiles;
+    for (const auto& file : files) {
+        cellTagToFiles[CellTagFromId(file.ChunkId)].push_back(file);
+    }
+
+    for (const auto& pair : cellTagToFiles) {
+        auto cellTag = pair.first;
+        const auto& perCellFiles = pair.second;
+
+        struct TJobFileInfo
+        {
+            TTransactionId UploadTransactionId;
+            TNodeId NodeId;
+            TChunkListId ChunkListId;
+            NChunkClient::NProto::TDataStatistics Statistics;
+        };
+
+        std::vector<TJobFileInfo> infos;
+
+        {
+            TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+            auto batchReq =  proxy.ExecuteBatch();
+
+            for (const auto& file : perCellFiles) {
+                {
+                    auto req = TCypressYPathProxy::Create(file.Path);
+                    req->set_recursive(true);
+                    req->set_force(true);
+                    req->set_type(static_cast<int>(EObjectType::File));
+
+                    auto attributes = CreateEphemeralAttributes();
+                    if (cellTag == connection->GetPrimaryMasterCellTag()) {
+                        attributes->Set("external", false);
+                    } else {
+                        attributes->Set("external_cell_tag", cellTag);
+                    }
+                    attributes->Set("vital", false);
+                    attributes->Set("replication_factor", 1);
+                    attributes->Set(
+                        "description", BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("type").Value(file.DescriptionType)
+                                .Item("job_id").Value(file.JobId)
+                            .EndMap());
+                    ToProto(req->mutable_node_attributes(), *attributes);
+
+                    SetTransactionId(req, transactionId);
+                    GenerateMutationId(req);
+                    batchReq->AddRequest(req, "create");
+                }
+                {
+                    auto req = TFileYPathProxy::BeginUpload(file.Path);
+                    req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
+                    req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+                    req->set_upload_transaction_title(Format("Saving files of job %v of operation %v",
+                        file.JobId,
+                        operationId));
+                    GenerateMutationId(req);
+                    SetTransactionId(req, transactionId);
+                    batchReq->AddRequest(req, "begin_upload");
+                }
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            const auto& batchRsp = batchRspOrError.Value();
+
+            auto createRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create");
+            auto beginUploadRsps = batchRsp->GetResponses<TFileYPathProxy::TRspBeginUpload>("begin_upload");
+            for (int index = 0; index < perCellFiles.size(); ++index) {
+                infos.push_back(TJobFileInfo());
+                auto& info = infos.back();
+
+                {
+                    const auto& rsp = createRsps[index].Value();
+                    info.NodeId = FromProto<TNodeId>(rsp->node_id());
+                }
+                {
+                    const auto& rsp = beginUploadRsps[index].Value();
+                    info.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                }
+            }
+        }
+
+        {
+            TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
+            auto batchReq =  proxy.ExecuteBatch();
+
+            for (const auto& info : infos) {
+                auto req = TFileYPathProxy::GetUploadParams(FromObjectId(info.NodeId));
+                SetTransactionId(req, info.UploadTransactionId);
+                batchReq->AddRequest(req, "get_upload_params");
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            const auto& batchRsp = batchRspOrError.Value();
+
+            auto getUploadParamsRsps = batchRsp->GetResponses<TFileYPathProxy::TRspGetUploadParams>("get_upload_params");
+            for (int index = 0; index < getUploadParamsRsps.size(); ++index) {
+                const auto& rsp = getUploadParamsRsps[index].Value();
+                auto& info = infos[index];
+                info.ChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+            }
+        }
+
+        {
+            TChunkServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+            auto batchReq = proxy.ExecuteBatch();
+
+            GenerateMutationId(batchReq);
+            batchReq->set_suppress_upstream_sync(true);
+
+            for (int index = 0; index < perCellFiles.size(); ++index) {
+                const auto& file = perCellFiles[index];
+                const auto& info = infos[index];
+                auto* req = batchReq->add_attach_chunk_trees_subrequests();
+                ToProto(req->mutable_parent_id(), info.ChunkListId);
+                ToProto(req->add_child_ids(), file.ChunkId);
+                req->set_request_statistics(true);
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            const auto& batchRsp = batchRspOrError.Value();
+
+            for (int index = 0; index < perCellFiles.size(); ++index) {
+                auto& info = infos[index];
+                const auto& rsp = batchRsp->attach_chunk_trees_subresponses(index);
+                info.Statistics = rsp.statistics();
+            }
+        }
+
+        {
+            TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+            auto batchReq =  proxy.ExecuteBatch();
+
+            for (int index = 0; index < perCellFiles.size(); ++index) {
+                const auto& info = infos[index];
+                auto req = TFileYPathProxy::EndUpload(FromObjectId(info.NodeId));
+                *req->mutable_statistics() = info.Statistics;
+                SetTransactionId(req, info.UploadTransactionId);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        }
+    }
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

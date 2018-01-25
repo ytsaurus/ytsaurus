@@ -25,6 +25,7 @@ namespace NRpc {
 using namespace NBus;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NProfiling;
 using namespace NRpc::NProto;
 using namespace NConcurrency;
@@ -460,7 +461,7 @@ TServiceBase::TServiceBase(
     const TRealmId& realmId)
     : Logger(logger)
     , DefaultInvoker_(std::move(defaultInvoker))
-    , ServiceId_(descriptor.ServiceName, realmId)
+    , ServiceId_(descriptor.GetFullServiceName(), realmId)
     , ProtocolVersion_(descriptor.ProtocolVersion)
 {
     YCHECK(DefaultInvoker_);

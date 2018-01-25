@@ -96,6 +96,20 @@ bool TMemoryUsageTracker<ECategory>::IsExceeded(ECategory category) const
 }
 
 template <class ECategory>
+void TMemoryUsageTracker<ECategory>::SetTotalLimit(i64 newLimit)
+{
+    auto guard = Guard(SpinLock_);
+    TotalLimit_ = newLimit;
+}
+
+template <class ECategory>
+void TMemoryUsageTracker<ECategory>::SetCategoryLimit(ECategory category, i64 newLimit)
+{
+    auto guard = Guard(SpinLock_);
+    Categories_[category].Limit = newLimit;
+}
+
+template <class ECategory>
 void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
 {
     TGuard<TSpinLock> guard(SpinLock_);

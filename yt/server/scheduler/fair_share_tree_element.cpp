@@ -2155,7 +2155,8 @@ bool TOperationElement::IsSchedulable() const
 
 bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
 {
-    return !Schedulable_ ||
+    return
+        !Schedulable_ ||
         GetPendingJobCount() == 0 ||
         Controller_->IsBlocked(
             now,
@@ -2194,6 +2195,8 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
     const TJobResources& jobLimits,
     const TJobResources& jobResourceDiscount)
 {
+    ++context.ControllerScheduleJobCount;
+
     auto scheduleJobResult = Controller_->ScheduleJob(
         context.SchedulingContext,
         jobLimits,
@@ -2212,8 +2215,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
                 jobId,
                 OperationId_);
 
-            Controller_->AbortJob(
-                std::make_unique<TAbortedJobSummary>(jobId, EAbortReason::SchedulingResourceOvercommit));
+            Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
 
             // Reset result.
             scheduleJobResult = New<TScheduleJobResult>();

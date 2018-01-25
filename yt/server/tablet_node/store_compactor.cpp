@@ -618,7 +618,7 @@ private:
                 TReaderGuard guard(FutureEffectLock_);
                 auto&& firstTask = tasks->at(0);
                 if (firstTask->FutureEffect != LockedGetFutureEffect(guard, firstTask->Tablet)) {
-                    for (size_t i = 0; i < tasks->size(); ++i) {
+                    for (size_t i = 0; i < *index; ++i) {
                         auto&& task = (*tasks)[i];
                         task->FutureEffect = LockedGetFutureEffect(guard, task->Tablet);
                     }
@@ -666,7 +666,6 @@ private:
 
     int LockedGetFutureEffect(TReaderGuard&, const TTabletId& tabletId)
     {
-        TReaderGuard guard(FutureEffectLock_);
         auto it = FutureEffect_.find(tabletId);
         return it != FutureEffect_.end() ? it->second : 0;
     }
@@ -782,9 +781,11 @@ private:
             auto beginInstant = TInstant::Now();
             eden->SetCompactionTime(beginInstant);
 
-            LOG_INFO("Eden partitioning started (Slack: %v, Effect: %v, PartitionCount: %v, DataSize: %v, "
+            LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
+                "PartitionCount: %v, DataSize: %v, "
                 "ChunkCount: %v, CurrentTimestamp: %llx)",
                 task->Slack,
+                task->FutureEffect,
                 task->Effect,
                 pivotKeys.size(),
                 dataSize,
@@ -1144,9 +1145,11 @@ private:
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
-            LOG_INFO("Partition compaction started (Slack: %v, Effect: %v, DataSize: %v, ChunkCount: %v, "
+            LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
+                "DataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
                 task->Slack,
+                task->FutureEffect,
                 task->Effect,
                 dataSize,
                 stores.size(),

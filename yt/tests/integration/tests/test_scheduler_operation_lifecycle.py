@@ -101,7 +101,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         transaction_id = start_transaction(timeout=300 * 1000)
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3", transaction_id=transaction_id)
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10", transaction_id=transaction_id)
 
         time.sleep(2)
         self.Env.kill_schedulers()

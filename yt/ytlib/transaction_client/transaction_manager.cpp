@@ -195,19 +195,16 @@ public:
                 Error_.ThrowOnError();
                 switch (State_) {
                     case ETransactionState::Committing:
-                        THROW_ERROR_EXCEPTION("Transaction is already being committed",
-                            GetId())
-                            << TErrorAttribute("transaction_id", GetId());
+                        THROW_ERROR_EXCEPTION("Transaction %v is already being committed",
+                            Id_);
 
                     case ETransactionState::Committed:
-                        THROW_ERROR_EXCEPTION("Transaction is already committed",
-                            GetId())
-                            << TErrorAttribute("transaction_id", GetId());
+                        THROW_ERROR_EXCEPTION("Transaction %v is already committed",
+                            Id_);
 
                     case ETransactionState::Aborted:
-                        THROW_ERROR_EXCEPTION("Transaction is already aborted",
-                            GetId())
-                            << TErrorAttribute("transaction_id", GetId());
+                        THROW_ERROR_EXCEPTION("Transaction %v is already aborted",
+                            Id_);
 
                     case ETransactionState::Active:
                         State_ = ETransactionState::Committing;
@@ -239,7 +236,7 @@ public:
 
         LOG_DEBUG("Transaction abort requested (TransactionId: %v)",
             Id_);
-        DoAbort(TError("Transaction aborted by user request"));
+        SetAborted(TError("Transaction aborted by user request"));
 
         if (Atomicity_ != EAtomicity::Full) {
             return VoidFuture;
@@ -272,12 +269,12 @@ public:
             auto guard = Guard(SpinLock_);
             switch (State_) {
                 case ETransactionState::Committed:
-                    THROW_ERROR_EXCEPTION("Transaction %v is already committed", Id_);
-                    break;
+                    THROW_ERROR_EXCEPTION("Transaction %v is already committed",
+                        Id_);
 
                 case ETransactionState::Aborted:
-                    THROW_ERROR_EXCEPTION("Transaction %v is already aborted", Id_);
-                    break;
+                    THROW_ERROR_EXCEPTION("Transaction %v is already aborted",
+                        Id_);
 
                 case ETransactionState::Active:
                     State_ = ETransactionState::Detached;
@@ -660,7 +657,7 @@ private:
         Committed_.Fire();
     }
 
-    void SetTransactionCommitted(const TTransactionCommitResult& result)
+    void SetCommitted(const TTransactionCommitResult& result)
     {
         {
             auto guard = Guard(SpinLock_);
@@ -681,7 +678,7 @@ private:
     {
         if (RegisteredParticipantIds_.empty()) {
             TTransactionCommitResult result;
-            SetTransactionCommitted(result);
+            SetCommitted(result);
             return MakeFuture(result);
         }
 
@@ -717,7 +714,7 @@ private:
     TFuture<TTransactionCommitResult> DoCommitNonAtomic()
     {
         TTransactionCommitResult result;
-        SetTransactionCommitted(result);
+        SetCommitted(result);
         return MakeFuture(result);
     }
 
@@ -767,7 +764,7 @@ private:
         const auto& rsp = rspOrError.Value();
         TTransactionCommitResult result;
         result.CommitTimestamps = FromProto<TTimestampMap>(rsp->commit_timestamps());
-        SetTransactionCommitted(result);
+        SetCommitted(result);
         return result;
     }
 
@@ -850,7 +847,7 @@ private:
                 Id_);
 
             TDelayedExecutor::Submit(
-                BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
+                BIND(&TImpl::RunPeriodicPings, MakeWeak(this)),
                 PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod));
         }));
     }
@@ -919,7 +916,7 @@ private:
         Aborted_.Fire();
     }
 
-    void DoAbort(const TError& error)
+    void SetAborted(const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -937,7 +934,7 @@ private:
 
     void OnFailure(const TError& error)
     {
-        DoAbort(error);
+        SetAborted(error);
         // Best-effort, fire-and-forget.
         SendAbort();
     }

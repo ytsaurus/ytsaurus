@@ -77,7 +77,7 @@ private:
         Calibrate(1 - CalibrationStateIndex_);
         NextCalibrationCpuInstant_ += DurationToCpuDuration(CalibrationInterval);
     }
-    
+
     void Calibrate(int index)
     {
         auto& state = CalibrationStates_[index];
@@ -195,14 +195,24 @@ TCpuTimer::TCpuTimer()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAggregatingTimingGuard::TAggregatingTimingGuard(TDuration* value)
+TWallTimingGuard::TWallTimingGuard(TDuration* value)
     : Value_(value)
-    , StartInstant_(GetCpuInstant())
 { }
 
-TAggregatingTimingGuard::~TAggregatingTimingGuard()
+TWallTimingGuard::~TWallTimingGuard()
 {
-    *Value_ += CpuDurationToDuration(GetCpuInstant() - StartInstant_);
+    *Value_ += TWallTimer::GetElapsedTime();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCpuTimingGuard::TCpuTimingGuard(TDuration* value)
+    : Value_(value)
+{ }
+
+TCpuTimingGuard::~TCpuTimingGuard()
+{
+    *Value_ += TCpuTimer::GetElapsedTime();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

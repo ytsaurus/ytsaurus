@@ -8,6 +8,8 @@
 
 #include <yt/server/hydra/hydra_manager.h>
 
+#include <yt/server/security_server/user.h>
+
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
@@ -381,7 +383,7 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
     }));
 }
 
-TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPtr session)
+TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSessionPtr& session)
 {
     auto keys = GetKeys(session->Limit);
     session->Incomplete |= (keys.size() == session->Limit);
@@ -411,12 +413,15 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
         .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
             YCHECK(aliveKeys.size() == attributes.size());
             for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
+                if (session->Items.size() >= session->Limit) {
+                    break;
+                }
                 session->Items.push_back(TFetchItem{ToString(aliveKeys[index]), attributes[index]});
             }
         }).AsyncVia(session->Invoker));
 }
 
-TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionPtr session, TCellTag cellTag)
+TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSessionPtr& session, TCellTag cellTag)
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
@@ -424,13 +429,17 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionP
         return VoidFuture;
     }
 
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto* user = securityManager->GetAuthenticatedUser();
+
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetUser(user->GetName());
     batchReq->SetSuppressUpstreamSync(true);
 
     auto path = GetWellKnownPath();
     auto req = TCypressYPathProxy::Enumerate(path);
-    req->set_limit(session->Limit - session->Items.size());
+    req->set_limit(session->Limit);
     if (session->AttributeKeys) {
         ToProto(req->mutable_attributes()->mutable_keys(), *session->AttributeKeys);
     }
@@ -453,6 +462,9 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionP
 
             session->Incomplete |= rsp->incomplete();
             for (const auto& protoItem : rsp->items()) {
+                if (session->Items.size() >= session->Limit) {
+                    break;
+                }
                 TFetchItem item;
                 item.Key = protoItem.key();
                 if (protoItem.has_attributes()) {

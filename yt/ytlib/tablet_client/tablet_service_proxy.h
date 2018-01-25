@@ -15,7 +15,7 @@ class TTabletServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TTabletServiceProxy, RPC_PROXY_DESC(TabletService)
+    DEFINE_RPC_PROXY(TTabletServiceProxy, TabletService,
         .SetProtocolVersion(12));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Write);

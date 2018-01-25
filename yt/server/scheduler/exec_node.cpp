@@ -73,14 +73,9 @@ const TJobResources& TExecNode::GetResourceUsage() const
 }
 
 
-const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskUsage() const
+const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskInfo() const
 {
-    return DiskUsage_;
-}
-
-const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskLimits() const
-{
-    return DiskLimits_;
+    return DiskInfo_;
 }
 
 
@@ -91,14 +86,9 @@ void TExecNode::SetResourceUsage(const TJobResources& value)
     ResourceUsage_ = value;
 }
 
-void TExecNode::SetDiskUsage(const NNodeTrackerClient::NProto::TDiskResources& value)
+void TExecNode::SetDiskInfo(const NNodeTrackerClient::NProto::TDiskResources& value)
 {
-    DiskUsage_ = value;
-}
-
-void TExecNode::SetDiskLimits(const NNodeTrackerClient::NProto::TDiskResources& value)
-{
-    DiskLimits_ = value;
+    DiskInfo_ = value;
 }
 
 

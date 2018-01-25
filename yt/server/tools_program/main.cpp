@@ -1,8 +1,9 @@
-#include <yt/server/program/program.h>
+#include <yt/ytlib/program/program.h>
 
 #include <yt/server/misc/configure_singletons.h>
 #include <yt/core/tools/registry.h>
 #include <yt/core/tools/tools.h>
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/stracer.h>
 #include <yt/core/misc/signaler.h>
@@ -21,6 +22,8 @@ REGISTER_TOOL(TUmountAsRootTool)
 REGISTER_TOOL(TSetThreadPriorityAsRootTool)
 REGISTER_TOOL(TFSQuotaTool)
 REGISTER_TOOL(TChownChmodTool)
+REGISTER_TOOL(TExtractTarAsRootTool)
+REGISTER_TOOL(TGetDirectorySizeAsRootTool)
 
 namespace NCGroup {
 REGISTER_TOOL(TKillProcessGroupTool)

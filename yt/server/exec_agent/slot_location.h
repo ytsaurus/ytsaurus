@@ -7,7 +7,10 @@
 
 #include <yt/server/misc/disk_location.h>
 
+#include <yt/server/job_agent/job.h>
+
 #include <yt/core/misc/public.h>
+#include <yt/core/misc/fs.h>
 
 #include <yt/core/logging/log.h>
 
@@ -70,6 +73,10 @@ public:
     void IncreaseSessionCount();
     void DecreaseSessionCount();
 
+    NNodeTrackerClient::NProto::TDiskResourcesInfo GetDiskInfo() const;
+
+    void Disable(const TError& error);
+
 private:
     const TSlotLocationConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
@@ -83,9 +90,15 @@ private:
 
     std::set<TString> TmpfsPaths_;
 
+    NConcurrency::TReaderWriterSpinLock SlotsLock_;
+    yhash<int, TNullable<i64>> OccupiedSlotToDiskLimit_;
+
     TDiskHealthCheckerPtr HealthChecker_;
 
-    void Disable(const TError& error);
+    NNodeTrackerClient::NProto::TDiskResourcesInfo DiskInfo_;
+    NConcurrency::TReaderWriterSpinLock DiskInfoLock_;
+    NConcurrency::TPeriodicExecutorPtr DiskInfoUpdateExecutor_;
+
     void ValidateEnabled() const;
 
     static void ValidateNotExists(const TString& path);
@@ -95,6 +108,8 @@ private:
     void EnsureNotInUse(const TString& path) const;
 
     void ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const;
+
+    void UpdateDiskInfo();
 
     TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
     TString GetConfigPath(int slotIndex) const;

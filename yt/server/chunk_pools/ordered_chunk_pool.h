@@ -4,8 +4,6 @@
 #include "chunk_pool.h"
 #include "input_stream.h"
 
-#include <yt/ytlib/chunk_pools/public.h>
-
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
@@ -26,8 +24,8 @@ struct TOrderedChunkPoolOptions
     NScheduler::TOperationId OperationId;
     bool EnablePeriodicYielder = false;
     bool KeepOutputOrder = false;
-    EStripeListExtractionOrder ExtractionOrder = EStripeListExtractionOrder::DataSizeDescending;
     bool ShouldSliceByRowIndices = false;
+    TString Task;
 
     void Persist(const TPersistenceContext& context);
 };

@@ -92,11 +92,13 @@ TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
     const TAddressMap& rpcAddresses,
     const TAddressMap& skynetHttpAddresses,
+    const TAddressMap& monitoringHttpAddresses,
     const std::vector<TString>& nodeTags,
     TBootstrap* bootstrap)
     : Config_(config)
     , RpcAddresses_(rpcAddresses)
     , SkynetHttpAddresses_(skynetHttpAddresses)
+    , MonitoringHttpAddresses_(monitoringHttpAddresses)
     , NodeTags_(nodeTags)
     , Bootstrap_(bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
@@ -401,6 +403,10 @@ void TMasterConnector::RegisterAtPrimaryMaster()
     auto* skynetHttpAddresses = nodeAddresses->add_entries();
     skynetHttpAddresses->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
     ToProto(skynetHttpAddresses->mutable_addresses(), SkynetHttpAddresses_);
+
+    auto* monitoringHttpAddresses = nodeAddresses->add_entries();
+    monitoringHttpAddresses->set_address_type(static_cast<int>(EAddressType::MonitoringHttp));
+    ToProto(monitoringHttpAddresses->mutable_addresses(), MonitoringHttpAddresses_);
 
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
     ToProto(req->mutable_tags(), NodeTags_);
@@ -774,6 +780,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
             protoPerformanceCounters->set_compaction_data_weight_count(performanceCounters->CompactionDataWeightCount);
             protoPerformanceCounters->set_partitioning_data_weight_count(performanceCounters->PartitioningDataWeightCount);
+            protoPerformanceCounters->set_lookup_error_count(performanceCounters->LookupErrorCount);
+            protoPerformanceCounters->set_write_error_count(performanceCounters->WriteErrorCount);
         }
     }
 
@@ -834,6 +842,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
         UpdateDataCenter(dc);
+
+        auto tags = FromProto<std::vector<TString>>(rsp->tags());
+        UpdateTags(std::move(tags));
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
@@ -1040,7 +1051,8 @@ void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         rack,
-        LocalDescriptor_.GetDataCenter());
+        LocalDescriptor_.GetDataCenter(),
+        LocalDescriptor_.GetTags());
 }
 
 void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
@@ -1049,7 +1061,18 @@ void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         LocalDescriptor_.GetRack(),
-        dc);
+        dc,
+        LocalDescriptor_.GetTags());
+}
+
+void TMasterConnector::UpdateTags(std::vector<TString> tags)
+{
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    LocalDescriptor_ = TNodeDescriptor(
+        RpcAddresses_,
+        LocalDescriptor_.GetRack(),
+        LocalDescriptor_.GetDataCenter(),
+        std::move(tags));
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)

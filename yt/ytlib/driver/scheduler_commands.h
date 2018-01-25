@@ -80,6 +80,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetJobCommand
+    : public TTypedCommand<NApi::TGetJobOptions>
+{
+public:
+    TGetJobCommand();
+
+private:
+    NJobTrackerClient::TOperationId OperationId;
+    NJobTrackerClient::TJobId JobId;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStraceJobCommand
     : public TTypedCommand<NApi::TStraceJobOptions>
 {
@@ -133,7 +148,6 @@ private:
     NJobTrackerClient::TJobId JobId;
     NYTree::INodePtr Parameters;
 
-    virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
@@ -153,23 +167,24 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStartOperationCommandBase
+class TStartOperationCommand
     : public TTypedCommand<NApi::TStartOperationOptions>
 {
 public:
-    TStartOperationCommandBase();
+    TStartOperationCommand();
 
 private:
     NYTree::INodePtr Spec;
+    NScheduler::EOperationType OperationType;
 
-    virtual NScheduler::EOperationType GetOperationType() const = 0;
+    virtual NScheduler::EOperationType GetOperationType() const;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapCommand
-    : public TStartOperationCommandBase
+    : public TStartOperationCommand
 {
 private:
     virtual NScheduler::EOperationType GetOperationType() const override;
@@ -178,7 +193,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMergeCommand
-    : public TStartOperationCommandBase
+    : public TStartOperationCommand
 {
 private:
     virtual NScheduler::EOperationType GetOperationType() const override;
@@ -187,7 +202,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortCommand
-    : public TStartOperationCommandBase
+    : public TStartOperationCommand
 {
 private:
     virtual NScheduler::EOperationType GetOperationType() const override;
@@ -196,7 +211,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEraseCommand
-    : public TStartOperationCommandBase
+    : public TStartOperationCommand
 {
 private:
     virtual NScheduler::EOperationType GetOperationType() const override;
@@ -205,7 +220,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReduceCommand
-    : public TStartOperationCommandBase
+    : public TStartOperationCommand
 {
 private:
     virtual NScheduler::EOperationType GetOperationType() const override;
@@ -214,7 +229,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJoinReduceCommand
-    : public TStartOperationCommandBase
+    : public TStartOperationCommand
 {
 private:
     virtual NScheduler::EOperationType GetOperationType() const override;
@@ -223,7 +238,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapReduceCommand
-    : public TStartOperationCommandBase
+    : public TStartOperationCommand
 {
 private:
     virtual NScheduler::EOperationType GetOperationType() const override;
@@ -232,7 +247,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteCopyCommand
-    : public TStartOperationCommandBase
+    : public TStartOperationCommand
 {
 private:
     virtual NScheduler::EOperationType GetOperationType() const override;
@@ -303,14 +318,15 @@ class TGetOperationCommand
 {
 public:
     TGetOperationCommand();
-  
+
 private:
     NJobTrackerClient::TOperationId OperationId;
-    
+
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
 

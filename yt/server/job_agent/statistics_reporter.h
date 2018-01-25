@@ -8,6 +8,7 @@
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/operation_archive_schema.h>
 
 #include <yt/core/misc/nullable.h>
 
@@ -18,55 +19,12 @@ namespace NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobTableDescriptor
-{
-    TJobTableDescriptor();
-
-    struct TIndex
-    {
-        explicit TIndex(const NTableClient::TNameTablePtr& n);
-
-        const int OperationIdHi;
-        const int OperationIdLo;
-        const int JobIdHi;
-        const int JobIdLo;
-        const int Type;
-        const int State;
-        const int TransientState;
-        const int StartTime;
-        const int FinishTime;
-        const int Address;
-        const int Error;
-        const int Statistics;
-        const int Events;
-    };
-
-    const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
-};
-
-struct TJobSpecTableDescriptor
-{
-    TJobSpecTableDescriptor();
-
-    struct TIndex
-    {
-        explicit TIndex(const NTableClient::TNameTablePtr& n);
-
-        const int JobIdHi;
-        const int JobIdLo;
-        const int Spec;
-        const int SpecVersion;
-        const int Type;
-    };
-
-    const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
-};
+using NYT::NApi::TJobTableDescriptor;
+using NYT::NApi::TJobSpecTableDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Periodically reports job statistics to dynamic table.
+//! Periodically reports job statistics to the dynamic table.
 class TStatisticsReporter
     : public TRefCounted
 {

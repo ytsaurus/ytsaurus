@@ -88,8 +88,8 @@ private:
         i64 limit,
         const TNullable<std::vector<TString>>& attributeKeys);
 
-    TFuture<void> FetchItemsFromLocal(TFetchItemsSessionPtr session);
-    TFuture<void> FetchItemsFromRemote(TFetchItemsSessionPtr session, NObjectClient::TCellTag cellTag);
+    TFuture<void> FetchItemsFromLocal(const TFetchItemsSessionPtr& session);
+    TFuture<void> FetchItemsFromRemote(const TFetchItemsSessionPtr& session, NObjectClient::TCellTag cellTag);
 
     TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromLocal();
     TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromRemote(NObjectClient::TCellTag cellTag);

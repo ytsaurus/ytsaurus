@@ -1,108 +1,33 @@
 package NYT.NScheduler.NProto;
 
 import "yt/core/misc/proto/guid.proto";
-import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TJobResources
-{
-    optional int32 user_slots = 1;
-    optional double cpu = 2;
-    optional int64 memory = 3;
-    optional int32 network = 4;
-}
-
-message TExecNodeDescriptor
-{
-    required int32 node_id = 1;
-    required string address = 2;
-    required double io_weight = 3;
-    required TJobResources resource_limits = 4;
-    repeated string tags = 5;
-}
-
-message TExecNodeDescriptorList
-{
-    repeated TExecNodeDescriptor exec_nodes = 1;
-}
-
-message TJobMetrics
-{
-    optional int64 disk_reads = 1;
-    optional int64 disk_writes = 2;
-    optional int64 time_completed = 3;
-    optional int64 time_aborted = 4;
-}
-
-message TTreeTaggedJobMetrics
-{
-    required string tree_id = 1;
-    optional TJobMetrics metrics = 2;
-}
-
-message TOperationJobMetrics
+message TReqGetOperationInfo
 {
     required NYT.NProto.TGuid operation_id = 1;
-    repeated TTreeTaggedJobMetrics metrics = 2;
+}
+
+message TRspGetOperationInfo
+{
+    required bytes progress = 1;       // YSON
+    required bytes brief_progress = 2; // YSON
+    required bytes running_jobs = 3;   // YSON
+    required bytes job_splitter = 4;   // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqHeartbeat
+message TReqGetJobInfo
 {
-    message TJobInterrupt
-    {
-        required NYT.NProto.TGuid job_id = 1;
-        required int32 reason = 2;
-    }
-
-    message TJobAbort
-    {
-        required NYT.NProto.TGuid job_id = 1;
-        required NYT.NProto.TError error = 2;
-    }
-
-    message TJobFail
-    {
-        required NYT.NProto.TGuid job_id = 1;
-    }
-
-    message TJobsRelease
-    {
-        repeated NYT.NProto.TGuid job_ids = 1;
-        required NYT.NProto.TGuid operation_id = 2;
-        required int32 controller_scheduler_incarnation = 3;
-    }
-
-    message TOperationAlerts
-    {
-        message TAlert
-        {
-            required int32 type = 1;
-            required NYT.NProto.TError error = 2;
-        }
-
-        required NYT.NProto.TGuid operation_id = 1;
-        repeated TAlert alerts = 2;
-    }
-
-    repeated TOperationJobMetrics job_metrics = 1;
-
-    repeated TJobInterrupt jobs_to_interrupt = 2;
-    repeated TJobAbort jobs_to_abort = 3;
-    repeated TJobFail jobs_to_fail = 4;
-    repeated TJobsRelease jobs_to_release = 5;
-
-    repeated TOperationAlerts operation_alerts = 6;
-
-    required bool exec_nodes_requested = 7;
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
 }
 
-message TRspHeartbeat
+message TRspGetJobInfo
 {
-    optional TExecNodeDescriptorList exec_nodes = 1;
+    required bytes info = 1; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-

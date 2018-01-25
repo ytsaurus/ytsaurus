@@ -36,14 +36,13 @@ class TestGetJobStderr(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
-            precommand="echo STDERR-OUTPUT >&2",
-            command="cat",
+            command="echo STDERR-OUTPUT >&2 ; {breakpoint_cmd} ; cat".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "input_format": "json",
@@ -51,10 +50,10 @@ class TestGetJobStderr(YTEnvSetup):
                 }
             })
 
-        job_id = op.jobs[0]
+        job_id = events.wait_breakpoint()[0]
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
@@ -63,4 +62,3 @@ class TestGetJobStderr(YTEnvSetup):
 
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
-

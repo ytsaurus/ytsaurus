@@ -16,5 +16,7 @@ TNullable<double> TryGetDouble(const TStringBuf& yson, const NYPath::TYPath& ypa
 TNullable<TString> TryGetString(const TStringBuf& yson, const NYPath::TYPath& ypath);
 TNullable<TString> TryGetAny(const TStringBuf& yson, const NYPath::TYPath& ypath);
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT

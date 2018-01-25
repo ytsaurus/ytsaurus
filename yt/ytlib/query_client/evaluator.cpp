@@ -54,12 +54,12 @@ class TEvaluator::TImpl
     : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery>
 {
 public:
-    explicit TImpl(TExecutorConfigPtr config)
-        : TAsyncSlruCacheBase(config->CGCache)
-    { }
-
-    explicit TImpl(TExecutorConfigPtr config, TString profilingPath)
-        : TAsyncSlruCacheBase(config->CGCache, NProfiling::TProfiler(profilingPath + "/cg_cache"))
+    TImpl(
+        TExecutorConfigPtr config,
+        const NProfiling::TProfiler& profiler)
+        : TAsyncSlruCacheBase(
+            config->CGCache,
+            profiler.GetPathPrefix() ? NProfiling::TProfiler(profiler.GetPathPrefix() + "/cg_cache") : NProfiling::TProfiler())
     { }
 
     TQueryStatistics Run(
@@ -84,11 +84,14 @@ public:
                 query->GetTableSchema());
 
             TQueryStatistics statistics;
-            TDuration wallTime;
+            NProfiling::TWallTimer wallTime;
+            NProfiling::TCpuTimer syncTime;
+
+            auto finalLogger = Finally([&] () {
+                LOG_DEBUG("Finalizing evaluation");
+            });
 
             try {
-                NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
-
                 TCGVariables fragmentParams;
                 auto cgQuery = Codegen(
                     query,
@@ -122,7 +125,7 @@ public:
 
                 CallCGQueryPtr(
                     cgQuery,
-                    fragmentParams.GetLiteralvalues(),
+                    fragmentParams.GetLiteralValues(),
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
 
@@ -131,7 +134,8 @@ public:
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
 
-            statistics.SyncTime = wallTime - statistics.AsyncTime;
+            statistics.SyncTime = syncTime.GetElapsedTime();
+            statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
             statistics.ExecuteTime =
                 statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
 
@@ -178,8 +182,8 @@ private:
 
         auto compileWithLogging = [&] () {
             TRACE_CHILD("QueryClient", "Compile") {
-                NProfiling::TAggregatingTimingGuard timingGuard(&statistics.CodegenTime);
                 LOG_DEBUG("Started compiling fragment");
+                NProfiling::TCpuTimingGuard timingGuard(&statistics.CodegenTime);
                 auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
                 LOG_DEBUG("Finished compiling fragment");
                 return cgQuery;
@@ -229,17 +233,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEvaluator::TEvaluator(TExecutorConfigPtr config)
-    : Impl_(New<TImpl>(std::move(config)))
+TEvaluator::TEvaluator(
+    TExecutorConfigPtr config,
+    const NProfiling::TProfiler& profiler)
+    : Impl_(New<TImpl>(
+        std::move(config),
+        profiler))
 { }
 
-TEvaluator::TEvaluator(TExecutorConfigPtr config, const TString& profilingPath)
-    : Impl_(New<TImpl>(std::move(config), profilingPath))
-{ }
-
-TEvaluator::~TEvaluator() = default;
-
-TQueryStatistics TEvaluator::RunWithExecutor(
+TQueryStatistics TEvaluator::Run(
     TConstBaseQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
@@ -255,24 +257,6 @@ TQueryStatistics TEvaluator::RunWithExecutor(
         std::move(joinProfiler),
         functionProfilers,
         aggregateProfilers,
-        options);
-}
-
-TQueryStatistics TEvaluator::Run(
-    TConstBaseQueryPtr query,
-    ISchemafulReaderPtr reader,
-    ISchemafulWriterPtr writer,
-    TConstFunctionProfilerMapPtr functionProfilers,
-    TConstAggregateProfilerMapPtr aggregateProfilers,
-    const TQueryBaseOptions& options)
-{
-    return RunWithExecutor(
-        std::move(query),
-        std::move(reader),
-        std::move(writer),
-        nullptr,
-        std::move(functionProfilers),
-        std::move(aggregateProfilers),
         options);
 }
 

@@ -181,7 +181,6 @@ YtStatistics.prototype.dumpSolomon = function()
 
     for (var i = 0, n = keys.length; i < n; ++i) {
         var labels = parseLabels(keys[i]);
-        console.error("key = %j ; labels = %j", keys[i], labels);
         var gauge = this.gauges[keys[i]];
         if (typeof(gauge.counter) !== "undefined") {
             sensors.push({"labels": labels, "value": gauge.counter.toString(10), "mode": "deriv"});

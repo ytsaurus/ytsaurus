@@ -415,15 +415,32 @@ void TSchemalessTableReader::CheckUnavailableChunks(std::vector<TChunkSpec>* chu
             availableChunkSpecs.push_back(std::move(chunkSpec));
             continue;
         }
-        if (Config_->UnavailableChunkStrategy == EUnavailableChunkStrategy::ThrowError) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::ChunkUnavailable,
-                "Chunk %v is unavailable",
-                NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
-        } else if (IsErasureChunkId(NYT::FromProto<TChunkId>(chunkSpec.chunk_id())) &&
-                   Config_->UnavailableChunkStrategy == EUnavailableChunkStrategy::Restore) {
-            availableChunkSpecs.push_back(std::move(chunkSpec));
-        }
+
+        auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto throwUnavailable = [&] () {
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable, "Chunk %v is unavailable", chunkId);
+        };
+
+        switch (Config_->UnavailableChunkStrategy) {
+            case EUnavailableChunkStrategy::ThrowError:
+                throwUnavailable();
+                break;
+
+            case EUnavailableChunkStrategy::Restore:
+                if (IsErasureChunkId(chunkId)) {
+                    availableChunkSpecs.push_back(std::move(chunkSpec));
+                } else {
+                    throwUnavailable();
+                }
+                break;
+
+            case EUnavailableChunkStrategy::Skip:
+                // Just skip this chunk.
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        };
     }
 
     *chunkSpecs = std::move(availableChunkSpecs);

@@ -135,7 +135,7 @@ public:
         , OnFinished_(std::move(onFinished))
         , Id_(TGuid::Create())
         , Logger(NLogging::TLogger(logger)
-            .AddTag("TAsyncDialerSession: %v", Id_))
+            .AddTag("AsyncDialerSession: %v", Id_))
         , Timeout_(Config_->MinRto * GetRandomVariation())
     { }
 
@@ -242,11 +242,14 @@ private:
 
             if (Config_->EnableNoDelay && family != AF_UNIX) {
                 if (Config_->EnableNoDelay) {
-                    SetSocketNoDelay(Socket_);
+                    if (!TrySetSocketNoDelay(Socket_)) {
+                        LOG_DEBUG("Failed to set socket no delay option");
+                    }
                 }
 
-                SetSocketPriority(Socket_, Config_->Priority);
-                SetSocketKeepAlive(Socket_);
+                if (!TrySetSocketKeepAlive(Socket_)) {
+                    LOG_DEBUG("Failed to set socket keep alive option");
+                }
             }
 
             if (ConnectSocket(Socket_, Address_) == 0) {
@@ -256,8 +259,8 @@ private:
 
             if (Config_->EnableAggressiveReconnect) {
                TimeoutCookie_ = NConcurrency::TDelayedExecutor::Submit(
-                        BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
-                        Timeout_);
+                    BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
+                    Timeout_);
             }
 
             RegisterPollable();

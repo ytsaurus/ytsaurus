@@ -32,23 +32,22 @@ function YtApplicationVersions(driver)
         });
     }
 
-    function getListAndData(entity, dataLoader, nameExtractor)
+    function getListAndData(entity, attributeList, dataLoader)
     {
-        nameExtractor = nameExtractor || _.keys;
-
-        return executeWithTimeout("get", { path: "//sys/" + entity })
+        return executeWithTimeout("list", {
+            path: "//sys/" + entity,
+            attributes: attributeList
+        })
         .then(function(names) {
             __DBG("Got " + entity + ": " + names);
 
-            names = nameExtractor(names);
-
-            return Q.settle(names.map(function(name) {
+            return Q.settle(_.map(names, function(name) {
                 return dataLoader(entity, name);
             }))
             .then(function(responses) {
                 var result = {};
                 for (var i = 0, len = responses.length; i < len; ++i) {
-                    result[names[i]] = responses[i].isFulfilled()
+                    result[utils.getYsonValue(names[i])] = responses[i].isFulfilled()
                         ? responses[i].value()
                         : {error: YtError.ensureWrapped(responses[i].error())};
                 }
@@ -109,10 +108,22 @@ function YtApplicationVersions(driver)
                     })
                 }));
             }),
-            "nodes": getListAndDataFromOrchid("nodes"),
+            "nodes": getListAndData("nodes", ["addresses"], function(entity, name) {
+                var parsed_url = url.parse("http://" + utils.getYsonAttribute(name, "addresses")["monitoring_http"]["default"]);
+                return new YtHttpRequest(parsed_url.hostname, parsed_url.port)
+                .withPath(url.format({
+                    pathname: "/orchid/service"
+                }))
+                .setTimeout(TIMEOUT)
+                .setNoResolve(true)
+                .fire()
+                .then(function (data) {
+                    return utils.pick(JSON.parse(data.toString()), ["start_time", "version"]);
+                });
+            }),
             "schedulers": getListAndDataFromOrchid("scheduler/instances"),
-            "proxies": getListAndData("proxies", function(entity, name) {
-                var parsed_url = url.parse("http://" + name);
+            "proxies": getListAndData("proxies", [], function(entity, name) {
+                var parsed_url = url.parse("http://" + utils.getYsonValue(name));
                 return new YtHttpRequest(parsed_url.hostname, parsed_url.port)
                 .withPath(url.format({
                     pathname: "/service"

@@ -59,6 +59,8 @@ DECLARE_REFCOUNTED_CLASS(TRetryingChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TBalancingChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TThrottlingChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TResponseKeeperConfig)
+DECLARE_REFCOUNTED_CLASS(TMultiplexingBandConfig)
+DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,11 +75,11 @@ extern const TMutationId NullMutationId;
 
 extern const TString RootUserName;
 
-constexpr int MinMultiplexingBand = 0;
-constexpr int MaxMultiplexingBand = 1;
-
-constexpr int DefaultLightMultiplexingBand = 0;
-constexpr int DefaultHeavyMultiplexingBand = 1;
+DEFINE_ENUM(EMultiplexingBand,
+    ((Default)               (0))
+    ((Control)               (1))
+    ((Heavy)                 (2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +94,14 @@ DEFINE_ENUM(EErrorCode,
     ((Unavailable)                  (105))
     ((PoisonPill)                   (106))
     ((RequestQueueSizeLimitExceeded)(108))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EMessageFormat,
+    ((Protobuf)    (0))
+    ((Json)        (1))
+    ((Yson)        (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

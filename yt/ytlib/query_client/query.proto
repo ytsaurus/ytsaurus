@@ -196,6 +196,7 @@ message TQueryOptions
     optional NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
     optional bool use_multijoin = 6 [default = false];
     optional bool allow_full_scan = 7 [default = true];
+    optional NYT.NProto.TGuid read_session_id = 8;
 }
 
 message TDataRanges

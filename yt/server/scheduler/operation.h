@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/server/controller_agent/public.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/ytlib/hydra/public.h>
 
@@ -25,8 +26,6 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NControllerAgent;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationEvent
@@ -37,6 +36,26 @@ struct TOperationEvent
 
 void Serialize(const TOperationEvent& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TControllerAttributes
+{
+    TNullable<NControllerAgent::TOperationControllerInitializationAttributes> InitializationAttributes;
+    TNullable<NYson::TYsonString> Attributes;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Per-operation data retrieved from Cypress on handshake.
+struct TOperationRevivalDescriptor
+{
+    NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
+    bool UserTransactionAborted = false;
+    bool OperationAborting = false;
+    bool OperationCommitted = false;
+    bool ShouldCommitOutputTransaction = false;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,14 +71,16 @@ struct IOperationStrategyHost
 
     virtual TString GetAuthenticatedUser() const = 0;
 
-    virtual TOperationId GetId() const = 0;
+    virtual const TOperationId& GetId() const = 0;
 
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
+    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
     virtual NYTree::IMapNodePtr GetSpec() const = 0;
 
     virtual TOperationRuntimeParamsPtr GetRuntimeParams() const = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(type, name, ...) \
 protected: \
@@ -93,14 +114,13 @@ public: \
         return name##_; \
     }
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperation
     : public TIntrinsicRefCounted
     , public IOperationStrategyHost
 {
 public:
-
-    using TAlertsArray = TEnumIndexedVector<TError, EOperationAlertType>;
-
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
 
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
@@ -120,10 +140,14 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
+    DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
+
+    DEFINE_BYREF_RW_PROPERTY(NControllerAgent::TOperationControllerReviveResult, ReviveResult);
+
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain
     // sensitive information.
-    DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
+    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::vector<TString>, Owners);
 
@@ -133,10 +157,11 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(std::vector<TOperationEvent>, Events);
 
     //! List of operation alerts.
-    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlertsArray, Alerts);
+    using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
+    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
 
-    //! Controller that owns the operation.
-    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerSchedulerHostPtr, Controller);
+    // TODO(babenko)
+    DEFINE_BYVAL_RW_PROPERTY(NScheduler::IOperationControllerPtr, LocalController);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
@@ -144,14 +169,18 @@ public:
     //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
-    //! Mark that operation attributes should be flushed to cypress.
+    //! Mark that operation attributes should be flushed to Cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
-    //! Scheduler incarnation that spawned this operation.
-    DEFINE_BYVAL_RW_PROPERTY(int, SchedulerIncarnation);
+    //! If this operation needs revive, the corresponding revive descriptor is provided
+    //! by Master Connector.
+    DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
+
+    //! Cypress storage mode of the operation.
+    DEFINE_BYVAL_RO_PROPERTY(EOperationCypressStorageMode, StorageMode);
 
     //! Returns operation id.
-    TOperationId GetId() const override;
+    const TOperationId& GetId() const override;
 
     //! Returns operation start time.
     TInstant GetStartTime() const override;
@@ -185,14 +214,8 @@ public:
 
     //! Adds new sample to controller time statistics.
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
-    void UpdateControllerTimeStatistics(const NJobTrackerClient::TStatistics& statistics);
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
-    //! Returns |true| if operation controller progress can be built.
-    bool HasControllerProgress() const;
-
-    //! Returns |true| if operation controller job splitter info can be built.
-    bool HasControllerJobSplitterInfo() const;
+    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
@@ -204,7 +227,6 @@ public:
     TNullable<int> FindSlotIndex(const TString& treeId) const override;
     int GetSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int value) override;
-
     const yhash<TString, int>& GetSlotIndices() const;
 
     //! Returns a cancelable control invoker corresponding to this operation.
@@ -217,15 +239,19 @@ public:
         const TOperationId& operationId,
         EOperationType type,
         const NRpc::TMutationId& mutationId,
-        NTransactionClient::TTransactionId userTransactionId,
+        const NTransactionClient::TTransactionId& userTransactionId,
         NYTree::IMapNodePtr spec,
+        NYTree::IMapNodePtr secureVault,
+        TOperationRuntimeParamsPtr runtimeParams,
         const TString& authenticatedUser,
         const std::vector<TString>& owners,
         TInstant startTime,
         IInvokerPtr controlInvoker,
+        EOperationCypressStorageMode storageMode,
         EOperationState state = EOperationState::None,
         bool suspended = false,
-        const std::vector<TOperationEvent>& events = {});
+        const std::vector<TOperationEvent>& events = {},
+        const TNullable<TOperationRevivalDescriptor>& revivalDescriptor = Null);
 
 private:
     const TOperationId Id_;

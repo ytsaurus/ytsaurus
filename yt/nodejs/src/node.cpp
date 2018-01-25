@@ -3,7 +3,6 @@
 #include "stream_stack.h"
 
 #include <yt/ytlib/formats/format.h>
-#include <yt/ytlib/formats/utf8_decoder.h>
 
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/writer.h>
@@ -14,6 +13,8 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/ypath_client.h>
+
+#include <yt/core/misc/utf8_decoder.h>
 
 #include <library/string_utils/base64/base64.h>
 

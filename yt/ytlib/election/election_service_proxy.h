@@ -15,11 +15,13 @@ class TElectionServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TElectionServiceProxy, RPC_PROXY_DESC(ElectionService)
+    DEFINE_RPC_PROXY(TElectionServiceProxy, ElectionService,
         .SetProtocolVersion(1));
 
-    DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower);
-    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus);
+    DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -901,7 +901,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
 
     TDataNodeServiceProxy proxy(node->HeavyChannel);
     auto req = proxy.PutBlocks();
-    req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+    req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     req->SetTimeout(writer->Config_->NodeRpcTimeout);
     ToProto(req->mutable_session_id(), writer->SessionId_);
     req->set_first_block_index(FirstBlockIndex_);

@@ -32,7 +32,7 @@ public:
         : Handler_(handler)
     { }
 
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         Handler_(req, rsp);
     }
@@ -126,6 +126,7 @@ private:
 
         auto request = New<THttpInput>(
             connection,
+            connection->RemoteAddress(),
             Poller_->GetInvoker(),
             EMessageType::Request,
             Config_->ReadBufferSize);
@@ -149,7 +150,7 @@ private:
                 return;
             }
 
-            handler->HandleHttp(request, response);
+            handler->HandleRequest(request, response);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error while handling HTTP request");
 

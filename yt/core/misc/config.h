@@ -96,7 +96,7 @@ public:
             .Alias("success_probation_time")
             .Default(TDuration::Seconds(10));
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (RefreshTime > ExpireAfterSuccessfulUpdateTime) {
                 THROW_ERROR_EXCEPTION("\"refresh_time\" must be less than \"expire_after_successful_update_time\"");
             }
@@ -146,7 +146,7 @@ public:
 
         RegisterParameter("default_value", DefaultValue);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             // If there are more than 1000 buckets, the implementation of TLogDigest
             // becomes inefficient since it stores information about at least that many buckets.
             const int maxBucketCount = 1000;

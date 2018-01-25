@@ -119,7 +119,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
 
     auto req = proxy.GetTableSamples();
     req->SetHeavy(true);
-    req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+    req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     ToProto(req->mutable_key_columns(), KeyColumns_);
     req->set_max_sample_size(MaxSampleSize_);
     req->set_sampling_policy(static_cast<int>(SamplingPolicy_));

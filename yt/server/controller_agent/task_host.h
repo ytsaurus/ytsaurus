@@ -43,14 +43,23 @@ struct ITaskHost
 
     virtual ui64 NextJobIndex() = 0;
 
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
+    // TODO(max42): split this function into purely controller part and task part.
+    virtual void InitUserJobSpecTemplate(
+        NScheduler::NProto::TUserJobSpec* proto,
+        NScheduler::TUserJobSpecPtr config,
+        const std::vector<TUserFile>& files,
+        const TString& fileAccount) = 0;
+    // TODO(max42): get rid of this; serialize files either in tasks or in controller.
+    virtual const std::vector<TUserFile>& GetUserFiles(const TUserJobSpecPtr& userJobSpec) const = 0;
+
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) = 0;
 
     virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) = 0;
     virtual void RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet) = 0;
 
-    virtual const TSchedulerConfigPtr& SchedulerConfig() const = 0;
-    virtual const TOperationSpecBasePtr& Spec() const = 0;
+    virtual const TControllerAgentConfigPtr& GetConfig() const = 0;
+    virtual const TOperationSpecBasePtr& GetSpec() const = 0;
 
     virtual void OnOperationFailed(const TError& error, bool flush = true) = 0;
 
@@ -61,17 +70,15 @@ struct ITaskHost
     virtual bool IsJobInterruptible() const = 0;
     virtual bool ShouldSkipSanityCheck() = 0;
 
-    virtual const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const = 0;
-    virtual const IDigest* GetUserJobMemoryDigest(EJobType jobType) const = 0;
-
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const = 0;
 
-    virtual const TChunkListPoolPtr& ChunkListPool() const = 0;
+    virtual const TChunkListPoolPtr& GetChunkListPool() const = 0;
     virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) = 0;
-    virtual void ReleaseChunkLists(
+    virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
-        bool unstageNonRecursively = false) = 0;
-    virtual void ReleaseStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) = 0;
+        bool unstageRecursively = true,
+        bool waitForSnapshot = false) = 0;
+    virtual void ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) = 0;
 
     virtual TOperationId GetOperationId() const = 0;
     virtual EOperationType GetOperationType() const = 0;
@@ -79,12 +86,12 @@ struct ITaskHost
     virtual const TNullable<TOutputTable>& StderrTable() const = 0;
     virtual const TNullable<TOutputTable>& CoreTable() const = 0;
 
-    virtual void RegisterStderr(const TJobletPtr& joblet, const NScheduler::TJobSummary& summary) = 0;
-    virtual void RegisterCores(const TJobletPtr& joblet, const NScheduler::TJobSummary& summary) = 0;
+    virtual void RegisterStderr(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
+    virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
 
-    virtual IJobSplitter* JobSplitter() = 0;
+    virtual IJobSplitter* GetJobSplitter() = 0;
 
     virtual const TNullable<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 
@@ -113,12 +120,14 @@ struct ITaskHost
         NChunkPools::TChunkStripeKey key,
         int tableIndex) = 0;
 
-    virtual TDataFlowGraph& DataFlowGraph() = 0;
+    virtual TDataFlowGraph* GetDataFlowGraph() = 0;
+
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITaskHost);
+DEFINE_REFCOUNTED_TYPE(ITaskHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NControllerAgent
+} // namespace NYT

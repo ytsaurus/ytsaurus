@@ -44,6 +44,20 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@compressed_data_size") == 99
         assert get("//tmp/table/@data_weight") == 16
 
+    def test_unavailable(self):
+        create("table", "//tmp/table")
+
+        write_table("//tmp/table", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}])
+
+        nodes = ls("//sys/nodes")
+        for node in nodes:
+            self.set_node_banned(node, True)
+
+        with pytest.raises(YtError): read_table("//tmp/table")
+
+        for node in nodes:
+            self.set_node_banned(node, False)
+
     def test_sorted_write_table(self):
         create("table", "//tmp/table")
 
