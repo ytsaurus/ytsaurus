@@ -139,7 +139,7 @@ public:
 
     //! This options have higher priority than Pool and other options
     //! defined in this class.
-    yhash<TString, TExtendedSchedulableConfigPtr> FairShareOptionsPerPoolTree;
+    yhash<TString, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
 
     //! Pool trees to schedule operation in.
     //! Operation will be scheduled in default tree (if any) if this parameter
