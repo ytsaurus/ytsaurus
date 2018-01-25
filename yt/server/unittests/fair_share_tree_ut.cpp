@@ -212,7 +212,7 @@ public:
         return Id_;
     }
 
-    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override
+    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override
     {
         return Controller_;
     }
