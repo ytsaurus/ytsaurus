@@ -3,7 +3,7 @@ from .helpers import canonize_uuid, WEB_INTERFACE_RESOURCES_PATH
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
-from yt.common import YtError, update, get_value
+from yt.common import YtError, update, update_inplace, get_value
 from yt.yson import to_yson_type
 
 from yt.packages.six import iteritems, add_metaclass
@@ -95,6 +95,13 @@ _default_provision = {
         "enable": False,
         "http_port": None
     },
+    "rpc_proxy": {
+        "enable": False,
+        "rpc_port": None,
+    },
+    "skynet_manager": {
+        "count": 0,
+    },
     "enable_debug_logging": True,
     "fqdn": socket.getfqdn(),
     "enable_master_cache": False
@@ -106,7 +113,8 @@ def get_default_provision():
 @add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):
     def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None,
-                      node_dirs=None, node_tmpfs_dirs=None, proxy_dir=None, logs_dir=None, provision=None):
+                      node_dirs=None, node_tmpfs_dirs=None, proxy_dir=None, rpc_proxy_dir=None, skynet_manager_dirs=None,
+                      logs_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())
 
         # XXX(asaitgalin): All services depend on master so it is useful to make
@@ -133,8 +141,22 @@ class ConfigsProvider(object):
                                                 logs_dir, master_cache_nodes=node_addresses)
         driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs),
                                                     master_cache_nodes=node_addresses)
-        ui_config = self._build_ui_config(provision, deepcopy(connection_configs),
-                                          "{0}:{1}".format(provision["fqdn"], proxy_config["port"]))
+        proxy_address = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
+        ui_config = self._build_ui_config(provision, deepcopy(connection_configs), proxy_address)
+
+        rpc_proxy_config = None
+        rpc_client_config = None
+        if provision["rpc_proxy"]["enable"]:
+            rpc_proxy_config = self._build_rpc_proxy_config(provision, logs_dir, deepcopy(connection_configs), ports_generator)
+            rpc_proxy_address = "{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])
+            rpc_client_config = {
+                "connection_type": "rpc",
+                "addresses": [rpc_proxy_address]
+            }
+
+        skynet_manager_configs = None
+        if provision["skynet_manager"]["count"] > 0:
+            skynet_manager_configs = self._build_skynet_manager_configs(provision, logs_dir, proxy_address, rpc_proxy_address, ports_generator)
 
         cluster_configuration = {
             "master": master_configs,
@@ -142,7 +164,10 @@ class ConfigsProvider(object):
             "scheduler": scheduler_configs,
             "node": node_configs,
             "proxy": proxy_config,
-            "ui": ui_config
+            "ui": ui_config,
+            "rpc_proxy": rpc_proxy_config,
+            "rpc_client": rpc_client_config,
+            "skynet_manager": skynet_manager_configs,
         }
 
         return cluster_configuration
@@ -171,6 +196,12 @@ class ConfigsProvider(object):
     @abc.abstractmethod
     def _build_ui_config(self, provision, master_connection_configs, proxy_address):
         pass
+
+    def _build_rpc_proxy_config(self, provision, master_connection_configs, ports_generator):
+        raise NotImplementedError("RPC proxy is not supported for this yt version")
+
+    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_address, ports_generator):
+        raise NotImplementedError("Skynet manager is not supported for this yt version")
 
 def init_logging(node, path, name, enable_debug_logging):
     if not node:
@@ -351,7 +382,7 @@ class ConfigsProvider_18(ConfigsProvider):
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                                  "master-{0}-{1}".format(cell_index, master_index), provision["enable_debug_logging"])
 
-                update(config, {
+                update_inplace(config, {
                     "tablet_manager": {
                         "cell_scan_period": 100
                     },
@@ -396,18 +427,18 @@ class ConfigsProvider_18(ConfigsProvider):
             }
         }
 
-        update(cluster_connection["primary_master"], _get_retrying_channel_config())
-        update(cluster_connection["primary_master"], _get_rpc_config())
+        update_inplace(cluster_connection["primary_master"], _get_retrying_channel_config())
+        update_inplace(cluster_connection["primary_master"], _get_rpc_config())
 
         cluster_connection["secondary_masters"] = []
         for tag in secondary_cell_tags:
             config = master_connection_configs[tag]
-            update(config, _get_retrying_channel_config())
-            update(config, _get_rpc_config())
+            update_inplace(config, _get_retrying_channel_config())
+            update_inplace(config, _get_rpc_config())
             cluster_connection["secondary_masters"].append(config)
 
         if config_template is not None:
-            cluster_connection = update(config_template, cluster_connection)
+            cluster_connection = update_inplace(config_template, cluster_connection)
 
         if enable_master_cache and master_cache_nodes:
             cluster_connection["master_cache"] = {
@@ -451,7 +482,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
     def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
         driver_config = default_configs.get_driver_config()
-        update(driver_config, self._build_cluster_connection_config(
+        update_inplace(driver_config, self._build_cluster_connection_config(
             master_connection_configs,
             master_cache_nodes=master_cache_nodes,
             enable_master_cache=provision["enable_master_cache"]))
@@ -513,15 +544,22 @@ class ConfigsProvider_18(ConfigsProvider):
                 "disable_writes_watermark": 0
             }
 
+            layer_location_config = {
+                "low_watermark" : 1,
+            }
+
             if provision["node"]["chunk_store_quota"] is not None:
                 store_location_config["quota"] = provision["node"]["chunk_store_quota"]
 
             if node_tmpfs_dirs is not None and provision["node"]["allow_chunk_storage_in_tmpfs"]:
                 store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store")
+                layer_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "layers")
             else:
                 store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store")
+                layer_location_config["path"] = os.path.join(node_dirs[index], "layers")
 
             set_at(config, "data_node/store_locations", [store_location_config])
+            set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
             config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
                                              provision["enable_debug_logging"])
@@ -555,7 +593,7 @@ class ConfigsProvider_18(ConfigsProvider):
             config = default_configs.get_driver_config()
             if cell_index == 0:
                 tag = primary_cell_tag
-                update(config, self._build_cluster_connection_config(
+                update_inplace(config, self._build_cluster_connection_config(
                     master_connection_configs,
                     master_cache_nodes=master_cache_nodes,
                     enable_master_cache=provision["enable_master_cache"]))
@@ -570,10 +608,10 @@ class ConfigsProvider_18(ConfigsProvider):
                         "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
                     }
                 }
-                update(cell_connection_config["primary_master"], _get_retrying_channel_config())
-                update(cell_connection_config["primary_master"], _get_rpc_config())
+                update_inplace(cell_connection_config["primary_master"], _get_retrying_channel_config())
+                update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
 
-                update(config, cell_connection_config)
+                update_inplace(config, cell_connection_config)
 
             configs[tag] = config
 
@@ -620,7 +658,8 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
                 "type": "simple",
                 "start_uid" : start_uid,
             })
-            set_at(config, "exec_agent/slot_manager/locations", [{"path" : os.path.join(node_dirs[i], "slots")}])
+            set_at(config, "exec_agent/slot_manager/locations", [
+                {"path" : os.path.join(node_dirs[i], "slots"), "disk_usage_watermark": 0}])
 
             set_at(config, "exec_agent/node_directory_prepare_backoff_time", 100)
             set_at(config, "node_directory_synchronizer/sync_period", 100)
@@ -653,7 +692,53 @@ class ConfigsProvider_19_1(ConfigsProvider_19_0):
     pass
 
 class ConfigsProvider_19_2(ConfigsProvider_19_1):
-    pass
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
+        configs, addresses = super(ConfigsProvider_19_2, self)._build_node_configs(
+                provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
+
+        for config in configs:
+            config["skynet_http_port"] = next(ports_generator)
+
+        return configs, addresses
+
+    def _build_rpc_proxy_config(self, provision, proxy_logs_dir, master_connection_configs, ports_generator):
+        config = {
+            "cluster_connection": master_connection_configs,
+            "rpc_port": next(ports_generator),
+            "monitoring_port": next(ports_generator),
+            "enable_authentication": False,
+        }
+        config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
+        config["logging"] = init_logging(config.get("logging"), proxy_logs_dir, "rpc-proxy", provision["enable_debug_logging"])
+        return config
+
+    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_address, ports_generator):
+        configs = []
+        for manager_index in xrange(provision["skynet_manager"]["count"]):
+            config = {
+                "port": next(ports_generator),
+                "monitoring_port": next(ports_generator),
+            }
+            config["self_url"] = "http://localhost:{}".format(config["port"])
+            config["clusters"] = [
+                {
+                    "cluster_name": "local",
+                    "proxy_url": "http://" + proxy_address,
+                    "root": "//sys/skynet_manager",
+                    "oauth_token_env": "",
+                    "connection": {
+                        "connection_type": "rpc",
+                        "addresses": [rpc_proxy_address]
+                    }
+                }
+            ]
+            config["logging"] = init_logging(config.get("logging"), logs_dir,
+                "skynet-manager-{}".format(manager_index), provision["enable_debug_logging"])
+
+            configs.append(config)
+
+        return configs
+
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     (18, 5): ConfigsProvider_18_5,

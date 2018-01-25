@@ -138,7 +138,7 @@ b"""
 
     scheduler = {
         snapshot_period = 100000000;
-        lock_transaction_timeout = 5000;
+        lock_transaction_timeout = 10000;
         transactions_refresh_period = 500;
         operations_update_period = 500;
         fair_share_update_period = 500;
@@ -149,6 +149,7 @@ b"""
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
         chunk_list_release_batch_delay = 100;
+        safe_scheduler_online_time = 5000;
         preemptive_scheduling_backoff = 0;
         forbid_immediate_operations_in_root = %false;
         environment = {
@@ -292,7 +293,15 @@ b"""
 
     tablet_node = {
         slot_scan_period = 100;
-
+        
+        tablet_manager = {
+            preload_backoff_time = 100;
+            compaction_backoff_time = 100;
+            flush_backoff_time = 100;
+            replicator_soft_backoff_time = 100;
+            replicator_hard_backoff_time = 100;
+        };
+        
         hive_manager = {
             ping_period = 1000;
             idle_post_period = 1000;

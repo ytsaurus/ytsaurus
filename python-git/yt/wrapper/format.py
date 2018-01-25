@@ -463,7 +463,7 @@ class YsonFormat(Format):
     def __init__(self, format=None, process_table_index=None, control_attributes_mode=None,
                  ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL,
-                 require_yson_bindings=None):
+                 require_yson_bindings=None, lazy=None):
         """
         :param str format: output format (must be one of ["text", "pretty", "binary"], "text" be default).
         :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
@@ -477,11 +477,13 @@ class YsonFormat(Format):
         defaults = {"boolean_as_string": False,
                     "ignore_inner_attributes": False,
                     "always_create_attributes": False,
-                    "format": "binary"}
+                    "format": "binary",
+                    "lazy": False}
         options = {"boolean_as_string": boolean_as_string,
                    "ignore_inner_attributes": ignore_inner_attributes,
                    "always_create_attributes": always_create_attributes,
-                   "format": format}
+                   "format": format,
+                   "lazy": lazy}
 
         all_attributes = Format._make_attributes(get_value(attributes, {}), defaults, options)
         super(YsonFormat, self).__init__("yson", all_attributes, raw, encoding)
@@ -500,6 +502,8 @@ class YsonFormat(Format):
         self.table_index_column = table_index_column
 
         self.require_yson_bindings = get_value(require_yson_bindings, self.attributes.get("require_yson_bindings", True))
+        if lazy:
+            self.require_yson_bindings = True
         if "require_yson_bindings" in self.attributes:
             del self.attributes["require_yson_bindings"]
 
@@ -522,11 +526,16 @@ class YsonFormat(Format):
                 return row.attributes
 
         self._check_bindings()
+        kwargs = {}
+        if self.attributes["lazy"]:
+            kwargs["lazy"] = True
+
         rows = yson.load(stream,
                          yson_type="list_fragment",
                          always_create_attributes=self.attributes["always_create_attributes"],
                          raw=raw,
-                         encoding=self._encoding)
+                         encoding=self._encoding,
+                         **kwargs)
         if raw:
             return rows
         else:
@@ -655,7 +664,7 @@ class YamrFormat(Format):
                 continue
             setattr(result, attr_name, copy.deepcopy(attr_value, memo=memodict))
 
-        if result.lenval:
+        if self._load_row == self._read_lenval_values:
             result._load_row = result._read_lenval_values
         else:
             result._load_row = result._read_delimited_values
@@ -1117,7 +1126,8 @@ def create_format(yson_name, attributes=None, **kwargs):
     :param attributes: Deprecated! Don't use it! It will be removed!
     """
 
-    declare_deprecated('option "attributes"', attributes is not None)
+    declare_deprecated('option "attributes"', "attributes in format name (format name is an arbitrary yson string)",
+                       attributes is not None)
     attributes = get_value(attributes, {})
 
     yson_string = yson._loads_from_native_str(yson_name)

@@ -65,6 +65,7 @@ def start_func(**kwargs):
         print("Warning! --timeout option has no effect when --sync flag is not specified", file=sys.stderr)
 
     kwargs["start_proxy"] = not no_proxy
+    kwargs["start_rpc_proxy"] = kwargs.pop("rpc_proxy", False)
     kwargs["allow_chunk_storage_in_tmpfs"] = not forbid_chunk_storage_in_tmpfs
 
     if quiet:
@@ -142,6 +143,7 @@ def add_start_subparser(subparsers):
                              "Can be specified through YT_LOCAL_USE_PROXY_FROM_SOURCE.")
     parser.add_argument("--no-proxy", action="store_true", default=False, help="do not start proxy")
     parser.add_argument("--proxy-port", type=int, help="proxy port for http requests")
+    parser.add_argument("--rpc-proxy", action="store_true", default=False, help="start rpc proxy")
     parser.add_argument("--enable-debug-logging", action="store_true", default=False,
                         help="set logging level threshold to DEBUG")
     parser.add_argument("--tmpfs-path", help="path to mounted tmpfs. "

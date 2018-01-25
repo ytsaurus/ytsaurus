@@ -27,14 +27,19 @@ logger = logging.getLogger("Yt.local")
 
 YT_LOCAL_STOP_WAIT_TIME = 5
 
-def _load_config(path, is_proxy_config=False):
-    if path is None:
+def _load_config(config, is_proxy_config=False):
+    if config is None:
         return {}
-    with open(path, "rb") as f:
+
+    if isinstance(config, dict):
+        return config
+
+    path = config
+    with open(path, "rb") as fin:
         if not is_proxy_config:
-            return yson.load(f)
+            return yson.load(fin)
         else:
-            return json.load(codecs.getreader("utf-8")(f))
+            return json.load(codecs.getreader("utf-8")(fin))
 
 def get_root_path(path=None):
     if path is not None:
@@ -217,7 +222,7 @@ _START_DEFAULTS = {
     "node_chunk_store_quota": 7 * GB
 }
 
-def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True,
+def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True, start_rpc_proxy=False,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
@@ -250,6 +255,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
 
     environment = YTInstance(sandbox_path,
                              has_proxy=start_proxy,
+                             has_rpc_proxy=start_rpc_proxy,
                              proxy_port=proxy_port,
                              enable_debug_logging=enable_debug_logging,
                              port_range_start=port_range_start,

@@ -254,3 +254,17 @@ def canonize_uuid(uuid):
             return part.lstrip("0")
         return part
     return "-".join(map(canonize_part, uuid.split("-")))
+
+class WaitFailed(Exception):
+    pass
+
+def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3):
+    for _ in xrange(iter):
+        if predicate():
+            return
+        time.sleep(sleep_backoff)
+
+    if error_message is None:
+        error_message = "Wait failed"
+    error_message += " (timeout = {0})".format(iter * sleep_backoff)
+    raise WaitFailed(error_message)
