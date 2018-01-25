@@ -45,6 +45,14 @@ def iter_chunks(iterable, size):
 
 def get_filter_factors(op, attributes):
     brief_spec = attributes.get("brief_spec", {})
+
+    def join_paths(paths):
+        if paths is None:
+            return ""
+
+        # NOTE(asaitgalin): Using TablePath here to drop attributes.
+        return " ".join([str(yt.TablePath(path)) for path in paths])
+
     return " ".join([
         op,
         attributes.get("key", ""),
@@ -53,8 +61,8 @@ def get_filter_factors(op, attributes):
         attributes.get("operation_type", ""),
         brief_spec.get("pool", ""),
         brief_spec.get("title", ""),
-        str(brief_spec.get("input_table_paths", [""])[0]),
-        str(brief_spec.get("output_table_paths", [""])[0])
+        join_paths(brief_spec.get("input_table_paths")),
+        join_paths(brief_spec.get("output_table_paths")),
     ]).lower()
 
 def datestr_to_timestamp_legacy(time_str):
