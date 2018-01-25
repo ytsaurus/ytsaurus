@@ -881,8 +881,6 @@ protected:
 
     void SetOperationAlert(EOperationAlertType type, const TError& alert);
 
-    void AddFiles(const TUserJobSpecPtr& userJobSpec, const std::vector<NYPath::TRichYPath>& path, bool isLayer);
-
     void AbortAllJoblets();
 
 private:
