@@ -22,6 +22,8 @@
 namespace NYT {
 namespace NQueryClient {
 
+const i64 PoolChunkSize = 64 * 1024;
+const double MaxSmallBlockRatio = 1.0;
 const size_t RowsetProcessingSize = 1024;
 const size_t WriteRowsetSize = 64 * RowsetProcessingSize;
 
@@ -36,7 +38,7 @@ class TInterruptedIncompleteException
 struct TOutputBufferTag
 { };
 
-struct TIntermadiateBufferTag
+struct TIntermediateBufferTag
 { };
 
 struct TPermanentBufferTag
@@ -51,9 +53,11 @@ using TComparerFunction = char(const TValue*, const TValue*);
 using TTernaryComparerFunction = i64(const TValue*, const TValue*);
 
 namespace NDetail {
+
 class TGroupHasher
 {
 public:
+    // Intentionally implicit.
     TGroupHasher(THasherFunction* ptr)
         : Ptr_(ptr)
     { }
@@ -70,6 +74,7 @@ private:
 class TRowComparer
 {
 public:
+    // Intentionally implicit.
     TRowComparer(TComparerFunction* ptr)
         : Ptr_(ptr)
     { }
@@ -82,6 +87,7 @@ public:
 private:
     TComparerFunction* Ptr_;
 };
+
 } // namespace NDetail
 
 using TLookupRows = google::sparsehash::dense_hash_set<
@@ -261,6 +267,19 @@ struct TExecutionContext
 
 class TTopCollector
 {
+public:
+    TTopCollector(i64 limit, TComparerFunction* comparer, size_t rowSize);
+
+    std::vector<const TValue*> GetRows() const;
+
+    void AddRow(const TValue* row);
+
+private:
+    // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
+    size_t TotalMemorySize_ = 0;
+    size_t AllocatedMemorySize_ = 0;
+    size_t GarbageMemorySize_ = 0;
+
     class TComparer
     {
     public:
@@ -282,19 +301,6 @@ class TTopCollector
         TComparerFunction* const Ptr_;
     };
 
-public:
-    TTopCollector(i64 limit, TComparerFunction* comparer, size_t rowSize);
-
-    std::vector<const TValue*> GetRows() const;
-
-    void AddRow(const TValue* row);
-
-private:
-    // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
-    size_t TotalMemorySize_ = 0;
-    size_t AllocatedMemorySize_ = 0;
-    size_t GarbageMemorySize_ = 0;
-
     TComparer Comparer_;
     size_t RowSize_;
 
@@ -305,58 +311,27 @@ private:
     std::pair<const TValue*, int> Capture(const TValue* row);
 
     void AccountGarbage(const TValue* row);
-
 };
 
 class TCGVariables
 {
 public:
-    template <class T, class... Args>
-    size_t AddOpaque(Args&&... args)
-    {
-        auto pointer = new T(std::forward<Args>(args)...);
-        auto deleter = [] (void* ptr) {
-            static_assert(sizeof(T) > 0, "Cannot delete incomplete type.");
-            delete static_cast<T*>(ptr);
-        };
+    template <class T, class... TArgs>
+    int AddOpaque(TArgs&&... args);
 
-        std::unique_ptr<void, void(*)(void*)> holder(pointer, deleter);
-        YCHECK(holder);
+    void* const* GetOpaqueData() const;
 
-        OpaqueValues_.push_back(std::move(holder));
-        OpaquePointers_.push_back(pointer);
+    void Clear();
 
-        return OpaquePointers_.size() - 1;
-    }
+    int AddLiteralValue(TOwningValue value);
 
-    void* const* GetOpaqueData() const
-    {
-        return OpaquePointers_.data();
-    }
-
-    void Clear()
-    {
-        OpaquePointers_.clear();
-        OpaqueValues_.clear();
-    }
-
-    TValue* GetLiteralvalues()
-    {
-        LiteralsRow = std::make_unique<TValue[]>(LiteralValues.size());
-        size_t index = 0;
-        for (const auto& value : LiteralValues) {
-            LiteralsRow[index++] = TValue(value);
-        }
-        return LiteralsRow.get();
-    }
-
-    std::unique_ptr<TValue[]> LiteralsRow;
-    std::vector<TOwningValue> LiteralValues;
+    TValue* GetLiteralValues() const;
 
 private:
     std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues_;
     std::vector<void*> OpaquePointers_;
-
+    std::vector<TOwningValue> OwningLiteralValues_;
+    mutable std::unique_ptr<TValue[]> LiteralValues_;
 };
 
 typedef void (TCGQuerySignature)(const TValue*, void* const*, TExecutionContext*);
@@ -408,3 +383,7 @@ struct TJoinComparers
 
 } // namespace NQueryClient
 } // namespace NYT
+
+#define EVALUATION_HELPERS_INL_H_
+#include "evaluation_helpers-inl.h"
+#undef EVALUATION_HELPERS_INL_H_

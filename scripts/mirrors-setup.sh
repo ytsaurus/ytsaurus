@@ -103,6 +103,7 @@ configure_arcadia_mirror contrib-libs-snappy
 configure_arcadia_mirror contrib-libs-sparsehash
 configure_arcadia_mirror contrib-libs-yajl
 configure_arcadia_mirror contrib-libs-zlib
+configure_arcadia_mirror contrib-libs-zstd
 configure_arcadia_mirror contrib-libs-gtest
 configure_arcadia_mirror contrib-libs-gmock
 
@@ -125,7 +126,6 @@ configure_github_mirror joyent-libuv
 configure_github_mirror twitter-zipkin
 configure_github_mirror pyinstaller-pyinstaller
 configure_github_mirror google-benchmark
-configure_github_mirror Cyan4973-zstd
 configure_github_mirror kennethreitz-requests
 configure_github_mirror google-brotli
 configure_github_mirror kislyuk-argcomplete

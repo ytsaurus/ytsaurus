@@ -5,7 +5,7 @@
 #include <yt/core/misc/finally.h>
 
 #define ZSTD_STATIC_LINKING_ONLY
-#include <contrib/libs/zstd07/common/zstd.h>
+#include <contrib/libs/zstd/zstd.h>
 
 namespace NYT {
 namespace NCompression {
@@ -130,7 +130,9 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
         size_t compressedSize = ZSTD_compressEnd(
             context,
             outputPtr,
-            output->Size() - curOutputPos);
+            output->Size() - curOutputPos,
+            nullptr,
+            0);
 
         LOG_FATAL_IF(
             ZSTD_isError(compressedSize),

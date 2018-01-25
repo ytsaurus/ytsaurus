@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/server/data_node/artifact.h>
+#include <yt/server/data_node/public.h>
+
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
@@ -57,6 +60,7 @@ struct ISlot
         i64 size,
         TString path) = 0;
 
+    virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(const std::vector<NDataNode::TArtifactKey>& layers) = 0;
 
     virtual TFuture<void> FinalizePreparation(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) = 0;
 

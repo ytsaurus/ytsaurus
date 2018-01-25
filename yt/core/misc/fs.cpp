@@ -285,26 +285,53 @@ TFileStatistics GetFileStatistics(const TString& path)
     return statistics;
 }
 
-i64 GetDirectorySize(const TString& path)
+i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles)
 {
     std::queue<TString> directories;
     directories.push(path);
 
     i64 size = 0;
+
+    auto wrapNoEntryError = [&] (std::function<void()> func) {
+        try {
+            func();
+        } catch (const TSystemError& ex) { // For util functions.
+            if (ignoreUnavailableFiles && ex.Status() == ENOENT) {
+                // Do nothing
+            } else {
+                throw;
+            }
+        } catch (const TErrorException& ex) { // For YT functions.
+            if (ignoreUnavailableFiles && ex.Error().FindMatching(ELinuxErrorCode::NOENT)) {
+                // Do nothing
+            } else {
+                throw;
+            }
+        }
+    };
+
     while (!directories.empty()) {
         const auto& directory = directories.front();
 
-        auto subdirectories = EnumerateDirectories(directory);
-        for (const auto& subdirectory : subdirectories) {
-            directories.push(CombinePaths(directory, subdirectory));
-        }
-
-        auto files = EnumerateFiles(directory);
-        for (const auto& file : files) {
-            auto fileStatistics = GetFileStatistics(CombinePaths(directory, file));
-            if (fileStatistics.Size > 0) {
-                size += fileStatistics.Size;
+        wrapNoEntryError([&] ()  {
+            auto subdirectories = EnumerateDirectories(directory);
+            for (const auto& subdirectory : subdirectories) {
+                directories.push(CombinePaths(directory, subdirectory));
             }
+        });
+
+        std::vector<TString> files;
+        wrapNoEntryError([&] () {
+            files = EnumerateFiles(directory);
+        });
+
+        for (const auto& file : files) {
+            wrapNoEntryError([&] () {
+                auto fileStatistics = GetFileStatistics(CombinePaths(directory, file));
+                if (fileStatistics.Size > 0) {
+                    size += fileStatistics.Size;
+                }
+            });
         }
 
         directories.pop();
@@ -756,4 +783,15 @@ TError AttachFindOutput(TError error, const TString& path)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 TGetDirectorySizeAsRootTool::operator()(const TString& path) const
+{
+    SafeSetUid(0);
+    return NFS::GetDirectorySize(path);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

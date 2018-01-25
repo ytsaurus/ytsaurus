@@ -1,4 +1,5 @@
 #include "slot_location.h"
+#include "slot_manager.h"
 #include "private.h"
 #include "config.h"
 #include "job_directory_manager.h"
@@ -9,6 +10,8 @@
 #include <yt/server/data_node/master_connector.h>
 
 #include <yt/server/misc/disk_health_checker.h>
+
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -70,6 +73,12 @@ TSlotLocation::TSlotLocation(
     HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
         .Via(LocationQueue_->GetInvoker()));
     HealthChecker_->Start();
+
+    DiskInfoUpdateExecutor_ = New<TPeriodicExecutor>(
+        LocationQueue_->GetInvoker(),
+        BIND(&TSlotLocation::UpdateDiskInfo, MakeWeak(this)),
+        Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskInfoUpdatePeriod);
+    DiskInfoUpdateExecutor_->Start();
 }
 
 TFuture<void> TSlotLocation::CreateSandboxDirectories(int slotIndex)
@@ -218,6 +227,20 @@ TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
         ValidateEnabled();
 
         auto path = GetSandboxPath(slotIndex, ESandboxKind::User);
+        auto stat = GetDiskInfo();
+
+        if (stat.usage() + diskSpaceLimit.Get(0) >= stat.limit()) {
+            THROW_ERROR_EXCEPTION(EErrorCode::NotEnoughDiskSpace, "Not enough disk space to run job")
+                << TErrorAttribute("requested", diskSpaceLimit.Get(0))
+                << TErrorAttribute("usage", stat.usage())
+                << TErrorAttribute("limit", stat.limit())
+                << TErrorAttribute("path", path);
+        }
+
+        {
+            TWriterGuard guard(SlotsLock_);
+            YCHECK(OccupiedSlotToDiskLimit_.emplace(slotIndex, diskSpaceLimit).second);
+        }
 
         try {
             auto properties = TJobDirectoryProperties {diskSpaceLimit, inodeLimit, userId};
@@ -350,6 +373,14 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
 
+        {
+            TWriterGuard guard(SlotsLock_);
+
+            // There may be no slotIndex in this map
+            // (e.g. during SlotMananager::Initialize)
+            OccupiedSlotToDiskLimit_.erase(slotIndex);
+        }
+
         for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
             const auto& sandboxPath = NFS::GetRealPath(GetSandboxPath(slotIndex, sandboxKind));
             try {
@@ -476,6 +507,66 @@ void TSlotLocation::Disable(const TError& error)
 
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
+}
+
+void TSlotLocation::UpdateDiskInfo()
+{
+    auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
+    i64 diskLimit = locationStatistics.TotalSpace;
+    if (Config_->DiskQuota) {
+        diskLimit = Min(diskLimit, *Config_->DiskQuota);
+    }
+
+    i64 diskUsage = 0;
+    yhash<int, TNullable<i64>> occupiedSlotToDiskLimit;
+
+    {
+        TReaderGuard guard(SlotsLock_);
+        occupiedSlotToDiskLimit = OccupiedSlotToDiskLimit_;
+    }
+
+    for (const auto& pair : occupiedSlotToDiskLimit) {
+        auto slotIndex = pair.first;
+        const auto& slotDiskLimit = pair.second;
+        if (!slotDiskLimit) {
+            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                auto path = GetSandboxPath(slotIndex, sandboxKind);
+                if (NFS::Exists(path)) {
+                    // We have to calculate user directory size as root,
+                    // because user job could have set restricted permissions for files and
+                    // directories inside sandbox.
+                    auto dirSize = sandboxKind == ESandboxKind::User
+                        ? RunTool<TGetDirectorySizeAsRootTool>(path)
+                        : NFS::GetDirectorySize(path);
+                    diskUsage += dirSize;
+                }
+            }
+        } else {
+            diskUsage += *slotDiskLimit;
+        }
+    }
+
+    auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace, diskLimit - diskUsage));
+    diskLimit = Min(diskLimit, diskUsage + availableSpace);
+
+    diskLimit -= Config_->DiskUsageWatermark;
+
+    LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v)",
+        Config_->Path,
+        diskUsage,
+        diskLimit);
+
+    {
+        auto guard = TWriterGuard(DiskInfoLock_);
+        DiskInfo_.set_usage(diskUsage);
+        DiskInfo_.set_limit(diskLimit);
+    }
+}
+
+NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() const
+{
+    auto guard = TReaderGuard(DiskInfoLock_);
+    return DiskInfo_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,7 +19,7 @@ describe("YtApplicationVersions - discover versions", function() {
         var driver = this.driver;
         var mock = sinon.mock(driver);
 
-        function makeNamesList(entity, names) {
+        function makeNamesGet(entity, names) {
             var name_result = {};
             names.forEach(function (name) {
                 var current = name_result;
@@ -43,7 +43,7 @@ describe("YtApplicationVersions - discover versions", function() {
         function createMock(entity, result) {
             var names = Object.keys(result);
 
-            makeNamesList(entity, names); 
+            makeNamesGet(entity, names); 
 
             var requests = [];
             var responses = [];
@@ -76,10 +76,28 @@ describe("YtApplicationVersions - discover versions", function() {
             return result;
         }
 
-        function createMock2(entity, result) {
+        function makeNamesList(entity, names, listedAttributes) {
+            var name_result = names.map(function(name) {
+                return {
+                    "$attributes": {"addresses": {"monitoring_http": {"default": name}}},
+                    "$value": name
+                };
+            });
+
+            mock
+                .expects("executeSimple")
+                .once()
+                .withExactArgs("list", sinon.match({
+                    path: "//sys/" + entity,
+                    attributes: listedAttributes
+                }))
+                .returns(Q.resolve(name_result));
+        }
+
+        function createMock2(entity, httpEndpoint, attributes, result) {
             var names = Object.keys(result);
 
-            makeNamesList(entity, names); 
+            makeNamesList(entity, names, attributes); 
 
             for (var i = 0, length = names.length; i < length; ++i) {
                 var name = names[i];
@@ -87,11 +105,11 @@ describe("YtApplicationVersions - discover versions", function() {
 
                 if (!version_data.hasOwnProperty("error")) {
                     nock("http://" + name)
-                        .get("/service")
+                        .get(httpEndpoint)
                         .reply(200, version_data);
                 } else {
                     nock("http://" + name)
-                        .get("/service")
+                        .get(httpEndpoint)
                         .reply(503);
                 }
             }
@@ -114,21 +132,21 @@ describe("YtApplicationVersions - discover versions", function() {
                 },
                 "1002/master2": error_from_orchid
             }),
-            "nodes": createMock("nodes", {
+            "nodes": createMock2("nodes", "/orchid/service", ["addresses"], {
                 "node1": {
                     "version": "2"
                 },
                 "node2": {
                     "version": "3"
                 },
-                "node3": error_from_orchid
+                "node3": {"error" :{"code":-2, "message":"Request to \'node3:80/orchid/service\' has responded with 503", "attributes": {}, "inner_errors": []}}
             }),
             "schedulers": createMock("scheduler/instances", { }),
-            "proxies": createMock2("proxies", {
+            "proxies": createMock2("proxies", "/service", [], {
                 "proxy1": {
                     "version": "1"
                 },
-                "proxy2": {"error":{"code":-2,"message":"Request to \'proxy2:80/service\' has responded with 503","attributes":{},"inner_errors":[]}}
+                "proxy2": {"error": {"code":-2, "message": "Request to \'proxy2:80/service\' has responded with 503", "attributes": {},"inner_errors": []}}
             })
         };
 

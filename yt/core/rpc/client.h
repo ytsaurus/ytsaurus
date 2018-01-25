@@ -49,8 +49,8 @@ struct IClientRequest
     virtual TMutationId GetMutationId() const = 0;
     virtual void SetMutationId(const TMutationId& id) = 0;
 
-    virtual int GetMultiplexingBand() const = 0;
-    virtual void SetMultiplexingBand(int band) = 0;
+    virtual EMultiplexingBand GetMultiplexingBand() const = 0;
+    virtual void SetMultiplexingBand(EMultiplexingBand band) = 0;
 
     virtual size_t GetHash() const = 0;
 };
@@ -75,13 +75,7 @@ public:
         const NTracing::TTraceContext& traceContext,
         const TString& service,
         const TString& method,
-        bool heavy)
-        : RequestId_(requestId)
-        , TraceContext_(traceContext)
-        , Service_(service)
-        , Method_(method)
-        , Heavy_(heavy)
-    { }
+        bool heavy);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientContext)
@@ -121,8 +115,8 @@ public:
 
     virtual size_t GetHash() const override;
 
-    virtual int GetMultiplexingBand() const override;
-    virtual void SetMultiplexingBand(int band) override;
+    virtual EMultiplexingBand GetMultiplexingBand() const override;
+    virtual void SetMultiplexingBand(EMultiplexingBand band) override;
 
 protected:
     const IChannelPtr Channel_;
@@ -130,7 +124,7 @@ protected:
     NProto::TRequestHeader Header_;
     mutable TSharedRef SerializedBody_;
     mutable TNullable<size_t> Hash_;
-    int MultiplexingBand_ = MinMultiplexingBand;
+    EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
     bool FirstTimeSerialization_ = true;
 
 
@@ -331,34 +325,41 @@ private:
 struct TServiceDescriptor
 {
     TString ServiceName;
+    TString Namespace;
     int ProtocolVersion = DefaultProtocolVersion;
 
-    explicit TServiceDescriptor(const TString& serviceName)
-        : ServiceName(serviceName)
-    { }
+    explicit TServiceDescriptor(const TString& serviceName);
 
-    TServiceDescriptor& SetProtocolVersion(int value)
-    {
-        ProtocolVersion = value;
-        return *this;
-    }
+    TServiceDescriptor& SetProtocolVersion(int value);
+    TServiceDescriptor& SetNamespace(const TString& value);
+
+    TString GetFullServiceName() const;
 };
 
-#define DEFINE_RPC_PROXY(type, descriptor) \
+#define DEFINE_RPC_PROXY(type, name, ...) \
     static const ::NYT::NRpc::TServiceDescriptor& GetDescriptor() \
     { \
-        static const ::NYT::NRpc::TServiceDescriptor result = (descriptor); \
-        return result; \
+        static const auto Descriptor = ::NYT::NRpc::TServiceDescriptor(#name) __VA_ARGS__; \
+        return Descriptor; \
     } \
     \
     explicit type(::NYT::NRpc::IChannelPtr channel) \
         : ::NYT::NRpc::TProxyBase(std::move(channel), GetDescriptor()) \
     { }
 
-#define RPC_PROXY_DESC(name) \
-    NYT::NRpc::TServiceDescriptor(#name)
+////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_RPC_PROXY_METHOD(ns, method) \
+struct TMethodDescriptor
+{
+    TString MethodName;
+    EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
+
+    explicit TMethodDescriptor(const TString& methodName);
+
+    TMethodDescriptor& SetMultiplexingBand(EMultiplexingBand value);
+};
+
+#define DEFINE_RPC_PROXY_METHOD(ns, method, ...) \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
     typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
@@ -367,8 +368,8 @@ struct TServiceDescriptor
     \
     TReq##method##Ptr method() \
     { \
-        static TString MethodName(#method); \
-        return CreateRequest<TReq##method>(MethodName); \
+        static const auto Descriptor = ::NYT::NRpc::TMethodDescriptor(#method) __VA_ARGS__; \
+        return CreateRequest<TReq##method>(Descriptor); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,26 +380,27 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
-    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck, true);
 
 protected:
     const IChannelPtr Channel_;
-    const TServiceDescriptor Descriptor_;
+    const TServiceDescriptor ServiceDescriptor_;
 
     TProxyBase(
         IChannelPtr channel,
         const TServiceDescriptor& descriptor);
 
     template <class T>
-    TIntrusivePtr<T> CreateRequest(const TString& methodName)
+    TIntrusivePtr<T> CreateRequest(const TMethodDescriptor& methodDescriptor)
     {
         auto request = New<T>(
             Channel_,
-            Descriptor_.ServiceName,
-            methodName,
-            Descriptor_.ProtocolVersion);
+            ServiceDescriptor_.ServiceName,
+            methodDescriptor.MethodName,
+            ServiceDescriptor_.ProtocolVersion);
         request->SetTimeout(DefaultTimeout_);
         request->SetRequestAck(DefaultRequestAck_);
+        request->SetMultiplexingBand(methodDescriptor.MultiplexingBand);
         return request;
     }
 };

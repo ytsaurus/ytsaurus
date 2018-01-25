@@ -4,7 +4,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from time import sleep
 from yt.yson import YsonEntity
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, wait
 
 from flaky import flaky
 
@@ -28,11 +28,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             },
             "timestamp_provider": {
                 "update_period": 500,
-            }
-        },
-        "tablet_node": {
-            "tablet_manager": {
-                "replicator_soft_backoff_time": 100
             }
         }
     }
@@ -465,7 +460,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1
-        tablet_id = tablets[0]["tablet_id"]
 
         def _do():
             before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
@@ -478,28 +472,22 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
-            sleep(1.0)
-            assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
+            wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}])
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "new_test"}], update=True)
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 123}]
-            sleep(1.0)
-            assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 123}]
+            wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 123}])
 
             insert_rows("//tmp/t", [{"key": 1, "value2": 456}], update=True)
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 456}]
-            sleep(1.0)
-            assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 456}]
+            wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 456}])
 
             delete_rows("//tmp/t", [{"key": 1}])
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == []
-            sleep(1.0)
-            assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
+            wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [])
 
-            after_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
-            after_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
-            assert after_index1 == after_index2
-            assert after_index1 == before_index1 + 4
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 4)
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 4)
 
             after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
             after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
@@ -510,8 +498,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         alter_table_replica(replica_id1, mode="async")
         alter_table_replica(replica_id1, mode="sync")
-
-        sleep(1.0)
 
         _do()
 

@@ -21,7 +21,8 @@ target_link_libraries(yt-core
   deps-arcadia-contrib-libs-lzmasdk
   deps-arcadia-contrib-libs-protobuf
   deps-arcadia-contrib-libs-snappy
-  deps-arcadia-contrib-libs-zstd07
+  deps-arcadia-contrib-libs-zstd
+  deps-arcadia-contrib-libs-yajl
   deps-arcadia-library-streams-lz
   deps-arcadia-library-getopt
   deps-arcadia-util

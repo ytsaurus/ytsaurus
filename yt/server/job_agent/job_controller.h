@@ -45,6 +45,8 @@ public:
         TJobControllerConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
+    void Initialize();
+
     //! Registers a factory for a given job type.
     void RegisterFactory(
         EJobType type,

@@ -15,7 +15,7 @@ class TSchedulerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TSchedulerServiceProxy, RPC_PROXY_DESC(SchedulerService)
+    DEFINE_RPC_PROXY(TSchedulerServiceProxy, SchedulerService,
         .SetProtocolVersion(4));
 
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, StartOperation);

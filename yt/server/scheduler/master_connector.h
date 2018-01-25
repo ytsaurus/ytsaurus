@@ -3,7 +3,6 @@
 #include "private.h"
 
 #include <yt/server/controller_agent/public.h>
-#include <yt/server/controller_agent/master_connector.h>
 
 #include <yt/server/cell_scheduler/public.h>
 
@@ -13,33 +12,30 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/ytree/public.h>
-
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationReport
-{
-    TOperationPtr Operation;
-    NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
-    bool UserTransactionAborted = false;
-    bool IsAborting = false;
-    bool IsCommitted = false;
-    bool ShouldCommitOutputTransaction = false;
-};
-
 //! Information retrieved during scheduler-master handshake.
 struct TMasterHandshakeResult
 {
-    std::vector<TOperationReport> OperationReports;
+    std::vector<TOperationPtr> Operations;
 };
 
-typedef TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)> TWatcherRequester;
-typedef TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)> TWatcherHandler;
+using TWatcherRequester = TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)>;
+using TWatcherHandler = TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)>;
+
+DEFINE_ENUM(EMasterConnectorState,
+    (Disconnected)
+    (Connecting)
+    (Connected)
+);
 
 //! Mediates communication between scheduler and master.
+/*!
+ *  \note Thread affinity: control unless noted otherwise
+ */
 class TMasterConnector
 {
 public:
@@ -48,17 +44,35 @@ public:
         NCellScheduler::TBootstrap* bootstrap);
     ~TMasterConnector();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     void Start();
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    EMasterConnectorState GetState() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    TInstant GetConnectionTime() const;
 
     IInvokerPtr GetCancelableControlInvoker() const;
 
-    bool IsConnected() const;
-
     void Disconnect();
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult);
-    TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
-    TFuture<void> FlushOperationNode(TOperationPtr operation);
+    void StartOperationNodeUpdates(const TOperationPtr& operation);
+    TFuture<void> CreateOperationNode(const TOperationPtr& operation);
+    TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation);
+    TFuture<void> FlushOperationNode(const TOperationPtr& operation);
+
+    void AttachJobContext(
+        const NYPath::TYPath& path,
+        const NChunkClient::TChunkId& chunkId,
+        const TOperationId& operationId,
+        const TJobId& jobId);
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
@@ -66,18 +80,31 @@ public:
     void AddGlobalWatcherHandler(TWatcherHandler handler);
     void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period);
 
-    void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester);
-    void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler);
+    void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester);
+    void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler);
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
-    DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
+    //! Raised when connection prcoess starts.
+    //! Subscribers may throw and yield.
+    DECLARE_SIGNAL(void(), MasterConnecting);
+
+    //! Raised during connection process.
+    //! Handshake result contains operations created from Cypress data; all of these have valid revival descriptors.
+    //! Subscribers may throw and yield.
+    DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterHandshake);
+
+    //! Raised when connection is complete.
+    //! Subscribers may throw but cannot yield.
+    DECLARE_SIGNAL(void(), MasterConnected);
+
+    //! Raised when disconnect happens.
+    //! Subscribers cannot neither throw nor yield
     DECLARE_SIGNAL(void(), MasterDisconnected);
 
 private:
     class TImpl;
-    const TIntrusivePtr<TImpl> Impl;
-
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

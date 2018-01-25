@@ -345,7 +345,7 @@ public:
         return Parent_;
     }
 
-    virtual void SetParent(ICompositeNodePtr parent) override
+    virtual void SetParent(const ICompositeNodePtr& parent) override
     {
         Parent_ = parent.Get();
     }

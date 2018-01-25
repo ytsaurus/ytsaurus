@@ -4,7 +4,6 @@
 #endif
 
 #include "node.h"
-#include "yson_serializable.h"
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/string.h>
@@ -22,7 +21,29 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
+namespace NDetail {
+
+// all
+inline bool HasValue(const void* /* parameter */)
+{
+    return true;
+}
+
+// TIntrusivePtr
+template <class T>
+bool HasValue(const TIntrusivePtr<T>* parameter)
+{
+    return parameter->operator bool();
+}
+
+// TNullable
+template <class T>
+bool HasValue(const TNullable<T>* parameter)
+{
+    return parameter->HasValue();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 void SerializeVector(const T& items, NYson::IYsonConsumer* consumer)
@@ -211,7 +232,7 @@ void DeserializeTuple(T& value, INodePtr node)
     TTupleHelper<T>::DeserializeItem(value, node->AsList());
 }
 
-} // namespace
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -291,28 +312,28 @@ void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
 template <class T, class A>
 void Serialize(const std::vector<T, A>& items, NYson::IYsonConsumer* consumer)
 {
-    SerializeVector(items, consumer);
+    NDetail::SerializeVector(items, consumer);
 }
 
 // SmallVector
 template <class T, unsigned N>
 void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
 {
-    SerializeVector(items, consumer);
+    NDetail::SerializeVector(items, consumer);
 }
 
 // RepeatedPtrField
 template <class T>
 void Serialize(const NProtoBuf::RepeatedPtrField<T>& items, NYson::IYsonConsumer* consumer)
 {
-    SerializeVector(items, consumer);
+    NDetail::SerializeVector(items, consumer);
 }
 
 // RepeatedField
 template <class T>
 void Serialize(const NProtoBuf::RepeatedField<T>& items, NYson::IYsonConsumer* consumer)
 {
-    SerializeVector(items, consumer);
+    NDetail::SerializeVector(items, consumer);
 }
 
 // TErrorOr
@@ -333,38 +354,41 @@ void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer)
 template <class F, class S>
 void Serialize(const std::pair<F, S>& value, NYson::IYsonConsumer* consumer)
 {
-    SerializeTuple(value, consumer);
+    NDetail::SerializeTuple(value, consumer);
 }
 
 template <class T, size_t N>
 void Serialize(const std::array<T, N>& value, NYson::IYsonConsumer* consumer)
 {
-    SerializeTuple(value, consumer);
+    NDetail::SerializeTuple(value, consumer);
 }
 
 template <class... T>
 void Serialize(const std::tuple<T...>& value, NYson::IYsonConsumer* consumer)
 {
-    SerializeTuple(value, consumer);
+    NDetail::SerializeTuple(value, consumer);
 }
 
 // For any associative container.
 template <template<typename...> class C, class... T, class K>
 void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer)
 {
-    SerializeAssociative(value, consumer);
+    NDetail::SerializeAssociative(value, consumer);
 }
 
 template <class T, class E, E Min, E Max>
-void Serialize(const TEnumIndexedVector<T, E, Min, Max>& value, NYson::IYsonConsumer* consumer)
+void Serialize(const TEnumIndexedVector<T, E, Min, Max>& vector, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     for (auto key : TEnumTraits<E>::GetDomainValues()) {
-        if (!value.IsDomainValue(key)) {
+        if (!vector.IsDomainValue(key)) {
             continue;
         }
-        consumer->OnKeyedItem(FormatEnum(key));
-        Serialize(value[key], consumer);
+        const auto& value = vector[key];
+        if (NDetail::HasValue(&value)) {
+            consumer->OnKeyedItem(FormatEnum(key));
+            Serialize(value, consumer);
+        }
     }
     consumer->OnEndMap();
 }
@@ -432,14 +456,14 @@ void Deserialize(TNullable<T>& value, INodePtr node)
 template <class T, class A>
 void Deserialize(std::vector<T, A>& value, INodePtr node)
 {
-    DeserializeVector(value, node);
+    NDetail::DeserializeVector(value, node);
 }
 
 // SmallVector
 template <class T, unsigned N>
 void Deserialize(SmallVector<T, N>& value, INodePtr node)
 {
-    DeserializeVector(value, node);
+    NDetail::DeserializeVector(value, node);
 }
 
 // TErrorOr
@@ -460,48 +484,40 @@ void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node)
 template <class F, class S>
 void Deserialize(std::pair<F, S>& value, INodePtr node)
 {
-    DeserializeTuple(value, node);
+    NDetail::DeserializeTuple(value, node);
 }
 
 template <class T, size_t N>
 void Deserialize(std::array<T, N>& value, INodePtr node)
 {
-    DeserializeTuple(value, node);
+    NDetail::DeserializeTuple(value, node);
 }
 
 template <class... T>
 void Deserialize(std::tuple<T...>& value, INodePtr node)
 {
-    DeserializeTuple(value, node);
+    NDetail::DeserializeTuple(value, node);
 }
 
 // For any associative container.
 template <template<typename...> class C, class... T, class K>
 void Deserialize(C<T...>& value, INodePtr node)
 {
-    DeserializeAssociative(value, node);
+    NDetail::DeserializeAssociative(value, node);
 }
 
 template <class T, class E, E Min, E Max>
-void Deserialize(TEnumIndexedVector<T, E, Min, Max>& value, INodePtr node)
+void Deserialize(TEnumIndexedVector<T, E, Min, Max>& vector, INodePtr node)
 {
-    for (auto key : TEnumTraits<E>::GetDomainValues()) {
-        if (!value.IsDomainValue(key)) {
-            continue;
-        }
-        value[key] = T();
-    }
-
+    vector = TEnumIndexedVector<T, E, Min, Max>();
     auto mapNode = node->AsMap();
     for (const auto& pair : mapNode->GetChildren()) {
-        E key;
-        if (!TEnumTraits<E>::FindValueByLiteral(pair.first, &key)) {
-            continue;
+        auto key = TEnumTraits<E>::FromString(DecodeEnumValue(pair.first));
+        if (!vector.IsDomainValue(key)) {
+            THROW_ERROR_EXCEPTION("Enum value %Qlv is out of supported range",
+                key);
         }
-        if (!value.IsDomainValue(key)) {
-            continue;
-        }
-        Deserialize(value[key], pair.second);
+        Deserialize(vector[key], pair.second);
     }
 }
 

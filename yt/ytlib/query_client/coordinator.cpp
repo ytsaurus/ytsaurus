@@ -28,7 +28,7 @@ using namespace NObjectClient;
 namespace {
 
 std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
-    TConstQueryPtr query,
+    const TConstQueryPtr& query,
     const std::vector<TRefiner>& refiners)
 {
     auto Logger = MakeQueryLogger(query);
@@ -110,11 +110,11 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 ////////////////////////////////////////////////////////////////////////////////
 
 TRowRanges GetPrunedRanges(
-    TConstExpressionPtr predicate,
+    const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     const TObjectId& tableId,
-    TSharedRange<TRowRange> ranges,
+    const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
@@ -156,9 +156,9 @@ TRowRanges GetPrunedRanges(
 }
 
 TRowRanges GetPrunedRanges(
-    TConstQueryPtr query,
+    const TConstQueryPtr& query,
     const TObjectId& tableId,
-    TSharedRange<TRowRange> ranges,
+    const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
@@ -179,8 +179,8 @@ TRowRanges GetPrunedRanges(
 }
 
 TQueryStatistics CoordinateAndExecute(
-    TConstQueryPtr query,
-    ISchemafulWriterPtr writer,
+    const TConstQueryPtr& query,
+    const ISchemafulWriterPtr& writer,
     const std::vector<TRefiner>& refiners,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
     std::function<TQueryStatistics(TConstFrontQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
@@ -228,15 +228,15 @@ TQueryStatistics CoordinateAndExecute(
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (int index = 0; index < subqueryHolders.size(); ++index) {
-        auto subQueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
-        if (subQueryStatisticsOrError.IsOK()) {
-            const auto& subQueryStatistics = subQueryStatisticsOrError.ValueOrThrow();
+        auto subqueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
+        if (subqueryStatisticsOrError.IsOK()) {
+            const auto& subqueryStatistics = subqueryStatisticsOrError.ValueOrThrow();
             LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
                 subqueries[index]->Id,
-                subQueryStatistics);
-            queryStatistics += subQueryStatistics;
+                subqueryStatistics);
+            queryStatistics.AddInnerStatistics(subqueryStatistics);
         } else {
-            LOG_DEBUG(subQueryStatisticsOrError, "Subquery failed (SubqueryId: %v)",
+            LOG_DEBUG(subqueryStatisticsOrError, "Subquery failed (SubqueryId: %v)",
                 subqueries[index]->Id);
         }
     }

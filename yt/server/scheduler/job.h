@@ -6,7 +6,6 @@
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
@@ -114,69 +113,6 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobSummary
-{
-    TJobSummary() = default;
-    TJobSummary(const TJobPtr& job, TJobStatus* status);
-    TJobSummary(const TJobId& id, EJobState state);
-    virtual ~TJobSummary() = default;
-
-    TJobResult Result;
-    TJobId Id;
-    EJobState State;
-
-    TNullable<TInstant> FinishTime;
-    TNullable<TDuration> PrepareDuration;
-    TNullable<TDuration> DownloadDuration;
-    TNullable<TDuration> ExecDuration;
-
-    // NB: The Statistics field will be set inside the controller in ParseStatistics().
-    TNullable<NJobTrackerClient::TStatistics> Statistics;
-    NYson::TYsonString StatisticsYson;
-
-    // TODO(ignat): rename, it is not only about logging.
-    bool ShouldLog;
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
-};
-
-using TFailedJobSummary = TJobSummary;
-
-struct TCompletedJobSummary
-    : public TJobSummary
-{
-    TCompletedJobSummary(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
-    //! Only for testing purpose.
-    TCompletedJobSummary() = default;
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
-
-    bool Abandoned = false;
-
-    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
-    std::vector<NChunkClient::TInputDataSlicePtr> ReadInputDataSlices;
-    EInterruptReason InterruptReason = EInterruptReason::None;
-    int SplitJobCount = 1;
-};
-
-struct TAbortedJobSummary
-    : public TJobSummary
-{
-    TAbortedJobSummary(const TJobPtr& job, TJobStatus* status);
-    TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
-    TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
-
-    const EAbortReason AbortReason;
-};
-
-struct TRunningJobSummary
-    : public TJobSummary
-{
-    TRunningJobSummary(const TJobPtr& job, TJobStatus* status);
-
-    const double Progress;
-    const ui64 StderrSize;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,7 +123,7 @@ TJobStatus JobStatusFromError(const TError& error);
 struct TJobStartRequest
 {
     TJobStartRequest(
-        TJobId id,
+        const TJobId& id,
         EJobType type,
         const TJobResources& resourceLimits,
         bool interruptible);
@@ -215,6 +151,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((TaskRefusal)                   (11))
     ((JobSpecThrottling)             (12))
     ((IntermediateChunkLimitExceeded)(13))
+    ((DataBalancingViolation)        (14))
 );
 
 struct TScheduleJobResult

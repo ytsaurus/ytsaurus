@@ -1227,12 +1227,18 @@ private:
             UpdateAccountResourceUsage(chunk, -1);
         }
 
+        auto job = chunk->GetJob();
+
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
         auto unregisterReplica = [&] (TNodePtrWithIndexes nodeWithIndexes, bool cached) {
             auto* node = nodeWithIndexes.GetPtr();
             TChunkPtrWithIndexes chunkWithIndexes(
                 chunk,
+                nodeWithIndexes.GetReplicaIndex(),
+                nodeWithIndexes.GetMediumIndex());
+            TChunkIdWithIndexes chunkIdWithIndexes(
+                chunk->GetId(),
                 nodeWithIndexes.GetReplicaIndex(),
                 nodeWithIndexes.GetMediumIndex());
             if (!node->RemoveReplica(chunkWithIndexes)) {
@@ -1245,6 +1251,13 @@ private:
                 return;
             }
             if (node->GetLocalState() != ENodeState::Online) {
+                return;
+            }
+            if (job &&
+                job->GetNode() == node &&
+                job->GetType() == EJobType::RemoveChunk &&
+                job->GetChunkIdWithIndexes() == chunkIdWithIndexes)
+            {
                 return;
             }
             ChunkReplicator_->ScheduleReplicaRemoval(node, chunkWithIndexes);

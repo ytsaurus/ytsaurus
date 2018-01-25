@@ -9,7 +9,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
-#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>
@@ -96,9 +96,6 @@ public:
     //! Sets the node's resource limits.
     void SetResourceLimits(const TJobResources& value);
 
-    //! Sets the node's disk limits.
-    void SetDiskLimits(const NNodeTrackerClient::NProto::TDiskResources& value);
-
     //! Returns the most recent resource usage, as reported by the node.
     /*!
      *  Some fields are also updated by the scheduler strategy to
@@ -108,23 +105,19 @@ public:
      */
     const TJobResources& GetResourceUsage() const;
 
-    const NNodeTrackerClient::NProto::TDiskResources& GetDiskUsage() const;
-
-    const NNodeTrackerClient::NProto::TDiskResources& GetDiskLimits() const;
+    const NNodeTrackerClient::NProto::TDiskResources& GetDiskInfo() const;
 
     //! Sets the node's resource usage.
     void SetResourceUsage(const TJobResources& value);
 
-    //! Sets the node's disk usage
-    void SetDiskUsage(const NNodeTrackerClient::NProto::TDiskResources& value);
+    void SetDiskInfo(const NNodeTrackerClient::NProto::TDiskResources& value);
 
 private:
     TJobResources ResourceUsage_;
-    NNodeTrackerClient::NProto::TDiskResources DiskUsage_;
+    NNodeTrackerClient::NProto::TDiskResources DiskInfo_;
 
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     TJobResources ResourceLimits_;
-    NNodeTrackerClient::NProto::TDiskResources DiskLimits_;
     double IOWeight_ = 0;
 };
 

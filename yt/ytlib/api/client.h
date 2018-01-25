@@ -347,7 +347,7 @@ struct TSelectRowsOptions
     //! If null then connection defaults are used.
     TNullable<i64> OutputRowLimit;
     //! Limits range expanding.
-    ui64 RangeExpansionLimit = 1000;
+    ui64 RangeExpansionLimit = 200000;
     //! If |true| then incomplete result would lead to a failure.
     bool FailOnIncompleteResult = true;
     //! If |true| then logging is more verbose.
@@ -465,7 +465,7 @@ struct TMoveNodeOptions
     bool Recursive = false;
     bool Force = false;
     bool PreserveAccount = false;
-    bool PreserveExpirationTime = true;
+    bool PreserveExpirationTime = false;
 };
 
 struct TLinkNodeOptions
@@ -511,6 +511,7 @@ struct TFileWriterOptions
     , public TPrerequisiteOptions
 {
     bool Append = true;
+    bool ComputeMD5 = false;
     TNullable<NCompression::ECodec> CompressionCodec;
     TNullable<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
@@ -616,11 +617,13 @@ struct TListOperationsOptions
 
 DEFINE_ENUM(EJobSortField,
     ((None)       (0))
-    ((JobType)    (1))
-    ((JobState)   (2))
+    ((Type)       (1))
+    ((State)      (2))
     ((StartTime)  (3))
     ((FinishTime) (4))
     ((Address)    (5))
+    ((Duration)   (6))
+    ((Progress)   (7))
 );
 
 DEFINE_ENUM(EJobSortDirection,
@@ -631,19 +634,19 @@ DEFINE_ENUM(EJobSortDirection,
 struct TListJobsOptions
     : public TTimeoutOptions
 {
-    TNullable<NJobTrackerClient::EJobType> JobType;
-    TNullable<NJobTrackerClient::EJobState> JobState;
+    TNullable<NJobTrackerClient::EJobType> Type;
+    TNullable<NJobTrackerClient::EJobState> State;
     TNullable<TString> Address;
     TNullable<bool> HasStderr;
 
-    EJobSortField SortField = EJobSortField::StartTime;
+    EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 
     i64 Limit = 1000;
     i64 Offset = 0;
 
-    bool IncludeCypress = false;
-    bool IncludeRuntime = false;
+    bool IncludeCypress = true;
+    bool IncludeScheduler = true;
     bool IncludeArchive = true;
 };
 
@@ -671,7 +674,15 @@ struct TAbortJobOptions
 
 struct TGetOperationOptions
     : public TTimeoutOptions
-{ };
+{
+    TNullable<std::vector<TString>> Attributes;
+};
+
+struct TGetJobOptions
+    : public TTimeoutOptions
+{
+    // TODO(sandello): Support attributes filter.
+};
 
 struct TSelectRowsResult
 {
@@ -710,21 +721,6 @@ struct TOperation
     TNullable<double> Weight;
 };
 
-struct TJob
-{
-    NJobTrackerClient::TJobId JobId;
-    NJobTrackerClient::EJobType JobType;
-    NJobTrackerClient::EJobState JobState;
-    TInstant StartTime;
-    TNullable<TInstant> FinishTime;
-    TString Address;
-    NYson::TYsonString Error;
-    NYson::TYsonString Statistics;
-    TNullable<ui64> StderrSize;
-    TNullable<double> Progress;
-    TNullable<TString> CoreInfos;
-};
-
 struct TListOperationsResult
 {
     std::vector<TOperation> Operations;
@@ -734,6 +730,30 @@ struct TListOperationsResult
     TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
     TNullable<i64> FailedJobsCount;
     bool Incomplete = false;
+};
+
+struct TJob
+{
+    NJobTrackerClient::TJobId Id;
+    NJobTrackerClient::EJobType Type;
+    NJobTrackerClient::EJobState State;
+    TInstant StartTime;
+    TNullable<TInstant> FinishTime;
+    TString Address;
+    TNullable<double> Progress;
+    TNullable<ui64> StderrSize;
+    NYson::TYsonString Error;
+    NYson::TYsonString BriefStatistics;
+    NYson::TYsonString InputPaths;
+    NYson::TYsonString CoreInfos;
+};
+
+struct TListJobsResult
+{
+    std::vector<TJob> Jobs;
+    int CypressJobCount = -1;
+    int SchedulerJobCount = -1;
+    int ArchiveJobCount = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -850,7 +870,6 @@ struct IClientBase
     virtual IFileWriterPtr CreateFileWriter(
         const NYPath::TYPath& path,
         const TFileWriterOptions& options = TFileWriterOptions()) = 0;
-
 
     // Journals
     virtual IJournalReaderPtr CreateJournalReader(
@@ -1013,9 +1032,14 @@ struct IClient
     virtual TFuture<TListOperationsResult> ListOperations(
         const TListOperationsOptions& options = TListOperationsOptions()) = 0;
 
-    virtual TFuture<std::vector<TJob>> ListJobs(
+    virtual TFuture<TListJobsResult> ListJobs(
         const NJobTrackerClient::TOperationId& operationId,
         const TListJobsOptions& options = TListJobsOptions()) = 0;
+
+    virtual TFuture<NYson::TYsonString> GetJob(
+        const NScheduler::TOperationId& operationId,
+        const NJobTrackerClient::TJobId& jobId,
+        const TGetJobOptions& options = TGetJobOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,

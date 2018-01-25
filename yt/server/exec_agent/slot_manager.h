@@ -4,8 +4,15 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/server/job_agent/job.h>
+
 #include <yt/core/actions/public.h>
+
 #include <yt/core/concurrency/public.h>
+#include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/fs.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -25,13 +32,21 @@ public:
     void Initialize();
 
     //! Acquires a free slot, thows on error.
-    ISlotPtr AcquireSlot();
+    ISlotPtr AcquireSlot(i64 diskSpaceRequest);
 
     void ReleaseSlot(int slotIndex);
 
     int GetSlotCount() const;
 
     bool IsEnabled() const;
+
+    TNullable<i64> GetMemoryLimit() const;
+
+    TNullable<i64> GetCpuLimit() const;
+
+    bool ExternalJobMemory() const;
+
+    NNodeTrackerClient::NProto::TDiskResources GetDiskInfo();
 
 private:
     const TSlotManagerConfigPtr Config_;
@@ -48,6 +63,8 @@ private:
     yhash_set<int> FreeSlots_;
 
     bool JobProxySocketNameDirectoryCreated_ = false;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void UpdateAliveLocations();
 };

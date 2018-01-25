@@ -288,7 +288,7 @@ public:
         MaybeUser_ = securityManager->GetAuthenticatedUser();
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
+            .AsyncVia(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
             .Run(
                 std::move(externalCGInfo),
                 std::move(dataSources),
@@ -350,9 +350,9 @@ private:
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
-        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
-        FetchImplementations(
+        MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
+        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+        FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
             externalCGInfo,
@@ -540,9 +540,10 @@ private:
 
                 auto pipe = New<TSchemafulPipe>();
 
-                auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
-                    .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-                    .Run(subquery,
+                auto asyncStatistics = BIND(&TEvaluator::Run, Evaluator_)
+                    .AsyncVia(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
+                    .Run(
+                        subquery,
                         mergingReader,
                         pipe->GetWriter(),
                         foreignProfileCallback,
@@ -569,7 +570,7 @@ private:
                         ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
                             for (const auto& subqueryResult : subqueryResults) {
                                 LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
-                                statistics += subqueryResult;
+                                statistics.AddInnerStatistics(subqueryResult);
                             }
                             return statistics;
                         }));
@@ -584,6 +585,7 @@ private:
                     topQuery,
                     std::move(reader),
                     std::move(writer),
+                    nullptr,
                     functionGenerators,
                     aggregateGenerators,
                     Options_);
@@ -1190,7 +1192,7 @@ public:
             config->FunctionImplCache,
             bootstrap->GetMasterClient()))
         , Bootstrap_(bootstrap)
-        , Evaluator_(New<TEvaluator>(Config_, "/query_agent"))
+        , Evaluator_(New<TEvaluator>(Config_, QueryAgentProfiler))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()

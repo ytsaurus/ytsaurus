@@ -218,7 +218,7 @@ public:
             .Default(true);
         RegisterParameter("warmup_time", WarmupTime)
             .Default(TDuration::Minutes(6));
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (EnableWarmup && WarmupTime < ExpirationTime) {
                 THROW_ERROR_EXCEPTION("\"warmup_time\" cannot be less than \"expiration_time\"");
             }
@@ -227,6 +227,44 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TResponseKeeperConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMultiplexingBandConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int TosLevel;
+
+    TMultiplexingBandConfig()
+    {
+        RegisterParameter("tos_level", TosLevel)
+            .Default(NBus::DefaultTosLevel);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiplexingBandConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDispatcherConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    static constexpr int DefaultHeavyPoolSize = 16;
+    int HeavyPoolSize;
+    TEnumIndexedVector<TMultiplexingBandConfigPtr, EMultiplexingBand> MultiplexingBands;
+
+    TDispatcherConfig()
+    {
+        RegisterParameter("heavy_pool_size", HeavyPoolSize)
+            .Default(DefaultHeavyPoolSize);
+        RegisterParameter("multiplexing_bands", MultiplexingBands)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,12 +11,17 @@
 
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/volume_manager.h>
+
+#include <yt/core/concurrency/action_queue.h>
 
 namespace NYT {
 namespace NExecAgent {
 
 using namespace NCellNode;
+using namespace NDataNode;
 using namespace NConcurrency;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +40,8 @@ TSlotManager::TSlotManager(
 
 void TSlotManager::Initialize()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_INFO("Initializing %v exec slots", SlotCount_);
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
@@ -44,15 +51,7 @@ void TSlotManager::Initialize()
     JobEnvironment_ = CreateJobEnvironment(
         Config_->JobEnvironment,
         Bootstrap_);
-
-    // First shutdown all possible processes.
-    try {
-        for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-            JobEnvironment_->CleanProcesses(slotIndex);
-        }
-    } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Failed to clean up processes during initialization");
-    }
+    JobEnvironment_->Init(SlotCount_);
 
     if (!JobEnvironment_->IsEnabled()) {
         LOG_INFO("Job environment is disabled");
@@ -126,42 +125,53 @@ void TSlotManager::UpdateAliveLocations()
     }
 }
 
-ISlotPtr TSlotManager::AcquireSlot()
+ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     UpdateAliveLocations();
 
-    if (AliveLocations_.empty()) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::AllLocationsDisabled,
-            "Cannot acquire slot: all slot locations are disabled");
+    int feasibleSlotCount = 0;
+    TSlotLocationPtr bestLocation;
+    for (const auto& location : AliveLocations_) {
+        auto diskInfo = location->GetDiskInfo();
+        if (diskInfo.usage() + diskSpaceRequest > diskInfo.limit()) {
+            continue;
+        }
+        ++feasibleSlotCount;
+        if (!bestLocation || bestLocation->GetSessionCount() > location->GetSessionCount()) {
+            bestLocation = location;
+        }
     }
 
-    auto locationIt = std::min_element(
-        AliveLocations_.begin(),
-        AliveLocations_.end(),
-        [] (const TSlotLocationPtr& lhs, const TSlotLocationPtr& rhs) {
-            return lhs->GetSessionCount() < rhs->GetSessionCount();
-        });
+    if (!bestLocation) {
+        THROW_ERROR_EXCEPTION(EErrorCode::SlotNotFound, "No feasible slot found")
+            << TErrorAttribute("alive_slot_count", AliveLocations_.size())
+            << TErrorAttribute("feasible_slot_count", feasibleSlotCount);
+    }
 
     YCHECK(!FreeSlots_.empty());
     int slotIndex = *FreeSlots_.begin();
     FreeSlots_.erase(slotIndex);
 
-    return CreateSlot(slotIndex, std::move(*locationIt), JobEnvironment_, NodeTag_);
+    return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, NodeTag_);
 }
 
 void TSlotManager::ReleaseSlot(int slotIndex)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(FreeSlots_.insert(slotIndex).second);
 }
 
 int TSlotManager::GetSlotCount() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     return IsEnabled() ? SlotCount_ : 0;
 }
 
 bool TSlotManager::IsEnabled() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     bool isEnabled = SlotCount_ > 0 &&
         !AliveLocations_.empty() &&
         JobEnvironment_->IsEnabled();
@@ -171,6 +181,52 @@ bool TSlotManager::IsEnabled() const
     }
 
     return isEnabled;
+}
+
+TNullable<i64> TSlotManager::GetMemoryLimit() const
+{
+    return JobEnvironment_ && JobEnvironment_->IsEnabled()
+        ? JobEnvironment_->GetMemoryLimit()
+        : Null;
+}
+
+TNullable<i64> TSlotManager::GetCpuLimit() const
+{
+    return JobEnvironment_ && JobEnvironment_->IsEnabled()
+       ? JobEnvironment_->GetCpuLimit()
+       : Null;
+}
+
+bool TSlotManager::ExternalJobMemory() const
+{
+    return JobEnvironment_ && JobEnvironment_->IsEnabled()
+       ? JobEnvironment_->ExternalJobMemory()
+       : false;
+}
+
+NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    UpdateAliveLocations();
+    NNodeTrackerClient::NProto::TDiskResources result;
+    // Make a copy, since GetDiskInfo is async and iterator over AliveLocations_
+    // may have been invalidated between iterations.
+    auto locations = AliveLocations_;
+    for (auto& location : locations) {
+        try {
+            auto info = location->GetDiskInfo();
+            auto *pair = result.add_disk_reports();
+            pair->set_usage(info.usage());
+            pair->set_limit(info.limit());
+        } catch (const std::exception& ex) {
+            auto alert = TError("Failed to get disk info of location")
+                << ex;
+            location->Disable(alert);
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

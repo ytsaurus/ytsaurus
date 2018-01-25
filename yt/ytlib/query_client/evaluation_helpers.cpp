@@ -23,8 +23,7 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 PoolChunkSize = 32 * 1024;
-static const i64 BufferLimit = 32 * PoolChunkSize;
+static const i64 BufferLimit = 16 * PoolChunkSize;
 static const i64 MaxTopCollectorLimit = 2 * 1024 * 1024;
 
 struct TTopCollectorBufferTag
@@ -56,7 +55,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
                 buffersToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize);
+            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
@@ -83,7 +82,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
         } else {
             // Allocate buffer and add to emptyBufferIds.
             EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize));
+            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize, MaxSmallBlockRatio));
         }
     }
 
@@ -154,7 +153,7 @@ TJoinClosure::TJoinClosure(
     int keySize,
     int primaryRowSize,
     size_t batchSize)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
     , Lookup(
         InitialGroupOpHashtableCapacity,
         lookupHasher,
@@ -172,7 +171,7 @@ TMultiJoinClosure::TItem::TItem(
     TComparerFunction* prefixEqComparer,
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
     , KeySize(keySize)
     , PrefixEqComparer(prefixEqComparer)
     , Lookup(
@@ -188,7 +187,7 @@ TGroupByClosure::TGroupByClosure(
     TComparerFunction* groupComparer,
     int keySize,
     bool checkNulls)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
     , Lookup(
         InitialGroupOpHashtableCapacity,
         groupHasher,
@@ -260,6 +259,42 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
     }
 
     return std::make_pair(newQuery, dataSource);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void* const* TCGVariables::GetOpaqueData() const
+{
+    return OpaquePointers_.data();
+}
+
+void TCGVariables::Clear()
+{
+    OpaquePointers_.clear();
+    OpaqueValues_.clear();
+    OwningLiteralValues_.clear();
+    LiteralValues_.reset();
+}
+
+int TCGVariables::AddLiteralValue(TOwningValue value)
+{
+    Y_ASSERT(!LiteralValues_);
+    int index = static_cast<int>(OwningLiteralValues_.size());
+    OwningLiteralValues_.emplace_back(std::move(value));
+    return index;
+}
+
+TValue* TCGVariables::GetLiteralValues() const
+{
+    if (!LiteralValues_) {
+        LiteralValues_ = std::make_unique<TValue[]>(OwningLiteralValues_.size());
+        size_t index = 0;
+        for (const auto& value : OwningLiteralValues_) {
+            LiteralValues_[index++] = TValue(value);
+        }
+        return LiteralValues_.get();
+    }
+    return LiteralValues_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -65,6 +65,8 @@ constexpr size_t InvalidThreadId = 0;
 using TFiberId = size_t;
 constexpr size_t InvalidFiberId = 0;
 
+using TFairShareThreadPoolTag = TString;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency

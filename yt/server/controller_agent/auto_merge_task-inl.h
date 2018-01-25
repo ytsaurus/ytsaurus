@@ -27,9 +27,9 @@ public:
         }
     }
 
-    virtual bool CanScheduleJob(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override
+    virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override
     {
-        return CanScheduleJob_;
+        return MakeNullable(!CanScheduleJob_, NScheduler::EScheduleJobFailReason::TaskRefusal);
     }
 
     virtual void OnTaskCompleted() override
@@ -60,21 +60,21 @@ public:
         return CanScheduleJob_;
     }
 
-    virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobAborted(joblet, jobSummary);
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary) override
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobFailed(joblet, jobSummary);
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary) override
+    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobCompleted(joblet, jobSummary);
 
@@ -88,9 +88,9 @@ public:
         this->TaskHost_->GetAutoMergeDirector()->SubscribeStateChanged(BIND(&TAutoMergeableOutputMixin::UpdateSelf, MakeWeak(this)));
     }
 
-    virtual TString GetId() const override
+    virtual TString GetTitle() const override
     {
-        return TUnderlyingTask::GetId() + " + AutoMergeableOutputMixin";
+        return TUnderlyingTask::GetTitle() + " + AutoMergeableOutputMixin";
     }
 
     virtual bool CanLoseJobs() const override

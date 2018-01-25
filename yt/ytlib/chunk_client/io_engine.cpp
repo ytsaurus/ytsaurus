@@ -58,17 +58,26 @@ int io_getevents(
 
 #endif
 
+template <typename T>
+bool IsAligned(T value, i64 alignment)
+{
+    return ::AlignDown<T>(value, alignment) == value;
+}
+
 class TThreadedIOEngineConfig
     : public NYTree::TYsonSerializableLite
 {
 public:
     int Threads;
+    bool UseDirectIO;
 
     TThreadedIOEngineConfig()
     {
         RegisterParameter("threads", Threads)
             .GreaterThanOrEqual(1)
             .Default(1);
+        RegisterParameter("use_direct_io", UseDirectIO)
+            .Default(false);
     }
 };
 
@@ -80,10 +89,15 @@ public:
 
     explicit TThreadedIOEngine(const TConfigType& config)
         : ThreadPool_(config.Threads, "DiskIO")
+        , UseDirectIO_(config.UseDirectIO)
     { }
 
     virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
     {
+        if (UseDirectIO_) {
+            oMode |= DirectAligned;
+        }
+
         auto fh = std::make_shared<TFileHandle>(fName, oMode);
         if (!fh->IsOpen()) {
             THROW_ERROR_EXCEPTION("Cannot open %Qv with mode %v",
@@ -102,21 +116,74 @@ public:
 
     virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
     {
+        YCHECK(!UseDirectIO_ || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
+        YCHECK(!UseDirectIO_ || IsAligned(data.Size(), Alignment_));
+        YCHECK(!UseDirectIO_ || IsAligned(offset, Alignment_));
         return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset)
             .AsyncVia(ThreadPool_.GetInvoker())
             .Run();
     }
 
+    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh) override
+    {
+        if (UseDirectIO_) {
+            return TrueFuture;
+        } else {
+            return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), fh)
+                .AsyncVia(ThreadPool_.GetInvoker())
+                .Run();
+        }
+    }
+
+    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh) override
+    {
+        if (UseDirectIO_) {
+            return TrueFuture;
+        } else {
+            return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), fh)
+                .AsyncVia(ThreadPool_.GetInvoker())
+                .Run();
+        }
+    }
+
 private:
+    const size_t MaxPortion_ = size_t(1 << 30);
+    NConcurrency::TThreadPool ThreadPool_;
+
+    bool UseDirectIO_;
+    const i64 Alignment_ = 512;
+
+    bool DoFlushData(const std::shared_ptr<TFileHandle>& fh)
+    {
+        return fh->FlushData();
+    }
+
+    bool DoFlush(const std::shared_ptr<TFileHandle>& fh)
+    {
+        return fh->Flush();
+    }
+
     TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& fh, size_t numBytes, i64 offset)
     {
-        auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(numBytes, false);
+        auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(numBytes + UseDirectIO_ * 3 * Alignment_, false);
+        i64 from = offset;
+        i64 to = offset + numBytes;
+
+        if (UseDirectIO_) {
+            data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
+            from = ::AlignDown(offset, Alignment_);
+            to = ::AlignUp(to, Alignment_);
+        }
+
+        size_t readPortion = to - from;
+        auto delta = offset - from;
+
         size_t result;
         ui8* buf = reinterpret_cast<ui8*>(data.Begin());
 
         NFS::ExpectIOErrors([&]() {
             while (numBytes) {
-                const i32 toRead = static_cast<i32>(Min(MaxPortion_, numBytes));
+                const i32 toRead = static_cast<i32>(Min(MaxPortion_, readPortion));
                 const i32 reallyRead = fh->Pread(buf, toRead, offset);
 
                 if (reallyRead < 0) {
@@ -136,10 +203,10 @@ private:
                 numBytes -= reallyRead;
             }
 
-            result = buf - (ui8*)data.Begin();
+            result = buf - reinterpret_cast<ui8*>(data.Begin());
         });
 
-        return data.Slice(0, result);
+        return data.Slice(delta, delta + result);
     }
 
     void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
@@ -162,9 +229,6 @@ private:
             }
         });
     }
-
-    const size_t MaxPortion_ = size_t(1 << 30);
-    NConcurrency::TThreadPool ThreadPool_;
 };
 
 #ifdef _linux_
@@ -214,7 +278,11 @@ class TAioReadOperation
     : public TAioOperation
 {
 public:
-    TAioReadOperation(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 alignment)
+    TAioReadOperation(
+        const std::shared_ptr<TFileHandle>& fh,
+        size_t len,
+        i64 offset,
+        i64 alignment)
         : Data_(TSharedMutableRef::Allocate<TAioEngineDataBufferTag>(len + 3 * alignment, false))
         , FH_(fh)
         , Length_(len)
@@ -233,6 +301,10 @@ public:
         aio_buf = reinterpret_cast<ui64>(Data_.Begin());
         aio_offset = From_;
         aio_nbytes = To_ - From_;
+
+        YCHECK(IsAligned(aio_buf, alignment));
+        YCHECK(IsAligned(aio_nbytes, alignment));
+        YCHECK(IsAligned(aio_offset, alignment));
     }
 
     TFuture<TSharedMutableRef> Result()
@@ -270,7 +342,11 @@ class TAioWriteOperation
     : public TAioOperation
 {
 public:
-    TAioWriteOperation(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
+    TAioWriteOperation(
+        const std::shared_ptr<TFileHandle>& fh,
+        const TSharedMutableRef& data,
+        i64 offset,
+        i64 alignment)
         : Data_(data)
         , Fh_(fh)
     {
@@ -282,6 +358,10 @@ public:
         aio_buf = reinterpret_cast<ui64>(Data_.Begin());
         aio_offset = offset;
         aio_nbytes = data.Size();
+
+        YCHECK(IsAligned(aio_buf, alignment));
+        YCHECK(IsAligned(aio_nbytes, alignment));
+        YCHECK(IsAligned(aio_offset, alignment));
     }
 
     TFuture<void> Result()
@@ -354,9 +434,19 @@ public:
 
     virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
     {
-        auto op = New<TAioWriteOperation>(fh, data, offset);
+        auto op = New<TAioWriteOperation>(fh, data, offset, Alignment_);
         Submit(op);
         return op->Result();
+    }
+
+    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh) override
+    {
+        return TrueFuture;
+    }
+
+    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh) override
+    {
+        return TrueFuture;
     }
 
     virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override

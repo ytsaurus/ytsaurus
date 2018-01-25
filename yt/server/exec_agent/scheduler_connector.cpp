@@ -95,7 +95,7 @@ void TSchedulerConnector::SendHeartbeat()
         req.Get());
 
     LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
-        FormatResourceUsage(req->resource_usage(), req->resource_limits()));
+        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_info()));
 
     auto timeBetweenSentHeartbeats = TInstant::Now() - LastSentHeartbeatTime_;
     Profiler.Update(

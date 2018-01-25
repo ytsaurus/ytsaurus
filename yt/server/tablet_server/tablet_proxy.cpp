@@ -49,6 +49,8 @@ private:
 
         descriptors->push_back("state");
         descriptors->push_back("statistics");
+        descriptors->push_back(TAttributeDescriptor("table_path")
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("trimmed_row_count")
             .SetPresent(!table->IsPhysicallySorted()));
         descriptors->push_back(TAttributeDescriptor("flushed_row_count")
@@ -83,6 +85,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         if (key == "state") {
             BuildYsonFluently(consumer)
@@ -95,6 +98,14 @@ private:
                 .Value(New<TSerializableTabletStatistics>(
                     tabletManager->GetTabletStatistics(tablet),
                     chunkManager));
+            return true;
+        }
+
+        if (key == "table_path" && IsObjectAlive(tablet->GetTable())) {
+            BuildYsonFluently(consumer)
+                .Value(cypressManager->GetNodePath(
+                    tablet->GetTable()->GetTrunkNode(),
+                    nullptr));
             return true;
         }
 

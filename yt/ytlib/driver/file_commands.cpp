@@ -59,6 +59,8 @@ TWriteFileCommand::TWriteFileCommand()
     RegisterParameter("path", Path);
     RegisterParameter("file_writer", FileWriter)
         .Default();
+    RegisterParameter("compute_md5", ComputeMD5)
+        .Default(false);
 }
 
 void TWriteFileCommand::DoExecute(ICommandContextPtr context)
@@ -67,6 +69,7 @@ void TWriteFileCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->FileWriter,
         FileWriter);
     Options.Append = Path.GetAppend();
+    Options.ComputeMD5 = ComputeMD5;
 
     if (Path.GetAppend() && Path.GetCompressionCodec()) {
         THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")

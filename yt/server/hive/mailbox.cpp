@@ -14,6 +14,24 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEncapsulatedMessageSerializer
+{
+    template <class C>
+    static void Save(C& context, const TRefCountedEncapsulatedMessagePtr& message)
+    {
+        NYT::Save(context, *message);
+    }
+
+    template <class C>
+    static void Load(C& context, TRefCountedEncapsulatedMessagePtr& message)
+    {
+        message = New<TRefCountedEncapsulatedMessage>();
+        NYT::Load(context, *message);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMailbox::TMailbox(const TCellId& cellId)
     : CellId_(cellId)
 { }
@@ -23,7 +41,7 @@ void TMailbox::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, FirstOutcomingMessageId_);
-    Save(context, OutcomingMessages_);
+    TVectorSerializer<TEncapsulatedMessageSerializer>::Save(context, OutcomingMessages_);
     Save(context, NextIncomingMessageId_);
 }
 
@@ -31,19 +49,9 @@ void TMailbox::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(babenko)
-    if (context.GetVersion() < 3) {
-        Load(context, FirstOutcomingMessageId_);
-        // LastIncomingMessage_ differs from NextIncomingMessageId_ by 1.
-        NextIncomingMessageId_ = Load<TMessageId>(context) + 1;
-        Load(context, OutcomingMessages_);
-        // IncomingMessages_ must be empty.
-        YCHECK(TSizeSerializer::Load(context) == 0);
-    } else {
-        Load(context, FirstOutcomingMessageId_);
-        Load(context, OutcomingMessages_);
-        Load(context, NextIncomingMessageId_);
-    }
+    Load(context, FirstOutcomingMessageId_);
+    TVectorSerializer<TEncapsulatedMessageSerializer>::Load(context, OutcomingMessages_);
+    Load(context, NextIncomingMessageId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,11 +55,11 @@ public:
     //! Posts a message for delivery (either reliable or not).
     void PostMessage(
         TMailbox* mailbox,
-        const NHiveClient::NProto::TEncapsulatedMessage& message,
+        TRefCountedEncapsulatedMessagePtr message,
         bool reliable = true);
     void PostMessage(
         const TMailboxList& mailboxes,
-        const NHiveClient::NProto::TEncapsulatedMessage& message,
+        TRefCountedEncapsulatedMessagePtr message,
         bool reliable = true);
     void PostMessage(
         TMailbox* mailbox,

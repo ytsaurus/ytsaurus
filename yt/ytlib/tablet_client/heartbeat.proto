@@ -52,6 +52,8 @@ message TTabletPerformanceCounters
     required int64 merged_row_read_count = 8;
     optional int64 compaction_data_weight_count = 12 [default = 0];
     optional int64 partitioning_data_weight_count = 13 [default = 0];
+    required int64 write_error_count = 18 [default = 0];
+    required int64 lookup_error_count = 19 [default = 0];
 }
 
 message TTableReplicaInfo

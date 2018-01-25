@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/yson/public.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -18,16 +20,21 @@ struct TQueryStatistics
     TDuration ReadTime;
     TDuration WriteTime;
     TDuration CodegenTime;
+    TDuration WaitOnReadyEventTime;
     bool IncompleteInput = false;
     bool IncompleteOutput = false;
 
-    TQueryStatistics& operator += (const TQueryStatistics& other);
+    std::vector<TQueryStatistics> InnerStatistics;
+
+    void AddInnerStatistics(const TQueryStatistics& statistics);
 };
 
 void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& original);
-TQueryStatistics FromProto(const NProto::TQueryStatistics& protoClause);
+void FromProto(TQueryStatistics* original, const NProto::TQueryStatistics& serialized);
 
 TString ToString(const TQueryStatistics& stat);
+
+void Serialize(const TQueryStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

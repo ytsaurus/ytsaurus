@@ -48,7 +48,7 @@ public:
         RegisterParameter("function_impl_cache", FunctionImplCache)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             FunctionImplCache->Capacity = 100;
         });
     }

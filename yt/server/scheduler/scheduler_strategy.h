@@ -27,6 +27,7 @@ struct ISchedulerStrategyHost
     virtual TJobResources GetTotalResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
+    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;
 
@@ -93,7 +94,10 @@ struct ISchedulerStrategy
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
 
     //! Starts periodic updates and logging.
-    virtual void StartPeriodicActivity() = 0;
+    virtual void OnMasterConnected() = 0;
+
+    //! Stops all activities, resets all state.
+    virtual void OnMasterDisconnected() = 0;
 
     //! Called periodically to build new tree snapshot.
     virtual void OnFairShareUpdateAt(TInstant now) = 0;
@@ -106,9 +110,6 @@ struct ISchedulerStrategy
 
     //! Called periodically to update min needed job resources for operation.
     virtual void OnMinNeededJobResourcesUpdate() = 0;
-
-    //! Resets memoized state.
-    virtual void ResetState() = 0;
 
     //! Validates that operation can be started.
     /*!
@@ -140,6 +141,8 @@ struct ISchedulerStrategy
 
     //! Register jobs that are already created somewhere outside strategy.
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
+    
+    virtual void OnOperationRunning(const TOperationId& operationId) = 0;
 
     virtual void ProcessUpdatedAndCompletedJobs(
         std::vector<TUpdatedJob>* updatedJobs,

@@ -11,9 +11,6 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class S>
-T CheckedIntegralCast(S value);
-
 template <class T>
 NYson::TYsonProducer ConvertToProducer(T&& value);
 

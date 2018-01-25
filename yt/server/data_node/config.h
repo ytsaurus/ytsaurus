@@ -11,6 +11,9 @@
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/misc/config.h>
+#include <yt/core/misc/boolean_formula.h>
+
+#include <yt/core/re2/re2.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -35,6 +38,86 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPeerBlockDistributorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between distributor iterations.
+    TDuration IterationPeriod;
+
+    //! Transmitted byte count per second enough for P2P to become active.
+    i64 OutTrafficActivationThreshold;
+
+    //! Out queue size (Out throttler queue size + default network bus pending byte count) enough for P2P to become active.
+    i64 OutQueueSizeActivationThreshold;
+
+    //! Block throughput in bytes per second enough for P2P to become active.
+    i64 TotalRequestedBlockSizeActivationThreshold;
+
+    //! Regex for names of network interfaces considered when calculating transmitted byte count.
+    NRe2::TRe2Ptr NetOutInterfaces;
+
+    //! Maximum total size of blocks transmitted to a single node during the iteration.
+    i64 MaxPopulateRequestSize;
+
+    //! Number of nodes to send blocks on a given iteration.
+    int DestinationNodeCount;
+
+    //! Upper bound on number of times block may be distributed while we track it as an active. We do not want
+    //! the same block to be distributed again and again.
+    int MaxDistributionCount;
+
+    //! Minimum number of times block should be requested during `WindowLength` time period in order to be
+    //! considered as a candidate for distribution.
+    int MinRequestCount;
+
+    //! Delay between consecutive distributions of a given block.
+    TDuration ConsecutiveDistributionDelay;
+
+    //! Length of the window in which we consider events of blocks being accessed.
+    TDuration WindowLength;
+
+    //! Configuration of the retying channel used for `PopulateCache` requests.
+    NRpc::TRetryingChannelConfigPtr NodeChannel;
+
+    //! Node tag filter defining which nodes will be considered as candidates for distribution.
+    TBooleanFormula NodeTagFilter;
+
+    TPeerBlockDistributorConfig()
+    {
+        RegisterParameter("iteration_period", IterationPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("out_traffic_activation_threshold", OutTrafficActivationThreshold)
+            .Default(768_MB);
+        RegisterParameter("out_queue_size_activation_threshold", OutQueueSizeActivationThreshold)
+            .Default(256_MB);
+        RegisterParameter("total_requested_block_size_activation_threshold", TotalRequestedBlockSizeActivationThreshold)
+            .Default(512_MB);
+        RegisterParameter("net_out_interfaces", NetOutInterfaces)
+            .Default(New<NRe2::TRe2>("eth\\d*"));
+        RegisterParameter("max_populate_request_size", MaxPopulateRequestSize)
+            .Default(64_MB);
+        RegisterParameter("destination_node_count", DestinationNodeCount)
+            .Default(3);
+        RegisterParameter("max_distribution_count", MaxDistributionCount)
+            .Default(12);
+        RegisterParameter("min_request_count", MinRequestCount)
+            .Default(3);
+        RegisterParameter("consecutive_distribution_delay", ConsecutiveDistributionDelay)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("window_length", WindowLength)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("node_channel", NodeChannel)
+            .DefaultNew();
+        RegisterParameter("node_tag_filter", NodeTagFilter)
+            .Default(MakeBooleanFormula("!CLOUD"));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPeerBlockDistributorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,7 +210,7 @@ public:
         RegisterParameter("medium_name", MediumName)
             .Default(NChunkClient::DefaultStoreMediumName);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (HighWatermark > LowWatermark) {
                 THROW_ERROR_EXCEPTION("\"high_full_watermark\" must be less than or equal to \"low_watermark\"");
             }
@@ -266,7 +349,7 @@ public:
     {
         RegisterParameter("low_watermark", LowWatermark)
             .Default(1_GB)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(0);
 
         RegisterParameter("quota", Quota)
             .Default(Null);
@@ -448,8 +531,13 @@ public:
     //! Controls outcoming bandwidth used by Artifact Cache downloads.
     NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheOutThrottler;
 
+    NConcurrency::TThroughputThrottlerConfigPtr SkynetOutThrottler;
+
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
+
+    //! Distributes blocks when node is under heavy load.
+    TPeerBlockDistributorConfigPtr PeerBlockDistributor;
 
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
@@ -486,6 +574,12 @@ public:
     //! Controls if cluster and cell directories are to be synchronized on connect.
     //! Useful for tests.
     bool SyncDirectoriesOnConnect;
+
+    //! Maximum number of blocks to store in the RecentlyReadBlockQueue in ChunkBlockManager.
+    int RecentlyReadBlockQueueSize;
+
+    //! Sample rate of blocks that will be added to the RecentlyReadBlockQueue in ChunkBlockManager.
+    double RecentlyReadBlockQueueSampleRate;
 
     TDataNodeConfig()
     {
@@ -579,8 +673,12 @@ public:
             .DefaultNew();
         RegisterParameter("artifact_cache_out_throttler", ArtifactCacheOutThrottler)
             .DefaultNew();
+        RegisterParameter("skynet_out_throttler", SkynetOutThrottler)
+            .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)
+            .DefaultNew();
+        RegisterParameter("peer_block_distributor", PeerBlockDistributor)
             .DefaultNew();
 
         RegisterParameter("disk_health_checker", DiskHealthChecker)
@@ -622,7 +720,15 @@ public:
         RegisterParameter("sync_directories_on_connect", SyncDirectoriesOnConnect)
             .Default(false);
 
-        RegisterInitializer([&] () {
+        RegisterParameter("recently_read_block_queue_size", RecentlyReadBlockQueueSize)
+            .GreaterThanOrEqual(0)
+            .Default(0);
+        RegisterParameter("recently_read_block_queue_sample_rate", RecentlyReadBlockQueueSampleRate)
+            .GreaterThanOrEqual(0.0)
+            .LessThanOrEqual(1.0)
+            .Default(0.0);
+
+        RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
 
             BlockCache->CompressedData->Capacity = 1_GB;

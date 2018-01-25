@@ -1,3 +1,5 @@
+#include "row_helpers.h"
+
 #include <yt/ytlib/unittests/protobuf_format_ut.pb.h>
 
 #include <yt/core/test_framework/framework.h>
@@ -111,30 +113,6 @@ double GetDouble(const TUnversionedValue& row)
 {
     EnsureTypesMatch(EValueType::Double, row.Type);
     return row.Data.Double;
-}
-
-i64 GetInt64(const TUnversionedValue& row)
-{
-    EnsureTypesMatch(EValueType::Int64, row.Type);
-    return row.Data.Int64;
-}
-
-ui64 GetUint64(const TUnversionedValue& row)
-{
-    EnsureTypesMatch(EValueType::Uint64, row.Type);
-    return row.Data.Uint64;
-}
-
-bool GetBoolean(const TUnversionedValue& row)
-{
-    EnsureTypesMatch(EValueType::Boolean, row.Type);
-    return row.Data.Boolean;
-}
-
-TString GetString(const TUnversionedValue& row)
-{
-    EnsureTypesMatch(EValueType::String, row.Type);
-    return TString(row.Data.String, row.Length);
 }
 
 INodePtr CreateAllFieldsFileDescriptorConfig()
@@ -307,67 +285,6 @@ struct TLenvalEntry
 {
     TString RowData;
     ui32 TableIndex;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCollectingValueConsumer
-    : public IValueConsumer
-{
-public:
-    virtual const TNameTablePtr& GetNameTable() const
-    {
-        return NameTable_;
-    }
-
-    virtual bool GetAllowUnknownColumns() const
-    {
-        return false;
-    }
-
-    virtual void OnBeginRow() override
-    {
-    }
-
-    virtual void OnValue(const TUnversionedValue& value) override
-    {
-        Builder_.AddValue(value);
-    }
-
-    virtual void OnEndRow() override
-    {
-        RowList_.emplace_back(Builder_.FinishRow());
-    }
-
-    TUnversionedRow GetRow(size_t rowIndex)
-    {
-        return RowList_.at(rowIndex);
-    }
-
-    TUnversionedValue GetRowValue(size_t rowIndex, TStringBuf columnName)
-    {
-        TUnversionedRow row = RowList_.at(rowIndex);
-        auto nameTable = GetNameTable();
-        auto id = nameTable->GetIdOrThrow(columnName);
-
-        for (const auto& value : row) {
-            if (value.Id == id) {
-                return value;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION("Can not find column %Qv", columnName);
-    }
-
-    size_t Size() const
-    {
-        return RowList_.size();
-    }
-
-private:
-    TNameTablePtr NameTable_ = New<TNameTable>();
-    TUnversionedOwningRowBuilder Builder_;
-    std::vector<TUnversionedOwningRow> RowList_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

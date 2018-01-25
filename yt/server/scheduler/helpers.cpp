@@ -37,37 +37,39 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildInitializingOperationAttributes(TOperationPtr operation, TFluentMap fluent)
+void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
+    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    auto attributes = operation->ControllerAttributes().Attributes;
     fluent
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpec())
-        .Item("full_spec")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Do(BIND(&IOperationControllerSchedulerHost::BuildSpec, operation->GetController()))
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
-        .Do(BIND(&BuildRunningOperationAttributes, operation));
+        .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(initializationAttributes->Immutable);
+        })
+        .DoIf(static_cast<bool>(attributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(*attributes);
+        })
+        .Do(BIND(&BuildMutableOperationAttributes, operation));
 }
 
-void BuildRunningOperationAttributes(TOperationPtr operation, TFluentMap fluent)
+void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    auto controller = operation->GetController();
+    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
     fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
         .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
-        .DoIf(static_cast<bool>(controller), BIND([=] (TFluentMap fluent) {
-            auto asyncResult = BIND(&NControllerAgent::IOperationControllerSchedulerHost::BuildOperationAttributes, controller)
-                .AsyncVia(controller->GetInvoker())
-                .Run(fluent);
-            WaitFor(asyncResult)
-                .ThrowOnError();
-        }));
+        .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(initializationAttributes->Mutable);
+        });
 }
 
 void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)
@@ -102,6 +104,17 @@ TString MakeOperationCodicilString(const TOperationId& operationId)
 TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
 {
     return TCodicilGuard(MakeOperationCodicilString(operationId));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationRuntimeParamsPtr BuildOperationRuntimeParams(const TOperationSpecBasePtr& spec)
+{
+    auto result = New<TOperationRuntimeParams>();
+    result->Weight = spec->Weight.Get(1.0);
+    result->ResourceLimits = spec->ResourceLimits;
+    result->Owners = spec->Owners;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

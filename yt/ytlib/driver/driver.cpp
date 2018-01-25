@@ -164,6 +164,7 @@ public:
         REGISTER(TJoinReduceCommand,           "join_reduce",             Null,       Structured, true,  false);
         REGISTER(TMapReduceCommand,            "map_reduce",              Null,       Structured, true,  false);
         REGISTER(TRemoteCopyCommand,           "remote_copy",             Null,       Structured, true,  false);
+        REGISTER(TStartOperationCommand,       "start_op",                Null,       Structured, true,  false);
         REGISTER(TAbortOperationCommand,       "abort_op",                Null,       Null,       true,  false);
         REGISTER(TSuspendOperationCommand,     "suspend_op",              Null,       Null,       true,  false);
         REGISTER(TResumeOperationCommand,      "resume_op",               Null,       Null,       true,  false);
@@ -181,8 +182,9 @@ public:
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
         REGISTER(TGetJobInputCommand,          "get_job_input",           Null,       Binary,     false, true);
         REGISTER(TGetJobStderrCommand,         "get_job_stderr",          Null,       Binary,     false, true);
-        REGISTER(TListOperationsCommand,       "list_operations",         Null,       Structured, false, true);
-        REGISTER(TListJobsCommand,             "list_jobs",               Null,       Structured, false, true);
+        REGISTER(TListOperationsCommand,       "list_operations",         Null,       Structured, false, false);
+        REGISTER(TListJobsCommand,             "list_jobs",               Null,       Structured, false, false);
+        REGISTER(TGetJobCommand,               "get_job",                 Null,       Structured, false, false);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
         REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
         REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);

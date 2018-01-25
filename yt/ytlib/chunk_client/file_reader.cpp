@@ -166,6 +166,7 @@ std::vector<TBlock> TFileReader::OnDataBlock(
             }
         }
         blocks.push_back(TBlock(block, blockInfo.checksum()));
+        blocks.back().BlockOrigin = EBlockOrigin::Disk;
     }
 
     return blocks;

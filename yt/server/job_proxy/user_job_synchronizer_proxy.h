@@ -15,7 +15,7 @@ class TUserJobSynchronizerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TUserJobSynchronizerServiceProxy, RPC_PROXY_DESC(SynchronizerService)
+    DEFINE_RPC_PROXY(TUserJobSynchronizerServiceProxy, SynchronizerService,
         .SetProtocolVersion(0));
 
     DEFINE_RPC_PROXY_METHOD(NJobProxy::NProto, SatellitePrepared);

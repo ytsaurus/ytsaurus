@@ -117,7 +117,7 @@ void TCypressNodeLockingState::Persist(TPersistenceContext& context)
     Persist(context, SnapshotLocks);
 }
 
-TCypressNodeLockingState TCypressNodeLockingState::Empty;
+const TCypressNodeLockingState TCypressNodeLockingState::Empty;
 
 ////////////////////////////////////////////////////////////////////////////////
 

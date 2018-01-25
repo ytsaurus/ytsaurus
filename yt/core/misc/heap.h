@@ -27,6 +27,14 @@ void ExtractHeap(TIterator begin, TIterator end, TComparer comparer);
 template <class TIterator>
 void ExtractHeap(TIterator begin, TIterator end);
 
+//! Readjusts the min-heap on |[begin, end)| by pushing current item down if needed.
+template <class TIterator, class TComparer>
+void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer);
+
+//! Readjusts the min-heap on |[begin, end)| by pushing current item up if needed.
+template <class TIterator, class TComparer>
+void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

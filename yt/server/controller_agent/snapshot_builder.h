@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
+#include "operation_controller.h"
 
 #include <yt/server/cell_scheduler/public.h>
 
@@ -24,10 +24,10 @@ struct TSnapshotJob
     : public TIntrinsicRefCounted
 {
     TOperationId OperationId;
-    IOperationControllerPtr Controller;
+    IOperationControllerSnapshotBuilderHostPtr Controller;
     NPipes::TAsyncReaderPtr Reader;
     std::unique_ptr<TFile> OutputFile;
-    int SnapshotIndex = -1;
+    TSnapshotCookie Cookie;
     bool Suspended = false;
 };
 
@@ -40,16 +40,16 @@ class TSnapshotBuilder
 {
 public:
     TSnapshotBuilder(
-        TSchedulerConfigPtr config,
-        TOperationIdToControllerMap controllers,
+        TControllerAgentConfigPtr config,
+        TOperationIdToOperationMap operations,
         NApi::IClientPtr client,
-        IInvokerPtr IOInvoker);
+        IInvokerPtr ioInvoker);
 
     TFuture<void> Run();
 
 private:
-    const TSchedulerConfigPtr Config_;
-    const TOperationIdToControllerMap Controllers_;
+    const TControllerAgentConfigPtr Config_;
+    const TOperationIdToOperationMap Operations_;
     const NApi::IClientPtr Client_;
     const IInvokerPtr IOInvoker_;
     const IInvokerPtr ControlInvoker_;

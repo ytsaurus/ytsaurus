@@ -23,6 +23,8 @@ struct INativeClient
 {
     virtual const TClientOptions& GetOptions() = 0;
     virtual const INativeConnectionPtr& GetNativeConnection() = 0;
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
+    virtual NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,

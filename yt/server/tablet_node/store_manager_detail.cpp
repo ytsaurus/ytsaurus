@@ -208,7 +208,7 @@ bool TStoreManagerBase::IsStoreFlushable(IStorePtr store) const
         return false;
     }
 
-    if (dynamicStore->GetLastFlushAttemptTimestamp() + Config_->ErrorBackoffTime > Now()) {
+    if (dynamicStore->GetLastFlushAttemptTimestamp() + Config_->FlushBackoffTime > Now()) {
         return false;
     }
 

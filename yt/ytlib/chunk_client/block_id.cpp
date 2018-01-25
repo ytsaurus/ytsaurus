@@ -35,6 +35,22 @@ bool operator != (const TBlockId& lhs, const TBlockId& rhs)
     return !(lhs == rhs);
 }
 
+void ToProto(NProto::TBlockId* protoBlockId, const TBlockId& blockId)
+{
+    using NYT::ToProto;
+
+    ToProto(protoBlockId->mutable_chunk_id(), blockId.ChunkId);
+    protoBlockId->set_block_index(blockId.BlockIndex);
+}
+
+void FromProto(TBlockId* blockId, const NProto::TBlockId& protoBlockId)
+{
+    using NYT::FromProto;
+
+    FromProto(&blockId->ChunkId, protoBlockId.chunk_id());
+    blockId->BlockIndex = protoBlockId.block_index();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

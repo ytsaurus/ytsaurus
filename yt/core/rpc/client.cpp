@@ -22,6 +22,21 @@ static const auto RequestIdAnnotation = TString("request_id");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClientContext::TClientContext(
+    const TRequestId& requestId,
+    const NTracing::TTraceContext& traceContext,
+    const TString& service,
+    const TString& method,
+    bool heavy)
+    : RequestId_(requestId)
+    , TraceContext_(traceContext)
+    , Service_(service)
+    , Method_(method)
+    , Heavy_(heavy)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TClientRequest::TClientRequest(
     IChannelPtr channel,
     const TString& service,
@@ -151,14 +166,15 @@ size_t TClientRequest::GetHash() const
     return *Hash_;
 }
 
-int TClientRequest::GetMultiplexingBand() const
+EMultiplexingBand TClientRequest::GetMultiplexingBand() const
 {
     return MultiplexingBand_;
 }
 
-void TClientRequest::SetMultiplexingBand(int band)
+void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 {
-    MultiplexingBand_ = ClampVal(band, MinMultiplexingBand, MaxMultiplexingBand);
+    MultiplexingBand_ = band;
+    Header_.set_tos_level(TDispatcher::Get()->GetTosLevelForBand(band));
 }
 
 TClientContextPtr TClientRequest::CreateClientContext()
@@ -306,12 +322,46 @@ void TClientResponse::DoHandleResponse(TSharedRefArray message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TServiceDescriptor::TServiceDescriptor(const TString& serviceName)
+    : ServiceName(serviceName)
+{ }
+
+TServiceDescriptor& TServiceDescriptor::SetProtocolVersion(int value)
+{
+    ProtocolVersion = value;
+    return *this;
+}
+
+TServiceDescriptor& TServiceDescriptor::SetNamespace(const TString& value)
+{
+    Namespace = value;
+    return *this;
+}
+
+TString TServiceDescriptor::GetFullServiceName() const
+{
+    return Namespace ? Namespace + "." + ServiceName : ServiceName;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMethodDescriptor::TMethodDescriptor(const TString& methodName)
+    : MethodName(methodName)
+{ }
+
+TMethodDescriptor& TMethodDescriptor::SetMultiplexingBand(EMultiplexingBand value)
+{
+    MultiplexingBand = value;
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TProxyBase::TProxyBase(
     IChannelPtr channel,
     const TServiceDescriptor& descriptor)
-    : DefaultRequestAck_(true)
-    , Channel_(std::move(channel))
-    , Descriptor_(descriptor)
+    : Channel_(std::move(channel))
+    , ServiceDescriptor_(descriptor)
 {
     Y_ASSERT(Channel_);
 }

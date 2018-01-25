@@ -1,4 +1,5 @@
 #include "operation.h"
+#include "operation_controller.h"
 #include "exec_node.h"
 #include "helpers.h"
 #include "job.h"
@@ -7,6 +8,8 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/config.h>
+
+#include <yt/core/actions/cancelable_context.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -24,25 +27,30 @@ TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
     const TMutationId& mutationId,
-    TTransactionId userTransactionId,
+    const TTransactionId& userTransactionId,
     IMapNodePtr spec,
+    IMapNodePtr secureVault,
+    TOperationRuntimeParamsPtr runtimeParams,
     const TString& authenticatedUser,
     const std::vector<TString>& owners,
     TInstant startTime,
     IInvokerPtr controlInvoker,
+    EOperationCypressStorageMode storageMode,
     EOperationState state,
     bool suspended,
-    const std::vector<TOperationEvent>& events)
+    const std::vector<TOperationEvent>& events,
+    const TNullable<TOperationRevivalDescriptor>& revivalDescriptor)
     : Type_(type)
     , MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
-    , Activated_(false)
-    , Prepared_(false)
     , UserTransactionId_(userTransactionId)
-    , RuntimeParams_(New<TOperationRuntimeParams>())
+    , RuntimeParams_(std::move(runtimeParams))
+    , SecureVault_(std::move(secureVault))
     , Owners_(owners)
     , Events_(events)
+    , RevivalDescriptor_(revivalDescriptor)
+    , StorageMode_(storageMode)
     , Id_(id)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)
@@ -50,17 +58,9 @@ TOperation::TOperation(
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
-{
-    auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
-    SecureVault_ = std::move(parsedSpec->SecureVault);
-    Spec_->RemoveChild("secure_vault");
+{ }
 
-    RuntimeParams_->Weight = parsedSpec->Weight.Get(1.0);
-    RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
-    RuntimeParams_->Owners = parsedSpec->Owners;
-}
-
-TOperationId TOperation::GetId() const
+const TOperationId& TOperation::GetId() const
 {
     return Id_;
 }
@@ -118,33 +118,14 @@ bool TOperation::IsSchedulable() const
     return State_ == EOperationState::Running && !Suspended_;
 }
 
-IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
+NControllerAgent::IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
 {
-    return Controller_;
+    return LocalController_;
 }
 
 void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
 {
     ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
-}
-
-void TOperation::UpdateControllerTimeStatistics(const TStatistics& statistics)
-{
-    ControllerTimeStatistics_.Update(statistics);
-}
-
-bool TOperation::HasControllerProgress() const
-{
-    return (State_ == EOperationState::Running || IsFinishedState()) &&
-        Controller_ &&
-        Controller_->HasProgress();
-}
-
-bool TOperation::HasControllerJobSplitterInfo() const
-{
-    return State_ == EOperationState::Running &&
-        Controller_ &&
-        Controller_->HasJobSplitterInfo();
 }
 
 TCodicilGuard TOperation::MakeCodicilGuard() const

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "chunk_reader.h"
+#include "chunk_reader_allowing_repair.h"
 #include "io_engine.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
@@ -17,7 +17,7 @@ namespace NChunkClient {
 
 //! Provides a local and synchronous implementation of IReader.
 class TFileReader
-    : public IChunkReader
+    : public IChunkReaderAllowingRepair
 {
 public:
     //! Creates a new reader.
@@ -49,6 +49,11 @@ public:
     virtual TChunkId GetChunkId() const override;
 
     virtual bool IsValid() const override;
+
+    virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)>)
+    {
+        Y_UNIMPLEMENTED();
+    }
 
 private:
     const IIOEnginePtr IOEngine_;

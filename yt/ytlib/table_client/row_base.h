@@ -143,6 +143,7 @@ struct TColumnFilter
 {
     TColumnFilter();
     TColumnFilter(const std::initializer_list<int>& indexes);
+    TColumnFilter(const std::vector<int>& indexes);
     TColumnFilter(int schemaColumnCount);
 
     bool Contains(int index) const;

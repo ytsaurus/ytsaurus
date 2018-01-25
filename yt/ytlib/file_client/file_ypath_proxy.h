@@ -12,7 +12,7 @@ namespace NFileClient {
 struct TFileYPathProxy
     : public NChunkClient::TChunkOwnerYPathProxy
 {
-    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(File));
+    DEFINE_YPATH_PROXY(File);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

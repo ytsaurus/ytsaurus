@@ -20,6 +20,7 @@
 
 #include <util/system/info.h>
 #include <util/system/yield.h>
+#include <util/system/fs.h>
 #include <util/system/fstat.h>
 #include <util/folder/iterator.h>
 
@@ -61,10 +62,10 @@ std::vector<int> GetPidsByUid(int uid)
 #ifdef _linux_
     std::vector<int> result;
 
-    DIR *dirStream = ::opendir("/proc");
+    DIR* dirStream = ::opendir("/proc");
     YCHECK(dirStream != nullptr);
 
-    struct dirent *ep;
+    struct dirent* ep;
     while ((ep = ::readdir(dirStream)) != nullptr) {
         const char* begin = ep->d_name;
         char* end = nullptr;
@@ -484,7 +485,7 @@ void SetUid(int uid)
             << TError::FromSystem();
     }
 
-    errno  = 0;
+    errno = 0;
 #ifdef _linux_
     const auto* passwd = getpwuid(uid);
     int gid = (passwd && errno == 0)
@@ -553,16 +554,16 @@ void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
 {
 #ifndef YT_IN_ARCADIA
     {
-        struct termios tt = { };
+        struct termios tt = {};
         tt.c_iflag = TTYDEF_IFLAG & ~ISTRIP;
         tt.c_oflag = TTYDEF_OFLAG;
         tt.c_lflag = TTYDEF_LFLAG;
-        tt.c_cflag = (TTYDEF_CFLAG & ~(CS7|PARENB|HUPCL)) | CS8;
+        tt.c_cflag = (TTYDEF_CFLAG & ~(CS7 | PARENB | HUPCL)) | CS8;
         tt.c_cc[VERASE] = '\x7F';
         cfsetispeed(&tt, B38400);
         cfsetospeed(&tt, B38400);
 
-        struct winsize ws = { };
+        struct winsize ws = {};
         struct winsize* wsPtr = nullptr;
         if (height > 0 && width > 0) {
             ws.ws_row = height;
@@ -657,7 +658,7 @@ TString SafeGetUsernameByUid(int uid)
             << TError::FromSystem();
     }
     char buffer[bufferSize];
-    struct passwd pwd, *pwdptr = nullptr;
+    struct passwd pwd, * pwdptr = nullptr;
     int result = getpwuid_r(uid, &pwd, buffer, bufferSize, &pwdptr);
     if (result != 0 || pwdptr == nullptr) {
         // Return #uid in case of absent uid in the system.
@@ -883,6 +884,51 @@ bool HasRootPermissions()
 #endif
 }
 
+yhash<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics()
+{
+#ifdef _linux_
+    // According to https://www.kernel.org/doc/Documentation/filesystems/proc.txt,
+    // using /proc/net/dev is a stable (and seemingly easiest, despite being nasty)
+    // way to access per-interface network statistics.
+
+    TFileInput procNetDev("/proc/net/dev");
+    // First two lines are header.
+    Y_UNUSED(procNetDev.ReadLine());
+    Y_UNUSED(procNetDev.ReadLine());
+    yhash<TString, TNetworkInterfaceStatistics> interfaceToStatistics;
+    for (TString line; procNetDev.ReadLine(line) != 0; ) {
+        TNetworkInterfaceStatistics statistics;
+        auto lineParts = SplitStringBySet(line.data(), ": ");
+        YCHECK(lineParts.size() == 1 + sizeof(TNetworkInterfaceStatistics) / sizeof(ui64));
+        auto interfaceName = lineParts[0];
+
+        int index = 1;
+#define XX(field) statistics.field = FromString<ui64>(lineParts[index++])
+        XX(Rx.Bytes);
+        XX(Rx.Packets);
+        XX(Rx.Errs);
+        XX(Rx.Drop);
+        XX(Rx.Fifo);
+        XX(Rx.Frame);
+        XX(Rx.Compressed);
+        XX(Rx.Multicast);
+        XX(Tx.Bytes);
+        XX(Tx.Packets);
+        XX(Tx.Errs);
+        XX(Tx.Drop);
+        XX(Tx.Fifo);
+        XX(Tx.Colls);
+        XX(Tx.Carrier);
+        XX(Tx.Compressed);
+#undef XX
+        YCHECK(interfaceToStatistics.insert({interfaceName, statistics}).second);
+    }
+    return interfaceToStatistics;
+#else
+    return {};
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TKillAllByUidTool::operator()(int uid) const
@@ -939,6 +985,28 @@ void TChownChmodTool::operator()(TChownChmodConfigPtr config) const
     SafeSetUid(0);
 
     ChownChmodDirectoriesRecursively(config->Path, config->UserId, config->Permissions);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TExtractTarAsRootTool::operator()(const TExtractTarConfigPtr& config) const
+{
+    // Child process
+    SafeSetUid(0);
+    NFs::SetCurrentWorkingDirectory(config->DirectoryPath);
+
+    execl(
+        "/bin/tar",
+        "/bin/tar",
+        "--extract",
+        "--file",
+        config->ArchivePath.c_str(),
+        "--numeric-owner",
+        "--preserve-permissions",
+        (void*) nullptr);
+
+    THROW_ERROR_EXCEPTION("Failed to extract tar archive %Qv: execl failed",
+        config->ArchivePath.c_str()) << TError::FromSystem();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

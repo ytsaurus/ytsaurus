@@ -7,6 +7,19 @@ namespace NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBind
+{
+    TString SourcePath;
+    TString TargetPath;
+    bool IsReadOnly;
+};
+
+struct TRootFS
+{
+    TString RootPath;
+    std::vector<TBind> Binds;
+};
+
 DECLARE_REFCOUNTED_STRUCT(IContainerManager)
 DECLARE_REFCOUNTED_STRUCT(IInstance)
 DECLARE_REFCOUNTED_STRUCT(IPortoExecutor)

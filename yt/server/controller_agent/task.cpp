@@ -66,9 +66,19 @@ TTask::TTask(ITaskHostPtr taskHost)
 void TTask::Initialize()
 {
     Logger.AddTag("OperationId: %v", TaskHost_->GetOperationId());
-    Logger.AddTag("Task: %v", GetId());
+    Logger.AddTag("Task: %v", GetTitle());
 
     SetupCallbacks();
+}
+
+TString TTask::GetTitle() const
+{
+    return ToString(GetJobType());
+}
+
+TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
+{
+    return ToString(GetJobType());
 }
 
 int TTask::GetPendingJobCount() const
@@ -144,6 +154,11 @@ i64 TTask::GetLocality(TNodeId nodeId) const
            : 0;
 }
 
+TDuration TTask::GetLocalityTimeout() const
+{
+    return TDuration::Zero();
+}
+
 bool TTask::HasInputLocality() const
 {
     return true;
@@ -171,10 +186,13 @@ void TTask::FinishInput()
 {
     LOG_DEBUG("Task input finished" );
 
-    GetChunkPoolInput()->Finish();
+    // GetChunkPoolInput() may return false on tasks that do not require input, such as for vanilla operation.
+    if (const auto& chunkPoolInput = GetChunkPoolInput()) {
+        chunkPoolInput->Finish();
+    }
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     if (!progressCounter->Parent()) {
-        progressCounter->SetParent(TaskHost_->DataFlowGraph().JobCounter(GetJobType()));
+        TaskHost_->GetDataFlowGraph()->RegisterTask(GetVertexDescriptor(), progressCounter, GetJobType());
     }
     AddPendingHint();
     CheckCompleted();
@@ -216,8 +234,8 @@ void TTask::ScheduleJob(
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
-    if (!CanScheduleJob(context, jobLimits)) {
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::TaskRefusal);
+    if (auto failReason = GetScheduleFailReason(context, jobLimits)) {
+        scheduleJobResult->RecordFail(*failReason);
         return;
     }
 
@@ -245,8 +263,8 @@ void TTask::ScheduleJob(
         return;
     }
 
-    const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
-    if (sliceCount > TaskHost_->SchedulerConfig()->HeavyJobSpecSliceCountThreshold) {
+    const auto& jobSpecSliceThrottler = TaskHost_->GetJobSpecSliceThrottler();
+    if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
                       sliceCount);
@@ -285,7 +303,7 @@ void TTask::ScheduleJob(
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
     bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
 
-    joblet->Account = TaskHost_->Spec()->JobNodeAccount;
+    joblet->Account = TaskHost_->GetSpec()->JobNodeAccount;
     joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
         .AsyncVia(TaskHost_->GetCancelableInvoker())
         .Run();
@@ -298,12 +316,12 @@ void TTask::ScheduleJob(
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
-    joblet->JobProxyMemoryReserveFactor = TaskHost_->GetJobProxyMemoryDigest(jobType)->GetQuantile(
-        TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
+    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryDigest()->GetQuantile(
+        TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
-        joblet->UserJobMemoryReserveFactor = TaskHost_->GetUserJobMemoryDigest(GetJobType())->GetQuantile(
-            TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
+        joblet->UserJobMemoryReserveFactor = GetUserJobMemoryDigest()->GetQuantile(
+            TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     }
 
     LOG_DEBUG(
@@ -350,8 +368,8 @@ void TTask::ScheduleJob(
 
     OnJobStarted(joblet);
 
-    if (TaskHost_->JobSplitter()) {
-        TaskHost_->JobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList);
+    if (TaskHost_->GetJobSplitter()) {
+        TaskHost_->GetJobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList);
     }
 }
 
@@ -408,6 +426,9 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, EdgeDescriptors_);
     Persist(context, InputVertex_);
+
+    Persist(context, UserJobMemoryDigest_);
+    Persist(context, JobProxyMemoryDigest_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -433,12 +454,12 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {
-                    TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                    TaskHost_->GetChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
                 }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
-                this->TaskHost_->ReleaseChunkLists({joblet->ChunkListIds[index]}, true /* unstageNonRecursively */);
+                this->TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, false /* unstageRecursively */);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }
@@ -451,27 +472,29 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 inputStatistics.row_count(),
                 outputStatistics.row_count(),
-                GetId());
+                GetTitle());
             YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
         }
 
-        YCHECK(InputVertex_ > TDataFlowGraph::TVertexDescriptor::SchedulerFirst);
-        YCHECK(InputVertex_ < TDataFlowGraph::TVertexDescriptor::SchedulerLast);
+        YCHECK(InputVertex_ != "");
 
-        auto vertex = GetJobType();
-        TaskHost_->DataFlowGraph().RegisterFlow(InputVertex_, vertex, inputStatistics);
+        auto vertex = GetVertexDescriptor();
+        TaskHost_->GetDataFlowGraph()->RegisterFlow(InputVertex_, vertex, inputStatistics);
         // TODO(max42): rewrite this properly one day.
         for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
             if (EdgeDescriptors_[index].IsFinalOutput) {
-                TaskHost_->DataFlowGraph().RegisterFlow(
+                TaskHost_->GetDataFlowGraph()->RegisterFlow(
                     vertex,
-                    TDataFlowGraph::TVertexDescriptor::Sink,
+                    TDataFlowGraph::SinkDescriptor,
                     outputStatisticsMap[index]);
             }
         }
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
-        TaskHost_->ChunkListPool()->Release(chunkListIds);
+        // NB: we should release these chunk lists only when information about this job being abandoned
+        // gets to the snapshot; otherwise it may revive in different scheduler and continue writing
+        // to the released chunk list.
+        TaskHost_->ReleaseChunkTrees(chunkListIds, true /* recursive */, true /* waitForSnapshot */);
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
@@ -482,10 +505,10 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
     UpdateMaximumUsedTmpfsSize(statistics);
 }
 
-void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
+void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot)
 {
     TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
-    TaskHost_->ReleaseChunkLists(joblet->ChunkListIds);
+    TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, true /* recursive */, waitForSnapshot);
 
     auto list = HasInputLocality()
         ? GetChunkPoolOutput()->GetStripeList(joblet->OutputCookie)
@@ -515,13 +538,19 @@ void TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 void TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
     if (joblet->StderrTableChunkListId) {
-        TaskHost_->ReleaseChunkLists({joblet->StderrTableChunkListId});
+        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId});
     }
     if (joblet->CoreTableChunkListId) {
-        TaskHost_->ReleaseChunkLists({joblet->CoreTableChunkListId});
+        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId});
     }
 
-    ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}));
+    // NB: when job is aborted due to revival confirmation timeout we can only release its chunk lists
+    // when the information about abortion gets to the snapshot. Otherwise this job may revive in a
+    // different controller with an invalidated chunk list id.
+    ReinstallJob(
+        joblet,
+        BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}),
+        jobSummary.AbortReason == EAbortReason::RevivalConfirmationTimeout /* waitForSnapshot */);
 }
 
 void TTask::OnJobLost(TCompletedJobPtr completedJob)
@@ -536,11 +565,11 @@ void TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed");
 }
 
-bool TTask::CanScheduleJob(
+TNullable<EScheduleJobFailReason> TTask::GetScheduleFailReason(
     ISchedulingContext* /*context*/,
     const TJobResources& /*jobLimits*/)
 {
-    return true;
+    return Null;
 }
 
 void TTask::DoCheckResourceDemandSanity(
@@ -554,7 +583,7 @@ void TTask::DoCheckResourceDemandSanity(
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError("No online node can satisfy the resource demand")
-                << TErrorAttribute("task", GetId())
+                << TErrorAttribute("task", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources));
     }
 }
@@ -583,6 +612,32 @@ void TTask::CheckResourceDemandSanity(
 void TTask::AddPendingHint()
 {
     TaskHost_->AddTaskPendingHint(this);
+}
+
+IDigest* TTask::GetUserJobMemoryDigest() const
+{
+    if (!UserJobMemoryDigest_) {
+        const auto& userJobSpec = GetUserJobSpec();
+        YCHECK(userJobSpec);
+
+        auto config = New<TLogDigestConfig>();
+        config->LowerBound = userJobSpec->UserJobMemoryDigestLowerBound;
+        config->DefaultValue = userJobSpec->UserJobMemoryDigestDefaultValue;
+        config->UpperBound = 1.0;
+        config->RelativePrecision = TaskHost_->GetConfig()->UserJobMemoryDigestPrecision;
+        UserJobMemoryDigest_ = CreateLogDigest(std::move(config));
+    }
+
+    return UserJobMemoryDigest_.get();
+}
+
+IDigest* TTask::GetJobProxyMemoryDigest() const
+{
+    if (!JobProxyMemoryDigest_) {
+        JobProxyMemoryDigest_ = CreateLogDigest(TaskHost_->GetSpec()->JobProxyMemoryDigest);
+    }
+
+    return JobProxyMemoryDigest_.get();
 }
 
 void TTask::AddLocalityHint(TNodeId nodeId)
@@ -650,11 +705,6 @@ void TTask::AddChunksToInputSpec(
             }
         }
     }
-
-    if (inputSpec->chunk_specs_size() > 0) {
-        // Make spec incompatible with older nodes.
-        ToProto(inputSpec->add_data_slice_descriptors(), GetIncompatibleDataSliceDescriptor());
-    }
 }
 
 void TTask::UpdateInputSpecTotals(
@@ -703,11 +753,11 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     result.SetCpu(jobResources.GetCpu());
     result.SetUserSlots(jobResources.GetUserSlots());
     i64 memory = jobResources.GetFootprintMemory();
-    memory += jobResources.GetJobProxyMemory() * TaskHost_->GetJobProxyMemoryDigest(
-        GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
+    memory += jobResources.GetJobProxyMemory() * GetJobProxyMemoryDigest()
+        ->GetQuantile(TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
     if (GetUserJobSpec()) {
-        memory += jobResources.GetUserJobMemory() * TaskHost_->GetUserJobMemoryDigest(
-            GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
+        memory += jobResources.GetUserJobMemory() * GetUserJobMemoryDigest()
+            ->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     } else {
         YCHECK(jobResources.GetUserJobMemory() == 0);
     }
@@ -733,7 +783,7 @@ void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& sta
 
 void TTask::FinishTaskInput(const TTaskPtr& task)
 {
-    task->FinishInput(GetJobType() /* inputVertex */);
+    task->FinishInput(GetVertexDescriptor() /* inputVertex */);
 }
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
@@ -745,11 +795,11 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
     TaskHost_->CustomizeJobSpec(joblet, &jobSpec);
 
     auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    if (TaskHost_->Spec()->JobProxyMemoryOvercommitLimit) {
-        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->Spec()->JobProxyMemoryOvercommitLimit);
+    if (TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit) {
+        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
     }
-    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
-    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->Spec()->SuspendOperationIfAccountLimitExceeded);
+    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
+    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
 
     // Adjust sizes if approximation flag is set.
     if (joblet->InputStripeList->IsApproximate) {
@@ -761,14 +811,14 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             ApproximateSizesBoostFactor));
     }
 
-    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->Spec()->MaxDataWeightPerJob) {
+    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         TaskHost_->OnOperationFailed(TError(
             "Maximum allowed data weight per job violated: %v > %v",
             schedulerJobSpecExt->input_data_weight(),
-            TaskHost_->Spec()->MaxDataWeightPerJob));
+            TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }
 
-    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
+    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const

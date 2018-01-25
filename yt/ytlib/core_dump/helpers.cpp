@@ -5,6 +5,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NCoreDump {
@@ -28,7 +29,7 @@ void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)
             })
             .DoIf(coreInfo.has_error(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("error").Value(FromProto<TError>(coreInfo.error()));
+                    .Item("error").Value(NYT::FromProto<TError>(coreInfo.error()));
             })
         .EndMap();
 }

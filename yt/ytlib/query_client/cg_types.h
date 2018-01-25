@@ -137,6 +137,11 @@ class TypeBuilder<TMultiJoinClosure*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
+template <bool Cross>
+class TypeBuilder<std::unique_ptr<TLookupRows>*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
 // Aggregate types
 
 template <bool Cross>

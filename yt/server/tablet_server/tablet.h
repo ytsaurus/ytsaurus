@@ -145,7 +145,9 @@ struct TTabletPerformanceCounter
     XX(unmerged_row_read,                       UnmergedRowRead) \
     XX(merged_row_read,                         MergedRowRead) \
     XX(compaction_data_weight,                  CompactionDataWeight) \
-    XX(partitioning_data_weight,                PartitioningDataWeight)
+    XX(partitioning_data_weight,                PartitioningDataWeight) \
+    XX(lookup_error,                            LookupErrorCount) \
+    XX(write_error,                             WriteErrorCount)
 
 struct TTabletPerformanceCounters
 {

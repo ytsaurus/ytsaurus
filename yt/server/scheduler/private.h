@@ -38,6 +38,12 @@ DEFINE_ENUM(ESchedulableStatus,
     (BelowFairShare)
 );
 
+DEFINE_ENUM(EJobRevivalPhase,
+    (RevivingControllers)
+    (ConfirmingJobs)
+    (Finished)
+);
+
 extern const TString RootPoolName;
 extern const TString DefaultTreeAttributeName;
 

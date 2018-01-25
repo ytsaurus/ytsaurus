@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <yt/core/ytree/yson_serializable.h>
+#include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/finally.h>
@@ -2540,14 +2541,21 @@ TConstExpressionPtr PrepareExpression(
     const TConstTypeInferrerMapPtr& functions,
     yhash_set<TString>* references)
 {
-    auto astHead = NAst::TAstHead::MakeExpression();
-    ParseQueryString(
-        &astHead,
-        source,
-        NAst::TParser::token::StrayWillParseExpression);
+    return PrepareExpression(
+        *ParseSource(source, EParseMode::Expression),
+        tableSchema,
+        functions,
+        references);
+}
 
-    auto& expr = astHead.Ast.As<NAst::TExpressionPtr>();
-    const auto& aliasMap = astHead.AliasMap;
+TConstExpressionPtr PrepareExpression(
+    const TParsedSource& parsedSource,
+    const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions,
+    yhash_set<TString>* references)
+{
+    auto expr = parsedSource.AstHead.Ast.As<NAst::TExpressionPtr>();
+    const auto& aliasMap = parsedSource.AstHead.AliasMap;
 
     std::vector<TColumnDescriptor> mapping;
     auto schemaProxy = New<TScanSchemaProxy>(
@@ -2556,7 +2564,7 @@ TConstExpressionPtr PrepareExpression(
         &mapping);
 
     TTypedExpressionBuilder builder{
-        source,
+        parsedSource.Source,
         functions,
         aliasMap,
         0};

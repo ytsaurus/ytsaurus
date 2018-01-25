@@ -4,14 +4,17 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--has-cloud", action="store_true")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--cloud", action="store_true", help="Specify if cluster has cloud nodes")
+    group.add_argument("--no-cloud", action="store_true", help="Specify if cluster does not have cloud nodes")
     args = parser.parse_args()
 
     yt.create("map_node", "//sys/pool_trees", ignore_existing=True)
     yt.copy("//sys/pools", "//sys/pool_trees/physical")
     yt.set("//sys/pool_trees/physical/@nodes_filter", "internal")
     yt.set("//sys/pool_trees/physical/@opaque", False)
-    if args.has_cloud:
+    yt.link("//sys/pool_trees/physical", "//sys/pools", force=True)
+    if args.cloud:
         yt.create("map_node", "//sys/pool_trees/cloud", attributes={"nodes_filter": "external"})
     yt.set("//sys/pool_trees/@default_tree", "physical")
     yt.set("//sys/pool_trees/@acl/end",
@@ -37,7 +40,12 @@ def main():
             "preemptive_scheduling_backoff"]
 
     orchid_config = yt.get("//sys/scheduler/orchid/scheduler/config")
-    patch = yt.get("//sys/scheduler/config")
+
+    if yt.exists("//sys/scheduler/config"):
+        patch = yt.get("//sys/scheduler/config")
+    else:
+        patch = {}
+
     config = yt.common.update(orchid_config, patch)
 
     for key in keys:

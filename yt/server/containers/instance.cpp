@@ -13,6 +13,8 @@
 
 #include <yt/contrib/portoapi/libporto.hpp>
 
+#include <util/string/cast.h>
+
 #include <initializer_list>
 
 namespace NYT {
@@ -76,23 +78,28 @@ class TPortoInstance
     : public IInstance
 {
 public:
-    static IInstancePtr Create(const TString& name, IPortoExecutorPtr executor)
+    static IInstancePtr Create(const TString& name, IPortoExecutorPtr executor, bool autoDestroy)
     {
         auto error = WaitFor(executor->CreateContainer(name));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to create container");
-        return New<TPortoInstance>(name, executor);
+        return New<TPortoInstance>(name, executor, autoDestroy);
     }
 
     static IInstancePtr GetSelf(IPortoExecutorPtr executor)
     {
-        return New<TPortoInstance>("self", executor);
+        return New<TPortoInstance>("self", executor, false);
+    }
+
+    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name)
+    {
+        return New<TPortoInstance>(name, executor, false);
     }
 
     ~TPortoInstance()
     {
         // We can't wait here, but even if this request fails
         // it is not a big issue - porto has its own GC.
-        if (!Destroyed_) {
+        if (!Destroyed_ && AutoDestroy_) {
             Executor_->DestroyContainer(Name_);
         }
     }
@@ -137,6 +144,30 @@ public:
         }
     }
 
+    virtual void SetRoot(const TRootFS& rootFS) override
+    {
+        HasRoot_ = true;
+        SetProperty("root", rootFS.RootPath);
+        SetProperty("root_readonly", "true");
+
+        TStringBuilder builder;
+        for (const auto& bind : rootFS.Binds) {
+            builder.AppendString(bind.SourcePath);
+            builder.AppendString(" ");
+            builder.AppendString(bind.TargetPath);
+            builder.AppendString(" ");
+            builder.AppendString(bind.IsReadOnly ? "ro" : "rw");
+            builder.AppendString(" ; ");
+        }
+
+        SetProperty("bind", builder.Flush());
+    }
+
+    virtual bool HasRoot() const override
+    {
+        return HasRoot_;
+    }
+
     virtual void Destroy() override
     {
         WaitFor(Executor_->DestroyContainer(Name_))
@@ -179,6 +210,43 @@ public:
         return result;
     }
 
+    virtual TResourceLimits GetResourceLimits() const override
+    {
+        std::vector<TString> properties;
+        properties.push_back("memory_limit");
+        properties.push_back("cpu_limit");
+
+        auto responseOrError = WaitFor(Executor_->GetProperties(Name_, properties));
+        THROW_ERROR_EXCEPTION_IF_FAILED(responseOrError, "Failed to get porto container resource limits");
+
+        const auto& response = responseOrError.Value();
+        const auto& memoryLimitRsp = response.at("memory_limit");
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(memoryLimitRsp, "Failed to get memory limit from porto");
+
+        i64 memoryLimit;
+
+        if (!TryFromString<i64>(memoryLimitRsp.Value(), memoryLimit)) {
+            THROW_ERROR_EXCEPTION("Failed to parse memory limit value from porto")
+                << TErrorAttribute("memory_limit", memoryLimitRsp.Value());
+        }
+
+        const auto& cpuLimitRsp = response.at("cpu_limit");
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(cpuLimitRsp, "Failed to get cpu limit from porto");
+
+        double cpuLimit;
+
+        YCHECK(cpuLimitRsp.Value().EndsWith('c'));
+        auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
+        if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
+            THROW_ERROR_EXCEPTION("Failed to parse cpu limit value from porto")
+                    << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
+        }
+
+        return TResourceLimits{cpuLimit, memoryLimit};
+    }
+
     virtual void SetCpuLimit(double cores) override
     {
         SetProperty("cpu_limit", ToString(cores) + "c");
@@ -187,6 +255,11 @@ public:
     virtual void SetCpuShare(double cores) override
     {
         SetProperty("cpu_guarantee", ToString(cores) + "c");
+    }
+
+    virtual void SetIOWeight(double weight) override
+    {
+        SetProperty("io_weight", ToString(weight));
     }
 
     virtual void SetIOThrottle(i64 operations) override
@@ -226,7 +299,6 @@ public:
         SetProperty("command", command);
         SetProperty("isolate", "true");
         SetProperty("enable_porto", "true");
-        SetProperty("porto_namespace", Name_ + "/");
 
         for (auto arg : env) {
             SetProperty("env", TString(arg) + ";");
@@ -252,15 +324,19 @@ private:
     std::vector<TFuture<void>> Actions_;
     static const std::map<EStatField, TPortoStatRule> StatRules_;
     const NLogging::TLogger Logger;
+    const bool AutoDestroy_;
     bool Destroyed_ = false;
+    bool HasRoot_ = false;
 
     TPortoInstance(
         const TString& name,
-        IPortoExecutorPtr executor)
+        IPortoExecutorPtr executor,
+        bool autoDestroy)
         : Name_(name)
         , Executor_(executor)
         , Logger(NLogging::TLogger(ContainersLogger)
             .AddTag("Container: %v", Name_))
+        , AutoDestroy_(autoDestroy)
     { }
 
     void SetProperty(const TString& key, const TString& value)
@@ -303,14 +379,19 @@ const std::map<EStatField, TPortoStatRule> TPortoInstance::StatRules_ = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor)
+IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor, bool autoDestroy)
 {
-    return TPortoInstance::Create(name, executor);
+    return TPortoInstance::Create(name, executor, autoDestroy);
 }
 
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)
 {
     return TPortoInstance::GetSelf(executor);
+}
+
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name)
+{
+    return TPortoInstance::GetInstance(executor, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

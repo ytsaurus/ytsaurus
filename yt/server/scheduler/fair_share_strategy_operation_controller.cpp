@@ -1,5 +1,7 @@
 #include "fair_share_strategy_operation_controller.h"
 
+#include "operation_controller.h"
+
 namespace NYT {
 namespace NScheduler {
 
@@ -82,12 +84,9 @@ bool TFairShareStrategyOperationController::IsBlocked(
         LastScheduleJobFailTime_ + controllerScheduleJobFailBackoffTime > now;
 }
 
-void TFairShareStrategyOperationController::AbortJob(std::unique_ptr<TAbortedJobSummary> abortedJobSummary)
+void TFairShareStrategyOperationController::AbortJob(const TJobId& jobId, EAbortReason abortReason)
 {
-    Controller_->GetCancelableInvoker()->Invoke(BIND(
-        &NControllerAgent::IOperationControllerSchedulerHost::OnJobAborted,
-        Controller_,
-        Passed(std::move(abortedJobSummary))));
+    Controller_->OnNonscheduledJobAborted(jobId, abortReason);
 }
 
 TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
@@ -111,7 +110,7 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
             ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
             // If ScheduleJob was not canceled we need to abort created job.
             scheduleJobResultFuture.Subscribe(
-                BIND([this_ = MakeStrong(this)] (const TErrorOr<TScheduleJobResultPtr>& scheduleJobResultOrError) {
+                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TScheduleJobResultPtr>& scheduleJobResultOrError) {
                     if (!scheduleJobResultOrError.IsOK()) {
                         return;
                     }
@@ -121,11 +120,8 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                         const auto& jobId = scheduleJobResult->JobStartRequest->Id;
                         LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
                             jobId,
-                            this_->OperationId_);
-                        this_->Controller_->OnJobAborted(
-                            std::make_unique<TAbortedJobSummary>(
-                                jobId,
-                                EAbortReason::SchedulingTimeout));
+                            OperationId_);
+                        AbortJob(jobId, EAbortReason::SchedulingTimeout);
                     }
             }));
         }

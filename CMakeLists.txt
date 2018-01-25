@@ -12,6 +12,7 @@ project(YT)
 #################################################################################
 # Specify available build options.
 
+option(YT_BUILD_ENABLE_SERVER_BINARIES    "Build ytserver-* binaries" TRUE)
 option(YT_BUILD_ENABLE_BENCHMARKS         "Build benchmarks" TRUE)
 option(YT_BUILD_ENABLE_EXPERIMENTS        "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS              "Build tests" TRUE)
@@ -60,6 +61,11 @@ include(Version)
 # Create CompilationDatabase (build/compile_commands.json).
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+add_custom_target(compile-commands
+  ln -sf "${CMAKE_BINARY_DIR}/compile_commands.json" "${CMAKE_SOURCE_DIR}/compile_commands.json"
+  COMMENT "Linking compilation database from build dir to source tree..."
+)
 
 ################################################################################
 # Configure all the things!
@@ -246,7 +252,7 @@ add_subdirectory(cmake/deps-arcadia-contrib-libs-re2)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-snappy)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-yajl)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-zlib)
-add_subdirectory(cmake/deps-arcadia-contrib-libs-zstd07)
+add_subdirectory(cmake/deps-arcadia-contrib-libs-zstd)
 add_subdirectory(cmake/deps-arcadia-library-colorizer)
 add_subdirectory(cmake/deps-arcadia-library-getopt)
 add_subdirectory(cmake/deps-arcadia-library-http)
@@ -411,5 +417,3 @@ add_custom_target(version
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Stamping YT..."
 )
-
-

@@ -51,7 +51,7 @@ private:
     class TCancelableInvoker;
 
     TSpinLock SpinLock_;
-    bool Canceled_ = false;
+    std::atomic<bool> Canceled_ = {false};
     TCallbackList<void()> Handlers_;
     yhash_set<TWeakPtr<TCancelableContext>> PropagateToContexts_;
     yhash_set<TFuture<void>> PropagateToFutures_;

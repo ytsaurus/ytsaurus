@@ -49,8 +49,8 @@ DEFINE_ENUM(EJobType,
     ((IntermediateSort)  ( 13))
     ((OrderedMap)        ( 14))
     ((JoinReduce)        ( 15))
-    ((Source)            ( 97)) // Fake job types for data flow graph
-    ((Sink)              ( 98)) // denoting inputs and outputs.
+    ((Vanilla)           ( 16))
+    ((SchedulerUnknown)  ( 98)) // Used by node to report aborted jobs for which spec request has failed
     ((SchedulerLast)     ( 99)) // Sentinel.
 
     // Master jobs
@@ -60,8 +60,6 @@ DEFINE_ENUM(EJobType,
     ((RepairChunk)       (102))
     ((SealChunk)         (103))
     ((ReplicatorLast)    (103)) // Sentinel.
-
-    ((Unknown)           (200)) // Fake job type for situation when job type is unknown.
 );
 
 // NB: Please keep the range of values small as this type
@@ -87,6 +85,7 @@ DEFINE_ENUM(EJobPhase,
     ((DownloadingArtifacts)         ( 10))
     ((PreparingSandboxDirectories)  ( 15))
     ((PreparingArtifacts)           ( 20))
+    ((PreparingRootVolume)          ( 25))
     ((PreparingProxy)               ( 30))
     ((Running)                      ( 40))
     ((FinalizingProxy)              ( 50))

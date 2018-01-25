@@ -3,11 +3,11 @@
 #include "http.h"
 
 #include <yt/core/net/public.h>
+#include <yt/core/net/address.h>
 
 #include <yt/contrib/http-parser/http_parser.h>
 
 #include <util/stream/buffer.h>
-
 
 namespace NYT {
 namespace NHttp {
@@ -93,6 +93,7 @@ class THttpInput
 public:
     THttpInput(
         const NConcurrency::IAsyncInputStreamPtr& reader,
+        const NNet::TNetworkAddress& peerAddress,
         const IInvokerPtr& readInvoker,
         EMessageType messageType,
         size_t bufferSize);
@@ -106,9 +107,13 @@ public:
     virtual const THeadersPtr& GetTrailers() override;
 
     virtual TFuture<TSharedRef> Read() override;
+    virtual TSharedRef ReadBody() override;
+
+    virtual const NNet::TNetworkAddress& GetRemoteAddress() const override;
     
 private:
     const NConcurrency::IAsyncInputStreamPtr Reader_;
+    const NNet::TNetworkAddress RemoteAddress_;
     const EMessageType MessageType_;
 
     TSharedMutableRef InputBuffer_;
@@ -150,6 +155,7 @@ public:
 
     virtual const THeadersPtr& GetHeaders() override;
     void SetHeaders(const THeadersPtr& headers);
+    void SetHost(TStringBuf host, TStringBuf port);
     bool IsHeadersFlushed() const;
 
     virtual const THeadersPtr& GetTrailers() override;
@@ -176,6 +182,7 @@ private:
     THeadersPtr Headers_;
     TNullable<EStatusCode> Status_;
     TNullable<EMethod> Method_;
+    TNullable<TString> HostHeader_;
     TString Path_;
     bool HeadersFlushed_ = false;
     bool MessageFinished_ = false;

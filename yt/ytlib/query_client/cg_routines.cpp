@@ -25,6 +25,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/farm_hash.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -57,6 +58,31 @@ using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
 
+class TYielder
+    : public NProfiling::TWallTimer
+    , private NConcurrency::TContextSwitchGuard
+{
+public:
+    static constexpr int YieldThreshold = 300;
+
+    TYielder()
+        : NConcurrency::TContextSwitchGuard(
+            [this] () noexcept { Stop(); },
+            [this] () noexcept { Restart(); })
+    { }
+
+    void Checkpoint(size_t processedRows)
+    {
+        if (GetElapsedTime().MilliSeconds() > YieldThreshold) {
+            LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
+                processedRows,
+                GetElapsedTime());
+            Yield();
+        }
+    }
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* values)
@@ -83,7 +109,7 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     batch.push_back(rowBuffer->Capture(values, closure->RowSize));
 
-    // NB: Aggregate flag is neighter set from TCG value nor cleared during row allocation.
+    // NB: Aggregate flag is neither set from TCG value nor cleared during row allocation.
     size_t id = 0;
     for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
         const_cast<TUnversionedValue*>(value)->Aggregate = false;
@@ -94,12 +120,12 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
         auto& writer = context->Writer;
         bool shouldNotWait;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->WriteTime);
+            NProfiling::TCpuTimingGuard timingGuard(&statistics->WriteTime);
             shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->AsyncTime);
+            NProfiling::TWallTimingGuard timingGuard(&statistics->WaitOnReadyEventTime);
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -113,24 +139,33 @@ void ScanOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
-    auto& reader = context->Reader;
+    auto finalLogger = Finally([&] () {
+        LOG_DEBUG("Finalizing scan helper");
+    });
 
+    auto& reader = context->Reader;
 
     std::vector<TRow> rows;
     rows.reserve(context->IsOrdered && context->Limit < RowsetProcessingSize
         ? context->Limit
         : RowsetProcessingSize);
+
+    if (rows.capacity() == 0) {
+        return;
+    }
+
     std::vector<const TValue*> values;
     values.reserve(rows.capacity());
 
     auto* statistics = context->Statistics;
 
-    auto rowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+    TYielder yielder;
 
+    auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
     while (true) {
         bool hasMoreData;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->ReadTime);
+            NProfiling::TCpuTimingGuard timingGuard(&statistics->ReadTime);
             hasMoreData = reader->Read(&rows);
         }
 
@@ -159,6 +194,9 @@ void ScanOpHelper(
         }
 
         consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
+
+        yielder.Checkpoint(statistics->RowsRead);
+
         rows.clear();
         values.clear();
         rowBuffer->Clear();
@@ -168,7 +206,7 @@ void ScanOpHelper(
         }
 
         if (shouldWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->AsyncTime);
+            NProfiling::TWallTimingGuard timingGuard(&statistics->WaitOnReadyEventTime);
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -281,7 +319,7 @@ void StorePrimaryRow(
             closure->ProcessSegment(joinId);
             item.LastKey = key;
             item.Lookup.clear();
-            // Key will be realloacted further.
+            // Key will be reallocated further.
         }
 
         *reinterpret_cast<TSlot*>(key + item.KeySize) = TSlot(0, 0);
@@ -332,7 +370,6 @@ public:
         , ConsumeRows(consumeRows)
         , SelfColumns(selfColumns)
         , ForeignColumns(foreignColumns)
-        , IntermediateBuffer(New<TRowBuffer>(TIntermadiateBufferTag()))
     {
         JoinedRows.reserve(RowsetProcessingSize);
     }
@@ -416,7 +453,7 @@ public:
         const ISchemafulReaderPtr& reader,
         bool isLeft)
     {
-        auto foreignRowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+        auto foreignRowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
         std::vector<TRow> sortedForeignSequence;
         size_t unsortedOffset = 0;
         TRow lastForeignKey;
@@ -495,7 +532,7 @@ public:
             }
 
             if (shouldWait) {
-                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -565,7 +602,7 @@ public:
             }
 
             if (shouldWait) {
-                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -588,15 +625,14 @@ public:
     }
 
 private:
-    void** ConsumeRowsClosure;
-    void (*ConsumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size);
+    void** const ConsumeRowsClosure;
+    void (* const ConsumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size);
 
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
 
-    TRowBufferPtr IntermediateBuffer;
+    const TRowBufferPtr IntermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
     std::vector<const TValue*> JoinedRows;
-
 };
 
 void JoinOpHelper(
@@ -694,9 +730,7 @@ void JoinOpHelper(
                 batchState.HashJoin(context, &joinLookup, chainedRows, reader, isLeft);
             }
         } else {
-            NApi::IUnversionedRowsetPtr rowset;
-
-            auto foreignRowsBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+            auto foreignRowsBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
             std::vector<TRow> foreignRows;
             foreignRows.reserve(RowsetProcessingSize);
@@ -715,7 +749,7 @@ void JoinOpHelper(
                 while (true) {
                     bool hasMoreData;
                     {
-                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
+                        NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->ReadTime);
                         hasMoreData = reader->Read(&rows);
                     }
 
@@ -731,7 +765,7 @@ void JoinOpHelper(
                     }
 
                     if (shouldWait) {
-                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                        NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
                     }
@@ -787,8 +821,12 @@ void MultiJoinOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
+    auto finalLogger = Finally([&] () {
+        LOG_DEBUG("Finalizing multijoin helper");
+    });
+
     TMultiJoinClosure closure;
-    closure.Buffer = New<TRowBuffer>(TPermanentBufferTag());
+    closure.Buffer = New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
     closure.PrimaryRowSize = parameters->PrimaryRowSize;
     closure.BatchSize = parameters->BatchSize;
 
@@ -898,7 +936,12 @@ void MultiJoinOpHelper(
             };
 
             while (currentKey != orderedKeys.end()) {
-                bool hasMoreData = reader->Read(&foreignRows);
+                bool hasMoreData;
+                {
+                    NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->ReadTime);
+                    hasMoreData = reader->Read(&foreignRows);
+                }
+
                 bool shouldWait = foreignRows.empty();
 
                 for (size_t rowIndex = 0; rowIndex < foreignRows.size(); ++rowIndex) {
@@ -922,7 +965,7 @@ void MultiJoinOpHelper(
                 }
 
                 if (shouldWait) {
-                    NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                    NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
                     WaitFor(reader->GetReadyEvent())
                         .ThrowOnError();
                 }
@@ -940,13 +983,19 @@ void MultiJoinOpHelper(
             sortedForeignSequences.push_back(std::move(sortedForeignSequence));
         }
 
-        auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+        auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
         std::vector<const TValue*> joinedRows;
+
+        TYielder yielder;
+        size_t processedRows = 0;
+
         auto consumeJoinedRows = [&] () {
             // Consume joined rows.
+            processedRows += joinedRows.size();
             consumeRows(consumeRowsClosure, intermediateBuffer.Get(), joinedRows.data(), joinedRows.size());
             joinedRows.clear();
             intermediateBuffer->Clear();
+            yielder.Checkpoint(processedRows);
         };
 
         // TODO: Join first row in place or join all rows in place and immediately consume them?
@@ -1081,6 +1130,10 @@ void GroupOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
+    auto finalLogger = Finally([&] () {
+        LOG_DEBUG("Finalizing group helper");
+    });
+
     TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
 
     try {
@@ -1093,12 +1146,18 @@ void GroupOpHelper(
     LOG_DEBUG("Collected %v group rows",
         closure.GroupedRows.size());
 
-    auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+    auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
+
+    TYielder yielder;
+    size_t processedRows = 0;
 
     for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
+        processedRows += size;
         consumeRows(consumeRowsClosure, intermediateBuffer.Get(), closure.GroupedRows.data() + index, size);
         intermediateBuffer->Clear();
+
+        yielder.Checkpoint(processedRows);
     }
 }
 
@@ -1123,18 +1182,28 @@ void OrderOpHelper(
     void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size),
     size_t rowSize)
 {
+    auto finalLogger = Finally([&] () {
+        LOG_DEBUG("Finalizing order helper");
+    });
+
     auto limit = context->Limit;
 
     TTopCollector topCollector(limit, comparer, rowSize);
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows();
 
-    auto rowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+    auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
+
+    TYielder yielder;
+    size_t processedRows = 0;
 
     for (size_t index = 0; index < rows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, rows.size() - index);
+        processedRows += size;
         consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);
         rowBuffer->Clear();
+
+        yielder.Checkpoint(processedRows);
     }
 }
 
@@ -1160,12 +1229,12 @@ void WriteOpHelper(
     if (!closure.OutputRowsBatch.empty()) {
         bool shouldNotWait;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->WriteTime);
+            NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->WriteTime);
             shouldNotWait = context->Writer->Write(closure.OutputRowsBatch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+            NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
             WaitFor(context->Writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -1173,7 +1242,7 @@ void WriteOpHelper(
 
     LOG_DEBUG("Closing writer");
     {
-        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+        NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
         WaitFor(context->Writer->Close())
             .ThrowOnError();
     }
@@ -1188,26 +1257,66 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char IsRowInArray(TComparerFunction* comparer, TValue* values, TSharedRange<TRow>* rows)
+char IsRowInRowset(
+    TComparerFunction* comparer,
+    THasherFunction* hasher,
+    TComparerFunction* eqComparer,
+    TValue* values,
+    TSharedRange<TRow>* rows,
+    std::unique_ptr<TLookupRows>* lookupRows)
 {
-    auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
-        return comparer(const_cast<TValue*>(row.Begin()), values);
-    });
+    if (rows->Size() < 32) {
+        auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
+            return comparer(const_cast<TValue*>(row.Begin()), values);
+        });
 
-    return found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()));
-}
-
-const TValue* TransformTuple(TComparerFunction* comparer, TValue* values, TSharedRange<TRow>* rows)
-{
-    auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
-        return comparer(const_cast<TValue*>(row.Begin()), values);
-    });
-
-    if (found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()))) {
-        return const_cast<TValue*>(found->Begin());
+        return found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()));
     }
 
-    return nullptr;
+    if (!*lookupRows) {
+        *lookupRows = std::make_unique<TLookupRows>(rows->Size(), hasher, eqComparer);
+        (*lookupRows)->set_empty_key(nullptr);
+
+        for (TRow row: *rows) {
+            (*lookupRows)->insert(row.Begin());
+        }
+    }
+
+    auto found = (*lookupRows)->find(values);
+    return found != (*lookupRows)->end();
+}
+
+const TValue* TransformTuple(
+    TComparerFunction* comparer,
+    THasherFunction* hasher,
+    TComparerFunction* eqComparer,
+    TValue* values,
+    TSharedRange<TRow>* rows,
+    std::unique_ptr<TLookupRows>* lookupRows)
+{
+    if (rows->Size() < 32) {
+        auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
+            return comparer(const_cast<TValue*>(row.Begin()), values);
+        });
+
+        if (found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()))) {
+            return const_cast<TValue*>(found->Begin());
+        }
+
+        return nullptr;
+    }
+
+    if (!*lookupRows) {
+        *lookupRows = std::make_unique<TLookupRows>(rows->Size(), hasher, eqComparer);
+        (*lookupRows)->set_empty_key(nullptr);
+
+        for (TRow row: *rows) {
+            (*lookupRows)->insert(row.Begin());
+        }
+    }
+
+    auto found = (*lookupRows)->find(values);
+    return found != (*lookupRows)->end() ? *found : nullptr;
 }
 
 size_t StringHash(
@@ -1772,7 +1881,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateBytes);
-    REGISTER_ROUTINE(IsRowInArray);
+    REGISTER_ROUTINE(IsRowInRowset);
     REGISTER_ROUTINE(TransformTuple);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);

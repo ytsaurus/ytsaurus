@@ -3,9 +3,11 @@
 #include "helpers.h"
 #include "operation_controller.h"
 #include "serialize.h"
+#include "config.h"
+#include "operation.h"
 
-#include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/scheduler.h>
+#include <yt/server/scheduler/operation.h>
 
 #include <yt/ytlib/api/file_writer.h>
 #include <yt/ytlib/api/transaction.h>
@@ -21,6 +23,8 @@
 #include <yt/core/pipes/async_reader.h>
 #include <yt/core/pipes/async_writer.h>
 #include <yt/core/pipes/pipe.h>
+
+#include <yt/core/actions/cancelable_context.h>
 
 #include <thread>
 
@@ -39,34 +43,36 @@ using namespace NScheduler;
 static const size_t PipeWriteBufferSize = 1_MB;
 static const size_t RemoteWriteBufferSize = 1_MB;
 
+static const TString TmpSuffix = ".tmp";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBuildSnapshotJob
 {
     TOperationId OperationId;
-    IOperationControllerPtr Controller;
+    IOperationControllerSnapshotBuilderHostPtr Controller;
     std::unique_ptr<TFile> OutputFile;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotBuilder::TSnapshotBuilder(
-    TSchedulerConfigPtr config,
-    TOperationIdToControllerMap controllers,
+    TControllerAgentConfigPtr config,
+    TOperationIdToOperationMap operations,
     IClientPtr client,
-    IInvokerPtr IOInvoker)
+    IInvokerPtr ioInvoker)
     : Config_(config)
-    , Controllers_(std::move(controllers))
+    , Operations_(std::move(operations))
     , Client_(client)
-    , IOInvoker_(IOInvoker)
+    , IOInvoker_(ioInvoker)
     , ControlInvoker_(GetCurrentInvoker())
-    , Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot")
+    , Profiler(ControllerAgentProfiler.GetPathPrefix() + "/snapshot")
 {
     YCHECK(Config_);
     YCHECK(Client_);
     YCHECK(IOInvoker_);
 
-    Logger = SchedulerLogger;
+    Logger = ControllerAgentLogger;
 }
 
 TFuture<void> TSnapshotBuilder::Run()
@@ -78,12 +84,13 @@ TFuture<void> TSnapshotBuilder::Run()
     std::vector<TOperationId> operationIds;
 
     LOG_INFO("Preparing controllers for suspension");
-    std::vector<TFuture<int>> onSnapshotStartedFutures;
+    std::vector<TFuture<TSnapshotCookie>> onSnapshotStartedFutures;
 
-    // Capture everything needed in Build.
-    for (const auto& pair : Controllers_) {
+    // Capture everything needed.
+    for (const auto& pair : Operations_) {
         const auto& operationId = pair.first;
-        const auto& controller = pair.second;
+        const auto& operation = pair.second;
+        auto controller = operation->GetController();
 
         if (!controller->IsRunning()) {
             continue;
@@ -92,13 +99,15 @@ TFuture<void> TSnapshotBuilder::Run()
         auto job = New<TSnapshotJob>();
         job->OperationId = operationId;
         job->Controller = controller;
+
         auto pipe = TPipeFactory().Create();
         job->Reader = pipe.CreateAsyncReader();
         job->OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
         job->Suspended = false;
         Jobs_.push_back(job);
 
-        onSnapshotStartedFutures.push_back(BIND(&IOperationController::OnSnapshotStarted, job->Controller)
+        // TODO(ignat): migrate here to cancelable invoker (introduce CombineAll that ignores cancellation of combined futures).
+        onSnapshotStartedFutures.push_back(BIND(&IOperationControllerSnapshotBuilderHost::OnSnapshotStarted, job->Controller)
             .AsyncVia(job->Controller->GetInvoker())
             .Run());
         operationIds.push_back(operationId);
@@ -107,25 +116,24 @@ TFuture<void> TSnapshotBuilder::Run()
             operationId);
     }
 
-    // We need to filter those controllers who were not able to return snapshot index
+    // We need to filter those controllers who were not able to return snapshot cookie
     // on OnSnapshotStarted call. This may normally happen when promise was abandoned
     // because controller was disposed.
     std::vector<TSnapshotJobPtr> preparedJobs;
-
     PROFILE_TIMING("/controllers_prepare_time") {
-        auto result = WaitFor(CombineAll(onSnapshotStartedFutures));
-        YCHECK(result.IsOK() && "CombineAll failed");
-        const auto& snapshotIndices = result.Value();
-        YCHECK(snapshotIndices.size() == Jobs_.size());
+        auto resultsOrError = WaitFor(CombineAll(onSnapshotStartedFutures));
+        YCHECK(resultsOrError.IsOK() && "CombineAll failed");
+        const auto& results = resultsOrError.Value();
+        YCHECK(results.size() == Jobs_.size());
         for (int index = 0; index < Jobs_.size(); ++index) {
-            auto snapshotIndexOrError = snapshotIndices[index];
-            if (!snapshotIndexOrError.IsOK()) {
-                LOG_WARNING(snapshotIndexOrError, "Failed to get snapshot index from controller (OperationId: %v)",
+            const auto& coookieOrError = results[index];
+            if (!coookieOrError.IsOK()) {
+                LOG_WARNING(coookieOrError, "Failed to get snapshot index from controller (OperationId: %v)",
                     Jobs_[index]->OperationId);
-            } else {
-                Jobs_[index]->SnapshotIndex = snapshotIndexOrError.Value();
-                preparedJobs.emplace_back(Jobs_[index]);
+                continue;
             }
+            Jobs_[index]->Cookie  = coookieOrError.Value();
+            preparedJobs.emplace_back(Jobs_[index]);
         }
     }
 
@@ -191,12 +199,12 @@ void TSnapshotBuilder::OnControllerSuspended(const TSnapshotJobPtr& job)
     if (!ControllersSuspended_) {
         LOG_DEBUG("Controller suspended (OperationId: %v, SnapshotIndex: %v)",
             job->OperationId,
-            job->SnapshotIndex);
+            job->Cookie.SnapshotIndex);
         job->Suspended = true;
     } else {
         LOG_DEBUG("Controller suspended too late (OperationId: %v, SnapshotIndex: %v)",
             job->OperationId,
-            job->SnapshotIndex);
+            job->Cookie.SnapshotIndex);
     }
 }
 
@@ -212,9 +220,9 @@ void TSnapshotBuilder::RunParent()
     }
 }
 
-void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> Jobs_)
+void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> jobs)
 {
-    for (const auto& job : Jobs_) {
+    for (const auto& job : jobs) {
         TFileOutput outputStream(*job.OutputFile);
 
         auto checkpointableOutput = CreateCheckpointableOutputStream(&outputStream);
@@ -253,11 +261,16 @@ void TSnapshotBuilder::RunChild()
             snapshotJob.OutputFile = std::move(job->OutputFile);
             jobs.push_back(std::move(snapshotJob));
 
-            if (jobs.size() >= jobsPerBuilder || jobIndex + 1 == Jobs_.size()) {
+            if (jobs.size() >= jobsPerBuilder) {
                 builderThreads.emplace_back(
                     DoSnapshotJobs, std::move(jobs));
                 jobs.clear();
             }
+        }
+
+        if (jobs.size() > 0) {
+            builderThreads.emplace_back(
+                DoSnapshotJobs, std::move(jobs));
         }
         Jobs_.clear();
     }
@@ -296,7 +309,8 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
     try {
         LOG_INFO("Started uploading snapshot");
 
-        auto snapshotPath = GetSnapshotPath(operationId);
+        auto snapshotPath = GetNewSnapshotPath(operationId);
+        auto snapshotUploadPath = snapshotPath + TmpSuffix;
 
         // Start outer transaction.
         ITransactionPtr transaction;
@@ -307,21 +321,12 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                 "title",
                 Format("Snapshot upload for operation %v", operationId));
             options.Attributes = std::move(attributes);
+            options.Timeout = Config_->SnapshotTimeout;
             auto transactionOrError = WaitFor(
                 Client_->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
                     options));
             transaction = transactionOrError.ValueOrThrow();
-        }
-
-        // Remove previous snapshot, if exists.
-        {
-            TRemoveNodeOptions options;
-            options.Force = true;
-            auto result = WaitFor(transaction->RemoveNode(
-                snapshotPath,
-                options));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error removing previous snapshot");
         }
 
         // Create new snapshot node.
@@ -330,18 +335,22 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("version", GetCurrentSnapshotVersion());
             options.Attributes = std::move(attributes);
+            options.Force = true;
+            options.Recursive = true;
             auto result = WaitFor(transaction->CreateNode(
-                snapshotPath,
+                snapshotUploadPath,
                 EObjectType::File,
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error creating snapshot node");
         }
 
+        i64 snapshotSize = 0;
+
         // Upload new snapshot.
         {
             TFileWriterOptions options;
             options.Config = Config_->SnapshotWriter;
-            auto writer = transaction->CreateFileWriter(snapshotPath, options);
+            auto writer = transaction->CreateFileWriter(snapshotUploadPath, options);
 
             WaitFor(writer->Open())
                 .ThrowOnError();
@@ -352,10 +361,9 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
 
-            i64 totalSize = 0;
             while (true) {
                 size_t bytesRead = checkpointableInput->Read(buffer.Begin(), buffer.Size());
-                totalSize += bytesRead;
+                snapshotSize += bytesRead;
                 if (bytesRead == 0) {
                     break;
                 }
@@ -367,26 +375,80 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Close())
                 .ThrowOnError();
 
-            LOG_INFO("Snapshot uploaded successfully (Size: %v)", totalSize);
+            LOG_INFO("Snapshot file uploaded successfully (Size: %v, Path: %v)",
+                snapshotSize,
+                snapshotUploadPath);
+        }
+
+        if (snapshotSize == 0) {
+            LOG_WARNING("Empty snapshot found, skipping it");
+            transaction->Abort();
+            return;
         }
 
         // Commit outer transaction.
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
+        // Atomically move snapshot to the right place.
+        {
+            TMoveNodeOptions options;
+            options.Force = true;
+
+            WaitFor(Client_->MoveNode(
+                snapshotUploadPath,
+                snapshotPath,
+                options))
+                .ThrowOnError();
+
+            LOG_INFO("Snapshot file moved successfully (Source: %v, Destination: %v)",
+                snapshotUploadPath,
+                snapshotPath);
+        }
+
+        // Copy snapshot to old operation node if such node exists.
+        {
+            TCopyNodeOptions options;
+            options.Recursive = false;
+            options.Force = true;
+
+            auto snapshotOldPath = GetSnapshotPath(operationId);
+
+            auto error = WaitFor(Client_->CopyNode(
+                snapshotPath,
+                snapshotOldPath,
+                options));
+
+            if (!error.IsOK()) {
+                // COMPAT: Remove message check when masters are updated and will set ResolveError
+                // if intermediate node is missing.
+                auto isIntermediateNodeMissing = error.FindMatching(NYTree::EErrorCode::ResolveError) ||
+                    error.GetMessage().Contains("has no child");
+
+                // Intermediate nodes can be missing in new operations storage mode.
+                if (!isIntermediateNodeMissing) {
+                    THROW_ERROR error;
+                }
+            } else {
+                LOG_INFO("Snapshot file copied successfully (Source: %v, Destination: %v)",
+                    snapshotPath,
+                    snapshotOldPath);
+            }
+        }
+
         LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
-            job->SnapshotIndex);
+            job->Cookie.SnapshotIndex);
 
         auto controller = job->Controller;
-
         if (controller->IsRunning()) {
             // Safely remove jobs that we do not need any more.
             WaitFor(
                 BIND(&IOperationController::OnSnapshotCompleted, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
-                    .Run(job->SnapshotIndex))
+                    .Run(job->Cookie))
                 .ThrowOnError();
         }
+
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error uploading snapshot");
     }

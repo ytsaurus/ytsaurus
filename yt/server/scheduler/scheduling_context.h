@@ -27,8 +27,7 @@ struct ISchedulingContext
     virtual const TJobResources& ResourceLimits() const = 0;
     virtual TJobResources& ResourceUsage() = 0;
 
-    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskLimits() const = 0;
-    virtual NNodeTrackerClient::NProto::TDiskResources& DiskUsage() = 0;
+    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const = 0;
     //! Used during preemption to allow second-chance scheduling.
     virtual TJobResources& ResourceUsageDiscount() = 0;
 
@@ -56,8 +55,6 @@ struct ISchedulingContext
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
-
     //! Called by a controller to generate id for new job.
     /*!
      *  \note Thread affinity: any
@@ -72,7 +69,6 @@ DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
 ISchedulingContextPtr CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    NConcurrency::IThroughputThrottlerPtr jobSpecSliceThrottler,
     const std::vector<TJobPtr>& runningJobs,
     NObjectClient::TCellTag cellTag);
 

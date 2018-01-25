@@ -2,7 +2,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/ytlib/scheduler/proto/controller_agent_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -24,15 +24,6 @@ using std::round;
 static const i64 LowWatermarkMemorySize = 256_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TExtendedJobResources::TExtendedJobResources()
-    : UserSlots_(0)
-    , Cpu_(0)
-    , JobProxyMemory_(0)
-    , UserJobMemory_(0)
-    , FootprintMemory_(0)
-    , Network_(0)
-{ }
 
 i64 TExtendedJobResources::GetMemory() const
 {
@@ -64,13 +55,6 @@ void TExtendedJobResources::Persist(const TStreamPersistenceContext& context)
     Persist(context, Network_);
 }
 
-TJobResources::TJobResources()
-    : TEmptyJobResourcesBase()
-#define XX(name, Name) , Name##_(0)
-ITERATE_JOB_RESOURCES(XX)
-#undef XX
-{ }
-
 TJobResources::TJobResources(const TNodeResources& resources)
     : TEmptyJobResourcesBase()
 #define XX(name, Name) , Name##_(resources.name())
@@ -96,12 +80,12 @@ void TJobResources::Persist(const TStreamPersistenceContext& context)
     #undef XX
 }
 
-TString FormatResourceUsage(
+TString FormatResource(
     const TJobResources& usage,
     const TJobResources& limits)
 {
     return Format(
-        "{UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v}",
+        "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v",
         // User slots
         usage.GetUserSlots(),
         limits.GetUserSlots(),
@@ -114,6 +98,21 @@ TString FormatResourceUsage(
         // Network
         usage.GetNetwork(),
         limits.GetNetwork());
+}
+
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits)
+{
+    return Format("{%v}", FormatResource(usage, limits));
+}
+
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
+{
+    return Format("{%v, DiskInfo: %v}", FormatResource(usage, limits), NNodeTrackerClient::ToString(diskInfo));
 }
 
 TString FormatResources(const TJobResources& resources)
@@ -129,7 +128,7 @@ TString FormatResources(const TJobResources& resources)
 TString FormatResources(const TJobResourcesWithQuota& resources)
 {
     return Format(
-        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, Disk Quota: %v}",
+        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, DiskQuota: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetMemory() / 1_MB,
@@ -145,9 +144,9 @@ TString FormatResources(const TExtendedJobResources& resources)
         "{UserSlots: %v, Cpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
-        resources.GetJobProxyMemory() / (1024 * 1024),
-        resources.GetUserJobMemory() / (1024 * 1024),
-        resources.GetFootprintMemory() / (1024 * 1024),
+        resources.GetJobProxyMemory() / 1_MB,
+        resources.GetUserJobMemory() / 1_MB,
+        resources.GetFootprintMemory() / 1_MB,
         resources.GetNetwork());
 }
 
@@ -208,19 +207,6 @@ double GetResource(const TJobResources& resources, EResourceType type)
         #define XX(name, Name) \
             case EResourceType::Name: \
                 return static_cast<double>(resources.Get##Name());
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-void SetResource(TJobResources& resources, EResourceType type, i64 value)
-{
-    switch (type) {
-        #define XX(name, Name) \
-            case EResourceType::Name: \
-                resources.Set##Name(static_cast<decltype(resources.Get##Name())>(value)); break;
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
@@ -459,6 +445,8 @@ void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
     #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
+            // COMPAT(psushin): fix for a web-face.
+            .Item("memory").Value(resources.GetMemory())
         .EndMap();
 }
 
@@ -478,20 +466,16 @@ const TJobResources& MinSpareNodeResources()
 }
 
 bool CanSatisfyDiskRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskUsage,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
     i64 diskRequest)
 {
-    auto limits = diskLimits.disk_usage();
-    auto usage = diskUsage.disk_usage();
-    auto limitsIt = limits.begin();
-    auto usageIt = usage.begin();
-    while (limitsIt != limits.end() && usageIt != usage.end()) {
-        if (diskRequest <= *limitsIt - *usageIt) {
+    auto info = diskInfo.disk_reports();
+    auto it = info.begin();
+    while (it != info.end()) {
+        if (diskRequest < it->limit() - it->usage()) {
             return true;
         }
-        ++limitsIt;
-        ++usageIt;
+        ++it;
     }
     return false;
 }

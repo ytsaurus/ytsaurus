@@ -93,9 +93,8 @@ public:
         TCellTag cellTag,
         bool reliable)
     {
-        TEncapsulatedMessage encapsulatedMessage;
-        BuildHiveMessage(message, &encapsulatedMessage);
-        DoPostMessage(encapsulatedMessage, TCellTagList{cellTag}, reliable);
+        auto encapsulatedMessage = BuildHiveMessage(message);
+        DoPostMessage(std::move(encapsulatedMessage), TCellTagList{cellTag}, reliable);
     }
 
     void PostToMasters(
@@ -107,9 +106,8 @@ public:
             return;
         }
 
-        TEncapsulatedMessage encapsulatedMessage;
-        BuildHiveMessage(message, &encapsulatedMessage);
-        DoPostMessage(encapsulatedMessage, cellTags, reliable);
+        auto encapsulatedMessage = BuildHiveMessage(message);
+        DoPostMessage(std::move(encapsulatedMessage), cellTags, reliable);
     }
 
     void PostToSecondaryMasters(
@@ -645,13 +643,11 @@ private:
     }
 
 
-    void BuildHiveMessage(
-        const TCrossCellMessage& crossCellMessage,
-        TEncapsulatedMessage* encapsulatedMessage)
+    TRefCountedEncapsulatedMessagePtr BuildHiveMessage(
+        const TCrossCellMessage& crossCellMessage)
     {
         if (const auto* protoPtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TProtoMessage>()) {
-            NHiveServer::SerializeMessage(*protoPtr->Message, encapsulatedMessage);
-            return;
+            return NHiveServer::SerializeMessage(*protoPtr->Message);
         }
 
         NObjectServer::NProto::TReqExecute hydraRequest;
@@ -676,11 +672,11 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         hydraRequest.set_user_name(user->GetName());
 
-        NHiveServer::SerializeMessage(hydraRequest, encapsulatedMessage);
+        return NHiveServer::SerializeMessage(hydraRequest);
     }
 
     void DoPostMessage(
-        const TEncapsulatedMessage& message,
+        TRefCountedEncapsulatedMessagePtr message,
         const TCellTagList& cellTags,
         bool reliable)
     {
@@ -696,7 +692,7 @@ private:
                 YCHECK(!reliable);
             }
         }
-        hiveManager->PostMessage(mailboxes, message, reliable);
+        hiveManager->PostMessage(mailboxes, std::move(message), reliable);
     }
 };
 

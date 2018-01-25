@@ -17,6 +17,8 @@ from helpers import (mkdirp, run, run_captured, cwd, copytree,
 from pytest_helpers import (get_sandbox_dirs, save_failed_test,
                             find_core_dumps_with_report, copy_artifacts)
 
+from datetime import datetime
+
 import argparse
 import glob
 import os.path
@@ -159,6 +161,7 @@ def configure(options, build_context):
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
+        "-DYT_BUILD_USERNAME=", # Empty string is used intentionally to suppress username in version identifier.
         "-DYT_BUILD_GIT_DEPTH={0}".format(options.build_git_depth),
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
         "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
@@ -188,6 +191,88 @@ def set_suid_bit(options, build_context):
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
 
+def sky_share(resource, cwd):
+    run_result = run(
+        ["sky", "share", resource],
+        cwd=cwd,
+        shell=False,
+        timeout=100,
+        capture_output=True)
+
+    rbtorrent = run_result.stdout.splitlines()[0].strip()
+    # simple sanity check
+    if urlparse.urlparse(rbtorrent).scheme != "rbtorrent":
+        raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
+    return rbtorrent
+
+def share_packages(options, version):
+    # Share all important packages via skynet and store in sandbox.
+    upload_packages = [
+        "yandex-yt-python-skynet-driver",
+        "yandex-yt-python-driver",
+        "yandex-yt-src",
+        "yandex-yt-http-proxy",
+        "yandex-yt-proxy",
+        "yandex-yt-master",
+        "yandex-yt-scheduler",
+        "yandex-yt-node"
+    ]
+
+    try:
+        build_time = datetime.now().isoformat()
+        cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
+
+        dir = os.path.join(options.working_directory, "./ARTIFACTS")
+        rows = []
+        for pkg in upload_packages:
+            paths = glob.glob("{0}/{1}*.deb".format(dir, pkg))
+            if len(paths) != 1:
+                teamcity_message("Failed to find package {0}, found files {1}".format(pkg, paths), "WARNING")
+            else:
+                path = paths[0]
+                torrent_id = sky_share(os.path.basename(path), os.path.dirname(path))
+                sandbox_ctx = {
+                    "created_resource_name" : os.path.basename(path),
+                    "resource_type" : "YT_PACKAGE",
+                    "remote_file_name" : torrent_id,
+                    "store_forever" : True,
+                    "remote_file_protocol" : "skynet"}
+
+                task_description = """
+                    Build id: {0}
+                    Build type: {1}
+                    Source host: {2}
+                    Teamcity build type id: {3}
+                    Package: {4}
+                    """.format(
+                    version,
+                    options.type,
+                    socket.getfqdn(),
+                    options.btid,
+                    pkg)
+
+                task_id = cli.create_task("REMOTE_COPY_RESOURCE", "YT_ROBOT", task_description, sandbox_ctx)
+                teamcity_message("Created sandbox upload task: package: {0}, task_id: {1}, torrent_id: {2}".format(pkg, task_id, torrent_id))
+                rows.append({
+                    "package" : pkg,
+                    "version" : version,
+                    "ubuntu_codename" : options.codename,
+                    "torrent_id" : torrent_id,
+                    "task_id" : task_id,
+                    "build_time" : build_time})
+
+        # Add to locke.
+        src_root = os.path.dirname(os.path.dirname(__file__))
+        sys.path.insert(0, os.path.join(src_root, "python"))
+
+        import yt.wrapper
+        yt.wrapper.config["proxy"]["url"] = "locke"
+        yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
+        yt.wrapper.insert_rows("//sys/admin/skynet/packages",  rows)
+
+    except Exception as err:
+        teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
+
 @build_step
 def package(options, build_context):
     if not options.package:
@@ -206,6 +291,8 @@ def package(options, build_context):
         teamcity_interact("setParameter", name="yt.package_built", value=1)
         teamcity_interact("setParameter", name="yt.package_version", value=version)
         teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
+
+        share_packages(options, version)
 
         artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
         if artifacts:
@@ -241,20 +328,6 @@ def run_sandbox_upload(options, build_context):
     sandbox_ctx = {"upload_urls": {}}
     binary_distribution_folder = os.path.join(build_context["sandbox_upload_root"], "bin")
     mkdirp(binary_distribution_folder)
-
-    def sky_share(resource, cwd):
-        run_result = run(
-            ["sky", "share", resource],
-            cwd=cwd,
-            shell=False,
-            timeout=100,
-            capture_output=True)
-
-        rbtorrent = run_result.stdout.splitlines()[0].strip()
-        # simple sanity check
-        if urlparse.urlparse(rbtorrent).scheme != "rbtorrent":
-            raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
-        return rbtorrent
 
     # Prepare binary distribution folder
     # {working_directory}/bin contains lots of extra binaries,

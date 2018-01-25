@@ -61,7 +61,7 @@ message TNodeResources
 {
     optional int32 user_slots = 1;
     optional double cpu = 2;
-    optional int64 memory = 3;
+    optional int64 user_memory = 3;
     optional int32 network = 4;
     optional int32 replication_slots = 5;
     optional int32 removal_slots = 6;
@@ -69,11 +69,18 @@ message TNodeResources
     optional int32 seal_slots = 8;
     optional int64 replication_data_size = 9;
     optional int64 repair_data_size = 10;
+    optional int64 system_memory = 11;
+}
+
+message TDiskResourcesInfo
+{
+    required int64 usage = 1;
+    required int64 limit = 2;
 }
 
 message TDiskResources
 {
-    repeated int64 disk_usage = 1;
+    repeated TDiskResourcesInfo disk_reports = 1;
 }
 
 // Limits overrides pushed from master to node.
@@ -88,6 +95,8 @@ message TNodeResourceLimitsOverrides
     optional int32 repair_slots = 6;
     optional int64 repair_data_size = 7;
     optional int32 seal_slots = 8;
+    optional int64 user_memory = 9;
+    optional int64 system_memory = 10;
 }
 
 // A collection of network name to address mappings.
@@ -118,6 +127,7 @@ message TNodeDescriptor
     required TAddressMap addresses = 1;
     optional string rack = 2;
     optional string data_center = 3;
+    repeated string tags = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

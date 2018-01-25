@@ -1,7 +1,5 @@
 #include "master_connector.h"
-
 #include "config.h"
-#include "private.h"
 #include "helpers.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
@@ -12,6 +10,8 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
+
+#include <yt/server/misc/update_executor.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -29,7 +29,6 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
-#include <yt/ytlib/scheduler/update_executor.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -39,6 +38,8 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/utilex/random.h>
+
+#include <yt/core/actions/cancelable_context.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -59,8 +60,11 @@ using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
 using namespace NCellScheduler;
+
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
+
+using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,100 +79,76 @@ public:
     TImpl(
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap)
-        : Config(config)
-        , Bootstrap(bootstrap)
-        , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
-            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
-            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
-            Logger))
+        : Config_(config)
+        , Bootstrap_(bootstrap)
+    { }
+
+    void Start()
     {
-        Bootstrap
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
             ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
-                .Via(Bootstrap->GetControlInvoker(EControlQueue::MasterConnector)));
-    }
+                .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)));
 
-    void Start()
-    {
-        Bootstrap->GetControlInvoker()->Invoke(BIND(
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(
             &TImpl::StartConnecting,
             MakeStrong(this)));
     }
 
-    bool IsConnected() const
+    EMasterConnectorState GetState() const
     {
-        return Connected;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return State_.load();
+    }
+
+    TInstant GetConnectionTime() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ConnectionTime_.load();
     }
 
     void Disconnect()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         DoDisconnect();
     }
 
     IInvokerPtr GetCancelableControlInvoker() const
     {
-        return CancelableControlInvoker;
+        // XXX(babenko): fixme
+        //VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        return CancelableControlInvoker_;
     }
 
-    void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
-    {
-        auto owners = operation->GetOwners();
-        owners.push_back(operation->GetAuthenticatedUser());
-
-        fluent
-            .BeginList()
-                .Item().BeginMap()
-                    .Item("action").Value(ESecurityAction::Allow)
-                    .Item("subjects").Value(owners)
-                    .Item("permissions").BeginList()
-                        .Item().Value(EPermission::Write)
-                    .EndList()
-                .EndMap()
-            .EndList();
-    }
-
-    TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
+    void StartOperationNodeUpdates(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+    }
+
+    TFuture<void> CreateOperationNode(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
         LOG_INFO("Creating operation node (OperationId: %v)",
             operationId);
 
-        auto strategy = Bootstrap->GetScheduler()->GetStrategy();
+        auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
-
-        {
-            auto req = TYPathProxy::Set(GetOperationPath(operationId));
-            req->set_value(BuildYsonStringFluently()
-                .BeginAttributes()
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
-                    .Do(BIND(&BuildInitializingOperationAttributes, operation))
-                    .Item("brief_spec").BeginMap()
-                        .Items(initializeResult.BriefSpec)
-                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
-                    .EndMap()
-                    .Item("progress").BeginMap().EndMap()
-                    .Item("brief_progress").BeginMap().EndMap()
-                    .Item("opaque").Value("true")
-                        .Item("acl").Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
-                    .Item("owners").Value(operation->GetOwners())
-                .EndAttributes()
-                .BeginMap()
-                    .Item("jobs").BeginAttributes()
-                        .Item("opaque").Value("true")
-                    .EndAttributes()
-                    .BeginMap().EndMap()
-                .EndMap()
-                .GetData());
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
-        }
 
         {
             auto req = TCypressYPathProxy::Create(GetNewOperationPath(operationId));
@@ -179,30 +159,64 @@ public:
             batchReq->AddRequest(req);
         }
 
-        if (operation->GetSecureVault()) {
-            // Create secure vault.
-            auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
-            req->set_type(static_cast<int>(EObjectType::Document));
+        auto operationYson = BuildYsonStringFluently()
+            .BeginAttributes()
+                .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
+                .Do(BIND(&BuildFullOperationAttributes, operation))
+                .Item("brief_spec").BeginMap()
+                    .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
+                .EndMap()
+                .Item("progress").BeginMap().EndMap()
+                .Item("brief_progress").BeginMap().EndMap()
+                .Item("opaque").Value("true")
+                    .Item("acl").Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
+                .Item("owners").Value(operation->GetOwners())
+            .EndAttributes()
+            .BeginMap()
+                .Item("jobs").BeginAttributes()
+                    .Item("opaque").Value("true")
+                .EndAttributes()
+                .BeginMap().EndMap()
+            .EndMap()
+            .GetData();
 
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("inherit_acl", false);
-            attributes->Set("value", operation->GetSecureVault());
-            attributes->Set("acl", BuildYsonStringFluently()
-                .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation)));
-            ToProto(req->mutable_node_attributes(), *attributes);
+        auto paths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode());
+        auto secureVaultPaths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode(), "secure_vault");
+
+        for (const auto& path : paths) {
+            auto req = TYPathProxy::Set(path);
+            req->set_value(operationYson);
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
 
+        if (operation->GetSecureVault()) {
+            // Create secure vault.
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("inherit_acl", false);
+            attributes->Set("value", operation->GetSecureVault());
+            attributes->Set("acl", BuildYsonStringFluently()
+                .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1)));
+
+            for (const auto& path : secureVaultPaths) {
+                auto req = TCypressYPathProxy::Create(path);
+                req->set_type(static_cast<int>(EObjectType::Document));
+                ToProto(req->mutable_node_attributes(), *attributes);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
+        }
+
         return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(GetCancelableControlInvoker()));
+                .AsyncVia(CancelableControlInvoker_));
     }
 
-    TFuture<void> ResetRevivingOperationNode(TOperationPtr operation)
+    TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
         YCHECK(operation->GetState() == EOperationState::Reviving);
 
         auto operationId = operation->GetId();
@@ -213,16 +227,20 @@ public:
 
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Do(BIND(&BuildRunningOperationAttributes, operation))
+                .Do(BIND(&BuildMutableOperationAttributes, operation))
                 .Item("progress").BeginMap().EndMap()
                 .Item("brief_progress").BeginMap().EndMap()
             .EndMap());
 
+        auto paths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode());
+
         for (const auto& key : attributes->List()) {
-            auto req = TYPathProxy::Set(GetOperationPath(operationId) + "/@" + ToYPathLiteral(key));
-            req->set_value(attributes->GetYson(key).GetData());
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
+            for (const auto& path : paths) {
+                auto req = TYPathProxy::Set(path + "/@" + ToYPathLiteral(key));
+                req->set_value(attributes->GetYson(key).GetData());
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
         }
 
         return batchReq->Invoke().Apply(
@@ -230,15 +248,37 @@ public:
                 &TImpl::OnRevivingOperationNodeReset,
                 MakeStrong(this),
                 operation)
-            .AsyncVia(GetCancelableControlInvoker()));
+            .AsyncVia(CancelableControlInvoker_));
     }
 
-    TFuture<void> FlushOperationNode(TOperationPtr operation)
+    TFuture<void> FlushOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
+    }
+
+    void AttachJobContext(
+        const TYPath& path,
+        const TChunkId& chunkId,
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        try {
+            TJobFile file{
+                jobId,
+                path,
+                chunkId,
+                "input_context"
+            };
+            SaveJobFiles(Bootstrap_->GetMasterClient(), operationId, { file });
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
+                << ex;
+        }
     }
 
 
@@ -246,69 +286,86 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Alerts[alertType] = alert;
+        Alerts_[alertType] = alert;
     }
 
     void AddGlobalWatcherRequester(TWatcherRequester requester)
     {
-        GlobalWatcherRequesters.push_back(requester);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GlobalWatcherRequesters_.push_back(requester);
     }
 
     void AddGlobalWatcherHandler(TWatcherHandler handler)
     {
-        GlobalWatcherHandlers.push_back(handler);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GlobalWatcherHandlers_.push_back(handler);
     }
 
     void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
     {
-        CustomGlobalWatcherRecords.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        CustomGlobalWatcherRecords_.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
     }
 
-    void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
+    void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
         auto* list = GetOrCreateWatcherList(operation);
         list->WatcherRequesters.push_back(requester);
     }
 
-    void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
+    void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
         auto* list = GetOrCreateWatcherList(operation);
         list->WatcherHandlers.push_back(handler);
     }
 
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
-        Config = config;
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (Connected) {
-            OperationNodesUpdateExecutor_->SetPeriod(Config->OperationsUpdatePeriod);
+        Config_ = config;
+
+        if (OperationNodesUpdateExecutor_) {
+            OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
         }
-        if (WatchersExecutor) {
-            WatchersExecutor->SetPeriod(Config->WatchersUpdatePeriod);
+        if (WatchersExecutor_) {
+            WatchersExecutor_->SetPeriod(Config_->WatchersUpdatePeriod);
         }
-        if (AlertsExecutor) {
-            AlertsExecutor->SetPeriod(Config->AlertsUpdatePeriod);
+        if (AlertsExecutor_) {
+            AlertsExecutor_->SetPeriod(Config_->AlertsUpdatePeriod);
         }
 
-        ScheduleTestingDisconnection();
+        ScheduleTestingDisconnect();
     }
 
-    DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
+    DEFINE_SIGNAL(void(), MasterConnecting);
+    DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterHandshake);
+    DEFINE_SIGNAL(void(), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
 
 private:
-    TSchedulerConfigPtr Config;
-    NCellScheduler::TBootstrap* const Bootstrap;
+    TSchedulerConfigPtr Config_;
+    NCellScheduler::TBootstrap* const Bootstrap_;
 
-    TCancelableContextPtr CancelableContext;
-    IInvokerPtr CancelableControlInvoker;
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableControlInvoker_;
 
-    std::atomic<bool> Connected = {false};
+    std::atomic<EMasterConnectorState> State_ = {EMasterConnectorState::Disconnected};
+    std::atomic<TInstant> ConnectionTime_;
 
-    ITransactionPtr LockTransaction;
+    ITransactionPtr LockTransaction_;
 
-    TPeriodicExecutorPtr WatchersExecutor;
-    TPeriodicExecutorPtr AlertsExecutor;
+    TPeriodicExecutorPtr WatchersExecutor_;
+    TPeriodicExecutorPtr AlertsExecutor_;
 
     struct TPeriodicExecutorRecord
     {
@@ -317,15 +374,13 @@ private:
         TDuration Period;
     };
 
-    std::vector<TWatcherRequester> GlobalWatcherRequesters;
-    std::vector<TWatcherHandler>   GlobalWatcherHandlers;
+    std::vector<TWatcherRequester> GlobalWatcherRequesters_;
+    std::vector<TWatcherHandler>   GlobalWatcherHandlers_;
 
-    std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords;
-    std::vector<TPeriodicExecutorPtr> CustomGlobalWatcherExecutors;
+    std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords_;
+    std::vector<TPeriodicExecutorPtr> CustomGlobalWatcherExecutors_;
 
-    TEnumIndexedVector<TError, ESchedulerAlertType> Alerts;
-
-    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] {return VoidFuture;});
+    TEnumIndexedVector<TError, ESchedulerAlertType> Alerts_;
 
     struct TOperationNodeUpdate
     {
@@ -340,7 +395,7 @@ private:
 
     struct TWatcherList
     {
-        explicit TWatcherList(TOperationPtr operation)
+        explicit TWatcherList(const TOperationPtr& operation)
             : Operation(operation)
         { }
 
@@ -353,13 +408,32 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    void ScheduleTestingDisconnection()
+
+    void ScheduleConnectRetry()
     {
-        if (Config->TestingOptions->EnableRandomMasterDisconnection) {
+        TDelayedExecutor::Submit(
+            BIND(&TImpl::StartConnecting, MakeStrong(this))
+                .Via(Bootstrap_->GetControlInvoker()),
+            Config_->ConnectRetryBackoffTime);
+    }
+
+    void ScheduleTestingDisconnect()
+    {
+        if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
             TDelayedExecutor::Submit(
-                BIND(&TImpl::Disconnect, MakeStrong(this))
-                    .Via(Bootstrap->GetControlInvoker()),
-                RandomDuration(Config->TestingOptions->RandomMasterDisconnectionMaxBackoff));
+                BIND(&TImpl::RandomDisconnect, MakeStrong(this))
+                    .Via(Bootstrap_->GetControlInvoker()),
+                RandomDuration(Config_->TestingOptions->RandomMasterDisconnectionMaxBackoff));
+        }
+    }
+
+    void RandomDisconnect()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
+            LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
+            DoDisconnect();
         }
     }
 
@@ -369,63 +443,84 @@ private:
 
         LOG_INFO("Connecting to master");
 
+        YCHECK(State_ == EMasterConnectorState::Disconnected);
+        State_ = EMasterConnectorState::Connecting;
+
+        YCHECK(!CancelableContext_);
+        CancelableContext_ = New<TCancelableContext>();
+
+        YCHECK(!CancelableControlInvoker_);
+        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(
+            Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
+
+        OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
+            Config_->OperationsUpdatePeriod,
+            Logger);
+
+        WatchersExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
+            Config_->WatchersUpdatePeriod,
+            EPeriodicExecutorMode::Automatic);
+
+        AlertsExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
+            Config_->AlertsUpdatePeriod,
+            EPeriodicExecutorMode::Automatic);
+
+        for (const auto& record : CustomGlobalWatcherRecords_) {
+            auto executor = New<TPeriodicExecutor>(
+                CancelableControlInvoker_,
+                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
+                record.Period,
+                EPeriodicExecutorMode::Automatic);
+            CustomGlobalWatcherExecutors_.push_back(executor);
+        }
+
         auto pipeline = New<TRegistrationPipeline>(this);
         BIND(&TRegistrationPipeline::Run, pipeline)
-            .AsyncVia(Bootstrap->GetControlInvoker())
+            .AsyncVia(CancelableControlInvoker_)
             .Run()
             .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this))
-                .Via(Bootstrap->GetControlInvoker()));
+                .Via(CancelableControlInvoker_));
     }
 
-    void OnConnected(const TErrorOr<TMasterHandshakeResult>& resultOrError)
+    void OnConnected(const TError& error) noexcept
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ == EMasterConnectorState::Connecting);
 
-        if (!resultOrError.IsOK()) {
-            LOG_ERROR(resultOrError, "Error connecting to master");
-            TDelayedExecutor::Submit(
-                BIND(&TImpl::StartConnecting, MakeStrong(this))
-                    .Via(Bootstrap->GetControlInvoker()),
-                Config->ConnectRetryBackoffTime);
+        if (!error.IsOK()) {
+            LOG_WARNING(error, "Error connecting to master");
+            DoCleanup();
+            ScheduleConnectRetry();
             return;
         }
 
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        State_.store(EMasterConnectorState::Connected);
+        ConnectionTime_.store(TInstant::Now());
+
         LOG_INFO("Master connected");
 
-        YCHECK(!Connected);
-        Connected.store(true);
-
-        CancelableContext = New<TCancelableContext>();
-        CancelableControlInvoker = CancelableContext->CreateInvoker(
-            Bootstrap->GetControlInvoker(EControlQueue::MasterConnector));
-
-        const auto& result = resultOrError.Value();
-        for (auto operationReport : result.OperationReports) {
-            const auto& operation = operationReport.Operation;
-            OperationNodesUpdateExecutor_->AddUpdate(
-                operation->GetId(),
-                TOperationNodeUpdate(operation));
-        }
-
-        LockTransaction->SubscribeAborted(
-            BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
-                .Via(CancelableControlInvoker));
-
-        Bootstrap->GetControllerAgent()->Connect();
+        LockTransaction_->SubscribeAborted(
+            BIND(&TImpl::OnLockTransaction_Aborted, MakeWeak(this))
+                .Via(CancelableControlInvoker_));
 
         StartPeriodicActivities();
 
-        try {
-            MasterConnected_.Fire(result);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Master connection failed");
-            Disconnect();
-        }
+        MasterConnected_.Fire();
 
-        ScheduleTestingDisconnection();
+        ScheduleTestingDisconnect();
     }
 
-    void OnLockTransactionAborted()
+    void OnLockTransaction_Aborted()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -435,18 +530,18 @@ private:
     }
 
 
-
     class TRegistrationPipeline
         : public TRefCounted
     {
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
-            : Owner(owner)
-            , ServiceAddresses(Owner->Bootstrap->GetLocalAddresses())
+            : Owner_(owner)
+            , ServiceAddresses_(Owner_->Bootstrap_->GetLocalAddresses())
         { }
 
-        TMasterHandshakeResult Run()
+        void Run()
         {
+            FireConnecting();
             RegisterInstance();
             StartLockTransaction();
             TakeLock();
@@ -456,25 +551,36 @@ private:
             ListOperations();
             RequestOperationAttributes();
             RequestCommittedFlag();
-            return Result;
+            FireHandshake();
         }
 
     private:
-        const TIntrusivePtr<TImpl> Owner;
+        const TIntrusivePtr<TImpl> Owner_;
+        const TAddressMap ServiceAddresses_;
 
-        const TAddressMap ServiceAddresses;
-        std::vector<TOperationId> OperationIds;
-        TMasterHandshakeResult Result;
+        struct TReviveOperationInfo
+        {
+            TOperationId Id;
+            EOperationCypressStorageMode StorageMode;
+        };
+
+        std::vector<TReviveOperationInfo> RunningOperations_;
+        TMasterHandshakeResult Result_;
+
+        void FireConnecting()
+        {
+            Owner_->MasterConnecting_.Fire();
+        }
 
         // - Register scheduler instance.
         void RegisterInstance()
         {
-            TObjectServiceProxy proxy(Owner
-                ->Bootstrap
+            TObjectServiceProxy proxy(Owner_
+                ->Bootstrap_
                 ->GetMasterClient()
                 ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
             auto batchReq = proxy.ExecuteBatch();
-            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses));
+            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -487,7 +593,7 @@ private:
                 req->set_ignore_existing(true);
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_addresses", ServiceAddresses);
+                attributes->Set("remote_addresses", ServiceAddresses_);
                 ToProto(req->mutable_node_attributes(), *attributes);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
@@ -502,26 +608,26 @@ private:
         {
             TTransactionStartOptions options;
             options.AutoAbort = true;
-            options.Timeout = Owner->Config->LockTransactionTimeout;
+            options.Timeout = Owner_->Config_->LockTransactionTimeout;
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Scheduler lock at %v", GetDefaultAddress(ServiceAddresses)));
+            attributes->Set("title", Format("Scheduler lock at %v", GetDefaultAddress(ServiceAddresses_)));
             options.Attributes = std::move(attributes);
 
-            auto client = Owner->Bootstrap->GetMasterClient();
-            auto transactionOrError = WaitFor(Owner->Bootstrap->GetMasterClient()->StartTransaction(
+            auto client = Owner_->Bootstrap_->GetMasterClient();
+            auto transactionOrError = WaitFor(Owner_->Bootstrap_->GetMasterClient()->StartTransaction(
                 ETransactionType::Master,
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting lock transaction");
 
-            Owner->LockTransaction = transactionOrError.Value();
+            Owner_->LockTransaction_ = transactionOrError.Value();
 
-            LOG_INFO("Lock transaction is %v", Owner->LockTransaction->GetId());
+            LOG_INFO("Lock transaction is %v", Owner_->LockTransaction_->GetId());
         }
 
         // - Take lock.
         void TakeLock()
         {
-            auto result = WaitFor(Owner->LockTransaction->LockNode("//sys/scheduler/lock", ELockMode::Exclusive));
+            auto result = WaitFor(Owner_->LockTransaction_->LockNode("//sys/scheduler/lock", ELockMode::Exclusive));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error taking scheduler lock");
         }
 
@@ -529,8 +635,8 @@ private:
         // - Update orchid address.
         void AssumeControl()
         {
-            auto batchReq = Owner->StartObjectBatchRequest();
-            auto addresses = Owner->Bootstrap->GetLocalAddresses();
+            auto batchReq = Owner_->StartObjectBatchRequest();
+            auto addresses = Owner_->Bootstrap_->GetLocalAddresses();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@addresses");
                 req->set_value(ConvertToYsonString(addresses).GetData());
@@ -556,8 +662,8 @@ private:
 
         void SyncClusterDirectory()
         {
-            WaitFor(Owner
-                ->Bootstrap
+            WaitFor(Owner_
+                ->Bootstrap_
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectorySynchronizer()
@@ -568,116 +674,216 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
-            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            static const std::vector<TString> attributeKeys = {"state"};
+
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 auto req = TYPathProxy::List("//sys/operations");
-                std::vector<TString> attributeKeys{
-                    "state"
-                };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "list_operations");
             }
 
+            for (int hash = 0x0; hash <= 0xFF; ++hash) {
+                auto hashStr = Format("%02x", hash);
+                auto req = TYPathProxy::List("//sys/operations/" + hashStr);
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                batchReq->AddRequest(req, "list_operations_" + hashStr);
+            }
+
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
             const auto& batchRsp = batchRspOrError.Value();
 
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations").Value();
-                auto operationsListNode = ConvertToNode(TYsonString(rsp->value()));
-                auto operationsList = operationsListNode->AsList();
-                LOG_INFO("Operations list received, %v operations total",
-                    operationsList->GetChildCount());
-                OperationIds.clear();
-                for (auto operationNode : operationsList->GetChildren()) {
+            std::vector<std::pair<EOperationState, TReviveOperationInfo>> operations;
+            yhash<TOperationId, EOperationState> operationIdToState;
+
+            auto listOperationsRsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations")
+                .ValueOrThrow();
+
+            auto operationsListNode = ConvertToNode(TYsonString(listOperationsRsp->value()));
+            auto operationsList = operationsListNode->AsList();
+
+            for (const auto& operationNode : operationsList->GetChildren()) {
+                auto operationNodeKey = operationNode->GetValue<TString>();
+                // NOTE: This is hash bucket, just skip it.
+                if (operationNodeKey.length() == 2) {
+                    continue;
+                }
+
+                auto id = TOperationId::FromString(operationNodeKey);
+                operationIdToState[id] = operationNode->Attributes().Get<EOperationState>("state");
+            }
+
+            for (int hash = 0x0; hash <= 0xFF; ++hash) {
+                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(
+                    "list_operations_" + Format("%02x", hash));
+
+                if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    continue;
+                }
+
+                auto hashBucketRsp = rspOrError.ValueOrThrow();
+                auto hashBucketListNode = ConvertToNode(TYsonString(hashBucketRsp->value()));
+                auto hashBucketList = hashBucketListNode->AsList();
+
+                for (const auto& operationNode : hashBucketList->GetChildren()) {
+                    auto id = TOperationId::FromString(operationNode->GetValue<TString>());
+                    YCHECK((id.Parts32[0] & 0xff) == hash);
+
                     auto state = operationNode->Attributes().Find<EOperationState>("state");
-                    // Ignore map nodes with nested operation nodes.
-                    if (!state) {
+
+                    auto stateIt = operationIdToState.find(id);
+
+                    // Neither //sys/operations/<id> node nor //sys/operations/<hash>/<id> has
+                    // "state" attribute.
+                    if (!state && stateIt == operationIdToState.end()) {
+                        LOG_WARNING("Operation %v does not have \"state\" attribute, skipping it", id);
                         continue;
                     }
 
-                    auto id = TOperationId::FromString(operationNode->GetValue<TString>());
-                    if (IsOperationInProgress(*state)) {
-                        OperationIds.push_back(id);
+                    if (!state) {
+                        operations.emplace_back(
+                            stateIt->second,
+                            TReviveOperationInfo{id, EOperationCypressStorageMode::SimpleHashBuckets});
+                        operationIdToState.erase(stateIt);
+                        continue;
+                    } else if (stateIt == operationIdToState.end()) {
+                        operations.emplace_back(*state, TReviveOperationInfo{id, EOperationCypressStorageMode::HashBuckets});
+                    } else {
+                        if (stateIt->second != *state) {
+                            LOG_WARNING("Operation has two operation nodes with different states "
+                                "(OperationId: %v, State: %Qv, HashBucketState: %Qv)",
+                                id,
+                                stateIt->second,
+                                *state);
+                        }
+
+                        operations.emplace_back(
+                            stateIt->second,
+                            TReviveOperationInfo{id, EOperationCypressStorageMode::Compatible});
+
+                        operationIdToState.erase(stateIt);
                     }
                 }
             }
+
+            size_t runningOperationsWithUndefinedStorageSchema = 0;
+            for (const auto& pair : operationIdToState) {
+                if (IsOperationInProgress(pair.second)) {
+                    ++runningOperationsWithUndefinedStorageSchema;
+                }
+            }
+
+            YCHECK(runningOperationsWithUndefinedStorageSchema == 0 &&
+                   "Operations node contains operations with undefined storage schema");
+
+            for (const auto& operationInfo : operations) {
+                if (IsOperationInProgress(operationInfo.first)) {
+                    RunningOperations_.push_back(operationInfo.second);
+                }
+            }
+
+            LOG_INFO("Operations list received (RunningOperationCount: %v)", RunningOperations_.size());
         }
 
         // - Request attributes for unfinished operations.
         // - Recreate operation instance from fetched data.
         void RequestOperationAttributes()
         {
-            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            static const std::vector<TString> attributeKeys = {
+                "operation_type",
+                "mutation_id",
+                "user_transaction_id",
+                "async_scheduler_transaction_id",
+                "input_transaction_id",
+                "output_transaction_id",
+
+                // COMPAT(ignat)
+                "completion_transaction_id",
+                "debug_output_transaction_id",
+                // Proper transactions
+                "debug_transaction_id",
+                "output_completion_transaction_id",
+                "debug_completion_transaction_id",
+
+                "spec",
+                "owners",
+                "authenticated_user",
+                "start_time",
+                "state",
+                "suspended",
+                "events",
+                "slot_index_per_pool_tree"
+            };
+
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
-                LOG_INFO("Fetching attributes and secure vaults for %v unfinished operations",
-                    OperationIds.size());
-                for (const auto& operationId : OperationIds) {
-                    // Keep stuff below in sync with CreateOperationFromAttributes.
+                LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
+                    RunningOperations_.size());
+
+                for (const auto& operationInfo : RunningOperations_) {
+                    // Keep stuff below in sync with #TryCreateOperationFromAttributes.
+
+                    const auto& operationId = operationInfo.Id;
+
+                    NYTree::TYPath operationAttributesPath;
+                    NYTree::TYPath secureVaultPath;
+
+                    if (operationInfo.StorageMode == EOperationCypressStorageMode::Compatible ||
+                        operationInfo.StorageMode == EOperationCypressStorageMode::SimpleHashBuckets)
+                    {
+                        operationAttributesPath = GetOperationPath(operationId) + "/@";
+                        secureVaultPath = GetSecureVaultPath(operationId);
+                    } else {
+                        operationAttributesPath = GetNewOperationPath(operationId) + "/@";
+                        secureVaultPath = GetNewSecureVaultPath(operationId);
+                    }
+
                     // Retrieve operation attributes.
                     {
-                        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "operation_type",
-                            "mutation_id",
-                            "user_transaction_id",
-                            "async_scheduler_transaction_id",
-                            "input_transaction_id",
-                            "output_transaction_id",
-                            "completion_transaction_id",
-                            "debug_output_transaction_id",
-                            "spec",
-                            "owners",
-                            "authenticated_user",
-                            "start_time",
-                            "state",
-                            "suspended",
-                            "events",
-                            "slot_index_per_pool_tree"
-                        };
+                        auto req = TYPathProxy::Get(operationAttributesPath);
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_attr");
+                        batchReq->AddRequest(req, "get_op_attr_" + ToString(operationInfo.Id));
                     }
+                    // Retrieve operation completion transaction id.
                     {
                         auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
                         std::vector<TString> attributeKeys{
                             "completion_transaction_id",
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_attr_new");
+                        batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationInfo.Id));
                     }
+
                     // Retrieve secure vault.
                     {
-                        auto req = TYPathProxy::Get(GetSecureVaultPath(operationId));
-                        batchReq->AddRequest(req, "get_op_secure_vault");
+                        auto req = TYPathProxy::Get(secureVaultPath);
+                        batchReq->AddRequest(req, "get_op_secure_vault_" + ToString(operationInfo.Id));
                     }
                 }
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError, "get_op_attr"));
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
             const auto& batchRsp = batchRspOrError.Value();
 
             {
-                auto attributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr");
-                YCHECK(attributesRsps.size() == OperationIds.size());
+                for (const auto& operationInfo : RunningOperations_) {
+                    auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                        "get_op_attr_" + ToString(operationInfo.Id))
+                        .ValueOrThrow();
 
-                auto attributesNewRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr_new");
-                YCHECK(attributesRsps.size() == OperationIds.size());
+                    auto completionTxIdRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                        "get_op_completion_tx_id_" + ToString(operationInfo.Id))
+                        .ValueOrThrow();
 
-                auto secureVaultRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_secure_vault");
-                YCHECK(secureVaultRsps.size() == OperationIds.size());
+                    auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                        "get_op_secure_vault_" + ToString(operationInfo.Id));
 
-                for (int index = 0; index < static_cast<int>(OperationIds.size()); ++index) {
-                    const auto& operationId = OperationIds[index];
-                    auto attributesRsp = attributesRsps[index].Value();
-                    auto attributesNewRsp = attributesNewRsps[index];
                     auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
-                    if (attributesNewRsp.IsOK()) {
-                        auto attributesNodeNew = ConvertToAttributes(TYsonString(attributesNewRsp.Value()->value()));
-                        attributesNode->MergeFrom(*attributesNodeNew);
-                    }
-                    auto secureVaultRspOrError = secureVaultRsps[index];
+                    auto completionTxIdAttribute = ConvertToAttributes(TYsonString(completionTxIdRsp->value()));
+                    attributesNode->MergeFrom(*completionTxIdAttribute);
+
                     IMapNodePtr secureVault;
                     if (secureVaultRspOrError.IsOK()) {
                         const auto& secureVaultRsp = secureVaultRspOrError.Value();
@@ -688,64 +894,74 @@ private:
                             secureVault = secureVaultNode->AsMap();
                         } else {
                             LOG_ERROR("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
-                                operationId,
+                                operationInfo.Id,
                                 secureVaultNode->GetType(),
                                 ENodeType::Map);
                             // TODO(max42): (YT-5651) Do not just ignore such a situation!
                         }
                     } else if (secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
-                        THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation %v", operationId)
+                        THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation (OperationId: %v)",
+                            operationInfo.Id)
                             << secureVaultRspOrError;
                     }
-                    auto operationReport = Owner->CreateOperationFromAttributes(operationId, *attributesNode, std::move(secureVault));
-                    if (operationReport.Operation) {
-                        Result.OperationReports.push_back(operationReport);
+
+                    auto operation = Owner_->TryCreateOperationFromAttributes(
+                        operationInfo.Id,
+                        *attributesNode,
+                        std::move(secureVault),
+                        operationInfo.StorageMode);
+                    if (operation) {
+                        Result_.Operations.push_back(operation);
                     }
                 }
             }
         }
 
-        // - Request committed flag for operations.
         void RequestCommittedFlag()
         {
-            std::vector<TOperationReport*> operationsWithOutputTransaction;
+            std::vector<TOperationPtr> operationsWithOutputTransaction;
 
-            auto getBatchKey = [] (const TOperationReport& report) {
-                return "get_op_committed_attr_" + ToString(report.Operation->GetId());
+            auto getBatchKey = [] (const TOperationPtr& operation) {
+                return "get_op_committed_attr_" + ToString(operation->GetId());
             };
 
-            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
 
             {
                 LOG_INFO("Fetching committed attribute for operations");
-                for (auto& report : Result.OperationReports) {
-                    if (!report.ControllerTransactions->Output) {
+                for (const auto& operation : Result_.Operations) {
+                    if (!operation->RevivalDescriptor()) {
                         continue;
                     }
 
-                    operationsWithOutputTransaction.push_back(&report);
+                    auto& revivalDescriptor = *operation->RevivalDescriptor();
+                    if (!revivalDescriptor.ControllerTransactions->Output) {
+                        continue;
+                    }
+
+                    operationsWithOutputTransaction.push_back(operation);
 
                     for (auto transactionId : {
-                        report.ControllerTransactions->Output->GetId(),
+                        revivalDescriptor.ControllerTransactions->Output->GetId(),
                         NullTransactionId})
                     {
                         {
-                            auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
+                            auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
                             std::vector<TString> attributeKeys{
                                 "committed"
                             };
                             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                             SetTransactionId(req, transactionId);
-                            batchReq->AddRequest(req, getBatchKey(report));
+                            batchReq->AddRequest(req, getBatchKey(operation));
                         }
                         {
-                            auto req = TYPathProxy::Get(GetNewOperationPath(report.Operation->GetId()) + "/@");
+                            auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
                             std::vector<TString> attributeKeys{
                                 "committed"
                             };
                             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                             SetTransactionId(req, transactionId);
-                            batchReq->AddRequest(req, getBatchKey(report) + "_new");
+                            batchReq->AddRequest(req, getBatchKey(operation) + "_new");
                         }
                     }
                 }
@@ -756,23 +972,22 @@ private:
             const auto& batchRsp = batchRspOrError.Value();
 
             {
-                for (int index = 0; index < static_cast<int>(operationsWithOutputTransaction.size()); ++index) {
-                    auto* report = operationsWithOutputTransaction[index];
-                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report));
-                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report) + "_new");
+                for (const auto& operation : operationsWithOutputTransaction) {
+                    auto& revivalDescriptor = *operation->RevivalDescriptor();
+                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation));
+                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation) + "_new");
 
                     YCHECK(rsps.size() == 2);
                     YCHECK(rspsNew.size() == 2);
 
                     for (size_t rspIndex = 0; rspIndex < 2; ++rspIndex) {
                         std::unique_ptr<IAttributeDictionary> attributes;
-                        auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& response) {
-                            if (!response.IsOK()) {
+                        auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& rspOrError) {
+                            if (!rspOrError.IsOK()) {
                                 return;
                             }
 
-                            auto responseAttributes = ConvertToAttributes(TYsonString(response.Value()->value()));
-
+                            auto responseAttributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
                             if (attributes) {
                                 attributes->MergeFrom(*responseAttributes);
                             } else {
@@ -789,9 +1004,9 @@ private:
                         }
 
                         if (attributes->Get<bool>("committed", false)) {
-                            report->IsCommitted = true;
+                            revivalDescriptor.OperationCommitted = true;
                             if (rspIndex == 0) {
-                                report->ShouldCommitOutputTransaction = true;
+                                revivalDescriptor.ShouldCommitOutputTransaction = true;
                             }
                             break;
                         }
@@ -800,26 +1015,30 @@ private:
             }
         }
 
-        // Update global watchers.
         void UpdateGlobalWatchers()
         {
-            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : Owner->GlobalWatcherRequesters) {
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            for (auto requester : Owner_->GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
-            for (const auto& record : Owner->CustomGlobalWatcherRecords) {
+            for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
                 record.Requester.Run(batchReq);
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             auto watcherResponses = batchRspOrError.ValueOrThrow();
 
-            for (auto handler : Owner->GlobalWatcherHandlers) {
+            for (auto handler : Owner_->GlobalWatcherHandlers_) {
                 handler.Run(watcherResponses);
             }
-            for (const auto& record : Owner->CustomGlobalWatcherRecords) {
+            for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
                 record.Handler.Run(watcherResponses);
             }
+        }
+
+        void FireHandshake()
+        {
+            Owner_->MasterHandshake_.Fire(Result_);
         }
     };
 
@@ -827,51 +1046,76 @@ private:
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
         TCellTag cellTag = PrimaryMasterCellTag)
     {
-        TObjectServiceProxy proxy(Bootstrap
+        TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
         auto batchReq = proxy.ExecuteBatch();
-        YCHECK(LockTransaction);
+        YCHECK(LockTransaction_);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
         auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
-        ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction->GetId());
+        ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction_->GetId());
         return batchReq;
     }
 
-    void DoDisconnect()
+
+    void DoCleanup()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!Connected)
-            return;
-
-        LOG_WARNING("Master disconnected");
-
-        Connected.store(false);
-
-        Bootstrap->GetControllerAgent()->Disconnect();
-
-        LockTransaction.Reset();
-
-        OperationNodesUpdateExecutor_->Clear();
-        OperationNodesUpdateExecutor_->StopPeriodicUpdates();
+        LockTransaction_.Reset();
 
         ClearWatcherLists();
 
         StopPeriodicActivities();
 
-        CancelableContext->Cancel();
+        if (CancelableContext_) {
+            CancelableContext_->Cancel();
+            CancelableContext_.Reset();
+        }
 
-        MasterDisconnected_.Fire();
+        CancelableControlInvoker_.Reset();
 
+        State_.store(EMasterConnectorState::Disconnected);
+    }
+
+    void DoDisconnect() noexcept
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        if (State_ == EMasterConnectorState::Connected) {
+            MasterDisconnected_.Fire();
+            LOG_WARNING("Master disconnected");
+        }
+
+        DoCleanup();
         StartConnecting();
     }
 
 
-    TOperationReport CreateOperationFromAttributes(
+    static void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
+    {
+        auto owners = operation->GetOwners();
+        owners.push_back(operation->GetAuthenticatedUser());
+
+        fluent
+            .BeginList()
+                .Item().BeginMap()
+                    .Item("action").Value(ESecurityAction::Allow)
+                    .Item("subjects").Value(owners)
+                    .Item("permissions").BeginList()
+                        .Item().Value(EPermission::Write)
+                    .EndList()
+                .EndMap()
+            .EndList();
+    }
+
+    TOperationPtr TryCreateOperationFromAttributes(
         const TOperationId& operationId,
         const IAttributeDictionary& attributes,
-        IMapNodePtr secureVault)
+        IMapNodePtr secureVault,
+        EOperationCypressStorageMode storageMode)
     {
         auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
             if (!transactionId) {
@@ -884,7 +1128,7 @@ private:
                 return nullptr;
             }
             try {
-                auto connection = Bootstrap->GetRemoteConnectionOrThrow(CellTagFromId(transactionId));
+                auto connection = Bootstrap_->GetRemoteConnectionOrThrow(CellTagFromId(transactionId));
                 auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
 
                 TTransactionAttachOptions options;
@@ -899,132 +1143,139 @@ private:
             }
         };
 
-        TOperationReport result;
+        auto state = attributes.Get<EOperationState>("state");
+
+        auto specNode = attributes.Get<INodePtr>("spec")->AsMap();
 
         auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id");
         auto userTransaction = attachTransaction(
             attributes.Get<TTransactionId>("user_transaction_id"),
             false);
 
-        result.ControllerTransactions = New<NControllerAgent::TControllerTransactions>();
-        result.ControllerTransactions->Async = attachTransaction(
+        TOperationRevivalDescriptor revivalDescriptor;
+        revivalDescriptor.ControllerTransactions = New<NControllerAgent::TControllerTransactions>();
+        revivalDescriptor.ControllerTransactions->Async = attachTransaction(
             attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
             true,
             "async transaction");
-        result.ControllerTransactions->Input = attachTransaction(
+        revivalDescriptor.ControllerTransactions->Input = attachTransaction(
             attributes.Get<TTransactionId>("input_transaction_id"),
             true,
             "input transaction");
-        result.ControllerTransactions->Output = attachTransaction(
+        revivalDescriptor.ControllerTransactions->Output = attachTransaction(
             attributes.Get<TTransactionId>("output_transaction_id"),
             true,
             "output transaction");
 
-        result.ControllerTransactions->Completion = attachTransaction(
-            attributes.Get<TTransactionId>("completion_transaction_id", TTransactionId()),
+        revivalDescriptor.ControllerTransactions->OutputCompletion = attachTransaction(
+            attributes.Get<TTransactionId>(
+                "output_completion_transaction_id",
+                attributes.Get<TTransactionId>(
+                    "completion_transaction_id",
+                    NullTransactionId
+                )
+            ),
             true,
-            "completion transaction");
+            "output completion transaction");
 
         // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction
         // this default value can be removed as in other transactions above.
-        result.ControllerTransactions->DebugOutput = attachTransaction(
-            attributes.Get<TTransactionId>("debug_output_transaction_id", NullTransactionId),
+        revivalDescriptor.ControllerTransactions->Debug = attachTransaction(
+            attributes.Get<TTransactionId>(
+                "debug_transaction_id",
+                attributes.Get<TTransactionId>(
+                    "debug_output_transaction_id",
+                    NullTransactionId
+                )
+            ),
             true,
-            "debug output transaction");
+            "debug transaction");
 
-        auto spec = attributes.Get<INodePtr>("spec")->AsMap();
+        revivalDescriptor.ControllerTransactions->DebugCompletion = attachTransaction(
+            attributes.Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
+            true,
+            "debug completion transaction");
 
-        // COMPAT
-        TOperationSpecBasePtr operationSpec;
+        TOperationSpecBasePtr spec;
         try {
-            operationSpec = ConvertTo<TOperationSpecBasePtr>(spec);
+            spec = ConvertTo<TOperationSpecBasePtr>(specNode);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
                 operationId);
-            return TOperationReport();
+            return nullptr;
         }
 
-        result.Operation = New<TOperation>(
+        revivalDescriptor.UserTransactionAborted = !userTransaction && userTransactionId;
+        revivalDescriptor.OperationAborting = state == EOperationState::Aborting;
+
+        auto operation = New<TOperation>(
             operationId,
             attributes.Get<EOperationType>("operation_type"),
             attributes.Get<TMutationId>("mutation_id"),
             userTransactionId,
-            spec,
+            specNode,
+            secureVault,
+            BuildOperationRuntimeParams(spec),
             attributes.Get<TString>("authenticated_user"),
-            attributes.Get<std::vector<TString>>("owners", operationSpec->Owners),
+            attributes.Get<std::vector<TString>>("owners", spec->Owners),
             attributes.Get<TInstant>("start_time"),
-            Bootstrap->GetControlInvoker(),
-            attributes.Get<EOperationState>("state"),
+            Bootstrap_->GetControlInvoker(),
+            storageMode,
+            state,
             attributes.Get<bool>("suspended"),
-            attributes.Get<std::vector<TOperationEvent>>("events", {}));
+            attributes.Get<std::vector<TOperationEvent>>("events", {}),
+            revivalDescriptor);
 
         auto slotIndexMap = attributes.Find<yhash<TString, int>>("slot_index_per_pool_tree");
         if (slotIndexMap) {
             for (const auto& pair : *slotIndexMap) {
-                result.Operation->SetSlotIndex(pair.first, pair.second);
+                operation->SetSlotIndex(pair.first, pair.second);
             }
         }
 
-        result.Operation->SetSecureVault(std::move(secureVault));
-
-        result.UserTransactionAborted = !userTransaction && userTransactionId;
-        result.IsAborting = result.Operation->GetState() == EOperationState::Aborting;
-
-        return result;
+        return operation;
     }
 
 
     void StartPeriodicActivities()
     {
-        OperationNodesUpdateExecutor_->StartPeriodicUpdates(
-            CancelableControlInvoker,
-            Config->OperationsUpdatePeriod);
+        OperationNodesUpdateExecutor_->Start();
 
-        WatchersExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
-            Config->WatchersUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
-        WatchersExecutor->Start();
+        WatchersExecutor_->Start();
 
-        AlertsExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
-            Config->AlertsUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
-        AlertsExecutor->Start();
+        AlertsExecutor_->Start();
 
-        for (const auto& record : CustomGlobalWatcherRecords) {
-            auto executor = New<TPeriodicExecutor>(
-                CancelableControlInvoker,
-                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
-                record.Period,
-                EPeriodicExecutorMode::Automatic);
+        for (const auto& executor : CustomGlobalWatcherExecutors_) {
             executor->Start();
-            CustomGlobalWatcherExecutors.push_back(executor);
         }
     }
 
     void StopPeriodicActivities()
     {
-        if (WatchersExecutor) {
-            WatchersExecutor->Stop();
-            WatchersExecutor.Reset();
+        if (OperationNodesUpdateExecutor_) {
+            OperationNodesUpdateExecutor_->Stop();
+            OperationNodesUpdateExecutor_.Reset();
         }
 
-        if (AlertsExecutor) {
-            AlertsExecutor->Stop();
-            AlertsExecutor.Reset();
+        if (WatchersExecutor_) {
+            WatchersExecutor_->Stop();
+            WatchersExecutor_.Reset();
         }
 
-        for (const auto& executor : CustomGlobalWatcherExecutors) {
+        if (AlertsExecutor_) {
+            AlertsExecutor_->Stop();
+            AlertsExecutor_.Reset();
+        }
+
+        for (const auto& executor : CustomGlobalWatcherExecutors_) {
             executor->Stop();
         }
-        CustomGlobalWatcherExecutors.clear();
+        CustomGlobalWatcherExecutors_.clear();
     }
 
-    TWatcherList* GetOrCreateWatcherList(TOperationPtr operation)
+
+    TWatcherList* GetOrCreateWatcherList(const TOperationPtr& operation)
     {
         auto it = WatcherLists.find(operation->GetId());
         if (it == WatcherLists.end()) {
@@ -1035,7 +1286,7 @@ private:
         return &it->second;
     }
 
-    TWatcherList* FindWatcherList(TOperationPtr operation)
+    TWatcherList* FindWatcherList(const TOperationPtr& operation)
     {
         auto it = WatcherLists.find(operation->GetId());
         return it == WatcherLists.end() ? nullptr : &it->second;
@@ -1046,103 +1297,123 @@ private:
         WatcherLists.clear();
     }
 
+
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& operation = update->Operation;
         return operation->IsFinishedState();
     }
 
     void OnOperationUpdateFailed(const TError& error)
     {
-        YCHECK(Connected);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YCHECK(!error.IsOK());
         LOG_ERROR(error, "Failed to update operation node");
+
         Disconnect();
     }
 
-    void UpdateOperationNodeAttributes(TOperationPtr operation)
+    void DoUpdateOperationNode(const TOperationPtr& operation)
     {
-        operation->SetShouldFlush(false);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto batchReq = StartObjectBatchRequest();
-        auto operationPath = GetOperationPath(operation->GetId());
-
-        GenerateMutationId(batchReq);
-
-        // Set suspended flag.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@suspended");
-            req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
-
-        // Set events.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@events");
-            req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
-
-        // Set result.
-        if (operation->IsFinishedState()) {
-            auto req = TYPathProxy::Set(operationPath + "/@result");
-            auto error = FromProto<TError>(operation->Result().error());
-            auto errorString = BuildYsonStringFluently()
-                .BeginMap()
-                    .Item("error").Value(error)
-                .EndMap();
-            req->set_value(errorString.GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
-
-        // Set end time, if given.
-        if (operation->GetFinishTime()) {
-            auto req = TYPathProxy::Set(operationPath + "/@finish_time");
-            req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
-
-        // Set state.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@state");
-            req->set_value(ConvertToYsonString(operation->GetState()).GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
-
-        // Set alerts.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@alerts");
-            const auto& alerts = operation->Alerts();
-            req->set_value(BuildYsonStringFluently()
-                .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
-                    [&] (TFluentMap fluent, EOperationAlertType alertType) {
-                        if (!alerts[alertType].IsOK()) {
-                            fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
-                        }
-                    })
-                .GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
-
-        // Set operation acl.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@acl");
-            req->set_value(BuildYsonStringFluently()
-                .Do(BIND(&TImpl::BuildOperationAcl, Unretained(this), operation))
-                .GetData());
-            batchReq->AddRequest(req, "update_op_node");
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-
-        LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
-    }
-
-    void DoUpdateOperationNode(TOperationPtr operation)
-    {
         try {
-            UpdateOperationNodeAttributes(operation);
+            operation->SetShouldFlush(false);
+
+            auto batchReq = StartObjectBatchRequest();
+            GenerateMutationId(batchReq);
+
+            auto paths = GetCompatibilityOperationPaths(operation->GetId(), operation->GetStorageMode());
+            for (const auto& operationPath : paths) {
+                // Set operation acl.
+                {
+                    auto aclBatchReq = StartObjectBatchRequest();
+                    auto req = TYPathProxy::Set(operationPath + "/@acl");
+                    req->set_value(BuildYsonStringFluently()
+                        .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
+                        .GetData());
+                    aclBatchReq->AddRequest(req, "set_acl");
+
+                    auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(aclBatchRspOrError);
+
+                    auto rspOrErr = aclBatchRspOrError.Value()->GetResponse("set_acl");
+                    if (!rspOrErr.IsOK()) {
+                        auto error = TError("Failed to set operation ACL")
+                            << TErrorAttribute("operation_id", operation->GetId())
+                            << rspOrErr;
+                        operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = error;
+                        LOG_INFO(error);
+                    } else {
+                        if (!operation->Alerts()[EOperationAlertType::InvalidAcl].IsOK()) {
+                            operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = TError();
+                        }
+                    }
+                }
+
+                // Set suspended flag.
+                {
+                    auto req = TYPathProxy::Set(operationPath + "/@suspended");
+                    req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set events.
+                {
+                    auto req = TYPathProxy::Set(operationPath + "/@events");
+                    req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set result.
+                if (operation->IsFinishedState()) {
+                    auto req = TYPathProxy::Set(operationPath + "/@result");
+                    auto error = FromProto<TError>(operation->Result().error());
+                    auto errorString = BuildYsonStringFluently()
+                        .BeginMap()
+                        .Item("error").Value(error)
+                        .EndMap();
+                    req->set_value(errorString.GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set end time, if given.
+                if (operation->GetFinishTime()) {
+                    auto req = TYPathProxy::Set(operationPath + "/@finish_time");
+                    req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set state.
+                {
+                    auto req = TYPathProxy::Set(operationPath + "/@state");
+                    req->set_value(ConvertToYsonString(operation->GetState()).GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+
+                // Set alerts.
+                {
+                    auto req = TYPathProxy::Set(operationPath + "/@alerts");
+                    const auto& alerts = operation->Alerts();
+                    req->set_value(BuildYsonStringFluently()
+                        .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
+                            [&] (TFluentMap fluent, EOperationAlertType alertType) {
+                                if (!alerts[alertType].IsOK()) {
+                                    fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
+                                }
+                            })
+                        .GetData());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+
+            LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation node %v",
                 operation->GetId())
@@ -1150,20 +1421,22 @@ private:
         }
     }
 
-    TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId&, TOperationNodeUpdate* update)
+    TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& /*operationId*/, TOperationNodeUpdate* update)
     {
-        if (update->Operation->GetShouldFlush()) {
-            return BIND(&TImpl::DoUpdateOperationNode,
-                MakeStrong(this),
-                update->Operation)
-                .AsyncVia(CancelableControlInvoker);
-        } else {
-            return VoidCallback_;
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!update->Operation->GetShouldFlush()) {
+            return {};
         }
+
+        return BIND(&TImpl::DoUpdateOperationNode,
+            MakeStrong(this),
+            update->Operation)
+            .AsyncVia(CancelableControlInvoker_);
     }
 
     void OnOperationNodeCreated(
-        TOperationPtr operation,
+        const TOperationPtr& operation,
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1173,21 +1446,17 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
 
-        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
-
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
     }
 
     void OnRevivingOperationNodeReset(
-        TOperationPtr operation,
+        const TOperationPtr& operation,
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
 
         auto operationId = operation->GetId();
-
         auto error = GetCumulativeError(batchRspOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error resetting reviving operation node %v",
             operationId);
@@ -1196,10 +1465,10 @@ private:
             operationId);
     }
 
+
     void ExecuteCustomWatcherUpdate(const TWatcherRequester& requester, const TWatcherHandler& handler)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
         requester.Run(batchReq);
@@ -1214,19 +1483,19 @@ private:
     void UpdateWatchers()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State_ == EMasterConnectorState::Connected);
 
         LOG_INFO("Updating watchers");
 
         // Global watchers.
         {
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : GlobalWatcherRequesters) {
+            for (auto requester : GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
-                    .Via(CancelableControlInvoker));
+                    .Via(CancelableControlInvoker_));
         }
 
         // Purge obsolete watchers.
@@ -1254,14 +1523,14 @@ private:
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
-                    .Via(CancelableControlInvoker));
+                    .Via(CancelableControlInvoker_));
         }
     }
 
     void OnGlobalWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
             LOG_ERROR(batchRspOrError, "Error updating global watchers");
@@ -1269,17 +1538,19 @@ private:
         }
 
         const auto& batchRsp = batchRspOrError.Value();
-        for (auto handler : GlobalWatcherHandlers) {
+        for (auto handler : GlobalWatcherHandlers_) {
             handler.Run(batchRsp);
         }
 
         LOG_INFO("Global watchers updated");
     }
 
-    void OnOperationWatchersUpdated(TOperationPtr operation, const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+    void OnOperationWatchersUpdated(
+        const TOperationPtr& operation,
+        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
             LOG_ERROR(batchRspOrError, "Error updating operation watchers (OperationId: %v)",
@@ -1303,20 +1574,21 @@ private:
             operation->GetId());
     }
 
+
     void UpdateAlerts()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State_ == EMasterConnectorState::Connected);
 
         std::vector<TError> alerts;
         for (auto alertType : TEnumTraits<ESchedulerAlertType>::GetDomainValues()) {
-            const auto& alert = Alerts[alertType];
+            const auto& alert = Alerts_[alertType];
             if (!alert.IsOK()) {
                 alerts.push_back(alert);
             }
         }
 
-        TObjectServiceProxy proxy(Bootstrap
+        TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
@@ -1327,6 +1599,7 @@ private:
             LOG_WARNING(rspOrError, "Error updating scheduler alerts");
         }
     }
+
 
     void OnClusterDirectorySynchronized(const TError& error)
     {
@@ -1341,83 +1614,104 @@ private:
 TMasterConnector::TMasterConnector(
     TSchedulerConfigPtr config,
     NCellScheduler::TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TMasterConnector::~TMasterConnector() = default;
 
 void TMasterConnector::Start()
 {
-    Impl->Start();
+    Impl_->Start();
 }
 
-bool TMasterConnector::IsConnected() const
+EMasterConnectorState TMasterConnector::GetState() const
 {
-    return Impl->IsConnected();
+    return Impl_->GetState();
+}
+
+TInstant TMasterConnector::GetConnectionTime() const
+{
+    return Impl_->GetConnectionTime();
 }
 
 void TMasterConnector::Disconnect()
 {
-    return Impl->Disconnect();
+    Impl_->Disconnect();
 }
 
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
 {
-    return Impl->GetCancelableControlInvoker();
+    return Impl_->GetCancelableControlInvoker();
 }
 
-TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
+void TMasterConnector::StartOperationNodeUpdates(const TOperationPtr& operation)
 {
-    return Impl->CreateOperationNode(operation, initializeResult);
+    Impl_->StartOperationNodeUpdates(operation);
 }
 
-TFuture<void> TMasterConnector::ResetRevivingOperationNode(TOperationPtr operation)
+TFuture<void> TMasterConnector::CreateOperationNode(const TOperationPtr& operation)
 {
-    return Impl->ResetRevivingOperationNode(operation);
+    return Impl_->CreateOperationNode(operation);
 }
 
-TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
+TFuture<void> TMasterConnector::ResetRevivingOperationNode(const TOperationPtr& operation)
 {
-    return Impl->FlushOperationNode(operation);
+    return Impl_->ResetRevivingOperationNode(operation);
+}
+
+TFuture<void> TMasterConnector::FlushOperationNode(const TOperationPtr& operation)
+{
+    return Impl_->FlushOperationNode(operation);
+}
+
+void TMasterConnector::AttachJobContext(
+    const TYPath& path,
+    const TChunkId& chunkId,
+    const TOperationId& operationId,
+    const TJobId& jobId)
+{
+    return Impl_->AttachJobContext(path, chunkId, operationId, jobId);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
-    Impl->SetSchedulerAlert(alertType, alert);
+    Impl_->SetSchedulerAlert(alertType, alert);
 }
 
 void TMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
 {
-    Impl->UpdateConfig(config);
+    Impl_->UpdateConfig(config);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)
 {
-    Impl->AddGlobalWatcherRequester(requester);
+    Impl_->AddGlobalWatcherRequester(requester);
 }
 
 void TMasterConnector::AddGlobalWatcherHandler(TWatcherHandler handler)
 {
-    Impl->AddGlobalWatcherHandler(handler);
+    Impl_->AddGlobalWatcherHandler(handler);
 }
 
 void TMasterConnector::AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
 {
-    Impl->AddGlobalWatcher(std::move(requester), std::move(handler), period);
+    Impl_->AddGlobalWatcher(std::move(requester), std::move(handler), period);
 }
 
-void TMasterConnector::AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
+void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
 {
-    Impl->AddOperationWatcherRequester(operation, requester);
+    Impl_->AddOperationWatcherRequester(operation, requester);
 }
 
-void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
+void TMasterConnector::AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
 {
-    Impl->AddOperationWatcherHandler(operation, handler);
+    Impl_->AddOperationWatcherHandler(operation, handler);
 }
 
-DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);
-DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl_);
+DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterHandshake, *Impl_);
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl_);
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

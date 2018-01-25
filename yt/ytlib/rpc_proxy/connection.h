@@ -1,0 +1,18 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/ytlib/api/public.h>
+
+namespace NYT {
+namespace NRpcProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NApi::IProxyConnectionPtr CreateConnection(
+    TConnectionConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRpcProxy
+} // namespace NYT

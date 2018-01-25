@@ -673,6 +673,28 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_freeze_table("//tmp/t")
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
 
+    def test_timestamp_column(self):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "a", "type": "string"},
+                {"name": "$timestamp", "type": "uint64"}
+            ]
+        })
+        self.sync_mount_table("//tmp/t")
+
+        timestamp0 = generate_timestamp()
+        insert_rows("//tmp/t", [{"a": "hello"}])
+        insert_rows("//tmp/t", [{"a": "world"}])
+        timestamp3 = generate_timestamp()
+
+        timestamp1 = select_rows("[$timestamp] from [//tmp/t] where [$row_index] = 0")[0]["$timestamp"]
+        timestamp2 = select_rows("[$timestamp] from [//tmp/t] where [$row_index] = 1")[0]["$timestamp"]
+
+        assert timestamp0 < timestamp1
+        assert timestamp1 < timestamp2
+        assert timestamp2 < timestamp3
 
 ##################################################################
 

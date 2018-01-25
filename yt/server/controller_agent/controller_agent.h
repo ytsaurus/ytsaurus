@@ -1,17 +1,12 @@
 #pragma once
 
-#include "public.h"
-
-#include "master_connector.h"
+#include "operation_controller.h"
 
 #include <yt/server/cell_scheduler/public.h>
 
-#include <yt/server/scheduler/scheduling_tag.h>
+#include <yt/server/scheduler/public.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
-#include <yt/ytlib/job_tracker_client/job_spec_service.pb.h>
-
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -19,57 +14,100 @@
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/core/rpc/service_detail.h>
-
 #include <yt/core/ytree/public.h>
+
+#include <yt/core/concurrency/public.h>
+
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
+struct TJobSpecRequest
+{
+    TOperationId OperationId;
+    TJobId JobId;
+};
+
+////////////////////////////////////////////////////////////////////
+
+/*!
+ *  \note Thread affinity: Control unless noted otherwise
+ */
 class TControllerAgent
     : public TRefCounted
 {
 public:
     TControllerAgent(
-        NScheduler::TSchedulerConfigPtr config,
+        TControllerAgentConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
+    ~TControllerAgent();
 
-    void Connect();
-    void Disconnect();
-    void ValidateConnected() const;
-
-    TInstant GetConnectionTime() const;
-
-    const IInvokerPtr& GetInvoker();
-    const IInvokerPtr& GetCancelableInvoker();
-
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetControllerThreadPoolInvoker();
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetSnapshotIOInvoker();
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    void ValidateConnected() const;
+    /*!
+     *  \note Thread affinity: any
+     */
+    TInstant GetConnectionTime() const;
+
+    // XXX(babenko)
     TMasterConnector* GetMasterConnector();
 
-    const TSchedulerConfigPtr& GetConfig() const;
-    const NApi::INativeClientPtr& GetMasterClient() const;
+    const TControllerAgentConfigPtr& GetConfig() const;
+    void UpdateConfig(const TControllerAgentConfigPtr& config);
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NApi::INativeClientPtr& GetClient() const;
+    /*!
+     *  \note Thread affinity: any
+     */
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
-
+    /*!
+     *  \note Thread affinity: any
+     */
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
-
+    /*!
+     *  \note Thread affinity: any
+     */
     const TCoreDumperPtr& GetCoreDumper() const;
+    /*!
+     *  \note Thread affinity: any
+     */
     const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
 
-    NEventLog::TEventLogWriterPtr GetEventLogWriter() const;
-
-    void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config);
-
-    void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller);
+    // TODO(babenko)
+    TOperationPtr CreateOperation(const NScheduler::TOperationPtr& operation);
+    void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation);
     void UnregisterOperation(const TOperationId& operationId);
+    TOperationPtr FindOperation(const TOperationId& operationId);
+    TOperationPtr GetOperation(const TOperationId& operationId);
+    TOperationPtr GetOperationOrThrow(const TOperationId& operationId);
+    const TOperationIdToOperationMap& GetOperations();
 
-    std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests);
+    //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
+    TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);
 
-    TFuture<void> GetHeartbeatSentFuture();
+    TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId);
+    TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, const TJobId& jobId);
 
     //! Returns the total number of online exec nodes.
     /*!
@@ -83,19 +121,10 @@ public:
      */
     NScheduler::TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
 
-    void AttachJobContext(
-        const NYTree::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId);
-
-    void InterruptJob(const TJobId& jobId, EInterruptReason reason);
-    void AbortJob(const TJobId& jobId, const TError& error);
-    void FailJob(const TJobId& jobId);
-    void ReleaseJobs(
-        std::vector<TJobId> jobIds,
-        const TOperationId& operationId,
-        int controllerSchedulerIncarnation);
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const;
 
 private:
     class TImpl;

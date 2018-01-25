@@ -12,8 +12,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/erasure_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/integer_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_web_json_writer_up.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_directory_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
@@ -25,6 +23,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/protobuf_format_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/protobuf_format_ut.proto
   ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/row_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/row_merger_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/row_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_parser_ut.cpp
@@ -32,6 +31,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_blocks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_chunks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_column_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skiff_format_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/statistics_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_sorted_merging_reader_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/string_column_ut.cpp

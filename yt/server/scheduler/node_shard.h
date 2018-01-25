@@ -1,11 +1,9 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "scheduler.h"
 #include "scheduling_tag.h"
 #include "cache.h"
-
-#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/ytlib/api/client.h>
 
@@ -18,6 +16,8 @@
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/public.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <yt/core/yson/public.h>
 
@@ -45,8 +45,6 @@ struct INodeShardHost
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
-
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 
     virtual void ValidateOperationPermission(
         const TString& user,
@@ -91,34 +89,33 @@ struct TJobTimeStatisticsDelta
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeShard
-    : public virtual TRefCounted
+    : public TRefCounted
 {
 public:
     TNodeShard(
         int id,
-        const NObjectClient::TCellTag& PrimaryMasterCellTag,
+        NObjectClient::TCellTag primaryMasterCellTag,
         TSchedulerConfigPtr config,
         INodeShardHost* host,
         NCellScheduler::TBootstrap* bootstrap);
 
-    IInvokerPtr GetInvoker();
+    int GetId() const;
+    const IInvokerPtr& GetInvoker() const;
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerSchedulerHostPtr& operationController);
+    void RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& controller);
     void UnregisterOperation(const TOperationId& operationId);
 
-    void ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
+    void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     TExecNodeDescriptorListPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();
 
     void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
-
-    void AbortAllJobs(const TError& error);
 
     void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
 
@@ -136,21 +133,19 @@ public:
 
     NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
 
-    void AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user);
-
+    void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
     void AbortJob(const TJobId& jobId, const TError& error);
 
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
 
     void FailJob(const TJobId& jobId);
 
+    void ReleaseJob(const TJobId& jobId);
+
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
-    void ReleaseJobs(const std::vector<TJobId>& jobIds);
+    void RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
 
-    void RegisterRevivedJobs(const std::vector<TJobPtr>& jobs);
-
-    void PrepareReviving();
     void StartReviving();
 
     TOperationId GetOperationIdByJobId(const TJobId& job);
@@ -170,7 +165,7 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-public:
+private:
     //! This class holds nodeshard-specific information for the revival process that happens
     //! each time scheduler becomes connected to master. It contains information about
     //! all revived jobs and tells which nodes should include stored jobs into their heartbeats
@@ -181,17 +176,16 @@ public:
     public:
         DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobId>, RecentlyCompletedJobIds);
 
-        // Macro below does not allow types that contain commas :(
-        using TNodeIdToJobIdsMapping = yhash<NNodeTrackerClient::TNodeId, std::vector<TJobId>>;
-
         //! List of all jobs that should be added to jobs_to_remove
-        //! in the next hearbeat response for each node defined by its id.
-        DEFINE_BYREF_RW_PROPERTY(TNodeIdToJobIdsMapping, JobIdsToRemove);
+        //! in the next heartbeat response for each node defined by its id.
+        using TJobIdsToRemove = yhash<NNodeTrackerClient::TNodeId, std::vector<TJobId>>;
+        DEFINE_BYREF_RW_PROPERTY(TJobIdsToRemove, JobIdsToRemove);
+
+        DEFINE_BYVAL_RO_PROPERTY(EJobRevivalPhase, Phase, EJobRevivalPhase::Finished);
 
     public:
-        explicit TRevivalState(TNodeShard* host);
+        explicit TRevivalState(TNodeShard* shard);
 
-        bool ShouldSkipUnknownJobs() const;
         bool ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const;
 
         void OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId);
@@ -204,29 +198,35 @@ public:
         void StartReviving();
 
     private:
-        TNodeShard* const Host_;
+        TNodeShard* const Shard_;
+        const NLogging::TLogger& Logger;
+
         yhash_set<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
         yhash_set<TJobPtr> NotConfirmedJobs_;
-        bool Active_ = false;
-        bool ShouldSkipUnknownJobs_ = false;
 
         void FinalizeReviving();
     };
 
-    typedef TIntrusivePtr<TRevivalState> TRevivalStatePtr;
+    using TRevivalStatePtr = TIntrusivePtr<TRevivalState>;
 
-private:
     const int Id_;
-    const NConcurrency::TActionQueuePtr ActionQueue_;
-
     const NObjectClient::TCellTag PrimaryMasterCellTag_;
     TSchedulerConfigPtr Config_;
     INodeShardHost* const Host_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
-    TRevivalStatePtr RevivalState_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
+    const NConcurrency::TPeriodicExecutorPtr CachedExecNodeDescriptorsRefresher_;
+    const TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TJobResources>> CachedResourceLimitsByTags_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
+
+    bool Connected_ = false;
+
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableInvoker_;
+
+    TRevivalStatePtr RevivalState_;
 
     int ConcurrentHeartbeatCount_ = 0;
 
@@ -235,16 +235,13 @@ private:
     std::atomic<int> ActiveJobCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock ResourcesLock_;
-    TJobResources TotalResourceLimits_ = ZeroJobResources();
-    TJobResources TotalResourceUsage_ = ZeroJobResources();
-
-    NConcurrency::TPeriodicExecutorPtr CachedExecNodeDescriptorsRefresher_;
+    TJobResources TotalResourceLimits_;
+    TJobResources TotalResourceUsage_;
 
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
-    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TJobResources>> CachedResourceLimitsByTags_;
-
+    yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = {0};
     std::atomic<int> TotalNodeCount_ = {0};
@@ -262,20 +259,20 @@ private:
 
     struct TOperationState
     {
-        TOperationState(const NControllerAgent::IOperationControllerSchedulerHostPtr& controller)
-            : Controller(controller)
+        explicit TOperationState(IOperationControllerPtr controller)
+            : Controller(std::move(controller))
         { }
 
         yhash<TJobId, TJobPtr> Jobs;
-        NControllerAgent::IOperationControllerSchedulerHostPtr Controller;
+        IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
     };
 
-    yhash<TOperationId, TOperationState> OperationStates_;
+    yhash<TOperationId, TOperationState> IdToOpertionState_;
 
-    typedef yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
-    TExecNodeByIdMap IdToNode_;
+
+    void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);
 
@@ -283,47 +280,45 @@ private:
 
     TExecNodePtr GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
     TExecNodePtr RegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
-    void UnregisterNode(TExecNodePtr node);
-    void DoUnregisterNode(TExecNodePtr node);
+    void UnregisterNode(const TExecNodePtr& node);
+    void DoUnregisterNode(const TExecNodePtr& node);
 
-    void AbortJobsAtNode(TExecNodePtr node);
+    void AbortAllJobsAtNode(const TExecNodePtr& node);
 
     void ProcessHeartbeatJobs(
-        TExecNodePtr node,
+        const TExecNodePtr& node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         std::vector<TJobPtr>* runningJobs,
         bool* hasWaitingJobs);
 
     TJobPtr ProcessJobHeartbeat(
-        TExecNodePtr node,
+        const TExecNodePtr& node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus,
         bool forceJobsLogging);
 
-    void SubtractNodeResources(TExecNodePtr node);
-    void AddNodeResources(TExecNodePtr node);
+    void SubtractNodeResources(const TExecNodePtr& node);
+    void AddNodeResources(const TExecNodePtr& node);
     void UpdateNodeResources(
-        TExecNodePtr node,
+        const TExecNodePtr& node,
         const TJobResources& limits,
         const TJobResources& usage,
-        const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskUsage);
+        const NNodeTrackerClient::NProto::TDiskResources& diskInfo);
 
-    void BeginNodeHeartbeatProcessing(TExecNodePtr node);
-    void EndNodeHeartbeatProcessing(TExecNodePtr node);
+    void BeginNodeHeartbeatProcessing(const TExecNodePtr& node);
+    void EndNodeHeartbeatProcessing(const TExecNodePtr& node);
 
     void SubmitUpdatedAndCompletedJobsToStrategy();
 
     void ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,
-        const TScheduler::TCtxHeartbeatPtr& rpcContext);
+        const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
 
     void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);
     void OnJobFinished(const TJobPtr& job);
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
-    void OnJobWaiting(const TJobPtr& /*job*/);
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
     void OnJobFailed(const TJobPtr& job, TJobStatus* status);
 
@@ -344,7 +339,7 @@ private:
         NProfiling::TCpuDuration interruptTimeout = 0,
         TNullable<TString> interruptUser = Null);
 
-    TExecNodePtr GetNodeByJob(const TJobId& jobId);
+    TExecNodePtr FindNodeByJob(const TJobId& jobId);
 
     TJobPtr FindJob(const TJobId& jobId, const TExecNodePtr& node);
 
@@ -360,14 +355,12 @@ private:
 
     TOperationState& GetOperationState(const TOperationId& operationId);
 
-    void BuildNodeYson(TExecNodePtr node, NYTree::TFluentMap consumer);
+    void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
     void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState);
 };
 
-typedef NYT::TIntrusivePtr<TNodeShard> TNodeShardPtr;
 DEFINE_REFCOUNTED_TYPE(TNodeShard)
-DEFINE_REFCOUNTED_TYPE(TNodeShard::TRevivalState);
 
 ////////////////////////////////////////////////////////////////////////////////
 

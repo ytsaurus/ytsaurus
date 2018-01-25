@@ -120,7 +120,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         stats = get("//sys/scheduler/orchid/scheduler")
         pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
         for resource, limit in resource_limits.iteritems():
-            assert assert_almost_equal(pool_resource_limits[resource], limit)
+            resource_name = "user_memory" if resource == "memory" else resource
+            assert assert_almost_equal(pool_resource_limits[resource_name], limit)
 
         self._prepare_tables()
         data = [{"foo": i} for i in xrange(3)]
@@ -148,7 +149,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         self._check_running_jobs(op.id, 1)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
-            assert assert_almost_equal(op_limits[resource], limit)
+            resource_name = "user_memory" if resource == "memory" else resource
+            assert assert_almost_equal(op_limits[resource_name], limit)
         op.abort()
 
     def test_resource_limits_runtime(self):
@@ -1184,8 +1186,9 @@ class TestSchedulerPools(YTEnvSetup):
         pool = get("//sys/scheduler/orchid/scheduler/pools/my_pool")
         assert pool["parent"] == "default_pool"
 
+        scheduling_info_per_pool_tree = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
         assert __builtin__.set(["root", "my_pool"]) == \
-               __builtin__.set(get("//sys/scheduler/orchid/scheduler/user_to_ephemeral_pools_per_pool_tree/default/root"))
+               __builtin__.set(get(scheduling_info_per_pool_tree + "/default/user_to_ephemeral_pools/root"))
 
         remove("//sys/pools/default_pool")
         time.sleep(0.2)
@@ -1217,8 +1220,9 @@ class TestSchedulerPools(YTEnvSetup):
                 out="//tmp/t_out" + str(i),
                 spec={"pool": "pool" + str(i)}))
 
+        scheduling_info_per_pool_tree = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
         assert __builtin__.set(["pool" + str(i) for i in xrange(1, 4)]) == \
-               __builtin__.set(get("//sys/scheduler/orchid/scheduler/user_to_ephemeral_pools_per_pool_tree/default/root"))
+               __builtin__.set(get(scheduling_info_per_pool_tree + "/default/user_to_ephemeral_pools/root"))
 
         with pytest.raises(YtError):
             map(command="cat",
@@ -1294,7 +1298,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "suspicious_inactivity_timeout": 2000,  # 2 sec
-            "running_jobs_update_period": 100  # 100 msec
+            "running_jobs_update_period": 100,  # 100 msec
+            "suspicious_jobs_update_period": 100,  # 100 msec
         }
     }
 
@@ -1508,23 +1513,24 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         "scheduler": {
             # Unrecognized alert often interferes with the alerts that
             # are tested in this test suite.
-            "enable_unrecognized_alert": False
+            "enable_unrecognized_alert": False,
+            "alerts_update_period": 100
         }
     }
 
     def test_basic_sanity(self):
-        assert exists("//sys/scheduler/orchid/scheduler/fair_share_info_per_pool_tree/default")
+        assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info")
 
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
         time.sleep(0.5)
-        assert exists("//sys/scheduler/orchid/scheduler/fair_share_info_per_pool_tree/other")
+        assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info")
 
         assert not get("//sys/scheduler/@alerts")
 
         # This tree intersects with default pool tree by nodes, should not be added
         create("map_node", "//sys/pool_trees/other_intersecting", attributes={"nodes_filter": ""})
         time.sleep(1.0)
-        assert not exists("//sys/scheduler/orchid/scheduler/fair_share_info_per_pool_tree/other_intersecting")
+        assert not exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other_intersecting/fair_share_info")
         assert get("//sys/scheduler/@alerts")
 
         remove("//sys/pool_trees/other_intersecting")
@@ -1609,7 +1615,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         create("map_node", "//sys/pool_trees/supertree1", attributes={"nodes_filter": "x|y"})
         create("map_node", "//sys/pool_trees/supertree2", attributes={"nodes_filter": "y|z"})
         time.sleep(0.5)
-        info = get("//sys/scheduler/orchid/scheduler/fair_share_info_per_pool_tree")
+        info = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree")
         assert "supertree1" in info
         assert "supertree2" in info
 
@@ -1663,13 +1669,21 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         for i in xrange(3):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
 
-        node = ls("//sys/nodes")[0]
+        node = ls("//sys/nodes", attributes=["address"])[0]
         set("//sys/nodes/" + node + "/@user_tags/end", "other")
         set("//sys/pool_trees/default/@nodes_filter", "!other")
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
         set("//sys/pool_trees/default/@nodes_filter", "!other")
 
         time.sleep(1.0)
+
+        orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
+        assert get(orchid_root + "/default/node_count") == 2
+        assert get(orchid_root + "/other/node_count") == 1
+        assert_almost_equal(get(orchid_root + "/default/resource_limits")["cpu"], 2)
+        assert_almost_equal(get(orchid_root + "/other/resource_limits")["cpu"], 1)
+        assert node in get(orchid_root + "/other/node_addresses")
+        assert node not in get(orchid_root + "/default/node_addresses")
 
         create("table", "//tmp/t_out_1")
         op1 = map(
@@ -1690,7 +1704,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         time.sleep(1.0)
 
         def get_fair_share(tree, op_id):
-            return get("//sys/scheduler/orchid/scheduler/fair_share_info_per_pool_tree/{0}/operations/{1}/fair_share_ratio"
+            return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/fair_share_ratio"
                        .format(tree, op_id))
 
         assert assert_almost_equal(get_fair_share("default", op1.id), 1.0)
@@ -1729,8 +1743,8 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             dont_track=True)
         wait(lambda: op2.get_state() == "running")
 
-        default_tree_operations = get("//sys/scheduler/orchid/scheduler/fair_share_info_per_pool_tree/default/operations")
-        other_tree_operations = get("//sys/scheduler/orchid/scheduler/fair_share_info_per_pool_tree/other/operations")
+        default_tree_operations = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/operations")
+        other_tree_operations = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info/operations")
         assert op1.id in default_tree_operations
         assert op1.id not in other_tree_operations
         assert op2.id in other_tree_operations
@@ -1778,7 +1792,7 @@ class TestFairShareOptionsPerTree(YTEnvSetup):
             dont_track=True)
 
         def get_value(tree, op_id, value):
-            return get("//sys/scheduler/orchid/scheduler/fair_share_info_per_pool_tree/{0}/operations/{1}/{2}"
+            return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/{2}"
                        .format(tree, op_id, value))
 
         time.sleep(1.0)

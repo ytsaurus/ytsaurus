@@ -54,8 +54,6 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                 &column.Variables,
                 profilers)();
 
-            column.Variables.GetLiteralvalues();
-
             for (const auto& reference : references) {
                 column.ReferenceIds.push_back(schema.GetColumnIndexOrThrow(reference));
             }
@@ -66,7 +64,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             const auto& aggregateName = schema.Columns()[index].Aggregate().Get();
             auto type = schema.Columns()[index].GetPhysicalType();
             column.Aggregate = CodegenAggregate(
-                BuiltinAggregateCG->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName),
+                BuiltinAggregateProfilers->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName),
                 type, type);
             isAggregate[index] = true;
         }
@@ -84,11 +82,11 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
     const auto& evaluator = column.Evaluator;
     YCHECK(evaluator);
 
-    // Zeroizing row to avoid garbage after evaluator.
+    // Zero row to avoid garbage after evaluator.
     fullRow[index] = MakeUnversionedSentinelValue(EValueType::Null);
 
     evaluator(
-        column.Variables.LiteralsRow.get(),
+        column.Variables.GetLiteralValues(),
         column.Variables.GetOpaqueData(),
         &fullRow[index],
         fullRow.Begin(),

@@ -63,8 +63,13 @@ public:
     {
         if (type == EBlockType::CompressedData) {
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-            auto cachedBlock = chunkBlockManager->FindCachedBlock(id);
-            return cachedBlock ? cachedBlock->GetData() : TBlock();
+            if (auto cachedBlock = chunkBlockManager->FindCachedBlock(id)) {
+                auto block = cachedBlock->GetData();
+                block.BlockOrigin = EBlockOrigin::Cache;
+                return block;
+            } else {
+                return TBlock();
+            }
         } else {
             return UnderlyingCache_->Find(id, type);
         }

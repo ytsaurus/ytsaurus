@@ -1,9 +1,10 @@
 #include "connection.h"
+#include "proxy_connection.h"
 #include "config.h"
 #include "native_connection.h"
 
 #include <yt/ytlib/rpc_proxy/config.h>
-#include <yt/ytlib/rpc_proxy/rpc_proxy_connection.h>
+#include <yt/ytlib/rpc_proxy/connection.h>
 
 namespace NYT {
 namespace NApi {
@@ -26,8 +27,8 @@ IConnectionPtr CreateConnection(INodePtr config)
             return CreateNativeConnection(typedConfig);
         }
         case EConnectionType::Rpc: {
-            auto typedConfig = ConvertTo<TRpcProxyConnectionConfigPtr>(config);
-            return CreateRpcProxyConnection(typedConfig);
+            auto typedConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(config);
+            return NRpcProxy::CreateConnection(typedConfig);
         }
         default:
             Y_UNREACHABLE();

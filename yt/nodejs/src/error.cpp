@@ -3,12 +3,13 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/formats/json_writer.h>
 #include <yt/ytlib/formats/config.h>
 
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/core/ytree/node.h>
+
+#include <yt/core/json/json_writer.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -18,7 +19,7 @@ namespace NNodeJS {
 COMMON_V8_USES
 
 using namespace NYTree;
-using namespace NFormats;
+using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

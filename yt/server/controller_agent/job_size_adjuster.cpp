@@ -1,7 +1,6 @@
 #include "job_size_adjuster.h"
-
+#include "operation_controller.h"
 #include "config.h"
-#include "private.h"
 
 namespace NYT {
 namespace NControllerAgent {
@@ -15,8 +14,7 @@ class TJobSizeAdjuster
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
-    TJobSizeAdjuster()
-    { }
+    TJobSizeAdjuster() = default;
 
     TJobSizeAdjuster(
         i64 dataWeightPerJob,

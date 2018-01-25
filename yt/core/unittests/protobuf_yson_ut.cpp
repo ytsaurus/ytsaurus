@@ -6,8 +6,10 @@
 #include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -107,6 +109,12 @@ TEST(TYsonToProtobufYsonTest, Success)
                     .Item().Value(3)
                 .EndList()
             .EndMap()
+            .Item("yson_field").BeginMap()
+                .Item("a").Value(1)
+                .Item("b").BeginList()
+                    .Item().Value("foobar")
+                .EndList()
+            .EndMap()
         .EndMap();
 
 
@@ -153,6 +161,15 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(ConvertToYsonString("test").GetData(), message.attributes().attributes(1).value());
     EXPECT_EQ("k3", message.attributes().attributes(2).key());
     EXPECT_EQ(ConvertToYsonString(std::vector<int>{1, 2, 3}).GetData(), message.attributes().attributes(2).value());
+
+    auto node = BuildYsonNodeFluently().BeginMap()
+            .Item("a").Value(1)
+            .Item("b").BeginList()
+                .Item().Value("foobar")
+            .EndList()
+        .EndMap();
+    
+    EXPECT_EQ(ConvertToYsonString(node).GetData(), message.yson_field());
 }
 
 TEST(TYsonToProtobufTest, TypeConversions)
@@ -493,6 +510,8 @@ TEST(TProtobufToYsonTest, Success)
         }
     }
 
+    message.set_yson_field("{a=1;b=[\"foobar\";];}");
+
     auto serialized = SerializeProtoToRef(message);
 
     ArrayInputStream inputStream(serialized.Begin(), serialized.Size());
@@ -548,6 +567,12 @@ TEST(TProtobufToYsonTest, Success)
                     .Item().Value(1)
                     .Item().Value(2)
                     .Item().Value(3)
+                .EndList()
+            .EndMap()
+            .Item("yson_field").BeginMap()
+                .Item("a").Value(1)
+                .Item("b").BeginList()
+                    .Item().Value("foobar")
                 .EndList()
             .EndMap()
         .EndMap();

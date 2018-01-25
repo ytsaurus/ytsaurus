@@ -50,13 +50,13 @@ struct TExternalCGInfo
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     const std::vector<TString>& functionNames,
     const TString& udfRegistryPath,
-    NApi::INativeClientPtr client);
+    const NApi::INativeClientPtr& client);
 
 void AppendUdfDescriptors(
-    const TTypeInferrerMapPtr& typers,
+    const TTypeInferrerMapPtr& typeInferrers,
     const TExternalCGInfoPtr& cgInfo,
-    const std::vector<TString>& names,
-    const std::vector<TExternalFunctionSpec>& external);
+    const std::vector<TString>& functionNames,
+    const std::vector<TExternalFunctionSpec>& externalFunctionSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,18 +80,18 @@ TFunctionImplCachePtr CreateFunctionImplCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FetchImplementations(
+void FetchFunctionImplementationsFromCypress(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    TFunctionImplCachePtr cache,
+    const TFunctionImplCachePtr& cache,
     const NChunkClient::TReadSessionId& sessionId = NChunkClient::TReadSessionId());
 
-void FetchJobImplementations(
+void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    TString implementationPath);
+    const TString& rootPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -33,8 +33,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Network);
 
 public:
-    TExtendedJobResources();
-
     i64 GetMemory() const;
 
     void Persist(const TStreamPersistenceContext& context);
@@ -50,7 +48,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Network);
 
 public:
-    TJobResources();
+    TJobResources() = default;
     TJobResources(const NNodeTrackerClient::NProto::TNodeResources& nodeResources);
 
     NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const;
@@ -61,14 +59,14 @@ public:
 #define ITERATE_JOB_RESOURCES(XX) \
     XX(user_slots,            UserSlots) \
     XX(cpu,                   Cpu) \
-    XX(memory,                Memory) \
+    XX(user_memory,           Memory) \
     XX(network,               Network)
 
 #define MAKE_JOB_METHODS(Base, Field) \
     using Base::Get ## Field; \
     using Base::Set ## Field;
 
-template<class TResourceType>
+template <class TResourceType>
 class TResourcesWithQuota
 {
 public:
@@ -86,7 +84,7 @@ protected:
     i64 DiskQuota_ = 0;
 };
 
-template<>
+template <>
 struct TResourcesWithQuota<TJobResources>
     : private TJobResources
     , private TResourcesWithQuota<void>
@@ -122,6 +120,10 @@ public:
 using TJobResourcesWithQuota = TResourcesWithQuota<TJobResources>;
 
 TString FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo);
 TString FormatResources(const TJobResources& resources);
 TString FormatResources(const TJobResourcesWithQuota& resources);
 TString FormatResources(const TExtendedJobResources& resources);
@@ -143,11 +145,6 @@ double GetDominantResourceUsage(
 double GetResource(
     const TJobResources& resources,
     NNodeTrackerClient::EResourceType type);
-
-void SetResource(
-    TJobResources& resources,
-    NNodeTrackerClient::EResourceType type,
-    i64 value);
 
 double GetMinResourceRatio(
     const TJobResources& nominator,
@@ -195,8 +192,7 @@ void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
 const TJobResources& MinSpareNodeResources();
 
 bool CanSatisfyDiskRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskLimits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskUsage,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
     i64 diskRequest);
 
 ////////////////////////////////////////////////////////////////////////////////

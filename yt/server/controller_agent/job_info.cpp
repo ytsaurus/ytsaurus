@@ -38,7 +38,7 @@ TJoblet::TJoblet(TTask* task, int jobIndex, const TString& treeId)
     , OutputCookie(IChunkPoolOutput::NullCookie)
 { }
 
-TJobMetrics TJoblet::UpdateJobMetrics(const NScheduler::TJobSummary& jobSummary)
+TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary)
 {
     const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(
         *jobSummary.Statistics,
@@ -79,7 +79,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
 
 TFinishedJobInfo::TFinishedJobInfo(
     const TJobletPtr& joblet,
-    NScheduler::TJobSummary summary,
+    TJobSummary summary,
     NYson::TYsonString inputPaths)
     : TJobInfo(TJobInfoBase(*joblet))
     , Summary(std::move(summary))

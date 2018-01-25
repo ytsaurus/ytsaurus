@@ -7,7 +7,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-using namespace NChunkClient::NProto;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +58,7 @@ public:
         return MakeFuture(std::move(blocks));
     }
 
-    virtual TFuture<TChunkMeta> GetMeta(
+    virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override

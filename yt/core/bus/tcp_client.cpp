@@ -78,6 +78,12 @@ public:
         return Connection_->Send(std::move(message), options);
     }
 
+    virtual void SetTosLevel(TTosLevel tosLevel) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->SetTosLevel(tosLevel);
+    }
+
     virtual void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
