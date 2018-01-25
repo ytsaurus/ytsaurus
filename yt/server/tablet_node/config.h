@@ -462,6 +462,13 @@ class TPartitionBalancerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
+    NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
+
+    //! Scraps unavailable chunks.
+    NChunkClient::TChunkScraperConfigPtr ChunkScraper;
+
+    //! Fetches samples from remote chunks.
     NChunkClient::TFetcherConfigPtr SamplesFetcher;
 
     //! Minimum number of samples needed for partitioning.
@@ -476,8 +483,13 @@ public:
     //! Minimum interval between resampling.
     TDuration ResamplingPeriod;
 
+
     TPartitionBalancerConfig()
     {
+        RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
+            .DefaultNew();
+        RegisterParameter("chunk_scraper", ChunkScraper)
+            .DefaultNew();
         RegisterParameter("samples_fetcher", SamplesFetcher)
             .DefaultNew();
         RegisterParameter("min_partitioning_sample_count", MinPartitioningSampleCount)
