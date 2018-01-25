@@ -12,7 +12,7 @@ from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
                                      MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder
-import yt.wrapper.job_tool as job_tool
+import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.completers as completers
 import yt.json as json
 
@@ -944,11 +944,13 @@ def add_remove_member_parser(add_parser):
     member_args(parser)
 
 def execute(**args):
+    if "output_format" not in args["execute_params"]:
+        args["execute_params"]["output_format"] = yt.create_format(output_format)
     data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in args["execute_params"] else None
     result = yt.transaction_commands._make_transactional_request(args["command_name"],
                                                                  args["execute_params"],
                                                                  data=data)
-    if "output_format" in args["execute_params"]:
+    if result is not None:
         sys.stdout.write(result)
 
 def add_execute_parser(add_parser):
@@ -1000,17 +1002,25 @@ def add_transform_parser(add_parser):
                         help="check if table already has proper codecs before transforming")
     add_structured_argument(parser, "--spec")
 
-def execute_job_tool(**args):
+def job_tool(**args):
     commands = {
-        "prepare-job-environment": job_tool.prepare_job_environment,
-        "run-job": job_tool.run_job
+        "prepare-job-environment": yt_job_tool.prepare_job_environment,
+        "run-job": yt_job_tool.run_job
     }
     command = args.pop("command")
     commands[command](**args)
 
 def add_job_tool_parser(add_parser):
-    parser = add_parser("job-tool", function=execute_job_tool, pythonic_help=job_tool.DESCRIPTION)
-    job_tool.create_job_tool_parser(parser)
+    parser = add_parser("job-tool", function=job_tool, pythonic_help=yt_job_tool.DESCRIPTION)
+    yt_job_tool.create_job_tool_parser(parser)
+
+def sky_share(**args):
+    print(yt.sky_share(**args))
+
+def add_sky_share_parser(add_parser):
+    parser = add_parser("sky-share", function=sky_share, help="share table to skynet")
+    parser.add_argument("path", help="table path")
+    parser.add_argument("--cluster", help="cluster name, by default it is derived from proxy url")
 
 @copy_docstring_from(get_default_config)
 def show_default_config(**args):
@@ -1136,6 +1146,8 @@ def main():
     add_transform_parser(add_parser)
 
     add_job_tool_parser(add_parser)
+
+    add_sky_share_parser(add_parser)
 
     add_show_default_config_parser(add_parser)
     add_show_spec_parser(add_parser)

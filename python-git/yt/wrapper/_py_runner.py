@@ -20,10 +20,11 @@ def filter_out_modules(module_path, filter_function):
 def main():
     # We should use local imports because of replacing __main__ module cause cleaning globals.
     import os
+    import gzip
     import sys
     import imp
     import time
-    import zipfile
+    import tarfile
     import pickle as standard_pickle
     import platform
 
@@ -53,10 +54,20 @@ def main():
             if eggs is not None:
                 __python_eggs.extend([os.path.join(".", destination, egg) for egg in eggs])
 
-            # Unfortunately we cannot use fixed version of ZipFile.
-            __zip = zipfile.ZipFile(info["filename"])
-            __zip.extractall(destination)
-            __zip.close()
+            # Unfortunately we cannot use fixed version of TarFile.
+            compression_codec = None
+            if info["filename"].endswith(".gz"):
+                compression_codec = "gzip"
+
+            if compression_codec == "gzip":
+                __gz_fileobj = gzip.GzipFile(info["filename"], "r")
+                __tar = tarfile.TarFile(info["filename"], "r", __gz_fileobj)
+            else:
+                __tar = tarfile.TarFile(info["filename"], "r")
+            __tar.extractall(destination)
+            __tar.close()
+            if compression_codec == "gzip":
+                __gz_fileobj.close()
 
         module_locations = ["./modules", "./tmpfs/modules"]
         sys.path = __python_eggs + module_locations + sys.path

@@ -46,7 +46,7 @@ class WriteRequestRetrier(Retrier):
             "backoff": get_config(client)["retry_backoff"],
             "count": get_config(client)["proxy"]["request_retry_count"],
         }
-        retry_config = update(deepcopy(get_config(client)["write_retries"]), remove_nones_from_dict(retry_config))
+        retry_config = update(get_config(client)["write_retries"], remove_nones_from_dict(retry_config))
         request_timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                                     get_config(client)["proxy"]["heavy_request_timeout"])
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
@@ -85,7 +85,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
     created = False
     if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
-        create_object(path)
+        create_object(path, client)
         created = True
 
     title = "Python wrapper: {0} {1}".format(command_name, path)
@@ -95,7 +95,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                      client=client,
                      transaction_id=get_config(client)["write_retries"]["transaction_id"]):
         if not created:
-            create_object(path)
+            create_object(path, client)
         params["path"] = path
         if use_retries:
             chunk_size = get_config(client)["write_retries"]["chunk_size"]
@@ -158,7 +158,7 @@ class ReadIterator(IteratorRetrier):
             "count": get_config(client)["read_retries"]["retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(deepcopy(get_config(client)["read_retries"]), remove_nones_from_dict(retry_config))
+        retry_config = update(get_config(client)["read_retries"], remove_nones_from_dict(retry_config))
         timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                             get_config(client)["proxy"]["heavy_request_timeout"])
 

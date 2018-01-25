@@ -4,7 +4,7 @@ from .compression import get_compressor
 from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_value, get_started_by_short
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
 from .http_helpers import (make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url,
-                           parse_error_from_headers, get_header_format, ProxyProvider)
+                           get_error_from_headers, get_header_format, ProxyProvider)
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -276,9 +276,9 @@ def make_request(command_name,
         if trailers is None:
             return
 
-        error = parse_error_from_headers(trailers)
+        error = get_error_from_headers(trailers)
         if error is not None:
-            raise YtHttpResponseError(error=error, **response.request_info)
+            raise YtHttpResponseError(error=json.loads(error), **response.request_info)
 
     # Determine type of response data and return it
     if return_content:

@@ -15,8 +15,9 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
-from yt.wrapper.spec_builders import MapSpecBuilder
+from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder
 from yt.local import start, stop
+from yt.yson import YsonMap
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
@@ -1353,7 +1354,7 @@ if __name__ == "__main__":
 
         old_timeout = yt.config["operation_tracker"]["stderr_download_timeout"]
         old_thread_count = yt.config["operation_tracker"]["stderr_download_thread_count"]
-        yt.config["operation_tracker"]["stderr_download_timeout"] = 100
+        yt.config["operation_tracker"]["stderr_download_timeout"] = 50
         yt.config["operation_tracker"]["stderr_download_thread_count"] = 1
 
         try:
@@ -1637,3 +1638,98 @@ if __name__ == "__main__":
             with pytest.raises(yt.YtError):
                 yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
 
+    def test_get_operation_command(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        with set_config_option("enable_operations_api", True):
+            op = yt.run_map("cat; echo 'AAA' >&2", table, table)
+            check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
+
+            assert op.get_state() == "completed"
+
+            assert op.get_progress()["total"] == 1
+            assert op.get_progress()["completed"] == 1
+
+            op.get_job_statistics()
+
+            stderrs = op.get_stderrs()
+            assert len(stderrs) == 1
+            assert stderrs[0]["stderr"] == "AAA\n"
+
+    def test_list_operations(self):
+        assert yt.list_operations()["operations"] == []
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}])
+        yt.run_map("cat; echo 'AAA' >&2", table, table)
+
+        operations = yt.list_operations()["operations"]
+        assert len(operations) == 1
+
+        operation = operations[0]
+        assert operation["state"] == "completed"
+        assert operation["type"] == "map"
+
+    def test_lazy_yson(self):
+        def mapper(row):
+            assert not isinstance(row, (YsonMap, dict))
+            row["z"] = row["y"] + 1
+            yield row
+
+        def reducer(key, rows):
+            result = {"x": key["x"], "res": 0}
+            for row in rows:
+                assert not isinstance(row, (YsonMap, dict))
+                result["res"] += row["z"]
+            yield result
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 1, "y": 3}, {"x": 3, "y": 4}])
+        yt.run_map_reduce(mapper, reducer, table, output_table, format="<lazy=%true>yson", reduce_by="x")
+
+        assert list(yt.read_table(output_table)) == [{"x": 1, "res": 7}, {"x": 3, "res": 5}]
+
+    def test_multiple_mapper_output_tables_in_mapreduce(self):
+        input_table = TEST_DIR + "/table"
+        mapper_output_table = TEST_DIR + "/mapper_output_table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(input_table, [{"x": 1}])
+
+        def mapper(rec):
+            recs = [{"a": "b"}, {"c": "d"}]
+            for i, rec in enumerate(recs):
+                rec["@table_index"] = i
+                yield rec
+
+        spec_builder = MapReduceSpecBuilder() \
+            .begin_mapper() \
+                .format(yt.YsonFormat(control_attributes_mode="row_fields")) \
+                .command(mapper) \
+            .end_mapper() \
+            .begin_reducer() \
+                .command("cat") \
+                .format("json") \
+            .end_reducer() \
+            .reduce_by(["a"]) \
+            .mapper_output_table_count(1) \
+            .input_table_paths(input_table) \
+            .output_table_paths([mapper_output_table, output_table])
+
+        yt.run_operation(spec_builder)
+        check([{"c": "d"}], list(yt.read_table(mapper_output_table)))
+        check([{"a": "b"}], list(yt.read_table(output_table)))
+
+    def test_empty_job_command(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        spec = {"mapper": {"copy_files": True}, "reduce_combiner": {"copy_files": True}}
+        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))

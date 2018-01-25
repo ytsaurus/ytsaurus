@@ -27,6 +27,8 @@ def test_thread_pool():
         next(result)
 
     assert next(result) == 1
+    with pytest.raises(StopIteration):
+        next(result)
 
     result = pool.imap(lambda x: x, [2, 0, 1])
     next(result)
