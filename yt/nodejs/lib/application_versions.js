@@ -109,7 +109,11 @@ function YtApplicationVersions(driver)
                 }));
             }),
             "nodes": getListAndData("nodes", ["addresses"], function(entity, name) {
-                var parsed_url = url.parse("http://" + utils.getYsonAttribute(name, "addresses")["monitoring_http"]["default"]);
+                var addresses = utils.getYsonAttribute(name, "addresses");
+                if (!("monitoring_http" in addresses)) {
+                    return Q.reject(new YtError("Failed to discover monitoring port"));
+                }
+                var parsed_url = url.parse("http://" + addresses["monitoring_http"]["default"]);
                 return new YtHttpRequest(parsed_url.hostname, parsed_url.port)
                 .withPath(url.format({
                     pathname: "/orchid/service"
