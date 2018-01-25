@@ -140,12 +140,13 @@ def get_environment_for_binary_test(yt_env):
         python_binary = get_python()
 
     env = {
-        "PYTHONPATH": os.environ["PYTHONPATH"],
         "PYTHON_BINARY": python_binary,
         "YT_USE_TOKEN": "0",
         "YT_VERSION": yt.config["api_version"],
         "YT_PRINT_BACKTRACE": "1",
     }
+    if yatest_common is None:
+        env["PYTHONPATH"] = os.environ["PYTHONPATH"]
 
     config = deepcopy(_filter_simple_types(yt.config.config))
 
