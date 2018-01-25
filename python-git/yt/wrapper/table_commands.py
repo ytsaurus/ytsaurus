@@ -213,7 +213,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
 def _prepare_table_path_for_read_blob_table(table, part_index_column_name, client=None):
     table = TablePath(table, client=client)
 
-    sorted_by = get_attribute(table, "sorted_by")
+    sorted_by = get_attribute(table, "sorted_by", client=client)
     if part_index_column_name not in sorted_by:
         raise YtError('Table should be sorted by "{0}"'.format(part_index_column_name))
 
