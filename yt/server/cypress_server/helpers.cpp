@@ -18,11 +18,11 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const yhash<TString, TCypressNodeBase*>& GetMapNodeChildMap(
+const THashMap<TString, TCypressNodeBase*>& GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
-    yhash<TString, TCypressNodeBase*>* storage)
+    THashMap<TString, TCypressNodeBase*>* storage)
 {
     Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
 
@@ -60,7 +60,7 @@ std::vector<TCypressNodeBase*> GetMapNodeChildList(
 {
     Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
 
-    yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         trunkNode,
@@ -82,7 +82,7 @@ const std::vector<TCypressNodeBase*>& GetListNodeChildList(
 }
 
 std::vector<std::pair<TString, TCypressNodeBase*>> SortKeyToChild(
-    const yhash<TString, TCypressNodeBase*>& keyToChildMap)
+    const THashMap<TString, TCypressNodeBase*>& keyToChildMap)
 {
     std::vector<std::pair<TString, TCypressNodeBase*>> keyToChildList;
     keyToChildList.reserve(keyToChildMap.size());
@@ -176,14 +176,14 @@ int FindListNodeChildIndex(
     return -1;
 }
 
-yhash<TString, NYson::TYsonString> GetNodeAttributes(
+THashMap<TString, NYson::TYsonString> GetNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
-    yhash<TString, TYsonString> result;
+    THashMap<TString, TYsonString> result;
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {
@@ -200,14 +200,14 @@ yhash<TString, NYson::TYsonString> GetNodeAttributes(
     return result;
 }
 
-yhash_set<TString> ListNodeAttributes(
+THashSet<TString> ListNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
-    yhash_set<TString> result;
+    THashSet<TString> result;
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {

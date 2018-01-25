@@ -40,7 +40,7 @@ namespace {
 TString GetParentFor(const TString& type)
 {
 #ifdef _linux_
-    auto rawData = TFileInput("/proc/self/cgroup").ReadAll();
+    auto rawData = TUnbufferedFileInput("/proc/self/cgroup").ReadAll();
     auto result = ParseProcessCGroups(rawData);
     return result[type];
 #else
@@ -52,13 +52,13 @@ TString GetParentFor(const TString& type)
 
 std::vector<TString> ReadAllValues(const TString& fileName)
 {
-    auto raw = TFileInput(fileName).ReadAll();
+    auto raw = TUnbufferedFileInput(fileName).ReadAll();
     LOG_DEBUG(
         "File %v contains %Qv",
         fileName,
         raw);
 
-    yvector<TString> values;
+    TVector<TString> values;
     Split(raw.data(), " \n", values);
     return std::vector<TString>(values.begin(), values.end());
 }
@@ -150,7 +150,7 @@ TString TNonOwningCGroup::Get(const TString& name) const
     TString result;
 #ifdef _linux_
     const auto path = GetPath(name);
-    result = TBufferedFileInput(path).ReadLine();
+    result = TFileInput(path).ReadLine();
 #endif
     return result;
 }
@@ -160,7 +160,7 @@ void TNonOwningCGroup::Set(const TString& name, const TString& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
+    TUnbufferedFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
     output << value;
 #endif
 }
@@ -170,7 +170,7 @@ void TNonOwningCGroup::Append(const TString& name, const TString& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
+    TUnbufferedFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
     output << value;
 #endif
 }
@@ -739,7 +739,7 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
 {
     std::map<TString, TString> result;
 
-    yvector<TString> values;
+    TVector<TString> values;
     Split(str.data(), ":\n", values);
     for (size_t i = 0; i + 2 < values.size(); i += 3) {
         FromString<int>(values[i]);
@@ -747,7 +747,7 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
         const TString& subsystemsSet = values[i + 1];
         const TString& name = values[i + 2];
 
-        yvector<TString> subsystems;
+        TVector<TString> subsystems;
         Split(subsystemsSet.data(), ",", subsystems);
         for (const auto& subsystem : subsystems) {
             if (!subsystem.StartsWith("name=")) {

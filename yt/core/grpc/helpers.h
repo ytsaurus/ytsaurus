@@ -107,7 +107,7 @@ private:
 class TGrpcChannelArgs
 {
 public:
-    explicit TGrpcChannelArgs(const yhash<TString, NYTree::INodePtr>& args);
+    explicit TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& args);
 
     grpc_channel_args* Unwrap();
 

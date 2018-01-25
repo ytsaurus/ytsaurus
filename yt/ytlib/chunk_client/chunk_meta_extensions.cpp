@@ -22,7 +22,7 @@ TChunkMeta FilterChunkMetaByExtensionTags(
     FilterProtoExtensions(
         filteredChunkMeta.mutable_extensions(),
         chunkMeta.extensions(),
-        yhash_set<int>(extensionTags->begin(), extensionTags->end()));
+        THashSet<int>(extensionTags->begin(), extensionTags->end()));
 
     return filteredChunkMeta;
 }

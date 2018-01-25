@@ -886,9 +886,9 @@ struct TSorterSelector<std::unordered_set<T...>, C, TSortedTag>
 };
 
 template <class C, class... T>
-struct TSorterSelector<yhash_set<T...>, C, TSortedTag>
+struct TSorterSelector<THashSet<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_set<T...>, TValueSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<THashSet<T...>, TValueSorterComparer<C>> TSorter;
 };
 
 template <class C, class... T>
@@ -898,9 +898,9 @@ struct TSorterSelector<std::unordered_multiset<T...>, C, TSortedTag>
 };
 
 template <class C, class... T>
-struct TSorterSelector<yhash_multiset<T...>, C, TSortedTag>
+struct TSorterSelector<THashMultiSet<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_multiset<T...>, TValueSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<THashMultiSet<T...>, TValueSorterComparer<C>> TSorter;
 };
 
 template <class C, class... T>
@@ -910,9 +910,9 @@ struct TSorterSelector<std::unordered_map<T...>, C, TSortedTag>
 };
 
 template <class C, class... T>
-struct TSorterSelector<yhash<T...>, C, TSortedTag>
+struct TSorterSelector<THashMap<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash<T...>, TKeySorterComparer<C>> TSorter;
+    typedef TCollectionSorter<THashMap<T...>, TKeySorterComparer<C>> TSorter;
 };
 
 template <class C, class... T>
@@ -922,9 +922,9 @@ struct TSorterSelector<std::unordered_multimap<T...>, C, TSortedTag>
 };
 
 template <class C, class... T>
-struct TSorterSelector<yhash_mm<T...>, C, TSortedTag>
+struct TSorterSelector<THashMultiMap<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_mm<T...>, TKeyValueSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<THashMultiMap<T...>, TKeyValueSorterComparer<C>> TSorter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -936,19 +936,19 @@ template <
 >
 struct TVectorSerializer
 {
-    template <class TVector, class C>
-    static void Save(C& context, const TVector& objects)
+    template <class TVectorType, class C>
+    static void Save(C& context, const TVectorType& objects)
     {
         TSizeSerializer::Save(context, objects.size());
 
-        typename TSorterSelector<TVector, C, TSortTag>::TSorter sorter(objects);
+        typename TSorterSelector<TVectorType, C, TSortTag>::TSorter sorter(objects);
         for (const auto& object : sorter) {
             TItemSerializer::Save(context, object);
         }
     }
 
-    template <class TVector, class C>
-    static void Load(C& context, TVector& objects)
+    template <class TVectorType, class C>
+    static void Load(C& context, TVectorType& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
         objects.resize(size);
@@ -971,8 +971,8 @@ template <
 >
 struct TNullableVectorSerializer
 {
-    template <class TVector, class C>
-    static void Save(C& context, const std::unique_ptr<TVector>& objects)
+    template <class TVectorType, class C>
+    static void Save(C& context, const std::unique_ptr<TVectorType>& objects)
     {
         if (objects) {
             TVectorSerializer<TItemSerializer, TSortTag>::Save(context, *objects);
@@ -981,8 +981,8 @@ struct TNullableVectorSerializer
         }
     }
 
-    template <class TVector, class C>
-    static void Load(C& context, std::unique_ptr<TVector>& objects)
+    template <class TVectorType, class C>
+    static void Load(C& context, std::unique_ptr<TVectorType>& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
         if (size == 0) {
@@ -990,7 +990,7 @@ struct TNullableVectorSerializer
             return;
         }
 
-        objects.reset(new TVector());
+        objects.reset(new TVectorType());
         objects->resize(size);
 
         SERIALIZATION_DUMP_WRITE(context, "vector[%v]", size);
@@ -1008,8 +1008,8 @@ struct TNullableVectorSerializer
 template <class TItemSerializer = TDefaultSerializer>
 struct TListSerializer
 {
-    template <class TList, class C>
-    static void Save(C& context, const TList& objects)
+    template <class TListType, class C>
+    static void Save(C& context, const TListType& objects)
     {
         TSizeSerializer::Save(context, objects.size());
 
@@ -1018,8 +1018,8 @@ struct TListSerializer
         }
     }
 
-    template <class TList, class C>
-    static void Load(C& context, TList& objects)
+    template <class TListType, class C>
+    static void Load(C& context, TListType& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
         objects.clear();
@@ -1027,7 +1027,7 @@ struct TListSerializer
         SERIALIZATION_DUMP_WRITE(context, "list[%v]", size);
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index != size; ++index) {
-                typename TList::value_type obj;
+                typename TListType::value_type obj;
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
                 SERIALIZATION_DUMP_INDENT(context) {
                     TItemSerializer::Load(context, obj);
@@ -1077,8 +1077,8 @@ struct TArraySerializer
 template <class TItemSerializer = TDefaultSerializer>
 struct TNullableListSerializer
 {
-    template <class TList, class C>
-    static void Save(C& context, const std::unique_ptr<TList>& objects)
+    template <class TListType, class C>
+    static void Save(C& context, const std::unique_ptr<TListType>& objects)
     {
         using NYT::Save;
         if (objects) {
@@ -1088,8 +1088,8 @@ struct TNullableListSerializer
         }
     }
 
-    template <class TList, class C>
-    static void Load(C& context, std::unique_ptr<TList>& objects)
+    template <class TListType, class C>
+    static void Load(C& context, std::unique_ptr<TListType>& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1100,11 +1100,11 @@ struct TNullableListSerializer
             return;
         }
 
-        objects.reset(new TList());
+        objects.reset(new TListType());
 
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index != size; ++index) {
-                typename TList::value_type obj;
+                typename TListType::value_type obj;
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
                 SERIALIZATION_DUMP_INDENT(context) {
                     TItemSerializer::Load(context, obj);
@@ -1177,21 +1177,21 @@ template <
 >
 struct TSetSerializer
 {
-    template <class TSet, class C>
-    static void Save(C& context, const TSet& set)
+    template <class TSetType, class C>
+    static void Save(C& context, const TSetType& set)
     {
         TSizeSerializer::Save(context, set.size());
 
-        typename TSorterSelector<TSet, C, TSortTag>::TSorter sorter(set);
+        typename TSorterSelector<TSetType, C, TSortTag>::TSorter sorter(set);
         for (const auto& item : sorter) {
             TItemSerializer::Save(context, item);
         }
     }
 
-    template <class TSet, class C>
-    static void Load(C& context, TSet& set)
+    template <class TSetType, class C>
+    static void Load(C& context, TSetType& set)
     {
-        typedef typename TSet::key_type TKey;
+        typedef typename TSetType::key_type TKey;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1219,16 +1219,16 @@ template <
 >
 struct TMultiSetSerializer
 {
-    template <class TSet, class C>
-    static void Save(C& context, const TSet& set)
+    template <class TSetType, class C>
+    static void Save(C& context, const TSetType& set)
     {
         TSetSerializer<TItemSerializer, TSortTag>::Save(context, set);
     }
 
-    template <class TSet, class C>
-    static void Load(C& context, TSet& set)
+    template <class TSetType, class C>
+    static void Load(C& context, TSetType& set)
     {
-        typedef typename TSet::key_type TKey;
+        typedef typename TSetType::key_type TKey;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1256,8 +1256,8 @@ template <
 >
 struct TNullableSetSerializer
 {
-    template <class TSet, class C>
-    static void Save(C& context, const std::unique_ptr<TSet>& set)
+    template <class TSetType, class C>
+    static void Save(C& context, const std::unique_ptr<TSetType>& set)
     {
         if (set) {
             TSetSerializer<TItemSerializer, TSortTag>::Save(context, *set);
@@ -1266,10 +1266,10 @@ struct TNullableSetSerializer
         }
     }
 
-    template <class TSet, class C>
-    static void Load(C& context, std::unique_ptr<TSet>& set)
+    template <class TSetType, class C>
+    static void Load(C& context, std::unique_ptr<TSetType>& set)
     {
-        typedef typename TSet::key_type TKey;
+        typedef typename TSetType::key_type TKey;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1280,7 +1280,7 @@ struct TNullableSetSerializer
             return;
         }
 
-        set.reset(new TSet());
+        set.reset(new TSetType());
 
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index < size; ++index) {
@@ -1304,20 +1304,20 @@ template <
 >
 struct TMapSerializer
 {
-    template <class TMap, class C>
-    static void Save(C& context, const TMap& map)
+    template <class TMapType, class C>
+    static void Save(C& context, const TMapType& map)
     {
         TSizeSerializer::Save(context, map.size());
 
-        typename TSorterSelector<TMap, C, TSortTag>::TSorter sorter(map);
+        typename TSorterSelector<TMapType, C, TSortTag>::TSorter sorter(map);
         for (const auto& pair : sorter) {
             TKeySerializer::Save(context, pair.first);
             TValueSerializer::Save(context, pair.second);
         }
     }
 
-    template <class TMap, class C>
-    static void Load(C& context, TMap& map)
+    template <class TMapType, class C>
+    static void Load(C& context, TMapType& map)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1327,12 +1327,12 @@ struct TMapSerializer
 
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index < size; ++index) {
-                typename TMap::key_type key;
+                typename TMapType::key_type key;
                 TKeySerializer::Load(context, key);
 
                 SERIALIZATION_DUMP_WRITE(context, "=>");
 
-                typename TMap::mapped_type value;
+                typename TMapType::mapped_type value;
                 SERIALIZATION_DUMP_INDENT(context) {
                     TValueSerializer::Load(context, value);
                 }
@@ -1350,8 +1350,8 @@ template <
 >
 struct TMultiMapSerializer
 {
-    template <class TMap, class C>
-    static void Save(C& context, const TMap& map)
+    template <class TMapType, class C>
+    static void Save(C& context, const TMapType& map)
     {
         TMapSerializer<
             TDefaultSerializer,
@@ -1360,8 +1360,8 @@ struct TMultiMapSerializer
         >::Save(context, map);
     }
 
-    template <class TMap, class C>
-    static void Load(C& context, TMap& map)
+    template <class TMapType, class C>
+    static void Load(C& context, TMapType& map)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1370,12 +1370,12 @@ struct TMultiMapSerializer
         map.clear();
 
         for (size_t index = 0; index < size; ++index) {
-            typename TMap::key_type key;
+            typename TMapType::key_type key;
             TKeySerializer::Load(context, key);
 
             SERIALIZATION_DUMP_WRITE(context, "=>");
 
-            typename TMap::mapped_type value;
+            typename TMapType::mapped_type value;
             SERIALIZATION_DUMP_INDENT(context) {
                 TValueSerializer::Load(context, value);
             }
@@ -1566,13 +1566,13 @@ struct TSerializerTraits<std::unordered_set<T, H, P, A>, C, void>
 };
 
 template <class T, class H, class E, class A, class C>
-struct TSerializerTraits<yhash_set<T, H, E, A>, C, void>
+struct TSerializerTraits<THashSet<T, H, E, A>, C, void>
 {
     typedef TSetSerializer<> TSerializer;
 };
 
 template <class T, class C>
-struct TSerializerTraits<yhash_multiset<T>, C, void>
+struct TSerializerTraits<THashMultiSet<T>, C, void>
 {
     typedef TMultiSetSerializer<> TSerializer;
 };
@@ -1608,7 +1608,7 @@ struct TSerializerTraits<std::unique_ptr<std::unordered_set<T, H, P, A>>, C, voi
 };
 
 template <class T, class H, class E, class A, class C>
-struct TSerializerTraits<std::unique_ptr<yhash_set<T, H, E, A>>, C, void>
+struct TSerializerTraits<std::unique_ptr<THashSet<T, H, E, A>>, C, void>
 {
     typedef TNullableSetSerializer<> TSerializer;
 };
@@ -1626,7 +1626,7 @@ struct TSerializerTraits<std::unordered_map<K, V, H, P, A>, C, void>
 };
 
 template <class K, class V, class Q, class A, class C>
-struct TSerializerTraits<yhash<K, V, Q, A>, C, void>
+struct TSerializerTraits<THashMap<K, V, Q, A>, C, void>
 {
     typedef TMapSerializer<> TSerializer;
 };
@@ -1638,7 +1638,7 @@ struct TSerializerTraits<std::multimap<K, V, Q, A>, C, void>
 };
 
 template <class K, class V, class C>
-struct TSerializerTraits<yhash_mm<K, V>, C, void>
+struct TSerializerTraits<THashMultiMap<K, V>, C, void>
 {
     typedef TMultiMapSerializer<> TSerializer;
 };

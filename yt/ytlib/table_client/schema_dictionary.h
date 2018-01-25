@@ -18,7 +18,7 @@ public:
 
 private:
     //! Mapping from known column schemas to ids and reverse.
-    yhash<TColumnSchema, int> ColumnToId_;
+    THashMap<TColumnSchema, int> ColumnToId_;
     std::vector<TColumnSchema> IdToColumn_;
 
     using TTableSchemaInternal = NProto::TSchemaDictionary::TTableSchemaInternal;
@@ -37,7 +37,7 @@ private:
 
     //! Mapping from known table schemas to ids and two its reverses (to the internal
     //! table schema representation and to the "real" table schema).
-    yhash<TTableSchemaInternal, int, THashInternal, TEqualsInternal> TableInternalToId_;
+    THashMap<TTableSchemaInternal, int, THashInternal, TEqualsInternal> TableInternalToId_;
     std::vector<TTableSchemaInternal> IdToTableInternal_;
     std::vector<TTableSchema> IdToTable_;
 

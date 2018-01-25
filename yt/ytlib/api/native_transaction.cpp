@@ -798,7 +798,7 @@ private:
     };
 
     //! Maintains per-table commit info.
-    yhash<TYPath, TTableCommitSessionPtr> TablePathToSession_;
+    THashMap<TYPath, TTableCommitSessionPtr> TablePathToSession_;
     std::vector<TTableCommitSessionPtr> PendingSessions_;
 
     class TTabletCommitSession
@@ -1117,7 +1117,7 @@ private:
     };
 
     //! Maintains per-tablet commit info.
-    yhash<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
+    THashMap<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
 
     class TCellCommitSession
         : public TIntrinsicRefCounted
@@ -1238,13 +1238,13 @@ private:
     };
 
     //! Maintains per-cell commit info.
-    yhash<TCellId, TCellCommitSessionPtr> CellIdToSession_;
+    THashMap<TCellId, TCellCommitSessionPtr> CellIdToSession_;
 
     //! Maps replica cluster name to sync replica transaction.
-    yhash<TString, ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
+    THashMap<TString, ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
 
     //! Caches mappings from name table ids to schema ids.
-    yhash<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
+    THashMap<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
 
     const TNameTableToSchemaIdMapping& GetColumnIdMapping(

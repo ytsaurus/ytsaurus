@@ -203,7 +203,7 @@ protected:
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
     TServerConfigPtr Config_;
-    yhash<TServiceId, IServicePtr> ServiceMap_;
+    THashMap<TServiceId, IServicePtr> ServiceMap_;
 
     explicit TServerBase(const NLogging::TLogger& logger);
 

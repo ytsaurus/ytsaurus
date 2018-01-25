@@ -67,8 +67,8 @@ private:
     TEpochContextPtr EpochContext;
     IInvokerPtr ControlEpochInvoker;
 
-    yhash_set<TPeerId> AliveFollowers;
-    yhash_set<TPeerId> PotentialFollowers;
+    THashSet<TPeerId> AliveFollowers;
+    THashSet<TPeerId> PotentialFollowers;
 
     TLease LeaderPingLease;
     TFollowerPingerPtr FollowerPinger;
@@ -328,7 +328,7 @@ private:
         { }
     };
 
-    typedef yhash<TPeerId, TStatus> TStatusTable;
+    typedef THashMap<TPeerId, TStatus> TStatusTable;
 
     TStatusTable StatusTable;
 

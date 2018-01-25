@@ -94,10 +94,10 @@ private:
     const TJobControllerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    yhash<EJobType, TJobFactory> Factories_;
-    yhash<TJobId, IJobPtr> Jobs_;
+    THashMap<EJobType, TJobFactory> Factories_;
+    THashMap<TJobId, IJobPtr> Jobs_;
 
-    yhash_set<TJobId> SpeclessJobIds_;
+    THashSet<TJobId> SpeclessJobIds_;
 
     bool StartScheduled_ = false;
 

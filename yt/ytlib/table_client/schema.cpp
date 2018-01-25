@@ -315,7 +315,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         UniqueKeys_ && (newKeyColumnCount == GetKeyColumnCount()));
 }
 
-TTableSchema TTableSchema::Filter(const yhash_set<TString>& columns) const
+TTableSchema TTableSchema::Filter(const THashSet<TString>& columns) const
 {
     TColumnFilter filter;
     filter.All = false;
@@ -334,7 +334,7 @@ TTableSchema TTableSchema::Filter(const TNullable<std::vector<TString>>& columns
         return *this;
     }
 
-    return Filter(yhash_set<TString>(columns->begin(), columns->end()));
+    return Filter(THashSet<TString>(columns->begin(), columns->end()));
 }
 
 bool TTableSchema::HasComputedColumns() const
@@ -713,7 +713,7 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
 {
     ValidateKeyColumnCount(keyColumns.size());
 
-    yhash_set<TString> names;
+    THashSet<TString> names;
     for (const auto& name : keyColumns) {
         if (!names.insert(name).second) {
             THROW_ERROR_EXCEPTION("Duplicate key column name %Qv",
@@ -750,17 +750,17 @@ void ValidateColumnSchema(
     bool isTableSorted,
     bool isTableDynamic)
 {
-    static const auto allowedAggregates = yhash_set<TString>{
+    static const auto allowedAggregates = THashSet<TString>{
         "sum",
         "min",
         "max",
         "first"
     };
 
-    static const auto allowedSortedTablesSystemColumns = yhash<TString, EValueType>{
+    static const auto allowedSortedTablesSystemColumns = THashMap<TString, EValueType>{
     };
 
-    static const auto allowedOrderedTablesSystemColumns = yhash<TString, EValueType>{
+    static const auto allowedOrderedTablesSystemColumns = THashMap<TString, EValueType>{
         {TimestampColumnName, EValueType::Uint64}
     };
 
@@ -1006,7 +1006,7 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
 //! Validates that there are no duplicates among the column names.
 void ValidateColumnUniqueness(const TTableSchema& schema)
 {
-    yhash_set<TString> columnNames;
+    THashSet<TString> columnNames;
     for (const auto& column : schema.Columns()) {
         if (!columnNames.insert(column.Name()).second) {
             THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
@@ -1018,7 +1018,7 @@ void ValidateColumnUniqueness(const TTableSchema& schema)
 //! Validates that number of locks doesn't exceed #MaxColumnLockCount.
 void ValidateLocks(const TTableSchema& schema)
 {
-    yhash_set<TString> lockNames;
+    THashSet<TString> lockNames;
     YCHECK(lockNames.insert(PrimaryLockName).second);
     for (const auto& column : schema.Columns()) {
         if (column.Lock()) {
@@ -1063,7 +1063,7 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             if (index >= schema.GetKeyColumnCount() && isTableDynamic) {
                 THROW_ERROR_EXCEPTION("Non-key column %Qv cannot be computed", columnSchema.Name());
             }
-            yhash_set<TString> references;
+            THashSet<TString> references;
             auto expr = PrepareExpression(columnSchema.Expression().Get(), schema, BuiltinTypeInferrersMap, &references);
             if (GetLogicalType(expr->Type) != columnSchema.LogicalType()) {
                 THROW_ERROR_EXCEPTION(
@@ -1326,7 +1326,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         }
     }
 
-    yhash<TString, TColumnSchema> nameToColumnSchema;
+    THashMap<TString, TColumnSchema> nameToColumnSchema;
     std::vector<TString> columnNames;
 
     for (const auto& schema : schemas) {

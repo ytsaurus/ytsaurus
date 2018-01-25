@@ -352,7 +352,7 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
     extensionTags.push_back(TProtoExtensionTag<NProto::TNameTableExt>::Value);
 
     auto hasAllExtensions = [&] () {
-        yhash_set<int> tags;
+        THashSet<int> tags;
         for (const auto& protoExtension : ChunkState_->ChunkSpec.chunk_meta().extensions().extensions()) {
             tags.insert(protoExtension.tag());
         }
@@ -1200,7 +1200,7 @@ private:
                     chunkNameTable->GetName(chunkColumnId));
             }
         } else {
-            auto filterIndexes = yhash_set<int>(ColumnFilter_.Indexes.begin(), ColumnFilter_.Indexes.end());
+            auto filterIndexes = THashSet<int>(ColumnFilter_.Indexes.begin(), ColumnFilter_.Indexes.end());
             for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
                 if (filterIndexes.has(nameTableIndex)) {
@@ -1612,7 +1612,7 @@ private:
                     chunkNameTable->GetName(chunkColumnId));
             }
         } else {
-            auto filterIndexes = yhash_set<int>(ColumnFilter_.Indexes.begin(), ColumnFilter_.Indexes.end());
+            auto filterIndexes = THashSet<int>(ColumnFilter_.Indexes.begin(), ColumnFilter_.Indexes.end());
             for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
                 if (filterIndexes.has(nameTableIndex)) {

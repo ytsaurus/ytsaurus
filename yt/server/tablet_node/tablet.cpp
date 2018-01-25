@@ -795,7 +795,7 @@ TPartition* TTablet::GetContainingPartition(
     return Eden_.get();
 }
 
-const yhash<TStoreId, IStorePtr>& TTablet::StoreIdMap() const
+const THashMap<TStoreId, IStorePtr>& TTablet::StoreIdMap() const
 {
     return StoreIdMap_;
 }
@@ -1104,7 +1104,7 @@ void TTablet::Initialize()
     }
 
     // Assign lock indexes to data components.
-    yhash<TString, int> groupToIndex;
+    THashMap<TString, int> groupToIndex;
     for (int index = keyColumnCount; index < PhysicalSchema_.Columns().size(); ++index) {
         const auto& columnSchema = PhysicalSchema_.Columns()[index];
         int lockIndex = TSortedDynamicRow::PrimaryLockIndex;

@@ -90,7 +90,7 @@ private:
         TSubprocess toolProcess(MdsToolPath_, false);
         toolProcess.AddArguments({"-f", "msgpack", "resource_add"});
 
-//            TFileOutput dumpResource("resource.msgpack");
+//            TUnbufferedFileOutput dumpResource("resource.msgpack");
 //            dumpResource.Write(ToString(msgpackedDescription));
 //            dumpResource.Finish();
 

@@ -255,7 +255,7 @@ struct TTaskGroup
     TJobResources MinNeededResources;
 
     //! All non-local tasks.
-    yhash_set<TTaskPtr> NonLocalTasks;
+    THashSet<TTaskPtr> NonLocalTasks;
 
     //! Non-local tasks that may possibly be ready (but a delayed check is still needed)
     //! keyed by min memory demand (as reported by TTask::GetMinNeededResources).
@@ -265,7 +265,7 @@ struct TTaskGroup
     std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
     //! Local tasks keyed by node id.
-    yhash<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TTaskPtr>> NodeIdToTasks;
 
     TTaskGroup();
 

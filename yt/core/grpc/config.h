@@ -35,7 +35,7 @@ class TServerConfig
 {
 public:
     std::vector<TServerAddressConfigPtr> Addresses;
-    yhash<TString, NYTree::INodePtr> GrpcArguments;
+    THashMap<TString, NYTree::INodePtr> GrpcArguments;
 
     TServerConfig()
     {
@@ -53,7 +53,7 @@ class TChannelConfig
 public:
     EAddressType Type;
     TString Address;
-    yhash<TString, NYTree::INodePtr> GrpcArguments;
+    THashMap<TString, NYTree::INodePtr> GrpcArguments;
 
     TChannelConfig()
     {

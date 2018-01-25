@@ -42,7 +42,7 @@ struct INodeShardHost
 
     virtual TFuture<void> RegisterOrUpdateNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const yhash_set<TString>& tags) = 0;
+        const THashSet<TString>& tags) = 0;
 
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
 
@@ -175,11 +175,11 @@ private:
         : public TRefCounted
     {
     public:
-        DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobId>, RecentlyCompletedJobIds);
+        DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, RecentlyCompletedJobIds);
 
         //! List of all jobs that should be added to jobs_to_remove
         //! in the next heartbeat response for each node defined by its id.
-        using TJobIdsToRemove = yhash<NNodeTrackerClient::TNodeId, std::vector<TJobId>>;
+        using TJobIdsToRemove = THashMap<NNodeTrackerClient::TNodeId, std::vector<TJobId>>;
         DEFINE_BYREF_RW_PROPERTY(TJobIdsToRemove, JobIdsToRemove);
 
     public:
@@ -201,8 +201,8 @@ private:
         TNodeShard* const Shard_;
         const NLogging::TLogger& Logger;
 
-        yhash_set<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
-        yhash_set<TJobPtr> NotConfirmedJobs_;
+        THashSet<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
+        THashSet<TJobPtr> NotConfirmedJobs_;
         bool Active_ = false;
         bool ShouldSkipUnknownJobs_ = false;
 
@@ -243,7 +243,7 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
-    yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
+    THashMap<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = {0};
     std::atomic<int> TotalNodeCount_ = {0};
@@ -265,13 +265,13 @@ private:
             : Controller(std::move(controller))
         { }
 
-        yhash<TJobId, TJobPtr> Jobs;
+        THashMap<TJobId, TJobPtr> Jobs;
         NControllerAgent::IOperationControllerSchedulerHostPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
     };
 
-    yhash<TOperationId, TOperationState> IdToOpertionState_;
+    THashMap<TOperationId, TOperationState> IdToOpertionState_;
 
 
     void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);

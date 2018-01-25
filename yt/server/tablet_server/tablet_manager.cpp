@@ -401,7 +401,7 @@ public:
         if (auto* action = tablet->GetAction()) {
             OnTabletActionTabletsTouched(
                 action,
-                yhash_set<TTablet*>{tablet},
+                THashSet<TTablet*>{tablet},
                 TError("Tablet %v has been removed", tablet->GetId()));
         }
     }
@@ -869,7 +869,7 @@ public:
 
     void OnTabletActionTabletsTouched(
         TTabletAction* action,
-        const yhash_set<TTablet*>& touchedTablets,
+        const THashSet<TTablet*>& touchedTablets,
         const TError& error)
     {
         bool touched = false;
@@ -908,7 +908,7 @@ public:
         YCHECK(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < table->Tablets().size());
 
         auto error = TError("User request %Qv interfered with the action", request);
-        yhash_set<TTablet*> touchedTablets;
+        THashSet<TTablet*> touchedTablets;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             touchedTablets.insert(table->Tablets()[index]);
         }
@@ -1948,7 +1948,7 @@ public:
         // For each chunk verify that it is covered (without holes) by old tablets.
         if (table->IsPhysicallySorted()) {
             const auto& tabletChunkTrees = table->GetChunkList()->Children();
-            std::vector<yhash_set<TChunk*>> chunkSets(lastTabletIndex + 1);
+            std::vector<THashSet<TChunk*>> chunkSets(lastTabletIndex + 1);
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 std::vector<TChunk*> tabletChunks;
@@ -2209,7 +2209,7 @@ public:
 
         // Check for duplicates.
         // Compute last commit timestamp.
-        yhash_set<TChunk*> chunkSet;
+        THashSet<TChunk*> chunkSet;
         chunkSet.reserve(chunks.size());
         auto lastCommitTimestamp = NTransactionClient::MinTimestamp;
         for (auto* chunk : chunks) {
@@ -2436,10 +2436,10 @@ private:
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
 
-    yhash<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
+    THashMap<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
-    yhash<TString, TTabletCellSet> AddressToCell_;
-    yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
+    THashMap<TString, TTabletCellSet> AddressToCell_;
+    THashMap<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
     TTabletCellBundleId DefaultTabletCellBundleId_;
@@ -2797,7 +2797,7 @@ private:
         const auto& address = node->GetDefaultAddress();
 
         // Our expectations.
-        yhash_set<TTabletCell*> expectedCells;
+        THashSet<TTabletCell*> expectedCells;
         for (const auto& slot : node->TabletSlots()) {
             auto* cell = slot.Cell;
             if (!IsObjectAlive(cell)) {
@@ -2807,7 +2807,7 @@ private:
         }
 
         // Figure out and analyze the reality.
-        yhash_set<TTabletCell*> actualCells;
+        THashSet<TTabletCell*> actualCells;
         for (int slotIndex = 0; slotIndex < request->tablet_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = node->TabletSlots()[slotIndex];

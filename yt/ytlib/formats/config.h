@@ -293,7 +293,7 @@ public:
             .Default(' ');
 
         RegisterValidator([&] () {
-            yhash_set<TString> names;
+            THashSet<TString> names;
 
             for (const auto& name : KeyColumnNames) {
                 if (!names.insert(name).second) {
@@ -370,7 +370,7 @@ public:
 
         RegisterValidator([&] () {
             if (Columns) {
-                yhash_set<TString> names;
+                THashSet<TString> names;
                 for (const auto& name : *Columns) {
                     if (!names.insert(name).second) {
                         THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV configuration",

@@ -104,8 +104,8 @@ private:
     TDelayedExecutorCookie RediscoveryCookie_;
     TError TerminationError_;
 
-    yhash_set<TString> ActiveAddresses_;
-    yhash_set<TString> BannedAddresses_;
+    THashSet<TString> ActiveAddresses_;
+    THashSet<TString> BannedAddresses_;
 
     struct TViablePeer
     {
@@ -113,7 +113,7 @@ private:
         IChannelPtr Channel;
     };
 
-    yhash<TString, int> AddressToIndex_;
+    THashMap<TString, int> AddressToIndex_;
     std::vector<TViablePeer> ViablePeers_;
     std::map<std::pair<size_t, TString>, IChannelPtr> HashToViableChannel_;
 
@@ -155,8 +155,8 @@ private:
         TPromise<IChannelPtr> Promise_ = NewPromise<IChannelPtr>();
 
         TSpinLock SpinLock_;
-        yhash_set<TString> RequestedAddresses_;
-        yhash_set<TString> RequestingAddresses_;
+        THashSet<TString> RequestedAddresses_;
+        THashSet<TString> RequestingAddresses_;
         std::vector<TError> InnerErrors_;
 
         NLogging::TLogger Logger;
@@ -422,8 +422,8 @@ private:
     }
 
     TPickPeerResult PickPeer(
-        yhash_set<TString>* requestingAddresses,
-        yhash_set<TString>* requestedAddresses)
+        THashSet<TString>* requestingAddresses,
+        THashSet<TString>* requestedAddresses)
     {
         TReaderGuard guard(SpinLock_);
 
@@ -567,7 +567,7 @@ private:
         return updated;
     }
 
-    void UnregisterViablePeer(yhash<TString, int>::iterator it)
+    void UnregisterViablePeer(THashMap<TString, int>::iterator it)
     {
         const auto& address = it->first;
         GeneratePeerHashes(address, [&] (size_t hash) {
@@ -659,7 +659,7 @@ private:
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
     mutable TReaderWriterSpinLock SpinLock_;
-    yhash<TString, TBalancingChannelSubproviderPtr> SubproviderMap_;
+    THashMap<TString, TBalancingChannelSubproviderPtr> SubproviderMap_;
 
 
     TBalancingChannelSubproviderPtr GetSubprovider(const TString& serviceName)

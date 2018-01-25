@@ -32,7 +32,7 @@ struct TFairShareContext;
 
 class TJobMetrics;
 
-using TOperationElementByIdMap = yhash<TOperationId, TOperationElement*>;
+using TOperationElementByIdMap = THashMap<TOperationId, TOperationElement*>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)

@@ -1010,7 +1010,7 @@ bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(const TString& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const yhash_set<const char*>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKeys(
+const THashSet<const char*>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKeys(
     ISystemAttributeProvider* provider)
 {
     if (!Initialized_) {

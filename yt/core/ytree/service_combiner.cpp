@@ -129,7 +129,7 @@ void TServiceCombiner::GetSelf(
     std::atomic<bool> incomplete = {false};
 
     // TODO(max42): Make it more efficient :(
-    std::vector<TFuture<yhash<TString, INodePtr>>> serviceResultFutures;
+    std::vector<TFuture<THashMap<TString, INodePtr>>> serviceResultFutures;
     for (const auto& service : Services_) {
         auto innerRequest = TYPathProxy::Get("");
         innerRequest->set_limit(limit);
@@ -142,7 +142,7 @@ void TServiceCombiner::GetSelf(
                 if (node->Attributes().Get("incomplete", false)) {
                     incomplete = true;
                 }
-                return ConvertTo<yhash<TString, INodePtr>>(node);
+                return ConvertTo<THashMap<TString, INodePtr>>(node);
             }));
         serviceResultFutures.push_back(asyncInnerResult);
     }
@@ -150,7 +150,7 @@ void TServiceCombiner::GetSelf(
     auto serviceResults = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    yhash<TString, INodePtr> combinedServiceResults;
+    THashMap<TString, INodePtr> combinedServiceResults;
     for (const auto& serviceResult : serviceResults) {
         if (static_cast<i64>(serviceResult.size() + combinedServiceResults.size()) > limit) {
             combinedServiceResults.insert(
@@ -245,7 +245,7 @@ void TServiceCombiner::ListSelf(
 
     // There is a small chance that while we waited for all services to respond, they moved into an inconsistent
     // state and provided us with non-disjoint lists. In this case we force the list to contain only unique keys.
-    yhash_set<TString> keys;
+    THashSet<TString> keys;
 
     BuildYsonFluently(&writer)
         .DoListFor(combinedServiceResults, [&] (TFluentList fluent, const IStringNodePtr& item) {

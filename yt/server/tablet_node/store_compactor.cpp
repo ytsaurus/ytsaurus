@@ -210,7 +210,7 @@ private:
 
     // These are for the future accounting.
     TReaderWriterSpinLock FutureEffectLock_;
-    yhash<TTabletId, int> FutureEffect_;
+    THashMap<TTabletId, int> FutureEffect_;
 
 
     void OnBeginSlotScan()

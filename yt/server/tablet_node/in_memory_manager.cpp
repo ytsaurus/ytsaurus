@@ -169,7 +169,7 @@ private:
     TAsyncSemaphorePtr PreloadSemaphore_;
 
     TReaderWriterSpinLock InterceptedDataSpinLock_;
-    yhash<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
+    THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
     void ScanSlot(const TTabletSlotPtr& slot)
@@ -382,7 +382,7 @@ private:
         const EBlockType BlockType_;
 
         TSpinLock SpinLock_;
-        yhash_set<TChunkId> ChunkIds_;
+        THashSet<TChunkId> ChunkIds_;
         bool Dropped_ = false;
     };
 

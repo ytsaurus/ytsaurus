@@ -432,7 +432,7 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const TString& address)
 
 void TNodeDirectory::Save(TStreamSaveContext& context) const
 {
-    yhash<TNodeId, TNodeDescriptor> idToDescriptor;
+    THashMap<TNodeId, TNodeDescriptor> idToDescriptor;
     {
         NConcurrency::TReaderGuard guard(SpinLock_);
         for (const auto& pair : IdToDescriptor_) {
@@ -446,7 +446,7 @@ void TNodeDirectory::Save(TStreamSaveContext& context) const
 void TNodeDirectory::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
-    auto idToDescriptor = Load<yhash<TNodeId, TNodeDescriptor>>(context);
+    auto idToDescriptor = Load<THashMap<TNodeId, TNodeDescriptor>>(context);
     NConcurrency::TWriterGuard guard(SpinLock_);
     for (const auto& pair : idToDescriptor) {
         DoAddDescriptor(pair.first, pair.second);

@@ -7,12 +7,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TQueue = TPersistentQueue<int, 10>;
+using TQueueType = TPersistentQueue<int, 10>;
 using TSnapshot = TPersistentQueueSnapshot<int, 10>;
 
 TEST(TPersistentQueue, Empty)
 {
-    TQueue queue;
+    TQueueType queue;
     EXPECT_EQ(0, queue.Size());
     EXPECT_TRUE(queue.Empty());
     EXPECT_EQ(queue.Begin(), queue.End());
@@ -25,7 +25,7 @@ TEST(TPersistentQueue, Empty)
 
 TEST(TPersistentQueue, EnqueueDequeue)
 {
-    TQueue queue;
+    TQueueType queue;
 
     const int N = 100;
 
@@ -42,7 +42,7 @@ TEST(TPersistentQueue, EnqueueDequeue)
 
 TEST(TPersistentQueue, Iterate)
 {
-    TQueue queue;
+    TQueueType queue;
 
     const int N = 100;
 
@@ -63,7 +63,7 @@ TEST(TPersistentQueue, Iterate)
 
 TEST(TPersistentQueue, Snapshot1)
 {
-    TQueue queue;
+    TQueueType queue;
 
     const int N = 100;
     std::vector<TSnapshot> snapshots;
@@ -86,7 +86,7 @@ TEST(TPersistentQueue, Snapshot1)
 
 TEST(TPersistentQueue, Snapshot2)
 {
-    TQueue queue;
+    TQueueType queue;
 
     const int N = 100;
     std::vector<TSnapshot> snapshots;
@@ -113,7 +113,7 @@ TEST(TPersistentQueue, Snapshot2)
 
 TEST(TPersistentQueue, Clear)
 {
-    TQueue queue;
+    TQueueType queue;
 
     queue.Enqueue(1);
 

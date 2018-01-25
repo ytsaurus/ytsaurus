@@ -284,7 +284,7 @@ private:
         TExecuteCallback Execute;
     };
 
-    yhash<TString, TCommandEntry> CommandNameToEntry_;
+    THashMap<TString, TCommandEntry> CommandNameToEntry_;
 
 
     template <class TCommand>

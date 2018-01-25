@@ -60,7 +60,7 @@ static bool IsOptionalInt64(TSkiffSchemaPtr skiffSchema)
 
 static bool IsSkiffSpecialColumn(TStringBuf columnName)
 {
-    static const yhash_set<TString> specialColumns = {
+    static const THashSet<TString> specialColumns = {
         KeySwitchColumnName,
         OtherColumnsName,
         SparseColumnsName,
@@ -112,7 +112,7 @@ static void ValidateColumnSchema(const TString& columnName, TSkiffSchemaPtr skif
 static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaPtr& skiffSchema)
 {
     TSkiffTableDescription result;
-    yhash_set<TString> topLevelNames;;
+    THashSet<TString> topLevelNames;;
     TSkiffSchemaPtr otherColumnsField;
     TSkiffSchemaPtr sparseColumnsField;
 
@@ -267,8 +267,8 @@ DEFINE_REFCOUNTED_TYPE(TSkiffSchemaRepresentation);
 NSkiff::TSkiffSchemaPtr ParseSchema(
     const INodePtr& schemaNode,
     const IMapNodePtr& registry,
-    yhash<TString, TSkiffSchemaPtr>* parsedRegistry,
-    yhash_set<TString>* parseInProgressNames)
+    THashMap<TString, TSkiffSchemaPtr>* parsedRegistry,
+    THashSet<TString>* parseInProgressNames)
 {
     auto schemaNodeType = schemaNode->GetType();
     if (schemaNodeType == ENodeType::String) {
@@ -340,11 +340,11 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
 
 std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(const TSkiffFormatConfigPtr& config)
 {
-    yhash<TString, TSkiffSchemaPtr> parsedRegistry;
+    THashMap<TString, TSkiffSchemaPtr> parsedRegistry;
     auto skiffSchemaRegistry = config->SkiffSchemaRegistry;
     std::vector<NSkiff::TSkiffSchemaPtr> result;
     for (const auto& node : config->TableSkiffSchemas->GetChildren()) {
-        yhash_set<TString> parseInProgressNames;
+        THashSet<TString> parseInProgressNames;
         auto skiffSchema = ParseSchema(node, skiffSchemaRegistry, &parsedRegistry, &parseInProgressNames);
         result.push_back(skiffSchema);
     }

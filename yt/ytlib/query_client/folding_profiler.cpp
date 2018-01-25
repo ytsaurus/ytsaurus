@@ -244,7 +244,7 @@ static bool IsDumpExprsEnabled()
 struct TExpressionFragments
 {
     std::vector<TCodegenFragmentInfo> Items;
-    yhash<llvm::FoldingSetNodeID, size_t> Fingerprints;
+    THashMap<llvm::FoldingSetNodeID, size_t> Fingerprints;
     std::vector<TDebugInfo> DebugInfos;
 
     TCodegenFragmentInfosPtr ToFragmentInfos(const TString& namePrefix)
@@ -908,10 +908,10 @@ struct TExtraColumnsChecker
 {
     using TBase = TVisitor<TExtraColumnsChecker>;
 
-    const yhash_set<TString>& Names;
+    const THashSet<TString>& Names;
     bool HasExtraColumns = false;
 
-    explicit TExtraColumnsChecker(const yhash_set<TString>& names)
+    explicit TExtraColumnsChecker(const THashSet<TString>& names)
         : Names(names)
     { }
 
@@ -924,7 +924,7 @@ struct TExtraColumnsChecker
 
 std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinClauses, TTableSchema schema)
 {
-    yhash_set<TString> names;
+    THashSet<TString> names;
     for (const auto& column : schema.Columns()) {
         names.insert(column.Name());
     }

@@ -397,7 +397,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<ENodeState>("state");
-        auto ioWeights = attributes.Get<yhash<TString, double>>("io_weights", {});
+        auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
 
         LOG_DEBUG("Handling node attributes (NodeId: %v, Address: %v, ObjectId: %v, NewState: %v)",
             nodeId,
@@ -420,7 +420,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         execNode->SetIOWeights(ioWeights);
 
         auto oldState = execNode->GetMasterState();
-        auto tags = attributes.Get<yhash_set<TString>>("tags");
+        auto tags = attributes.Get<THashSet<TString>>("tags");
 
         if (oldState == ENodeState::Online && newState != ENodeState::Online) {
             // NOTE: Tags will be validated when node become online, no need in additional check here.

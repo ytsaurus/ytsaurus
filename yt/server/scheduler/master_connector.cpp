@@ -382,7 +382,7 @@ private:
         std::vector<TWatcherHandler>   WatcherHandlers;
     };
 
-    yhash<TOperationId, TWatcherList> WatcherLists;
+    THashMap<TOperationId, TWatcherList> WatcherLists;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -671,7 +671,7 @@ private:
             const auto& batchRsp = batchRspOrError.Value();
 
             std::vector<std::pair<EOperationState, TReviveOperationInfo>> operations;
-            yhash<TOperationId, EOperationState> operationIdToState;
+            THashMap<TOperationId, EOperationState> operationIdToState;
 
             auto listOperationsRsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations")
                 .ValueOrThrow();
@@ -1179,7 +1179,7 @@ private:
             attributes.Get<std::vector<TOperationEvent>>("events", {}),
             revivalDescriptor);
 
-        auto slotIndexMap = attributes.Find<yhash<TString, int>>("slot_index_per_pool_tree");
+        auto slotIndexMap = attributes.Find<THashMap<TString, int>>("slot_index_per_pool_tree");
         if (slotIndexMap) {
             for (const auto& pair : *slotIndexMap) {
                 operation->SetSlotIndex(pair.first, pair.second);

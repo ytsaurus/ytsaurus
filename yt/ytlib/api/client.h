@@ -723,8 +723,8 @@ struct TOperation
 struct TListOperationsResult
 {
     std::vector<TOperation> Operations;
-    TNullable<yhash<TString, i64>> PoolCounts;
-    TNullable<yhash<TString, i64>> UserCounts;
+    TNullable<THashMap<TString, i64>> PoolCounts;
+    TNullable<THashMap<TString, i64>> UserCounts;
     TNullable<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
     TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
     TNullable<i64> FailedJobsCount;

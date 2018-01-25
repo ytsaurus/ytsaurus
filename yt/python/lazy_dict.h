@@ -33,7 +33,7 @@ struct TLazyDictValue
 class TLazyDict
 {
 public:
-    typedef yhash<Py::Object, TLazyDictValue, TPyObjectHasher> THashMap;
+    typedef THashMap<Py::Object, TLazyDictValue, TPyObjectHasher> THashMapType;
 
     TLazyDict(bool alwaysCreateAttributes, const TNullable<TString>& encoding);
 
@@ -44,11 +44,11 @@ public:
     void DeleteItem(const Py::Object& key);
     void Clear();
     size_t Length() const;
-    THashMap* GetUnderlyingHashMap();
+    THashMapType* GetUnderlyingHashMap();
     Py::Object GetConsumerParams();
 
 private:
-    THashMap Data_;
+    THashMapType Data_;
     std::unique_ptr<NYTree::TPythonObjectBuilder> Consumer_;
     bool AlwaysCreateAttributes_;
     TNullable<TString> Encoding_;

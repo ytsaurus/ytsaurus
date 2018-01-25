@@ -157,7 +157,7 @@ int TOperation::GetSlotIndex(const TString& treeId) const
     return *slotIndex;
 }
 
-const yhash<TString, int>& TOperation::GetSlotIndices() const
+const THashMap<TString, int>& TOperation::GetSlotIndices() const
 {
     return TreeIdToSlotIndex_;
 }

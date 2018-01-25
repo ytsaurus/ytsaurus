@@ -59,7 +59,7 @@ private:
     const IChannelFactoryPtr UnderlyingFactory_;
 
     TReaderWriterSpinLock SpinLock_;
-    yhash<TString, IChannelPtr> ChannelMap_;
+    THashMap<TString, IChannelPtr> ChannelMap_;
 
     class TCachedChannel
         : public IChannel

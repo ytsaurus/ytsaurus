@@ -93,7 +93,7 @@ public:
 
 private:
     bool CacheEnabled_;
-    std::unique_ptr<yhash<TStringBuf, PyObject*>> Cache_;
+    std::unique_ptr<THashMap<TStringBuf, PyObject*>> Cache_;
     TNullable<TString> Encoding_;
 };
 

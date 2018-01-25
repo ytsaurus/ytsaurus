@@ -262,8 +262,8 @@ private:
     const TString VolumesPath_;
     const TString LayersPath_;
 
-    yhash<TLayerId, TLayerMeta> Layers_;
-    yhash<TVolumeId, TVolumeMeta> Volumes_;
+    THashMap<TLayerId, TLayerMeta> Layers_;
+    THashMap<TVolumeId, TVolumeMeta> Volumes_;
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
@@ -298,10 +298,10 @@ private:
         }
     }
 
-    yhash_set<TLayerId> LoadLayerIds()
+    THashSet<TLayerId> LoadLayerIds()
     {
         auto fileNames = NFS::EnumerateFiles(LayersPath_, std::numeric_limits<int>::max());
-        yhash_set<TGuid> fileIds;
+        THashSet<TGuid> fileIds;
         for (const auto& fileName : fileNames) {
             if (fileName.EndsWith(NFS::TempFileSuffix)) {
                 LOG_DEBUG("Remove temporary file (Path: %v)", fileName);
@@ -319,7 +319,7 @@ private:
             fileIds.insert(id);
         }
 
-        yhash_set<TGuid> confirmedIds;
+        THashSet<TGuid> confirmedIds;
         auto directoryNames = NFS::EnumerateDirectories(LayersPath_, std::numeric_limits<int>::max());
         for (const auto& directoryName : directoryNames) {
             if (directoryName.EndsWith(NFS::TempFileSuffix)) {
@@ -374,7 +374,7 @@ private:
             auto metaFileBlob = TSharedMutableRef::Allocate(metaFile.GetLength());
 
             NFS::ExpectIOErrors([&] () {
-                TBufferedFileInput metaFileInput(metaFile);
+                TFileInput metaFileInput(metaFile);
                 metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
             });
 
@@ -1045,7 +1045,7 @@ private:
     TLayerCachePtr LayerCache_;
 
     TSpinLock SpinLock_;
-    yhash<TVolumeKey, TFuture<TVolumeStatePtr>> Volumes_;
+    THashMap<TVolumeKey, TFuture<TVolumeStatePtr>> Volumes_;
 
     std::atomic<bool> Enabled_ = { true };
 

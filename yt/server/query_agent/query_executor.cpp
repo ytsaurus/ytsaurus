@@ -216,7 +216,7 @@ public:
 
 private:
     const TSlotManagerPtr SlotManager_;
-    yhash<TTabletId, TTabletSnapshotPtr> Map_;
+    THashMap<TTabletId, TTabletSnapshotPtr> Map_;
 
 };
 

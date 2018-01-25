@@ -63,11 +63,11 @@ struct TCypressNodeLockingState
 {
     std::list<TLock*> AcquiredLocks;
     std::list<TLock*> PendingLocks;
-    // NB: We rely on yhash_* containers not to invalidate iterators on rehash.
+    // NB: We rely on THash* containers not to invalidate iterators on rehash.
     // Keep this in mind when replacing them with std::* analogues.
-    yhash_set<TLock*> ExclusiveLocks;
-    yhash_mm<TLockKey, TLock*> SharedLocks;
-    yhash_mm<NTransactionServer::TTransaction*, TLock*> SnapshotLocks;
+    THashSet<TLock*> ExclusiveLocks;
+    THashMultiMap<TLockKey, TLock*> SharedLocks;
+    THashMultiMap<NTransactionServer::TTransaction*, TLock*> SnapshotLocks;
 
     bool IsEmpty() const;
     void Persist(NCellMaster::TPersistenceContext& context);
@@ -92,11 +92,11 @@ public:
     // Not persisted.
     using TLockListIterator = std::list<TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TLockListIterator, LockListIterator);
-    using TExclusiveLocksIterator = yhash_set<TLock*>::iterator;
+    using TExclusiveLocksIterator = THashSet<TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TExclusiveLocksIterator, ExclusiveLocksIterator);
-    using TSharedLocksIterator = yhash_mm<TLockKey, TLock*>::iterator;
+    using TSharedLocksIterator = THashMultiMap<TLockKey, TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TSharedLocksIterator, SharedLocksIterator);
-    using TSnapshotLocksIterator = yhash_mm<NTransactionServer::TTransaction*, TLock*>::iterator;
+    using TSnapshotLocksIterator = THashMultiMap<NTransactionServer::TTransaction*, TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TSnapshotLocksIterator, SnapshotLocksIterator);
 
 public:

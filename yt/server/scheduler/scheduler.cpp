@@ -113,7 +113,7 @@ static const auto& Profiler = SchedulerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class K, class V>
-yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)
+THashMap<K, V> FilterLargestValues(const THashMap<K, V>& input, size_t threshold)
 {
     threshold = std::min(threshold, input.size());
     std::vector<std::pair<K, V>> items(input.begin(), input.end());
@@ -124,7 +124,7 @@ yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)
         [] (const std::pair<K, V>& lhs, const std::pair<K, V>& rhs) {
             return lhs.second > rhs.second;
         });
-    return yhash<K, V>(items.begin(), items.begin() + threshold);
+    return THashMap<K, V>(items.begin(), items.begin() + threshold);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1016,7 +1016,7 @@ public:
         return nodeId % static_cast<int>(NodeShards_.size());
     }
 
-    virtual TFuture<void> RegisterOrUpdateNode(TNodeId nodeId, const yhash_set<TString>& tags) override
+    virtual TFuture<void> RegisterOrUpdateNode(TNodeId nodeId, const THashSet<TString>& tags) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1080,7 +1080,7 @@ private:
 
     ISchedulerStrategyPtr Strategy_;
 
-    yhash<TOperationId, TOperationPtr> IdToOperation_;
+    THashMap<TOperationId, TOperationPtr> IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
@@ -1108,9 +1108,9 @@ private:
 
     std::vector<TNodeShardPtr> NodeShards_;
 
-    yhash<TNodeId, yhash_set<TString>> NodeIdToTags_;
+    THashMap<TNodeId, THashSet<TString>> NodeIdToTags_;
 
-    yhash<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
+    THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
     TEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
@@ -1349,7 +1349,7 @@ private:
     }
 
 
-    void DoRegisterOrUpdateNode(TNodeId nodeId, const yhash_set<TString>& tags)
+    void DoRegisterOrUpdateNode(TNodeId nodeId, const THashSet<TString>& tags)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

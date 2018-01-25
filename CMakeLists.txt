@@ -222,6 +222,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include # openssl contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
   ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/brotli/include # brotli contains relative includes
 )
 
 ################################################################################
@@ -253,6 +254,7 @@ add_subdirectory(cmake/deps-arcadia-library-http)
 add_subdirectory(cmake/deps-arcadia-library-lfalloc)
 add_subdirectory(cmake/deps-arcadia-library-malloc-api)
 add_subdirectory(cmake/deps-arcadia-library-openssl)
+add_subdirectory(cmake/deps-arcadia-library-streams-brotli)
 add_subdirectory(cmake/deps-arcadia-library-streams-lz)
 add_subdirectory(cmake/deps-arcadia-library-streams-lzop)
 add_subdirectory(cmake/deps-arcadia-library-string_utils-base64)

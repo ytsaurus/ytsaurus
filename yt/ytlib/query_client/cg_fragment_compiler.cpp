@@ -524,12 +524,12 @@ struct TComparerManager
     Function* UniversalComparer;
     TValueTypeLabels UniversalLables;
 
-    yhash<llvm::FoldingSetNodeID, llvm::GlobalVariable*> Labels;
+    THashMap<llvm::FoldingSetNodeID, llvm::GlobalVariable*> Labels;
 
-    yhash<llvm::FoldingSetNodeID, Function*> Hashers;
-    yhash<llvm::FoldingSetNodeID, Function*> EqComparers;
-    yhash<llvm::FoldingSetNodeID, Function*> LessComparers;
-    yhash<llvm::FoldingSetNodeID, Function*> TernaryComparers;
+    THashMap<llvm::FoldingSetNodeID, Function*> Hashers;
+    THashMap<llvm::FoldingSetNodeID, Function*> EqComparers;
+    THashMap<llvm::FoldingSetNodeID, Function*> LessComparers;
+    THashMap<llvm::FoldingSetNodeID, Function*> TernaryComparers;
 
     llvm::GlobalVariable* GetLabelsArray(
         TCGBaseContext& builder,

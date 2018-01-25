@@ -271,11 +271,11 @@ private:
 class TBuiltinAttributeKeysCache
 {
 public:
-    const yhash_set<const char*>& GetBuiltinAttributeKeys(ISystemAttributeProvider* provider);
+    const THashSet<const char*>& GetBuiltinAttributeKeys(ISystemAttributeProvider* provider);
 
 private:
     bool Initialized_ = false;
-    yhash_set<const char*> BuiltinKeys_;
+    THashSet<const char*> BuiltinKeys_;
 
 };
 

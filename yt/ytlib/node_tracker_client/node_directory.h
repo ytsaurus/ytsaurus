@@ -124,8 +124,8 @@ public:
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
-    yhash<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
-    yhash<TString, const TNodeDescriptor*> AddressToDescriptor_;
+    THashMap<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
+    THashMap<TString, const TNodeDescriptor*> AddressToDescriptor_;
     std::vector<std::unique_ptr<TNodeDescriptor>> Descriptors_;
 
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
