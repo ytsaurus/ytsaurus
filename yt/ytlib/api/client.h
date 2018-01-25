@@ -710,7 +710,7 @@ struct TOperation
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
     NScheduler::EOperationState OperationState;
-    TString Pool;
+    TNullable<TString> Pool;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;
     NYson::TYsonString BriefSpec;

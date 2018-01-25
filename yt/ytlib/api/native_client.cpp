@@ -3672,20 +3672,25 @@ private:
             operation.BriefSpec = attributes.GetYson("brief_spec");
 
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-            operation.Pool = briefSpecMapNode->GetChild("pool")->AsString()->GetValue();
+            auto poolNode = briefSpecMapNode->FindChild("pool");
+            if (poolNode) {
+                operation.Pool = poolNode->AsString()->GetValue();
+            }
 
             operation.BriefProgress = attributes.GetYson("brief_progress");
             operation.Suspended = attributes.Get<bool>("suspended");
-            operation.Weight = attributes.Get<double>("weight");
+            operation.Weight = attributes.Find<double>("weight");
             cypressOperations.push_back(operation);
         }
 
         auto filterAndCount =
-            [&] (const TString& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
-                poolCounts[pool] += count;
+            [&] (const TNullable<TString>& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
+                if (pool) {
+                    poolCounts[*pool] += count;
 
-                if (options.Pool && *options.Pool != pool) {
-                    return false;
+                    if (options.Pool && *options.Pool != *pool) {
+                        return false;
+                    }
                 }
 
                 userCounts[user] += count;

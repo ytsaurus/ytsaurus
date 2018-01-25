@@ -1,0 +1,140 @@
+{
+  "$attributes": {
+    "suspended": false,
+    "authenticated_user": "odin",
+    "spec": {
+      "started_by": {
+        "user": "loadbase",
+        "hostname": "man1-4564-man-yt-odin-15520.gencfg-c.yandex.net",
+        "python_version": "2.7.11",
+        "platform": "Ubuntu 12.04 (precise)",
+        "pid": 196440,
+        "command": [
+          "/place/db/iss3/instances/15520_yt_odin_UdQJirKY8lD/yt_odin",
+          "run-check"
+        ],
+        "wrapper_version": "0.8.27-0 (r3295429)"
+      },
+      "intermediate_data_replication_factor": 2,
+      "scheduling_tag": "external",
+      "sort_job_proxy_memory_digest": {
+        "lower_bound": 0.1,
+        "upper_bound": 3,
+        "default_value": 0.95
+      },
+      "shuffle_network_limit": 10,
+      "enable_job_proxy_memory_control": false,
+      "scheduling_tag_filter": "external",
+      "time_limit": 120000,
+      "data_size_per_sort_job": 8589934592,
+      "sort_by": [
+        "x"
+      ],
+      "use_legacy_controller": false,
+      "max_data_size_per_job": 322122547200,
+      "partition_job_io": {
+        "table_writer": {
+          "desired_chunk_size": 1000000000000,
+          "max_meta_size": 67108860,
+          "max_row_weight": 128000000,
+          "max_buffer_size": 8589934592
+        }
+      },
+      "output_table_path": "//sys/admin/odin/h8RxBpDuUC",
+      "job_node_account": "tmp_jobs",
+      "input_table_paths": [
+        "//sys/admin/odin/h8RxBpDuUC"
+      ],
+      "merge_job_io": {
+        "table_writer": {
+          "max_row_weight": 128000000
+        }
+      },
+      "sort_job_io": {
+        "table_reader": {
+          "max_prefetch_window": 30
+        },
+        "table_writer": {
+          "max_row_weight": 128000000
+        }
+      }
+    },
+    "brief_progress": {
+      "jobs": {
+        "total": 1,
+        "pending": 1,
+        "running": 0,
+        "completed": {
+          "interrupted": {
+            "preemption": 0,
+            "user_request": 0,
+            "job_split": 0,
+            "unknown": 0
+          },
+          "non-interrupted": 0,
+          "total": 0
+        },
+        "failed": 0,
+        "aborted": {
+          "total": 0,
+          "non_scheduled": {
+            "scheduling_timeout": 0,
+            "scheduling_resource_overcommit": 0,
+            "scheduling_operation_suspended": 0,
+            "scheduling_job_spec_throttling": 0,
+            "scheduling_other": 0
+          },
+          "scheduled": {
+            "scheduler": 0,
+            "failed_chunks": 0,
+            "resource_overdraft": 0,
+            "other": 0,
+            "preemption": 0,
+            "user_request": 0,
+            "node_offline": 0,
+            "waiting_timeout": 0,
+            "account_limit_exceeded": 0,
+            "get_spec_failed": 0,
+            "unknown": 0,
+            "revival_confirmation_timeout": 0
+          }
+        },
+        "lost": 0
+      }
+    },
+    "brief_spec": {
+      "input_table_paths": {
+        "$attributes": {
+          "count": 1
+        },
+        "$value": [
+          {
+            "$attributes": {},
+            "$value": "//sys/admin/odin/h8RxBpDuUC"
+          }
+        ]
+      },
+      "output_table_paths": {
+        "$attributes": {
+          "count": 1
+        },
+        "$value": [
+          {
+            "$attributes": {},
+            "$value": "//sys/admin/odin/h8RxBpDuUC"
+          }
+        ]
+      },
+      "fair_share_info_per_pool_tree": {
+        "cloud": {
+          "pool": "odin"
+        }
+      }
+    },
+    "finish_time": "2018-01-25T15:44:33.689623Z",
+    "operation_type": "sort",
+    "start_time": "2018-01-25T15:44:27.917808Z",
+    "state": "failed"
+  },
+  "$value": "b0165c58-114d5b9a-3f403e8-5a44ae00"
+}
