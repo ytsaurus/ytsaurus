@@ -173,7 +173,7 @@ template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValue>& entities);
 
 template <class TValue>
-std::vector<TValue*> GetValuesSortedByKey(const yhash_set<TValue*>& entities);
+std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities);
 
 ////////////////////////////////////////////////////////////////////////////////
 

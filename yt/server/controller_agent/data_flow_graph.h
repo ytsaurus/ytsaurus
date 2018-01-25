@@ -64,9 +64,9 @@ public:
     void RegisterFlow(TVertexDescriptor from, TVertexDescriptor to, const NChunkClient::NProto::TDataStatistics& statistics);
 
 private:
-    yhash<TVertexDescriptor, TProgressCounterPtr> JobCounters_;
+    THashMap<TVertexDescriptor, TProgressCounterPtr> JobCounters_;
 
-    using TFlowMap = yhash<TVertexDescriptor, yhash<TVertexDescriptor, NChunkClient::NProto::TDataStatistics>>;
+    using TFlowMap = THashMap<TVertexDescriptor, THashMap<TVertexDescriptor, NChunkClient::NProto::TDataStatistics>>;
     TFlowMap Flow_;
 
     TIncrementalTopologicalOrdering TopologicalOrdering_;

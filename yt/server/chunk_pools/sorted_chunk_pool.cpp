@@ -300,7 +300,7 @@ private:
     {
         Jobs_.emplace_back(std::make_unique<TJobStub>());
 
-        yhash<TInputDataSlicePtr, TKey> openedSlicesLowerLimits;
+        THashMap<TInputDataSlicePtr, TKey> openedSlicesLowerLimits;
 
         auto yielder = CreatePeriodicYielder();
 
@@ -538,7 +538,7 @@ private:
 
     //! Stores correspondence between primary data slices added via `AddPrimaryDataSlice`
     //! (both unversioned and versioned) and their input cookies.
-    yhash<TInputDataSlicePtr, IChunkPoolInput::TCookie> DataSliceToInputCookie_;
+    THashMap<TInputDataSlicePtr, IChunkPoolInput::TCookie> DataSliceToInputCookie_;
 
     std::vector<std::vector<TInputDataSlicePtr>> ForeignDataSlices_;
 
@@ -656,7 +656,7 @@ public:
             suspendableStripe.Resume(stripe);
         } else {
             JobManager_->Resume(cookie);
-            yhash<TInputChunkPtr, TInputChunkPtr> newChunkMapping;
+            THashMap<TInputChunkPtr, TInputChunkPtr> newChunkMapping;
             try {
                 newChunkMapping = suspendableStripe.ResumeAndBuildChunkMapping(stripe);
             } catch (std::exception& ex) {
@@ -855,7 +855,7 @@ private:
     //! During the pool lifetime some input chunks may be suspended and replaced with
     //! another chunks on resumption. We keep track of all such substitutions in this
     //! map and apply it whenever the `GetStripeList` is called.
-    yhash<TInputChunkPtr, TInputChunkPtr> InputChunkMapping_;
+    THashMap<TInputChunkPtr, TInputChunkPtr> InputChunkMapping_;
 
     //! Guarantee that each key goes to the single job.
     bool EnableKeyGuarantee_;
@@ -921,8 +921,8 @@ private:
         // into this vector.
         std::vector<TInputChunkSlicePtr> unversionedChunkSlices;
 
-        yhash<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
-        yhash<TInputChunkPtr, int> unversionedInputChunkToInputStreamIndex;
+        THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
+        THashMap<TInputChunkPtr, int> unversionedInputChunkToInputStreamIndex;
 
         std::vector<std::pair<TInputDataSlicePtr, IChunkPoolInput::TCookie>> nonTeleportPrimaryDataSlices;
 
@@ -1032,7 +1032,7 @@ private:
         }
 
         std::vector<TKey> lowerLimits, upperLimits;
-        yhash<TKey, int> singleKeySliceNumber;
+        THashMap<TKey, int> singleKeySliceNumber;
         std::vector<std::pair<TInputChunkPtr, IChunkPoolInput::TCookie>> teleportCandidates;
 
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {

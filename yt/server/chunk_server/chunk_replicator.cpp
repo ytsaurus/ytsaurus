@@ -925,7 +925,7 @@ void TChunkReplicator::ProcessExistingJobs(
     }
 
     // Check for missing jobs
-    yhash_set<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
+    THashSet<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
     std::vector<TJobPtr> missingJobs;
     for (const auto& job : node->Jobs()) {
         if (currentJobSet.find(job) == currentJobSet.end()) {

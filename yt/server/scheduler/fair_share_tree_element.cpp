@@ -37,7 +37,7 @@ TAggregateCounter& GetCounter(const TString& treeId, const TString& name)
     using TCounterKey = std::pair<TString, TString>;
     using TCounterValue = std::unique_ptr<TAggregateCounter>;
 
-    static yhash<TCounterKey, TCounterValue> counters;
+    static THashMap<TCounterKey, TCounterValue> counters;
 
     TCounterKey key = std::make_pair(treeId, name);
     auto it = counters.find(key);
@@ -489,7 +489,7 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
 {
     auto cloneChildren = [&] (
         const std::vector<TSchedulerElementPtr>& list,
-        yhash<TSchedulerElementPtr, int>* clonedMap,
+        THashMap<TSchedulerElementPtr, int>* clonedMap,
         std::vector<TSchedulerElementPtr>* clonedList)
     {
         for (const auto& child : list) {

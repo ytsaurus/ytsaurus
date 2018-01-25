@@ -143,12 +143,12 @@ public:
 
     //! This options have higher priority than Pool and other options
     //! defined in this class.
-    yhash<TString, TExtendedSchedulableConfigPtr> FairShareOptionsPerPoolTree;
+    THashMap<TString, TExtendedSchedulableConfigPtr> FairShareOptionsPerPoolTree;
 
     //! Pool trees to schedule operation in.
     //! Operation will be scheduled in default tree (if any) if this parameter
     //! is not specified.
-    yhash_set<TString> PoolTrees;
+    THashSet<TString> PoolTrees;
 
     TStrategyOperationSpec();
 
@@ -342,7 +342,7 @@ public:
 
     TNullable<bool> EnableInputTableIndex;
 
-    yhash<TString, TString> Environment;
+    THashMap<TString, TString> Environment;
 
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;

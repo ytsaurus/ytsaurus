@@ -75,7 +75,10 @@ public:
         INativeClientPtr client,
         ITransactionPtr transaction,
         const TRichYPath& richPath,
-        bool unordered);
+        TNameTablePtr nameTable,
+        const TColumnFilter& columnFilter,
+        bool unordered,
+        IThroughputThrottlerPtr throttler);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TFuture<void> GetReadyEvent() override;
@@ -101,9 +104,12 @@ private:
     const INativeClientPtr Client_;
     const ITransactionPtr Transaction_;
     const TRichYPath RichPath_;
+    const TNameTablePtr NameTable_;
+    const TColumnFilter ColumnFilter_;
+    const bool Unordered_;
+    const IThroughputThrottlerPtr Throttler_;
 
     const TTransactionId TransactionId_;
-    const bool Unordered_;
     const TReadSessionId ReadSessionId_;
 
     TFuture<void> ReadyEvent_;
@@ -124,14 +130,20 @@ TSchemalessTableReader::TSchemalessTableReader(
     INativeClientPtr client,
     ITransactionPtr transaction,
     const TRichYPath& richPath,
-    bool unordered)
-    : Config_(CloneYsonSerializable(config))
-    , Options_(options)
-    , Client_(client)
-    , Transaction_(transaction)
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter,
+    bool unordered,
+    IThroughputThrottlerPtr throttler)
+    : Config_(CloneYsonSerializable(std::move(config)))
+    , Options_(std::move(options))
+    , Client_(std::move(client))
+    , Transaction_(std::move(transaction))
     , RichPath_(richPath)
-    , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
+    , NameTable_(std::move(nameTable))
+    , ColumnFilter_(columnFilter)
     , Unordered_(unordered)
+    , Throttler_(std::move(throttler))
+    , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
     , ReadSessionId_(TReadSessionId::Create())
 {
     YCHECK(Config_);
@@ -271,9 +283,10 @@ void TSchemalessTableReader::DoOpen()
             nodeDirectory,
             dataSourceDirectory,
             dataSliceDescriptor,
-            New<TNameTable>(),
+            NameTable_,
             ReadSessionId_,
-            TColumnFilter());
+            ColumnFilter_,
+            Throttler_);
     } else {
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             path,
@@ -298,12 +311,12 @@ void TSchemalessTableReader::DoOpen()
             nodeDirectory,
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
-            New<TNameTable>(),
+            NameTable_,
             ReadSessionId_,
-            TColumnFilter(),
+            ColumnFilter_,
             schema.GetKeyColumns(),
             Null,
-            NConcurrency::GetUnlimitedThrottler());
+            Throttler_);
     }
 
     WaitFor(UnderlyingReader_->GetReadyEvent())
@@ -451,7 +464,10 @@ void TSchemalessTableReader::CheckUnavailableChunks(std::vector<TChunkSpec>* chu
 TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
     INativeClientPtr client,
     const NYPath::TRichYPath& path,
-    const TTableReaderOptions& options)
+    const TTableReaderOptions& options,
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     ITransactionPtr transaction;
 
@@ -468,7 +484,10 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
         client,
         transaction,
         path,
-        options.Unordered);
+        nameTable,
+        columnFilter,
+        options.Unordered,
+        throttler);
 
     return reader->GetReadyEvent().Apply(BIND([=] () -> ISchemalessMultiChunkReaderPtr {
         return reader;

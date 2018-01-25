@@ -348,7 +348,7 @@ void TMapNodeTypeHandler::DoClone(
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-    yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         sourceNode->GetTrunkNode(),

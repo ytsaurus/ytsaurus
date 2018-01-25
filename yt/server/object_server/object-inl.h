@@ -189,7 +189,7 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
 }
 
 template <class TValue>
-std::vector<TValue*> GetValuesSortedByKey(const yhash_set<TValue*>& entities)
+std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
 {
     std::vector<TValue*> values;
     for (auto* object : entities) {

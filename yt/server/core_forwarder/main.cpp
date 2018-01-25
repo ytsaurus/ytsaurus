@@ -66,7 +66,7 @@ protected:
         if (JobProxySocketPath_ || Exists(jobProxySocketNameFile)) {
             auto jobProxySocketName = JobProxySocketPath_
                 ? JobProxySocketPath_.Get()
-                : TFileInput(jobProxySocketNameFile).ReadLine();
+                : TUnbufferedFileInput(jobProxySocketNameFile).ReadLine();
             ForwardCore(jobProxySocketName);
         } else {
             WriteCoreToDisk();
@@ -108,7 +108,7 @@ protected:
         // it to first RLIMIT_CORE bytes.
         syslog(LOG_INFO, "Writing core to fallback path (FallbackPath: %s)", FallbackPath_.c_str());
         TFile coreFile(FallbackPath_, CreateNew | WrOnly | Seq | CloseOnExec);
-        TFileOutput coreFileOutput(coreFile);
+        TUnbufferedFileOutput coreFileOutput(coreFile);
         i64 size = Cin.ReadAll(coreFileOutput);
         syslog(LOG_INFO, "Finished writing core to disk (Size: %" PRId64 ")", size);
     }
@@ -136,7 +136,7 @@ protected:
 
         syslog(LOG_INFO, "Writing core to the named pipe (NamedPipePath: %s)", namedPipePath.c_str());
 
-        TFileOutput namedPipeOutput(namedPipePath);
+        TUnbufferedFileOutput namedPipeOutput(namedPipePath);
         i64 size = Cin.ReadAll(namedPipeOutput);
         syslog(LOG_INFO, "Finished writing core to the named pipe (Size: %" PRId64 ")", size);
     }

@@ -406,7 +406,7 @@ private:
         const TChunkReplicaList& writtenReplicas,
         const TChunkMeta& inputChunkMeta)
     {
-        static const yhash_set<int> masterMetaTags {
+        static const THashSet<int> masterMetaTags {
             TProtoExtensionTag<TMiscExt>::Value,
             TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
         };

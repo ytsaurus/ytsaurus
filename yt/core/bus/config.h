@@ -57,7 +57,7 @@ public:
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
 
-    yhash<TString, std::vector<NNet::TIP6Network>> Networks;
+    THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 
     TTcpBusServerConfig()
     {

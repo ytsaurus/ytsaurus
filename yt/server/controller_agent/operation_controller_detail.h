@@ -659,7 +659,7 @@ protected:
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
 
     //! Gets the list of all intermediate chunks that are not lost.
-    yhash_set<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
+    THashSet<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
 
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
@@ -905,14 +905,14 @@ private:
     typedef TOperationControllerBase TThis;
 
     //! Keeps information needed to maintain the liveness state of input chunks.
-    yhash<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
+    THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
 
     TOperationSpecBasePtr Spec_;
     TOperationOptionsPtr Options;
 
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
     TChunkListPoolPtr ChunkListPool_;
-    yhash<NObjectClient::TCellTag, int> CellTagToRequiredChunkLists;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredChunkLists;
 
     std::atomic<int> CachedPendingJobCount = {0};
 
@@ -924,12 +924,12 @@ private:
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 
     //! Maps an intermediate chunk id to its originating completed job.
-    yhash<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
+    THashMap<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
     TIntermediateChunkScraperPtr IntermediateChunkScraper;
 
     //! Maps scheduler's job ids to controller's joblets.
-    yhash<TJobId, TJobletPtr> JobletMap;
+    THashMap<TJobId, TJobletPtr> JobletMap;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
@@ -946,7 +946,7 @@ private:
 
     TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
-    yhash<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_;
 
     //! Aggregated schedule job statistics.
@@ -988,7 +988,7 @@ private:
 
     const std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
 
-    typedef yhash<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
+    typedef THashMap<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
     TMemoryDigestMap JobProxyMemoryDigests_;
     TMemoryDigestMap UserJobMemoryDigests_;
 
@@ -1012,7 +1012,7 @@ private:
     int StderrCount_ = 0;
     int JobNodeCount_ = 0;
 
-    yhash<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
+    THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
 
     class TSink;
     std::vector<std::unique_ptr<TSink>> Sinks_;

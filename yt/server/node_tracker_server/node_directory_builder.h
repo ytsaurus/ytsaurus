@@ -28,7 +28,7 @@ private:
     NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory_;
     const NNodeTrackerClient::EAddressType AddressType_;
 
-    yhash_set<TNodeId> ListedNodeIds_;
+    THashSet<TNodeId> ListedNodeIds_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

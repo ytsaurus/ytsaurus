@@ -64,8 +64,8 @@ public:
     IHttpHandlerPtr Match(TStringBuf path);
 
 private:
-    yhash<TString, IHttpHandlerPtr> Exact_;
-    yhash<TString, IHttpHandlerPtr> Subtrees_;
+    THashMap<TString, IHttpHandlerPtr> Exact_;
+    THashMap<TString, IHttpHandlerPtr> Subtrees_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

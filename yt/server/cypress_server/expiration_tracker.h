@@ -37,7 +37,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
     TCypressNodeExpirationMap ExpirationMap_;
-    yhash_set<TCypressNodeBase*> ExpiredNodes_;
+    THashSet<TCypressNodeBase*> ExpiredNodes_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

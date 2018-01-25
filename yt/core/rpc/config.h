@@ -15,7 +15,7 @@ class TServerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    yhash<TString, NYTree::INodePtr> Services;
+    THashMap<TString, NYTree::INodePtr> Services;
 
     TServerConfig()
     {
@@ -32,7 +32,7 @@ class TServiceConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    yhash<TString, TMethodConfigPtr> Methods;
+    THashMap<TString, TMethodConfigPtr> Methods;
 
     TServiceConfig()
     {

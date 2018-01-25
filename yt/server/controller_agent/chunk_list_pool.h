@@ -47,7 +47,7 @@ private:
         std::vector<NChunkClient::TChunkListId> Ids;
     };
 
-    yhash<NObjectClient::TCellTag, TCellData> CellMap_;
+    THashMap<NObjectClient::TCellTag, TCellData> CellMap_;
 
     void AllocateMore(NObjectClient::TCellTag cellTag);
 

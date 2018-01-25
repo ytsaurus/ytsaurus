@@ -17,7 +17,7 @@ namespace NObjectServer {
 class TAttributeSet
 {
 public:
-    using TAttributeMap = yhash<TString, NYson::TYsonString>;
+    using TAttributeMap = THashMap<TString, NYson::TYsonString>;
     DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);
 
 public:

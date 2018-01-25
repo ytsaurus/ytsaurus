@@ -98,7 +98,7 @@ public:
     TNullable<TDuration> ResourceLimitsUpdatePeriod;
     TNullable<TString> ExternalJobContainer;
     TNullable<TString> ExternalJobRootVolume;
-    yhash<TString, TString> ExternalBinds;
+    THashMap<TString, TString> ExternalBinds;
 
     TPortoJobEnvironmentConfig()
     {

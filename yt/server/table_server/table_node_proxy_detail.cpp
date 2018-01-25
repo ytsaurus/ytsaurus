@@ -956,7 +956,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
     ToProto(response->mutable_schema(), trunkTable->TableSchema());
 
-    yhash_set<TTabletCell*> cells;
+    THashSet<TTabletCell*> cells;
     for (auto* tablet : trunkTable->Tablets()) {
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();

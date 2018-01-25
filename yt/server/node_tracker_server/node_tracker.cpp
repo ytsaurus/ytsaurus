@@ -787,11 +787,11 @@ private:
     int RackCount_ = 0;
     TRackSet UsedRackIndexes_;
 
-    yhash<TString, TNode*> AddressToNodeMap_;
-    yhash_mm<TString, TNode*> HostNameToNodeMap_;
-    yhash<TTransaction*, TNode*> TransactionToNodeMap_;
-    yhash<TString, TRack*> NameToRackMap_;
-    yhash<TString, TDataCenter*> NameToDataCenterMap_;
+    THashMap<TString, TNode*> AddressToNodeMap_;
+    THashMultiMap<TString, TNode*> HostNameToNodeMap_;
+    THashMap<TTransaction*, TNode*> TransactionToNodeMap_;
+    THashMap<TString, TRack*> NameToRackMap_;
+    THashMap<TString, TDataCenter*> NameToDataCenterMap_;
 
     TPeriodicExecutorPtr IncrementalNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;

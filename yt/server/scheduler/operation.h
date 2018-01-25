@@ -227,7 +227,7 @@ public:
     TNullable<int> FindSlotIndex(const TString& treeId) const override;
     int GetSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int value) override;
-    const yhash<TString, int>& GetSlotIndices() const;
+    const THashMap<TString, int>& GetSlotIndices() const;
 
     //! Returns a cancelable control invoker corresponding to this operation.
     const IInvokerPtr& GetCancelableControlInvoker();
@@ -263,7 +263,7 @@ private:
     const TCancelableContextPtr CancelableContext_;
     const IInvokerPtr CancelableInvoker_;
 
-    yhash<TString, int> TreeIdToSlotIndex_;
+    THashMap<TString, int> TreeIdToSlotIndex_;
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();

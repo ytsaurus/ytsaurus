@@ -117,7 +117,7 @@ public:
 
     void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy);
 
-    yhash_set<TString> GetRegisteredKeys() const;
+    THashSet<TString> GetRegisteredKeys() const;
 
 protected:
     virtual void OnLoaded();
@@ -134,7 +134,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    yhash<TString, IParameterPtr> Parameters;
+    THashMap<TString, IParameterPtr> Parameters;
 
     NYTree::IMapNodePtr Unrecognized;
     EUnrecognizedStrategy UnrecognizedStrategy = EUnrecognizedStrategy::Drop;

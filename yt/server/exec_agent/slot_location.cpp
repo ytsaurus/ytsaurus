@@ -342,7 +342,7 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
 
         try {
             TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TFileOutput output(file);
+            TUnbufferedFileOutput output(file);
             TYsonWriter writer(&output, EYsonFormat::Pretty);
             Serialize(config, &writer);
             writer.Flush();
@@ -509,7 +509,7 @@ NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() cons
     }
 
     i64 diskUsage = 0;
-    yhash<int, TNullable<i64>> occupiedSlotToDiskLimit;
+    THashMap<int, TNullable<i64>> occupiedSlotToDiskLimit;
 
     {
         TReaderGuard guard(SlotsLock_);

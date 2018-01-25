@@ -97,7 +97,7 @@ grpc_call_details* TGrpcCallDetails::operator->()
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TGrpcChannelArgs::TGrpcChannelArgs(const yhash<TString, NYTree::INodePtr>& args)
+TGrpcChannelArgs::TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& args)
 {
     for (const auto& pair : args) {
         Items_.emplace_back();

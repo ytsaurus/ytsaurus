@@ -61,7 +61,7 @@ DECLARE_REFCOUNTED_CLASS(TControllerAgentConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
-using TOperationIdToControllerMap = yhash<TOperationId, IOperationControllerPtr>;
+using TOperationIdToControllerMap = THashMap<TOperationId, IOperationControllerPtr>;
 
 // XXX(babenko): move private
 class TMasterConnector;

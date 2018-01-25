@@ -84,7 +84,7 @@ private:
     int ChunkCount_ = 0;
     int TabletCount_ = 0;
     i64 TabletStaticMemory_ = 0;
-    yhash<TString, i64> DiskSpacePerMedium_;
+    THashMap<TString, i64> DiskSpacePerMedium_;
     i64 DiskSpace_; // Compatibility.
 
 };

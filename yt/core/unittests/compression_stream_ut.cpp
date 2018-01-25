@@ -1,8 +1,8 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/compression/brotli_stream.h>
-
 #include <yt/core/misc/random.h>
+
+#include <library/streams/brotli/brotli.h>
 
 namespace NYT {
 namespace NCompression {

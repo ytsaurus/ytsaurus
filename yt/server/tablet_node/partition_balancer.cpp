@@ -404,7 +404,7 @@ private:
             auto req = proxy.LocateChunks();
             req->SetHeavy(true);
 
-            yhash<TChunkId, TSortedChunkStorePtr> storeMap;
+            THashMap<TChunkId, TSortedChunkStorePtr> storeMap;
 
             auto addStore = [&] (const ISortedStorePtr& store) {
                 if (store->GetType() != EStoreType::SortedChunk)
@@ -419,7 +419,7 @@ private:
                 ToProto(req->add_subrequests(), chunkId);
             };
 
-            auto addStores = [&] (const yhash_set<ISortedStorePtr>& stores) {
+            auto addStores = [&] (const THashSet<ISortedStorePtr>& stores) {
                 for (const auto& store : stores) {
                     addStore(store);
                 }

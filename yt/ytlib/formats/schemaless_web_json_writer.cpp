@@ -62,7 +62,7 @@ private:
 
     TBlobOutput Buffer_;
 
-    yhash<ui16, int> ColumnIds_;
+    THashMap<ui16, int> ColumnIds_;
     std::vector<std::vector<std::pair<TSharedRef, int>>> ResultRows_;
 
     bool IncompleteRows_ = false;

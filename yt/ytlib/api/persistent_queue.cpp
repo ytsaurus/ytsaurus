@@ -141,7 +141,7 @@ private:
 
     struct TTablet
     {
-        yhash_set<i64> ConsumedRowIndexes;
+        THashSet<i64> ConsumedRowIndexes;
         i64 MaxConsumedRowIndex = std::numeric_limits<i64>::min();
         i64 FetchRowIndex = std::numeric_limits<i64>::max();
     };
@@ -154,7 +154,7 @@ private:
         std::deque<TBatch> Batches;
         int BatchesRowCount = 0;
         i64 BatchesDataWeight = 0;
-        yhash<int, TTablet> TabletMap;
+        THashMap<int, TTablet> TabletMap;
         std::atomic<bool> Failed = {false};
     };
 
@@ -710,7 +710,7 @@ private:
         auto tabletInfos = WaitFor(asyncTabletInfos)
             .ValueOrThrow();
 
-        yhash<int, const TTabletInfo*> tabletIndexToInfo;
+        THashMap<int, const TTabletInfo*> tabletIndexToInfo;
         YCHECK(TabletIndexes_.size() == tabletInfos.size());
         for (size_t index = 0; index < TabletIndexes_.size(); ++index) {
             YCHECK(tabletIndexToInfo.emplace(TabletIndexes_[index], &tabletInfos[index]).second);
@@ -735,11 +735,11 @@ private:
         struct TTabletStatistics
         {
             i64 LastTrimmedRowIndex = -1;
-            yhash_set<i64> ConsumedRowIndexes;
+            THashSet<i64> ConsumedRowIndexes;
             i64 TrimmedRowCountRequest = -1;
         };
 
-        yhash<int, TTabletStatistics> tabletStatisticsMap;
+        THashMap<int, TTabletStatistics> tabletStatisticsMap;
 
         for (const auto& row : stateRows) {
             auto& tablet = tabletStatisticsMap[row.TabletIndex];
@@ -899,7 +899,7 @@ TFuture<void> CreatePersistentQueueStateTable(
     return client->CreateNode(path, EObjectType::Table, options).As<void>();
 }
 
-TFuture<yhash<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsState(
+TFuture<THashMap<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsState(
     const IClientBasePtr& client,
     const NYPath::TYPath& path,
     const std::vector<int>& tabletIndexes)
@@ -923,7 +923,7 @@ TFuture<yhash<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsState
             auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
             auto stateColumnId = schema.GetColumnIndexOrThrow(TStateTable::StateColumnName);
 
-            yhash<int, TPersistentQueueTabletState> tabletMap;
+            THashMap<int, TPersistentQueueTabletState> tabletMap;
 
             for (auto row : rowset->GetRows()) {
                 Y_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
@@ -968,7 +968,7 @@ TFuture<yhash<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsState
 TFuture<void> UpdatePersistentQueueTabletsState(
     const IClientBasePtr& client,
     const NYPath::TYPath& path,
-    const yhash<int, TPersistentQueueTabletUpdate>& tabletMap)
+    const THashMap<int, TPersistentQueueTabletUpdate>& tabletMap)
 {
     return
         BIND([=] {

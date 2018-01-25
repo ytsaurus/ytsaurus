@@ -56,8 +56,8 @@ private:
         TTypeBuilder typeBuilder);
 
 private:
-    yhash<TString, uint64_t> SymbolToAddress_;
-    yhash<TString, TTypeBuilder> SymbolToTypeBuilder_;
+    THashMap<TString, uint64_t> SymbolToAddress_;
+    THashMap<TString, TTypeBuilder> SymbolToTypeBuilder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

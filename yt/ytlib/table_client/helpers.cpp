@@ -473,7 +473,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
 {
     auto nameTable = TNameTable::FromSchema(tableSchema);
 
-    auto rowParts = ConvertTo<yhash<TString, INodePtr>>(
+    auto rowParts = ConvertTo<THashMap<TString, INodePtr>>(
         TYsonString(yson, EYsonType::MapFragment));
 
     TUnversionedOwningRowBuilder rowBuilder;

@@ -5,7 +5,7 @@ set(CHARSET_SRCS
   ${CHARSET_BASE}/unicode_table.cpp
   ${CHARSET_BASE}/unidata.cpp
   ${CHARSET_BASE}/utf8.cpp
-  ${CHARSET_BASE}/sse41/wide.cpp
+  ${CHARSET_BASE}/wide_sse41.cpp
   ${CHARSET_BASE}/wide.cpp
 )
 
@@ -75,7 +75,6 @@ set(GENERIC_SRCS
   ${GENERIC_BASE}/ptr.cpp
   ${GENERIC_BASE}/queue.cpp
   ${GENERIC_BASE}/refcount.cpp
-  ${GENERIC_BASE}/ref.cpp
   ${GENERIC_BASE}/region.cpp
   ${GENERIC_BASE}/reinterpretcast.cpp
   ${GENERIC_BASE}/set.cpp
@@ -165,6 +164,7 @@ set(SYSTEM_SRCS
   ${SYSTEM_BASE}/shmat.cpp
   ${SYSTEM_BASE}/sigset.cpp
   ${SYSTEM_BASE}/spinlock.cpp
+  ${SYSTEM_BASE}/spin_wait.cpp
   ${SYSTEM_BASE}/src_location.cpp
   ${SYSTEM_BASE}/strlcpy.c
   ${SYSTEM_BASE}/sys_alloc.cpp

@@ -118,7 +118,7 @@ private:
         { }
     };
 
-    yhash<int, int> BlockIndexToWindowIndex_;
+    THashMap<int, int> BlockIndexToWindowIndex_;
 
     std::unique_ptr<TWindowSlot[]> Window_;
     int WindowSize_ = 0;

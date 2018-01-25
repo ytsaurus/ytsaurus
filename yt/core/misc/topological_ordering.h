@@ -25,7 +25,7 @@ public:
 
 private:
     std::vector<int> TopologicalOrdering_;
-    yhash<int, yhash_set<int>> OutgoingEdges_;
+    THashMap<int, THashSet<int>> OutgoingEdges_;
 
     void Rebuild();
 };

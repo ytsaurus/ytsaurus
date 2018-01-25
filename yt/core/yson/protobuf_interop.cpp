@@ -86,8 +86,8 @@ private:
 
     TSpinLock SpinLock_;
     std::vector<TString> InternedStrings_;
-    yhash<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
-    yhash<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
+    THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
+    THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,8 +212,8 @@ private:
     const Descriptor* const Underlying_;
 
     std::vector<int> RequiredFieldNumbers_;
-    yhash<TStringBuf, std::unique_ptr<TProtobufField>> NameToField_;
-    yhash<int, const TProtobufField*> NumberToField_;
+    THashMap<TStringBuf, std::unique_ptr<TProtobufField>> NameToField_;
+    THashMap<int, const TProtobufField*> NumberToField_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,8 +257,8 @@ private:
     TProtobufTypeRegistry* const Registry_;
     const EnumDescriptor* const Underlying_;
 
-    yhash<TStringBuf, int> LitrealToValue_;
-    yhash<int, TStringBuf> ValueToLiteral_;
+    THashMap<TStringBuf, int> LitrealToValue_;
+    THashMap<int, TStringBuf> ValueToLiteral_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

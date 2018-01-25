@@ -20,7 +20,7 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
-    using TReplicaSet = yhash_set<NTabletServer::TTableReplica*>;
+    using TReplicaSet = THashSet<NTabletServer::TTableReplica*>;
     const TReplicaSet& Replicas() const;
     TReplicaSet& Replicas();
 

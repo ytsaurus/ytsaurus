@@ -1223,14 +1223,14 @@ ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
     const ui64 MurmurHashConstant = 0xc6a4a7935bd1e995ULL;
 
     // Append fingerprint to hash value. Like Murmurhash.
-    const auto hash64 = [&, MurmurHashConstant] (ui64 data, ui64 value) {
+    const auto hash64 = [&] (ui64 data, ui64 value) {
         value ^= FarmFingerprint(data);
         value *= MurmurHashConstant;
         return value;
     };
 
     // Hash string. Like Murmurhash.
-    const auto hash = [&, MurmurHashConstant] (const void* voidData, int length, ui64 seed) {
+    const auto hash = [&] (const void* voidData, int length, ui64 seed) {
         ui64 result = seed;
         const ui64* ui64Data = reinterpret_cast<const ui64*>(voidData);
         const ui64* ui64End = ui64Data + (length / 8);

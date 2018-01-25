@@ -37,7 +37,7 @@ public:
 
 private:
     std::vector<T> Items_;
-    yhash<T, size_t> ItemToIndex_;
+    THashMap<T, size_t> ItemToIndex_;
 
 };
 

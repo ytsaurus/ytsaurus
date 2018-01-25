@@ -69,13 +69,13 @@ TConstExpressionPtr PrepareExpression(
     const TString& source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
-    yhash_set<TString>* references = nullptr);
+    THashSet<TString>* references = nullptr);
 
 TConstExpressionPtr PrepareExpression(
     const TParsedSource& parsedSource,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
-    yhash_set<TString>* references = nullptr);
+    THashSet<TString>* references = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

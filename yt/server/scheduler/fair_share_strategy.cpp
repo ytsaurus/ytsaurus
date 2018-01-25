@@ -38,7 +38,7 @@ namespace {
 
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static yhash<EScheduleJobFailReason, TTagId> tagId;
+    static THashMap<EScheduleJobFailReason, TTagId> tagId;
 
     auto it = tagId.find(reason);
     if (it == tagId.end()) {
@@ -52,7 +52,7 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 
 TTagId GetSlotIndexProfilingTag(int slotIndex)
 {
-    static yhash<int, TTagId> slotIndexToTagIdMap;
+    static THashMap<int, TTagId> slotIndexToTagIdMap;
 
     auto it = slotIndexToTagIdMap.find(slotIndex);
     if (it == slotIndexToTagIdMap.end()) {
@@ -68,7 +68,7 @@ class TFairShareStrategyOperationState
     : public TIntrinsicRefCounted
 {
 public:
-    using TTreeIdToPoolIdMap = yhash<TString, TString>;
+    using TTreeIdToPoolIdMap = THashMap<TString, TString>;
 
     DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
     DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
@@ -317,13 +317,13 @@ public:
 
         try {
             // Build the set of potential orphans.
-            yhash_set<TString> orphanPoolIds;
+            THashSet<TString> orphanPoolIds;
             for (const auto& pair : Pools) {
                 YCHECK(orphanPoolIds.insert(pair.first).second);
             }
 
             // Track ids appearing in various branches of the tree.
-            yhash<TString, TYPath> poolIdToPath;
+            THashMap<TString, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
             std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
@@ -785,23 +785,23 @@ private:
 
     const NLogging::TLogger Logger;
 
-    using TPoolMap = yhash<TString, TPoolPtr>;
+    using TPoolMap = THashMap<TString, TPoolPtr>;
     TPoolMap Pools;
 
-    yhash<TString, NProfiling::TTagId> PoolIdToProfilingTagId;
+    THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId;
 
-    yhash<TString, yhash_set<TString>> UserToEphemeralPools;
+    THashMap<TString, THashSet<TString>> UserToEphemeralPools;
 
-    yhash<TString, yhash_set<int>> PoolToSpareSlotIndices;
-    yhash<TString, int> PoolToMinUnusedSlotIndex;
+    THashMap<TString, THashSet<int>> PoolToSpareSlotIndices;
+    THashMap<TString, int> PoolToMinUnusedSlotIndex;
 
-    using TOperationElementPtrByIdMap = yhash<TOperationId, TOperationElementPtr>;
+    using TOperationElementPtrByIdMap = THashMap<TOperationId, TOperationElementPtr>;
     TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationId> WaitingOperationQueue;
 
     TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
-    yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
+    THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
 
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
     std::vector<int> FreeSchedulingTagFilterIndexes;
@@ -810,7 +810,7 @@ private:
         int Index;
         int Count;
     };
-    yhash<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
+    THashMap<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
 
     TRootElementPtr RootElement;
 
@@ -1002,7 +1002,7 @@ private:
 
         // Compute discount to node usage.
         LOG_TRACE("Looking for preemptable jobs");
-        yhash_set<TCompositeSchedulerElementPtr> discountedPools;
+        THashSet<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_AGGREGATED_TIMING(AnalyzePreemptableJobsTimeCounter) {
             for (const auto& job : context.SchedulingContext->RunningJobs()) {
@@ -1465,7 +1465,7 @@ private:
 
         auto it = PoolToSpareSlotIndices.find(poolName);
         if (it == PoolToSpareSlotIndices.end()) {
-            YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, yhash_set<int>{*slotIndex})).second);
+            YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, THashSet<int>{*slotIndex})).second);
         } else {
             it->second.insert(*slotIndex);
         }
@@ -2043,8 +2043,8 @@ public:
         std::vector<TError> errors;
 
         // Collect trees to add and remove.
-        yhash_set<TString> treeIdsToAdd;
-        yhash_set<TString> treeIdsToRemove;
+        THashSet<TString> treeIdsToAdd;
+        THashSet<TString> treeIdsToRemove;
         CollectTreesToAddAndRemove(poolsMap, &treeIdsToAdd, &treeIdsToRemove);
 
         // Populate trees map. New trees are not added to global map yet.
@@ -2085,7 +2085,7 @@ public:
         DefaultTreeId_ = defaultTreeId;
         std::swap(IdToTree_, idToTree);
 
-        yhash<TString, IFairShareTreeSnapshotPtr> snapshots;
+        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         for (const auto& pair : IdToTree_) {
             const auto& treeId = pair.first;
             const auto& tree = pair.second;
@@ -2237,7 +2237,7 @@ public:
         }
 
 
-        yhash<TString, std::vector<TExecNodeDescriptor>> descriptorsPerPoolTree;
+        THashMap<TString, std::vector<TExecNodeDescriptor>> descriptorsPerPoolTree;
         for (const auto& pair : IdToTree_) {
             const auto& treeId = pair.first;
             descriptorsPerPoolTree.emplace(treeId, std::vector<TExecNodeDescriptor>{});
@@ -2285,7 +2285,7 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        yhash<TString, IFairShareTreeSnapshotPtr> snapshots;
+        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         {
             TReaderGuard guard(TreeIdToSnapshotLock_);
             snapshots = TreeIdToSnapshot_;
@@ -2340,7 +2340,7 @@ public:
             }
         }
 
-        yhash<TString, IFairShareTreeSnapshotPtr> snapshots;
+        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
 
         for (const auto& pair : IdToTree_) {
             const auto& treeId = pair.first;
@@ -2399,7 +2399,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        yhash<TString, IFairShareTreeSnapshotPtr> snapshots;
+        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         {
             TReaderGuard guard(TreeIdToSnapshotLock_);
             snapshots = TreeIdToSnapshot_;
@@ -2442,7 +2442,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        yhash<TString, std::vector<TJobPtr>> jobsByTreeId;
+        THashMap<TString, std::vector<TJobPtr>> jobsByTreeId;
 
         for (const auto& job : jobs) {
             jobsByTreeId[job->GetTreeId()].push_back(job);
@@ -2456,7 +2456,7 @@ public:
         }
     }
 
-    virtual void ValidateNodeTags(const yhash_set<TString>& tags) override
+    virtual void ValidateNodeTags(const THashSet<TString>& tags) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -2490,17 +2490,17 @@ private:
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
 
     TReaderWriterSpinLock OperationIdToOperationStateLock_;
-    yhash<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
+    THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
     TInstant LastProfilingTime_;
 
-    using TFairShareTreeMap = yhash<TString, TFairShareTreePtr>;
+    using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
     TFairShareTreeMap IdToTree_;
 
     TNullable<TString> DefaultTreeId_;
 
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
-    yhash<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
+    THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
 
     TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation, INodePtr specNode) const
     {
@@ -2512,7 +2512,7 @@ private:
         }
     }
 
-    yhash<TString, TString> ParseOperationPools(const IOperationStrategyHost* operation) const
+    THashMap<TString, TString> ParseOperationPools(const IOperationStrategyHost* operation) const
     {
         auto spec = ParseSpec(operation, operation->GetSpec());
 
@@ -2546,7 +2546,7 @@ private:
             return {{*DefaultTreeId_, operation->GetAuthenticatedUser()}};
         }
 
-        yhash<TString, TString> pools;
+        THashMap<TString, TString> pools;
 
         for (const auto& treeId : trees) {
             auto optionsIt = spec->FairShareOptionsPerPoolTree.find(treeId);
@@ -2671,8 +2671,8 @@ private:
 
     void CollectTreesToAddAndRemove(
         const IMapNodePtr& poolsMap,
-        yhash_set<TString>* treesToAdd,
-        yhash_set<TString>* treesToRemove) const
+        THashSet<TString>* treesToAdd,
+        THashSet<TString>* treesToRemove) const
     {
         for (const auto& key : poolsMap->GetKeys()) {
             if (IdToTree_.find(key) == IdToTree_.end()) {
@@ -2708,8 +2708,8 @@ private:
 
     TFairShareTreeMap ConstructUpdatedTreeMap(
         const IMapNodePtr& poolsMap,
-        const yhash_set<TString>& treesToAdd,
-        const yhash_set<TString>& treesToRemove,
+        const THashSet<TString>& treesToAdd,
+        const THashSet<TString>& treesToRemove,
         std::vector<TError>* errors) const
     {
         TFairShareTreeMap trees;
@@ -2742,7 +2742,7 @@ private:
 
     bool CheckTreesConfiguration(const TFairShareTreeMap& trees, std::vector<TError>* errors) const
     {
-        yhash<NNodeTrackerClient::TNodeId, yhash_set<TString>> nodeIdToTreeSet;
+        THashMap<NNodeTrackerClient::TNodeId, THashSet<TString>> nodeIdToTreeSet;
 
         for (const auto& pair : trees) {
             const auto& treeId = pair.first;
@@ -2804,14 +2804,14 @@ private:
         }
     }
 
-    void AbortOrphanedOperations(const yhash_set<TString>& treesToRemove)
+    void AbortOrphanedOperations(const THashSet<TString>& treesToRemove)
     {
         if (treesToRemove.empty()) {
             return;
         }
 
-        yhash<TOperationId, yhash_set<TString>> operationIdToTreeSet;
-        yhash<TString, yhash_set<TOperationId>> treeIdToOperationSet;
+        THashMap<TOperationId, THashSet<TString>> operationIdToTreeSet;
+        THashMap<TString, THashSet<TOperationId>> treeIdToOperationSet;
 
         for (const auto& pair : OperationIdToOperationState_) {
             const auto& operationId = pair.first;

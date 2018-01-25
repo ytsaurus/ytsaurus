@@ -217,7 +217,7 @@ void TSnapshotBuilder::RunParent()
 void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> jobs)
 {
     for (const auto& job : jobs) {
-        TFileOutput outputStream(*job.OutputFile);
+        TUnbufferedFileOutput outputStream(*job.OutputFile);
 
         auto checkpointableOutput = CreateCheckpointableOutputStream(&outputStream);
         auto bufferedOutput = CreateBufferedCheckpointableOutputStream(checkpointableOutput.get(), PipeWriteBufferSize);

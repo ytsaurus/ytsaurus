@@ -424,7 +424,7 @@ private:
     TProtobufFormatDescriptionPtr Description_;
 
     std::vector<TFieldInfo> Fields_;
-    yhash<ui32, TFieldInfo> HashFields_;
+    THashMap<ui32, TFieldInfo> HashFields_;
     const ui32 TableIndex_;
     static constexpr size_t MinHashTag_ = 256;
 

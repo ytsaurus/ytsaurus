@@ -64,10 +64,10 @@ using TNetworkAddressList = std::vector<std::pair<TString, TString>>;
 using TNetworkPreferenceList = std::vector<TString>;
 
 // Network -> host:port.
-using TAddressMap = yhash<TString, TString>;
+using TAddressMap = THashMap<TString, TString>;
 
 // Address Type (e.g. rpc, http) -> Network -> host:port.
-using TNodeAddressMap = yhash<EAddressType, TAddressMap>;
+using TNodeAddressMap = THashMap<EAddressType, TAddressMap>;
 
 class TNodeDescriptor;
 class TNodeDirectoryBuilder;

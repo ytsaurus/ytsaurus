@@ -113,7 +113,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TNameTablePtr nameTable,
     const NChunkClient::TReadSessionId& sessionId,
     const TColumnFilter& columnFilter = TColumnFilter(),
-    const TKeyColumns &keyColumns = TKeyColumns(),
+    const TKeyColumns& keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 

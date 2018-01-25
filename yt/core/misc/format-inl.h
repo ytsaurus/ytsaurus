@@ -286,11 +286,11 @@ struct TValueFormatter<std::set<T>>
     }
 };
 
-// yhash_set
+// THashSet
 template <class T>
-struct TValueFormatter<yhash_set<T>>
+struct TValueFormatter<THashSet<T>>
 {
-    static void Do(TStringBuilder* builder, const yhash_set<T>& collection, const TStringBuf& /*format*/)
+    static void Do(TStringBuilder* builder, const THashSet<T>& collection, const TStringBuf& /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }

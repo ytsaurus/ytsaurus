@@ -29,7 +29,7 @@ void TIncrementalTopologicalOrdering::Persist(const TStreamPersistenceContext& c
 void TIncrementalTopologicalOrdering::Rebuild()
 {
     std::queue<int> queue;
-    yhash<int, int> inDegree;
+    THashMap<int, int> inDegree;
 
     // Initialize in-degrees of all vertices.
     for (const auto& pair : OutgoingEdges_) {

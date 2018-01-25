@@ -241,7 +241,7 @@ void TFileLogWriter::Open()
     try {
         NFS::MakeDirRecursive(NFS::GetDirectoryName(FileName_));
         File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-        FileOutput_.reset(new TBufferedFileOutput(*File_, BufferSize));
+        FileOutput_.reset(new TFixedBufferFileOutput(*File_, BufferSize));
         FileOutput_->SetFinishPropagateMode(true);
 
         // Emit a delimiter for ease of navigation.

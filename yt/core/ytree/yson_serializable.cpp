@@ -48,9 +48,9 @@ void TYsonSerializableLite::SetUnrecognizedStrategy(EUnrecognizedStrategy strate
     }
 }
 
-yhash_set<TString> TYsonSerializableLite::GetRegisteredKeys() const
+THashSet<TString> TYsonSerializableLite::GetRegisteredKeys() const
 {
-    yhash_set<TString> result;
+    THashSet<TString> result;
     for (const auto& pair : Parameters) {
         result.insert(pair.first);
         for (const auto& key : pair.second->GetAliases()) {

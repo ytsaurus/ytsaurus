@@ -699,7 +699,7 @@ public:
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
 
     //! Default environment variables set for every job.
-    yhash<TString, TString> Environment;
+    THashMap<TString, TString> Environment;
 
     //! If |true|, jobs are revived from snapshot.
     bool EnableJobRevival;
@@ -929,7 +929,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("environment", Environment)
-            .Default(yhash<TString, TString>())
+            .Default(THashMap<TString, TString>())
             .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("enable_controller_failure_spec_option", EnableControllerFailureSpecOption)

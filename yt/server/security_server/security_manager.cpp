@@ -1151,7 +1151,7 @@ private:
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
-    yhash<TString, TAccount*> AccountNameMap_;
+    THashMap<TString, TAccount*> AccountNameMap_;
 
     TAccountId SysAccountId_;
     TAccount* SysAccount_ = nullptr;
@@ -1163,8 +1163,8 @@ private:
     TAccount* IntermediateAccount_ = nullptr;
 
     NHydra::TEntityMap<TUser> UserMap_;
-    yhash<TString, TUser*> UserNameMap_;
-    yhash<TString, TTagId> UserNameToProfilingTagId_;
+    THashMap<TString, TUser*> UserNameMap_;
+    THashMap<TString, TTagId> UserNameToProfilingTagId_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
@@ -1185,7 +1185,7 @@ private:
     TUser* OwnerUser_ = nullptr;
 
     NHydra::TEntityMap<TGroup> GroupMap_;
-    yhash<TString, TGroup*> GroupNameMap_;
+    THashMap<TString, TGroup*> GroupNameMap_;
 
     TGroupId EveryoneGroupId_;
     TGroup* EveryoneGroup_ = nullptr;
@@ -1536,7 +1536,7 @@ private:
                 TClusterResources StagingUsage;
             };
 
-            yhash<TAccount*, TStat> statMap;
+            THashMap<TAccount*, TStat> statMap;
             for (const auto& pair : AccountMap_) {
                 statMap.emplace(pair.second, TStat());
             }

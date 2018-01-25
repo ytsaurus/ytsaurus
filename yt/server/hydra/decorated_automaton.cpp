@@ -344,7 +344,7 @@ private:
             2, // stderr
             int(OutputFile_->GetHandle())
         });
-        TFileOutput output(*OutputFile_);
+        TUnbufferedFileOutput output(*OutputFile_);
         auto writer = CreateAsyncAdapter(&output);
         Owner_->SaveSnapshot(writer)
             .Get()

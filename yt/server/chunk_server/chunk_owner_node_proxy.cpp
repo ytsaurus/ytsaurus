@@ -148,7 +148,7 @@ private:
     std::vector<TReadRange> Ranges_;
     int CurrentRangeIndex_ = 0;
 
-    yhash_set<int> ExtensionTags_;
+    THashSet<int> ExtensionTags_;
     NNodeTrackerServer::TNodeDirectoryBuilder NodeDirectoryBuilder_;
     bool Finished_ = false;
 

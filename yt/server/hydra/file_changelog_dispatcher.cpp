@@ -370,7 +370,7 @@ private:
 
     std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
-    yhash_set<TFileChangelogQueuePtr> Queues_;
+    THashSet<TFileChangelogQueuePtr> Queues_;
 
     TSimpleCounter RecordCounter_;
     TSimpleCounter ByteCounter_;

@@ -122,7 +122,7 @@ private:
 
     TTimestamp MinSegmentTimestamp_;
     TTimestamp MaxSegmentTimestamp_;
-    yhash<TTimestamp, ui32> UniqueTimestamps_;
+    THashMap<TTimestamp, ui32> UniqueTimestamps_;
     std::vector<TTimestamp> Dictionary_;
 
     std::vector<ui32> WriteTimestampIds_;

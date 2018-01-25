@@ -103,7 +103,7 @@ struct ISystemAttributeProvider
     //! Returns a (typically cached) set consisting of all non-custom attributes keys.
     //! \see TAttributeDescriptor::Custom
     //! \see ListSystemAttributes
-    virtual const yhash_set<const char*>& GetBuiltinAttributeKeys() = 0;
+    virtual const THashSet<const char*>& GetBuiltinAttributeKeys() = 0;
 
     //! Gets the value of a builtin attribute.
     /*!

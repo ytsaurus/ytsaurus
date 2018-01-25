@@ -402,7 +402,7 @@ private:
 #if PY_MAJOR_VERSION < 3
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
-                inputStream.reset(new TFileInput(Duplicate(file)));
+                inputStream.reset(new TUnbufferedFileInput(Duplicate(file)));
                 wrapStream = false;
             }
 #endif
@@ -529,7 +529,7 @@ private:
 
         // Holds outputStreamWrap if passed non-trivial stream argument
         std::unique_ptr<TOutputStreamWrap> outputStreamWrap;
-        std::unique_ptr<TFileOutput> fileOutput;
+        std::unique_ptr<TUnbufferedFileOutput> fileOutput;
         std::unique_ptr<TBufferedOutput> bufferedOutputStream;
 
         if (!outputStream) {
@@ -538,7 +538,7 @@ private:
 #if PY_MAJOR_VERSION < 3
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
-                fileOutput.reset(new TFileOutput(Duplicate(file)));
+                fileOutput.reset(new TUnbufferedFileOutput(Duplicate(file)));
                 outputStream = fileOutput.get();
                 wrapStream = false;
             }
@@ -682,9 +682,9 @@ private:
         ::google::protobuf::io::ArrayInputStream inputStream(serializedStringBuf.begin(), serializedStringBuf.size());
 
         TString result;
-		TStringOutput outputStream(result);
-		TYsonWriter writer(&outputStream);
-		ParseProtobuf(&writer, &inputStream, messageType);
+        TStringOutput outputStream(result);
+        TYsonWriter writer(&outputStream);
+        ParseProtobuf(&writer, &inputStream, messageType);
 
         return Py::ConvertToPythonString(result);
     }

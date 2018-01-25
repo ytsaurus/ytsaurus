@@ -72,9 +72,9 @@ private:
     TSharedRef LastBodyChunk_;
 
     bool ShouldKeepAlive_ = false;
-    
+
     void MaybeFlushHeader(bool trailer);
-    
+
     static int OnUrl(http_parser* parser, const char *at, size_t length);
     static int OnStatus(http_parser* parser, const char *at, size_t length);
     static int OnHeaderField(http_parser* parser, const char *at, size_t length);
@@ -106,7 +106,7 @@ public:
     virtual const THeadersPtr& GetTrailers() override;
 
     virtual TFuture<TSharedRef> Read() override;
-    
+
 private:
     const NConcurrency::IAsyncInputStreamPtr Reader_;
     const EMessageType MessageType_;
@@ -169,7 +169,7 @@ private:
     const NNet::IConnectionPtr Connection_;
     const EMessageType MessageType_;
 
-    static const yhash_set<TString> FilteredHeaders_;
+    static const THashSet<TString> FilteredHeaders_;
 
     bool ConnectionClose_ = false;
 

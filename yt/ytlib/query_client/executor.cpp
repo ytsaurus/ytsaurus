@@ -267,7 +267,7 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& networks = Connection_->GetNetworks();
 
-        yhash<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
+        THashMap<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
         auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
             ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
@@ -543,7 +543,7 @@ private:
         LOG_DEBUG("Regrouping %v splits into groups",
             allSplits.size());
 
-        yhash<TString, std::vector<TDataRanges>> groupsByAddress;
+        THashMap<TString, std::vector<TDataRanges>> groupsByAddress;
         for (const auto& split : allSplits) {
             const auto& address = split.second;
             groupsByAddress[address].push_back(split.first);
