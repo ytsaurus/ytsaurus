@@ -100,10 +100,6 @@ public:
         const TJobResources& nodeResourceLimits,
         const TJobResources& neededResources);
 
-    // Checks against all available nodes.
-    void CheckResourceDemandSanity(
-        const TJobResources& neededResources);
-
     void DoCheckResourceDemandSanity(const TJobResources& neededResources);
 
     bool IsCompleted() const;
