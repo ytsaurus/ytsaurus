@@ -109,6 +109,8 @@ public:
 
     bool EnableCompactionAndPartitioning;
 
+    bool MergeRowsOnFlush;
+
     TTableMountConfig()
     {
         RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
@@ -237,6 +239,8 @@ public:
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
             .Default(true);
 
+        RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
