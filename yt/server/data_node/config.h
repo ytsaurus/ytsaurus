@@ -136,6 +136,15 @@ public:
     //! Controls outcoming location bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
 
+    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet preload.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet recovery.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
+
     EIOEngineType IOEngineType;
     NYTree::INodePtr IOConfig;
 
@@ -145,6 +154,12 @@ public:
             .GreaterThanOrEqual(0)
             .Default(TNullable<i64>());
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
             .DefaultNew();
         RegisterParameter("io_engine_type", IOEngineType)
             .Default(EIOEngineType::ThreadPool);
@@ -185,6 +200,19 @@ public:
     //! Controls incoming location bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
 
+    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet journals.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet snapshots.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletSnapshotInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet store flush.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
+
+
     TStoreLocationConfig()
     {
         RegisterParameter("low_watermark", LowWatermark)
@@ -204,6 +232,14 @@ public:
         RegisterParameter("repair_in_throttler", RepairInThrottler)
             .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", TabletCompactionAndPartitioningInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_logging_in_throttler", TabletLoggingInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_snapshot_in_throttler", TabletSnapshotInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
             .DefaultNew();
 
         // NB: base class's field.
@@ -531,7 +567,30 @@ public:
     //! Controls outcoming bandwidth used by Artifact Cache downloads.
     NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheOutThrottler;
 
+    //! Controls outcoming location bandwidth used by skynet sharing.
     NConcurrency::TThroughputThrottlerConfigPtr SkynetOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningInThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet journals.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingInThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet preload.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet recovery.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet snapshots.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletSnapshotInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet store flush.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
+
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
@@ -674,6 +733,20 @@ public:
         RegisterParameter("artifact_cache_out_throttler", ArtifactCacheOutThrottler)
             .DefaultNew();
         RegisterParameter("skynet_out_throttler", SkynetOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", TabletCompactionAndPartitioningInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_logging_in_throttler", TabletLoggingInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_snapshot_in_throttler", TabletSnapshotInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
             .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)

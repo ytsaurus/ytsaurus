@@ -213,6 +213,10 @@ private:
     const IInvokerPtr WritePoolInvoker_;
 
     const NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr TabletLoggingOutThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler_;
 
     const NChunkClient::IIOEnginePtr IOEngine_;
 
@@ -300,8 +304,12 @@ private:
     i64 TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 
-    NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
-    NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningInThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler_;
 
     TString GetTrashPath() const;
     TString GetTrashChunkPath(const TChunkId& chunkId) const;
