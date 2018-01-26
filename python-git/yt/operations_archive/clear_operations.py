@@ -3,7 +3,8 @@ from .queues import (Timer, ThreadSafeCounter, NonBlockingQueue,
                      run_batching_queue_workers, wait_for_queue)
 
 from yt.common import date_string_to_timestamp_mcs, datetime_to_string, update
-from yt.wrapper.config import get_config
+from yt.wrapper.config import get_config, set_option
+from yt.wrapper.http_helpers import _get_session
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -489,10 +490,14 @@ class ClientFactory(object):
                 "enable": False
             }
         }
-        self.config = update(deepcopy(get_config(base_client)), patch)
+        self._config = update(deepcopy(get_config(base_client)), patch)
+        self._session = _get_session(base_client)
 
     def __call__(self):
-        return yt.YtClient(config=deepcopy(self.config))
+        client = yt.YtClient(config=deepcopy(self.config))
+        # NOTE(asaitgalin): See https://st.yandex-team.ru/YT-8325
+        set_option("_requests_session", self._session, client)
+        return client
 
 def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, execution_timeout,
                      max_operations_per_user, robots, archive, archive_jobs, thread_count,
