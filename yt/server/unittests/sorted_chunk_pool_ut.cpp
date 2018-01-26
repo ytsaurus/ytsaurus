@@ -255,6 +255,7 @@ protected:
             Options_,
             !MockBuilders_.empty() ? BuildMockChunkSliceFetcherFactory() : nullptr,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
+        ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedChunkPoolTest::StoreInvalidationError, this));
     }
 
     TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
@@ -293,8 +294,10 @@ protected:
 
     void ResumeChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
     {
+        auto dataSlice = BuildDataSliceByChunk(chunk);
+        InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
         ActiveChunks_.insert(chunk->ChunkId());
-        ChunkPool_->Resume(cookie);
+        return ChunkPool_->Resume(cookie, New<TChunkStripe>(dataSlice));
     }
 
     void ExtractOutputCookiesWhilePossible()
@@ -329,6 +332,7 @@ protected:
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);
+        ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedChunkPoolTest::StoreInvalidationError, this));
     }
 
     std::vector<TChunkStripeListPtr> GetAllStripeLists()
@@ -558,6 +562,11 @@ protected:
         }
     }
 
+    void StoreInvalidationError(const TError& error)
+    {
+        InvalidationErrors_.emplace_back(error);
+    }
+
     std::unique_ptr<IChunkPool> ChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
@@ -587,6 +596,8 @@ protected:
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
     std::mt19937 Gen_;
+
+    std::vector<TError> InvalidationErrors_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1655,14 +1666,14 @@ TEST_F(TSortedChunkPoolTest, JoinReduce)
 
     CheckEverything(stripeLists, teleportChunks);
 }
-/*
+
 TEST_F(TSortedChunkPoolTest, ResumeSuspendMappingTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} *\/ isForeign *\/,
-        {false, false} *\/ isTeleportable *\/,
-        {false, false} *\/ isVersioned *\/
+        {false, false} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     MaxDataSlicesPerJob_ = 1;
@@ -1702,9 +1713,9 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} *\/ isForeign *\/,
-        {true, true} *\/ isTeleportable *\/,
-        {false, false} *\/ isVersioned *\/
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.MinTeleportChunkSize = 0;
@@ -1772,9 +1783,9 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} *\/ isForeign *\/,
-        {true, true} *\/ isTeleportable *\/,
-        {false, false} *\/ isVersioned *\/
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.MinTeleportChunkSize = 0;
@@ -1856,9 +1867,9 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} *\/ isForeign *\/,
-        {true, true} *\/ isTeleportable *\/,
-        {false, false} *\/ isVersioned *\/
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.MinTeleportChunkSize = 0;
@@ -1905,7 +1916,7 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
     ExtractOutputCookiesWhilePossible();
     EXPECT_TRUE(OutputCookies_.empty());
     EXPECT_EQ(ChunkPool_->GetTeleportChunks().size(), 2);
-}*/
+}
 
 TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
 {
@@ -2598,7 +2609,6 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys2)
     EXPECT_EQ(1, stripeLists[2]->Stripes.size());
     EXPECT_EQ(1, stripeLists[3]->Stripes.size());
 }
-
 
 TEST_F(TSortedChunkPoolTest, SuspendFinishResumeTest)
 {

@@ -95,11 +95,6 @@ bool TInputDataSlice::IsEmpty() const
     return LowerLimit_.Key && UpperLimit_.Key && LowerLimit_.Key >= UpperLimit_.Key;
 }
 
-bool TInputDataSlice::HasLimits() const
-{
-    return LowerLimit_.Key || LowerLimit_.RowIndex || UpperLimit_.Key || UpperLimit_.RowIndex;
-}
-
 std::pair<TInputDataSlicePtr, TInputDataSlicePtr> TInputDataSlice::SplitByRowIndex(i64 rowIndex) const
 {
     YCHECK(IsTrivial());
@@ -287,6 +282,8 @@ bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInpu
 
     diff = CompareRows(limit1.Key, limit2.Key);
     return diff < 0;
+
+
 }
 
 bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2)

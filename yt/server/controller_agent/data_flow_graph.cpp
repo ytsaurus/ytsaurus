@@ -1,6 +1,5 @@
 #include "data_flow_graph.h"
 
-#include "input_chunk_mapping.h"
 #include "serialize.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -26,7 +25,6 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    Persist(context, ChunkMapping);
     Persist(context, DestinationPool);
     Persist(context, RequiresRecoveryInfo);
     Persist(context, TableWriterOptions);
@@ -41,7 +39,6 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
 TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
 {
     DestinationPool = other.DestinationPool;
-    ChunkMapping = other.ChunkMapping;
     RequiresRecoveryInfo = other.RequiresRecoveryInfo;
     TableWriterOptions = CloneYsonSerializable(other.TableWriterOptions);
     TableUploadOptions = other.TableUploadOptions;

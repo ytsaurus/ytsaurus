@@ -146,7 +146,6 @@ public:
         Persist(context, ShufflePool);
         Persist(context, ShufflePoolInput);
         Persist(context, SimpleSortPool);
-        Persist(context, ShuffleChunkMapping_);
 
         Persist(context, PartitionTaskGroup);
         Persist(context, SortTaskGroup);
@@ -316,7 +315,6 @@ protected:
     std::unique_ptr<IShuffleChunkPool> ShufflePool;
     std::unique_ptr<IChunkPoolInput> ShufflePoolInput;
     std::unique_ptr<IChunkPool> SimpleSortPool;
-    TInputChunkMappingPtr ShuffleChunkMapping_;
 
     TTaskGroupPtr PartitionTaskGroup;
     TTaskGroupPtr SortTaskGroup;
@@ -662,11 +660,6 @@ protected:
             return false;
         }
 
-        virtual TInputChunkMappingPtr GetChunkMapping() const override
-        {
-            return Controller->ShuffleChunkMapping_;
-        }
-
     protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
@@ -734,26 +727,10 @@ protected:
         {
             EdgeDescriptors_.resize(1);
             EdgeDescriptors_[0].DestinationPool = Partition->SortedMergeTask->GetChunkPoolInput();
-            EdgeDescriptors_[0].ChunkMapping = Partition->SortedMergeTask->GetChunkMapping();
             EdgeDescriptors_[0].TableWriterOptions = Controller->GetIntermediateTableWriterOptions();
             EdgeDescriptors_[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Controller->Spec->SortBy);
             EdgeDescriptors_[0].RequiresRecoveryInfo = true;
             EdgeDescriptors_[0].IsFinalOutput = false;
-        }
-
-        virtual void OnStripeRegistrationFailed(
-            TError error,
-            IChunkPoolInput::TCookie cookie,
-            const TChunkStripePtr& stripe,
-            const TEdgeDescriptor& descriptor) override
-        {
-            if (!Controller->IsSortedMergeNeeded(Partition)) {
-                // Somehow we failed resuming a lost stripe in a sink. No comments.
-                TTask::OnStripeRegistrationFailed(error, cookie, stripe, descriptor);
-            }
-            Partition->SortedMergeTask->AbortAllActiveJoblets(error);
-            descriptor.DestinationPool->Reset(cookie, stripe);
-            descriptor.ChunkMapping->Reset(cookie, stripe);
         }
 
     protected:
@@ -1037,13 +1014,6 @@ protected:
             return Format("SimpleSort(%v)", Partition->Index);
         }
 
-        virtual TInputChunkMappingPtr GetChunkMapping() const override
-        {
-            // Shuffle pool is not used if simple sort is happening,
-            // so we can use our own chunk mapping.
-            return TTask::GetChunkMapping();
-        }
-
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleSortTask, 0xb32d4f02);
 
@@ -1175,23 +1145,6 @@ protected:
             return Finished_ ? FrozenTotalJobCount_ : TPartitionBoundTask::GetTotalJobCount();
         }
 
-        void AbortAllActiveJoblets(const TError& error)
-        {
-            if (Finished_) {
-                LOG_WARNING(error, "Chunk mapping has been invalidated, but the task has already finished");
-                return;
-            }
-            LOG_WARNING(error, "Aborting all jobs in task because of chunk mapping invalidation");
-            for (const auto& joblet : ActiveJoblets_) {
-                Controller->Host->AbortJob(
-                    joblet->JobId,
-                    TError("Job is aborted due to chunk mapping invalidation")
-                        << error);
-                InvalidatedJoblets_.insert(joblet);
-            }
-            JobOutputs_.clear();
-        }
-
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
@@ -1222,6 +1175,31 @@ protected:
             }
         };
         std::vector<TJobOutput> JobOutputs_;
+
+        virtual void SetupCallbacks() override
+        {
+            TTask::SetupCallbacks();
+
+            ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedMergeTask::AbortAllActiveJoblets, MakeWeak(this)));
+        }
+
+        void AbortAllActiveJoblets(const TError& error)
+        {
+            if (Finished_) {
+                LOG_WARNING(error, "Pool output has been invalidated, but the task has already finished (Task: %v)",
+                    GetTitle());
+                return;
+            }
+            LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetTitle());
+            for (const auto& joblet : ActiveJoblets_) {
+                Controller->Host->AbortJob(
+                    joblet->JobId,
+                    TError("Job is aborted due to chunk pool output invalidation")
+                        << error);
+                InvalidatedJoblets_.insert(joblet);
+            }
+            JobOutputs_.clear();
+        }
 
         void RegisterAllOutputs()
         {
@@ -1555,8 +1533,6 @@ protected:
         ShufflePool = CreateShuffleChunkPool(
             static_cast<int>(Partitions.size()),
             Spec->DataWeightPerShuffleJob);
-
-        ShuffleChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::Unordered);
 
         ShufflePoolInput = CreateIntermediateLivePreviewAdapter(ShufflePool->GetInput(), this);
 
@@ -2434,7 +2410,6 @@ private:
 
         TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
         shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
-        shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
         shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
         PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
         RegisterTask(PartitionTask);
@@ -3014,7 +2989,6 @@ private:
         // Primary edge descriptor for shuffled output of the mapper.
         TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
         shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
-        shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
         shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
 
         partitionEdgeDescriptors.emplace_back(std::move(shuffleEdgeDescriptor));

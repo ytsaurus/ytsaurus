@@ -26,9 +26,7 @@ public:
 
     virtual void Suspend(TCookie cookie) override;
 
-    virtual void Resume(TCookie cookie) override;
-
-    virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe) override;
+    virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe) override;
 
     virtual void Finish() override;
 

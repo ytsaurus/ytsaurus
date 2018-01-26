@@ -157,7 +157,7 @@ protected:
     {
         auto dataSlice = BuildDataSliceByChunk(chunk);
         ActiveChunks_.insert(chunk->ChunkId());
-        return ChunkPool_->Resume(cookie);
+        return ChunkPool_->Resume(cookie, New<TChunkStripe>(dataSlice));
     }
 
     void ExtractOutputCookiesWhilePossible()
