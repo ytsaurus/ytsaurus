@@ -374,7 +374,7 @@ class SimpleHashBucketOperationsCleaner(object):
         responses = []
         for op_path in op_paths:
             logger.info("Removing node %s", op_path)
-            responses.append(batch_client.remove("//sys/operations/" + op_path))
+            responses.append(batch_client.remove("//sys/operations/" + op_path, recursive=True))
         batch_client.commit_batch()
 
         unresolved = 0
