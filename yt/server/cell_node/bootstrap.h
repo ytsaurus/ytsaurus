@@ -167,6 +167,13 @@ private:
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheInThrottler;
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheOutThrottler;
     NConcurrency::IThroughputThrottlerPtr SkynetOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler;
 
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;

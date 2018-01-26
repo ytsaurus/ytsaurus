@@ -348,6 +348,35 @@ void TBootstrap::DoRun()
         createThrottler(Config->DataNode->SkynetOutThrottler, "SkynetOut")
     });
 
+    TabletCompactionAndPartitioningInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletCompactionAndPartitioningInThrottler, "TabletCompactionAndPartitioningIn")
+    });
+    TabletCompactionAndPartitioningOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletCompactionAndPartitioningOutThrottler, "TabletCompactionAndPartitioningOut")
+    });
+    TabletLoggingInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletLoggingInThrottler, "TabletLoggingIn")
+    });
+    TabletPreloadOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletPreloadOutThrottler, "TabletPreloadOut")
+    });
+    TabletSnapshotInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletSnapshotInThrottler, "TabletSnapshotIn")
+    });
+    TabletStoreFlushInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletStoreFlushInThrottler, "TabletStoreFlushIn")
+    });
+    TabletRecoveryOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "TabletRecoveryOut")
+    });
+
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
@@ -784,6 +813,19 @@ const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescrip
         case EWorkloadCategory::SystemArtifactCacheDownload:
             return ArtifactCacheInThrottler;
 
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningInThrottler;
+
+        case EWorkloadCategory::SystemTabletLogging:
+            return TabletLoggingInThrottler;
+
+        case EWorkloadCategory::SystemTabletSnapshot:
+            return TabletSnapshotInThrottler;
+
+        case EWorkloadCategory::SystemTabletStoreFlush:
+            return TabletStoreFlushInThrottler;
+
         default:
             return TotalInThrottler;
     }
@@ -800,6 +842,16 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
 
         case EWorkloadCategory::SystemArtifactCacheDownload:
             return ArtifactCacheOutThrottler;
+
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningOutThrottler;
+
+        case EWorkloadCategory::SystemTabletPreload:
+            return TabletPreloadOutThrottler;
+
+        case EWorkloadCategory::SystemTabletRecovery:
+            return TabletRecoveryOutThrottler;
 
         default:
             return TotalOutThrottler;
