@@ -110,45 +110,9 @@ public:
         }
     }
 
-    virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
+    virtual void Resume(IChunkPoolInput::TCookie cookie) override
     {
-        // Remove all partition extensions.
-        for (const auto& dataSlice : stripe->DataSlices) {
-            // NB: TShuffleChunkPool contains only chunks from unversioned tables.
-            const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
-            chunkSpec->ReleaseBoundaryKeys();
-            chunkSpec->ReleasePartitionsExt();
-        }
-
-        // Although the sizes and even the row count may have changed (mind unordered reader and
-        // possible undetermined mappers in partition jobs), we ignore it and use counter values
-        // from the initial stripes, hoping that nobody will recognize it. This may lead to
-        // incorrect memory consumption estimates but significant bias is very unlikely.
         const auto& inputStripe = InputStripes[cookie];
-        int stripeCount = inputStripe.ElementaryIndexEnd - inputStripe.ElementaryIndexBegin;
-        int limit = std::min(static_cast<int>(stripe->DataSlices.size()), stripeCount - 1);
-
-        // Fill the initial range of elementary stripes with new chunks (one per stripe).
-        for (int index = 0; index < limit; ++index) {
-            auto dataSlice = stripe->DataSlices[index];
-            int elementaryIndex = index + inputStripe.ElementaryIndexBegin;
-            ElementaryStripes[elementaryIndex] = New<TChunkStripe>(dataSlice);
-        }
-
-        // Cleanup the rest of elementary stripes.
-        for (int elementaryIndex = inputStripe.ElementaryIndexBegin + limit;
-             elementaryIndex < inputStripe.ElementaryIndexEnd;
-             ++elementaryIndex)
-        {
-            ElementaryStripes[elementaryIndex] = New<TChunkStripe>();
-        }
-
-        // Put remaining chunks (if any) into the last stripe.
-        auto& lastElementaryStripe = ElementaryStripes[inputStripe.ElementaryIndexBegin + limit];
-        for (int index = limit; index < static_cast<int>(stripe->DataSlices.size()); ++index) {
-            auto dataSlice = stripe->DataSlices[index];
-            lastElementaryStripe->DataSlices.push_back(dataSlice);
-        }
 
         for (int elementaryIndex = inputStripe.ElementaryIndexBegin;
              elementaryIndex < inputStripe.ElementaryIndexEnd;

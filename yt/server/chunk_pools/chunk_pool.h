@@ -7,6 +7,7 @@
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/progress_counter.h>
 #include <yt/server/controller_agent/serialize.h>
+#include <yt/server/controller_agent/public.h>
 
 #include <yt/server/chunk_server/public.h>
 
@@ -35,7 +36,13 @@ struct IChunkPoolInput
     }
 
     virtual void Suspend(TCookie cookie) = 0;
-    virtual void Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
+    virtual void Resume(TCookie cookie) = 0;
+
+    //! When called, pool is forced to replace an input stripe corresponding
+    //! to a given cookie with a given new stripe, to apply the given mapping
+    //! to the rest of stripes and to form jobs once again.
+    virtual void Reset(TCookie cookie, TChunkStripePtr stripe, NControllerAgent::TInputChunkMappingPtr mapping) = 0;
+
     virtual void Finish() = 0;
 };
 
@@ -52,6 +59,9 @@ public:
     //! chunk pools) and that `stripe` contains data slices, after that it
     //! forwards the call to the internal `Add` method.
     virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override;
+
+    //! This implementation is not ready to go that far.
+    virtual void Reset(TCookie cookie, TChunkStripePtr stripe, NControllerAgent::TInputChunkMappingPtr mapping) override;
 
     // IPersistent implementation.
     virtual void Persist(const TPersistenceContext& context) override;
@@ -106,9 +116,6 @@ struct IChunkPoolOutput
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
-
-    //! Raised when all the output cookies from this pool no longer correspond to valid jobs.
-    DECLARE_INTERFACE_SIGNAL(void(const TError& error), PoolOutputInvalidated);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,9 +131,6 @@ public:
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
-
-public:
-    DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
 
 protected:
     std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
