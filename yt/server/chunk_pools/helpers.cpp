@@ -59,47 +59,6 @@ std::vector<TChunkId> GetStripeListChunkIds(const TChunkStripeListPtr& stripeLis
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripeListPtr ApplyChunkMappingToStripe(
-    const TChunkStripeListPtr& stripeList,
-    const yhash<TInputChunkPtr, TInputChunkPtr>& inputChunkMapping)
-{
-    auto mappedStripeList = New<TChunkStripeList>(stripeList->Stripes.size());
-    mappedStripeList->IsSplittable = stripeList->IsSplittable;
-    for (int stripeIndex = 0; stripeIndex < stripeList->Stripes.size(); ++stripeIndex) {
-        const auto& stripe = stripeList->Stripes[stripeIndex];
-        YCHECK(stripe);
-        const auto& mappedStripe = (mappedStripeList->Stripes[stripeIndex] = New<TChunkStripe>(stripe->Foreign));
-        for (const auto& dataSlice : stripe->DataSlices) {
-            TInputDataSlice::TChunkSliceList mappedChunkSlices;
-            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                auto iterator = inputChunkMapping.find(chunkSlice->GetInputChunk());
-                YCHECK(iterator != inputChunkMapping.end());
-                mappedChunkSlices.emplace_back(New<TInputChunkSlice>(*chunkSlice));
-                mappedChunkSlices.back()->SetInputChunk(iterator->second);
-            }
-
-            mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
-                    dataSlice->Type,
-                    std::move(mappedChunkSlices),
-                    dataSlice->LowerLimit(),
-                    dataSlice->UpperLimit()));
-            mappedStripe->DataSlices.back()->Tag = dataSlice->Tag;
-            mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
-        }
-    }
-
-    mappedStripeList->IsApproximate = stripeList->IsApproximate;
-    mappedStripeList->TotalDataWeight = stripeList->TotalDataWeight;
-    mappedStripeList->LocalDataWeight = stripeList->LocalDataWeight;
-    mappedStripeList->TotalRowCount = stripeList->TotalRowCount;
-    mappedStripeList->TotalChunkCount = stripeList->TotalChunkCount;
-    mappedStripeList->LocalChunkCount = stripeList->LocalChunkCount;
-
-    return mappedStripeList;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSuspendableStripe::TSuspendableStripe()
     : ExtractedCookie_(IChunkPoolOutput::NullCookie)
 { }
@@ -134,6 +93,13 @@ bool TSuspendableStripe::IsSuspended() const
     return Suspended_;
 }
 
+void TSuspendableStripe::Resume()
+{
+    YCHECK(Suspended_);
+
+    Suspended_ = false;
+}
+
 void TSuspendableStripe::Resume(TChunkStripePtr stripe)
 {
     YCHECK(Stripe_);
@@ -142,81 +108,6 @@ void TSuspendableStripe::Resume(TChunkStripePtr stripe)
     // NB: do not update statistics on resume to preserve counters.
     Suspended_ = false;
     Stripe_ = stripe;
-}
-
-yhash<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChunkMapping(TChunkStripePtr stripe)
-{
-    YCHECK(Stripe_);
-    YCHECK(Suspended_);
-
-    yhash<TInputChunkPtr, TInputChunkPtr> mapping;
-
-    // Our goal is to restore the correspondence between the old data slices and new data slices
-    // in order to be able to substitute old references to input chunks in newly created jobs with current
-    // ones.
-
-    auto addToMapping = [&mapping] (const TInputDataSlicePtr& originalDataSlice, const TInputDataSlicePtr& newDataSlice) {
-        YCHECK(!newDataSlice || originalDataSlice->ChunkSlices.size() == newDataSlice->ChunkSlices.size());
-        for (int index = 0; index < originalDataSlice->ChunkSlices.size(); ++index) {
-            mapping[originalDataSlice->ChunkSlices[index]->GetInputChunk()] = newDataSlice
-                ? newDataSlice->ChunkSlices[index]->GetInputChunk()
-                : nullptr;
-        }
-    };
-
-    yhash<i64, TInputDataSlicePtr> tagToDataSlice;
-
-    for (const auto& dataSlice : stripe->DataSlices) {
-        YCHECK(dataSlice->Tag);
-        YCHECK(tagToDataSlice.insert(std::make_pair(*dataSlice->Tag, dataSlice)).second);
-    }
-
-    for (int index = 0; index < OriginalStripe_->DataSlices.size(); ++index) {
-        const auto& originalSlice = OriginalStripe_->DataSlices[index];
-        auto it = tagToDataSlice.find(*originalSlice->Tag);
-        if (it != tagToDataSlice.end()) {
-            const auto& newSlice = it->second;
-            if (originalSlice->Type == EDataSourceType::UnversionedTable) {
-                const auto& originalChunk = originalSlice->GetSingleUnversionedChunkOrThrow();
-                const auto& newChunk = newSlice->GetSingleUnversionedChunkOrThrow();
-                TNullable<TOwningBoundaryKeys> originalBoundaryKeys =
-                    originalChunk->BoundaryKeys() ? MakeNullable(*originalChunk->BoundaryKeys()) : Null;
-                TNullable<TOwningBoundaryKeys> newBoundaryKeys =
-                    newChunk->BoundaryKeys() ? MakeNullable(*newChunk->BoundaryKeys()) : Null;
-                if (originalBoundaryKeys != newBoundaryKeys) {
-                    THROW_ERROR_EXCEPTION("Corresponding chunks in original and new stripes have different boundary keys")
-                            << TErrorAttribute("data_slice_tag", *originalSlice->Tag)
-                            << TErrorAttribute("original_chunk_id", originalChunk->ChunkId())
-                            << TErrorAttribute("original_boundary_keys", originalBoundaryKeys)
-                            << TErrorAttribute("new_chunk_id", newChunk->ChunkId())
-                            << TErrorAttribute("new_boundary_keys", newBoundaryKeys);
-                }
-                if (originalChunk->GetRowCount() != newChunk->GetRowCount()) {
-                    THROW_ERROR_EXCEPTION("Corresponding chunks in original and new stripes have different row counts")
-                            << TErrorAttribute("data_slice_tag", *originalSlice->Tag)
-                            << TErrorAttribute("original_chunk_id", originalChunk->ChunkId())
-                            << TErrorAttribute("original_row_count", originalChunk->GetRowCount())
-                            << TErrorAttribute("new_chunk_id", newChunk->ChunkId())
-                            << TErrorAttribute("new_row_count", newChunk->GetRowCount());
-                }
-            }
-            addToMapping(originalSlice, newSlice);
-            tagToDataSlice.erase(it);
-        } else {
-            addToMapping(originalSlice, nullptr);
-        }
-    }
-
-    if (!tagToDataSlice.empty()) {
-        THROW_ERROR_EXCEPTION("New stripe has extra data slices")
-                << TErrorAttribute("extra_data_slice_tag", tagToDataSlice.begin()->first);
-    }
-
-    // NB: do not update statistics on resume to preserve counters.
-    Suspended_ = false;
-    Stripe_ = stripe;
-
-    return mapping;
 }
 
 void TSuspendableStripe::ReplaceOriginalStripe()

@@ -49,6 +49,9 @@ public:
     //! Check that lower limit >= upper limit, i.e. that slice must be empty.
     bool IsEmpty() const;
 
+    //! Check that at least one limit is set.
+    bool HasLimits() const;
+
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
     std::pair<TInputDataSlicePtr, TInputDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
