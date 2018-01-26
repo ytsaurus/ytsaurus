@@ -64,6 +64,9 @@ TLocation::TLocation(
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
     , ReplicationOutThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationOutThrottler))
+    , TabletCompactionAndPartitioningOutThrottler_(CreateReconfigurableThroughputThrottler(config->TabletCompactionAndPartitioningOutThrottler))
+    , TabletPreloadOutThrottler_(CreateReconfigurableThroughputThrottler(config->TabletPreloadOutThrottler))
+    , TabletRecoveryOutThrottler_(CreateReconfigurableThroughputThrottler(config->TabletRecoveryOutThrottler))
     , IOEngine_(CreateIOEngine(Config_->IOEngineType, Config_->IOConfig))
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
@@ -301,6 +304,7 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
+        case EWorkloadCategory::SystemTabletStoreFlush:
         case EWorkloadCategory::SystemArtifactCacheDownload:
         case EWorkloadCategory::UserBatch:
             return EIOCategory::Batch;
@@ -460,6 +464,16 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
     switch (descriptor.Category) {
         case EWorkloadCategory::SystemReplication:
             return ReplicationOutThrottler_;
+
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningOutThrottler_;
+
+        case EWorkloadCategory::SystemTabletPreload:
+            return TabletPreloadOutThrottler_;
+
+        case EWorkloadCategory::SystemTabletRecovery:
+            return TabletRecoveryOutThrottler_;
 
         default:
             return GetUnlimitedThrottler();
@@ -647,6 +661,10 @@ TStoreLocation::TStoreLocation(
         EPeriodicExecutorMode::Automatic))
     , RepairInThrottler_(CreateReconfigurableThroughputThrottler(config->RepairInThrottler))
     , ReplicationInThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationInThrottler))
+    , TabletCompactionAndPartitioningInThrottler_(CreateReconfigurableThroughputThrottler(config->TabletCompactionAndPartitioningInThrottler))
+    , TabletLoggingInThrottler_(CreateReconfigurableThroughputThrottler(config->TabletLoggingInThrottler))
+    , TabletSnapshotInThrottler_(CreateReconfigurableThroughputThrottler(config->TabletSnapshotInThrottler))
+    , TabletStoreFlushInThrottler_(CreateReconfigurableThroughputThrottler(config->TabletStoreFlushInThrottler))
 { }
 
 TJournalManagerPtr TStoreLocation::GetJournalManager()
@@ -687,6 +705,19 @@ IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor
 
         case EWorkloadCategory::SystemReplication:
             return ReplicationInThrottler_;
+
+        case EWorkloadCategory::SystemTabletLogging:
+            return TabletLoggingInThrottler_;
+
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningInThrottler_;
+
+        case EWorkloadCategory::SystemTabletSnapshot:
+            return TabletSnapshotInThrottler_;
+
+        case EWorkloadCategory::SystemTabletStoreFlush:
+            return TabletStoreFlushInThrottler_;
 
         default:
             return GetUnlimitedThrottler();

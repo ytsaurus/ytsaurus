@@ -130,7 +130,7 @@ public:
 
         RegisterInitializer([&] {
             Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
-            Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+            Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletSnapshot;
         });
     }
 };

@@ -404,8 +404,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         writerOptions->ChunksEden = true;
         writerOptions->ValidateResourceUsageIncrease = false;
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
-        // TODO(sandello): Introduce a new workload descriptor for the flushes.
-        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
 
         auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode, inMemoryConfigRevision);
 
