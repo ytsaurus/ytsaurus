@@ -53,6 +53,9 @@ using namespace NHydra;
 
 using NTableClient::TKey;
 
+struct TMergeRowsOnFlushTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t MaxRowsPerFlushRead = 1024;
@@ -393,6 +396,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     auto inMemoryMode = GetInMemoryMode();
     auto inMemoryConfigRevision = GetInMemoryConfigRevision();
 
+
+
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
@@ -424,6 +429,17 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         WaitFor(tableWriter->Open())
             .ThrowOnError();
 
+        TVersionedRowMerger rowMerger(
+            New<TRowBuffer>(TMergeRowsOnFlushTag()),
+            tabletSnapshot->QuerySchema.GetColumnCount(),
+            tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+            TColumnFilter(),
+            tabletSnapshot->Config,
+            transaction->GetStartTimestamp(),
+            0,
+            tabletSnapshot->ColumnEvaluator,
+            false);
+
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
@@ -434,10 +450,18 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 break;
             }
 
+            if (tabletSnapshot->Config->MergeRowsOnFlush) {
+                for (auto& row : rows) {
+                    rowMerger.AddPartialRow(row);
+                    row = rowMerger.BuildMergedRow();
+                }
+            }
+
             if (!tableWriter->Write(rows)) {
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
+            rowMerger.reset();
         }
 
         if (tableWriter->GetRowCount() == 0) {
