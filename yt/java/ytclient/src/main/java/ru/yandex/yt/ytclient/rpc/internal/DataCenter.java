@@ -118,8 +118,6 @@ public final class DataCenter {
         final ArrayList<BalancingDestination> result = new ArrayList<>();
         result.ensureCapacity(maxSelect);
 
-        rnd.ints(maxSelect);
-
         synchronized (backends) {
             int count = aliveCount;
 
