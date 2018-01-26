@@ -494,7 +494,7 @@ class ClientFactory(object):
         self._session = _get_session(base_client)
 
     def __call__(self):
-        client = yt.YtClient(config=deepcopy(self.config))
+        client = yt.YtClient(config=deepcopy(self._config))
         # NOTE(asaitgalin): See https://st.yandex-team.ru/YT-8325
         set_option("_requests_session", self._session, client)
         return client
