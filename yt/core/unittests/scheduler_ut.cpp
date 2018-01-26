@@ -904,7 +904,7 @@ TEST_P(TFairShareSchedulerTest, Test)
 
                 progresses[id] += SleepQuantum * factor;
                 Sleep(SleepQuantum * factor);
-                WaitFor(VoidFuture);
+                Yield();
             }
         };
 
