@@ -394,7 +394,7 @@ struct TRemoveNodeOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
-    bool Recursive = true;
+    bool Recursive = false;
     bool Force = false;
 };
 
