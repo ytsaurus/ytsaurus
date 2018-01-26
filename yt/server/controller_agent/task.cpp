@@ -8,8 +8,6 @@
 #include "task_host.h"
 #include "scheduling_context.h"
 
-#include <yt/server/chunk_pools/helpers.h>
-
 #include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
@@ -58,7 +56,6 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
     , CachedTotalJobCount_(0)
     , DemandSanityCheckDeadline_(0)
     , CompletedFired_(false)
-    , InputChunkMapping_(New<TInputChunkMapping>())
 { }
 
 TTask::TTask(ITaskHostPtr taskHost)
@@ -251,7 +248,6 @@ void TTask::ScheduleJob(
     auto* chunkPoolOutput = GetChunkPoolOutput();
     auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
     joblet->OutputCookie = chunkPoolOutput->Extract(localityNodeId);
-
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
         LOG_DEBUG("Job input is empty");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::EmptyInput);
@@ -280,7 +276,6 @@ void TTask::ScheduleJob(
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-
     auto estimatedResourceUsage = GetNeededResources(joblet);
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
@@ -433,8 +428,6 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, UserJobMemoryDigest_);
     Persist(context, JobProxyMemoryDigest_);
-
-    Persist(context, InputChunkMapping_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -566,16 +559,6 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob)
         completedJob->InputCookie)).second);
 }
 
-void TTask::OnStripeRegistrationFailed(
-    TError error,
-    IChunkPoolInput::TCookie /* cookie */,
-    const TChunkStripePtr& /* stripe */,
-    const TEdgeDescriptor& /* edgeDescriptor */)
-{
-    TaskHost_->OnOperationFailed(error
-        << TErrorAttribute("task_title", GetTitle()));
-}
-
 void TTask::OnTaskCompleted()
 {
     LOG_DEBUG("Task completed");
@@ -680,7 +663,7 @@ void TTask::AddSequentialInputSpec(
     auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, GetChunkMapping()->GetMappedStripe(stripe));
+        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -694,9 +677,9 @@ void TTask::AddParallelInputSpec(
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         auto* inputSpec = stripe->Foreign
-            ? schedulerJobSpecExt->add_foreign_input_table_specs()
-            : schedulerJobSpecExt->add_input_table_specs();
-        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, GetChunkMapping()->GetMappedStripe(stripe));
+                          ? schedulerJobSpecExt->add_foreign_input_table_specs()
+                          : schedulerJobSpecExt->add_input_table_specs();
+        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -756,11 +739,6 @@ void TTask::AddOutputTableSpecs(
             outputSpec->set_timestamp(*edgeDescriptor.Timestamp);
         }
     }
-}
-
-TInputChunkMappingPtr TTask::GetChunkMapping() const
-{
-    return InputChunkMapping_;
 }
 
 void TTask::ResetCachedMinNeededResources()
@@ -900,9 +878,6 @@ void TTask::RegisterStripe(
     if (edgeDescriptor.RequiresRecoveryInfo) {
         YCHECK(joblet);
 
-        const auto& chunkMapping = edgeDescriptor.ChunkMapping;
-        YCHECK(chunkMapping);
-
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
         auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, edgeDescriptor.DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
@@ -910,28 +885,16 @@ void TTask::RegisterStripe(
             // second time to the destination pools that did not trigger the replay.
             if (!joblet->Restarted) {
                 inputCookie = destinationPool->AddWithKey(stripe, key);
-                chunkMapping->Add(inputCookie, stripe);
             }
         } else {
             inputCookie = lostIt->second;
             YCHECK(inputCookie != IChunkPoolInput::NullCookie);
-            try {
-                chunkMapping->OnStripeRegenerated(inputCookie, stripe);
-            } catch (const std::exception& ex) {
-                auto error = TError("Failure while registering result stripe of a restarted job in a chunk mapping")
-                    << ex
-                    << TErrorAttribute("input_cookie", inputCookie);
-                LOG_ERROR(error);
-                OnStripeRegistrationFailed(error, lostIt->second, stripe, edgeDescriptor);
-            }
-
-            destinationPool->Resume(inputCookie);
-
+            destinationPool->Resume(inputCookie, stripe);
             LostJobCookieMap.erase(lostIt);
         }
 
         // If destination pool decides not to do anything with this data,
-        // then there is no need to store any recovery info.
+        // so there is no need to store any recovery info.
         if (inputCookie == IChunkPoolInput::NullCookie) {
             return;
         }
@@ -944,8 +907,7 @@ void TTask::RegisterStripe(
         completedJob->DataWeight = joblet->InputStripeList->TotalDataWeight;
         completedJob->DestinationPool = destinationPool;
         completedJob->InputCookie = inputCookie;
-        completedJob->Restartrable = CanLoseJobs();
-        completedJob->InputStripe = stripe;
+        completedJob->InputStripe = CanLoseJobs() ? nullptr : stripe;
         completedJob->NodeDescriptor = joblet->NodeDescriptor;
 
         TaskHost_->RegisterRecoveryInfo(

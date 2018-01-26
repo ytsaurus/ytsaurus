@@ -226,6 +226,15 @@ protected:
         {
             TTask::OnJobAborted(joblet, jobSummary);
         }
+
+        virtual void SetupCallbacks() override
+        {
+            TTask::SetupCallbacks();
+
+            ChunkPool_->SubscribePoolOutputInvalidated(BIND([&] (const TError& error) {
+                YCHECK(false && "Error during resuming stripe in sorted task");
+            }));
+        }
     };
 
     typedef TIntrusivePtr<TSortedTask> TSortedTaskPtr;

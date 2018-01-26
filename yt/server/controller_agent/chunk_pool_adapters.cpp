@@ -28,14 +28,9 @@ void TChunkPoolInputAdapterBase::Suspend(IChunkPoolInput::TCookie cookie)
     return UnderlyingInput_->Suspend(cookie);
 }
 
-void TChunkPoolInputAdapterBase::Resume(IChunkPoolInput::TCookie cookie)
+void TChunkPoolInputAdapterBase::Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe)
 {
-    return UnderlyingInput_->Resume(cookie);
-}
-
-void TChunkPoolInputAdapterBase::Reset(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe)
-{
-    return UnderlyingInput_->Reset(cookie, stripe);
+    return UnderlyingInput_->Resume(cookie, std::move(stripe));
 }
 
 void TChunkPoolInputAdapterBase::Finish()

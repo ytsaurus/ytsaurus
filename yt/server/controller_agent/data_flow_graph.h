@@ -24,8 +24,6 @@ struct TEdgeDescriptor
 
     // Keep fields below in sync with operator =.
     NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
-    // May be null if recovery info is not required.
-    TInputChunkMappingPtr ChunkMapping;
     bool RequiresRecoveryInfo = false;
     NTableClient::TTableWriterOptionsPtr TableWriterOptions;
     NTableClient::TTableUploadOptions TableUploadOptions;

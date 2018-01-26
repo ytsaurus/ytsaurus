@@ -962,6 +962,8 @@ private:
     TSpinLock ProgressLock_;
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
+    i64 CurrentInputDataSliceTag_ = 0;
+
     int StderrCount_ = 0;
     int JobNodeCount_ = 0;
 
@@ -1108,8 +1110,7 @@ private:
         virtual TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
 
         virtual void Suspend(TCookie cookie) override;
-        virtual void Resume(TCookie cookie) override;
-        virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe) override;
+        virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe) override;
         virtual void Finish() override;
 
         void Persist(const TPersistenceContext& context);
