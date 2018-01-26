@@ -36,6 +36,8 @@ DECLARE_REFCOUNTED_STRUCT(IOperationControllerSnapshotBuilderHost)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
 
+DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
+
 DECLARE_REFCOUNTED_CLASS(TOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TSimpleOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TMapOperationOptions)

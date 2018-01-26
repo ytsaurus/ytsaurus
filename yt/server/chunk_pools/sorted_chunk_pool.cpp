@@ -635,31 +635,20 @@ public:
         }
     }
 
-    virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
+    virtual void Resume(IChunkPoolInput::TCookie cookie) override
     {
-        auto& suspendableStripe = Stripes_[cookie];
-        if (!Finished) {
-            suspendableStripe.Resume(stripe);
-        } else {
+        Stripes_[cookie].Resume();
+        if (Finished) {
             JobManager_->Resume(cookie);
-            yhash<TInputChunkPtr, TInputChunkPtr> newChunkMapping;
-            try {
-                newChunkMapping = suspendableStripe.ResumeAndBuildChunkMapping(stripe);
-            } catch (std::exception& ex) {
-                suspendableStripe.Resume(stripe);
-                auto error = TError("Chunk stripe resumption failed")
-                    << ex
-                    << TErrorAttribute("input_cookie", cookie);
-                LOG_WARNING(error, "Rebuilding all jobs because of error during resumption");
-                InvalidateCurrentJobs();
-                DoFinish();
-                PoolOutputInvalidated_.Fire(error);
-                return;
-            }
-            for (const auto& pair : newChunkMapping) {
-                InputChunkMapping_[pair.first] = pair.second;
-            }
         }
+    }
+
+    virtual void Reset(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
+    {
+        Stripes_[cookie].Resume(stripe);
+        Stripes_[cookie].Suspend();
+        InvalidateCurrentJobs();
+        DoFinish();
     }
 
     virtual bool IsCompleted() const override
@@ -669,11 +658,6 @@ public:
             GetPendingJobCount() == 0 &&
             JobManager_->JobCounter()->GetRunning() == 0 &&
             JobManager_->GetSuspendedJobCount() == 0;
-    }
-
-    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
-    {
-        return ApplyChunkMappingToStripe(JobManager_->GetStripeList(cookie), InputChunkMapping_);
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
@@ -702,7 +686,6 @@ public:
 
         using NYT::Persist;
         Persist(context, ForeignStripeCookiesByStreamIndex_);
-        Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, InputChunkMapping_);
         Persist(context, Stripes_);
         Persist(context, EnableKeyGuarantee_);
         Persist(context, InputStreamDirectory_);
@@ -727,9 +710,6 @@ public:
         }
     }
 
-public:
-    DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedChunkPool, 0x91bca805);
 
@@ -738,11 +718,6 @@ private:
 
     //! A factory that is used to spawn chunk slice fetcher.
     IChunkSliceFetcherFactoryPtr ChunkSliceFetcherFactory_;
-
-    //! During the pool lifetime some input chunks may be suspended and replaced with
-    //! another chunks on resumption. We keep track of all such substitutions in this
-    //! map and apply it whenever the `GetStripeList` is called.
-    yhash<TInputChunkPtr, TInputChunkPtr> InputChunkMapping_;
 
     //! Guarantee that each key goes to the single job.
     bool EnableKeyGuarantee_;
@@ -782,17 +757,6 @@ private:
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     i64 TotalDataSliceCount_ = 0;
-
-    void InitInputChunkMapping()
-    {
-        for (const auto& suspendableStripe : Stripes_) {
-            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
-                for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                    InputChunkMapping_[chunkSlice->GetInputChunk()] = chunkSlice->GetInputChunk();
-                }
-            }
-        }
-    }
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -1094,7 +1058,6 @@ private:
         // NB(max42): this method may be run several times (in particular, when
         // the resumed input is not consistent with the original input).
 
-        InitInputChunkMapping();
         FindTeleportChunks();
 
         auto builder = New<TSortedJobBuilder>(
@@ -1174,7 +1137,6 @@ private:
     void InvalidateCurrentJobs()
     {
         TeleportChunks_.clear();
-        InputChunkMapping_.clear();
         for (auto& stripe : Stripes_) {
             stripe.ReplaceOriginalStripe();
             stripe.SetTeleport(false);

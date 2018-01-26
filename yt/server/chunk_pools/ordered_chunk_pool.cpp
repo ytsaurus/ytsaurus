@@ -49,9 +49,6 @@ class TOrderedChunkPool
     , public TRefTracked<TOrderedChunkPool>
 {
 public:
-    DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
-
-public:
     //! Used only for persistence.
     TOrderedChunkPool()
     { }
@@ -101,8 +98,6 @@ public:
         // the chunk pool was finished. It should be called only once.
         SetupSuspendedStripes();
 
-        InitInputChunkMapping();
-
         BuildJobsAndFindTeleportChunks();
     }
 
@@ -115,27 +110,11 @@ public:
         }
     }
 
-    virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
+    virtual void Resume(IChunkPoolInput::TCookie cookie) override
     {
-        auto& suspendableStripe = Stripes_[cookie];
-        if (!Finished) {
-            suspendableStripe.Resume(stripe);
-        } else {
+        Stripes_[cookie].Resume();
+        if (Finished) {
             JobManager_->Resume(cookie);
-            yhash<TInputChunkPtr, TInputChunkPtr> newChunkMapping;
-            try {
-                newChunkMapping = suspendableStripe.ResumeAndBuildChunkMapping(stripe);
-            } catch (std::exception& ex) {
-                suspendableStripe.Resume(stripe);
-                auto error = TError("Chunk stripe resumption failed")
-                    << ex
-                    << TErrorAttribute("input_cookie", cookie);
-                LOG_ERROR(error);
-                YCHECK(false && "Caught an error during resumption");
-            }
-            for (const auto& pair : newChunkMapping) {
-                InputChunkMapping_[pair.first] = pair.second;
-            }
         }
     }
 
@@ -146,11 +125,6 @@ public:
             GetPendingJobCount() == 0 &&
             JobManager_->JobCounter()->GetRunning() == 0 &&
             JobManager_->GetSuspendedJobCount() == 0;
-    }
-
-    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
-    {
-        return ApplyChunkMappingToStripe(JobManager_->GetStripeList(cookie), InputChunkMapping_);
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
@@ -183,7 +157,6 @@ public:
 
         using NYT::Persist;
 
-        Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, InputChunkMapping_);
         Persist(context, InputStreamDirectory_);
         Persist(context, MinTeleportChunkSize_);
         Persist(context, Stripes_);
@@ -208,12 +181,6 @@ public:
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedChunkPool, 0xffe92abc);
-
-    // TODO(max42): maybe put it in TJobManager?
-    //! During the pool lifetime some input chunks may be suspended and replaced with
-    //! another chunks on resumption. We keep track of all such substitutions in this
-    //! map and apply it whenever the `GetStripeList` is called.
-    yhash<TInputChunkPtr, TInputChunkPtr> InputChunkMapping_;
 
     //! Information about input sources (e.g. input tables for sorted reduce operation).
     TInputStreamDirectory InputStreamDirectory_;
@@ -249,17 +216,6 @@ private:
     int JobIndex_ = 0;
 
     i64 TotalSliceCount_ = 0;
-
-    void InitInputChunkMapping()
-    {
-        for (const auto& suspendableStripe : Stripes_) {
-            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
-                for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                    InputChunkMapping_[chunkSlice->GetInputChunk()] = chunkSlice->GetInputChunk();
-                }
-            }
-        }
-    }
 
     void SetupSuspendedStripes()
     {
