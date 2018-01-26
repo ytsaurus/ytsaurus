@@ -39,6 +39,7 @@ DECLARE_REFCOUNTED_STRUCT(IOperationControllerSchedulerHost)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
 
+DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
 DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)

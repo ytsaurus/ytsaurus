@@ -23,12 +23,6 @@ std::vector<NChunkClient::TChunkId> GetStripeListChunkIds(const TChunkStripeList
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripeListPtr ApplyChunkMappingToStripe(
-    const TChunkStripeListPtr& stripeList,
-    const yhash<NChunkClient::TInputChunkPtr, NChunkClient::TInputChunkPtr>& inputChunkMapping);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSuspendableStripe
 {
 public:
@@ -43,13 +37,8 @@ public:
     const TChunkStripeStatistics& GetStatistics() const;
     void Suspend();
     bool IsSuspended() const;
+    void Resume();
     void Resume(TChunkStripePtr stripe);
-
-    //! Resume chunk and return a hashmap that defines the correspondence between
-    //! the old and new chunks. If building such mapping is impossible (for example,
-    //! the new stripe contains more data slices, or the new data slices have different
-    //! read limits or boundary keys), exception is thrown.
-    yhash<NChunkClient::TInputChunkPtr, NChunkClient::TInputChunkPtr> ResumeAndBuildChunkMapping(TChunkStripePtr stripe);
 
     //! Replaces the original stripe with the current stripe.
     void ReplaceOriginalStripe();

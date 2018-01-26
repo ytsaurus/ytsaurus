@@ -359,6 +359,7 @@ protected:
                     for (int index = 0; index < edgeDescriptors.size(); ++index) {
                         if (AutoMergeTasks[index]) {
                             edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
+                            edgeDescriptors[index].ChunkMapping = AutoMergeTasks[index]->GetChunkMapping();
                             edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
                             edgeDescriptors[index].RequiresRecoveryInfo = true;
                             edgeDescriptors[index].IsFinalOutput = false;

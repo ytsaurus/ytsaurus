@@ -5,6 +5,7 @@
 #include "progress_counter.h"
 #include "serialize.h"
 #include "data_flow_graph.h"
+#include "input_chunk_mapping.h"
 
 #include <yt/server/scheduler/job.h>
 
@@ -95,6 +96,12 @@ public:
     virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 
+    virtual void OnStripeRegistrationFailed(
+        TError error,
+        NChunkPools::IChunkPoolInput::TCookie cookie,
+        const NChunkPools::TChunkStripePtr& stripe,
+        const TEdgeDescriptor& edgeDescriptor);
+
     // First checks against a given node, then against all nodes if needed.
     void CheckResourceDemandSanity(
         const TJobResources& nodeResourceLimits,
@@ -140,11 +147,18 @@ public:
     //! input tables or from the intermediate data.
     virtual bool SupportsInputPathYson() const = 0;
 
+    //! Return a chunk mapping that is used to substitute input chunks when job spec is built.
+    //! Base implementation returns task's own mapping.
+    virtual TInputChunkMappingPtr GetChunkMapping() const;
+
 protected:
     NLogging::TLogger Logger;
 
     //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
     ITaskHost* TaskHost_;
+
+    //! Outgoing edges in data flow graph.
+    std::vector<TEdgeDescriptor> EdgeDescriptors_;
 
     virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(
         NScheduler::ISchedulingContext* context,
@@ -222,10 +236,6 @@ protected:
     virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
     virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
-protected:
-    //! Outgoing edges in data flow graph.
-    std::vector<TEdgeDescriptor> EdgeDescriptors_;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);
 
@@ -241,11 +251,14 @@ private:
     bool CompletedFired_;
 
     using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInput*>;
+
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
     mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
     mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;
+
+    TInputChunkMappingPtr InputChunkMapping_;
 
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 

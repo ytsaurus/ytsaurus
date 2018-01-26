@@ -11,6 +11,7 @@ struct IChunkPoolInput;
 struct IChunkPoolOutput;
 
 DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
+
 DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)

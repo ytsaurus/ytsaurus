@@ -34,6 +34,11 @@ IChunkPoolInput::TCookie TChunkPoolInputBase::AddWithKey(TChunkStripePtr stripe,
     return Add(stripe);
 }
 
+void TChunkPoolInputBase::Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping)
+{
+    Y_UNREACHABLE();
+}
+
 void TChunkPoolInputBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

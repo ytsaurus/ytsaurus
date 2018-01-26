@@ -3,6 +3,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/input_chunk_mapping.h>
 
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
 
@@ -43,7 +44,6 @@ class TSortedChunkPoolTest
 protected:
     virtual void SetUp() override
     {
-        ChunkSliceFetcher_ = New<StrictMock<TMockChunkSliceFetcher>>();
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.SortedJobOptions.MaxDataWeightPerJob = Inf64;
@@ -253,29 +253,13 @@ protected:
             Options_,
             !MockBuilders_.empty() ? BuildMockChunkSliceFetcherFactory() : nullptr,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
-        ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedChunkPoolTest::StoreInvalidationError, this));
-    }
-
-    TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
-    {
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-        dataSlice->Tag = chunk->ChunkId().Parts64[0] ^ chunk->ChunkId().Parts64[1];
-        return dataSlice;
-    }
-
-    IChunkPoolInput::TCookie AddChunk(const TInputChunkPtr& chunk)
-    {
-        auto dataSlice = BuildDataSliceByChunk(chunk);
-        ActiveChunks_.insert(chunk->ChunkId());
-        InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
-        return ChunkPool_->Add(New<TChunkStripe>(dataSlice));
     }
 
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
     {
         std::vector<TInputDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
-            auto dataSlice = BuildDataSliceByChunk(chunk);
+            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
             dataSlices.emplace_back(std::move(dataSlice));
         }
@@ -284,18 +268,40 @@ protected:
         return ChunkPool_->Add(stripe);
     }
 
-    void SuspendChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
+    IChunkPoolInput::TCookie AddChunk(const TInputChunkPtr& chunk)
     {
-        YCHECK(ActiveChunks_.erase(chunk->ChunkId()));
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        ActiveChunks_.insert(chunk->ChunkId());
+        InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
+        auto cookie = ChunkPool_->Add(New<TChunkStripe>(dataSlice));
+        InputCookieToChunkId_[cookie] = chunk->ChunkId();
+        return cookie;
+    }
+
+    void SuspendChunk(IChunkPoolInput::TCookie cookie)
+    {
+        const auto& chunkId = InputCookieToChunkId_[cookie];
+        YCHECK(chunkId);
+        YCHECK(ActiveChunks_.erase(chunkId));
         ChunkPool_->Suspend(cookie);
     }
 
-    void ResumeChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
+    void ResumeChunk(IChunkPoolInput::TCookie cookie)
     {
-        auto dataSlice = BuildDataSliceByChunk(chunk);
+        const auto& chunkId = InputCookieToChunkId_[cookie];
+        YCHECK(chunkId);
+        ActiveChunks_.insert(chunkId);
+        ChunkPool_->Resume(cookie);
+    }
+
+    void ResetChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
+    {
+        const auto& oldChunkId = InputCookieToChunkId_[cookie];
+        YCHECK(oldChunkId);
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
-        ActiveChunks_.insert(chunk->ChunkId());
-        return ChunkPool_->Resume(cookie, New<TChunkStripe>(dataSlice));
+        ChunkPool_->Reset(cookie, New<TChunkStripe>(dataSlice), IdentityChunkMapping);
+        InputCookieToChunkId_[cookie] = chunk->ChunkId();
     }
 
     void ExtractOutputCookiesWhilePossible()
@@ -330,7 +336,6 @@ protected:
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);
-        ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedChunkPoolTest::StoreInvalidationError, this));
     }
 
     std::vector<TChunkStripeListPtr> GetAllStripeLists()
@@ -560,11 +565,6 @@ protected:
         }
     }
 
-    void StoreInvalidationError(const TError& error)
-    {
-        InvalidationErrors_.emplace_back(error);
-    }
-
     std::unique_ptr<IChunkPool> ChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
@@ -572,7 +572,7 @@ protected:
     //! Set containing all chunks that are added to the pool without being suspended.
     yhash_set<TChunkId> ActiveChunks_;
 
-    TIntrusivePtr<StrictMock<TMockChunkSliceFetcher>> ChunkSliceFetcher_;
+    yhash<IChunkPoolInput::TCookie, TChunkId> InputCookieToChunkId_;
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
@@ -594,8 +594,6 @@ protected:
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
     std::mt19937 Gen_;
-
-    std::vector<TError> InvalidationErrors_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1665,257 +1663,6 @@ TEST_F(TSortedChunkPoolTest, JoinReduce)
     CheckEverything(stripeLists, teleportChunks);
 }
 
-TEST_F(TSortedChunkPoolTest, ResumeSuspendMappingTest)
-{
-    Options_.SortedJobOptions.EnableKeyGuarantee = false;
-    InitTables(
-        {false, false} /* isForeign */,
-        {false, false} /* isTeleportable */,
-        {false, false} /* isVersioned */
-    );
-    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
-    MaxDataSlicesPerJob_ = 1;
-    InitJobConstraints();
-    PrepareNewMock();
-
-    auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
-    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1, 1_KB, BuildRow({10}));
-    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
-    CurrentMock().RegisterSliceableUnversionedChunk(chunkAv1, chunkAv1Slices);
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkBv1);
-
-    CreateChunkPool();
-
-    int cookieA = AddChunk(chunkAv1);
-    int cookieB = AddChunk(chunkBv1);
-
-    ChunkPool_->Finish();
-
-    ExtractOutputCookiesWhilePossible();
-    CheckStripeListsContainOnlyActiveChunks();
-
-    SuspendChunk(cookieA, chunkAv1);
-    auto chunkAv2 = CopyChunk(chunkAv1);
-    ResumeChunk(cookieA, chunkAv2);
-
-    CheckStripeListsContainOnlyActiveChunks();
-
-    SuspendChunk(cookieB, chunkBv1);
-    auto chunkBv2 = CopyChunk(chunkBv1);
-    ResumeChunk(cookieB, chunkBv2);
-
-    EXPECT_TRUE(InvalidationErrors_.empty());
-}
-
-TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest1)
-{
-    Options_.SortedJobOptions.EnableKeyGuarantee = false;
-    InitTables(
-        {false, false} /* isForeign */,
-        {true, true} /* isTeleportable */,
-        {false, false} /* isVersioned */
-    );
-    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
-    Options_.MinTeleportChunkSize = 0;
-    InitJobConstraints();
-
-    auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
-    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
-    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
-    auto chunkAv2 = CopyChunk(chunkAv1);
-    chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
-    chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
-    auto chunkBv2 = CopyChunk(chunkBv1);
-    chunkBv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
-    chunkBv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
-
-    PrepareNewMock();
-    CurrentMock().RegisterSliceableUnversionedChunk(chunkAv1, chunkAv1Slices);
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkBv1);
-    PrepareNewMock();
-    PrepareNewMock();
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkAv2);
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkBv2);
-
-    CreateChunkPool();
-
-    int cookieA = AddChunk(chunkAv1);
-    int cookieB = AddChunk(chunkBv1);
-
-    ChunkPool_->Finish();
-
-    ExtractOutputCookiesWhilePossible();
-    CheckStripeListsContainOnlyActiveChunks();
-
-    ExtractOutputCookiesWhilePossible();
-    ChunkPool_->Completed(*OutputCookies_.begin(), TCompletedJobSummary());
-
-    SuspendChunk(cookieB, chunkBv1);
-    ResumeChunk(cookieB, chunkBv2);
-
-    EXPECT_EQ(InvalidationErrors_.size(), 1);
-
-    OutputCookies_.clear();
-    ExtractOutputCookiesWhilePossible();
-    EXPECT_TRUE(OutputCookies_.empty());
-    EXPECT_EQ(ChunkPool_->GetTeleportChunks(), (std::vector<TInputChunkPtr>{chunkAv1, chunkBv2}));
-
-    SuspendChunk(cookieA, chunkAv1);
-    ResumeChunk(cookieA, chunkAv2);
-
-    EXPECT_EQ(InvalidationErrors_.size(), 2);
-    OutputCookies_.clear();
-    ExtractOutputCookiesWhilePossible();
-    EXPECT_EQ(OutputCookies_.size(), 1);
-    auto stripeLists = GetAllStripeLists();
-
-    EXPECT_EQ(stripeLists.size(), 1);
-    EXPECT_EQ(stripeLists[0]->Stripes.size(), 2);
-    EXPECT_EQ(stripeLists[0]->Stripes[0]->DataSlices.size(), 1);
-    EXPECT_EQ(stripeLists[0]->Stripes[0]->DataSlices[0]->GetSingleUnversionedChunkOrThrow(), chunkAv2);
-    EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices.size(), 1);
-    EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices[0]->GetSingleUnversionedChunkOrThrow(), chunkBv2);
-}
-
-TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest2)
-{
-    Options_.SortedJobOptions.EnableKeyGuarantee = false;
-    InitTables(
-        {false, false} /* isForeign */,
-        {true, true} /* isTeleportable */,
-        {false, false} /* isVersioned */
-    );
-    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
-    Options_.MinTeleportChunkSize = 0;
-    InitJobConstraints();
-
-    auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
-    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
-    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
-    auto chunkAv2 = CopyChunk(chunkAv1);
-    chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
-    chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
-    auto chunkBv2 = CopyChunk(chunkBv1);
-    chunkBv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
-    chunkBv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
-
-    CreateChunkPool();
-
-    int cookieA = AddChunk(chunkAv1);
-    int cookieB = AddChunk(chunkBv1);
-
-    PersistAndRestore();
-
-    ChunkPool_->Finish();
-
-    PersistAndRestore();
-
-    ExtractOutputCookiesWhilePossible();
-    CheckStripeListsContainOnlyActiveChunks();
-
-    PersistAndRestore();
-
-    ExtractOutputCookiesWhilePossible();
-    ChunkPool_->Completed(*OutputCookies_.begin(), TCompletedJobSummary());
-
-    PersistAndRestore();
-
-    SuspendChunk(cookieB, chunkBv1);
-
-    PersistAndRestore();
-
-    ResumeChunk(cookieB, chunkBv2);
-
-    PersistAndRestore();
-
-    EXPECT_EQ(InvalidationErrors_.size(), 1);
-
-    OutputCookies_.clear();
-    ExtractOutputCookiesWhilePossible();
-    EXPECT_TRUE(OutputCookies_.empty());
-    EXPECT_EQ(ChunkPool_->GetTeleportChunks().size(), 2);
-
-    PersistAndRestore();
-
-    SuspendChunk(cookieA, chunkAv1);
-
-    PersistAndRestore();
-
-    ResumeChunk(cookieA, chunkAv2);
-
-    PersistAndRestore();
-
-    EXPECT_EQ(InvalidationErrors_.size(), 2);
-    OutputCookies_.clear();
-    ExtractOutputCookiesWhilePossible();
-    EXPECT_EQ(OutputCookies_.size(), 1);
-    auto stripeLists = GetAllStripeLists();
-
-    PersistAndRestore();
-
-    EXPECT_EQ(stripeLists.size(), 1);
-    EXPECT_EQ(stripeLists[0]->Stripes.size(), 2);
-    EXPECT_EQ(stripeLists[0]->Stripes[0]->DataSlices.size(), 1);
-    EXPECT_EQ(stripeLists[0]->Stripes[0]->DataSlices[0]->GetSingleUnversionedChunkOrThrow()->ChunkId(), chunkAv2->ChunkId());
-    EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices.size(), 1);
-    EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices[0]->GetSingleUnversionedChunkOrThrow()->ChunkId(), chunkBv2->ChunkId());
-}
-
-TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
-{
-    Options_.SortedJobOptions.EnableKeyGuarantee = false;
-    InitTables(
-        {false, false} /* isForeign */,
-        {true, true} /* isTeleportable */,
-        {false, false} /* isVersioned */
-    );
-    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
-    Options_.MinTeleportChunkSize = 0;
-    InitJobConstraints();
-
-    auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
-    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
-    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
-    auto chunkAv2 = CopyChunk(chunkAv1);
-    chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
-    chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
-    auto chunkBv2 = CopyChunk(chunkBv1);
-    chunkBv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
-    chunkBv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
-
-    CreateChunkPool();
-
-    int cookieA = AddChunk(chunkAv1);
-    int cookieB = AddChunk(chunkBv1);
-
-    ChunkPool_->Finish();
-
-    ExtractOutputCookiesWhilePossible();
-
-    SuspendChunk(cookieA, chunkAv1);
-
-    PersistAndRestore();
-
-    SuspendChunk(cookieB, chunkBv1);
-
-    PersistAndRestore();
-
-    ResumeChunk(cookieB, chunkBv2);
-    ResumeChunk(cookieA, chunkAv1);
-
-    auto invalidatedStripe = ChunkPool_->GetStripeList(*OutputCookies_.begin());
-    EXPECT_EQ(invalidatedStripe->Stripes.size(), 0);
-
-    PersistAndRestore();
-
-    EXPECT_EQ(InvalidationErrors_.size(), 1);
-
-    OutputCookies_.clear();
-    ExtractOutputCookiesWhilePossible();
-    EXPECT_TRUE(OutputCookies_.empty());
-    EXPECT_EQ(ChunkPool_->GetTeleportChunks().size(), 2);
-}
-
 TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -2198,10 +1945,10 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
     int pendingJobCount = ChunkPool_->GetPendingJobCount();
     ASSERT_LE(8, pendingJobCount);
     ASSERT_LE(pendingJobCount, 12);
-    ChunkPool_->Suspend(0);
+    SuspendChunk(0);
     ASSERT_EQ(ChunkPool_->GetPendingJobCount(), pendingJobCount - 1);
     for (int cookie = chunkCount; cookie < chunkCount + foreignChunkCount; ++cookie) {
-        ChunkPool_->Suspend(cookie);
+        SuspendChunk(cookie);
     }
     ASSERT_EQ(0, ChunkPool_->GetPendingJobCount());
 }
@@ -2608,6 +2355,7 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys2)
     EXPECT_EQ(1, stripeLists[3]->Stripes.size());
 }
 
+
 TEST_F(TSortedChunkPoolTest, SuspendFinishResumeTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -2629,13 +2377,13 @@ TEST_F(TSortedChunkPoolTest, SuspendFinishResumeTest)
     AddChunk(chunkB);
     AddChunk(chunkC);
 
-    SuspendChunk(0, chunkA);
-    SuspendChunk(2, chunkC);
+    SuspendChunk(0);
+    SuspendChunk(2);
 
     ChunkPool_->Finish();
 
-    ResumeChunk(0, chunkA);
-    ResumeChunk(2, chunkC);
+    ResumeChunk(0);
+    ResumeChunk(2);
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
@@ -2814,13 +2562,11 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     DataSizePerJob_ = 1_KB;
     InitJobConstraints();
-    PrepareNewMock();
 
     const int chunkCount = 50;
 
     for (int index = 0; index < chunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
-        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
     }
 
     CreateChunkPool();
@@ -2837,11 +2583,13 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         }
     };
 
-    // All chunks from the IChunkPoolInput point of view.
+    // All stuff from the IChunkPoolInput point of view.
     yhash<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
+    yhash_set<IChunkPoolInput::TCookie> suspendedCookies;
+    yhash_set<IChunkPoolInput::TCookie> resumedCookies;
     yhash_set<TChunkId> suspendedChunks;
     yhash_set<TChunkId> resumedChunks;
-    // All chunks from the IChunkPoolOutput point of view.
+    // All stuff from the IChunkPoolOutput point of view.
     yhash<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
     yhash_set<TChunkId> pendingChunks;
     yhash_set<TChunkId> startedChunks;
@@ -2850,8 +2598,10 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
         const auto& chunkId = chunk->ChunkId();
-        chunkIdToInputCookie[chunkId] = AddChunk(chunk);
+        auto cookie = AddChunk(chunk);
+        chunkIdToInputCookie[chunkId] = cookie;
         chunkIdToChunk[chunkId] = chunk;
+        resumedCookies.insert(cookie);
         resumedChunks.insert(chunkId);
         pendingChunks.insert(chunkId);
     }
@@ -2864,12 +2614,32 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     constexpr bool EnableDebugOutput = false;
     IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 
+    int invalidationCount = 0;
+    const int MaxInvalidationCount = 5;
+
+    auto invalidate = [&] {
+        pendingChunks.insert(startedChunks.begin(), startedChunks.end());
+        pendingChunks.insert(completedChunks.begin(), completedChunks.end());
+        chunkIdToInputCookie.clear();
+        completedChunks.clear();
+        ++invalidationCount;
+        Cdebug << "Invalidating pool" << Endl;
+        for (const auto& chunkId : startedChunks) {
+            Cdebug << Format("Aborted chunk %v due to invalidation", chunkId) << Endl;
+            auto outputCookie = chunkIdToOutputCookie.at(chunkId);
+            ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
+            ChunkPool_->Aborted(outputCookie, EAbortReason::Unknown);
+        }
+        startedChunks.clear();
+    };
+
     while (completedChunks.size() < chunkCount) {
         EXPECT_FALSE(ChunkPool_->IsCompleted());
 
         // 0..0 - pool is persisted and restored;
-        // 1..29 - chunk is suspended;
-        // 30..59 - chunk is resumed;
+        // 1..19 - chunk is suspended;
+        // 20..39 - chunk is resumed;
+        // 40..59 - chunk is reset;
         // 60..69 - chunk is extracted;
         // 70..79 - chunk is completed;
         // 80..89 - chunk is failed;
@@ -2878,25 +2648,43 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         if (eventType <= 0) {
             Cdebug << "Persisting and restoring the pool" << Endl;
             PersistAndRestore();
-        } else if (eventType <= 29) {
-            if (auto randomElement = chooseRandomElement(resumedChunks)) {
-                const auto& chunkId = *randomElement;
-                Cdebug << Format("Suspending chunk %v", chunkId) << Endl;
+        } else if (eventType <= 19) {
+            if (auto randomElement = chooseRandomElement(resumedCookies)) {
+                auto cookie = *randomElement;
+                Cdebug << Format("Suspending cookie %v", cookie);
+                auto chunkId = InputCookieToChunkId_[cookie];
+                YCHECK(chunkId);
+                Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
+                ASSERT_TRUE(resumedCookies.erase(cookie));
+                ASSERT_TRUE(suspendedCookies.insert(cookie).second);
                 ASSERT_TRUE(resumedChunks.erase(chunkId));
                 ASSERT_TRUE(suspendedChunks.insert(chunkId).second);
-                auto inputCookie = chunkIdToInputCookie.at(chunkId);
-                auto chunk = chunkIdToChunk.at(chunkId);
-                SuspendChunk(inputCookie, chunk);
+                SuspendChunk(cookie);
             }
-        } else if (eventType <= 59) {
-            if (auto randomElement = chooseRandomElement(suspendedChunks)) {
-                const auto& chunkId = *randomElement;
-                Cdebug << Format("Resuming chunk %v", chunkId) << Endl;
+        } else if (eventType <= 39) {
+            if (auto randomElement = chooseRandomElement(suspendedCookies)) {
+                auto cookie = *randomElement;
+                Cdebug << Format("Resuming cookie %v", cookie);
+                auto chunkId = InputCookieToChunkId_[cookie];
+                YCHECK(chunkId);
+                Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
+                ASSERT_TRUE(suspendedCookies.erase(cookie));
+                ASSERT_TRUE(resumedCookies.insert(cookie).second);
                 ASSERT_TRUE(suspendedChunks.erase(chunkId));
                 ASSERT_TRUE(resumedChunks.insert(chunkId).second);
-                auto inputCookie = chunkIdToInputCookie.at(chunkId);
-                auto chunk = chunkIdToChunk.at(chunkId);
-                ResumeChunk(inputCookie, chunk);
+                ResumeChunk(cookie);
+            }
+        } else if (eventType <= 59 && invalidationCount < MaxInvalidationCount && completedChunks.size() > chunkCount / 2) {
+            if (auto randomElement = chooseRandomElement(suspendedCookies)) {
+                auto cookie = *randomElement;
+                Cdebug << Format("Resetting cookie %v", cookie);
+                auto chunkId = InputCookieToChunkId_[cookie];
+                YCHECK(chunkId);
+                Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
+                // TODO(max42): reset to something different.
+                const auto& chunk = chunkIdToChunk.at(chunkId);
+                ResetChunk(cookie, chunk);
+                invalidate();
             }
         } else if (eventType <= 69) {
             if (ChunkPool_->GetPendingJobCount()) {
@@ -2956,6 +2744,8 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     ASSERT_EQ(pendingChunks.size(), 0);
     ASSERT_EQ(startedChunks.size(), 0);
     ASSERT_EQ(resumedChunks.size() + suspendedChunks.size(), chunkCount);
+    ASSERT_EQ(resumedChunks.size(), resumedCookies.size());
+    ASSERT_EQ(suspendedChunks.size(), suspendedCookies.size());
 }
 
 INSTANTIATE_TEST_CASE_P(VariousOperationsWithPoolInstantiation,
