@@ -77,7 +77,7 @@ TResponseInfo RetryRequestWithPolicy(
                     header.AddParameter("retry", true, /* overwrite = */ true);
                 } else {
                     header.RemoveParameter("retry");
-                    header.AddMutationId(/* overwrite = */ true);
+                    header.AddMutationId();
                 }
             }
 
