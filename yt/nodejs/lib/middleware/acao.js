@@ -4,9 +4,6 @@ var worker = require("../worker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function endsWith(str, suffix) {
-    return str.indexOf(suffix, str.length - suffix.length) !== -1;
-}
 var allowedOrigins = /^http(s)?:\/\/([^\/]+\.yandex-team\.ru|localhost)(:\d+)?$/;
 
 exports.that = function Middleware__YtAcao()
