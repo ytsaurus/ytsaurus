@@ -71,7 +71,7 @@ void THttpHeader::AddOperationId(const TOperationId& operationId, bool overwrite
     AddParameter("operation_id", GetGuidAsString(operationId), overwrite);
 }
 
-void THttpHeader::AddMutationId(bool overwrite)
+void THttpHeader::AddMutationId()
 {
     TGUID guid;
 
@@ -83,7 +83,7 @@ void THttpHeader::AddMutationId(bool overwrite)
     CreateGuid(&guid);
     guid.dw[2] = GetPID() ^ MicroSeconds();
 
-    AddParameter("mutation_id", GetGuidAsString(guid), overwrite);
+    AddParameter("mutation_id", GetGuidAsString(guid), true);
 }
 
 bool THttpHeader::HasMutationId() const
