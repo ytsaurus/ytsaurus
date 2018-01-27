@@ -115,7 +115,7 @@ public:
         const TTypeConversionConfigPtr& typeConversionConfig = New<TTypeConversionConfig>(),
         bool flushImmediately = false);
 
-    void Flush();
+    TFuture<void> Flush();
 
 private:
     const ISchemalessWriterPtr Writer_;
