@@ -2685,7 +2685,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     TWallTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
     DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
-    if (scheduleJobResult->JobStartRequest) {
+    if (scheduleJobResult->StartDescriptor) {
         JobCounter->Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
@@ -2898,7 +2898,7 @@ void TOperationControllerBase::DoScheduleJob(
             return;
         }
         DoScheduleLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
-        if (!scheduleJobResult->JobStartRequest) {
+        if (!scheduleJobResult->StartDescriptor) {
             DoScheduleNonLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
         }
     }
@@ -2989,7 +2989,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
             }
 
             bestTask->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
-            if (scheduleJobResult->JobStartRequest) {
+            if (scheduleJobResult->StartDescriptor) {
                 UpdateTask(bestTask);
                 break;
             }
@@ -3114,7 +3114,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 task->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
-                if (scheduleJobResult->JobStartRequest) {
+                if (scheduleJobResult->StartDescriptor) {
                     UpdateTask(task);
                     return;
                 }

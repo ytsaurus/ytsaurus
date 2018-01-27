@@ -306,7 +306,7 @@ void TTask::ScheduleJob(
     joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
         .AsyncVia(TaskHost_->GetCancelableInvoker())
         .Run();
-    scheduleJobResult->JobStartRequest.Emplace(
+    scheduleJobResult->StartDescriptor.Emplace(
         joblet->JobId,
         jobType,
         neededResources,

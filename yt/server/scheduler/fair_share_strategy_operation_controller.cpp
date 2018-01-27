@@ -96,8 +96,8 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                     }
 
                     const auto& scheduleJobResult = scheduleJobResultOrError.Value();
-                    if (scheduleJobResult->JobStartRequest) {
-                        const auto& jobId = scheduleJobResult->JobStartRequest->Id;
+                    if (scheduleJobResult->StartDescriptor) {
+                        const auto& jobId = scheduleJobResult->StartDescriptor->Id;
                         LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
                             jobId,
                             OperationId_);

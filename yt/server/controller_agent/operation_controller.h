@@ -217,9 +217,9 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobStartRequest
+struct TJobStartDescriptor
 {
-    TJobStartRequest(
+    TJobStartDescriptor(
         const TJobId& id,
         EJobType type,
         const TJobResources& resourceLimits,
@@ -240,7 +240,7 @@ struct TScheduleJobResult
     bool IsBackoffNeeded() const;
     bool IsScheduleStopNeeded() const;
 
-    TNullable<TJobStartRequest> JobStartRequest;
+    TNullable<TJobStartDescriptor> StartDescriptor;
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
     TDuration Duration;
 };

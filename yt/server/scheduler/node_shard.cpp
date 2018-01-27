@@ -937,7 +937,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
     auto result = New<TScheduleJobResult>();
     auto jobId = FromProto<TJobId>(response.job_id());
     if (response.has_job_type()) {
-        result->JobStartRequest.Emplace(
+        result->StartDescriptor.Emplace(
             jobId,
             static_cast<EJobType>(response.job_type()),
             FromProto<TJobResources>(response.resource_limits()),

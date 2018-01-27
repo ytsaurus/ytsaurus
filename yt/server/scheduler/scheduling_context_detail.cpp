@@ -70,17 +70,17 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
 void TSchedulingContextBase::StartJob(
     const TString& treeId,
     const TOperationId& operationId,
-    const TJobStartRequest& jobStartRequest)
+    const TJobStartDescriptor& startDescriptor)
 {
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
     auto job = New<TJob>(
-        jobStartRequest.Id,
-        jobStartRequest.Type,
+        startDescriptor.Id,
+        startDescriptor.Type,
         operationId,
         Node_,
         startTime,
-        jobStartRequest.ResourceLimits,
-        jobStartRequest.Interruptible,
+        startDescriptor.ResourceLimits,
+        startDescriptor.Interruptible,
         treeId);
     StartedJobs_.push_back(job);
 }

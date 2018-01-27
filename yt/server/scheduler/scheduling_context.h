@@ -46,7 +46,7 @@ struct ISchedulingContext
     virtual void StartJob(
         const TString& treeId,
         const TOperationId& operationId,
-        const NControllerAgent::TJobStartRequest& jobStartRequest) = 0;
+        const NControllerAgent::TJobStartDescriptor& startDescriptor) = 0;
 
     virtual void PreemptJob(const TJobPtr& job) = 0;
 

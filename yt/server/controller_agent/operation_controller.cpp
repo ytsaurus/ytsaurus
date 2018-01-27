@@ -411,7 +411,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobStartRequest::TJobStartRequest(
+TJobStartDescriptor::TJobStartDescriptor(
     const TJobId& id,
     EJobType type,
     const TJobResources& resourceLimits,
@@ -432,7 +432,7 @@ void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
 bool TScheduleJobResult::IsBackoffNeeded() const
 {
     return
-        !JobStartRequest &&
+        !StartDescriptor &&
         Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
         Failed[EScheduleJobFailReason::NoLocalJobs] == 0 &&
         Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
