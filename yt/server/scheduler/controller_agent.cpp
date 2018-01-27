@@ -17,6 +17,10 @@ TControllerAgent::TControllerAgent(const NControllerAgent::TIncarnationId& incar
         NLogging::TLogger(SchedulerLogger)
             // TODO(babenko): agent id
             .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_))
+    , ScheduleJobResponsesInbox_(
+        NLogging::TLogger(SchedulerLogger)
+            // TODO(babenko): agent id
+            .AddTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v", IncarnationId_))
     , JobEventsOutbox_(New<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>(
         NLogging::TLogger(SchedulerLogger)
             // TODO(babenko): agent id
@@ -25,6 +29,10 @@ TControllerAgent::TControllerAgent(const NControllerAgent::TIncarnationId& incar
         NLogging::TLogger(SchedulerLogger)
             // TODO(babenko): agent id
             .AddTag("Kind: SchedulerToAgentOperations, IncarnationId: %v", IncarnationId_)))
+    , ScheduleJobRequestsOutbox_(New<TMessageQueueOutbox<TScheduleJobRequestPtr>>(
+        NLogging::TLogger(SchedulerLogger)
+            // TODO(babenko): agent id
+            .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_)))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

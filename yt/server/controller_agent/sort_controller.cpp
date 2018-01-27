@@ -587,7 +587,8 @@ protected:
             if (Controller->Spec->EnablePartitionedDataBalancing) {
                 auto nodeDescriptors = Controller->GetExecNodeDescriptors();
                 yhash<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
-                for (const auto& descriptor : nodeDescriptors) {
+                for (const auto& pair : nodeDescriptors) {
+                    const auto& descriptor = pair.second;
                     YCHECK(idToNodeDescriptor.insert(std::make_pair(descriptor.Id, descriptor)).second);
                 }
 
@@ -1452,18 +1453,20 @@ protected:
         const auto& nodeDescriptors = GetExecNodeDescriptors();
         auto maxResourceLimits = ZeroJobResources();
         double maxIOWeight = 0;
-        for (const auto& descriptor : nodeDescriptors) {
+        for (const auto& pair : nodeDescriptors) {
+            const auto& descriptor = pair.second;
             maxResourceLimits = Max(maxResourceLimits, descriptor.ResourceLimits);
             maxIOWeight = std::max(maxIOWeight, descriptor.IOWeight);
         }
 
         std::vector<TAssignedNodePtr> nodeHeap;
-        for (const auto& node : nodeDescriptors) {
+        for (const auto& pair : nodeDescriptors) {
+            const auto& descriptor = pair.second;
             double weight = 1.0;
-            weight = std::min(weight, GetMinResourceRatio(node.ResourceLimits, maxResourceLimits));
-            weight = std::min(weight, node.IOWeight > 0 ? node.IOWeight / maxIOWeight : 0);
+            weight = std::min(weight, GetMinResourceRatio(descriptor.ResourceLimits, maxResourceLimits));
+            weight = std::min(weight, descriptor.IOWeight > 0 ? descriptor.IOWeight / maxIOWeight : 0);
             if (weight > 0) {
-                auto assignedNode = New<TAssignedNode>(node, weight);
+                auto assignedNode = New<TAssignedNode>(descriptor, weight);
                 nodeHeap.push_back(assignedNode);
             }
         }

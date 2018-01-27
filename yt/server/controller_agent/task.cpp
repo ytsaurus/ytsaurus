@@ -296,7 +296,7 @@ void TTask::ScheduleJob(
     }
 
     auto jobType = GetJobType();
-    joblet->JobId = context->GenerateJobId();
+    joblet->JobId = context->GetJobId();
 
     // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));

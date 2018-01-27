@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/scheduler/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/actions/callback.h>
 
 namespace NYT {
@@ -28,7 +30,8 @@ struct TUpdatedJob;
 struct TCompletedJob;
 
 struct TExecNodeDescriptor;
-DECLARE_REFCOUNTED_STRUCT(TExecNodeDescriptorList);
+using TExecNodeDescriptorMap = yhash<NNodeTrackerClient::TNodeId, TExecNodeDescriptor>;
+DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap);
 
 DECLARE_REFCOUNTED_CLASS(TNodeShard)
 DECLARE_REFCOUNTED_CLASS(TExecNode)

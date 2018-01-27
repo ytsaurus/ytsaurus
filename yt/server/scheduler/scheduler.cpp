@@ -187,14 +187,9 @@ public:
         YCHECK(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
 
-        auto primaryMasterCellTag = GetMasterClient()
-            ->GetNativeConnection()
-            ->GetPrimaryMasterCellTag();
-
         for (int index = 0; index < Config_->NodeShardCount; ++index) {
             NodeShards_.push_back(New<TNodeShard>(
                 index,
-                primaryMasterCellTag,
                 Config_,
                 this,
                 Bootstrap_));
@@ -327,7 +322,7 @@ public:
             Config_->OrchidKeysUpdatePeriod);
     }
 
-    TExecNodeDescriptorListPtr GetCachedExecNodeDescriptors()
+    TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1033,7 +1028,7 @@ private:
     yhash<TOperationId, TOperationPtr> IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
-    TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
+    TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
@@ -1659,7 +1654,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        std::vector<TFuture<TExecNodeDescriptorListPtr>> shardDescriptorsFutures;
+        std::vector<TFuture<TRefCountedExecNodeDescriptorMapPtr>> shardDescriptorsFutures;
         for (const auto& nodeShard : NodeShards_) {
             shardDescriptorsFutures.push_back(BIND(&TNodeShard::GetExecNodeDescriptors, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
@@ -1669,12 +1664,11 @@ private:
         auto shardDescriptors = WaitFor(Combine(shardDescriptorsFutures))
             .ValueOrThrow();
 
-        auto result = New<TExecNodeDescriptorList>();
+        auto result = New<TRefCountedExecNodeDescriptorMap>();
         for (const auto& descriptors : shardDescriptors) {
-            result->Descriptors.insert(
-                result->Descriptors.end(),
-                descriptors->Descriptors.begin(),
-                descriptors->Descriptors.end());
+            for (const auto& pair : *descriptors) {
+                YCHECK(result->insert(pair).second);
+            }
         }
 
         {
@@ -1689,11 +1683,11 @@ private:
         }
     }
 
-    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
+    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TExecNodeDescriptorListPtr descriptors;
+        TRefCountedExecNodeDescriptorMapPtr descriptors;
         {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
             descriptors = CachedExecNodeDescriptors_;
@@ -1703,10 +1697,11 @@ private:
             return descriptors;
         }
 
-        auto result = New<TExecNodeDescriptorList>();
-        for (const auto& descriptor : descriptors->Descriptors) {
+        auto result = New<TRefCountedExecNodeDescriptorMap>();
+        for (const auto& pair : *descriptors) {
+            const auto& descriptor = pair.second;
             if (filter.CanSchedule(descriptor.Tags)) {
-                result->Descriptors.push_back(descriptor);
+                YCHECK(result->emplace(descriptor.Id, descriptor).second);
             }
         }
         return result;
@@ -1721,7 +1716,8 @@ private:
         {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-            for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
+            for (const auto& pair : *CachedExecNodeDescriptors_) {
+                const auto& descriptor = pair.second;
                 if (filter.CanSchedule(descriptor.Tags)) {
                     ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
                 }
@@ -2811,7 +2807,7 @@ IYPathServicePtr TScheduler::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
-TExecNodeDescriptorListPtr TScheduler::GetCachedExecNodeDescriptors()
+TRefCountedExecNodeDescriptorMapPtr TScheduler::GetCachedExecNodeDescriptors()
 {
     return Impl_->GetCachedExecNodeDescriptors();
 }

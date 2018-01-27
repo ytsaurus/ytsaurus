@@ -87,7 +87,7 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
         auto scheduleJobResult = New<TScheduleJobResult>();
         if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::Timeout);
             // If ScheduleJob was not canceled we need to abort created job.
             scheduleJobResultFuture.Subscribe(
                 BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TScheduleJobResultPtr>& scheduleJobResultOrError) {

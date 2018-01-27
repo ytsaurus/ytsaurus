@@ -5,6 +5,7 @@
 #include "private.h"
 #include "operation_controller_host.h"
 #include "operation.h"
+#include "scheduling_context.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
@@ -48,10 +49,66 @@ using namespace NYson;
 using namespace NRpc;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ControllerAgentLogger;
+
+////////////////////////////////////////////////////////////////////
+
+struct TAgentToSchedulerScheduleJobResponse
+{
+    TJobId JobId;
+    TScheduleJobResultPtr Result;
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TSchedulingContext
+    : public ISchedulingContext
+{
+public:
+    TSchedulingContext(
+        const NScheduler::NProto::TScheduleJobRequest* request,
+        const TExecNodeDescriptor& nodeDescriptor)
+        : ResourceLimits_(FromProto<TJobResources>(request->node_resource_limits()))
+        , DiskInfo_(request->node_disk_info())
+        , JobId_(FromProto<TJobId>(request->job_id()))
+        , NodeDescriptor_(nodeDescriptor)
+    { }
+
+    virtual const TExecNodeDescriptor& GetNodeDescriptor() const override
+    {
+        return NodeDescriptor_;
+    }
+
+    virtual const TJobResources& ResourceLimits() const override
+    {
+        return ResourceLimits_;
+    }
+
+    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const override
+    {
+        return DiskInfo_;
+    }
+
+    virtual TJobId GetJobId() const override
+    {
+        return JobId_;
+    }
+
+    virtual NProfiling::TCpuInstant GetNow() const override
+    {
+        return NProfiling::GetCpuInstant();
+    }
+
+private:
+    const TJobResources ResourceLimits_;
+    const NNodeTrackerClient::NProto::TDiskResources& DiskInfo_;
+    const TJobId JobId_;
+    const TExecNodeDescriptor& NodeDescriptor_;
+};
 
 ////////////////////////////////////////////////////////////////////
 
@@ -337,13 +394,12 @@ public:
             .Run(jobId, /* outputStatistics */ true);
     }
 
-    TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (filter.IsEmpty()) {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
-
             return CachedExecNodeDescriptors_;
         }
 
@@ -355,7 +411,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TReaderGuard guard(ExecNodeDescriptorsLock_);
-        return static_cast<int>(CachedExecNodeDescriptors_->Descriptors.size());
+        return static_cast<int>(CachedExecNodeDescriptors_->size());
     }
 
     const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const
@@ -384,18 +440,22 @@ private:
     TOperationIdToOperationMap IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
-    TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
-    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
+    TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
+    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
     TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
 
     TIncarnationId IncarnationId_;
+
     TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>> ScheduleJobResposesOutbox_;
+
     std::unique_ptr<NScheduler::TMessageQueueInbox> JobEventsInbox_;
     std::unique_ptr<NScheduler::TMessageQueueInbox> OperationEventsInbox_;
+    std::unique_ptr<NScheduler::TMessageQueueInbox> ScheduleJobRequestsInbox_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -415,25 +475,33 @@ private:
         CancelableInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
 
         IncarnationId_ = MasterConnector_->GetIncarnationId();
+
         OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_));
         JobEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_));
+        ScheduleJobResposesOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v", IncarnationId_));
+
         JobEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_));
         OperationEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentOperation, IncarnationId: %v", IncarnationId_));
+        ScheduleJobRequestsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: SchedulerToAgentScheduleJobs, IncarnationId: %v", IncarnationId_));
     }
 
     void OnMasterConnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
+        CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
             BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
             GetCancelableInvoker());
@@ -471,8 +539,14 @@ private:
         }
 
         IncarnationId_ = {};
+
         OperationEventsOutbox_.Reset();
         JobEventsOutbox_.Reset();
+        ScheduleJobResposesOutbox_.Reset();
+
+        JobEventsInbox_.reset();
+        OperationEventsInbox_.reset();
+        ScheduleJobRequestsInbox_.reset();
     }
 
     void OnMasterDisconnected()
@@ -526,9 +600,31 @@ private:
                 }
             });
 
-        JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
+        ScheduleJobResposesOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_schedule_job_responses(),
+            [] (auto* protoResponse, const auto& response) {
+                const auto& scheduleJobResult = *response.Result;
+                ToProto(protoResponse->mutable_job_id(), response.JobId);
+                if (scheduleJobResult.JobStartRequest) {
+                    const auto& jobStartRequest = *scheduleJobResult.JobStartRequest;
+                    Y_ASSERT(response.JobId == jobStartRequest.Id);
+                    protoResponse->set_job_type(static_cast<int>(jobStartRequest.Type));
+                    ToProto(protoResponse->mutable_resource_limits(), jobStartRequest.ResourceLimits);
+                    protoResponse->set_interruptible(jobStartRequest.Interruptible);
+                }
+                protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
+                for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+                    if (scheduleJobResult.Failed[reason] > 0) {
+                        auto* protoCounter = protoResponse->add_failed();
+                        protoCounter->set_reason(static_cast<int>(reason));
+                        protoCounter->set_value(scheduleJobResult.Failed[reason]);
+                    }
+                }
+            });
 
+        JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
         OperationEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_operation_events());
+        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_responses());
 
         for (const auto& pair : GetOperations()) {
             const auto& operationId = pair.first;
@@ -553,11 +649,8 @@ private:
 
             // TODO(ignat): add some backoff.
             protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
-
             protoOperation->set_pending_job_count(controller->GetPendingJobCount());
-
             ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
-
             ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
         }
 
@@ -593,7 +686,31 @@ private:
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
         JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events());
+        ScheduleJobResposesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
 
+        HandleJobEvents(rsp);
+        HandleOperationEvents(rsp);
+        HandleScheduleJobRequests(rsp, GetExecNodeDescriptors({}));
+
+        if (rsp->has_exec_nodes()) {
+            auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
+            for (const auto& protoDescriptor : rsp->exec_nodes().exec_nodes()) {
+                YCHECK(execNodeDescriptors->emplace(
+                    protoDescriptor.node_id(),
+                    FromProto<TExecNodeDescriptor>(protoDescriptor)).second);
+            }
+
+            {
+                TWriterGuard guard(ExecNodeDescriptorsLock_);
+                std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
+            }
+
+            LastExecNodesUpdateTime_ = now;
+        }
+    }
+
+    void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
+    {
         yhash<TOperationPtr, std::vector<NScheduler::NProto::TSchedulerToAgentJobEvent*>> groupedJobEvents;
         JobEventsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_job_events(),
@@ -635,7 +752,10 @@ private:
                     }
                 }));
         }
+    }
 
+    void HandleOperationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
+    {
         OperationEventsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_operation_events(),
             [&] (const auto* protoEvent) {
@@ -659,31 +779,71 @@ private:
                         Y_UNREACHABLE();
                 }
             });
-
-        if (rsp->has_exec_nodes()) {
-            auto execNodeDescriptors = New<TExecNodeDescriptorList>();
-            FromProto(&execNodeDescriptors->Descriptors, rsp->exec_nodes().exec_nodes());
-
-            {
-                TWriterGuard guard(ExecNodeDescriptorsLock_);
-                std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
-            }
-
-            LastExecNodesUpdateTime_ = now;
-        }
     }
 
+    void HandleScheduleJobRequests(
+        const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp,
+        const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
+    {
+        ScheduleJobRequestsInbox_->HandleIncoming(
+            rsp->mutable_scheduler_to_agent_schedule_job_requests(),
+            [&] (auto* protoRequest) {
+                auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
+                auto operation = this->FindOperation(operationId);
+                if (!operation) {
+                    return;
+                }
+
+                auto controller = operation->GetController();
+                controller->GetCancelableInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] {
+                    auto jobId = FromProto<TJobId>(protoRequest->job_id());
+                    auto nodeId = NodeIdFromJobId(jobId);
+                    auto descriptorIt = execNodeDescriptors->find(nodeId);
+
+                    TAgentToSchedulerScheduleJobResponse response;
+                    response.JobId = jobId;
+
+                    if (descriptorIt == execNodeDescriptors->end()) {
+                        response.Result = New<TScheduleJobResult>();
+                        response.Result->RecordFail(EScheduleJobFailReason::UnknownNodeId);
+
+                        LOG_DEBUG("Failed to schedule job due to unknown node id (OperationId: %v, JobId: %v, NodeId: %v)",
+                            operationId,
+                            jobId,
+                            nodeId);
+                    } else {
+                        TSchedulingContext context(protoRequest, descriptorIt->second);
+                        auto jobLimits = FromProto<TJobResourcesWithQuota>(protoRequest->job_resource_limits());
+                        const auto& treeId = protoRequest->tree_id();
+                        response.Result = controller->ScheduleJob(
+                            &context,
+                            jobLimits,
+                            treeId);
+                    }
+
+                    auto itemId = ScheduleJobResposesOutbox_->Enqueue(std::move(response));
+                    LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v, ItemId: %v)",
+                        operationId,
+                        jobId,
+                        itemId);
+                }));
+            });
+    }
+
+
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
-    TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-        auto result = New<TExecNodeDescriptorList>();
-        for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
+        auto result = New<TRefCountedExecNodeDescriptorMap>();
+        for (const auto& pair : *CachedExecNodeDescriptors_) {
+            auto nodeId = pair.first;
+            const auto& descriptor = pair.second;
             if (filter.CanSchedule(descriptor.Tags)) {
-                result->Descriptors.push_back(descriptor);
+                YCHECK(result->emplace(nodeId, descriptor).second);
             }
         }
         return result;
@@ -823,7 +983,7 @@ int TControllerAgent::GetExecNodeCount() const
     return Impl_->GetExecNodeCount();
 }
 
-TExecNodeDescriptorListPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+TRefCountedExecNodeDescriptorMapPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
 {
     return Impl_->GetExecNodeDescriptors(filter);
 }

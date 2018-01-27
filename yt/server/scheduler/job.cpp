@@ -46,7 +46,7 @@ TJobStatus JobStatusFromError(const TError& error)
     return status;
 }
 
-TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
+TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
 {
     return MakeId(
         EObjectType::SchedulerJob,

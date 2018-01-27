@@ -3,6 +3,7 @@ package NYT.NScheduler.NProto;
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,11 +32,6 @@ message TExecNodeDescriptor
     required double io_weight = 3;
     required TJobResources resource_limits = 4;
     repeated string tags = 5;
-}
-
-message TExecNodeDescriptorList
-{
-    repeated TExecNodeDescriptor exec_nodes = 1;
 }
 
 message TJobMetrics
@@ -117,6 +113,32 @@ message TSchedulerToAgentOperationEvent
     required int32 event_type = 2; // ESchedulerToAgentOperationEventType
 }
 
+message TScheduleJobRequest
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+    required string tree_id = 3;
+    required TJobResourcesWithQuota job_resource_limits = 4;
+    required TJobResources node_resource_limits = 5;
+    required NNodeTrackerClient.NProto.TDiskResources node_disk_info = 6;
+}
+
+message TScheduleJobResponse
+{
+    message TFailedCounter
+    {
+        required int32 reason = 1; // EScheduleJobFailReason
+        required int32 value = 2;
+    }
+
+    required NYT.NProto.TGuid job_id = 1;
+    optional int32 job_type = 2; // EJobType
+    optional TJobResources resource_limits = 3;
+    optional bool interruptible = 4;
+    repeated TFailedCounter failed = 5;
+    required uint64 duration = 6;
+}
+
 message TEventQueueInbox
 {
     required int64 next_expected_item_id = 1;
@@ -138,6 +160,12 @@ message TReqHeartbeat
         repeated TAgentToSchedulerJobEvent items = 2;
     }
 
+    message TAgentToSchedulerScheduleJobResponsesOutbox
+    {
+        required int64 first_item_id = 1;
+        repeated TScheduleJobResponse items = 2;
+    }
+
     required NYT.NProto.TGuid agent_incarnation_id = 1;
     repeated TOperationInfo operations = 2;
 
@@ -147,29 +175,47 @@ message TReqHeartbeat
 
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 5;
     required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 6;
+    required TAgentToSchedulerScheduleJobResponsesOutbox agent_to_scheduler_schedule_job_responses = 9;
+
     required TEventQueueInbox scheduler_to_agent_job_events = 7;
     required TEventQueueInbox scheduler_to_agent_operation_events = 8;
+    required TEventQueueInbox scheduler_to_agent_schedule_job_responses = 10;
 }
 
 message TRspHeartbeat
 {
-    message TSchedulerToAgentJobEventOutbox
+    message TSchedulerToAgentJobEventsOutbox
     {
         required int64 first_item_id = 1;
         repeated TSchedulerToAgentJobEvent items = 2;
     }
 
-    message TSchedulerToAgentOperationEventOutbox
+    message TSchedulerToAgentOperationEventsOutbox
     {
         required int64 first_item_id = 1;
         repeated TSchedulerToAgentOperationEvent items = 2;
     }
 
+    message TSchedulerToAgentScheduleJobRequestsOutbox
+    {
+        required int64 first_item_id = 1;
+        repeated TScheduleJobRequest items = 2;
+    }
+
+    message TExecNodeDescriptorList
+    {
+        repeated TExecNodeDescriptor exec_nodes = 1;
+    }
+
     optional TExecNodeDescriptorList exec_nodes = 1;
+
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
     required TEventQueueInbox agent_to_scheduler_job_events = 3;
-    required TSchedulerToAgentJobEventOutbox scheduler_to_agent_job_events = 4;
-    required TSchedulerToAgentOperationEventOutbox scheduler_to_agent_operation_events = 5;
+    required TEventQueueInbox agent_to_scheduler_schedule_job_responses = 6;
+
+    required TSchedulerToAgentJobEventsOutbox scheduler_to_agent_job_events = 4;
+    required TSchedulerToAgentOperationEventsOutbox scheduler_to_agent_operation_events = 5;
+    required TSchedulerToAgentScheduleJobRequestsOutbox scheduler_to_agent_schedule_job_requests = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

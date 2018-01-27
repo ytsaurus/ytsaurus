@@ -18,6 +18,8 @@
 
 #include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
+#include <yt/ytlib/api/native_connection.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/yson/public.h>
@@ -38,54 +40,18 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulingContextAdapter
-    : public NControllerAgent::ISchedulingContext
-{
-public:
-    explicit TSchedulingContextAdapter(NScheduler::ISchedulingContextPtr underlying)
-        : Underlying_(std::move(underlying))
-    { }
-
-    virtual const TExecNodeDescriptor& GetNodeDescriptor() const override
-    {
-        return Underlying_->GetNodeDescriptor();
-    }
-
-    virtual const TJobResources& ResourceLimits() const override
-    {
-        return Underlying_->ResourceLimits();
-    }
-
-    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const override
-    {
-        return Underlying_->DiskInfo();
-    }
-
-    virtual TJobId GenerateJobId() override
-    {
-        return Underlying_->GenerateJobId();
-    }
-
-    virtual NProfiling::TCpuInstant GetNow() const override
-    {
-        return NProfiling::GetCpuInstant();
-    }
-
-private:
-    const NScheduler::ISchedulingContextPtr Underlying_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOperationController
     : public IOperationController
 {
 public:
     TOperationController(
+        NCellScheduler::TBootstrap* bootstrap,
         TControllerAgent* agent,
         TOperation* operation)
-        : JobEventsOutbox_(agent->GetJobEventsOutbox())
+        : Bootstrap_(bootstrap)
+        , JobEventsOutbox_(agent->GetJobEventsOutbox())
         , OperationEventsOutbox_(agent->GetOperationEventsOutbox())
+        , ScheduleJobRequestsOutbox_(agent->GetScheduleJobRequestsOutbox())
         , OperationId_(operation->GetId())
         , RuntimeData_(operation->GetRuntimeData())
     { }
@@ -192,17 +158,30 @@ public:
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
-        // TODO(babenko)
-        return
-            BIND([context, controller = AgentController_, jobLimits, treeId] {
-                TSchedulingContextAdapter adapter(context);
-                return controller->ScheduleJob(
-                    &adapter,
-                    jobLimits,
-                    treeId);
-            })
-            .AsyncVia(AgentController_->GetCancelableInvoker())
-            .Run();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto nodeId = context->GetNodeDescriptor().Id;
+        auto cellTag = Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
+        auto jobId = GenerateJobId(cellTag, nodeId);
+
+        auto request = std::make_unique<TScheduleJobRequest>();
+        request->OperationId = OperationId_;
+        request->JobId = jobId;
+        request->JobResourceLimits = jobLimits;
+        request->TreeId = treeId;
+        request->NodeId = nodeId;
+        request->NodeResourceLimits = context->ResourceLimits();
+        request->NodeDiskInfo = context->DiskInfo();
+        auto itemId = ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
+        LOG_DEBUG("Job schedule request enqueued (OperationId: %v, JobId: %v, ItemId: %v)",
+            OperationId_,
+            jobId,
+            itemId);
+
+        const auto& scheduler = Bootstrap_->GetScheduler();
+        auto shardId = scheduler->GetNodeShardId(nodeId);
+        const auto& nodeShard = scheduler->GetNodeShards()[shardId];
+        return nodeShard->BeginScheduleJob(jobId);
     }
 
     virtual TJobResources GetNeededResources() const override
@@ -249,10 +228,12 @@ public:
     {
         AgentController_ = controller;
     }
-    
+
 private:
+    NCellScheduler::TBootstrap* const Bootstrap_;
     const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
     const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
+    const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
     const TOperationId OperationId_;
     const TOperationRuntimeDataPtr RuntimeData_;
 
@@ -318,7 +299,7 @@ public:
         TControllerAgent* agent,
         TOperation* operation)
     {
-        return New<TOperationController>(agent, operation);
+        return New<TOperationController>(Bootstrap_, agent, operation);
     }
 
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
@@ -402,6 +383,11 @@ public:
         Agent_->SetSuspiciousJobsYson(TYsonString(JoinSeq("", suspiciousJobsYsons), EYsonType::MapFragment));
 
         const auto& nodeShards = scheduler->GetNodeShards();
+
+        // We must wait for all these results before replying since these activities
+        // rely on RPC request to remain alive.
+        std::vector<TFuture<void>> asyncResults;
+
         std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
         agent->JobEventsInbox().HandleIncoming(
             request->mutable_agent_to_scheduler_job_events(),
@@ -411,7 +397,6 @@ public:
                 groupedJobEvents[shardId].push_back(protoEvent);
             });
 
-        std::vector<TFuture<void>> asyncResults;
         for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
             const auto& nodeShard = nodeShards[shardId];
             asyncResults.push_back(
@@ -467,11 +452,32 @@ public:
                 }
             });
 
+        std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
+        agent->ScheduleJobResponsesInbox().HandleIncoming(
+            request->mutable_agent_to_scheduler_schedule_job_responses(),
+            [&] (auto* protoEvent) {
+                auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
+                groupedScheduleJobResponses[shardId].push_back(protoEvent);
+            });
+
+        for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
+            const auto& nodeShard = nodeShards[shardId];
+            asyncResults.push_back(
+                BIND([context, nodeShard, protoResponses = std::move(groupedScheduleJobResponses[shardId])] {
+                    for (const auto* protoResponse : protoResponses) {
+                        nodeShard->EndScheduleJob(*protoResponse);
+                    }
+                })
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run());
+        }
+
         agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
 
         if (request->exec_nodes_requested()) {
-            for (const auto& execNode : scheduler->GetCachedExecNodeDescriptors()->Descriptors) {
-                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
+            for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
+                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
             }
         }
 
@@ -484,6 +490,7 @@ public:
 
         agent->OperationEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_operation_events());
         agent->JobEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_job_events());
+        agent->ScheduleJobResponsesInbox().ReportStatus(response->mutable_agent_to_scheduler_schedule_job_responses());
 
         agent->GetJobEventsOutbox()->BuildOutcoming(
             response->mutable_scheduler_to_agent_job_events(),
@@ -512,6 +519,17 @@ public:
             [] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+            });
+
+        agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
+            response->mutable_scheduler_to_agent_schedule_job_requests(),
+            [] (auto* protoRequest, const auto& request) {
+                ToProto(protoRequest->mutable_operation_id(), request->OperationId);
+                ToProto(protoRequest->mutable_job_id(), request->JobId);
+                protoRequest->set_tree_id(request->TreeId);
+                ToProto(protoRequest->mutable_job_resource_limits(), request->JobResourceLimits);
+                ToProto(protoRequest->mutable_node_resource_limits(), request->NodeResourceLimits);
+                protoRequest->mutable_node_disk_info()->CopyFrom(request->NodeDiskInfo);
             });
 
         context->Reply();

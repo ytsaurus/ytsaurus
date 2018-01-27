@@ -70,7 +70,7 @@ public:
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
 
     virtual int GetExecNodeCount() override;
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
+    virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
 
     virtual TInstant GetConnectionTime() override;
 

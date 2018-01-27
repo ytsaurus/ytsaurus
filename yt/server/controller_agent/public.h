@@ -14,7 +14,8 @@ using NScheduler::TJobId;
 using NScheduler::TJobResources;
 using NScheduler::EAbortReason;
 using NScheduler::EInterruptReason;
-using NScheduler::TExecNodeDescriptorListPtr;
+using NScheduler::TExecNodeDescriptorMap;
+using NScheduler::TRefCountedExecNodeDescriptorMapPtr;
 using NScheduler::EOperationType;
 using NScheduler::EJobType;
 using NScheduler::EJobState;
@@ -106,6 +107,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((JobSpecThrottling)             (12))
     ((IntermediateChunkLimitExceeded)(13))
     ((DataBalancingViolation)        (14))
+    ((UnknownNodeId)                 (15))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
