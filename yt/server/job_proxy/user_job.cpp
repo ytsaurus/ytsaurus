@@ -742,17 +742,22 @@ private:
         }
 
         FinalizeActions_.push_back(BIND([=] () {
+            auto checkErrors = [&] (const std::vector<TFuture<void>>& asyncErrors) {
+                auto error = WaitFor(Combine(asyncErrors));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
+            };
+
+            std::vector<TFuture<void>> flushResults;
             for (const auto& valueConsumer : WritingValueConsumers_) {
-                valueConsumer->Flush();
+                flushResults.push_back(valueConsumer->Flush());
             }
+            checkErrors(flushResults);
 
-            std::vector<TFuture<void>> asyncResults;
+            std::vector<TFuture<void>> closeResults;
             for (auto writer : JobIO_->GetWriters()) {
-                asyncResults.push_back(writer->Close());
+                closeResults.push_back(writer->Close());
             }
-
-            auto error = WaitFor(Combine(asyncResults));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
+            checkErrors(closeResults);
         }));
     }
 
