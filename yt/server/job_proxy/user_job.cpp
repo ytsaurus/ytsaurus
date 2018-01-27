@@ -1234,10 +1234,12 @@ private:
                 if (ResourceController_) {
                     auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-                    i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
-                    rss += memoryStatistics.Rss;
+                    // TODO(psushin): clarify memory usage calculation.
+                    //i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
+                    //rss += memoryStatistics.Rss;
+                    //return rss;
 
-                    return rss;
+                    return (i64)memoryStatistics.Rss;
                 } else {
                     return GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
                 }
