@@ -29,9 +29,15 @@ THttpHeader::THttpHeader(const TString& method, const TString& command, bool isA
 
 void THttpHeader::AddParameter(const TString& key, TNode value, bool overwrite)
 {
-    auto res = Parameters.emplace(key, std::move(value));
-    if (!res.second && !overwrite) {
-        ythrow yexception() << "Duplicate key: " << key;
+    auto it = Parameters.find(key);
+    if (it == Parameters.end()) {
+        Parameters.emplace(key, std::move(value));
+    } else {
+        if (overwrite) {
+            it->second = std::move(value);
+        } else {
+            ythrow yexception() << "Duplicate key: " << key;
+        }
     }
 }
 
