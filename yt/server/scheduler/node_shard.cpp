@@ -1459,6 +1459,7 @@ void TNodeShard::ProcessScheduledJobs(
         ToProto(startInfo->mutable_job_id(), job->GetId());
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
         *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
+        ToProto(startInfo->mutable_spec_service_addresses(), Bootstrap_->GetLocalAddresses());
     }
 
     for (const auto& job : schedulingContext->PreemptedJobs()) {
