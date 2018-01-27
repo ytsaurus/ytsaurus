@@ -478,7 +478,7 @@ void TJobSatellite::Run()
     StopCalback_ = BIND(&TJobSatelliteWorker::GracefulShutdown,
         MakeWeak(jobSatelliteService));
 
-    JobProxyControl_->NotifyJobSatellitePrepared(GetProcessRss(-1));
+    JobProxyControl_->NotifyJobSatellitePrepared(GetProcessMemoryUsage(-1).Rss);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

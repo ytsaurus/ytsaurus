@@ -1184,12 +1184,13 @@ private:
                 continue;
             }
             try {
-                i64 processRss = GetProcessRss(pid);
-                LOG_DEBUG("PID: %v, ProcessName: %Qv, RSS: %v",
+                auto memoryUsage = GetProcessMemoryUsage(pid);
+                LOG_DEBUG("PID: %v, ProcessName: %Qv, RSS: %v, Shared: %v",
                     pid,
                     GetProcessName(pid),
-                    processRss);
-                rss += processRss;
+                    memoryUsage.Rss,
+                    memoryUsage.Shared);
+                rss += memoryUsage.Rss;
             } catch (const std::exception& ex) {
                 LOG_DEBUG(ex, "Failed to get RSS for PID %v", pid);
             }
@@ -1222,26 +1223,27 @@ private:
             return;
         }
 
-        i64 rss = GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
-
-        if (ResourceController_) {
+        auto getMemoryUsage = [&] () {
             try {
-                auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-                i64 uidRss = rss;
-                rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
-                rss += memoryStatistics.Rss;
+                if (ResourceController_) {
+                    auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-                if (rss > 1.05 * uidRss && uidRss > 0) {
-                    LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
-                        rss,
-                        uidRss);
+                    i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
+                    rss += memoryStatistics.Rss;
+
+                    return rss;
+                } else {
+                    return GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
                 }
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Unable to get memory statistics to check memory limits");
             }
-        }
 
+            return 0l;
+        };
+
+        auto rss = getMemoryUsage();
         i64 tmpfsSize = GetTmpfsSize();
         i64 memoryLimit = UserJobSpec_.memory_limit();
         i64 currentMemoryUsage = rss + tmpfsSize;
