@@ -26,7 +26,6 @@ TJob::TJob(
     , Node_(std::move(node))
     , StartTime_(startTime)
     , Interruptible_(interruptible)
-    , State_(EJobState::None)
     , TreeId_(treeId)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
