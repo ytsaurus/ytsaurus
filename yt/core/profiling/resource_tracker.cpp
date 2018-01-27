@@ -151,7 +151,7 @@ void TResourceTracker::EnqueueCpuUsage()
 void TResourceTracker::EnqueueMemoryUsage()
 {
     try {
-        Profiler.Enqueue("/total/memory", GetProcessRss(), EMetricType::Gauge);
+        Profiler.Enqueue("/total/memory", GetProcessMemoryUsage().Rss, EMetricType::Gauge);
     } catch (const TIoException&) {
         // Ignore all IO exceptions.
         return;
