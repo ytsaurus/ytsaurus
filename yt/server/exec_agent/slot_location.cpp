@@ -542,7 +542,7 @@ void TSlotLocation::UpdateDiskInfo()
                         // We have to calculate user directory size as root,
                         // because user job could have set restricted permissions for files and
                         // directories inside sandbox.
-                        auto dirSize = sandboxKind == ESandboxKind::User
+                        auto dirSize = (sandboxKind == ESandboxKind::User) && HasRootPermissions_
                             ? RunTool<TGetDirectorySizeAsRootTool>(path)
                             : NFS::GetDirectorySize(path);
                         diskUsage += dirSize;
