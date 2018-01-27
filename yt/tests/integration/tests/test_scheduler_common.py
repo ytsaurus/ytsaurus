@@ -22,7 +22,7 @@ import sys
 cgroups_delta_node_config = {
     "exec_agent": {
         "enable_cgroups": True,                                       # <= 18.4
-        "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+        "supported_cgroups": ["cpuacct", "blkio", "cpu"],   # <= 18.4
         "slot_manager": {
             "enforce_job_control": True,                              # <= 18.4
             "job_environment": {
@@ -30,7 +30,6 @@ cgroups_delta_node_config = {
                 "supported_cgroups": [                                # >= 18.5
                     "cpuacct",
                     "blkio",
-                    "memory",
                     "cpu"],
             },
         }
@@ -2386,7 +2385,7 @@ class TestPoolMetrics(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "enable_cgroups": True,
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
+            "supported_cgroups": ["cpuacct", "blkio", "cpu"],
             "slot_manager": {
                 "enforce_job_control": True,
                 "job_environment": {
@@ -2394,7 +2393,6 @@ class TestPoolMetrics(YTEnvSetup):
                     "supported_cgroups": [
                         "cpuacct",
                         "blkio",
-                        "memory",
                         "cpu"],
                 },
             },
