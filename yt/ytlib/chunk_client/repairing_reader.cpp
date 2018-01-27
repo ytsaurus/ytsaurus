@@ -10,6 +10,8 @@
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <util/random/shuffle.h>
+
 #include <algorithm>
 #include <vector>
 
@@ -358,11 +360,16 @@ TChunkMeta TRepairingReader::GetMetaAsync(
     const TNullable<std::vector<int>>& extensionTags)
 {
     std::vector<TError> errors;
-    for (int i = 0; i < Codec_->GetDataPartCount(); ++i) {
-        if (!Readers_[i]->IsValid()) {
+
+    std::vector<int> indices(Codec_->GetTotalPartCount());
+    std::iota(indices.begin(), indices.end(), 0);
+    Shuffle(indices.begin(), indices.end());
+
+    for (auto index : indices) {
+        if (!Readers_[index]->IsValid()) {
             continue;
         }
-        auto result = WaitFor(Readers_[i]->GetMeta(workloadDescriptor, partitionTag, extensionTags));
+        auto result = WaitFor(Readers_[index]->GetMeta(workloadDescriptor, partitionTag, extensionTags));
         if (result.IsOK()) {
             return result.Value();
         }
