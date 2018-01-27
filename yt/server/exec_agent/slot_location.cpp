@@ -507,59 +507,71 @@ void TSlotLocation::Disable(const TError& error)
 
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
+
+    DiskInfoUpdateExecutor_->Stop();
 }
 
 void TSlotLocation::UpdateDiskInfo()
 {
-    auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
-    i64 diskLimit = locationStatistics.TotalSpace;
-    if (Config_->DiskQuota) {
-        diskLimit = Min(diskLimit, *Config_->DiskQuota);
+    if (!IsEnabled()) {
+        return;
     }
 
-    i64 diskUsage = 0;
-    yhash<int, TNullable<i64>> occupiedSlotToDiskLimit;
-
-    {
-        TReaderGuard guard(SlotsLock_);
-        occupiedSlotToDiskLimit = OccupiedSlotToDiskLimit_;
-    }
-
-    for (const auto& pair : occupiedSlotToDiskLimit) {
-        auto slotIndex = pair.first;
-        const auto& slotDiskLimit = pair.second;
-        if (!slotDiskLimit) {
-            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                auto path = GetSandboxPath(slotIndex, sandboxKind);
-                if (NFS::Exists(path)) {
-                    // We have to calculate user directory size as root,
-                    // because user job could have set restricted permissions for files and
-                    // directories inside sandbox.
-                    auto dirSize = sandboxKind == ESandboxKind::User
-                        ? RunTool<TGetDirectorySizeAsRootTool>(path)
-                        : NFS::GetDirectorySize(path);
-                    diskUsage += dirSize;
-                }
-            }
-        } else {
-            diskUsage += *slotDiskLimit;
+    try {
+        auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
+        i64 diskLimit = locationStatistics.TotalSpace;
+        if (Config_->DiskQuota) {
+            diskLimit = Min(diskLimit, *Config_->DiskQuota);
         }
-    }
 
-    auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace, diskLimit - diskUsage));
-    diskLimit = Min(diskLimit, diskUsage + availableSpace);
+        i64 diskUsage = 0;
+        yhash<int, TNullable<i64>> occupiedSlotToDiskLimit;
 
-    diskLimit -= Config_->DiskUsageWatermark;
+        {
+            TReaderGuard guard(SlotsLock_);
+            occupiedSlotToDiskLimit = OccupiedSlotToDiskLimit_;
+        }
 
-    LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v)",
-        Config_->Path,
-        diskUsage,
-        diskLimit);
+        for (const auto& pair : occupiedSlotToDiskLimit) {
+            auto slotIndex = pair.first;
+            const auto& slotDiskLimit = pair.second;
+            if (!slotDiskLimit) {
+                for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                    auto path = GetSandboxPath(slotIndex, sandboxKind);
+                    if (NFS::Exists(path)) {
+                        // We have to calculate user directory size as root,
+                        // because user job could have set restricted permissions for files and
+                        // directories inside sandbox.
+                        auto dirSize = sandboxKind == ESandboxKind::User
+                            ? RunTool<TGetDirectorySizeAsRootTool>(path)
+                            : NFS::GetDirectorySize(path);
+                        diskUsage += dirSize;
+                    }
+                }
+            } else {
+                diskUsage += *slotDiskLimit;
+            }
+        }
 
-    {
-        auto guard = TWriterGuard(DiskInfoLock_);
-        DiskInfo_.set_usage(diskUsage);
-        DiskInfo_.set_limit(diskLimit);
+        auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace, diskLimit - diskUsage));
+        diskLimit = Min(diskLimit, diskUsage + availableSpace);
+
+        diskLimit -= Config_->DiskUsageWatermark;
+
+        LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v)",
+            Config_->Path,
+            diskUsage,
+            diskLimit);
+
+        {
+            auto guard = TWriterGuard(DiskInfoLock_);
+            DiskInfo_.set_usage(diskUsage);
+            DiskInfo_.set_limit(diskLimit);
+        }
+    } catch (const std::exception& ex) {
+        auto error = TError("Failed to get disk info") << ex;
+        LOG_WARNING(error);
+        Disable(error);
     }
 }
 
