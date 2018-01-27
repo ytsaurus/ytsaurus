@@ -445,7 +445,7 @@ private:
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
-    TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
+    TInstant LastExecNodesUpdateTime_;
 
     TIncarnationId IncarnationId_;
 
@@ -564,9 +564,10 @@ private:
             "Master is not connected");
     }
 
-    std::unique_ptr<NScheduler::NProto::TReqHeartbeat> PrepareHeartbeatRequest(TCpuInstant now)
+    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest()
     {
-        auto req = std::make_unique<NScheduler::NProto::TReqHeartbeat>();
+        auto req = SchedulerProxy_.Heartbeat();
+
         ToProto(req->mutable_agent_incarnation_id(), IncarnationId_);
 
         OperationEventsOutbox_->BuildOutcoming(
@@ -654,35 +655,29 @@ private:
             ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
         }
 
-        bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
-        req->set_exec_nodes_requested(shouldRequestExecNodes);
+        {
+            auto now = TInstant::Now();
+            bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + Config_->ExecNodesRequestPeriod < now;
+            req->set_exec_nodes_requested(shouldRequestExecNodes);
+        }
 
         return req;
     }
 
     void SendHeartbeat()
     {
-        auto now = GetCpuInstant();
-        auto preparedRequest = PrepareHeartbeatRequest(now);
+        LOG_INFO("Sending heartbeat");
 
-        TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr rsp;
-        while (true) {
-            LOG_INFO("Sending heartbeat");
-
-            auto req = SchedulerProxy_.Heartbeat();
-            req->CopyFrom(*preparedRequest);
-
-            auto rspOrError = WaitFor(req->Invoke());
-            if (rspOrError.IsOK()) {
-                rsp = rspOrError.Value();
-                break;
-            }
-
-            LOG_WARNING(rspOrError, "Heartbeat failed, retrying");
+        auto req = PrepareHeartbeatRequest();
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Heartbeat failed; backing off and retrying");
             Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
+            return;
         }
 
         LOG_INFO("Heartbeat succeeded");
+        const auto& rsp = rspOrError.Value();
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
         JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events());
@@ -705,7 +700,7 @@ private:
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
 
-            LastExecNodesUpdateTime_ = now;
+            LastExecNodesUpdateTime_ = TInstant::Now();
         }
     }
 
