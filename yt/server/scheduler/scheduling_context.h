@@ -51,12 +51,6 @@ struct ISchedulingContext
     virtual void PreemptJob(const TJobPtr& job) = 0;
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
-
-    //! Called by a controller to generate id for new job.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual TJobId GenerateJobId() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
@@ -64,8 +58,7 @@ DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
 ISchedulingContextPtr CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs,
-    NObjectClient::TCellTag cellTag);
+    const std::vector<TJobPtr>& runningJobs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

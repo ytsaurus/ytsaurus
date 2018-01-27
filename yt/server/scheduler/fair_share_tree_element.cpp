@@ -1943,7 +1943,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
         return false;
     }
 
-    const auto& jobStartRequest = scheduleJobResult->JobStartRequest.Get();
+    const auto& jobStartRequest = *scheduleJobResult->JobStartRequest;
     context.SchedulingContext->ResourceUsage() += jobStartRequest.ResourceLimits;
     OnJobStarted(jobStartRequest.Id, jobStartRequest.ResourceLimits);
     context.SchedulingContext->StartJob(GetTreeId(), OperationId_, jobStartRequest);
@@ -2220,7 +2220,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
 
             // Reset result.
             scheduleJobResult = New<TScheduleJobResult>();
-            ++scheduleJobResult->Failed[EScheduleJobFailReason::ResourceOvercommit];
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
         }
     } else {
         if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {

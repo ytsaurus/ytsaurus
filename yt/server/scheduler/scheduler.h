@@ -46,7 +46,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    TExecNodeDescriptorListPtr GetCachedExecNodeDescriptors();
+    TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors();
 
     /*!
      *  \note Thread affinity: any

@@ -33,8 +33,11 @@ namespace NScheduler {
 
 using namespace NCellScheduler;
 using namespace NChunkClient;
+using namespace NCypressClient;
 using namespace NConcurrency;
 using namespace NJobProberClient;
+using namespace NControllerAgent;
+using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NProfiling;
@@ -42,16 +45,7 @@ using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
 
-using NControllerAgent::IOperationControllerSchedulerHost;
-using NControllerAgent::IOperationControllerSchedulerHostPtr;
-
-using NNodeTrackerClient::NodeIdFromObjectId;
-
 using NNodeTrackerClient::TNodeId;
-using NNodeTrackerClient::TNodeDescriptor;
-
-using NCypressClient::TObjectId;
-
 using NScheduler::NProto::TSchedulerJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,12 +60,10 @@ static NProfiling::TAggregateCounter ScheduleTimeCounter;
 
 TNodeShard::TNodeShard(
     int id,
-    TCellTag primaryMasterCellTag,
     TSchedulerConfigPtr config,
     INodeShardHost* host,
     TBootstrap* bootstrap)
     : Id_(id)
-    , PrimaryMasterCellTag_(primaryMasterCellTag)
     , Config_(std::move(config))
     , Host_(host)
     , Bootstrap_(bootstrap)
@@ -181,6 +173,8 @@ void TNodeShard::DoCleanup()
     ConcurrentHeartbeatCount_ = 0;
 
     RevivalState_.Reset();
+
+    JobIdToAsyncScheduleResult_.clear();
 }
 
 void TNodeShard::RegisterOperation(
@@ -308,8 +302,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         auto schedulingContext = CreateSchedulingContext(
             Config_,
             node,
-            runningJobs,
-            PrimaryMasterCellTag_);
+            runningJobs);
 
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
             SubmitUpdatedAndCompletedJobsToStrategy();
@@ -351,7 +344,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     context->Reply();
 }
 
-TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
+TRefCountedExecNodeDescriptorMapPtr TNodeShard::GetExecNodeDescriptors()
 {
     UpdateExecNodeDescriptors();
 
@@ -365,12 +358,12 @@ void TNodeShard::UpdateExecNodeDescriptors()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     
-    auto result = New<TExecNodeDescriptorList>();
-    result->Descriptors.reserve(IdToNode_.size());
+    auto result = New<TRefCountedExecNodeDescriptorMap>();
+    result->reserve(IdToNode_.size());
     for (const auto& pair : IdToNode_) {
         const auto& node = pair.second;
         if (node->GetMasterState() == ENodeState::Online) {
-            result->Descriptors.push_back(node->BuildExecDescriptor());
+            YCHECK(result->emplace(node->GetId(), node->BuildExecDescriptor()).second);
         }
     }
 
@@ -843,15 +836,18 @@ TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& fi
 
     TJobResources resources;
 
+    TRefCountedExecNodeDescriptorMapPtr descriptors;
     {
         TReaderGuard guard(CachedExecNodeDescriptorsLock_);
-        for (const auto& node : CachedExecNodeDescriptors_->Descriptors) {
-            if (node.CanSchedule(filter)) {
-                resources += node.ResourceLimits;
-            }
-        }
+        descriptors = CachedExecNodeDescriptors_;
     }
 
+    for (const auto& pair : *descriptors) {
+        const auto& descriptor = pair.second;
+        if (descriptor.CanSchedule(filter)) {
+            resources += descriptor.ResourceLimits;
+        }
+    }
     return resources;
 }
 
@@ -923,6 +919,39 @@ int TNodeShard::GetTotalNodeCount()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return TotalNodeCount_;
+}
+
+TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(const TJobId& jobId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto promise = NewPromise<TScheduleJobResultPtr>();
+    YCHECK(JobIdToAsyncScheduleResult_.emplace(jobId, promise).second);
+    return promise.ToFuture();
+}
+
+void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto result = New<TScheduleJobResult>();
+    auto jobId = FromProto<TJobId>(response.job_id());
+    if (response.has_job_type()) {
+        result->JobStartRequest.Emplace(
+            jobId,
+            static_cast<EJobType>(response.job_type()),
+            FromProto<TJobResources>(response.resource_limits()),
+            response.interruptible());
+    }
+    for (const auto& protoCounter : response.failed()) {
+        result->Failed[static_cast<EScheduleJobFailReason>(protoCounter.reason())] = protoCounter.value();
+    }
+    FromProto(&result->Duration, response.duration());
+
+    auto it = JobIdToAsyncScheduleResult_.find(jobId);
+    YCHECK(it != JobIdToAsyncScheduleResult_.end());
+    it->second.Set(result);
+    JobIdToAsyncScheduleResult_.erase(it);
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)

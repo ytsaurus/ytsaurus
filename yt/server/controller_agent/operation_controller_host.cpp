@@ -186,7 +186,7 @@ int TOperationControllerHost::GetExecNodeCount()
     return Bootstrap_->GetControllerAgent()->GetExecNodeCount();
 }
 
-TExecNodeDescriptorListPtr TOperationControllerHost::GetExecNodeDescriptors(const TSchedulingTagFilter& filter)
+TRefCountedExecNodeDescriptorMapPtr TOperationControllerHost::GetExecNodeDescriptors(const TSchedulingTagFilter& filter)
 {
     return Bootstrap_->GetControllerAgent()->GetExecNodeDescriptors(filter);
 }

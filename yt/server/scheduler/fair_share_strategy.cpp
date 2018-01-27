@@ -898,30 +898,29 @@ private:
     struct TProfilingCounters
     {
         TProfilingCounters(const TString& prefix, const TTagId& treeIdProfilingTag)
-            : PrescheduleJobTimeCounter(prefix + "/preschedule_job_time", {treeIdProfilingTag})
-            , TotalControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/total", {treeIdProfilingTag})
-            , ExecControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/exec", {treeIdProfilingTag})
-            , StrategyScheduleJobTimeCounter(prefix + "/strategy_schedule_job_time", {treeIdProfilingTag})
-            , ScheduleJobCallCounter(prefix + "/schedule_job_count", {treeIdProfilingTag})
+            : PrescheduleJobTime(prefix + "/preschedule_job_time", {treeIdProfilingTag})
+            , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", {treeIdProfilingTag})
+            , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", {treeIdProfilingTag})
+            , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", {treeIdProfilingTag})
+            , ScheduleJobCall(prefix + "/schedule_job_count", {treeIdProfilingTag})
         {
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues())
             {
                 auto tags = GetFailReasonProfilingTags(reason);
                 tags.push_back(treeIdProfilingTag);
 
-                ControllerScheduleJobFailCounter[reason] = TSimpleCounter(
+                ControllerScheduleJobFail[reason] = TSimpleCounter(
                     prefix + "/controller_schedule_job_fail",
                     tags);
             }
         }
 
-        TAggregateCounter PrescheduleJobTimeCounter;
-        TAggregateCounter TotalControllerScheduleJobTimeCounter;
-        TAggregateCounter ExecControllerScheduleJobTimeCounter;
-        TAggregateCounter StrategyScheduleJobTimeCounter;
-        TSimpleCounter ScheduleJobCallCounter;
-
-        TEnumIndexedVector<TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFailCounter;
+        TAggregateCounter PrescheduleJobTime;
+        TAggregateCounter TotalControllerScheduleJobTime;
+        TAggregateCounter ExecControllerScheduleJobTime;
+        TAggregateCounter StrategyScheduleJobTime;
+        TSimpleCounter ScheduleJobCall;
+        TEnumIndexedVector<TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFail;
     };
 
     TProfilingCounters NonPreemptiveProfilingCounters;
@@ -964,7 +963,7 @@ private:
                     context.Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
                     rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
                     prescheduleDuration = prescheduleTimer.GetElapsedTime();
-                    Profiler.Update(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter, DurationToCpuDuration(prescheduleDuration));
+                    Profiler.Update(NonPreemptiveProfilingCounters.PrescheduleJobTime, DurationToCpuDuration(prescheduleDuration));
                     prescheduleExecuted = true;
                     context.PrescheduledCalled = true;
                 }
@@ -1055,7 +1054,7 @@ private:
                     TWallTimer prescheduleTimer;
                     rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
                     prescheduleDuration = prescheduleTimer.GetElapsedTime();
-                    Profiler.Update(PreemptiveProfilingCounters.PrescheduleJobTimeCounter, DurationToCpuDuration(prescheduleDuration));
+                    Profiler.Update(PreemptiveProfilingCounters.PrescheduleJobTime, DurationToCpuDuration(prescheduleDuration));
                     prescheduleExecuted = true;
                 }
 
@@ -1180,22 +1179,22 @@ private:
             TDuration scheduleJobDurationWithoutControllers)
         {
             Profiler.Update(
-                counters.StrategyScheduleJobTimeCounter,
+                counters.StrategyScheduleJobTime,
                 scheduleJobDurationWithoutControllers.MicroSeconds());
 
             Profiler.Update(
-                counters.TotalControllerScheduleJobTimeCounter,
+                counters.TotalControllerScheduleJobTime,
                 context.TotalScheduleJobDuration.MicroSeconds());
 
             Profiler.Update(
-                counters.ExecControllerScheduleJobTimeCounter,
+                counters.ExecControllerScheduleJobTime,
                 context.ExecScheduleJobDuration.MicroSeconds());
 
-            Profiler.Increment(counters.ScheduleJobCallCounter, scheduleJobCount);
+            Profiler.Increment(counters.ScheduleJobCall, scheduleJobCount);
 
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
                 Profiler.Increment(
-                    counters.ControllerScheduleJobFailCounter[reason],
+                    counters.ControllerScheduleJobFail[reason],
                     context.FailedScheduleJob[reason]);
             }
         };
@@ -2245,11 +2244,11 @@ public:
         }
 
         auto descriptors = Host->CalculateExecNodeDescriptors(TSchedulingTagFilter());
-        for (const auto& descriptor : descriptors->Descriptors) {
-            for (const auto& pair : IdToTree_) {
-                const auto& treeId = pair.first;
-                const auto& tree = pair.second;
-
+        for (const auto& idDescriptorPair : *descriptors) {
+            const auto& descriptor = idDescriptorPair.second;
+            for (const auto& idTreePair : IdToTree_) {
+                const auto& treeId = idTreePair.first;
+                const auto& tree = idTreePair.second;
                 if (tree->GetNodesFilter().CanSchedule(descriptor.Tags)) {
                     descriptorsPerPoolTree[treeId].push_back(descriptor);
                     break;

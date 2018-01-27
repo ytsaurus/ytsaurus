@@ -2635,8 +2635,8 @@ void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
     const auto& nodeDescriptors = GetExecNodeDescriptors();
 
     TJobResources maxAvailableResources;
-    for (const auto& descriptor : nodeDescriptors) {
-        maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
+    for (const auto& pair : nodeDescriptors) {
+        maxAvailableResources = Max(maxAvailableResources, pair.second.ResourceLimits);
     }
 
     CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
@@ -2690,7 +2690,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
 
-    ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
+    ScheduleJobStatistics_->RecordJobResult(*scheduleJobResult);
 
     auto now = NProfiling::GetCpuInstant();
     if (now > ScheduleJobStatisticsLogDeadline_) {
@@ -6415,10 +6415,10 @@ int TOperationControllerBase::GetExecNodeCount()
     return ExecNodeCount_;
 }
 
-const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDescriptors()
+const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
 {
     GetExecNodesInformation();
-    return ExecNodesDescriptors_->Descriptors;
+    return *ExecNodesDescriptors_;
 }
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()

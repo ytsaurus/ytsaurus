@@ -825,7 +825,7 @@ protected:
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
 
-    const std::vector<NScheduler::TExecNodeDescriptor>& GetExecNodeDescriptors();
+    const TExecNodeDescriptorMap& GetExecNodeDescriptors();
 
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
@@ -936,7 +936,7 @@ private:
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
-    TExecNodeDescriptorListPtr ExecNodesDescriptors_ = New<NScheduler::TExecNodeDescriptorList>();
+    TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;

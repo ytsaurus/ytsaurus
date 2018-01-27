@@ -115,7 +115,7 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 TJobStatus JobStatusFromError(const TError& error);
 
-TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
+TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
 
 NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
 

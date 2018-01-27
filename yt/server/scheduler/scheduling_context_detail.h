@@ -27,8 +27,7 @@ public:
     TSchedulingContextBase(
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs,
-        NObjectClient::TCellTag cellTag);
+        const std::vector<TJobPtr>& runningJobs);
 
     virtual const TExecNodeDescriptor& GetNodeDescriptor() const override;
 
@@ -43,13 +42,10 @@ public:
 
     virtual void PreemptJob(const TJobPtr& job) override;
 
-    virtual TJobId GenerateJobId() override;
-
     virtual TJobResources GetFreeResources() override;
 
 private:
     const TSchedulerConfigPtr Config_;
-    const NObjectClient::TCellTag CellTag_;
     const TExecNodePtr Node_;
     const TExecNodeDescriptor NodeDescriptor_;
     const yhash_set<TString> NodeTags_;

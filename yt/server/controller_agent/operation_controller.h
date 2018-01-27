@@ -204,7 +204,7 @@ struct IOperationControllerHost
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
 
     virtual int GetExecNodeCount() = 0;
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
+    virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
 
     virtual void OnOperationCompleted() = 0;

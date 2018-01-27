@@ -157,14 +157,13 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable ref-counted list of TExecNodeDescriptor-s.
-struct TExecNodeDescriptorList
+//! An immutable ref-counted map of TExecNodeDescriptor-s.
+struct TRefCountedExecNodeDescriptorMap
     : public TIntrinsicRefCounted
-{
-    std::vector<TExecNodeDescriptor> Descriptors;
-};
+    , public TExecNodeDescriptorMap
+{ };
 
-DEFINE_REFCOUNTED_TYPE(TExecNodeDescriptorList)
+DEFINE_REFCOUNTED_TYPE(TRefCountedExecNodeDescriptorMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 

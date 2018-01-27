@@ -65,7 +65,7 @@ struct TSchedulerStrategyHostMock
         return result;
     }
 
-    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(
+    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const TSchedulingTagFilter& /* filter */) const override
     {
         Y_UNREACHABLE();

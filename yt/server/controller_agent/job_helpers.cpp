@@ -247,12 +247,12 @@ TYsonString BuildInputPaths(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
+void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResult& scheduleJobResult)
 {
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        Failed[reason] += scheduleJobResult->Failed[reason];
+        Failed[reason] += scheduleJobResult.Failed[reason];
     }
-    Duration += scheduleJobResult->Duration;
+    Duration += scheduleJobResult.Duration;
     ++Count;
 }
 

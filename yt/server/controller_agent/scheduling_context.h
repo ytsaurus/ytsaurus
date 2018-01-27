@@ -22,7 +22,7 @@ struct ISchedulingContext
     virtual const TJobResources& ResourceLimits() const = 0;
     virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const = 0;
 
-    virtual TJobId GenerateJobId() = 0;
+    virtual TJobId GetJobId() const = 0;
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 };
 

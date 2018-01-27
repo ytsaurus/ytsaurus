@@ -26,12 +26,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TEnumIndexedVector<TEnumIndexedVector<i64, EJobType>, EJobState> TJobCounter;
-typedef TEnumIndexedVector<TJobCounter, EAbortReason> TAbortedJobCounter;
-typedef TEnumIndexedVector<TJobCounter, EInterruptReason> TCompletedJobCounter;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct INodeShardHost
 {
     virtual ~INodeShardHost() = default;
@@ -94,7 +88,6 @@ class TNodeShard
 public:
     TNodeShard(
         int id,
-        NObjectClient::TCellTag primaryMasterCellTag,
         TSchedulerConfigPtr config,
         INodeShardHost* host,
         NCellScheduler::TBootstrap* bootstrap);
@@ -112,7 +105,7 @@ public:
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
-    TExecNodeDescriptorListPtr GetExecNodeDescriptors();
+    TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();
 
     void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
@@ -165,6 +158,9 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
+    TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(const TJobId& jobId);
+    void EndScheduleJob(const NProto::TScheduleJobResponse& response);
+
 private:
     //! This class holds nodeshard-specific information for the revival process that happens
     //! each time scheduler becomes connected to master. It contains information about
@@ -210,7 +206,6 @@ private:
     using TRevivalStatePtr = TIntrusivePtr<TRevivalState>;
 
     const int Id_;
-    const NObjectClient::TCellTag PrimaryMasterCellTag_;
     TSchedulerConfigPtr Config_;
     INodeShardHost* const Host_;
     NCellScheduler::TBootstrap* const Bootstrap_;
@@ -239,7 +234,7 @@ private:
     TJobResources TotalResourceUsage_;
 
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
-    TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
+    TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
     // Exec node is the node that is online and has user slots.
@@ -256,6 +251,8 @@ private:
 
     std::vector<TUpdatedJob> UpdatedJobs_;
     std::vector<TCompletedJob> CompletedJobs_;
+
+    yhash<TJobId, TPromise<NControllerAgent::TScheduleJobResultPtr>> JobIdToAsyncScheduleResult_;
 
     struct TOperationState
     {

@@ -17,15 +17,13 @@ using namespace NControllerAgent;
 TSchedulingContextBase::TSchedulingContextBase(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs,
-    TCellTag cellTag)
+    const std::vector<TJobPtr>& runningJobs)
     : ResourceUsageDiscount_(ZeroJobResources())
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
     , DiskInfo_(node->GetDiskInfo())
     , RunningJobs_(runningJobs)
     , Config_(config)
-    , CellTag_(cellTag)
     , Node_(node)
     , NodeDescriptor_(Node_->BuildExecDescriptor())
     , NodeTags_(Node_->Tags())
@@ -91,11 +89,6 @@ void TSchedulingContextBase::PreemptJob(const TJobPtr& job)
 {
     YCHECK(job->GetNode() == Node_);
     PreemptedJobs_.push_back(job);
-}
-
-TJobId TSchedulingContextBase::GenerateJobId()
-{
-    return MakeJobId(CellTag_, Node_->GetId());
 }
 
 TJobResources TSchedulingContextBase::GetFreeResources()
