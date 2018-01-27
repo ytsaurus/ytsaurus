@@ -63,10 +63,6 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-    , ReplicationOutThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationOutThrottler))
-    , TabletCompactionAndPartitioningOutThrottler_(CreateReconfigurableThroughputThrottler(config->TabletCompactionAndPartitioningOutThrottler))
-    , TabletPreloadOutThrottler_(CreateReconfigurableThroughputThrottler(config->TabletPreloadOutThrottler))
-    , TabletRecoveryOutThrottler_(CreateReconfigurableThroughputThrottler(config->TabletRecoveryOutThrottler))
     , IOEngine_(CreateIOEngine(Config_->IOEngineType, Config_->IOConfig))
     , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
 {
@@ -77,6 +73,20 @@ TLocation::TLocation(
         profileManager->RegisterTag("medium", GetMediumName())
     };
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+
+    auto throttlersProfiler = Profiler_;
+    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
+
+    auto createThrottler = [&] (const auto& config, const auto& name) {
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
+    };
+
+    ReplicationOutThrottler_ = createThrottler(config->ReplicationOutThrottler, "ReplicationOutThrottler");
+    TabletCompactionAndPartitioningOutThrottler_ = createThrottler(
+        config->TabletCompactionAndPartitioningOutThrottler,
+        "TabletCompactionAndPartitioningOutThrottler");
+    TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
+    TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
@@ -665,13 +675,23 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
-    , RepairInThrottler_(CreateReconfigurableThroughputThrottler(config->RepairInThrottler))
-    , ReplicationInThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationInThrottler))
-    , TabletCompactionAndPartitioningInThrottler_(CreateReconfigurableThroughputThrottler(config->TabletCompactionAndPartitioningInThrottler))
-    , TabletLoggingInThrottler_(CreateReconfigurableThroughputThrottler(config->TabletLoggingInThrottler))
-    , TabletSnapshotInThrottler_(CreateReconfigurableThroughputThrottler(config->TabletSnapshotInThrottler))
-    , TabletStoreFlushInThrottler_(CreateReconfigurableThroughputThrottler(config->TabletStoreFlushInThrottler))
-{ }
+{
+    auto throttlersProfiler = GetProfiler();
+    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
+
+    auto createThrottler = [&] (const auto& config, const auto& name) {
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
+    };
+
+    RepairInThrottler_ = createThrottler(config->RepairInThrottler, "RepairInThrottler");
+    ReplicationInThrottler_ = createThrottler(config->ReplicationInThrottler, "ReplicationInThrottler");
+    TabletCompactionAndPartitioningInThrottler_ = createThrottler(
+        config->TabletCompactionAndPartitioningInThrottler,
+        "TabletCompactionAndPartitioningInThrottler");
+    TabletLoggingInThrottler_ = createThrottler(config->TabletLoggingInThrottler, "TabletLoggingInThrottler");
+    TabletSnapshotInThrottler_ = createThrottler(config->TabletSnapshotInThrottler, "TabletSnapshotInThrottler");
+    TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushInThrottler");
+}
 
 TJournalManagerPtr TStoreLocation::GetJournalManager()
 {

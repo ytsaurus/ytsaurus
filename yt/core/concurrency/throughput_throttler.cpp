@@ -244,6 +244,19 @@ IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
         profiler);
 }
 
+IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottler(
+    TThroughputThrottlerConfigPtr config,
+    const TString& name,
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
+{
+    logger.AddTag("Throttler: %v", name);
+    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" +
+        CamelCaseToUnderscoreCase(name));
+
+    return CreateReconfigurableThroughputThrottler(config, logger, profiler);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnlimitedThroughtputThrottler
