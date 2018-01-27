@@ -28,7 +28,6 @@ import uuid
 import tempfile
 import time
 import pytest
-import shutil
 import collections
 from copy import deepcopy
 
@@ -109,18 +108,12 @@ class TestYtBinary(object):
         env["TRUE"] = "%true"
 
         sandbox_dir = os.path.join(get_tests_sandbox(), "TestYtBinary_" + uuid.uuid4().hex[:8])
-        if yatest_common is None:
-            binaries_dir = os.path.join(os.path.dirname(get_tests_location()), "bin")
-        else:
-            binaries_dir = yatest_common.source_path("yt/python/yt/wrapper/bin")
         makedirp(sandbox_dir)
-        try:
-            test_binary = os.path.join(get_tests_location(), "test_yt.sh")
-            proc = subprocess.Popen([test_binary, sandbox_dir], env=env, cwd=binaries_dir)
-            proc.communicate()
-            assert proc.returncode == 0
-        finally:
-            shutil.rmtree(sandbox_dir, ignore_errors=True)
+
+        test_binary = os.path.join(get_tests_location(), "test_yt.sh")
+        proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
+        proc.communicate()
+        assert proc.returncode == 0
 
 @pytest.mark.usefixtures("yt_env")
 class TestMutations(object):
