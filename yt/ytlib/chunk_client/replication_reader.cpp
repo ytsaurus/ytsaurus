@@ -329,8 +329,12 @@ private:
             // Exclude fresh seeds from banned forever peers.
             TGuard<TSpinLock> guard(PeersSpinLock_);
             for (auto replica : seedReplicas) {
-                const auto& nodeDescriptor = NodeDirectory_->GetDescriptor(replica);
-                auto address = nodeDescriptor.FindAddress(Networks_);
+                const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+                if (!nodeDescriptor) {
+                    LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
+                    continue;
+                }
+                auto address = nodeDescriptor->FindAddress(Networks_);
                 if (address) {
                     BannedForeverPeers_.erase(*address);
                 }
@@ -679,18 +683,26 @@ protected:
         Peers_.clear();
 
         for (auto replica : SeedReplicas_) {
-            const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
-            auto address = descriptor.FindAddress(Networks_);
+            const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+            if (!descriptor) {
+                RegisterError(TError(
+                    NNodeTrackerClient::EErrorCode::NoSuchNode,
+                    "Unresolved node id %v in node directory",
+                    replica.GetNodeId()));
+                continue;
+            }
+
+            auto address = descriptor->FindAddress(Networks_);
             if (!address) {
                 RegisterError(TError(
                     NNodeTrackerClient::EErrorCode::NoSuchNetwork,
                     "Cannot find any of %v addresses for seed %v",
                     Networks_,
-                    descriptor.GetDefaultAddress()));
+                    descriptor->GetDefaultAddress()));
                 OnSessionFailed();
                 return false;
             } else {
-                AddPeer(*address, descriptor, EPeerType::Seed);
+                AddPeer(*address, *descriptor, EPeerType::Seed);
             }
         }
 
