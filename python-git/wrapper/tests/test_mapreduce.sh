@@ -12,8 +12,8 @@ else
 fi
 set -u
 
-MAPREDUCE_YT="$PYTHON_BINARY ./mapreduce-yt"
-YT="$PYTHON_BINARY ./yt"
+MAPREDUCE_YT="$PYTHON_BINARY $MAPREDUCE_YT_SCRIPT_PATH"
+YT="$PYTHON_BINARY $YT_SCRIPT_PATH"
 
 timeout() {
     local time_to_sleep=$1 && shift
