@@ -61,9 +61,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
-        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job start notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job start notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -78,9 +77,8 @@ public:
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Completed, job, true, status);
         event.Abandoned = abandoned;
         event.InterruptReason = job->GetInterruptReason();
-        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job completion notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job completion notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -92,9 +90,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
-        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job failure notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job failure notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -107,9 +104,8 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
         event.AbortReason = job->GetAbortReason();
-        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job abort notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job abort notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -122,7 +118,7 @@ public:
 
         auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
         ToProto(status->mutable_job_id(), jobId);
-        auto itemId = JobEventsOutbox_->Enqueue(TSchedulerToAgentJobEvent{
+        JobEventsOutbox_->Enqueue(TSchedulerToAgentJobEvent{
             ESchedulerToAgentJobEventType::Aborted,
             OperationId_,
             false,
@@ -133,8 +129,7 @@ public:
             {},
             {}
         });
-        LOG_DEBUG("Nonscheduled job abort notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        LOG_DEBUG("Nonscheduled job abort notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             jobId);
     }
@@ -145,9 +140,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto itemId = JobEventsOutbox_->Enqueue(BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status));
-        LOG_DEBUG("Job run notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status));
+        LOG_DEBUG("Job run notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -172,11 +166,10 @@ public:
         request->NodeId = nodeId;
         request->NodeResourceLimits = context->ResourceLimits();
         request->NodeDiskInfo = context->DiskInfo();
-        auto itemId = ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
-        LOG_DEBUG("Job schedule request enqueued (OperationId: %v, JobId: %v, ItemId: %v)",
+        ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
+        LOG_DEBUG("Job schedule request enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
-            jobId,
-            itemId);
+            jobId);
 
         const auto& scheduler = Bootstrap_->GetScheduler();
         auto shardId = scheduler->GetNodeShardId(nodeId);
@@ -195,12 +188,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto itemId = OperationEventsOutbox_->Enqueue({
+        OperationEventsOutbox_->Enqueue({
             ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources,
             OperationId_
         });
-        LOG_DEBUG("Min needed job resources update request enqueued (ItemId: %v, OperationId: %v)",
-            itemId,
+        LOG_DEBUG("Min needed job resources update request enqueued (OperationId: %v)",
             OperationId_);
     }
 
@@ -346,12 +338,11 @@ public:
                 LOG_DEBUG("Unknown operation is running at agent (OperationId: %v)",
                     operationId);
 
-                auto itemId = agent->GetOperationEventsOutbox()->Enqueue({
+                agent->GetOperationEventsOutbox()->Enqueue({
                     ESchedulerToAgentOperationEventType::Abandon,
                     operationId
                 });
-                LOG_DEBUG("Operation abanbon request enqueued (ItemId: %v, OperationId: %v)",
-                    itemId,
+                LOG_DEBUG("Operation abanbon request enqueued (OperationId: %v)",
                     operationId);
                 continue;
             }
