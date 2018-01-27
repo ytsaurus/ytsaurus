@@ -256,7 +256,8 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
     PipeInputToOutput(context->Request().InputStream, &output, config->BlockSize);
 
-    valueConsumer.Flush();
+    WaitFor(valueConsumer.Flush())
+        .ThrowOnError();
 
     WaitFor(writer->Close())
         .ThrowOnError();
