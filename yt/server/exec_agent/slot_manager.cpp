@@ -180,7 +180,7 @@ bool TSlotManager::IsEnabled() const
         isEnabled = isEnabled && JobProxySocketNameDirectoryCreated_;
     }
 
-    return isEnabled;
+    return isEnabled && Enabled_;
 }
 
 TNullable<i64> TSlotManager::GetMemoryLimit() const
@@ -202,6 +202,22 @@ bool TSlotManager::ExternalJobMemory() const
     return JobEnvironment_ && JobEnvironment_->IsEnabled()
        ? JobEnvironment_->ExternalJobMemory()
        : false;
+}
+
+void TSlotManager::OnJobFinished(EJobState jobState)
+{
+    if (jobState == EJobState::Aborted) {
+        ConsecutiveAbortedJobCount_ += 1;
+    } else {
+        ConsecutiveAbortedJobCount_ = 0;
+    }
+
+    if (ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
+        Enabled_ = false;
+        Bootstrap_->GetMasterConnector()->RegisterAlert(TError(
+            "Too many consecutive job abortions; scheduler jobs are disabled")
+            << TError("max_consecutive_aborts", Config_->MaxConsecutiveAborts));
+    }
 }
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()
