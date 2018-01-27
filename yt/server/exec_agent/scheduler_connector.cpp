@@ -82,7 +82,7 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    auto client = Bootstrap_->GetMasterClient();
+    const auto& client = Bootstrap_->GetMasterClient();
 
     TJobTrackerServiceProxy proxy(client->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
@@ -142,7 +142,7 @@ void TSchedulerConnector::SendHeartbeat()
         reporter->SetOperationArchiveVersion(rsp->operation_archive_version());
     }
 
-    jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob, client->GetSchedulerChannel());
+    jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

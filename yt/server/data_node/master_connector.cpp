@@ -120,7 +120,7 @@ void TMasterConnector::Start()
         MasterCellTags_.push_back(cellTag);
         YCHECK(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
     };
-    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     initializeCell(connection->GetPrimaryMasterCellTag());
     for (auto cellTag : connection->GetSecondaryMasterCellTags()) {
         initializeCell(cellTag);
@@ -567,7 +567,7 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
 
 bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
 {
-    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     if (cellTag != connection->GetPrimaryMasterCellTag()) {
         return true;
     }
@@ -1039,9 +1039,9 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
 IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
 {
     auto cellId = Bootstrap_->GetCellId(cellTag);
-    auto client = Bootstrap_->GetMasterClient();
-    auto connection = client->GetNativeConnection();
-    auto cellDirectory = connection->GetCellDirectory();
+    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& connection = client->GetNativeConnection();
+    const auto& cellDirectory = connection->GetCellDirectory();
     return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }
 
