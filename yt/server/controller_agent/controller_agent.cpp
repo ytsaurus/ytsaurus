@@ -780,12 +780,14 @@ private:
         const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp,
         const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
     {
-        auto replyWithFailure = [this] (const TJobId& jobId, EScheduleJobFailReason reason) {
+        auto outbox = ScheduleJobResposesOutbox_;
+
+        auto replyWithFailure = [=] (const TJobId& jobId, EScheduleJobFailReason reason) {
             TAgentToSchedulerScheduleJobResponse response;
             response.JobId = jobId;
             response.Result = New<TScheduleJobResult>();
             response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
-            ScheduleJobResposesOutbox_->Enqueue(std::move(response));
+            outbox->Enqueue(std::move(response));
         };
 
         ScheduleJobRequestsInbox_->HandleIncoming(
@@ -828,7 +830,7 @@ private:
                             jobLimits,
                             treeId);
 
-                        ScheduleJobResposesOutbox_->Enqueue(std::move(response));
+                        outbox->Enqueue(std::move(response));
                         LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
