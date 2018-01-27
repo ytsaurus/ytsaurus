@@ -494,7 +494,7 @@ private:
                 .AddTag("Kind: SchedulerToAgentOperation, IncarnationId: %v", IncarnationId_));
         ScheduleJobRequestsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: SchedulerToAgentScheduleJobs, IncarnationId: %v", IncarnationId_));
+                .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
     }
 
     void OnMasterConnected()
@@ -780,47 +780,65 @@ private:
         const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp,
         const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
     {
+        auto replyWithFailure = [this] (const TJobId& jobId, EScheduleJobFailReason reason) {
+            TAgentToSchedulerScheduleJobResponse response;
+            response.JobId = jobId;
+            response.Result = New<TScheduleJobResult>();
+            response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
+            ScheduleJobResposesOutbox_->Enqueue(std::move(response));
+        };
+
         ScheduleJobRequestsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_schedule_job_requests(),
             [&] (auto* protoRequest) {
+                auto jobId = FromProto<TJobId>(protoRequest->job_id());
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
+                    replyWithFailure(jobId, EScheduleJobFailReason::UnknownOperation);
+                    LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
+                        operationId,
+                        jobId);
                     return;
                 }
 
                 auto controller = operation->GetController();
-                controller->GetCancelableInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] {
-                    auto jobId = FromProto<TJobId>(protoRequest->job_id());
-                    auto nodeId = NodeIdFromJobId(jobId);
-                    auto descriptorIt = execNodeDescriptors->find(nodeId);
+                GuardedInvoke(
+                    controller->GetCancelableInvoker(),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        auto nodeId = NodeIdFromJobId(jobId);
+                        auto descriptorIt = execNodeDescriptors->find(nodeId);
+                        if (descriptorIt == execNodeDescriptors->end()) {
+                            replyWithFailure(jobId, EScheduleJobFailReason::UnknownNode);
+                            LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
+                                operationId,
+                                jobId,
+                                nodeId);
+                            return;
+                        }
 
-                    TAgentToSchedulerScheduleJobResponse response;
-                    response.JobId = jobId;
-
-                    if (descriptorIt == execNodeDescriptors->end()) {
-                        response.Result = New<TScheduleJobResult>();
-                        response.Result->RecordFail(EScheduleJobFailReason::UnknownNodeId);
-
-                        LOG_DEBUG("Failed to schedule job due to unknown node id (OperationId: %v, JobId: %v, NodeId: %v)",
-                            operationId,
-                            jobId,
-                            nodeId);
-                    } else {
-                        TSchedulingContext context(protoRequest, descriptorIt->second);
                         auto jobLimits = FromProto<TJobResourcesWithQuota>(protoRequest->job_resource_limits());
                         const auto& treeId = protoRequest->tree_id();
+
+                        TAgentToSchedulerScheduleJobResponse response;
+                        TSchedulingContext context(protoRequest, descriptorIt->second);
+                        response.JobId = jobId;
                         response.Result = controller->ScheduleJob(
                             &context,
                             jobLimits,
                             treeId);
-                    }
 
-                    ScheduleJobResposesOutbox_->Enqueue(std::move(response));
-                    LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
-                        operationId,
-                        jobId);
-                }));
+                        ScheduleJobResposesOutbox_->Enqueue(std::move(response));
+                        LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
+                            operationId,
+                            jobId);
+                    }),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        replyWithFailure(jobId, EScheduleJobFailReason::UnknownOperation);
+                        LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
+                            operationId,
+                            jobId);
+                    }));
             });
     }
 

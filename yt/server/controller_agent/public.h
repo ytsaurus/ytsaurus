@@ -107,7 +107,8 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((JobSpecThrottling)             (12))
     ((IntermediateChunkLimitExceeded)(13))
     ((DataBalancingViolation)        (14))
-    ((UnknownNodeId)                 (15))
+    ((UnknownNode)                   (15))
+    ((UnknownOperation)              (16))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
