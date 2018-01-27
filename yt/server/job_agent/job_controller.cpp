@@ -475,8 +475,6 @@ void TJobController::TImpl::StartWaitingJobs()
             }
         }
 
-        LOG_INFO("Starting job (JobId: %v)", job->GetId());
-
         job->SubscribeResourcesUpdated(
             BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetControlInvoker()));
