@@ -59,7 +59,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
     //! Current state of the job.
-    DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
+    DEFINE_BYVAL_RW_PROPERTY(EJobState, State, EJobState::None);
 
     //! Fair-share tree this job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TString, TreeId);
