@@ -7,6 +7,7 @@ var utils = require("./utils");
 
 var YtError = require("./error").that;
 var YtHttpRequest = require("./http_request").that;
+var YtRegistry = require("./registry").that;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +19,8 @@ var TIMEOUT = 3000;
 
 function YtApplicationVersions(driver)
 {
+    var logger = YtRegistry.get("logger");
+
     function executeWithTimeout(commandName, parameters)
     {
         parameters.timeout = TIMEOUT;
@@ -110,7 +113,7 @@ function YtApplicationVersions(driver)
             }),
             "nodes": getListAndData("nodes", ["addresses"], function(entity, name) {
                 var addresses = utils.getYsonAttribute(name, "addresses");
-                if (!("monitoring_http" in addresses)) {
+                if ((typeof addresses === "undefined") || !addresses.hasOwnProperty("monitoring_http")) {
                     return Q.reject(new YtError("Failed to discover monitoring port"));
                 }
                 var parsed_url = url.parse("http://" + addresses["monitoring_http"]["default"]);
