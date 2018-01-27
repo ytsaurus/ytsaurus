@@ -152,7 +152,7 @@ void SetThreadPriority(int tid, int priority)
 #endif
 }
 
-i64 GetProcessRss(int pid)
+TMemoryUsage GetProcessMemoryUsage(int pid)
 {
 #ifdef _linux_
     TString path = "/proc/self/statm";
@@ -162,7 +162,26 @@ i64 GetProcessRss(int pid)
 
     TIFStream memoryStatFile(path);
     auto memoryStatFields = SplitStroku(memoryStatFile.ReadLine(), " ");
-    return FromString<i64>(memoryStatFields[1]) * NSystemInfo::GetPageSize();
+    return TMemoryUsage {
+        FromString<ui64>(memoryStatFields[1]) * NSystemInfo::GetPageSize(),
+        FromString<ui64>(memoryStatFields[2]) * NSystemInfo::GetPageSize(),
+    };
+#else
+    return TMemoryUsage{0, 0};
+#endif
+}
+
+ui64 GetProcessCumulativeMajorPageFaults(int pid)
+{
+#ifdef _linux_
+    TString path = "/proc/self/stat";
+    if (pid != -1) {
+        path = Format("/proc/%v/stat", pid);
+    }
+
+    TIFStream statFile(path);
+    auto statFields = SplitStroku(statFile.ReadLine(), " ");
+    return FromString<ui64>(statFields[11]) + FromString<ui64>(statFields[12]);
 #else
     return 0;
 #endif
