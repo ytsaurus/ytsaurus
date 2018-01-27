@@ -361,7 +361,7 @@ TChunkMeta TRepairingReader::GetMetaAsync(
 {
     std::vector<TError> errors;
 
-    std::vector<int> indices(Codec_->GetTotalPartCount());
+    std::vector<int> indices(Readers_.size());
     std::iota(indices.begin(), indices.end(), 0);
     Shuffle(indices.begin(), indices.end());
 
