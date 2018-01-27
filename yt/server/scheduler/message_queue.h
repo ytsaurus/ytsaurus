@@ -3,6 +3,10 @@
 #include "public.h"
 
 #include <yt/core/misc/ring_queue.h>
+#include <yt/core/misc/lock_free.h>
+#include <yt/core/misc/variant.h>
+
+#include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/logging/log.h>
 
@@ -13,9 +17,6 @@ namespace NScheduler {
 
 using TMessageQueueItemId = i64;
 
-/*
- * \note Thread affinity: any
- */
 template <class TItem>
 class TMessageQueueOutbox
     : public TIntrinsicRefCounted
@@ -23,23 +24,38 @@ class TMessageQueueOutbox
 public:
     explicit TMessageQueueOutbox(const NLogging::TLogger& logger);
 
-    TMessageQueueItemId Enqueue(TItem&& item);
-    template <class TItems>
-    TMessageQueueItemId EnqueueMany(TItems&& items);
+    /*
+     * \note Thread affinity: any
+     */
+    void Enqueue(TItem&& item);
+    /*
+     * \note Thread affinity: any
+     */
+    void Enqueue(std::vector<TItem>&& items);
 
+    /*
+     * \note Thread affinity: single-threaded
+     */
     template <class TProtoMessage, class TBuilder>
     void BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder);
 
+    /*
+     * \note Thread affinity: single-threaded
+     */
     template <class TProtoMessage>
     void HandleStatus(const TProtoMessage& message);
 
 private:
     const NLogging::TLogger Logger;
 
-    TSpinLock SpinLock_;
+    using TEntry = TVariant<TItem, std::vector<TItem>>;
+    TMultipleProducerSingleConsumerLockFreeStack<TEntry> Stack_;
+
     TRingQueue<TItem> Queue_;
     TMessageQueueItemId FirstItemId_ = 0;
     TMessageQueueItemId NextItemId_ = 0;
+
+    DECLARE_THREAD_AFFINITY_SLOT(Consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,6 +78,8 @@ private:
     const NLogging::TLogger Logger;
 
     TMessageQueueItemId NextExpectedItemId_ = 0;
+
+    DECLARE_THREAD_AFFINITY_SLOT(Consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

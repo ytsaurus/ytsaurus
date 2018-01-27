@@ -821,11 +821,10 @@ private:
                             treeId);
                     }
 
-                    auto itemId = ScheduleJobResposesOutbox_->Enqueue(std::move(response));
-                    LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v, ItemId: %v)",
+                    ScheduleJobResposesOutbox_->Enqueue(std::move(response));
+                    LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
                         operationId,
-                        jobId,
-                        itemId);
+                        jobId);
                 }));
             });
     }

@@ -15,33 +15,38 @@ TMessageQueueOutbox<TItem>::TMessageQueueOutbox(const NLogging::TLogger& logger)
 { }
 
 template <class TItem>
-TMessageQueueItemId TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
+void TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 {
-    auto guard = Guard(SpinLock_);
-    Queue_.emplace(std::move(item));
-    auto result = NextItemId_;
-    ++NextItemId_;
-    return result;
+    Stack_.Enqueue(std::move(item));
 }
 
 template <class TItem>
-template <class TItems>
-TMessageQueueItemId TMessageQueueOutbox<TItem>::EnqueueMany(TItems&& items)
+void TMessageQueueOutbox<TItem>::Enqueue(std::vector<TItem>&& items)
 {
-    auto guard = Guard(SpinLock_);
-    auto result = NextItemId_;
-    for (auto&& item : items) {
-        Queue_.emplace(std::move(item));
-        ++NextItemId_;
-    }
-    return result;
+    Stack_.Enqueue(std::move(items));
 }
 
 template <class TItem>
 template <class TProtoMessage, class TBuilder>
 void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder)
 {
-    auto guard = Guard(SpinLock_);
+    Stack_.DequeueAll(true, [&] (TEntry& entry) {
+       switch (entry.Tag()) {
+           case TEntry::template TagOf<TItem>():
+               Queue_.emplace(std::move(entry.template As<TItem>()));
+               ++NextItemId_;
+               break;
+           case TEntry::template TagOf<std::vector<TItem>>():
+               for (auto&& item : entry.template As<std::vector<TItem>>()) {
+                   Queue_.emplace(std::move(item));
+                   ++NextItemId_;
+               }
+               break;
+           default:
+               Y_UNREACHABLE();
+       }
+    });
+
     auto firstItemId = FirstItemId_;
     auto lastItemId = FirstItemId_ + Queue_.size() - 1;
     message->set_first_item_id(firstItemId);
@@ -51,7 +56,6 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
     for (auto it = Queue_.begin(); it != Queue_.end(); Queue_.move_forward(it)) {
         protoItemBuilder(message->add_items(), *it);
     }
-    guard.Release();
     LOG_DEBUG("Sending outbox items (ItemIds: %v-%v)",
         firstItemId,
         lastItemId);
@@ -61,7 +65,6 @@ template <class TItem>
 template <class TProtoMessage>
 void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 {
-    auto guard = Guard(SpinLock_);
     auto nextExpectedItemId = message.next_expected_item_id();
     YCHECK(nextExpectedItemId <= NextItemId_);
     if (nextExpectedItemId == FirstItemId_) {
@@ -80,7 +83,6 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
         ++FirstItemId_;
         ++lastConfirmedItemId;
     }
-    guard.Release();
     LOG_DEBUG("Outbox items confirmed (ItemIds: %v-%v)",
         firstConfirmedItemId,
         lastConfirmedItemId);

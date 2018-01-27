@@ -35,42 +35,39 @@ TOperationControllerHost::TOperationControllerHost(
 
 void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReason reason)
 {
-    auto itemId = JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
+    JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Interrupted,
         jobId,
         {},
         reason
     });
-    LOG_DEBUG("Job interrupt request enqueued (ItemId: %v, OperationId: %v, JobCount: %v)",
-        itemId,
+    LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         jobId);
 }
 
 void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error)
 {
-    auto itemId = JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
+    JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Aborted,
         jobId,
         error,
         {}
     });
-    LOG_DEBUG("Job abort request enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-        itemId,
+    LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }
 
 void TOperationControllerHost::FailJob(const TJobId& jobId)
 {
-    auto itemId = JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
+    JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Failed,
         jobId,
         {},
         {}
     });
-    LOG_DEBUG("Job failure request enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-        itemId,
+    LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }
@@ -87,9 +84,8 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobId>& jobIds)
             {}
         });
     }
-    auto itemId = JobEventsOutbox_->EnqueueMany(std::move(events));
-    LOG_DEBUG("Jobs release request enqueued (FirstItemId: %v, OperationId: %v, JobCount: %v)",
-        itemId,
+    JobEventsOutbox_->Enqueue(std::move(events));
+    LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         jobIds.size());
 }
@@ -203,51 +199,47 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
 
 void TOperationControllerHost::OnOperationCompleted()
 {
-    auto itemId = OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::Completed,
         OperationId_,
         {}
     });
-    LOG_DEBUG("Operation completion notification enqueued (ItemId: %v, OperationId: %v)",
-        itemId,
+    LOG_DEBUG("Operation completion notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
 void TOperationControllerHost::OnOperationAborted(const TError& error)
 {
-    auto itemId = OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::Aborted,
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation abort notification enqueued (ItemId: %v, OperationId: %v, Error: %v)",
-        itemId,
+    LOG_DEBUG("Operation abort notification enqueued (OperationId: %v, Error: %v)",
         OperationId_,
         error);
 }
 
 void TOperationControllerHost::OnOperationFailed(const TError& error)
 {
-    auto itemId = OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::Failed,
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation failure notification enqueued (ItemId: %v, OperationId: %v, Error: %v)",
-        itemId,
+    LOG_DEBUG("Operation failure notification enqueued (OperationId: %v, Error: %v)",
         OperationId_,
         error);
 }
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
 {
-    auto itemId = OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::Suspended,
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation suspension notification enqueued (ItemId: %v, OperationId: %v, Error: %v)",
-        itemId,
+    LOG_DEBUG("Operation suspension notification enqueued (OperationId: %v, Error: %v)",
         OperationId_,
         error);
 }
