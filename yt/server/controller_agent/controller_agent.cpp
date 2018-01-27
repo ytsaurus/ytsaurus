@@ -605,12 +605,12 @@ private:
             [] (auto* protoResponse, const auto& response) {
                 const auto& scheduleJobResult = *response.Result;
                 ToProto(protoResponse->mutable_job_id(), response.JobId);
-                if (scheduleJobResult.JobStartRequest) {
-                    const auto& jobStartRequest = *scheduleJobResult.JobStartRequest;
-                    Y_ASSERT(response.JobId == jobStartRequest.Id);
-                    protoResponse->set_job_type(static_cast<int>(jobStartRequest.Type));
-                    ToProto(protoResponse->mutable_resource_limits(), jobStartRequest.ResourceLimits);
-                    protoResponse->set_interruptible(jobStartRequest.Interruptible);
+                if (scheduleJobResult.StartDescriptor) {
+                    const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
+                    Y_ASSERT(response.JobId == startDescriptor.Id);
+                    protoResponse->set_job_type(static_cast<int>(startDescriptor.Type));
+                    ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
+                    protoResponse->set_interruptible(startDescriptor.Interruptible);
                 }
                 protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
                 for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {

@@ -72,7 +72,7 @@ DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
 
 struct ISchedulingContext;
 
-struct TJobStartRequest;
+struct TJobStartDescriptor;
 
 struct TJobSummary;
 struct TCompletedJobSummary;
