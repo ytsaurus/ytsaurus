@@ -885,6 +885,8 @@ private:
         LOG_INFO("Job finalized (Error: %v, JobState: %v)",
             error,
             GetState());
+
+        Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
     }
 
     // Preparation.
