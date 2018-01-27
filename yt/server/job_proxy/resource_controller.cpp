@@ -72,7 +72,7 @@ public:
                 memoryStatistics.Rss += memoryUsage.Rss;
                 memoryStatistics.MappedFile += memoryUsage.Shared;
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get memory usage (Pid %v)", task);
+                LOG_DEBUG(ex, "Failed to get memory usage (Pid: %v)", task);
             }
         }
 
@@ -80,7 +80,7 @@ public:
             try {
                 PageFaultCount_ = GetProcessCumulativeMajorPageFaults(Process_->GetProcessId());
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get page fault count (Pid %v)", Process_->GetProcessId());
+                LOG_DEBUG(ex, "Failed to get page fault count (Pid: %v)", Process_->GetProcessId());
             }
         }
 
