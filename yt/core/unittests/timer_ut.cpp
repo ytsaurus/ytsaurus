@@ -43,7 +43,7 @@ TEST_F(TTimerTest, CpuEmpty)
     .AsyncVia(invoker).Run()
     .Get();
 
-    EXPECT_LT(cpu, 1 * 1000);
+    EXPECT_LT(cpu, 10 * 1000);
 }
 
 TEST_F(TTimerTest, CpuWallCompare)
@@ -64,9 +64,9 @@ TEST_F(TTimerTest, CpuWallCompare)
     .AsyncVia(invoker).Run()
     .Get();
 
-    EXPECT_LT(cpu, 5 * 1000);
+    EXPECT_LT(cpu, 10 * 1000);
     EXPECT_GT(wall, 100 * 1000);
-    EXPECT_LT(wall, 105 * 1000);
+    EXPECT_LT(wall, 110 * 1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
