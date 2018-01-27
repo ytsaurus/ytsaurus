@@ -11,6 +11,8 @@
 
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/misc/proc.h>
+
 #include <yt/core/ytree/convert.h>
 
 namespace NYT {
@@ -62,18 +64,33 @@ public:
 
     virtual TMemoryStatistics GetMemoryStatistics() const override
     {
-        if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
-            return CGroups_.Memory.GetStatistics();
+        auto tasks = CGroups_.Freezer.GetTasks();
+        TMemoryStatistics memoryStatistics = {0, 0, 0};
+        for (auto task : tasks) {
+            try {
+                auto memoryUsage = GetProcessMemoryUsage(task);
+                memoryStatistics.Rss += memoryUsage.Rss;
+                memoryStatistics.MappedFile += memoryUsage.Shared;
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to get memory usage (Pid %v)", task);
+            }
         }
-        THROW_ERROR_EXCEPTION("Memory cgroup is not supported");
+
+        if (Process_ && Process_->GetProcessId() > 0) {
+            try {
+                PageFaultCount_ = GetProcessCumulativeMajorPageFaults(Process_->GetProcessId());
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to get page fault count (Pid %v)", Process_->GetProcessId());
+            }
+        }
+
+        memoryStatistics.MajorPageFaults = PageFaultCount_;
+        return memoryStatistics;
     }
 
     virtual i64 GetMaxMemoryUsage() const override
     {
-        if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
-            return  CGroups_.Memory.GetMaxMemoryUsage();
-        }
-        THROW_ERROR_EXCEPTION("Memory cgroup is not supported");
+        return MaxMemoryUsage;
     }
 
     virtual TDuration GetBlockIOWatchdogPeriod() const override
@@ -114,34 +131,30 @@ public:
     virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
     {
         YCHECK(!coreDumpHandler);
-        auto process = New<TSimpleProcess>(path, false);
+        YCHECK(!Process_);
+
+        Process_ = New<TSimpleProcess>(path, false);
         try {
             {
                 CGroups_.Freezer.Create();
-                process->AddArguments({"--cgroup", CGroups_.Freezer.GetFullPath()});
+                Process_->AddArguments({"--cgroup", CGroups_.Freezer.GetFullPath()});
             }
 
             if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CGroups_.CpuAccounting.Create();
-                process->AddArguments({"--cgroup", CGroups_.CpuAccounting.GetFullPath()});
-                process->AddArguments({"--env", Format("YT_CGROUP_CPUACCT=%v", CGroups_.CpuAccounting.GetFullPath())});
+                Process_->AddArguments({"--cgroup", CGroups_.CpuAccounting.GetFullPath()});
+                Process_->AddArguments({"--env", Format("YT_CGROUP_CPUACCT=%v", CGroups_.CpuAccounting.GetFullPath())});
             }
 
             if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
                 CGroups_.BlockIO.Create();
-                process->AddArguments({"--cgroup", CGroups_.BlockIO.GetFullPath()});
-                process->AddArguments({"--env", Format("YT_CGROUP_BLKIO=%v", CGroups_.BlockIO.GetFullPath())});
-            }
-
-            if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
-                CGroups_.Memory.Create();
-                process->AddArguments({"--cgroup", CGroups_.Memory.GetFullPath()});
-                process->AddArguments({"--env", Format("YT_CGROUP_MEMORY=%v", CGroups_.Memory.GetFullPath())});
+                Process_->AddArguments({"--cgroup", CGroups_.BlockIO.GetFullPath()});
+                Process_->AddArguments({"--env", Format("YT_CGROUP_BLKIO=%v", CGroups_.BlockIO.GetFullPath())});
             }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to create required cgroups");
         }
-        return process;
+        return Process_;
     }
 
 private:
@@ -153,18 +166,19 @@ private:
             : Freezer(name)
             , CpuAccounting(name)
             , BlockIO(name)
-            , Memory(name)
             , Cpu(name)
         { }
 
         TFreezer Freezer;
         TCpuAccounting CpuAccounting;
         TBlockIO BlockIO;
-        TMemory Memory;
         TCpu Cpu;
     } CGroups_;
 
     const TString Path_;
+    TIntrusivePtr<TSimpleProcess> Process_;
+    i64 MaxMemoryUsage = 0;
+    mutable i64 PageFaultCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

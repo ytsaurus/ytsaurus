@@ -29,7 +29,16 @@ std::vector<int> GetPidsByUid(int uid = -1);
 /*!
    \note If |pid == -1| then self RSS is returned.
  */
-i64 GetProcessRss(int pid = -1);
+
+struct TMemoryUsage
+{
+    ui64 Rss;
+    ui64 Shared;
+};
+
+TMemoryUsage GetProcessMemoryUsage(int pid = -1);
+
+ui64 GetProcessCumulativeMajorPageFaults(int pid = -1);
 
 int GetCurrentThreadId();
 

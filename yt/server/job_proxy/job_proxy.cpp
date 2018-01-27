@@ -627,7 +627,7 @@ const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const
 
 void TJobProxy::CheckMemoryUsage()
 {
-    i64 jobProxyMemoryUsage = GetProcessRss();
+    i64 jobProxyMemoryUsage = GetProcessMemoryUsage().Rss;
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
 
     LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",
