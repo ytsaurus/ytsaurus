@@ -1185,14 +1185,14 @@ private:
             }
             try {
                 auto memoryUsage = GetProcessMemoryUsage(pid);
-                LOG_DEBUG("PID: %v, ProcessName: %Qv, RSS: %v, Shared: %v",
+                LOG_DEBUG("Pid: %v, ProcessName: %Qv, Rss: %v, Shared: %v",
                     pid,
                     GetProcessName(pid),
                     memoryUsage.Rss,
                     memoryUsage.Shared);
                 rss += memoryUsage.Rss;
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get RSS for PID %v", pid);
+                LOG_DEBUG(ex, "Failed to get memory usage for pid %v", pid);
             }
         }
         return rss;
