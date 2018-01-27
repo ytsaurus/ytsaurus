@@ -64,27 +64,38 @@ public:
 
     virtual TMemoryStatistics GetMemoryStatistics() const override
     {
-        auto tasks = CGroups_.Freezer.GetTasks();
         TMemoryStatistics memoryStatistics = {0, 0, 0};
-        for (auto task : tasks) {
+
+        if (!Process_ || Process_->GetProcessId() <= 0) {
+            return memoryStatistics;
+        }
+
+        for (auto pid : GetPidsByUid(UserId_)) {
             try {
-                auto memoryUsage = GetProcessMemoryUsage(task);
-                memoryStatistics.Rss += memoryUsage.Rss;
+                auto memoryUsage = GetProcessMemoryUsage(pid);
+                // RSS from /proc/pid/statm includes all pages resident to current process,
+                // including memory-mapped files and shared memory.
+                // Since we want to account shared memory separately, let's subtract it here.
+
+                memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
                 memoryStatistics.MappedFile += memoryUsage.Shared;
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get memory usage (Pid: %v)", task);
+                LOG_DEBUG(ex, "Failed to get memory usage (Pid: %v)", pid);
             }
         }
 
-        if (Process_ && Process_->GetProcessId() > 0) {
-            try {
-                PageFaultCount_ = GetProcessCumulativeMajorPageFaults(Process_->GetProcessId());
-            } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get page fault count (Pid: %v)", Process_->GetProcessId());
-            }
+        try {
+            PageFaultCount_ = GetProcessCumulativeMajorPageFaults(Process_->GetProcessId());
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Failed to get page fault count (Pid: %v)", Process_->GetProcessId());
         }
 
         memoryStatistics.MajorPageFaults = PageFaultCount_;
+
+        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage) {
+            MaxMemoryUsage = memoryStatistics.Rss + memoryStatistics.MappedFile;
+        }
+
         return memoryStatistics;
     }
 
@@ -128,11 +139,12 @@ public:
         return New<TCGroupResourceController>(CGroupsConfig_, Path_ + name);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreDumpHandler) override
     {
         YCHECK(!coreDumpHandler);
         YCHECK(!Process_);
 
+        UserId_ = uid;
         Process_ = New<TSimpleProcess>(path, false);
         try {
             {
@@ -151,6 +163,9 @@ public:
                 Process_->AddArguments({"--cgroup", CGroups_.BlockIO.GetFullPath()});
                 Process_->AddArguments({"--env", Format("YT_CGROUP_BLKIO=%v", CGroups_.BlockIO.GetFullPath())});
             }
+
+            Process_->AddArguments({"--uid", ::ToString(uid)});
+
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to create required cgroups");
         }
@@ -177,8 +192,9 @@ private:
 
     const TString Path_;
     TIntrusivePtr<TSimpleProcess> Process_;
-    i64 MaxMemoryUsage = 0;
+    mutable i64 MaxMemoryUsage = 0;
     mutable i64 PageFaultCount_ = 0;
+    int UserId_ = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,14 +331,16 @@ public:
         return New<TPortoResourceController>(ContainerManager_, instance, BlockIOWatchdogPeriod_, UseResourceLimits_);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreDumpHandler) override
     {
         if (coreDumpHandler) {
             LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
                 coreDumpHandler.Get());
             Container_->SetCoreDumpHandler(coreDumpHandler.Get());
         }
-        return New<TPortoProcess>(path, Container_, false);
+        auto process = New<TPortoProcess>(path, Container_, false);
+        process->AddArguments({"--uid", ::ToString(uid)});
+        return process;
     }
 
 private:

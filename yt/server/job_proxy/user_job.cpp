@@ -174,12 +174,6 @@ public:
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-        , Process_(ResourceController_
-            ? ResourceController_->CreateControlledProcess(
-                ExecProgramName,
-                CreateCoreDumpHandlerPath(
-                    host->GetConfig()->BusServer->UnixDomainName))
-            : New<TSimpleProcess>(ExecProgramName, false))
         , JobSatelliteConnection_(
             jobId,
             host->GetConfig()->BusServer,
@@ -214,10 +208,18 @@ public:
         }
 
         if (ResourceController_) {
+            YCHECK(UserId_);
+            Process_ = ResourceController_->CreateControlledProcess(
+                ExecProgramName,
+                *UserId_,
+                CreateCoreDumpHandlerPath(host->GetConfig()->BusServer->UnixDomainName));
+
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),
                 BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
                 ResourceController_->GetBlockIOWatchdogPeriod());
+        } else {
+            Process_ = New<TSimpleProcess>(ExecProgramName, false);
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -405,8 +407,8 @@ private:
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
-    const TProcessBasePtr Process_;
 
+    TProcessBasePtr Process_;
     TJobSatelliteConnection JobSatelliteConnection_;
 
     TString InputPipePath_;
@@ -481,10 +483,6 @@ private:
 
         if (UserJobSpec_.has_core_table_spec()) {
             Process_->AddArgument("--enable-core-dump");
-        }
-
-        if (UserId_) {
-            Process_->AddArguments({"--uid", ::ToString(*UserId_)});
         }
 
         // Init environment variables.
@@ -1234,12 +1232,9 @@ private:
                 if (ResourceController_) {
                     auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-                    // TODO(psushin): clarify memory usage calculation.
-                    //i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
-                    //rss += memoryStatistics.Rss;
-                    //return rss;
-
-                    return (i64)memoryStatistics.Rss;
+                    i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
+                    rss += memoryStatistics.Rss;
+                    return rss;
                 } else {
                     return GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
                 }
