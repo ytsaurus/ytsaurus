@@ -2402,7 +2402,16 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         return;
     }
 
-    if (GetExecNodeDescriptors().empty()) {
+    bool hasSuitableNodes = false;
+    for (const auto& descriptor : GetExecNodeDescriptors()) {
+        for (const auto& filter : PoolTreeSchedulingTagFilters_) {
+            if (descriptor.CanSchedule(filter)) {
+                hasSuitableNodes = true;
+            }
+        }
+    }
+
+    if (!hasSuitableNodes) {
         auto timeout = DurationToCpuDuration(Spec_->AvailableNodesMissingTimeout);
         if (!AvailableNodesSeen_ && AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
@@ -5444,6 +5453,11 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelt
     LastJobMetricsDeltaReportTime_ = now;
 
     return result;
+}
+    
+void TOperationControllerBase::SetPoolTreeSchedulingTagFilters(const std::vector<NScheduler::TSchedulingTagFilter>& filters)
+{
+    PoolTreeSchedulingTagFilters_ = filters;
 }
 
 bool TOperationControllerBase::IsCompleteFinished() const

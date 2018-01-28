@@ -2161,6 +2161,16 @@ public:
             });
     }
 
+    virtual std::vector<TSchedulingTagFilter> GetOperationPoolTreeSchedulingTagFilters(const TOperationId& operationId) override
+    {
+        std::vector<TSchedulingTagFilter> result;
+        for (const auto& pair : GetOperationState(operationId)->TreeIdToPoolIdMap()) {
+            const auto& treeName = pair.first;
+            result.push_back(GetTree(treeName)->GetNodesFilter());
+        }
+        return result;
+    }
+
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
