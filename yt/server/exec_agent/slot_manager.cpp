@@ -216,7 +216,7 @@ void TSlotManager::OnJobFinished(EJobState jobState)
         Enabled_ = false;
         Bootstrap_->GetMasterConnector()->RegisterAlert(TError(
             "Too many consecutive job abortions; scheduler jobs are disabled")
-            << TError("max_consecutive_aborts", Config_->MaxConsecutiveAborts));
+            << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts));
     }
 }
 
