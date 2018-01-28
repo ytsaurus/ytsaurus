@@ -184,6 +184,9 @@ public:
     //! Cypress storage mode of the operation.
     DEFINE_BYVAL_RO_PROPERTY(EOperationCypressStorageMode, StorageMode);
 
+    //! Scheduling tag filters of operation pool trees.
+    DEFINE_BYVAL_RW_PROPERTY(std::vector<TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
+
     //! Returns operation id.
     const TOperationId& GetId() const override;
 

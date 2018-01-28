@@ -303,6 +303,13 @@ public:
         return result;
     }
 
+    void EnableOperation(const TOperationId& operationId)
+    {
+        const auto& operationElement = GetOperationElement(operationId);
+        auto* parent = operationElement->GetParent();
+        parent->EnableChild(operationElement);
+    }
+
     TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -1347,7 +1354,6 @@ private:
 
         const auto& operationElement = GetOperationElement(operationId);
         auto* parent = operationElement->GetParent();
-        parent->EnableChild(operationElement);
         parent->IncreaseRunningOperationCount(1);
 
         LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
@@ -2173,6 +2179,16 @@ public:
             });
     }
 
+    virtual std::vector<TSchedulingTagFilter> GetOperationPoolTreeSchedulingTagFilters(const TOperationId& operationId) override
+    {
+        std::vector<TSchedulingTagFilter> result;
+        for (const auto& pair : GetOperationState(operationId)->TreeIdToPoolIdMap()) {
+            const auto& treeName = pair.first;
+            result.push_back(GetTree(treeName)->GetNodesFilter());
+        }
+        return result;
+    }
+
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -2471,6 +2487,10 @@ public:
     virtual void OnOperationRunning(const TOperationId& operationId) override
     {
         const auto& state = GetOperationState(operationId);
+        for (const auto& pair : state->TreeIdToPoolIdMap()) {
+            const auto& treeId = pair.first;
+            GetTree(treeId)->EnableOperation(operationId);
+        }
         if (state->GetHost()->IsSchedulable()) {
             state->GetController()->UpdateMinNeededJobResources();
         }

@@ -28,6 +28,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
     DEFINE_BYVAL_RO_PROPERTY(std::vector<TString>, Owners);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
+    DEFINE_BYVAL_RO_PROPERTY(std::vector<NScheduler::TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
 
     DEFINE_BYVAL_RW_PROPERTY(std::vector<NApi::ITransactionPtr>, Transactions);
 

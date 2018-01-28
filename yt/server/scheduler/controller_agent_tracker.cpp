@@ -210,6 +210,11 @@ public:
         return RuntimeData_->GetPendingJobCount();
     }
 
+    virtual NControllerAgent::IOperationControllerPtr FindAgentController() const override
+    {
+        return AgentController_;
+    }
+
     virtual NControllerAgent::IOperationControllerPtr GetAgentController() const override
     {
         YCHECK(AgentController_);

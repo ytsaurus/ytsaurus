@@ -1735,22 +1735,27 @@ private:
 
         ValidateOperationState(operation, EOperationState::Initializing);
 
-        bool registered = false;
+        try {
+            Strategy_->ValidateOperationCanBeRegistered(operation.Get());
+        } catch (const std::exception& ex) {
+            auto wrappedError = TError("Operation failed to register in strategy")
+                << ex;
+            operation->SetStarted(wrappedError);
+            THROW_ERROR(wrappedError);
+        }
+
+        auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
+        operation->SetLocalController(localController);
+
+        RegisterOperation(operation);
+
         try {
             auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
             auto controller = CreateOperationController(agentOperation);
-            agentOperation->SetController(controller);
-            auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
-            localController->SetAgentController(controller);
-            operation->SetLocalController(localController);
-
-            Strategy_->ValidateOperationCanBeRegistered(operation.Get());
-
-            RegisterOperation(operation);
-            // TODO(babenko): rework when separating scheduler and agent
             Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), agentOperation);
 
-            registered = true;
+            localController->SetAgentController(controller);
+            agentOperation->SetController(controller);
 
             {
                 auto asyncResult = BIND(&IOperationControllerSchedulerHost::Initialize, controller)
@@ -1769,17 +1774,14 @@ private:
 
             MasterConnector_->StartOperationNodeUpdates(operation);
             // TODO(babenko): rework when separating scheduler and agent
+
             Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
 
             ValidateOperationState(operation, EOperationState::Initializing);
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Operation has failed to initialize")
+            auto wrappedError = TError("Operation failed to initialize")
                 << ex;
-            if (registered) {
-                OnOperationFailed(operation->GetId(), wrappedError);
-            } else {
-                operation->SetStarted(wrappedError);
-            }
+            OnOperationFailed(operation->GetId(), wrappedError);
             THROW_ERROR(wrappedError);
         }
 
@@ -1882,35 +1884,40 @@ private:
         // If the revival fails, we still need to update the node
         // and unregister the operation from Master Connector.
 
-        NControllerAgent::IOperationControllerPtr controller;
-        NControllerAgent::TOperationPtr agentOperation;
-        try {
-            // TODO(babenko)
-            agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
-            controller = CreateOperationController(agentOperation);
-            agentOperation->SetController(controller);
-            auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
-            localController->SetAgentController(controller);
-            operation->SetLocalController(localController);
 
+        try {
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
-                operationId);
-
-            auto wrappedError = TError("Operation has failed to revive")
+            auto wrappedError = TError("Operation failed to register in strategy")
                 << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
-
-            // No need to wait for the outcome.
             Y_UNUSED(MasterConnector_->FlushOperationNode(operation));
             return;
         }
 
         // NB: Should not throw!
-        RegisterOperation(operation);
         // TODO(babenko): rework when separating scheduler and agent
-        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), agentOperation);
+        auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
+        operation->SetLocalController(localController);
+
+        RegisterOperation(operation);
+
+
+        try {
+            auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
+            auto controller = CreateOperationController(agentOperation);
+            Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), agentOperation);
+
+            localController->SetAgentController(controller);
+            agentOperation->SetController(controller);
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
+                operationId);
+            auto wrappedError = TError("Operation has failed to revive")
+                << ex;
+            OnOperationFailed(operation->GetId(), wrappedError);
+        }
+
     }
 
     void DoReviveOperation(const TOperationPtr& operation)
@@ -2023,6 +2030,7 @@ private:
         }
 
         Strategy_->RegisterOperation(operation.Get());
+        operation->SetPoolTreeSchedulingTagFilters(Strategy_->GetOperationPoolTreeSchedulingTagFilters(operation->GetId()));
 
         MasterConnector_->AddOperationWatcherRequester(
             operation,
@@ -2057,7 +2065,10 @@ private:
 
         Strategy_->UnregisterOperation(operation.Get());
 
-        Bootstrap_->GetControllerAgent()->UnregisterOperation(operation->GetId());
+        auto agentOperation = Bootstrap_->GetControllerAgent()->FindOperation(operation->GetId());
+        if (agentOperation) {
+            Bootstrap_->GetControllerAgent()->UnregisterOperation(operation->GetId());
+        }
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)",
             operation->GetId());
@@ -2338,9 +2349,13 @@ private:
         }
 
         operation->Cancel();
-        Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions({});
 
-        if (auto controller = operation->GetLocalController()->GetAgentController()) {
+        auto agentOperation = Bootstrap_->GetControllerAgent()->FindOperation(operation->GetId());
+        if (agentOperation) {
+            agentOperation->SetTransactions({});
+        }
+
+        if (auto controller = operation->GetLocalController()->FindAgentController()) {
             try {
                 controller->Abort();
             } catch (const std::exception& ex) {
@@ -2362,7 +2377,7 @@ private:
         }
 
         // Notify controller that it is going to be disposed.
-        if (auto controller = operation->GetLocalController()->GetAgentController()) {
+        if (auto controller = operation->GetLocalController()->FindAgentController()) {
             Y_UNUSED(WaitFor(
                 BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller)
                     .AsyncVia(controller->GetInvoker())

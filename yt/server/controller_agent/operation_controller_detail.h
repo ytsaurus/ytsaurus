@@ -861,6 +861,8 @@ protected:
 private:
     typedef TOperationControllerBase TThis;
 
+    std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
+
     //! Keeps information needed to maintain the liveness state of input chunks.
     THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
 
