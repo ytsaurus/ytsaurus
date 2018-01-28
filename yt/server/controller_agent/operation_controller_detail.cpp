@@ -184,6 +184,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
+    , PoolTreeSchedulingTagFilters_(operation->GetPoolTreeSchedulingTagFilters())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -2398,7 +2399,19 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         return;
     }
 
-    if (GetExecNodeDescriptors().empty()) {
+    bool hasSuitableNodes = false;
+    for (const auto& pair : GetExecNodeDescriptors()) {
+        const auto& descriptor = pair.second;
+        for (const auto& filter : PoolTreeSchedulingTagFilters_) {
+            if (descriptor.CanSchedule(filter)) {
+                hasSuitableNodes = true;
+            }
+        }
+    }
+
+    LOG_DEBUG("NODE COUNT %v, POOL TREE %v", GetExecNodeDescriptors().size(), PoolTreeSchedulingTagFilters_.size());
+
+    if (!hasSuitableNodes) {
         auto timeout = DurationToCpuDuration(Spec_->AvailableNodesMissingTimeout);
         if (!AvailableNodesSeen_ && AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")

@@ -195,6 +195,8 @@ struct ISchedulerStrategy
     virtual void BuildBriefSpec(
         const TOperationId& operationId,
         NYTree::TFluentMap fluent) = 0;
+
+    virtual std::vector<TSchedulingTagFilter> GetOperationPoolTreeSchedulingTagFilters(const TOperationId& operationId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

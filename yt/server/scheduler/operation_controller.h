@@ -75,6 +75,7 @@ struct IOperationController
         NJobTrackerClient::NProto::TJobStatus* status) = 0;
 
     // XXX(ignat): it is temporary methods.
+    virtual NControllerAgent::IOperationControllerPtr FindAgentController() const = 0;
     virtual NControllerAgent::IOperationControllerPtr GetAgentController() const = 0;
     virtual void SetAgentController(const NControllerAgent::IOperationControllerPtr& controller) = 0;
 };

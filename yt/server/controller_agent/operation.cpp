@@ -17,6 +17,7 @@ TOperation::TOperation(const NScheduler::TOperation* underlying)
     , SecureVault_(underlying->GetSecureVault())
     , Owners_(underlying->GetOwners())
     , UserTransactionId_(underlying->GetUserTransactionId())
+    , PoolTreeSchedulingTagFilters_(underlying->GetPoolTreeSchedulingTagFilters())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
