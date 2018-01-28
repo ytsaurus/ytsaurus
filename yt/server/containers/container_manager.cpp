@@ -149,20 +149,29 @@ private:
                 continue;
             }
 
-            auto absoluteName = GetAbsoluteName(Executor_, name);
-            if (!absoluteName.StartsWith(BaseName_ + Prefix_)) {
-                continue;
-            }
-
-            if (PortoManagerConfig_.CleanMode == ECleanMode::Dead) {
-                auto state = GetState(name);
-                if (state != "dead") {
+            try {
+                auto absoluteName = GetAbsoluteName(Executor_, name);
+                if (!absoluteName.StartsWith(BaseName_ + Prefix_)) {
                     continue;
                 }
+
+                if (PortoManagerConfig_.CleanMode == ECleanMode::Dead) {
+                    auto state = GetState(name);
+                    if (state != "dead") {
+                        continue;
+                    }
+                }
+
+                LOG_DEBUG("Cleaning (Container: %v)", absoluteName);
+                actions.push_back(Destroy(name));
+            } catch (const TErrorException& ex) {
+                // If container disappeared, we don't care. 
+                if (!ex.Error().FindMatching(ContainerErrorCodeBase + ::rpc::EError::ContainerDoesNotExist)) {
+                    throw;
+                }
             }
-            LOG_DEBUG("Cleaning (Container: %v)", absoluteName);
-            actions.push_back(Destroy(name));
         }
+
         auto errors = WaitFor(CombineAll(actions));
         THROW_ERROR_EXCEPTION_IF_FAILED(errors, "Failed to clean containers");
 
