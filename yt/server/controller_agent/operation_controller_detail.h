@@ -345,6 +345,8 @@ public:
 
     virtual void OnBeforeDisposal() override;
 
+    virtual void SetPoolTreeSchedulingTagFilters(const std::vector<NScheduler::TSchedulingTagFilter>& filters) override;
+
     virtual NScheduler::TOperationJobMetrics ExtractJobMetricsDelta() override;
 
     virtual bool IsCompleteFinished() const override;
@@ -926,6 +928,8 @@ private:
     //! Scheduler incarnation that spawned this controller.
     //! This field is set in the constructor.
     const int SchedulerIncarnation_;
+
+    std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
 
     //! Keeps information needed to maintain the liveness state of input chunks.
     TInputChunkMap InputChunkMap;

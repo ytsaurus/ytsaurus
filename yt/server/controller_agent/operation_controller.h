@@ -229,6 +229,8 @@ struct IOperationControllerSchedulerHost
     //! Method that is called after operation results are commited and before
     //! controller is disposed.
     virtual void OnBeforeDisposal() = 0;
+
+    virtual void SetPoolTreeSchedulingTagFilters(const std::vector<NScheduler::TSchedulingTagFilter>& filters) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)

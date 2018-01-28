@@ -1738,10 +1738,19 @@ class TestSchedulingTags(YTEnvSetup):
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
 
-        self.node = list(get("//sys/nodes"))[0]
-        set("//sys/nodes/{0}/@user_tags".format(self.node), ["tagA", "tagB"])
+        nodes = list(get("//sys/nodes"))
+        self.node = nodes[0]
+        set("//sys/nodes/{0}/@user_tags".format(self.node), ["default", "tagA", "tagB"])
+        set("//sys/nodes/{0}/@user_tags".format(nodes[1]), ["tagC"])
         # Wait applying scheduling tags.
         time.sleep(0.1)
+
+        set("//sys/pool_trees/default/@nodes_filter", "default")
+
+        create("map_node", "//sys/pool_trees/other", force=True)
+        set("//sys/pool_trees/other/@nodes_filter", "tagC")
+
+        time.sleep(0.5)
 
     def test_tag_filters(self):
         self._prepare()
@@ -1760,7 +1769,7 @@ class TestSchedulingTags(YTEnvSetup):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
                 spec={"scheduling_tag_filter": "tagA & !tagB"})
 
-        set("//sys/nodes/{0}/@user_tags".format(self.node), [])
+        set("//sys/nodes/{0}/@user_tags".format(self.node), ["default"])
         time.sleep(1.0)
         with pytest.raises(YtError):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
@@ -1796,12 +1805,11 @@ class TestSchedulingTags(YTEnvSetup):
         self._prepare()
         write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(20)])
 
-        set("//sys/nodes/{0}/@user_tags".format(self.node), ["tagB"])
+        set("//sys/nodes/{0}/@user_tags".format(self.node), ["default", "tagB"])
         time.sleep(1.2)
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
         time.sleep(0.8)
         assert get_job_nodes(op) == __builtin__.set([self.node])
-
 
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
         time.sleep(0.8)

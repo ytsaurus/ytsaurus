@@ -322,6 +322,11 @@ public:
         return Underlying_->OnBeforeDisposal();
     }
 
+    virtual void SetPoolTreeSchedulingTagFilters(const std::vector<NScheduler::TSchedulingTagFilter>& filters) override
+    {
+        Underlying_->SetPoolTreeSchedulingTagFilters(filters);
+    }
+
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override
     {
         return Underlying_->BuildJobsFromJoblets();

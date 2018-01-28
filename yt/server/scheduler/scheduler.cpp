@@ -1902,6 +1902,7 @@ private:
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             RegisterOperation(operation);
+            controller->SetPoolTreeSchedulingTagFilters(operation->GetPoolTreeSchedulingTagFilters());
             // Ignore result? (we cannot throw error here)
             Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
 
@@ -2046,6 +2047,7 @@ private:
 
         // NB: Should not throw!
         RegisterOperation(operation);
+        controller->SetPoolTreeSchedulingTagFilters(operation->GetPoolTreeSchedulingTagFilters());
         // Ignore result? (we cannot throw error here)
         Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), controller);
     }
@@ -2157,6 +2159,7 @@ private:
         }
 
         Strategy_->RegisterOperation(operation.Get());
+        operation->SetPoolTreeSchedulingTagFilters(Strategy_->GetOperationPoolTreeSchedulingTagFilters(operation->GetId()));
 
         MasterConnector_->AddOperationWatcherRequester(
             operation,
