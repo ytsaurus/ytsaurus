@@ -220,6 +220,9 @@ public:
                 ResourceController_->GetBlockIOWatchdogPeriod());
         } else {
             Process_ = New<TSimpleProcess>(ExecProgramName, false);
+            if (UserId_) {
+                Process_->AddArguments({"--uid", ::ToString(*UserId_)});
+            }
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
