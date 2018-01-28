@@ -37,7 +37,7 @@ static std::map<TString, TErrorOr<TString>> ParsePortoResult(
         if (portoProperty.second.Error == 0) {
             result[portoProperty.first] = portoProperty.second.Value;
         } else {
-            result[portoProperty.first] = TError(portoProperty.second.ErrorMsg)
+            result[portoProperty.first] = TError(ContainerErrorCodeBase + portoProperty.second.Error, portoProperty.second.ErrorMsg)
                 << TErrorAttribute("porto_error", portoProperty.second.Error);
         }
     }

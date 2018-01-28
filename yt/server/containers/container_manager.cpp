@@ -166,7 +166,9 @@ private:
                 actions.push_back(Destroy(name));
             } catch (const TErrorException& ex) {
                 // If container disappeared, we don't care. 
-                if (!ex.Error().FindMatching(ContainerErrorCodeBase + ::rpc::EError::ContainerDoesNotExist)) {
+                if (ex.Error().FindMatching(ContainerErrorCodeBase + ::rpc::EError::ContainerDoesNotExist)) {
+                    LOG_DEBUG(ex, "Failed to clean container; it vanished");
+                } else {
                     throw;
                 }
             }
