@@ -207,12 +207,12 @@ bool TSlotManager::ExternalJobMemory() const
 void TSlotManager::OnJobFinished(EJobState jobState)
 {
     if (jobState == EJobState::Aborted) {
-        ConsecutiveAbortedJobCount_ += 1;
+        ++ConsecutiveAbortedJobCount_;
     } else {
         ConsecutiveAbortedJobCount_ = 0;
     }
 
-    if (ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
+    if (Enabled_ && ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
         Enabled_ = false;
         Bootstrap_->GetMasterConnector()->RegisterAlert(TError(
             "Too many consecutive job abortions; scheduler jobs are disabled")
