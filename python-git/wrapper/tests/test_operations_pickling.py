@@ -236,7 +236,7 @@ if __name__ == "__main__":
                 f.write(mapper)
 
             op_id = subprocess.check_output([get_python(), f.name],
-                                            env={"PYTHONPATH": PYTHONPATH}).strip()
+                                            env={"PYTHONPATH": os.environ["PYTHONPATH"]}).strip()
             op_path = "//sys/operations/{0}".format(op_id)
             while not yt.exists(op_path) \
                     or yt.get(op_path + "/@state") not in ["aborted", "failed", "completed"]:
