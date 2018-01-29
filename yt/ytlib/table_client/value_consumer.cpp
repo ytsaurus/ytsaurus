@@ -338,11 +338,11 @@ TWritingValueConsumer::TWritingValueConsumer(
 
 TFuture<void> TWritingValueConsumer::Flush()
 {
-    Writer_->Write(Rows_);
-    Rows_.clear();
-    RowBuffer_->Clear();
-
-    return Writer_->GetReadyEvent();
+    return Writer_->GetReadyEvent()
+        .Apply(BIND([=, rows = std::move(Rows_)] () {
+            Writer_->Write(rows);
+            RowBuffer_->Clear();
+        }));
 }
 
 const TNameTablePtr& TWritingValueConsumer::GetNameTable() const
