@@ -122,6 +122,16 @@ protected:
 
 };
 
+class TSupportsMultiset
+    : public virtual TRefCounted
+{
+protected:
+    DECLARE_YPATH_SERVICE_METHOD(NProto, Multiset);
+
+    virtual void SetChildren(TReqMultiset* request, TRspMultiset* response);
+    virtual void SetAttributes(const TYPath& path, TReqMultiset* request, TRspMultiset* response);
+};
+
 DECLARE_SUPPORTS_METHOD(GetKey, virtual TRefCounted);
 DECLARE_SUPPORTS_METHOD(Get, virtual TRefCounted);
 DECLARE_SUPPORTS_METHOD(Set, virtual TRefCounted);
@@ -129,7 +139,7 @@ DECLARE_SUPPORTS_METHOD(List, virtual TRefCounted);
 DECLARE_SUPPORTS_METHOD(Remove, virtual TRefCounted);
 DECLARE_SUPPORTS_METHOD(Exists, TSupportsExistsBase);
 
-#undef DECLARE_SUPPORTS_VERB
+#undef DECLARE_SUPPORTS_METHOD
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,6 +178,7 @@ class TSupportsAttributes
     , public virtual TSupportsGet
     , public virtual TSupportsList
     , public virtual TSupportsSet
+    , public virtual TSupportsMultiset
     , public virtual TSupportsRemove
     , public virtual TSupportsExists
     , public virtual TSupportsPermissions
@@ -217,6 +228,8 @@ protected:
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
 
+    virtual void SetAttributes(const TYPath& path, TReqMultiset* request, TRspMultiset* response) override;
+
 private:
     class TCombinedAttributeDictionary
         : public IAttributeDictionary
@@ -264,6 +277,7 @@ private:
     bool GuardedSetBuiltinAttribute(const TString& key, const NYson::TYsonString& value);
     bool GuardedRemoveBuiltinAttribute(const TString& key);
 
+    void ValidateAttributeKey(const TString& key) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
