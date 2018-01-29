@@ -19,7 +19,6 @@ import sys
 import time
 import types
 import socket
-from copy import deepcopy
 from datetime import datetime
 from socket import error as SocketError
 from abc import ABCMeta, abstractmethod
