@@ -739,11 +739,14 @@ class ConfigsProvider_19_2(ConfigsProvider_19_1):
 
         return configs
 
+class ConfigsProvider_19_3(ConfigsProvider_19_2):
+    pass
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     (18, 5): ConfigsProvider_18_5,
     (19, 0): ConfigsProvider_19_0,
     (19, 1): ConfigsProvider_19_1,
-    (19, 2): ConfigsProvider_19_2
+    (19, 2): ConfigsProvider_19_2,
+    (19, 3): ConfigsProvider_19_3
 }
 
