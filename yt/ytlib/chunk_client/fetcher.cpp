@@ -48,10 +48,9 @@ public:
         , ThrottlerManager_(throttlerManager)
         , Client_(client)
         , NodeDirectory_(nodeDirectory)
-        , Logger(logger)
-    {
-        Logger.AddTag("FetcherChunkScraper: %v", TGuid::Create());
-    }
+        , Logger(NLogging::TLogger(logger)
+            .AddTag("FetcherChunkScraper: %v", TGuid::Create()))
+    { }
 
     virtual TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs) override
     {
@@ -77,7 +76,7 @@ private:
     const TThrottlerManagerPtr ThrottlerManager_;
     const INativeClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     TChunkScraperPtr Scraper_;
 
@@ -168,7 +167,7 @@ private:
 
         if (UnavailableFetcherChunkCount_ == 0) {
             // Wait for all scraper callbacks to finish before session completion.
-            BatchLocatedPromise_.SetFrom(Scraper_->Stop());
+            BatchLocatedPromise_.TrySetFrom(Scraper_->Stop());
             LOG_DEBUG("All fetcher chunks are available");
         }
     }
