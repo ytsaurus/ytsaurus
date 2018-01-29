@@ -15,7 +15,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<NCellMaster::TCellMasterConfig>
 {

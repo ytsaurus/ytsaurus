@@ -14,7 +14,7 @@ using namespace NSkynetManager;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkynetManagerProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<TSkynetManagerConfig>
 {
@@ -22,8 +22,7 @@ public:
     TSkynetManagerProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
-    {
-    }
+    { }
 
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override

@@ -12,7 +12,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellSchedulerProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<NCellScheduler::TCellSchedulerConfig>
 {

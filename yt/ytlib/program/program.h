@@ -36,11 +36,6 @@ protected:
 
     virtual void OnError(const TString& message) const noexcept;
 
-    virtual const char* GetVersion() = 0;
-    virtual const char* GetBuildHost() = 0;
-    virtual const char* GetBuildMachine() = 0;
-    virtual const char* GetBuildTime() = 0;
-
 private:
     // Custom handler for option parsing errors.
     class TOptsParseResult;
@@ -62,19 +57,6 @@ public:
 
 private:
     const TString What_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYTProgram
-    : public TProgram
-{
-protected:
-    virtual const char* GetVersion() override;
-    virtual const char* GetBuildHost() override;
-    virtual const char* GetBuildMachine() override;
-    virtual const char* GetBuildTime() override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
