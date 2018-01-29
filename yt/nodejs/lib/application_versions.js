@@ -15,7 +15,7 @@ var __DBG = require("./debug").that("V", "Versions");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var TIMEOUT = 3000;
+var TIMEOUT = 10000;
 
 function YtApplicationVersions(driver)
 {
