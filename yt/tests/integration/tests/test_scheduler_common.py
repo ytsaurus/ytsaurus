@@ -394,13 +394,13 @@ class TestJobStderr(YTEnvSetup):
         recursive_resource_usage = get("//sys/operations/{0}/jobs/{1}/@recursive_resource_usage" \
             .format(op.id, jobs[0]))
 
+        assert recursive_resource_usage["chunk_count"] == resource_usage["chunk_count"]
+        assert recursive_resource_usage["disk_space_per_medium"]["default"] == \
+            resource_usage["disk_space_per_medium"]["default"]
         # NOTE: Diving by two here because of compatible operations storage schema:
         # stderrs are stored in both //sys/operations/<op_id>/jobs/<job_id>/stderr
         # and //sys/operations/<hash>/<op_id>/jobs/<job_id>/stderr.
-        assert recursive_resource_usage["chunk_count"] == resource_usage["chunk_count"] // 2
         assert recursive_resource_usage["node_count"] == resource_usage["node_count"] // 2
-        assert recursive_resource_usage["disk_space_per_medium"]["default"] == \
-            resource_usage["disk_space_per_medium"]["default"] // 2
 
         set("//sys/accounts/test_account/@resource_limits/chunk_count", 0)
         set("//sys/accounts/test_account/@resource_limits/node_count", 0)
