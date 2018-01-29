@@ -1348,6 +1348,8 @@ if __name__ == "__main__":
                                spec={"data_size_per_job": 1}, input_format=yt.JsonFormat())
 
         stderrs_list = get_stderrs(operation.id, False)
+        for stderr in stderrs_list:
+            assert stderr["stderr"] == "Job with stderr"
         assert len(stderrs_list) == 10
 
         assert yt.format_operation_stderrs(stderrs_list)
