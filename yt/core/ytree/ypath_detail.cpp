@@ -230,6 +230,46 @@ void TSupportsExists::ExistsRecursive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_RPC_SERVICE_METHOD(TSupportsMultiset, Multiset)
+{
+    context->SetRequestInfo("KeyCount: %v", request->subrequests_size());
+
+    NYPath::TTokenizer tokenizer(GetRequestYPath(context->RequestHeader()));
+
+    // NOTE(asaitgalin): Not tokenizing keys in subrequests intentionally, key a/b/c will be treated
+    // as the whole key, not path.
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        SetChildren(request, response);
+    } else {
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        if (tokenizer.Advance() != NYPath::ETokenType::At) {
+            tokenizer.ThrowUnexpected();
+        }
+
+        SetAttributes(TYPath(tokenizer.GetSuffix()), request, response);
+    }
+
+    context->Reply();
+}
+
+void TSupportsMultiset::SetChildren(TReqMultiset* request, TRspMultiset* response)
+{
+    Y_UNUSED(request);
+    Y_UNUSED(response);
+    ThrowMethodNotSupported("Multiset", TString("self"));
+}
+
+void TSupportsMultiset::SetAttributes(const TYPath& path, TReqMultiset* request, TRspMultiset* response)
+{
+    Y_UNUSED(path);
+    Y_UNUSED(request);
+    Y_UNUSED(response);
+    ThrowMethodNotSupported("Multiset", TString("attributes"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSupportsPermissions::ValidatePermission(
     EPermissionCheckScope /*scope*/,
     EPermission /*permission*/)
@@ -351,7 +391,8 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
         method != "Set" &&
         method != "List" &&
         method != "Remove" &&
-        method != "Exists")
+        method != "Exists" &&
+        method != "Multiset")
     {
         ThrowMethodNotSupported(method);
     }
@@ -757,10 +798,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
         case NYPath::ETokenType::Literal: {
             auto key = tokenizer.GetLiteralValue();
-
-            if (key.Empty()) {
-                THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
-            }
+            ValidateAttributeKey(key);
 
             TNullable<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
             if (builtinAttributeProvider) {
@@ -967,6 +1005,57 @@ void TSupportsAttributes::RemoveAttribute(
     context->Reply();
 }
 
+void TSupportsAttributes::SetAttributes(const TYPath& path, TReqMultiset* request, TRspMultiset* /* response */)
+{
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+    auto* attributesDictionary = GetCombinedAttributes();
+    YCHECK(attributesDictionary);
+
+    // TODO(asaitgalin): Do proper permission validation for builtin attributes.
+    NYPath::TTokenizer tokenizer(path);
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::EndOfStream: {
+            for (const auto& subrequest : request->subrequests()) {
+                const auto& key = subrequest.key();
+                const auto& value = subrequest.value();
+
+                ValidateAttributeKey(key);
+                attributesDictionary->SetYson(key, TYsonString(value));
+            }
+
+            break;
+        }
+
+        case NYPath::ETokenType::Literal: {
+            auto key = tokenizer.GetLiteralValue();
+            ValidateAttributeKey(key);
+
+            auto oldWholeYson = attributesDictionary->FindYson(key);
+            if (!oldWholeYson) {
+                ThrowNoSuchCustomAttribute(key);
+            }
+
+            auto wholeNode = ConvertToNode(oldWholeYson);
+
+            for (const auto& setRequest : request->subrequests()) {
+                SyncYPathSet(
+                    wholeNode,
+                    TYPath(tokenizer.GetSuffix()) + "/" + ToYPathLiteral(setRequest.key()),
+                    TYsonString(setRequest.value()));
+            }
+
+            auto newWholeYson = ConvertToYsonStringStable(wholeNode);
+            attributesDictionary->SetYson(key, newWholeYson);
+
+            break;
+        }
+
+        default:
+            tokenizer.ThrowUnexpected();
+    }
+}
+
 IAttributeDictionary* TSupportsAttributes::GetCombinedAttributes()
 {
     return &CombinedAttributes_;
@@ -1005,6 +1094,13 @@ bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(const TString& key)
         THROW_ERROR_EXCEPTION("Error removing builtin attribute %Qv",
             ToYPathLiteral(key))
             << ex;
+    }
+}
+
+void TSupportsAttributes::ValidateAttributeKey(const TString& key) const
+{
+    if (key.empty()) {
+        THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
     }
 }
 

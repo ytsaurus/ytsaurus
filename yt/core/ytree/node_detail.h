@@ -20,6 +20,7 @@ class TNodeBase
     , public virtual TSupportsGetKey
     , public virtual TSupportsGet
     , public virtual TSupportsSet
+    , public virtual TSupportsMultiset
     , public virtual TSupportsRemove
     , public virtual TSupportsList
     , public virtual TSupportsExists
@@ -80,6 +81,7 @@ protected:
 class TCompositeNodeMixin
     : public virtual TYPathServiceBase
     , public virtual TSupportsSet
+    , public virtual TSupportsMultiset
     , public virtual TSupportsRemove
     , public virtual TSupportsPermissions
     , public virtual ICompositeNode
@@ -105,6 +107,7 @@ protected:
 
     virtual int GetMaxChildCount() const;
 
+    void ValidateChildCount(const TYPath& path, int childCount) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,6 +134,12 @@ protected:
         bool recursive) override;
 
     virtual int GetMaxKeyLength() const;
+
+    virtual void SetChildren(TReqMultiset* request, TRspMultiset* response) override;
+
+private:
+    void ThrowMaxKeyLengthViolated() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

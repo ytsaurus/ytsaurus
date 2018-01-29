@@ -30,6 +30,7 @@ bool TNodeBase::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
+    DISPATCH_YPATH_SERVICE_METHOD(Multiset);
     return TYPathServiceBase::DoInvoke(context);
 }
 
@@ -231,6 +232,18 @@ int TCompositeNodeMixin::GetMaxChildCount() const
     return std::numeric_limits<int>::max();
 }
 
+void TCompositeNodeMixin::ValidateChildCount(const TYPath& path, int childCount) const
+{
+    int maxChildCount = GetMaxChildCount();
+    if (childCount >= maxChildCount) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::MaxChildCountViolation,
+            "Composite node %v is not allowed to contain more than %v items",
+            path,
+            maxChildCount);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
@@ -362,11 +375,7 @@ void TMapNodeMixin::SetChild(
 
             int maxKeyLength = GetMaxKeyLength();
             if (key.length() > maxKeyLength) {
-                THROW_ERROR_EXCEPTION(
-                    NYTree::EErrorCode::MaxKeyLengthViolation,
-                    "Map node %v is not allowed to contain items with keys longer than %v symbols",
-                    GetPath(),
-                    maxKeyLength);
+                ThrowMaxKeyLengthViolated();
             }
 
             tokenizer.Advance();
@@ -376,14 +385,7 @@ void TMapNodeMixin::SetChild(
                 ThrowNoSuchChildKeySuggestRecursive(currentNode, key);
             }
 
-            int maxChildCount = GetMaxChildCount();
-            if (currentNode->GetChildCount() >= maxChildCount) {
-                THROW_ERROR_EXCEPTION(
-                    NYTree::EErrorCode::MaxChildCountViolation,
-                    "Map node %v is not allowed to contain more than %v items",
-                    GetPath(),
-                    maxChildCount);
-            }
+            ValidateChildCount(GetPath(), currentNode->GetChildCount());
 
             auto newChild = lastStep ? child : factory->CreateMap();
             if (currentNode != rootNode) {
@@ -413,6 +415,40 @@ void TMapNodeMixin::SetChild(
 int TMapNodeMixin::GetMaxKeyLength() const
 {
     return std::numeric_limits<int>::max();
+}
+
+void TMapNodeMixin::ThrowMaxKeyLengthViolated() const
+{
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::MaxKeyLengthViolation,
+        "Map node %v is not allowed to contain items with keys longer than %v symbols",
+        GetPath(),
+        GetMaxKeyLength());
+}
+
+void TMapNodeMixin::SetChildren(TReqMultiset* request, TRspMultiset* /* response */)
+{
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+    auto mapNode = AsMap();
+    auto maxKeyLength = GetMaxKeyLength();
+    auto path = GetPath();
+
+    for (const auto& subrequest : request->subrequests()) {
+        const auto& key = subrequest.key();
+        const auto& value = subrequest.value();
+
+        if (key.length() > maxKeyLength) {
+            ThrowMaxKeyLengthViolated();
+        }
+
+        ValidateChildCount(path, mapNode->GetChildCount());
+
+        auto factory = CreateFactory();
+        auto childNode = ConvertToNode(value, factory.get());
+        YCHECK(mapNode->AddChild(childNode, key));
+        factory->Commit();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -492,6 +528,7 @@ void TListNodeMixin::SetChild(
     tokenizer.Expect(NYPath::ETokenType::Literal);
 
     const auto& token = tokenizer.GetToken();
+
     if (token.StartsWith(ListBeginToken)) {
         beforeIndex = 0;
     } else if (token.StartsWith(ListEndToken)) {
@@ -510,14 +547,7 @@ void TListNodeMixin::SetChild(
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-    int maxChildCount = GetMaxChildCount();
-    if (GetChildCount() >= maxChildCount) {
-        THROW_ERROR_EXCEPTION(
-            NYTree::EErrorCode::MaxChildCountViolation,
-            "List node %v is not allowed to contain more than %v items",
-            GetPath(),
-            maxChildCount);
-    }
+    ValidateChildCount(GetPath(), GetChildCount());
 
     AddChild(child, beforeIndex);
 }
