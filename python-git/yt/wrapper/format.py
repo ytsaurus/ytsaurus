@@ -57,6 +57,73 @@ class YtFormatReadError(YtFormatError):
     """Problem with parsing that can be caused by network problems."""
     pass
 
+# This class should not be put inside class method to avoid reference loop.
+class RowsIterator(Iterator):
+    def __init__(self, rows, extract_control_attributes, table_index_attribute_name, row_index_attribute_name, range_index_attribute_name):
+        self.rows = iter(rows)
+        self.extract_control_attributes = extract_control_attributes
+        self.table_index_attribute_name = table_index_attribute_name
+        self.row_index_attribute_name = row_index_attribute_name
+        self.range_index_attribute_name = range_index_attribute_name
+        self.table_index = None
+        self.row_index = None
+        self.range_index = None
+        self._increment_row_index = False
+
+    def __next__(self):
+        for row in self.rows:
+            attributes = self.extract_control_attributes(row)
+            if attributes is not None:
+                self._increment_row_index = False
+                if self.table_index_attribute_name in attributes:
+                    self.table_index = attributes[self.table_index_attribute_name]
+                if self.row_index_attribute_name in attributes:
+                    self.row_index = attributes[self.row_index_attribute_name]
+                if self.range_index_attribute_name in attributes:
+                    self.range_index = attributes[self.range_index_attribute_name]
+                continue
+            else:
+                if self._increment_row_index and self.row_index is not None:
+                    self.row_index += 1
+                self._increment_row_index = True
+                return row
+
+        raise StopIteration()
+
+    def __iter__(self):
+        return self
+
+# This function should not be put inside class method to avoid reference loop.
+def rows_generator(rows, extract_control_attributes,
+                   table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,
+                   table_index_column_name, row_index_column_name, range_index_column_name):
+    table_index = None
+    row_index = None
+    range_index = None
+    for row in rows:
+        attributes = extract_control_attributes(row)
+        if attributes is not None:
+            if table_index_attribute_name in attributes:
+                table_index = attributes[table_index_attribute_name]
+            if row_index_attribute_name in attributes:
+                row_index = attributes[row_index_attribute_name]
+            if range_index_attribute_name in attributes:
+                range_index = attributes[range_index_attribute_name]
+            continue
+
+        if table_index_column_name is not None:
+            row[table_index_column_name] = table_index
+        if row_index is not None:
+            row[row_index_column_name] = row_index
+        if range_index is not None:
+            row[range_index_column_name] = range_index
+
+        yield row
+
+        if row_index is not None:
+            row_index += 1
+
+
 @add_metaclass(ABCMeta)
 class Format(object):
     """YT data representations.
@@ -242,72 +309,20 @@ class Format(object):
         table_index_column_name, range_index_column_name, row_index_column_name = \
             list(imap(transform_column_name, [table_index_column_name, "@range_index", "@row_index"]))
 
-        def generator():
-            table_index = None
-            row_index = None
-            range_index = None
-            for row in rows:
-                attributes = extract_control_attributes(row)
-                if attributes is not None:
-                    if table_index_attribute_name in attributes:
-                        table_index = attributes[table_index_attribute_name]
-                    if row_index_attribute_name in attributes:
-                        row_index = attributes[row_index_attribute_name]
-                    if range_index_attribute_name in attributes:
-                        range_index = attributes[range_index_attribute_name]
-                    continue
-
-                if table_index_column_name is not None:
-                    row[table_index_column_name] = table_index
-                if range_index is not None:
-                    row[range_index_column_name] = range_index
-                if row_index is not None:
-                    row[row_index_column_name] = row_index
-
-                yield row
-
-                if row_index is not None:
-                    row_index += 1
-
-        class RowsIterator(Iterator):
-            def __init__(self):
-                self.table_index = None
-                self.row_index = None
-                self.range_index = None
-                self._increment_row_index = False
-
-            def __next__(self):
-                for row in rows:
-                    attributes = extract_control_attributes(row)
-                    if attributes is not None:
-                        self._increment_row_index = False
-                        if table_index_attribute_name in attributes:
-                            self.table_index = attributes[table_index_attribute_name]
-                        if row_index_attribute_name in attributes:
-                            self.row_index = attributes[row_index_attribute_name]
-                        if range_index_attribute_name in attributes:
-                            self.range_index = attributes[range_index_attribute_name]
-                        continue
-                    else:
-                        if self._increment_row_index and self.row_index is not None:
-                            self.row_index += 1
-                        self._increment_row_index = True
-                        return row
-
-                raise StopIteration()
-
-            def __iter__(self):
-                return self
-
         if process_table_index is None:
             if control_attributes_mode == "row_fields":
-                return generator()
+                return rows_generator(rows, extract_control_attributes,
+                                      table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,
+                                      table_index_column_name, row_index_column_name, range_index_column_name)
             elif control_attributes_mode == "iterator":
-                return RowsIterator()
+                return RowsIterator(rows, extract_control_attributes,
+                                    table_index_attribute_name, row_index_attribute_name, range_index_attribute_name)
             else:
                 return rows
         elif process_table_index:
-            return generator()
+            return rows_generator(rows, extract_control_attributes,
+                                  table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,
+                                  table_index_column_name, row_index_column_name, range_index_column_name)
         else:
             return rows
 

@@ -22,6 +22,7 @@ import yt.wrapper as yt
 import inspect
 import random
 import string
+import gc
 import os
 import sys
 import uuid
@@ -326,6 +327,20 @@ class TestRetries(object):
     def test_read_ranges_parallel_with_retries(self, yt_env):
         with set_config_option("read_parallel/enable", True):
             self.test_read_ranges_with_retries(yt_env)
+
+    def test_read_has_no_leaks(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"a": "b"}])
+
+        def test_func():
+            client = yt.YtClient(config=deepcopy(yt.config.config))
+            for row in client.read_table(table):
+                pass
+            return id(client)
+
+        obj_id = test_func()
+        for obj in gc.get_objects():
+            assert id(obj) != obj_id
 
     def test_heavy_requests_with_retries(self):
         table = TEST_DIR + "/table"
