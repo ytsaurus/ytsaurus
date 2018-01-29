@@ -225,6 +225,30 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@member_of") == ["users"]
         assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["users", "everyone"])
 
+    def test_usable_accounts(self):
+        create_user("u")
+
+        create_account("a1")
+        create_account("a2")
+
+        assert sorted(get("//sys/users/u/@usable_accounts")) == ["intermediate", "tmp"] # these are defaults
+
+        set("//sys/accounts/a1/@acl", [make_ace("allow", "u", "use")])
+
+        assert sorted(get("//sys/users/u/@usable_accounts")) == ["a1", "intermediate", "tmp"]
+
+        create_group("g")
+
+        acl = [make_ace("allow", "u", "use")]
+        set("//sys/accounts/a2/@acl", [make_ace("allow", "g", "use")])
+
+        assert sorted(get("//sys/users/u/@usable_accounts")) == ["a1", "intermediate", "tmp"]
+
+        add_member("u", "g")
+
+        assert sorted(get("//sys/users/u/@usable_accounts")) == ["a1", "a2", "intermediate", "tmp"]
+
+
 ##################################################################
 
 class TestUsersMulticell(TestUsers):
