@@ -49,7 +49,9 @@ public:
         , Client_(client)
         , NodeDirectory_(nodeDirectory)
         , Logger(logger)
-    { }
+    {
+        Logger.AddTag("FetcherChunkScraper: %v", TGuid::Create());
+    }
 
     virtual TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs) override
     {
@@ -75,7 +77,7 @@ private:
     const TThrottlerManagerPtr ThrottlerManager_;
     const INativeClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
-    const NLogging::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TChunkScraperPtr Scraper_;
 
@@ -111,7 +113,7 @@ private:
         return BatchLocatedPromise_;
     }
 
-    void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+    void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
     {
         ++ChunkLocatedCallCount_;
         if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerRequest) {
@@ -121,9 +123,21 @@ private:
                 UnavailableFetcherChunkCount_);
         }
 
-        LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v)",
+        LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v, Missing: %v)",
             chunkId,
-            replicas);
+            replicas,
+            missing);
+
+        if (missing) {
+            LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkId);
+            auto asyncError = Scraper_->Stop()
+                .Apply(BIND([=] () {
+                    THROW_ERROR_EXCEPTION("Chunk scraper failed: chunk %v is missing", chunkId);
+                }));
+
+            BatchLocatedPromise_.SetFrom(asyncError);
+            return;
+        }
 
         if (replicas.empty()) {
             return;
@@ -155,6 +169,7 @@ private:
         if (UnavailableFetcherChunkCount_ == 0) {
             // Wait for all scraper callbacks to finish before session completion.
             BatchLocatedPromise_.SetFrom(Scraper_->Stop());
+            LOG_DEBUG("All fetcher chunks are available");
         }
     }
 };
