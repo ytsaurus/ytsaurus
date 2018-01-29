@@ -141,11 +141,16 @@ using NTransactionServer::TTransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const NLogging::TLogger Logger("Bootstrap");
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(TCellMasterConfigPtr config, INodePtr configNode)
-    : TBootstrapBase(CellMasterLogger, config)
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
-{ }
+{
+    WarnForUnrecognizedOptions(Logger, Config_);
+}
 
 TBootstrap::~TBootstrap() = default;
 

@@ -102,11 +102,16 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const NLogging::TLogger Logger("Bootstrap");
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(TCellSchedulerConfigPtr config, INodePtr configNode)
-    : TBootstrapBase(TLogger("Bootstrap"), config)
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
-{ }
+{
+    WarnForUnrecognizedOptions(Logger, Config_);
+}
 
 TBootstrap::~TBootstrap() = default;
 
