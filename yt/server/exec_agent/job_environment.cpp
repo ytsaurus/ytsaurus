@@ -545,6 +545,7 @@ private:
             if (Config_->ExternalJobRootVolume) {
                 TRootFS rootFS;
                 rootFS.RootPath = *Config_->ExternalJobRootVolume;
+                rootFS.IsRootReadOnly = false;
 
                 for (const auto& pair : Config_->ExternalBinds) {
                     rootFS.Binds.push_back(TBind{pair.first, pair.second, false});

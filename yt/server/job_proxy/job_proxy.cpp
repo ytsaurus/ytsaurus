@@ -395,6 +395,7 @@ TJobResult TJobProxy::DoRun()
             LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
 
             TRootFS rootFS;
+            rootFS.IsRootReadOnly = true;
             rootFS.RootPath = *Config_->RootPath;
             rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
 
