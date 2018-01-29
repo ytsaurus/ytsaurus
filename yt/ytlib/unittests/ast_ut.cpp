@@ -68,7 +68,7 @@ TEST_F(TAstFormatTest, LiteralValue)
     EXPECT_EQ("18446744073709551615u", FormatLiteralValue(TLiteralValue(TVariantTypeTag<ui64>(), std::numeric_limits<ui64>::max())));
     EXPECT_EQ("3.140000", FormatLiteralValue(TLiteralValue(TVariantTypeTag<double>(), 3.14)));
     EXPECT_EQ("\"\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "")));
-    EXPECT_EQ("\"\\\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "\\")));
+    EXPECT_EQ("\"\\\\\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "\\")));
     EXPECT_EQ("\"hello\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "hello")));
 }
 
