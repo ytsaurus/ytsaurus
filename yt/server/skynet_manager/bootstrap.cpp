@@ -24,10 +24,15 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const NLogging::TLogger Logger("Bootstrap");
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
-    : TBootstrapBase(TLogger("Bootstrap"), config)
-    , Config(std::move(config))
+    : Config(std::move(config))
 {
+    WarnForUnrecognizedOptions(Logger, Config);
+
     Poller = CreateThreadPoolPoller(Config->IOPoolSize, "Poller");
 
     SkynetApiActionQueue = New<TActionQueue>("SkynetApi");

@@ -146,17 +146,19 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 FootprintMemorySize = 1_GB;
+static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
-    : TBootstrapBase(CellNodeLogger, config)
-    , Config(std::move(config))
+    : Config(std::move(config))
     , ConfigNode(std::move(configNode))
     , QueryThreadPool(BIND([this] () {
         return CreateFairShareThreadPool(Config->QueryAgent->ThreadPoolSize, "Query");
     }))
-{ }
+{
+    WarnForUnrecognizedOptions(Logger, Config);
+}
 
 TBootstrap::~TBootstrap() = default;
 
