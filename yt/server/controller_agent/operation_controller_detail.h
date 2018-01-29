@@ -173,16 +173,16 @@ private: \
     //! Callback called by TChunkScraper when get information on some chunk.
     IMPLEMENT_SAFE_VOID_METHOD(
         OnInputChunkLocated,
-        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
-        (chunkId, replicas),
+        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (chunkId, replicas, missing),
         THREAD_AFFINITY_ANY(),
         false)
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_VOID_METHOD(
         OnIntermediateChunkLocated,
-        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
-        (chunkId, replicas),
+        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (chunkId, replicas, missing),
         THREAD_AFFINITY_ANY(),
         false)
 
