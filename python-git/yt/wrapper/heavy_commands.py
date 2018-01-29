@@ -14,7 +14,6 @@ from .format import YtFormatReadError
 import yt.logger as logger
 
 import time
-from copy import deepcopy
 
 def process_read_exception(exception):
     logger.warning("Read request failed with error: %s", str(exception))
@@ -162,7 +161,7 @@ class ReadIterator(IteratorRetrier):
         timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                             get_config(client)["proxy"]["heavy_request_timeout"])
 
-        super(ReadIterator, self).__init__(self.read_iterator, retry_config, timeout, retriable_errors,
+        super(ReadIterator, self).__init__(retry_config, timeout, retriable_errors,
                                            chaos_monkey_enabled)
         self.client = client
         self.command_name = command_name
@@ -175,7 +174,7 @@ class ReadIterator(IteratorRetrier):
         self.iterator = None
         self.change_proxy_period = get_config(client)["read_retries"]["change_proxy_period"]
 
-    def read_iterator(self):
+    def _iterator(self):
         if self.start_response is None:
             self.start_response = self.get_response()
             self.process_response_action(self.start_response)
