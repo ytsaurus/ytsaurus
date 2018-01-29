@@ -20,8 +20,8 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
+#include <yt/core/net/connection.h>
+
 #include <yt/core/pipes/pipe.h>
 
 #include <yt/core/actions/cancelable_context.h>

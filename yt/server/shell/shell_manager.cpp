@@ -11,6 +11,8 @@
 
 #include <yt/core/pipes/public.h>
 
+#include <yt/core/net/public.h>
+
 #include <util/string/hex.h>
 
 #include <util/system/execpath.h>
@@ -142,7 +144,7 @@ public:
                     result.Output = "";
                     break;
                 }
-                if (pollResult.FindMatching(NPipes::EErrorCode::Aborted)) {
+                if (pollResult.FindMatching(NNet::EErrorCode::Aborted)) {
                     THROW_ERROR_EXCEPTION(
                         EErrorCode::ShellManagerShutDown,
                         "Shell manager was shut down")

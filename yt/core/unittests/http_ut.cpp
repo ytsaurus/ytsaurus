@@ -147,6 +147,11 @@ struct TFakeConnection
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
+    virtual TFuture<void> Abort() override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
     virtual TFuture<void> CloseRead() override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
@@ -165,6 +170,31 @@ struct TFakeConnection
     virtual const TNetworkAddress& RemoteAddress() const override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual int GetHandle() const override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual TConnectionStatistics GetReadStatistics() const override
+    {
+        return {};
+    }
+
+    virtual TConnectionStatistics GetWriteStatistics() const override
+    {
+        return {};
+    }
+
+    virtual i64 GetReadByteCount() const override
+    {
+        return 0;
+    }
+
+    virtual i64 GetWriteByteCount() const override
+    {
+        return 0;
     }
 };
 

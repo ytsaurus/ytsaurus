@@ -67,8 +67,7 @@
 #include <yt/core/misc/subprocess.h>
 #include <yt/core/misc/signaler.h>
 
-#include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
+#include <yt/core/net/connection.h>
 
 #include <yt/core/rpc/server.h>
 
@@ -91,6 +90,7 @@ namespace NJobProxy {
 using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
+using namespace NNet;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
@@ -443,10 +443,10 @@ private:
     std::unique_ptr<TTableOutput> StatisticsOutput_;
     std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
-    std::vector<TAsyncReaderPtr> TablePipeReaders_;
-    std::vector<TAsyncWriterPtr> TablePipeWriters_;
-    TAsyncReaderPtr StatisticsPipeReader_;
-    TAsyncReaderPtr StderrPipeReader_;
+    std::vector<IConnectionReaderPtr> TablePipeReaders_;
+    std::vector<IConnectionWriterPtr> TablePipeWriters_;
+    IConnectionReaderPtr StatisticsPipeReader_;
+    IConnectionReaderPtr StderrPipeReader_;
 
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
@@ -770,7 +770,7 @@ private:
         return adjustedPath;
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(
+    IConnectionReaderPtr PrepareOutputPipe(
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
@@ -997,28 +997,30 @@ private:
 
         // Pipe statistics.
         if (Prepared_) {
+            auto inputStatistics = TablePipeWriters_[0]->GetWriteStatistics();
             statistics.AddSample(
                 "/user_job/pipes/input/idle_time",
-                WaitFor(TablePipeWriters_[0]->GetIdleDuration()).Value());
+                inputStatistics.IdleDuration);
             statistics.AddSample(
                 "/user_job/pipes/input/busy_time",
-                WaitFor(TablePipeWriters_[0]->GetBusyDuration()).Value());
+                inputStatistics.BusyDuration);
             statistics.AddSample(
                 "/user_job/pipes/input/bytes",
-                TablePipeWriters_[0]->GetByteCount());
+                TablePipeWriters_[0]->GetWriteByteCount());
 
             for (int i = 0; i < TablePipeReaders_.size(); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
+                auto outputStatistics = tablePipeReader->GetReadStatistics();
 
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/idle_time", NYPath::ToYPathLiteral(i)),
-                    WaitFor(tablePipeReader->GetIdleDuration()).Value());
+                    outputStatistics.IdleDuration);
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/busy_time", NYPath::ToYPathLiteral(i)),
-                    WaitFor(tablePipeReader->GetBusyDuration()).Value());
+                    outputStatistics.BusyDuration);
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/bytes", NYPath::ToYPathLiteral(i)),
-                    tablePipeReader->GetByteCount());
+                    tablePipeReader->GetReadByteCount());
             }
         }
 
@@ -1027,7 +1029,7 @@ private:
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {
-        if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
+        if (error.IsOK() || error.FindMatching(NNet::EErrorCode::Aborted)) {
             return;
         }
 
@@ -1327,7 +1329,7 @@ private:
         if (fd >= 0) {
             ::close(fd);
         } else {
-            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
+            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe (Path: %v)", InputPipePath_);
         }
     }
 

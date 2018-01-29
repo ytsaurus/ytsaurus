@@ -21,7 +21,8 @@
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/pipes/async_reader.h>
+#include <yt/core/net/connection.h>
+
 #include <yt/core/pipes/pipe.h>
 
 #include <yt/core/profiling/timing.h>
@@ -307,7 +308,7 @@ public:
     { }
 
 private:
-    TAsyncReaderPtr InputStream_;
+    IAsyncInputStreamPtr InputStream_;
     std::unique_ptr<TFile> OutputFile_;
 
     TFuture<void> AsyncTransferResult_;
