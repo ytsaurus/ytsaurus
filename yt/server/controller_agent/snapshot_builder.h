@@ -25,7 +25,7 @@ struct TSnapshotJob
 {
     TOperationId OperationId;
     IOperationControllerSnapshotBuilderHostPtr Controller;
-    NPipes::TAsyncReaderPtr Reader;
+    NConcurrency::IAsyncInputStreamPtr Reader;
     std::unique_ptr<TFile> OutputFile;
     TSnapshotCookie Cookie;
     bool Suspended = false;

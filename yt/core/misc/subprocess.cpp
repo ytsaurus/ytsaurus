@@ -4,8 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
+#include <yt/core/net/connection.h>
 
 #include <util/system/execpath.h>
 

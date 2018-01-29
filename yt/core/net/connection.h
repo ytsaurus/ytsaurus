@@ -13,17 +13,60 @@ namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IConnection
+struct TConnectionStatistics
+{
+    TDuration IdleDuration;
+    TDuration BusyDuration;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IConnectionReader
+    : public NConcurrency::IAsyncInputStream
+{
+    virtual TFuture<void> CloseRead() = 0;
+
+    virtual TFuture<void> Abort() = 0;
+
+    virtual int GetHandle() const = 0;
+
+    virtual i64 GetReadByteCount() const = 0;
+
+    virtual TConnectionStatistics GetReadStatistics() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IConnectionReader)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IConnectionWriter
     : public NConcurrency::IAsyncOutputStream
-    , public NConcurrency::IAsyncInputStream
 {
     virtual TFuture<void> WriteV(const TSharedRefArray& data) = 0;
 
-    virtual TFuture<void> CloseRead() = 0;
     virtual TFuture<void> CloseWrite() = 0;
 
+    virtual TFuture<void> Abort() = 0;
+
+    virtual int GetHandle() const = 0;
+
+    virtual i64 GetWriteByteCount() const = 0;
+
+    virtual TConnectionStatistics GetWriteStatistics() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IConnectionWriter)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IConnection
+    : public IConnectionReader
+    , public IConnectionWriter
+{
     virtual const TNetworkAddress& LocalAddress() const = 0;
     virtual const TNetworkAddress& RemoteAddress() const = 0;
+
+    virtual TFuture<void> Abort() override = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
@@ -38,6 +81,16 @@ IConnectionPtr CreateConnectionFromFD(
     const TNetworkAddress& localAddress,
     const TNetworkAddress& remoteAddress,
     const NConcurrency::IPollerPtr& poller);
+
+IConnectionReaderPtr CreateInputConnectionFromPath(
+    const TString& pipePath,
+    const NConcurrency::IPollerPtr& poller,
+    const TIntrusivePtr<TRefCounted>& pipeHolder);
+
+IConnectionWriterPtr CreateOutputConnectionFromPath(
+    const TString& pipePath,
+    const NConcurrency::IPollerPtr& poller,
+    const TIntrusivePtr<TRefCounted>& pipeHolder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

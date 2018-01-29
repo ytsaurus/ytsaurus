@@ -9,7 +9,7 @@
 #include <yt/core/misc/process.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/pipes/async_reader.h>
+#include <yt/core/net/connection.h>
 
 namespace NYT {
 namespace {
