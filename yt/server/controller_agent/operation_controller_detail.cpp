@@ -1992,8 +1992,13 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
-void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
 {
+    if (missing) {
+        // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
+        return;
+    }
+
     // Intermediate chunks are always replicated.
     if (IsUnavailable(replicas, NErasure::ECodec::None)) {
         OnIntermediateChunkUnavailable(chunkId);
@@ -2002,8 +2007,10 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& ch
     }
 }
 
-void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
 {
+    // We have locked all the relevant input chunks, they cannot be missing.
+    YCHECK(!missing);
     auto it = InputChunkMap.find(chunkId);
     YCHECK(it != InputChunkMap.end());
 

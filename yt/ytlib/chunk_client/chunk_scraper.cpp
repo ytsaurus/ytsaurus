@@ -156,10 +156,12 @@ private:
         for (int index = 0; index < req->subrequests_size(); ++index) {
             const auto& subrequest = req->subrequests(index);
             const auto& subresponse = rsp->subresponses(index);
-            if (!subresponse.missing()) {
-                auto chunkId = FromProto<TChunkId>(subrequest);
+            auto chunkId = FromProto<TChunkId>(subrequest);
+            if (subresponse.missing()) {
+                OnChunkLocated_.Run(chunkId, TChunkReplicaList(), true);
+            } else {
                 auto replicas = FromProto<TChunkReplicaList>(subresponse.replicas());
-                OnChunkLocated_.Run(chunkId, replicas);
+                OnChunkLocated_.Run(chunkId, replicas, false);
             }
         }
     }
