@@ -135,7 +135,7 @@ private:
                     THROW_ERROR_EXCEPTION("Chunk scraper failed: chunk %v is missing", chunkId);
                 }));
 
-            BatchLocatedPromise_.SetFrom(asyncError);
+            BatchLocatedPromise_.TrySetFrom(asyncError);
             return;
         }
 
