@@ -54,7 +54,6 @@ import yt.logger as logger
 
 import sys
 import time
-from copy import deepcopy
 
 @forbidden_inside_job
 def run_erase(table, spec=None, sync=True, client=None):
