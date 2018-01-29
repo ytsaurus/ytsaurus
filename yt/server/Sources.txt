@@ -271,7 +271,6 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/bootstrap.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/configure_singletons.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp

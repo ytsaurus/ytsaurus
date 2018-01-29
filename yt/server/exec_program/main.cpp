@@ -26,7 +26,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramConfigMixin<NJobProxy::TJobSatelliteConnectionConfig>
     , public TProgramCgroupMixin
 {

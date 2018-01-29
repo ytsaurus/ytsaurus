@@ -6,7 +6,6 @@
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/server/misc/address_helpers.h>
-#include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/job_prober_service.h>
@@ -20,6 +19,8 @@
 #include <yt/server/controller_agent/job_spec_service.h>
 #include <yt/server/controller_agent/controller_agent_service.h>
 #include <yt/server/controller_agent/controller_agent.h>
+
+#include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>

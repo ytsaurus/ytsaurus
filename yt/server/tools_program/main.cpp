@@ -32,7 +32,7 @@ REGISTER_TOOL(TKillProcessGroupTool)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TToolsProgram
-    : public TYTProgram
+    : public Program
 {
 public:
     TToolsProgram()

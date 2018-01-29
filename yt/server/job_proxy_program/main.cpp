@@ -17,7 +17,7 @@ static const auto& Logger = NJobProxy::JobProxyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramConfigMixin<NJobProxy::TJobProxyConfig>
     , public TProgramCgroupMixin
 {

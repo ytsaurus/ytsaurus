@@ -13,7 +13,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellNodeProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramToolMixin
     , public TProgramConfigMixin<NCellNode::TCellNodeConfig>

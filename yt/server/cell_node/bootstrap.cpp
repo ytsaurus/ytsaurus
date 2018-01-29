@@ -37,7 +37,6 @@
 #include <yt/server/job_agent/statistics_reporter.h>
 
 #include <yt/server/misc/address_helpers.h>
-#include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/object_server/master_cache_service.h>
 
@@ -55,6 +54,8 @@
 #include <yt/server/transaction_server/timestamp_proxy_service.h>
 
 #include <yt/server/admin_server/admin_service.h>
+
+#include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
