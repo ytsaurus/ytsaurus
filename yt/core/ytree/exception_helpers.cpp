@@ -45,6 +45,15 @@ void ThrowNoSuchChildKey(IConstNodePtr node, const TString& key)
         ToYPathLiteral(key));
 }
 
+void ThrowNoSuchChildKeySuggestRecursive(IConstNodePtr node, const TString& key)
+{
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::ResolveError,
+        "%v has no child with key %Qv; consider using \"recursive\" option to force its creation",
+        GetNodePath(node),
+        ToYPathLiteral(key));
+}
+
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
 {
     THROW_ERROR_EXCEPTION(
