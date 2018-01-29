@@ -106,3 +106,19 @@ message TRspExists
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqMultiset
+{
+    message TSubrequest
+    {
+        required string key = 1;
+        required bytes value = 2;
+    }
+
+    repeated TSubrequest subrequests = 1;
+}
+
+message TRspMultiset
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+

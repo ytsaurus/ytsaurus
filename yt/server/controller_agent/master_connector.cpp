@@ -541,28 +541,30 @@ private:
         auto batchReq = StartObjectBatchRequest();
         GenerateMutationId(batchReq);
 
-        // Set progress.
-        {
-            auto progress = controller->GetProgress();
-            YCHECK(progress);
+        auto progress = controller->GetProgress();
+        YCHECK(progress);
 
-            for (const auto& operationPath : paths) {
-                auto req = TYPathProxy::Set(operationPath + "/@progress");
+        auto briefProgress = controller->GetBriefProgress();
+        YCHECK(briefProgress);
+
+        for (const auto& operationPath : paths) {
+            auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
+
+            // Set progress.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("progress");
                 req->set_value(progress.GetData());
-                batchReq->AddRequest(req, "update_op_node");
             }
-        }
 
-        // Set brief progress.
-        {
-            auto progress = controller->GetBriefProgress();
-            YCHECK(progress);
-
-            for (const auto& operationPath : paths) {
-                auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
-                req->set_value(progress.GetData());
-                batchReq->AddRequest(req, "update_op_node");
+            // Set brief progress.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("brief_progress");
+                req->set_value(briefProgress.GetData());
             }
+
+            batchReq->AddRequest(multisetReq, "update_op_node");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
