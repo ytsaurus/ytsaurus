@@ -333,7 +333,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
                 elif not ignore_errors:
                     raise
         else:
-            stderr_path = ypath_join(OPERATIONS_PATH, job, "stderr")
+            stderr_path = ypath_join(OPERATIONS_PATH, operation, "jobs", job, "stderr")
             has_stderr = exists(stderr_path, client=yt_client)
             if has_stderr:
                 try:
