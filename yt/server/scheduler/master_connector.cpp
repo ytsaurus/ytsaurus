@@ -1223,49 +1223,52 @@ private:
                 }
             }
 
+            auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
+
             // Set suspended flag.
             {
-                auto req = TYPathProxy::Set(operationPath + "/@suspended");
+                auto req = multisetReq->add_subrequests();
+                req->set_key("suspended");
                 req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
-                batchReq->AddRequest(req, "update_op_node");
             }
 
             // Set events.
             {
-                auto req = TYPathProxy::Set(operationPath + "/@events");
+                auto req = multisetReq->add_subrequests();
+                req->set_key("events");
                 req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
-                batchReq->AddRequest(req, "update_op_node");
             }
 
             // Set result.
             if (operation->IsFinishedState()) {
-                auto req = TYPathProxy::Set(operationPath + "/@result");
+                auto req = multisetReq->add_subrequests();
+                req->set_key("result");
                 auto error = FromProto<TError>(operation->Result().error());
                 auto errorString = BuildYsonStringFluently()
                     .BeginMap()
-                        .Item("error").Value(error)
+                    .Item("error").Value(error)
                     .EndMap();
                 req->set_value(errorString.GetData());
-                batchReq->AddRequest(req, "update_op_node");
             }
 
             // Set end time, if given.
             if (operation->GetFinishTime()) {
-                auto req = TYPathProxy::Set(operationPath + "/@finish_time");
+                auto req = multisetReq->add_subrequests();
+                req->set_key("finish_time");
                 req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
-                batchReq->AddRequest(req, "update_op_node");
             }
 
             // Set state.
             {
-                auto req = TYPathProxy::Set(operationPath + "/@state");
+                auto req = multisetReq->add_subrequests();
+                req->set_key("state");
                 req->set_value(ConvertToYsonString(operation->GetState()).GetData());
-                batchReq->AddRequest(req, "update_op_node");
             }
 
             // Set alerts.
             {
-                auto req = TYPathProxy::Set(operationPath + "/@alerts");
+                auto req = multisetReq->add_subrequests();
+                req->set_key("alerts");
                 const auto& alerts = operation->Alerts();
                 req->set_value(BuildYsonStringFluently()
                     .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
@@ -1275,8 +1278,9 @@ private:
                             }
                         })
                     .GetData());
-                batchReq->AddRequest(req, "update_op_node");
             }
+
+            batchReq->AddRequest(multisetReq, "update_op_node");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
