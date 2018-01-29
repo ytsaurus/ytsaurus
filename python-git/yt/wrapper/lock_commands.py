@@ -6,6 +6,13 @@ from .transaction_commands import _make_formatted_transactional_request
 import time
 from datetime import timedelta, datetime
 
+def _is_batch_client(client):
+    # XXX: Import inside function to avoid import loop.
+    # batch_client imports all API, including current module
+    from .batch_client import BatchClient
+
+    return isinstance(client, BatchClient)
+
 def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None, client=None):
     """Tries to lock the path.
 
@@ -20,6 +27,10 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     """
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)
+
+    if waitable and wait_for is not None:
+        if _is_batch_client(client):
+            raise YtError("Waiting on waitable locks with batch client is not supported")
 
     params = {
         "path": YPath(path, client=client),
