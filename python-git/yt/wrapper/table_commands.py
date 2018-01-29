@@ -384,6 +384,9 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
             raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response._get_response())
         set_response_parameters(response.response_parameters)
 
+    chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
+    multiple_ranges_allowed = get_config(client)["read_retries"]["allow_multiple_ranges"]
+
     class RetriableState(object):
         def __init__(self):
             # Whether reading started, it is used only for reading without ranges in <= 0.17.3 versions.
@@ -425,7 +428,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     fix_range(table.attributes)
             else:
                 if len(table.attributes["ranges"]) > 1:
-                    if get_config(client)["read_retries"]["allow_multiple_ranges"]:
+                    if multiple_ranges_allowed:
                         if "control_attributes" not in params:
                             params["control_attributes"] = {}
                         params["control_attributes"]["enable_row_index"] = True
@@ -491,7 +494,6 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 self.started = True
 
             for row in format_for_raw_load.load_rows(response, raw=True):
-                chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
                 if chaos_monkey_enabled and random.randint(1, 5) == 1:
                     raise YtRetriableError()
 

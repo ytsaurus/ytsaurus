@@ -132,11 +132,14 @@ class YsonParser(object):
         self._tokenizer.get_current_token().expect_type(TOKEN_END_OF_STREAM)
         return result
 
-def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attributes=True):
+def load(stream, yson_type=None, raw=None, encoding=_ENCODING_SENTINEL, always_create_attributes=True):
     """Deserializes object from YSON formatted stream `stream`.
 
     :param str yson_type: type of YSON, one of ["node", "list_fragment", "map_fragment"].
     """
+    if raw:
+        raise YsonError("Loading YSON in 'raw' mode is not supported")
+
     if not PY3 and encoding is not _ENCODING_SENTINEL and encoding is not None:
         raise YsonError("Encoding parameter is not supported for Python 2")
 

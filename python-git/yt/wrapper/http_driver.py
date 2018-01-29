@@ -55,11 +55,20 @@ def dump_params(obj, header_format):
     else:
         assert False, "Invalid header format"
 
-class HeavyProxyProvider(ProxyProvider):
-    def __init__(self, client):
-        self.client = client
+# NB: It is necessary to avoid reference loop.
+# We cannot store proxy provider in client and client in proxy provider.
+class HeavyProxyProviderState(object):
+    def __init__(self):
         self.banned_proxies = {}
         self.last_provided_proxy = None
+
+class HeavyProxyProvider(ProxyProvider):
+    def __init__(self, client, state=None):
+        self.client = client
+        if state is None:
+            self.state = HeavyProxyProviderState()
+        else:
+            self.state = state
 
         from yt.packages.requests import ConnectionError
         from yt.packages.six.moves.http_client import BadStatusLine
@@ -71,11 +80,11 @@ class HeavyProxyProvider(ProxyProvider):
 
     def __call__(self):
         now = datetime.now()
-        for proxy in list(self.banned_proxies):
-            time = self.banned_proxies[proxy]
+        for proxy in list(self.state.banned_proxies):
+            time = self.state.banned_proxies[proxy]
             if total_seconds(now - time) * 1000 > get_config(self.client)["proxy"]["proxy_ban_timeout"]:
                 logger.info("Proxy %s unbanned", proxy)
-                del self.banned_proxies[proxy]
+                del self.state.banned_proxies[proxy]
 
         if get_config(self.client)["proxy"]["enable_proxy_discovery"]:
             limit = get_config(self.client)["proxy"]["number_of_top_proxies_for_random_choice"]
@@ -85,7 +94,7 @@ class HeavyProxyProvider(ProxyProvider):
                 return self._get_light_proxy()
 
             for proxy in heavy_proxies:
-                if proxy not in self.banned_proxies:
+                if proxy not in self.state.banned_proxies:
                     unbanned_proxies.append(proxy)
 
             result_proxy = None
@@ -97,16 +106,16 @@ class HeavyProxyProvider(ProxyProvider):
                 logger.warning("All proxies are banned, use random proxy from top %d of discovered proxies", upper_bound)
                 result_proxy = heavy_proxies[random.randint(0, upper_bound - 1)]
 
-            self.last_provided_proxy = result_proxy
+            self.state.last_provided_proxy = result_proxy
             return result_proxy
 
         return self._get_light_proxy()
 
     def on_error_occured(self, error):
-        if isinstance(error, self.ban_errors) and self.last_provided_proxy is not None:
-            proxy = self.last_provided_proxy
+        if isinstance(error, self.ban_errors) and self.state.last_provided_proxy is not None:
+            proxy = self.state.last_provided_proxy
             logger.info("Proxy %s banned", proxy)
-            self.banned_proxies[proxy] = datetime.now()
+            self.state.banned_proxies[proxy] = datetime.now()
 
     def _discover_heavy_proxies(self):
         discovery_url = get_config(self.client)["proxy"]["proxy_discovery_url"]
@@ -201,10 +210,11 @@ def make_request(command_name,
     # prepare url.
     url_pattern = "http://{proxy}/{api}/{command}"
     if use_heavy_proxy:
-        proxy_provider = get_option("_heavy_proxy_provider", client)
-        if proxy_provider is None:
-            proxy_provider = HeavyProxyProvider(client)
-            set_option("_heavy_proxy_provider", proxy_provider, client)
+        proxy_provider_state = get_option("_heavy_proxy_provider_state", client)
+        if proxy_provider_state is None:
+            proxy_provider_state = HeavyProxyProviderState()
+            set_option("_heavy_proxy_provider_state", proxy_provider_state, client)
+        proxy_provider = HeavyProxyProvider(client, proxy_provider_state)
         url = url_pattern.format(proxy="{proxy}", api=api_path, command=command_name)
     else:
         proxy_provider = None
