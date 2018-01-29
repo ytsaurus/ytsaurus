@@ -74,6 +74,7 @@ TEST_F(TAstFormatTest, LiteralValue)
 
 TEST_F(TAstFormatTest, Expression)
 {
+    TestExpression("\"dochelper.Физ\\\\. Лицо\"");
     TestExpression("a");
     TestExpression("a + b");
     TestExpression("a - b");
