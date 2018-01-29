@@ -17,6 +17,7 @@ struct TBind
 struct TRootFS
 {
     TString RootPath;
+    bool IsRootReadOnly;
     std::vector<TBind> Binds;
 };
 
