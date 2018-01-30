@@ -654,6 +654,7 @@ public:
         auto& suspendableStripe = Stripes_[cookie];
         if (!Finished) {
             suspendableStripe.Resume(stripe);
+            suspendableStripe.ReplaceOriginalStripe();
         } else {
             JobManager_->Resume(cookie);
             yhash<TInputChunkPtr, TInputChunkPtr> newChunkMapping;
