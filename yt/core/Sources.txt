@@ -187,6 +187,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc/static_channel_factory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/throttling_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/latency_taming_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/message_format.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/rpc/proto/rpc.proto
 
@@ -257,5 +258,4 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/json/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json/json_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json/json_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/json/json_rpc_message_format.cpp
 )
