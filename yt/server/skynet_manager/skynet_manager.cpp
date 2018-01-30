@@ -74,7 +74,8 @@ TClusterConnectionConfigPtr TSkynetManager::GetCluster(const TString& name)
         }
     }
 
-    THROW_ERROR_EXCEPTION("Cluster %Qv not found in config", name);
+    THROW_ERROR_EXCEPTION("Cluster %Qv is not found in configuration",
+        name);
 }
 
 void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)

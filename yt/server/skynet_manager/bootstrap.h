@@ -20,7 +20,8 @@ struct TBootstrap
 {
     explicit TBootstrap(TSkynetManagerConfigPtr config);
 
-    void Run();
+    void Start();
+    void Stop();
 
     TSkynetManagerConfigPtr Config;
 

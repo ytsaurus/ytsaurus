@@ -492,6 +492,7 @@ void TServerBase::RegisterService(IServicePtr service)
                 service->Configure(it->second);
             }
         }
+        DoRegisterService(service);
     }
 
     LOG_INFO("RPC service registered (ServiceName: %v, RealmId: %v)",
@@ -512,6 +513,7 @@ bool TServerBase::UnregisterService(IServicePtr service)
             return false;
         }
         ServiceMap_.erase(it);
+        DoUnregisterService(service);
     }
 
     LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
@@ -599,6 +601,12 @@ TFuture<void> TServerBase::DoStop(bool graceful)
         LOG_INFO("RPC server stopped");
     }));
 }
+
+void TServerBase::DoRegisterService(const IServicePtr& service)
+{ }
+
+void TServerBase::DoUnregisterService(const IServicePtr& service)
+{ }
 
 std::vector<IServicePtr> TServerBase::DoFindServices(const TString& serviceName)
 {

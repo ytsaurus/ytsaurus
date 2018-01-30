@@ -49,10 +49,17 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     Manager = New<TSkynetManager>(this);
 }
 
-void TBootstrap::Run()
+void TBootstrap::Start()
 {
-    WaitFor(HttpServer->Start())
-        .ThrowOnError();
+    HttpServer->Start();
+}
+
+void TBootstrap::Stop()
+{
+    HttpServer->Stop();
+    SkynetApiActionQueue->Shutdown();
+    Poller->Shutdown();
+    SkynetApi.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
