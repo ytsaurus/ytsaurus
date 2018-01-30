@@ -2949,6 +2949,14 @@ private:
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
 
+            auto errors = FromProto<std::vector<TError>>(tabletInfo.errors());
+            for (auto errorKey : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                size_t idx = static_cast<size_t>(errorKey);
+                if (idx < errors.size()) {
+                    tablet->Errors()[errorKey] = errors[idx];
+                }
+            }
+
             for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
                 auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
                 auto* replica = FindTableReplica(replicaId);

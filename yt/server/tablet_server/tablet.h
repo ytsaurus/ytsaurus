@@ -195,6 +195,9 @@ public:
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 
+    using TErrorVector = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
+    DEFINE_BYREF_RW_PROPERTY(TErrorVector, Errors);
+
     using TReplicaMap = yhash<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
@@ -226,6 +229,8 @@ public:
 
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
+
+    std::vector<TError> GetErrors() const;
 
 private:
     ETabletState State_ = ETabletState::Unmounted;
