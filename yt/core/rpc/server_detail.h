@@ -210,6 +210,9 @@ protected:
     virtual void DoStart();
     virtual TFuture<void> DoStop(bool graceful);
 
+    virtual void DoRegisterService(const IServicePtr& service);
+    virtual void DoUnregisterService(const IServicePtr& service);
+
     std::vector<IServicePtr> DoFindServices(const TString& serviceName);
 
 };

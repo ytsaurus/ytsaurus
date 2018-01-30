@@ -1,13 +1,17 @@
 #pragma once
 
-#include <yt/core/misc/intrusive_ptr.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
-namespace NHttpRpc {
+namespace NRpc {
+namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TServerConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpRpc
+} // namespace NHttp
+} // namespace NRpc
 } // namespace NYT

@@ -496,12 +496,12 @@ public:
 TEST_F(THttpServerTest, SimpleRequest)
 {
     Server->AddHandler("/ok", New<TOKHttpHandler>());
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/ok")).ValueOrThrow();
     ASSERT_EQ(EStatusCode::Ok, rsp->GetStatusCode());
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -543,7 +543,7 @@ TString ReadAll(const IAsyncZeroCopyInputStreamPtr& in)
 TEST_F(THttpServerTest, TransferSmallBody)
 {
     Server->AddHandler("/echo", New<TEchoHttpHandler>());
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto reqBody = TSharedMutableRef::Allocate(1024);
     std::fill(reqBody.Begin(), reqBody.End(), 0xab);
@@ -554,7 +554,7 @@ TEST_F(THttpServerTest, TransferSmallBody)
     auto rspBody = ReadAll(rsp);
     ASSERT_EQ(TString(reqBody.Begin(), reqBody.Size()), rspBody);
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -575,7 +575,7 @@ TEST_F(THttpServerTest, StatusCode)
 {
     auto handler = New<TTestStatusCodeHandler>();
     Server->AddHandler("/code", handler);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     handler->Code = EStatusCode::NotFound;
     ASSERT_EQ(EStatusCode::NotFound,
@@ -589,7 +589,7 @@ TEST_F(THttpServerTest, StatusCode)
             .ValueOrThrow()
             ->GetStatusCode());
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -627,7 +627,7 @@ TEST_F(THttpServerTest, HeadersTest)
     };
 
     Server->AddHandler("/headers", handler);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto headers = New<THeaders>();
     headers->Add("X-Yt-Test", "foo; bar; zog");
@@ -637,7 +637,7 @@ TEST_F(THttpServerTest, HeadersTest)
     EXPECT_EQ("nocache", rsp->GetHeaders()->Get("Cache-Control"));
     EXPECT_EQ("test/plain; charset=utf-8", rsp->GetHeaders()->Get("Content-Type"));
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -659,13 +659,13 @@ TEST_F(THttpServerTest, TrailersTest)
     auto handler = New<TTestTrailersHandler>();
 
     Server->AddHandler("/trailers", handler);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/trailers")).ValueOrThrow();
     auto body = ReadAll(rsp);
     EXPECT_EQ("foo; bar", rsp->GetTrailers()->Get("X-Yt-Test"));
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -707,7 +707,7 @@ TEST_F(THttpServerTest, WierdHandlers)
     Server->AddHandler("/hanging", hanging);
     Server->AddHandler("/impatient", impatient);
     Server->AddHandler("/forgetful", forgetful);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     EXPECT_THROW(
         WaitFor(Client->Get(TestUrl + "/hanging"))
@@ -725,7 +725,7 @@ TEST_F(THttpServerTest, WierdHandlers)
             ->GetStatusCode(),
         TErrorException);
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -760,7 +760,7 @@ TEST_F(THttpServerTest, ThrowingHandler)
 
     Server->AddHandler("/throwing", throwing);
     Server->AddHandler("/throwing_in_the_middle", throwingInTheMiddle);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     ASSERT_EQ(EStatusCode::InternalServerError,
         WaitFor(Client->Get(TestUrl + "/throwing"))
@@ -770,7 +770,7 @@ TEST_F(THttpServerTest, ThrowingHandler)
         ReadAll(WaitFor(Client->Get(TestUrl + "/throwing_in_the_middle")).ValueOrThrow()),
         TErrorException);
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -791,14 +791,14 @@ public:
 TEST_F(THttpServerTest, RequestStreaming)
 {
     Server->AddHandler("/consuming", New<TConsumingHandler>());
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto body = TSharedMutableRef::Allocate(128 * 1024 * 1024);
     ASSERT_EQ(EStatusCode::Ok,
         WaitFor(Client->Post(TestUrl + "/consuming", body))
             .ValueOrThrow()->GetStatusCode());
-    
-    acceptor.Cancel();
+
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -821,12 +821,12 @@ public:
 TEST_F(THttpServerTest, ResponseStreaming)
 {
     Server->AddHandler("/streaming", New<TStreamingHandler>());
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/streaming")).ValueOrThrow();
     ASSERT_EQ(16 * 1024 * 1024, ReadAll(rsp).Size());
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -847,15 +847,15 @@ TEST_F(THttpServerTest, RequestHangUp)
 {
     auto validating = New<TValidateErrorHandler>();
     Server->AddHandler("/validating", validating);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto dialer = CreateDialer(New<TDialerConfig>(), Poller, HttpLogger);
     auto conn = WaitFor(dialer->Dial(TNetworkAddress::CreateIPv6Loopback(TestPort)))
         .ValueOrThrow();
     WaitFor(conn->Write(TSharedRef::FromString("POST /validating HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n")));
     WaitFor(conn->Close());
-    
-    acceptor.Cancel();
+
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 
     EXPECT_TRUE(validating->Ok);

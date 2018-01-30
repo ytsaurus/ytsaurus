@@ -22,14 +22,17 @@
 #include <yt/core/concurrency/poller.h>
 #include <yt/core/concurrency/action_queue.h>
 
-using namespace NYT;
-using namespace NYT::NNet;
-using namespace NYT::NHttp;
-using namespace NYT::NYson;
-using namespace NYT::NYTree;
-using namespace NYT::NYPath;
-using namespace NYT::NConcurrency;
-using namespace NYT::NSkynetManager;
+namespace NYT {
+namespace NSkynetManager {
+
+using namespace NNet;
+using namespace NHttp;
+using namespace NYson;
+using namespace NYTree;
+using namespace NYPath;
+using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMockReadTable
     : public IHttpHandler
@@ -158,7 +161,6 @@ public:
 
     IListenerPtr MockProxyListener;
     IServerPtr MockProxy;
-    TFuture<void> MockProxyAcceptor;
 
     TString ProxyUrl;
 
@@ -178,7 +180,7 @@ public:
         MockProxy->AddHandler("/api/v3/read_table", New<TMockReadTable>());
         MockProxy->AddHandler("/api/v3/locate_skynet_share", New<TMockLocateSkynetShare>());
 
-        MockProxyAcceptor = MockProxy->Start();
+        MockProxy->Start();
 
         ProxyUrl = "http://localhost:" + ToString(MockProxyListener->Address().GetPort());
 
@@ -187,7 +189,7 @@ public:
 
     virtual void TearDown() override
     {
-        MockProxyAcceptor.Cancel();
+        MockProxy->Stop();
         Sleep(TDuration::MilliSeconds(100));
         
         Poller->Shutdown();
@@ -261,11 +263,7 @@ TEST_F(TTestSkynetManager, FullCycle)
             return VoidFuture;
         }));
 
-    auto runningBootstrap = BIND([=] () {
-        bootstrap->Run();
-    })
-        .AsyncVia(bootstrap->SkynetApiActionQueue->GetInvoker())
-        .Run();
+    bootstrap->Start();
 
     auto params = New<THeaders>();
     params->Set("X-Yt-Parameters", "{cluster=hume; path=\"//foo/bar\"}");
@@ -275,17 +273,19 @@ TEST_F(TTestSkynetManager, FullCycle)
         .ValueOrThrow();
     EXPECT_EQ(shareReq->GetStatusCode(), EStatusCode::Ok);
 
-    auto callbackUrl = WaitFor(callbackUrlPromise.ToFuture()).ValueOrThrow();
+    auto callbackUrl = WaitFor(callbackUrlPromise.ToFuture())
+        .ValueOrThrow();
 
     auto discoverReq = WaitFor(bootstrap->HttpClient->Get(callbackUrl))
         .ValueOrThrow();
    
     EXPECT_EQ(shareReq->GetStatusCode(), EStatusCode::Ok);
 
-    runningBootstrap.Cancel();
+    bootstrap->Stop();
     Sleep(TDuration::MilliSeconds(10));
-
-    bootstrap->SkynetApiActionQueue->Shutdown();
-    bootstrap->Poller->Shutdown();
-    bootstrap->SkynetApi.Reset();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NSkynetManager
+} // namespace NYT

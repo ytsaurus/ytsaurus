@@ -1,16 +1,19 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/core/http/public.h>
-#include <yt/core/rpc/public.h>
 
 namespace NYT {
-namespace NHttpRpc {
+namespace NRpc {
+namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::NHttp::IHttpHandlerPtr CreateRpcHttpHandler(NYT::NRpc::IServicePtr service, const TString& baseUrl);
+NRpc::IServerPtr CreateServer(NYT::NHttp::IServerPtr httpServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpRpc
+} // namespace NHttp
+} // namespace NRpc
 } // namespace NYT
