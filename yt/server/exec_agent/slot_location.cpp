@@ -508,7 +508,9 @@ void TSlotLocation::Disable(const TError& error)
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
 
-    DiskInfoUpdateExecutor_->Stop();
+    if (DiskInfoUpdateExecutor_) {
+        DiskInfoUpdateExecutor_->Stop();
+    }
 }
 
 void TSlotLocation::UpdateDiskInfo()
