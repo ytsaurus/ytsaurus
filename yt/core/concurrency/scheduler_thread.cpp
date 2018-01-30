@@ -205,6 +205,8 @@ void TSchedulerThread::ThreadMainStep()
 
     YCHECK(CurrentFiber_);
 
+    auto savedFiberId = CurrentFiber_->GetId();
+
     switch (CurrentFiber_->GetState()) {
         case EFiberState::Sleeping:
             maybeReleaseIdleFiber();
@@ -231,7 +233,9 @@ void TSchedulerThread::ThreadMainStep()
     }
 
     // Finish sync part of the execution.
+    SetCurrentFiberId(savedFiberId);
     EndExecute();
+    SetCurrentFiberId(InvalidFiberId);
 
     // Check for a clear scheduling state.
     Y_ASSERT(!CurrentFiber_);
