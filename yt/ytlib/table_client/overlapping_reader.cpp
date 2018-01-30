@@ -341,8 +341,8 @@ TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStati
         }
     }
 
-    dataStatistics.set_row_count(RowCount_);
-    dataStatistics.set_data_weight(DataWeight_);
+    dataStatistics.set_row_count(RowCount_ + dataStatistics.row_count());
+    dataStatistics.set_data_weight(DataWeight_ + dataStatistics.data_weight());
     return dataStatistics;
 }
 
