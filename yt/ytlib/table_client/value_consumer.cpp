@@ -342,6 +342,7 @@ TFuture<void> TWritingValueConsumer::Flush()
         .Apply(BIND([=, rows = std::move(Rows_)] () {
             Writer_->Write(rows);
             RowBuffer_->Clear();
+            return Writer_->GetReadyEvent();
         }));
 }
 
