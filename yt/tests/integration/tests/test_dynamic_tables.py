@@ -8,6 +8,8 @@ from flaky import flaky
 
 from yt.environment.helpers import assert_items_equal
 
+import __builtin__
+
 ##################################################################
 
 class TestDynamicTablesBase(YTEnvSetup):

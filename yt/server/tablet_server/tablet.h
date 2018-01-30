@@ -231,6 +231,8 @@ public:
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
 
+    std::vector<TError> GetErrors() const;
+
 private:
     ETabletState State_ = ETabletState::Unmounted;
     NTableServer::TTableNode* Table_ = nullptr;

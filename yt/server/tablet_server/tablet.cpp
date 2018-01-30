@@ -474,6 +474,17 @@ void TTablet::SetTable(TTableNode* table)
     Table_ = table;
 }
 
+std::vector<TError> TTablet::GetErrors() const
+{
+    std::vector<TError> errors;
+    for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+        if (!Errors()[key].IsOK()) {
+            errors.push_back(Errors()[key]);
+        }
+    }
+    return errors;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletServer
