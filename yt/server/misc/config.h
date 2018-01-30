@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/ytlib/program/config.h>
+
 #include <yt/ytlib/misc/config.h>
 
 #include <yt/core/net/address.h>
@@ -25,17 +27,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerConfig
-    : public virtual NYTree::TYsonSerializable
+    : public TSingletonsConfig
 {
 public:
-    // Singletons.
-    yhash<TString, int> FiberStackPoolSizes;
-    NNet::TAddressResolverConfigPtr AddressResolver;
-    NRpc::TDispatcherConfigPtr RpcDispatcher;
-    NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
-    NLogging::TLogConfigPtr Logging;
-    NTracing::TTraceManagerConfigPtr Tracing;
-
     NBus::TTcpBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
     TCoreDumperConfigPtr CoreDumper;
@@ -49,19 +43,6 @@ public:
 
     TServerConfig()
     {
-        RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
-            .Default({});
-        RegisterParameter("address_resolver", AddressResolver)
-            .DefaultNew();
-        RegisterParameter("rpc_dispatcher", RpcDispatcher)
-            .DefaultNew();
-        RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
-            .DefaultNew();
-        RegisterParameter("logging", Logging)
-            .Default(NLogging::TLogConfig::CreateDefault());
-        RegisterParameter("tracing", Tracing)
-            .DefaultNew();
-
         RegisterParameter("bus_server", BusServer)
             .DefaultNew();
         RegisterParameter("rpc_server", RpcServer)
