@@ -4,8 +4,7 @@
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
-
-#include <yt/server/misc/configure_singletons.h>
+#include <yt/ytlib/program/configure_singletons.h>
 
 namespace NYT {
 
@@ -47,7 +46,7 @@ protected:
             cluster->LoadToken();
         }
 
-        ConfigureServerSingletons(config);
+        ConfigureSingletons(config);
 
         auto bootstrap = New<TBootstrap>(std::move(config));
         bootstrap->Run();

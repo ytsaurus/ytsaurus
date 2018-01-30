@@ -1,6 +1,6 @@
 #include <yt/ytlib/program/program.h>
+#include <yt/ytlib/program/configure_singletons.h>
 
-#include <yt/server/misc/configure_singletons.h>
 #include <yt/core/tools/registry.h>
 #include <yt/core/tools/tools.h>
 #include <yt/core/misc/fs.h>
