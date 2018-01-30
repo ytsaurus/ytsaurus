@@ -221,7 +221,7 @@ private:
     void InitializeReader(TNameTablePtr nameTable, const TColumnFilter& columnFilter)
     {
         YCHECK(!Reader_);
-        Reader_ = CreateUserJobIOFactory(JobSpecHelper_)->CreateReader(
+        Reader_ = CreateUserJobIOFactory(JobSpecHelper_, TrafficMeter_)->CreateReader(
             Client_,
             NodeDescriptor_,
             OnNetworkRelease_,
@@ -242,6 +242,7 @@ private:
     TNullable<TString> UdfDirectory_;
     std::atomic<bool> Initialized_ = {false};
     std::atomic<bool> Interrupted_ = {false};
+    NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
     NLogging::TLogger Logger;
 };

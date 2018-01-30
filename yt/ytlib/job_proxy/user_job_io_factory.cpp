@@ -541,7 +541,7 @@ private:
 
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
-    NChunkClient::TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter)
 {
     const auto jobType = jobSpecHelper->GetJobType();
     switch (jobType) {
