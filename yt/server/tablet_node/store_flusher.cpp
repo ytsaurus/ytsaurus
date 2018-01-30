@@ -43,6 +43,7 @@ using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NHydra;
+using namespace NTabletClient;
 using namespace NTabletServer::NProto;
 using namespace NTabletNode::NProto;
 
@@ -259,6 +260,9 @@ private:
             tabletId,
             store->GetId());
 
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+
         try {
             auto beginInstant = TInstant::Now();
 
@@ -316,6 +320,8 @@ private:
                 .ThrowOnError();
 
             storeManager->EndStoreFlush(store);
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)

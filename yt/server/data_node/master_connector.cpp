@@ -68,6 +68,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
@@ -751,6 +752,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
             protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
+
+            TEnumIndexedVector<TError, ETabletBackgroundActivity> errors;
+            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                errors[key] = tabletSnapshot->RuntimeData->Errors[key].Load();
+            }
+            ToProto(protoTabletInfo->mutable_errors(), std::vector<TError>(errors.begin(), errors.end()));
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;

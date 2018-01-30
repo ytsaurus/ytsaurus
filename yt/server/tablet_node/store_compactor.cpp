@@ -897,6 +897,8 @@ private:
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
             }
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
@@ -1266,6 +1268,8 @@ private:
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
             }
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
