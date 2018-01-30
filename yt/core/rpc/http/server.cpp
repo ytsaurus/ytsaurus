@@ -15,8 +15,6 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/json/json_rpc_message_format.h>
-
 namespace NYT {
 namespace NRpc {
 namespace NHttp {
@@ -28,7 +26,6 @@ using namespace NYT::NHttp;
 using namespace NYT::NYTree;
 using namespace NYT::NBus;
 using namespace NYT::NRpc;
-using namespace NYT::NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -281,10 +278,7 @@ public:
     explicit TServer(NYT::NHttp::IServerPtr httpServer)
         : TServerBase(HttpLogger)
         , HttpServer_(std::move(httpServer))
-    {
-        // XXX(babenko): try to get rid of this
-        NJson::RegisterJsonRpcMessageFormat();
-    }
+    { }
 
 private:
     NYT::NHttp::IServerPtr HttpServer_;
