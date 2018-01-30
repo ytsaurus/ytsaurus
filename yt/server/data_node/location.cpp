@@ -87,6 +87,7 @@ TLocation::TLocation(
         "TabletCompactionAndPartitioningOutThrottler");
     TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
     TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
+    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", throttlersProfiler);
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
@@ -487,7 +488,7 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
             return TabletRecoveryOutThrottler_;
 
         default:
-            return GetUnlimitedThrottler();
+            return UnlimitedOutThrottler_;
     }
 }
 
@@ -691,6 +692,7 @@ TStoreLocation::TStoreLocation(
     TabletLoggingInThrottler_ = createThrottler(config->TabletLoggingInThrottler, "TabletLoggingInThrottler");
     TabletSnapshotInThrottler_ = createThrottler(config->TabletSnapshotInThrottler, "TabletSnapshotInThrottler");
     TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushInThrottler");
+    UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedInThrottler", throttlersProfiler);
 }
 
 TJournalManagerPtr TStoreLocation::GetJournalManager()
@@ -746,7 +748,7 @@ IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor
             return TabletStoreFlushInThrottler_;
 
         default:
-            return GetUnlimitedThrottler();
+            return UnlimitedInThrottler_;
     }
 }
 

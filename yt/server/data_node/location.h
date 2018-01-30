@@ -217,6 +217,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletLoggingOutThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
     const NChunkClient::IIOEnginePtr IOEngine_;
 
@@ -310,6 +311,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
 
     TString GetTrashPath() const;
     TString GetTrashChunkPath(const TChunkId& chunkId) const;

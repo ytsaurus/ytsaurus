@@ -97,6 +97,11 @@ IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottl
 //! Returns a throttler that imposes no throughput limit.
 IThroughputThrottlerPtr GetUnlimitedThrottler();
 
+//! Returns a throttler that imposes no throughput limit and profiles throughput.
+IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
+    const TString& name,
+    NProfiling::TProfiler profiler);
+
 //! Constructs a throttler providing a joint rate limit
 //! enforced by a set of underlying #throttlers.
 //! Note that IThroughputThrotter::TryAcquire is not implemented.
