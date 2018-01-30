@@ -1,13 +1,19 @@
-#include "private.h"
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
+namespace NRpc {
 namespace NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger GrpcLogger("Grpc");
+NRpc::IServerPtr CreateServer(TServerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NGrpc
+} // namespace NRpc
 } // namespace NYT
