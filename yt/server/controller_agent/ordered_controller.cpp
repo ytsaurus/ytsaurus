@@ -439,6 +439,22 @@ protected:
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         return chunkPoolOptions;
     }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+               ? Options_->JobSplitter
+               : nullptr;
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return !IsExplicitJobCount_ &&
+               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+               2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+               TOperationControllerBase::IsJobInterruptible();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedControllerBase::TOrderedTask);
@@ -592,22 +608,6 @@ private:
     virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
-    }
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
-            ? Options_->JobSplitter
-            : nullptr;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return !IsExplicitJobCount_ &&
-            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
-            TOperationControllerBase::IsJobInterruptible();
     }
 };
 
