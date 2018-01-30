@@ -1201,7 +1201,8 @@ private:
 
         bool enableSchedulingInfoLogging = false;
         auto now = GetCpuInstant();
-        if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(Config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
+        const auto& config = rootElementSnapshot->Config;
+        if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
             enableSchedulingInfoLogging = true;
             LastSchedulingInformationLoggedTime_ = now;
         }
@@ -1234,7 +1235,7 @@ private:
                 if (it == NodeIdToLastPreemptiveSchedulingTime.end()) {
                     nodeIsMissing = true;
                     scheduleJobsWithPreemption = true;
-                } else if (it->second + DurationToCpuDuration(Config->PreemptiveSchedulingBackoff) <= now) {
+                } else if (it->second + DurationToCpuDuration(config->PreemptiveSchedulingBackoff) <= now) {
                     scheduleJobsWithPreemption = true;
                     it->second = now;
                 }
