@@ -263,11 +263,18 @@ class TUnlimitedThroughtputThrottler
     : public IThroughputThrottler
 {
 public:
+    explicit TUnlimitedThroughtputThrottler(
+        const NProfiling::TProfiler& profiler = NProfiling::TProfiler())
+        : Profiler(profiler)
+        , ValueCounter_("/value")
+    { }
+
     virtual TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
+        Profiler.Increment(ValueCounter_, count);
         return VoidFuture;
     }
 
@@ -276,6 +283,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
+        Profiler.Increment(ValueCounter_, count);
         return true;
     }
 
@@ -283,6 +291,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
+
+        Profiler.Increment(ValueCounter_, count);
     }
 
     virtual bool IsOverdraft() const override
@@ -296,12 +306,26 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         return 0;
     }
+
+private:
+    const NProfiling::TProfiler Profiler;
+    NProfiling::TAggregateCounter ValueCounter_;
 };
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()
 {
     return RefCountedSingleton<TUnlimitedThroughtputThrottler>();
 }
+
+IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
+    const TString& name,
+    NProfiling::TProfiler profiler)
+{
+    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" +
+        CamelCaseToUnderscoreCase(name));
+
+    return New<TUnlimitedThroughtputThrottler>(profiler);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
