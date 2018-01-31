@@ -317,7 +317,13 @@ private:
 
             storeManager->EndStoreFlush(store);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error flushing tablet store, backing off");
+            auto error = TError(ex)
+                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(error);
+            LOG_ERROR(error, "Error flushing tablet store, backing off");
+
             storeManager->BackoffStoreFlush(store);
         }
     }
