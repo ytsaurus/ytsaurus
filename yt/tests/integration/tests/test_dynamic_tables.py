@@ -617,9 +617,9 @@ class TestDynamicTables(TestDynamicTablesBase):
         errors = get("//tmp/t/@tablet_errors")
 
         assert len(errors) == 1
-        assert errors[0]["attributes"]["backround_activity"] == "flush"
+        assert errors[0]["attributes"]["background_activity"] == "flush"
         assert errors[0]["attributes"]["tablet_id"] == tablet
-        assert get("#" + tablet + "/@errors")[0]["attributes"]["backround_activity"] == "flush"
+        assert get("#" + tablet + "/@errors")[0]["attributes"]["background_activity"] == "flush"
         assert get("#" + tablet + "/@state") == "unmounting"
 
         for node in ls("//sys/nodes"):
