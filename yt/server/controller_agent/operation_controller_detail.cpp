@@ -616,7 +616,7 @@ void TOperationControllerBase::SafeMaterialize()
         FetchUserFiles();
 
         PickIntermediateDataCell();
-        InitChunkListPool();
+        InitChunkListPools();
 
         CreateLivePreviewTables();
 
@@ -736,7 +736,7 @@ void TOperationControllerBase::Revive()
 
     ReviveResult_.IsRevivedFromSnapshot = true;
 
-    InitChunkListPool();
+    InitChunkListPools();
 
     CreateLivePreviewTables();
 
@@ -888,26 +888,35 @@ void TOperationControllerBase::PickIntermediateDataCell()
         : secondaryCellTags[rand() % secondaryCellTags.size()];
 }
 
-void TOperationControllerBase::InitChunkListPool()
+void TOperationControllerBase::InitChunkListPools()
 {
-    ChunkListPool_ = New<TChunkListPool>(
+    OutputChunkListPool_ = New<TChunkListPool>(
         Config,
         OutputClient,
         CancelableInvoker,
         OperationId,
         OutputTransaction->GetId());
 
-    CellTagToRequiredChunkLists.clear();
+    CellTagToRequiredOutputChunkLists_.clear();
     for (const auto* table : UpdatingTables) {
-        ++CellTagToRequiredChunkLists[table->CellTag];
+        ++CellTagToRequiredOutputChunkLists_[table->CellTag];
     }
 
-    ++CellTagToRequiredChunkLists[IntermediateOutputCellTag];
+    ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
+
+    DebugChunkListPool_ = New<TChunkListPool>(
+        Config,
+        OutputClient,
+        CancelableInvoker,
+        OperationId,
+        DebugTransaction->GetId());
+
+    CellTagToRequiredDebugChunkLists_.clear();
     if (StderrTable_) {
-        ++CellTagToRequiredChunkLists[StderrTable_->CellTag];
+        ++CellTagToRequiredDebugChunkLists_[StderrTable_->CellTag];
     }
     if (CoreTable_) {
-        ++CellTagToRequiredChunkLists[CoreTable_->CellTag];
+        ++CellTagToRequiredDebugChunkLists_[CoreTable_->CellTag];
     }
 }
 
@@ -5549,7 +5558,14 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
 {
-    for (const auto& pair : CellTagToRequiredChunkLists) {
+    for (const auto& pair : CellTagToRequiredOutputChunkLists_) {
+        const auto cellTag = pair.first;
+        auto requiredChunkList = pair.second;
+        if (requiredChunkList && !OutputChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
+            return false;
+        }
+    }
+    for (const auto& pair : CellTagToRequiredDebugChunkLists_) {
         const auto cellTag = pair.first;
         auto requiredChunkList = pair.second;
         if (StderrTable_ && !isWritingStderrTable && StderrTable_->CellTag == cellTag) {
@@ -5558,16 +5574,21 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
         if (CoreTable_ && !isWritingCoreTable && CoreTable_->CellTag == cellTag) {
             --requiredChunkList;
         }
-        if (requiredChunkList && !ChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
+        if (requiredChunkList && !DebugChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
             return false;
         }
     }
     return true;
 }
 
-TChunkListId TOperationControllerBase::ExtractChunkList(TCellTag cellTag)
+TChunkListId TOperationControllerBase::ExtractOutputChunkList(TCellTag cellTag)
 {
-    return ChunkListPool_->Extract(cellTag);
+    return OutputChunkListPool_->Extract(cellTag);
+}
+
+TChunkListId TOperationControllerBase::ExtractDebugChunkList(TCellTag cellTag)
+{
+    return DebugChunkListPool_->Extract(cellTag);
 }
 
 void TOperationControllerBase::ReleaseChunkTrees(
@@ -6053,9 +6074,9 @@ TCellTag TOperationControllerBase::GetIntermediateOutputCellTag() const
     return IntermediateOutputCellTag;
 }
 
-const TChunkListPoolPtr& TOperationControllerBase::GetChunkListPool() const
+const TChunkListPoolPtr& TOperationControllerBase::GetOutputChunkListPool() const
 {
-    return ChunkListPool_;
+    return OutputChunkListPool_;
 }
 
 const TControllerAgentConfigPtr& TOperationControllerBase::GetConfig() const
@@ -6585,7 +6606,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
     Persist(context, IntermediateOutputCellTag);
-    Persist(context, CellTagToRequiredChunkLists);
+    Persist(context, CellTagToRequiredOutputChunkLists_);
+    Persist(context, CellTagToRequiredDebugChunkLists_);
     Persist(context, CachedPendingJobCount);
     Persist(context, CachedNeededResources);
     Persist(context, ChunkOriginMap);

@@ -347,15 +347,15 @@ void TTask::ScheduleJob(
         FormatResources(neededResources));
 
     for (const auto& edgeDescriptor : EdgeDescriptors_) {
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractChunkList(edgeDescriptor.CellTag));
+        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(edgeDescriptor.CellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
-        joblet->StderrTableChunkListId = TaskHost_->ExtractChunkList(TaskHost_->StderrTable()->CellTag);
+        joblet->StderrTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->StderrTable()->CellTag);
     }
 
     if (TaskHost_->CoreTable() && IsCoreTableEnabled()) {
-        joblet->CoreTableChunkListId = TaskHost_->ExtractChunkList(TaskHost_->CoreTable()->CellTag);
+        joblet->CoreTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->CoreTable()->CellTag);
     }
 
     // Sync part.
@@ -453,7 +453,7 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {
-                    TaskHost_->GetChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                    TaskHost_->GetOutputChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
                 }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }

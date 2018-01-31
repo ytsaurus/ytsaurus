@@ -72,8 +72,9 @@ struct ITaskHost
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const = 0;
 
-    virtual const TChunkListPoolPtr& GetChunkListPool() const = 0;
-    virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) = 0;
+    virtual const TChunkListPoolPtr& GetOutputChunkListPool() const = 0;
+    virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) = 0;
+    virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         bool unstageRecursively = true,
