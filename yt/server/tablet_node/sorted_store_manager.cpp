@@ -24,6 +24,7 @@
 #include <yt/ytlib/table_client/versioned_row.h>
 #include <yt/ytlib/table_client/versioned_writer.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/row_merger.h>
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
@@ -461,7 +462,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
-            rowMerger.reset();
+            rowMerger.Reset();
         }
 
         if (tableWriter->GetRowCount() == 0) {
