@@ -18,11 +18,15 @@
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
+
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -85,8 +89,7 @@ public:
 
     void ProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response,
-        EObjectType jobObjectType,
-        NRpc::IChannelPtr jobSpecsProxyChannel);
+        EObjectType jobObjectType);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -97,7 +100,7 @@ private:
     THashMap<EJobType, TJobFactory> Factories_;
     THashMap<TJobId, IJobPtr> Jobs_;
 
-    THashSet<TJobId> SpeclessJobIds_;
+    THashSet<TJobId> SpecFetchFailedJobIds_;
 
     bool StartScheduled_ = false;
 
@@ -403,13 +406,12 @@ TDiskResources TJobController::TImpl::GetDiskInfo() const
 void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
 {
     ResourceLimitsOverrides_ = resourceLimits;
-    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
     if (ResourceLimitsOverrides_.has_user_memory()) {
-        tracker->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
+        GetUserMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
     }
 
     if (ResourceLimitsOverrides_.has_system_memory()) {
-        tracker->SetCategoryLimit(EMemoryCategory::SystemJobs, ResourceLimitsOverrides_.system_memory());
+        GetSystemMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::SystemJobs, ResourceLimitsOverrides_.system_memory());
     }
 }
 
@@ -420,21 +422,20 @@ void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
 
 void TJobController::TImpl::StartWaitingJobs()
 {
-    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-
     bool resourcesUpdated = false;
 
     {
         auto usedResources = GetResourceUsage();
-        auto memoryToRelease = tracker->GetUsed(EMemoryCategory::UserJobs) - usedResources.user_memory();
+
+        auto memoryToRelease = GetUserMemoryUsageTracker()->GetUsed(EMemoryCategory::UserJobs) - usedResources.user_memory();
         if (memoryToRelease > 0) {
-            tracker->Release(EMemoryCategory::UserJobs, memoryToRelease);
+            GetUserMemoryUsageTracker()->Release(EMemoryCategory::UserJobs, memoryToRelease);
             resourcesUpdated = true;
         }
 
-        memoryToRelease = tracker->GetUsed(EMemoryCategory::SystemJobs) - usedResources.system_memory();
+        memoryToRelease = GetSystemMemoryUsageTracker()->GetUsed(EMemoryCategory::SystemJobs) - usedResources.system_memory();
         if (memoryToRelease > 0) {
-            tracker->Release(EMemoryCategory::SystemJobs, memoryToRelease);
+            GetSystemMemoryUsageTracker()->Release(EMemoryCategory::SystemJobs, memoryToRelease);
             resourcesUpdated = true;
         }
     }
@@ -455,7 +456,7 @@ void TJobController::TImpl::StartWaitingJobs()
         }
 
         if (jobResources.user_memory() > 0) {
-            auto error = tracker->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
+            auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
                     job->GetId());
@@ -464,15 +465,13 @@ void TJobController::TImpl::StartWaitingJobs()
         }
 
         if (jobResources.system_memory() > 0) {
-            auto error = tracker->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
+            auto error = GetSystemMemoryUsageTracker()->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
                     job->GetId());
                 continue;
             }
         }
-
-        LOG_INFO("Starting job (JobId: %v)", job->GetId());
 
         job->SubscribeResourcesUpdated(
             BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
@@ -616,8 +615,7 @@ bool TJobController::TImpl::CheckResourceUsageDelta(const TNodeResources& delta)
     #undef XX
 
     if (delta.user_memory() > 0) {
-        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        auto error = tracker->TryAcquire(EMemoryCategory::UserJobs, delta.user_memory());
+        auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, delta.user_memory());
         if (!error.IsOK()) {
             return false;
         }
@@ -732,10 +730,10 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
             completedJobsStatisticsSize);
 
         // TODO(ignat): make it in more general way (non-scheduler specific).
-        for (const auto& jobId : SpeclessJobIds_) {
+        for (const auto& jobId : SpecFetchFailedJobIds_) {
             auto* jobStatus = request->add_jobs();
             ToProto(jobStatus->mutable_job_id(), jobId);
-            jobStatus->set_job_type(static_cast<int>(EJobType::Unknown));
+            jobStatus->set_job_type(static_cast<int>(EJobType::SchedulerUnknown));
             jobStatus->set_state(static_cast<int>(EJobState::Aborted));
             jobStatus->set_phase(static_cast<int>(EJobPhase::Missing));
             jobStatus->set_progress(0.0);
@@ -751,13 +749,11 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
 void TJobController::TImpl::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
-    EObjectType jobObjectType,
-    NRpc::IChannelPtr jobSpecsProxyChannel)
+    EObjectType jobObjectType)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
-        if (SpeclessJobIds_.find(jobId) != SpeclessJobIds_.end()) {
-            SpeclessJobIds_.erase(jobId);
+        if (SpecFetchFailedJobIds_.erase(jobId) == 1) {
             continue;
         }
 
@@ -822,76 +818,124 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
     std::vector<TJobSpec> specs(response->jobs_to_start_size());
 
-    if (specs.empty()) {
+    auto startJob = [&] (const NJobTrackerClient::NProto::TJobStartInfo& startInfo, const TSharedRef& attachment) {
+        TJobSpec spec;
+        DeserializeProtoWithEnvelope(&spec, attachment);
+
+        auto jobId = FromProto<TJobId>(startInfo.job_id());
+        auto operationId = FromProto<TJobId>(startInfo.operation_id());
+        const auto& resourceLimits = startInfo.resource_limits();
+
+        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+    };
+
+    THashMap<TString, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
+    size_t attachmentIndex = 0;
+    for (const auto& startInfo : response->jobs_to_start()) {
+        auto operationId = FromProto<TJobId>(startInfo.operation_id());
+        auto jobId = FromProto<TJobId>(startInfo.job_id());
+        if (attachmentIndex < response->Attachments().size()) {
+            // Start the job right away.
+            LOG_DEBUG("Job spec is passed via attachments (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+            const auto& attachment = response->Attachments()[attachmentIndex];
+            startJob(startInfo, attachment);
+        } else {
+            auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
+            auto maybeAddress = FindAddress(addresses, Bootstrap_->GetLocalNetworks());
+            if (maybeAddress) {
+                const auto& address = *maybeAddress;
+                LOG_DEBUG("Job spec will fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
+                    operationId,
+                    jobId,
+                    address);
+                groupedStartInfos[address].push_back(startInfo);
+            } else {
+                YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                LOG_DEBUG("Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
+                    operationId,
+                    jobId,
+                    GetValues(addresses));
+            }
+        }
+        ++attachmentIndex;
+    }
+
+    if (groupedStartInfos.empty()) {
         return;
     }
 
-    bool hasSpecsInAttachments = !response->Attachments().empty();
+    auto getSpecServiceChannel = [&] (const auto& address) {
+        const auto& client = Bootstrap_->GetMasterClient();
+        const auto& channelFactory = client->GetNativeConnection()->GetChannelFactory();
+        // COMPAT(babenko)
+        return address
+            ? channelFactory->CreateChannel(address)
+            : Bootstrap_->GetMasterClient()->GetSchedulerChannel();
+    };
 
-    if (hasSpecsInAttachments) {
-        int attachmentIndex = 0;
-        for (const auto& info : response->jobs_to_start()) {
-            TJobSpec spec;
-            const auto& attachment = response->Attachments()[attachmentIndex++];
-            DeserializeProtoWithEnvelope(&spec, attachment);
+    std::vector<TFuture<void>> asyncResults;
+    for (const auto& pair : groupedStartInfos) {
+        const auto& address = pair.first;
+        const auto& startInfos = pair.second;
 
-            auto jobId = FromProto<TJobId>(info.job_id());
-            auto operationId = FromProto<TJobId>(info.operation_id());
-            const auto& resourceLimits = info.resource_limits();
-
-            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
-        }
-    } else {
-        YCHECK(jobSpecsProxyChannel);
-        TJobSpecServiceProxy jobSpecServiceProxy(jobSpecsProxyChannel);
+        auto channel = getSpecServiceChannel(address);
+        TJobSpecServiceProxy jobSpecServiceProxy(channel);
         jobSpecServiceProxy.SetDefaultTimeout(Config_->GetJobSpecsTimeout);
-
         auto jobSpecRequest = jobSpecServiceProxy.GetJobSpecs();
-        for (const auto& info : response->jobs_to_start()) {
+
+        for (const auto& startInfo : startInfos) {
             auto* subrequest = jobSpecRequest->add_requests();
-            *subrequest->mutable_operation_id() = info.operation_id();
-            *subrequest->mutable_job_id() = info.job_id();
-
-            auto jobId = FromProto<TJobId>(info.job_id());
-            auto operationId = FromProto<TJobId>(info.operation_id());
-            YCHECK(SpeclessJobIds_.insert(jobId).second);
-            LOG_DEBUG("Getting job spec (OperationId: %v, JobId: %v)",
-                operationId,
-                jobId);
+            *subrequest->mutable_operation_id() = startInfo.operation_id();
+            *subrequest->mutable_job_id() = startInfo.job_id();
         }
 
-        auto jobSpecResponseOrError = WaitFor(jobSpecRequest->Invoke());
-        if (!jobSpecResponseOrError.IsOK()) {
-            LOG_DEBUG(jobSpecResponseOrError, "Failed to get job specs from scheduler");
-            return;
-        }
+        LOG_DEBUG("Getting job specs (SpecServiceAddress: %v, Count: %v)",
+            address,
+            startInfos.size());
 
-        const auto& jobSpecResponse = jobSpecResponseOrError.Value();
-        for (int index = 0; index < response->jobs_to_start_size(); ++index) {
-            const auto& info = response->jobs_to_start(index);
-            auto jobId = FromProto<TJobId>(info.job_id());
-            auto operationId = FromProto<TJobId>(info.operation_id());
-            const auto& resourceLimits = info.resource_limits();
-
-            const auto& subresponse = jobSpecResponse->mutable_responses(index);
-            if (subresponse->has_error()) {
-                auto error = FromProto<TError>(jobSpecResponse->responses(index).error());
-                if (!error.IsOK()) {
-                    LOG_DEBUG(error, "Failed to get job spec from scheduler (OperationId: %v, JobId: %v)",
-                        operationId,
-                        jobId);
-                    continue;
+        auto asyncResult = jobSpecRequest->Invoke().Apply(
+            BIND([=, this_ = MakeStrong(this)] (const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
+                        address);
+                    for (const auto& startInfo : startInfos) {
+                        auto jobId = FromProto<TJobId>(startInfo.job_id());
+                        YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                    }
+                    return;
                 }
-            }
 
-            TJobSpec spec;
-            const auto& attachment = jobSpecResponse->Attachments()[index];
-            DeserializeProtoWithEnvelope(&spec, attachment);
+                LOG_DEBUG("Job specs received (SpecServiceAddress: %v)",
+                    address);
 
-            YCHECK(SpeclessJobIds_.erase(jobId) > 0);
-            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
-        }
+                const auto& rsp = rspOrError.Value();
+                YCHECK(rsp->responses_size() == startInfos.size());
+                for (size_t  index = 0; index < startInfos.size(); ++index) {
+                    const auto& startInfo = startInfos[index];
+                    auto operationId = FromProto<TJobId>(startInfo.operation_id());
+                    auto jobId = FromProto<TJobId>(startInfo.job_id());
+
+                    const auto& subresponse = rsp->mutable_responses(index);
+                    auto error = FromProto<TError>(subresponse->error());
+                    if (!error.IsOK()) {
+                        YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                        LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
+                            operationId,
+                            jobId);
+                        continue;
+                    }
+
+                    const auto& attachment = rsp->Attachments()[index];
+                    startJob(startInfo, attachment);
+                }
+            })
+            .AsyncVia(Bootstrap_->GetControlInvoker()));
+        asyncResults.push_back(asyncResult);
     }
+
+    Y_UNUSED(WaitFor(CombineAll(asyncResults)));
 }
 
 TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> TJobController::TImpl::GetJobsByOrigin() const
@@ -976,7 +1020,6 @@ TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetUserMemoryUsageT
     }
 }
 
-
 TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetSystemMemoryUsageTracker()
 {
     return Bootstrap_->GetMemoryUsageTracker();
@@ -991,13 +1034,10 @@ const TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetUserMemory
     }
 }
 
-
 const TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetSystemMemoryUsageTracker() const
 {
     return Bootstrap_->GetMemoryUsageTracker();
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1067,10 +1107,9 @@ void TJobController::PrepareHeartbeatRequest(
 
 void TJobController::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
-    EObjectType jobObjectType,
-    IChannelPtr jobSpecsProxyChannel)
+    EObjectType jobObjectType)
 {
-    Impl_->ProcessHeartbeatResponse(response, jobObjectType, jobSpecsProxyChannel);
+    Impl_->ProcessHeartbeatResponse(response, jobObjectType);
 }
 
 IYPathServicePtr TJobController::GetOrchidService()

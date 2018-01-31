@@ -3,7 +3,7 @@
 #include "config.h"
 #include "job_detail.h"
 #include "stderr_writer.h"
-#include "user_job_io.h"
+#include "user_job_write_controller.h"
 #include "job_satellite_connection.h"
 #include "user_job_synchronizer.h"
 #include "resource_controller.h"
@@ -14,7 +14,7 @@
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/program/names.h>
+#include <yt/ytlib/program/names.h>
 
 #include <yt/server/shell/shell_manager.h>
 
@@ -67,8 +67,7 @@
 #include <yt/core/misc/subprocess.h>
 #include <yt/core/misc/signaler.h>
 
-#include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
+#include <yt/core/net/connection.h>
 
 #include <yt/core/rpc/server.h>
 
@@ -91,6 +90,7 @@ namespace NJobProxy {
 using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
+using namespace NNet;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
@@ -160,11 +160,11 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
-        std::unique_ptr<TUserJobIO> userJobIO,
+        std::unique_ptr<TUserJobWriteController> userJobWriteController,
         IResourceControllerPtr resourceController)
         : TJob(host)
         , Logger(Host_->GetLogger())
-        , JobIO_(std::move(userJobIO))
+        , UserJobWriteController_(std::move(userJobWriteController))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
@@ -174,12 +174,6 @@ public:
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-        , Process_(ResourceController_
-            ? ResourceController_->CreateControlledProcess(
-                ExecProgramName,
-                CreateCoreDumpHandlerPath(
-                    host->GetConfig()->BusServer->UnixDomainName))
-            : New<TSimpleProcess>(ExecProgramName, false))
         , JobSatelliteConnection_(
             jobId,
             host->GetConfig()->BusServer,
@@ -214,11 +208,21 @@ public:
         }
 
         if (ResourceController_) {
+            YCHECK(UserId_);
+            Process_ = ResourceController_->CreateControlledProcess(
+                ExecProgramName,
+                *UserId_,
+                CreateCoreDumpHandlerPath(host->GetConfig()->BusServer->UnixDomainName));
+
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),
                 BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
                 ResourceController_->GetBlockIOWatchdogPeriod());
-            ResourceController_->SetRestrictedIOWeight();
+        } else {
+            Process_ = New<TSimpleProcess>(ExecProgramName, false);
+            if (UserId_) {
+                Process_->AddArguments({"--uid", ::ToString(*UserId_)});
+            }
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -252,7 +256,7 @@ public:
     {
         LOG_DEBUG("Starting job process");
 
-        JobIO_->Init();
+        UserJobWriteController_->Init();
 
         Prepare();
 
@@ -309,7 +313,7 @@ public:
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         SaveErrorChunkId(schedulerResultExt);
-        JobIO_->PopulateStderrResult(schedulerResultExt);
+        UserJobWriteController_->PopulateStderrResult(schedulerResultExt);
 
         if (jobResultError) {
             try {
@@ -318,7 +322,7 @@ public:
                 LOG_ERROR(ex, "Failed to dump input context");
             }
         } else {
-            JobIO_->PopulateResult(schedulerResultExt);
+            UserJobWriteController_->PopulateResult(schedulerResultExt);
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -390,8 +394,8 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    const std::unique_ptr<TUserJobIO> JobIO_;
-    TUserJobReadControllerPtr UserJobReadController_;
+    const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
+    IUserJobReadControllerPtr UserJobReadController_;
 
     const TUserJobSpec& UserJobSpec_;
 
@@ -406,8 +410,8 @@ private:
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
-    const TProcessBasePtr Process_;
 
+    TProcessBasePtr Process_;
     TJobSatelliteConnection JobSatelliteConnection_;
 
     TString InputPipePath_;
@@ -439,10 +443,10 @@ private:
     std::unique_ptr<TTableOutput> StatisticsOutput_;
     std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
-    std::vector<TAsyncReaderPtr> TablePipeReaders_;
-    std::vector<TAsyncWriterPtr> TablePipeWriters_;
-    TAsyncReaderPtr StatisticsPipeReader_;
-    TAsyncReaderPtr StderrPipeReader_;
+    std::vector<IConnectionReaderPtr> TablePipeReaders_;
+    std::vector<IConnectionWriterPtr> TablePipeWriters_;
+    IConnectionReaderPtr StatisticsPipeReader_;
+    IConnectionReaderPtr StderrPipeReader_;
 
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
@@ -482,10 +486,6 @@ private:
 
         if (UserJobSpec_.has_core_table_spec()) {
             Process_->AddArgument("--enable-core-dump");
-        }
-
-        if (UserId_) {
-            Process_->AddArguments({"--uid", ::ToString(*UserId_)});
         }
 
         // Init environment variables.
@@ -570,7 +570,7 @@ private:
         ErrorOutput_.reset(new TStderrWriter(
             UserJobSpec_.max_stderr_size()));
 
-        auto* stderrTableWriter = JobIO_->GetStderrTableWriter();
+        auto* stderrTableWriter = UserJobWriteController_->GetStderrTableWriter();
         if (stderrTableWriter) {
             StderrCombined_.reset(new TTeeOutput(ErrorOutput_.get(), stderrTableWriter));
             return StderrCombined_.get();
@@ -700,7 +700,7 @@ private:
     std::vector<IValueConsumer*> CreateValueConsumers(TTypeConversionConfigPtr typeConversionConfig)
     {
         std::vector<IValueConsumer*> valueConsumers;
-        for (const auto& writer : JobIO_->GetWriters()) {
+        for (const auto& writer : UserJobWriteController_->GetWriters()) {
             WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer, typeConversionConfig));
             valueConsumers.push_back(WritingValueConsumers_.back().get());
         }
@@ -722,7 +722,7 @@ private:
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
 
-        const auto& writers = JobIO_->GetWriters();
+        const auto& writers = UserJobWriteController_->GetWriters();
 
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
@@ -743,17 +743,22 @@ private:
         }
 
         FinalizeActions_.push_back(BIND([=] () {
+            auto checkErrors = [&] (const std::vector<TFuture<void>>& asyncErrors) {
+                auto error = WaitFor(Combine(asyncErrors));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
+            };
+
+            std::vector<TFuture<void>> flushResults;
             for (const auto& valueConsumer : WritingValueConsumers_) {
-                valueConsumer->Flush();
+                flushResults.push_back(valueConsumer->Flush());
             }
+            checkErrors(flushResults);
 
-            std::vector<TFuture<void>> asyncResults;
-            for (auto writer : JobIO_->GetWriters()) {
-                asyncResults.push_back(writer->Close());
+            std::vector<TFuture<void>> closeResults;
+            for (auto writer : UserJobWriteController_->GetWriters()) {
+                closeResults.push_back(writer->Close());
             }
-
-            auto error = WaitFor(Combine(asyncResults));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
+            checkErrors(closeResults);
         }));
     }
 
@@ -765,7 +770,7 @@ private:
         return adjustedPath;
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(
+    IConnectionReaderPtr PrepareOutputPipe(
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
@@ -938,7 +943,7 @@ private:
         }
 
         int i = 0;
-        for (const auto& writer : JobIO_->GetWriters()) {
+        for (const auto& writer : UserJobWriteController_->GetWriters()) {
             statistics.AddSample(
                 "/data/output/" + NYPath::ToYPathLiteral(i),
                 writer->GetDataStatistics());
@@ -992,28 +997,30 @@ private:
 
         // Pipe statistics.
         if (Prepared_) {
+            auto inputStatistics = TablePipeWriters_[0]->GetWriteStatistics();
             statistics.AddSample(
                 "/user_job/pipes/input/idle_time",
-                WaitFor(TablePipeWriters_[0]->GetIdleDuration()).Value());
+                inputStatistics.IdleDuration);
             statistics.AddSample(
                 "/user_job/pipes/input/busy_time",
-                WaitFor(TablePipeWriters_[0]->GetBusyDuration()).Value());
+                inputStatistics.BusyDuration);
             statistics.AddSample(
                 "/user_job/pipes/input/bytes",
-                TablePipeWriters_[0]->GetByteCount());
+                TablePipeWriters_[0]->GetWriteByteCount());
 
             for (int i = 0; i < TablePipeReaders_.size(); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
+                auto outputStatistics = tablePipeReader->GetReadStatistics();
 
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/idle_time", NYPath::ToYPathLiteral(i)),
-                    WaitFor(tablePipeReader->GetIdleDuration()).Value());
+                    outputStatistics.IdleDuration);
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/busy_time", NYPath::ToYPathLiteral(i)),
-                    WaitFor(tablePipeReader->GetBusyDuration()).Value());
+                    outputStatistics.BusyDuration);
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/bytes", NYPath::ToYPathLiteral(i)),
-                    tablePipeReader->GetByteCount());
+                    tablePipeReader->GetReadByteCount());
             }
         }
 
@@ -1022,7 +1029,7 @@ private:
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {
-        if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
+        if (error.IsOK() || error.FindMatching(NNet::EErrorCode::Aborted)) {
             return;
         }
 
@@ -1185,14 +1192,15 @@ private:
                 continue;
             }
             try {
-                i64 processRss = GetProcessRss(pid);
-                LOG_DEBUG("PID: %v, ProcessName: %Qv, RSS: %v",
+                auto memoryUsage = GetProcessMemoryUsage(pid);
+                LOG_DEBUG("Pid: %v, ProcessName: %Qv, Rss: %v, Shared: %v",
                     pid,
                     GetProcessName(pid),
-                    processRss);
-                rss += processRss;
+                    memoryUsage.Rss,
+                    memoryUsage.Shared);
+                rss += memoryUsage.Rss;
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get RSS for PID %v", pid);
+                LOG_DEBUG(ex, "Failed to get memory usage for pid %v", pid);
             }
         }
         return rss;
@@ -1223,26 +1231,26 @@ private:
             return;
         }
 
-        i64 rss = GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
-
-        if (ResourceController_) {
+        auto getMemoryUsage = [&] () {
             try {
-                auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-                i64 uidRss = rss;
-                rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
-                rss += memoryStatistics.Rss;
+                if (ResourceController_) {
+                    auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-                if (rss > 1.05 * uidRss && uidRss > 0) {
-                    LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
-                        rss,
-                        uidRss);
+                    i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
+                    rss += memoryStatistics.Rss;
+                    return rss;
+                } else {
+                    return GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
                 }
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Unable to get memory statistics to check memory limits");
             }
-        }
 
+            return 0l;
+        };
+
+        auto rss = getMemoryUsage();
         i64 tmpfsSize = GetTmpfsSize();
         i64 memoryLimit = UserJobSpec_.memory_limit();
         i64 currentMemoryUsage = rss + tmpfsSize;
@@ -1321,7 +1329,7 @@ private:
         if (fd >= 0) {
             ::close(fd);
         } else {
-            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
+            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe (Path: %v)", InputPipePath_);
         }
     }
 
@@ -1352,7 +1360,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     const TJobId& jobId,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
     auto subcontroller = host->GetResourceController()
         ? host->GetResourceController()->CreateSubcontroller(CGroupPrefix + ToString(jobId))
@@ -1361,7 +1369,7 @@ IJobPtr CreateUserJob(
         host,
         userJobSpec,
         jobId,
-        std::move(userJobIO),
+        std::move(userJobWriteController),
         subcontroller);
 }
 
@@ -1371,7 +1379,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
     const TJobId& jobId,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Unix");
 }

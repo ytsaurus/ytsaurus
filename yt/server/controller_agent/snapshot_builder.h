@@ -24,8 +24,8 @@ struct TSnapshotJob
     : public TIntrinsicRefCounted
 {
     TOperationId OperationId;
-    IOperationControllerPtr Controller;
-    NPipes::TAsyncReaderPtr Reader;
+    IOperationControllerSnapshotBuilderHostPtr Controller;
+    NConcurrency::IAsyncInputStreamPtr Reader;
     std::unique_ptr<TFile> OutputFile;
     TSnapshotCookie Cookie;
     bool Suspended = false;
@@ -41,7 +41,7 @@ class TSnapshotBuilder
 public:
     TSnapshotBuilder(
         TControllerAgentConfigPtr config,
-        TOperationIdToControllerMap controllers,
+        TOperationIdToOperationMap operations,
         NApi::IClientPtr client,
         IInvokerPtr ioInvoker);
 
@@ -49,7 +49,7 @@ public:
 
 private:
     const TControllerAgentConfigPtr Config_;
-    const TOperationIdToControllerMap Controllers_;
+    const TOperationIdToOperationMap Operations_;
     const NApi::IClientPtr Client_;
     const IInvokerPtr IOInvoker_;
     const IInvokerPtr ControlInvoker_;

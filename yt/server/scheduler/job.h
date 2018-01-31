@@ -6,7 +6,6 @@
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
@@ -60,7 +59,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
     //! Current state of the job.
-    DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
+    DEFINE_BYVAL_RW_PROPERTY(EJobState, State, EJobState::None);
 
     //! Fair-share tree this job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TString, TreeId);
@@ -114,127 +113,9 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobSummary
-{
-    TJobSummary() = default;
-    TJobSummary(const TJobPtr& job, TJobStatus* status);
-    TJobSummary(const TJobId& id, EJobState state);
-    virtual ~TJobSummary() = default;
-
-    TJobResult Result;
-    TJobId Id;
-    EJobState State;
-
-    TNullable<TInstant> FinishTime;
-    TNullable<TDuration> PrepareDuration;
-    TNullable<TDuration> DownloadDuration;
-    TNullable<TDuration> ExecDuration;
-
-    // NB: The Statistics field will be set inside the controller in ParseStatistics().
-    TNullable<NJobTrackerClient::TStatistics> Statistics;
-    NYson::TYsonString StatisticsYson;
-
-    // TODO(ignat): rename, it is not only about logging.
-    bool ShouldLog;
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
-};
-
-using TFailedJobSummary = TJobSummary;
-
-struct TCompletedJobSummary
-    : public TJobSummary
-{
-    TCompletedJobSummary(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
-    //! Only for testing purpose.
-    TCompletedJobSummary() = default;
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
-
-    bool Abandoned = false;
-
-    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
-    std::vector<NChunkClient::TInputDataSlicePtr> ReadInputDataSlices;
-    EInterruptReason InterruptReason = EInterruptReason::None;
-    int SplitJobCount = 1;
-};
-
-struct TAbortedJobSummary
-    : public TJobSummary
-{
-    TAbortedJobSummary(const TJobPtr& job, TJobStatus* status);
-    TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
-    TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
-
-    const EAbortReason AbortReason;
-};
-
-struct TRunningJobSummary
-    : public TJobSummary
-{
-    TRunningJobSummary(const TJobPtr& job, TJobStatus* status);
-
-    const double Progress;
-    const ui64 StderrSize;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobStatus JobStatusFromError(const TError& error);
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TJobStartRequest
-{
-    TJobStartRequest(
-        TJobId id,
-        EJobType type,
-        const TJobResources& resourceLimits,
-        bool interruptible);
-
-    const TJobId Id;
-    const EJobType Type;
-    const TJobResources ResourceLimits;
-    const bool Interruptible;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EScheduleJobFailReason,
-    ((Unknown)                       ( 0))
-    ((OperationNotRunning)           ( 1))
-    ((NoPendingJobs)                 ( 2))
-    ((NotEnoughChunkLists)           ( 3))
-    ((NotEnoughResources)            ( 4))
-    ((Timeout)                       ( 5))
-    ((EmptyInput)                    ( 6))
-    ((NoLocalJobs)                   ( 7))
-    ((TaskDelayed)                   ( 8))
-    ((NoCandidateTasks)              ( 9))
-    ((ResourceOvercommit)            (10))
-    ((TaskRefusal)                   (11))
-    ((JobSpecThrottling)             (12))
-    ((IntermediateChunkLimitExceeded)(13))
-    ((DataBalancingViolation)        (14))
-);
-
-struct TScheduleJobResult
-    : public TIntrinsicRefCounted
-{
-    void RecordFail(EScheduleJobFailReason reason);
-    bool IsBackoffNeeded() const;
-    bool IsScheduleStopNeeded() const;
-
-    TNullable<TJobStartRequest> JobStartRequest;
-    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
-    TDuration Duration;
-};
-
-DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
+TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
 
 NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
 

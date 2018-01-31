@@ -594,12 +594,18 @@ def update_tablet_nodes(token, cluster, yes):
     resource.load()
 
     logging.info("Getting tablet nodes from cluster %s", cluster)
-    nodes = yt.get("//sys/nodes", attributes=["tablet_slots"])
+    nodes = yt.get("//sys/nodes", attributes=["tablet_slots", "io_weights"])
     tablet_nodes = []
     for node, attributes in nodes.items():
         slots = attributes.attributes.get("tablet_slots", [])
         if len(slots) > 0:
             tablet_nodes.append(node)
+        else:
+            io_weights = attributes.attributes.get("io_weights", {})
+            for media, weight in io_weights.items():
+                if media.startswith("ssd_journals") and weight > 0:
+                    tablet_nodes.append(node)
+                    break
     logging.info("Found %s tablet nodes", len(tablet_nodes))
 
     logging.info("Generating table nodes ranges")

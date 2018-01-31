@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -55,6 +55,7 @@ public:
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     const NScheduler::TSchedulerPtr& GetScheduler() const;
+    const NScheduler::TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
@@ -75,11 +76,11 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
-    std::unique_ptr<NXHttp::TServer> HttpServer_;
-    NHttp::IServerPtr NewHttpServer_;
+    NHttp::IServerPtr HttpServer_;
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;
     NScheduler::TSchedulerPtr Scheduler_;
+    NScheduler::TControllerAgentTrackerPtr ControllerAgentTracker_;
     NControllerAgent::TControllerAgentPtr ControllerAgent_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;

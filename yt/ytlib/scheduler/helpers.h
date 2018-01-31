@@ -6,6 +6,10 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/api/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -61,6 +65,18 @@ bool IsSentinelReason(EAbortReason reason);
 
 TError GetSchedulerTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
 TError GetUserTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobFile
+{
+    TJobId JobId;
+    NYPath::TYPath Path;
+    NChunkClient::TChunkId ChunkId;
+    TString DescriptionType;
+};
+
+void SaveJobFiles(NApi::INativeClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files);
 
 ////////////////////////////////////////////////////////////////////////////////
 

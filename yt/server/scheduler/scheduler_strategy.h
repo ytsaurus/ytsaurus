@@ -27,7 +27,7 @@ struct ISchedulerStrategyHost
     virtual TJobResources GetTotalResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
-    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;
 
@@ -87,7 +87,6 @@ struct TCompletedJob
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 struct ISchedulerStrategy
     : public virtual TRefCounted
 {
@@ -141,13 +140,15 @@ struct ISchedulerStrategy
 
     //! Register jobs that are already created somewhere outside strategy.
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
+    
+    virtual void OnOperationRunning(const TOperationId& operationId) = 0;
 
     virtual void ProcessUpdatedAndCompletedJobs(
         std::vector<TUpdatedJob>* updatedJobs,
         std::vector<NScheduler::TCompletedJob>* completedJobs,
         std::vector<TJobId>* jobsToAbort) = 0;
 
-    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& operationJobMetrics) = 0;
+    virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
     virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
 

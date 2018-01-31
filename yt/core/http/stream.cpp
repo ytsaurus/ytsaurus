@@ -222,10 +222,12 @@ struct THttpParserTag
 
 THttpInput::THttpInput(
     const IAsyncInputStreamPtr& reader,
+    const TNetworkAddress& remoteAddress,
     const IInvokerPtr& readInvoker,
     EMessageType messageType,
     size_t bufferSize)
     : Reader_(reader)
+    , RemoteAddress_(remoteAddress)
     , MessageType_(messageType)
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(bufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
@@ -280,6 +282,11 @@ const THeadersPtr& THttpInput::GetTrailers()
     return trailers;
 }
 
+const TNetworkAddress& THttpInput::GetRemoteAddress() const
+{
+    return RemoteAddress_;
+}
+
 void THttpInput::FinishHeaders()
 {
     HeadersReceived_ = true;
@@ -323,6 +330,25 @@ TFuture<TSharedRef> THttpInput::Read()
     return BIND(&THttpInput::DoRead, MakeStrong(this))
         .AsyncVia(ReadInvoker_)
         .Run();
+}
+
+TSharedRef THttpInput::ReadBody()
+{
+    std::vector<TSharedRef> chunks;
+
+    // TODO(prime@): Add hard limit on body size.
+    while (true) {
+        auto chunk = WaitFor(Read())
+            .ValueOrThrow();
+
+        if (chunk.Empty()) {
+            break;
+        }
+
+        chunks.emplace_back(TSharedRef::MakeCopy<THttpParserTag>(chunk));
+    }
+
+    return MergeRefsToRef<THttpParserTag>(std::move(chunks));
 }
 
 TSharedRef THttpInput::DoRead()

@@ -753,4 +753,53 @@ message TRspAlterTableReplica
 
 //------------------------------------------------------------------------------
 
+message TReqGetFileFromCache
+{
+    required string md5 = 1;
+    required string cache_path = 2; // YPath
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TMasterReadOptions master_read_options = 102;
+}
+
+message TRspGetFileFromCache
+{
+    required TGetFileFromCacheResult result = 1;
+}
+
+//------------------------------------------------------------------------------
+
+message TReqPutFileToCache
+{
+    required string path = 1; // YPath
+    required string md5 = 2;
+    required string cache_path = 3; // YPath
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TPrerequisiteOptions prerequisite_options = 101;
+    optional TMasterReadOptions master_read_options = 102;
+    optional TMutatingOptions mutating_options = 103;
+}
+
+message TRspPutFileToCache
+{
+    required TPutFileToCacheResult result = 1;
+}
+
+//------------------------------------------------------------------------------
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGetFileFromCacheResult
+{
+    required string path = 1; // YPath
+}
+
+//------------------------------------------------------------------------------
+
+message TPutFileToCacheResult
+{
+    required string path = 1; // YPath
+}
+
 ////////////////////////////////////////////////////////////////////////////////

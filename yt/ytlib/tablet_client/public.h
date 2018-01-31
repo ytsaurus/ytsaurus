@@ -82,6 +82,12 @@ struct TReplicationLogTable
     static const TString FlagsColumnNamePrefix;
 };
 
+DEFINE_ENUM(ETabletBackgroundActivity,
+    (Compaction)
+    (Flush)
+    (Partitioning)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Signatures enable checking tablet transaction integrity.

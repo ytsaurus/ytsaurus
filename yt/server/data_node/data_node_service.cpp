@@ -1,4 +1,3 @@
-
 #include "data_node_service.h"
 #include "private.h"
 #include "chunk_block_manager.h"
@@ -10,6 +9,8 @@
 #include "location.h"
 #include "master_connector.h"
 #include "peer_block_table.h"
+#include "peer_block_updater.h"
+#include "peer_block_distributor.h"
 #include "session.h"
 #include "session_manager.h"
 
@@ -61,6 +62,7 @@ using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NProfiling;
 
 using NYT::FromProto;
 
@@ -74,7 +76,7 @@ public:
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : TServiceBase(
-            CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
+            bootstrap->GetControlInvoker(),
             TDataNodeServiceProxy::GetDescriptor(),
             DataNodeLogger)
         , Config_(config)
@@ -94,6 +96,10 @@ public:
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PopulateCache)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
@@ -245,22 +251,25 @@ private:
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v",
-            sessionId,
-            firstBlockIndex,
-            lastBlockIndex,
-            populateCache,
-            flushBlocks);
-
         ValidateConnected();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-
         auto location = session->GetStoreLocation();
+
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v",
+            sessionId,
+            firstBlockIndex,
+            lastBlockIndex,
+            populateCache,
+            flushBlocks,
+            location->GetMediumName());
+
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
+
+        TWallTimer timer;
 
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
@@ -274,6 +283,12 @@ private:
                 return session->FlushBlocks(lastBlockIndex);
             }));
         }
+
+        result.Subscribe(BIND([=] (const TError& error) {
+            if (error.IsOK()) {
+                location->UpdatePutBlocksWallTimeCounter(DurationToValue(timer.GetElapsedTime()));
+            }
+        }));
 
         context->ReplyFrom(result);
     }
@@ -331,6 +346,40 @@ private:
         context->ReplyFrom(result);
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PopulateCache)
+    {
+        context->SetRequestInfo("BlockCount: %v", request->blocks_size());
+
+        ValidateConnected();
+
+        auto blocks = GetRpcAttachedBlocks(request, true /* validateChecksums */);
+
+        if (blocks.size() != request->blocks_size()) {
+            THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
+                << TErrorAttribute("attached_block_count", blocks.size())
+                << TErrorAttribute("blocks_length", request->blocks_size());
+        }
+
+        auto blockManager = Bootstrap_->GetChunkBlockManager();
+        for (size_t index = 0; index < blocks.size(); ++index) {
+            const auto& block = blocks[index];
+            const auto& protoBlock = request->blocks(index);
+            TBlockId blockId;
+            TNullable<TNodeDescriptor> sourceDescriptor;
+            FromProto(&blockId, protoBlock.block_id());
+            if (protoBlock.has_source_descriptor()) {
+                sourceDescriptor.Emplace();
+                FromProto(sourceDescriptor.GetPtr(), protoBlock.source_descriptor());
+            }
+            blockManager->PutCachedBlock(blockId, block, sourceDescriptor);
+        }
+
+        // We mimic TPeerBlockUpdater behavior here.
+        auto expirationTime = Bootstrap_->GetPeerBlockUpdater()->GetPeerUpdateExpirationTime().ToDeadLine();
+
+        response->set_expiration_time(expirationTime.GetValue());
+        context->Reply();
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
@@ -406,6 +455,13 @@ private:
 
             auto blocks = WaitFor(asyncBlocks)
                 .ValueOrThrow();
+            for (int index = 0; index < blocks.size() && index < blockIndexes.size(); ++index) {
+                if (const auto& block = blocks[index]) {
+                    Bootstrap_->GetPeerBlockDistributor()->OnBlockRequested(
+                        TBlockId(chunkId, blockIndexes[index]),
+                        block.Size());
+                }
+            }
             SetRpcAttachedBlocks(response, blocks);
         }
 

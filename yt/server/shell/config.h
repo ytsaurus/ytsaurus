@@ -47,7 +47,7 @@ struct TShellParameters
         RegisterParameter("command", Command)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (Operation != EShellOperation::Spawn && !ShellId) {
                 THROW_ERROR_EXCEPTION(
                     "Malformed request: shell id is not specified for %Qlv operation",

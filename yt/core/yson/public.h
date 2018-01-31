@@ -43,6 +43,8 @@ class TYsonOutput;
 
 class TTokenizer;
 
+class TProtobufMessageType;
+
 struct IYsonConsumer;
 struct IFlushableYsonConsumer;
 struct IAsyncYsonConsumer;

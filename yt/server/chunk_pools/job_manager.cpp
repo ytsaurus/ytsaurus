@@ -260,31 +260,16 @@ bool TJobManager::TStripeListComparator::operator()(IChunkPoolOutput::TCookie lh
 {
     const auto& lhsJob = Owner_->Jobs_[lhs];
     const auto& rhsJob = Owner_->Jobs_[rhs];
-    switch (Owner_->ExtractionOrder_) {
-        case EStripeListExtractionOrder::DataSizeDescending: {
-            if (lhsJob.GetDataWeight() != rhsJob.GetDataWeight()) {
-                return lhsJob.GetDataWeight() > rhsJob.GetDataWeight();
-            }
-            return lhs < rhs;
-        }
-        case EStripeListExtractionOrder::RowCountDescending: {
-            if (lhsJob.GetRowCount() != rhsJob.GetRowCount()) {
-                return lhsJob.GetRowCount() > rhsJob.GetRowCount();
-            }
-            return lhs < rhs;
-        }
+    if (lhsJob.GetDataWeight() != rhsJob.GetDataWeight()) {
+        return lhsJob.GetDataWeight() > rhsJob.GetDataWeight();
     }
-    Y_UNREACHABLE();
+    return lhs < rhs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobManager::TJobManager()
-{ }
-
-TJobManager::TJobManager(EStripeListExtractionOrder extractionOrder)
-    : ExtractionOrder_(extractionOrder)
-    , CookiePool_(std::make_unique<TCookiePool>(TJobManager::TStripeListComparator(this /* owner */)))
+    : CookiePool_(std::make_unique<TCookiePool>(TJobManager::TStripeListComparator(this /* owner */)))
 {
     DataWeightCounter_->Set(0);
     RowCounter_->Set(0);
@@ -442,7 +427,6 @@ void TJobManager::Persist(const TPersistenceContext& context)
         CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /* owner */));
     }
 
-    Persist(context, ExtractionOrder_);
     Persist(context, InputCookieToAffectedOutputCookies_);
     Persist(context, DataWeightCounter_);
     Persist(context, RowCounter_);

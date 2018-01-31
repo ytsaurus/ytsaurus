@@ -557,15 +557,26 @@ public:
         const TReadSessionId& sessionId)
     {
         auto cookie = BeginInsert(key);
-        if (cookie.IsActive()) {
-            try {
-                auto file = DoFetch(key, std::move(nodeDirectory), sessionId);
-                cookie.EndInsert(New<TFunctionImplCacheEntry>(key, file));
-            } catch (const std::exception& ex) {
-                cookie.Cancel(TError(ex).Wrap("Failed to download function implementation"));
-            }
+        if (!cookie.IsActive()) {
+            return cookie.GetValue();
         }
-        return cookie.GetValue();
+
+        return BIND([MOVE(cookie), this, this_ = MakeStrong(this)] (
+                const TFunctionImplKey& key,
+                TNodeDirectoryPtr nodeDirectory,
+                const TReadSessionId& sessionId) mutable
+            {
+                try {
+                    auto file = DoFetch(key, std::move(nodeDirectory), sessionId);
+                    cookie.EndInsert(New<TFunctionImplCacheEntry>(key, file));
+                } catch (const std::exception& ex) {
+                    cookie.Cancel(TError(ex).Wrap("Failed to download function implementation"));
+                }
+
+                return cookie.GetValue();
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run(key, nodeDirectory, sessionId);
     }
 
 private:
@@ -650,17 +661,7 @@ void FetchFunctionImplementationsFromCypress(
         TFunctionImplKey key;
         key.ChunkSpecs = function.ChunkSpecs;
 
-        if (auto value = cache->Find(key)) {
-            // Fast path
-            asyncResults.push_back(MakeFuture(value));
-            continue;
-        }
-
-        auto cacheEntry = BIND(&TFunctionImplCache::FetchImplementation, cache)
-            .AsyncVia(GetCurrentInvoker())
-            .Run(key, externalCGInfo->NodeDirectory, sessionId);
-
-        asyncResults.push_back(cacheEntry);
+        asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, sessionId));
     }
 
     auto results = WaitFor(Combine(asyncResults))

@@ -19,7 +19,9 @@
 #include <yt/ytlib/api/native_client.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/fetcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -50,6 +52,10 @@ using namespace NTabletNode::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPartitionBalancer
     : public TRefCounted
 {
@@ -60,6 +66,9 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSamplings))
+        , ThrottlerManager_(New<TThrottlerManager>(
+            Config_->ChunkLocationThrottler,
+            Logger))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
@@ -69,6 +78,7 @@ private:
     TPartitionBalancerConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
     TAsyncSemaphorePtr Semaphore_;
+    TThrottlerManagerPtr ThrottlerManager_;
 
 
     void OnScanSlot(TTabletSlotPtr slot)
@@ -382,6 +392,14 @@ private:
 
         auto nodeDirectory = New<TNodeDirectory>();
 
+        auto chunkScraper = CreateFetcherChunkScraper(
+            Config_->ChunkScraper,
+            Bootstrap_->GetControlInvoker(),
+            ThrottlerManager_,
+            Bootstrap_->GetMasterClient(),
+            nodeDirectory,
+            Logger);
+
         auto samplesFetcher = New<TSamplesFetcher>(
             Config_->SamplesFetcher,
             ESamplingPolicy::Partitioning,
@@ -391,7 +409,7 @@ private:
             nodeDirectory,
             GetCurrentInvoker(),
             rowBuffer,
-            nullptr,
+            chunkScraper,
             Bootstrap_->GetMasterClient(),
             Logger);
 

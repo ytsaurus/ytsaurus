@@ -8,6 +8,8 @@ from flaky import flaky
 
 from yt.environment.helpers import assert_items_equal
 
+import __builtin__
+
 ##################################################################
 
 class TestDynamicTablesBase(YTEnvSetup):
@@ -585,6 +587,43 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         assert get("#" + tablet_id + "/@table_path") == "//tmp/t"
+
+    def test_tablet_error_attributes(self):
+        self.sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        # Decommission all unused nodes to make flush fail due to
+        # high replication factor.
+        cell = get("//tmp/t/@tablets/0/cell_id")
+        nodes_to_save = __builtin__.set()
+        for peer in get("#" + cell + "/@peers"):
+            nodes_to_save.add(peer["address"])
+
+        for node in ls("//sys/nodes"):
+            if node not in nodes_to_save:
+                self.set_node_decommissioned(node, True)
+
+        self.sync_unmount_table("//tmp/t")
+        set("//tmp/t/@replication_factor", 10)
+
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+        unmount_table("//tmp/t")
+
+        wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+
+        tablet = get("//tmp/t/@tablets/0/tablet_id")
+        errors = get("//tmp/t/@tablet_errors")
+
+        assert len(errors) == 1
+        assert errors[0]["attributes"]["backround_activity"] == "flush"
+        assert errors[0]["attributes"]["tablet_id"] == tablet
+        assert get("#" + tablet + "/@errors")[0]["attributes"]["backround_activity"] == "flush"
+        assert get("#" + tablet + "/@state") == "unmounting"
+
+        for node in ls("//sys/nodes"):
+            self.set_node_decommissioned(node, False)
 
 ##################################################################
 

@@ -11,6 +11,8 @@ namespace NYT {
 namespace NScheduler {
 namespace {
 
+using namespace NControllerAgent;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulerStrategyHostMock
@@ -18,12 +20,12 @@ struct TSchedulerStrategyHostMock
     , public ISchedulerStrategyHost
     , public TEventLogHostBase
 {
-    explicit TSchedulerStrategyHostMock(const std::vector<TJobResourcesWithQuota>& nodeResourceLimitsList)
+    explicit TSchedulerStrategyHostMock(const TJobResourcesWithQuotaList& nodeResourceLimitsList)
         : NodeResourceLimitsList(nodeResourceLimitsList)
     { }
 
     TSchedulerStrategyHostMock()
-        : TSchedulerStrategyHostMock(std::vector<TJobResourcesWithQuota>{})
+        : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
     { }
 
     virtual TJobResources GetTotalResourceLimits() override
@@ -63,7 +65,7 @@ struct TSchedulerStrategyHostMock
         return result;
     }
 
-    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(
+    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const TSchedulingTagFilter& /* filter */) const override
     {
         Y_UNREACHABLE();
@@ -97,7 +99,7 @@ struct TSchedulerStrategyHostMock
         return NYson::GetNullYsonConsumer();
     }
 
-    std::vector<TJobResourcesWithQuota> NodeResourceLimitsList;
+    TJobResourcesWithQuotaList NodeResourceLimitsList;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerStrategyHostMock)
@@ -107,29 +109,24 @@ class TOperationControllerStrategyHostMock
     : public IOperationControllerStrategyHost
 {
 public:
-    explicit TOperationControllerStrategyHostMock(const std::vector<TJobResourcesWithQuota>& jobResourcesList)
+    explicit TOperationControllerStrategyHostMock(const TJobResourcesWithQuotaList& jobResourcesList)
         : JobResourcesList(jobResourcesList)
     { }
 
-    virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
+    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
+        const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& /* treeId */) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual IInvokerPtr GetCancelableInvoker() const
+    virtual void OnNonscheduledJobAborted(const TJobId&, EAbortReason) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
-    {
-        Y_UNREACHABLE();
-    }
-
-    virtual TJobResources GetNeededResources() const
+    virtual TJobResources GetNeededResources() const override
     {
         TJobResources totalResources;
         for (const auto& resources : JobResourcesList) {
@@ -138,9 +135,12 @@ public:
         return totalResources;
     }
 
-    virtual std::vector<TJobResourcesWithQuota> GetMinNeededJobResources() const
+    virtual void UpdateMinNeededJobResources() override
+    { }
+
+    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
-        std::vector<TJobResourcesWithQuota> minNeededResourcesList;
+        TJobResourcesWithQuotaList minNeededResourcesList;
         for (const auto& resources : JobResourcesList) {
             bool dominated = false;
             for (const auto& minNeededResourcesElement : minNeededResourcesList) {
@@ -156,12 +156,13 @@ public:
         return minNeededResourcesList;
     }
 
-    virtual int GetPendingJobCount() const
+    virtual int GetPendingJobCount() const override
     {
         return JobResourcesList.size();
     }
 
-    std::vector<TJobResourcesWithQuota> JobResourcesList;
+private:
+    TJobResourcesWithQuotaList JobResourcesList;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationControllerStrategyHostMock)
@@ -172,7 +173,7 @@ class TOperationStrategyHostMock
     , public IOperationStrategyHost
 {
 public:
-    explicit TOperationStrategyHostMock(const std::vector<TJobResourcesWithQuota>& jobResourcesList)
+    explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& jobResourcesList)
         : StartTime_(TInstant::Now())
         , Id_(TGuid::Create())
         , Controller_(New<TOperationControllerStrategyHostMock>(jobResourcesList))
@@ -250,7 +251,7 @@ TEST(FairShareTree, TestAttributes)
 
     auto config = New<TFairShareStrategyConfig>();
     auto treeConfig = New<TFairShareStrategyTreeConfig>();
-    auto host = New<TSchedulerStrategyHostMock>(std::vector<TJobResourcesWithQuota>(10, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
 
     auto rootElement = New<TRootElement>(
         host.Get(),
@@ -283,7 +284,7 @@ TEST(FairShareTree, TestAttributes)
     rootElement->AddChild(poolB);
     poolB->SetParent(rootElement.Get());
 
-    auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResourcesWithQuota>(10, jobResources));
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
     auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         treeConfig,
@@ -326,7 +327,7 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
 
     auto config = New<TFairShareStrategyConfig>();
     auto treeConfig = New<TFairShareStrategyTreeConfig>();
-    auto host = New<TSchedulerStrategyHostMock>(std::vector<TJobResourcesWithQuota>(10, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
 
     auto rootElement = New<TRootElement>(
         host.Get(),
@@ -335,7 +336,7 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
         NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
         "default");
 
-    auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResourcesWithQuota>(10, jobResources));
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
     auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         treeConfig,
@@ -394,7 +395,7 @@ TEST(FairShareTree, TestBestAllocationRatio)
 
     auto config = New<TFairShareStrategyConfig>();
     auto treeConfig = New<TFairShareStrategyTreeConfig>();
-    auto host = New<TSchedulerStrategyHostMock>(std::vector<TJobResourcesWithQuota>({nodeResourcesA, nodeResourcesA, nodeResourcesB}));
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResourcesA, nodeResourcesA, nodeResourcesB}));
 
     auto rootElement = New<TRootElement>(
         host.Get(),
@@ -403,7 +404,7 @@ TEST(FairShareTree, TestBestAllocationRatio)
         NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
         "default");
 
-    auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResourcesWithQuota>(3, jobResources));
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, jobResources));
     auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         treeConfig,

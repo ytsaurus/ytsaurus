@@ -15,6 +15,7 @@
 #include <yt/server/data_node/journal_dispatcher.h>
 #include <yt/server/data_node/location.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/peer_block_distributor.h>
 #include <yt/server/data_node/peer_block_table.h>
 #include <yt/server/data_node/peer_block_updater.h>
 #include <yt/server/data_node/private.h>
@@ -69,7 +70,6 @@
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -177,7 +177,6 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     auto localRpcAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
-    auto localSkynetHttpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->SkynetHttpPort);
 
     if (!Config->ClusterConnection->Networks) {
         Config->ClusterConnection->Networks = GetLocalNetworks();
@@ -235,18 +234,11 @@ void TBootstrap::DoRun()
 
     RpcServer = CreateBusServer(BusServer);
 
-    if (!Config->UseNewHttpServer) {
-        HttpServer.reset(new NXHttp::TServer(
-            Config->MonitoringPort,
-            Config->BusServer->BindRetryCount,
-            Config->BusServer->BindRetryBackoff));
-    } else {
-        Config->MonitoringServer->Port = Config->MonitoringPort;
-        Config->MonitoringServer->BindRetryCount = Config->BusServer->BindRetryCount;
-        Config->MonitoringServer->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
-        NewHttpServer = NHttp::CreateServer(
-            Config->MonitoringServer);
-    }
+    Config->MonitoringServer->Port = Config->MonitoringPort;
+    Config->MonitoringServer->BindRetryCount = Config->BusServer->BindRetryCount;
+    Config->MonitoringServer->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
+    HttpServer = NHttp::CreateServer(
+        Config->MonitoringServer);
 
     auto skynetHttpConfig = New<NHttp::TServerConfig>();
     skynetHttpConfig->Port = Config->SkynetHttpPort;
@@ -286,8 +278,8 @@ void TBootstrap::DoRun()
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
-    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
-
+    PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
+    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable, this);
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
@@ -295,7 +287,8 @@ void TBootstrap::DoRun()
     MasterConnector = New<NDataNode::TMasterConnector>(
         Config->DataNode,
         localRpcAddresses,
-        localSkynetHttpAddresses,
+        NYT::GetLocalAddresses(Config->Addresses, Config->SkynetHttpPort),
+        NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort),
         Config->Tags,
         this);
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
@@ -310,15 +303,12 @@ void TBootstrap::DoRun()
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
 
-    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const TString& name) {
-        auto logger = DataNodeLogger;
-        logger.AddTag("Throttler: %v", name);
-
-        auto profiler = NProfiling::TProfiler(
-            DataNodeProfiler.GetPathPrefix() + "/" +
-            CamelCaseToUnderscoreCase(name));
-
-        return CreateReconfigurableThroughputThrottler(config, logger, profiler);
+    auto createThrottler = [] (const TThroughputThrottlerConfigPtr& config, const TString& name) {
+        return CreateNamedReconfigurableThroughputThrottler(
+            config,
+            name,
+            DataNodeLogger,
+            DataNodeProfiler);
     };
 
     TotalInThrottler = createThrottler(Config->DataNode->TotalInThrottler, "TotalIn");
@@ -353,6 +343,35 @@ void TBootstrap::DoRun()
     SkynetOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalOutThrottler,
         createThrottler(Config->DataNode->SkynetOutThrottler, "SkynetOut")
+    });
+
+    TabletCompactionAndPartitioningInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletCompactionAndPartitioningInThrottler, "TabletCompactionAndPartitioningIn")
+    });
+    TabletCompactionAndPartitioningOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletCompactionAndPartitioningOutThrottler, "TabletCompactionAndPartitioningOut")
+    });
+    TabletLoggingInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletLoggingInThrottler, "TabletLoggingIn")
+    });
+    TabletPreloadOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletPreloadOutThrottler, "TabletPreloadOut")
+    });
+    TabletSnapshotInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletSnapshotInThrottler, "TabletSnapshotIn")
+    });
+    TabletStoreFlushInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletStoreFlushInThrottler, "TabletStoreFlushIn")
+    });
+    TabletRecoveryOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "TabletRecoveryOut")
     });
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
@@ -432,6 +451,7 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::RemoteCopy,        createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::OrderedMap,        createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::JoinReduce,        createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::Vanilla,           createExecJob);
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
@@ -519,24 +539,14 @@ void TBootstrap::DoRun()
         CreateVirtualNode(TabletSlotManager->GetOrchidService()));
     SetNodeByYPath(
         OrchidRoot,
-        "/chunk_blocks",
-        CreateVirtualNode(ChunkBlockManager->GetOrchidService()));
-    SetNodeByYPath(
-        OrchidRoot,
         "/job_controller",
         CreateVirtualNode(JobController->GetOrchidService()
             ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
-    if (HttpServer) {
-        HttpServer->Register(
-            "/orchid",
-            NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
-    } else {
-        NewHttpServer->AddHandler(
-            "/orchid/",
-            NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
-    }
+    HttpServer->AddHandler(
+        "/orchid/",
+        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
     if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
         SkynetHttpServer->AddHandler(
@@ -563,6 +573,7 @@ void TBootstrap::DoRun()
     JobController->Initialize();
     MonitoringManager_->Start();
     PeerBlockUpdater->Start();
+    PeerBlockDistributor->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
@@ -571,11 +582,7 @@ void TBootstrap::DoRun()
     StartPartitionBalancer(Config->TabletNode, this);
 
     RpcServer->Start();
-    if (HttpServer) {
-        HttpServer->Start();
-    } else {
-        NewHttpServer->Start();
-    }
+    HttpServer->Start();
     SkynetHttpServer->Start();
 }
 
@@ -699,9 +706,19 @@ const IBlockCachePtr& TBootstrap::GetBlockCache() const
     return BlockCache;
 }
 
+const TPeerBlockDistributorPtr& TBootstrap::GetPeerBlockDistributor() const
+{
+    return PeerBlockDistributor;
+}
+
 const TPeerBlockTablePtr& TBootstrap::GetPeerBlockTable() const
 {
     return PeerBlockTable;
+}
+
+const TPeerBlockUpdaterPtr& TBootstrap::GetPeerBlockUpdater() const
+{
+    return PeerBlockUpdater;
 }
 
 const TBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
@@ -793,6 +810,19 @@ const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescrip
         case EWorkloadCategory::SystemArtifactCacheDownload:
             return ArtifactCacheInThrottler;
 
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningInThrottler;
+
+        case EWorkloadCategory::SystemTabletLogging:
+            return TabletLoggingInThrottler;
+
+        case EWorkloadCategory::SystemTabletSnapshot:
+            return TabletSnapshotInThrottler;
+
+        case EWorkloadCategory::SystemTabletStoreFlush:
+            return TabletStoreFlushInThrottler;
+
         default:
             return TotalInThrottler;
     }
@@ -810,6 +840,16 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
         case EWorkloadCategory::SystemArtifactCacheDownload:
             return ArtifactCacheOutThrottler;
 
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningOutThrottler;
+
+        case EWorkloadCategory::SystemTabletPreload:
+            return TabletPreloadOutThrottler;
+
+        case EWorkloadCategory::SystemTabletRecovery:
+            return TabletRecoveryOutThrottler;
+
         default:
             return TotalOutThrottler;
     }
@@ -820,6 +860,11 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
     return Config->Addresses.empty()
         ? DefaultNetworkPreferences
         : GetIths<0>(Config->Addresses);
+}
+
+TNullable<TString> TBootstrap::GetDefaultNetworkName()
+{
+    return Config->BusServer->DefaultNetwork;
 }
 
 TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const

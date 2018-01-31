@@ -512,9 +512,10 @@ size_t TExpressionProfiler::Profile(
             }
 
             int index = Variables_->AddOpaque<TSharedRange<TRow>>(inExpr->Values);
+            int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
-                MakeCodegenInExpr(argIds, index, ComparerManager_),
+                MakeCodegenInExpr(argIds, index, hashtableIndex, ComparerManager_),
                 expr->Type,
                 false);
         }
@@ -559,9 +560,11 @@ size_t TExpressionProfiler::Profile(
             }
 
             int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
+            int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
+
             fragments->DebugInfos.emplace_back(expr, argIds, defaultExprId);
             fragments->Items.emplace_back(
-                MakeCodegenTransformExpr(argIds, defaultExprId, index, transformExpr->Type, ComparerManager_),
+                MakeCodegenTransformExpr(argIds, defaultExprId, index, hashtableIndex, transformExpr->Type, ComparerManager_),
                 expr->Type,
                 nullable);
         }

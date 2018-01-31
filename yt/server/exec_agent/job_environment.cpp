@@ -10,7 +10,7 @@
 #include <yt/server/data_node/master_connector.h>
 #include <yt/server/data_node/volume_manager.h>
 
-#include <yt/server/program/names.h>
+#include <yt/ytlib/program/names.h>
 
 #ifdef _linux_
 #include <yt/server/containers/container_manager.h>
@@ -475,8 +475,8 @@ private:
     const TPortoJobEnvironmentConfigPtr Config_;
 
     IContainerManagerPtr ContainerManager_;
+    IInstancePtr MetaInstance_;
     THashMap<int, IInstancePtr> PortoInstances_;
-
 
     TSpinLock LimitsLock_;
     TNullable<double> CpuLimit_;
@@ -495,9 +495,27 @@ private:
             }
         });
 
+        auto getMetaContainer = [&] () -> IInstancePtr {
+            auto manager = CreatePortoManager(
+                "yt_job_meta_",
+                Null,
+                portoFatalErrorHandler,
+                { ECleanMode::All, Config_->PortoWaitTime, Config_->PortoPollPeriod });
+
+            if (Config_->ExternalJobContainer) {
+                return manager->GetInstance(*Config_->ExternalJobContainer);
+            }   else {
+                auto instance = manager->CreateInstance();
+                instance->SetIOWeight(Config_->JobsIOWeight);
+                return instance;
+            }
+        };
+
+        MetaInstance_ = getMetaContainer();
+
         ContainerManager_ = CreatePortoManager(
-            "yt_job-proxy_",
-            Config_->ExternalJobContainer,
+            "yt_job_proxy_",
+            MetaInstance_->GetName(),
             portoFatalErrorHandler,
             { ECleanMode::All, Config_->PortoWaitTime, Config_->PortoPollPeriod });
 
@@ -527,6 +545,7 @@ private:
             if (Config_->ExternalJobRootVolume) {
                 TRootFS rootFS;
                 rootFS.RootPath = *Config_->ExternalJobRootVolume;
+                rootFS.IsRootReadOnly = false;
 
                 for (const auto& pair : Config_->ExternalBinds) {
                     rootFS.Binds.push_back(TBind{pair.first, pair.second, false});
@@ -547,7 +566,7 @@ private:
     {
         try {
             auto container = Config_->ExternalJobContainer
-                ? ContainerManager_->GetInstance(*Config_->ExternalJobContainer)
+                ? MetaInstance_
                 : ContainerManager_->GetSelfInstance();
 
             auto limits = container->GetResourceLimits();

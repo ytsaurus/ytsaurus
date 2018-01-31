@@ -330,3 +330,22 @@ class TestRequiredOption(YTEnvSetup):
         mode = "sorted" if sorted_table else "unordered"
         merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode=mode)
         assert get("//tmp/output/@schema") == schema
+
+    def test_infer_mixed_requiredness(self):
+        table = "//tmp/input1"
+        create("table", table, attributes={"schema": make_schema([
+            {"name": "value", "type": "string", "required": True},
+        ], unique_keys=False, strict=True)})
+        table = "//tmp/input2"
+        create("table", table, attributes={"schema": make_schema([
+            {"name": "value", "type": "string", "required": False},
+        ], unique_keys=False, strict=True)})
+
+        write_table("//tmp/input1", [{"value": "foo"}])
+        write_table("//tmp/input2", [{"value": "bar"}])
+
+        create("table", "//tmp/output")
+
+        with pytest.raises(YtError):
+            # Schemas are incompatible
+            merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")

@@ -24,9 +24,9 @@ public:
         bool copyEnv = true,
         TDuration pollPeriod = TDuration::MilliSeconds(100));
     virtual void Kill(int signal) override;
-    virtual NPipes::TAsyncWriterPtr GetStdInWriter() override;
-    virtual NPipes::TAsyncReaderPtr GetStdOutReader() override;
-    virtual NPipes::TAsyncReaderPtr GetStdErrReader() override;
+    virtual NNet::IConnectionWriterPtr GetStdInWriter() override;
+    virtual NNet::IConnectionReaderPtr GetStdOutReader() override;
+    virtual NNet::IConnectionReaderPtr GetStdErrReader() override;
 
 private:
     NContainers::IInstancePtr ContainerInstance_;

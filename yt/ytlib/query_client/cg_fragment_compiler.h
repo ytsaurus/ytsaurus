@@ -114,12 +114,14 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 TCodegenExpression MakeCodegenInExpr(
     std::vector<size_t> argIds,
     int arrayIndex,
+    int hashtableIndex,
     TComparerManagerPtr comparerManager);
 
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
     TNullable<size_t> defaultExprId,
     int arrayIndex,
+    int hashtableIndex,
     EValueType resultType,
     TComparerManagerPtr comparerManager);
 

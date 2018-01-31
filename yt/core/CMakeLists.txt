@@ -21,6 +21,7 @@ target_link_libraries(yt-core
   deps-arcadia-contrib-libs-protobuf
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zstd
+  deps-arcadia-contrib-libs-yajl
   deps-arcadia-library-streams-lz
   deps-arcadia-library-streams-brotli
   deps-arcadia-library-getopt
@@ -30,7 +31,6 @@ target_link_libraries(yt-core
   deps-yt-contrib-http-parser
   yt-build
   yt-contrib-jerasure
-  yt-contrib-libev
   deps-arcadia-contrib-libs-zlib # duplicate zlib dependency here, because LLVM depends on zlib
 )
 

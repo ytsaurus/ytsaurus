@@ -511,9 +511,28 @@ struct TFileWriterOptions
     , public TPrerequisiteOptions
 {
     bool Append = true;
+    bool ComputeMD5 = false;
     TNullable<NCompression::ECodec> CompressionCodec;
     TNullable<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
+};
+
+struct TGetFileFromCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+{
+    NYPath::TYPath CachePath;
+};
+
+struct TPutFileToCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+    , public TMutatingOptions
+    , public TPrerequisiteOptions
+{
+    NYPath::TYPath CachePath;
 };
 
 struct TJournalReaderOptions
@@ -755,6 +774,16 @@ struct TListJobsResult
     int ArchiveJobCount = -1;
 };
 
+struct TGetFileFromCacheResult
+{
+    NYPath::TYPath Path;
+};
+
+struct TPutFileToCacheResult
+{
+    NYPath::TYPath Path;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -870,7 +899,6 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TFileWriterOptions& options = TFileWriterOptions()) = 0;
 
-
     // Journals
     virtual IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
@@ -970,6 +998,16 @@ struct IClient
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
+
+    // Files
+    virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) = 0;
+
+    virtual TFuture<TPutFileToCacheResult> PutFileToCache(
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

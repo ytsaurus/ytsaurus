@@ -172,6 +172,9 @@ public:
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
 
+    //! Update PutBlocks wall time profiling counter.
+    void UpdatePutBlocksWallTimeCounter(NProfiling::TValue value);
+
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
 protected:
@@ -209,7 +212,12 @@ private:
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
     const IInvokerPtr WritePoolInvoker_;
 
-    const NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletLoggingOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
     const NChunkClient::IIOEnginePtr IOEngine_;
 
@@ -219,6 +227,8 @@ private:
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
     std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;
+
+    NProfiling::TAggregateCounter PutBlocksWallTimeCounter_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleCounter& GetPendingIOSizeCounter(
@@ -297,6 +307,11 @@ private:
 
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
 
     TString GetTrashPath() const;
     TString GetTrashChunkPath(const TChunkId& chunkId) const;

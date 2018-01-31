@@ -1,11 +1,12 @@
 #include "sorted_controller.h"
-#include "private.h"
+
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "operation.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
@@ -118,17 +119,12 @@ protected:
             , Controller_(controller)
         {
             auto options = controller->GetSortedChunkPoolOptions();
-            options.Task = GetId();
+            options.Task = GetTitle();
             ChunkPool_ = CreateSortedChunkPool(
                 options,
                 controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory());
 
-        }
-
-        virtual TString GetId() const override
-        {
-            return Format("Sorted");
         }
 
         virtual TTaskGroupPtr GetGroup() const override
@@ -379,23 +375,6 @@ protected:
         InitJobSpecTemplate();
     }
 
-    // Progress reporting.
-
-    virtual TString GetLoggingProgress() const override
-    {
-        return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-                "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
-            GetUnavailableInputChunkCount());
-    }
-
     virtual TNullable<int> GetOutputTeleportTableIndex() const = 0;
 
     //! Initializes #JobIOConfig.
@@ -438,8 +417,6 @@ protected:
     virtual i64 MinTeleportChunkSize()  = 0;
 
     virtual void AdjustKeyColumns() = 0;
-
-    virtual i64 GetUserJobMemoryReserve() const = 0;
 
     virtual i64 GetForeignInputDataWeight() const = 0;
 
@@ -536,8 +513,23 @@ protected:
         chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.OperationId = OperationId;
-        chunkPoolOptions.ExtractionOrder = Spec_->StripeListExtractionOrder;
         return chunkPoolOptions;
+    }
+
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return
+            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+            TOperationControllerBase::IsJobInterruptible();
+    }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+            ? Options_->JobSplitter
+            : nullptr;
     }
 
 private:
@@ -589,9 +581,7 @@ public:
             host,
             operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
@@ -645,11 +635,6 @@ public:
         return 1;
     }
 
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return 0;
-    }
-
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
@@ -668,8 +653,6 @@ public:
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
         SetInputDataSources(schedulerJobSpecExt);
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), PrimaryKeyColumns_);
@@ -809,11 +792,6 @@ public:
         return Spec_->Reducer;
     }
 
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return ComputeUserJobMemoryReserve(GetJobType(), Spec_->Reducer);
-    }
-
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
@@ -840,22 +818,9 @@ public:
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec_->Reducer->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Reduce));
-        }
-        return result;
-    }
-
-    virtual std::vector<TPathWithStage> GetLayerPaths() const override
-    {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec_->Reducer->LayerPaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Reduce));
-        }
-        return result;
+        return {Spec_->Reducer};
     }
 
     virtual void InitJobSpecTemplate() override
@@ -868,28 +833,18 @@ public:
 
         SetInputDataSources(schedulerJobSpecExt);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec_->Reducer,
-            Files,
+            UserJobFiles_[Spec_->Reducer],
             Spec_->JobNodeAccount);
 
         auto* reduceJobSpecExt = JobSpecTemplate_.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         ToProto(reduceJobSpecExt->mutable_key_columns(), SortKeyColumns_);
         reduceJobSpecExt->set_reduce_key_column_count(PrimaryKeyColumns_.size());
         reduceJobSpecExt->set_join_key_column_count(ForeignKeyColumns_.size());
-    }
-
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
-    {
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet);
     }
 
     virtual void DoInitialize() override
@@ -919,22 +874,6 @@ public:
             .Item("reducer").BeginMap()
                 .Item("command").Value(TrimCommandForBriefSpec(Spec_->Reducer->Command))
             .EndMap();
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return
-            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
-            TOperationControllerBase::IsJobInterruptible();
-    }
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
-            ? Options_->JobSplitter
-            : nullptr;
     }
 
     virtual bool IsInputDataSizeHistogramSupported() const override
@@ -1006,10 +945,7 @@ public:
             host,
             operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
-    }
+    { }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
@@ -1182,10 +1118,7 @@ public:
             host,
             operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
-    }
+    { }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
     {

@@ -75,6 +75,8 @@ private:
             .SetPresent(tablet->GetAction()));
         descriptors->push_back("retained_timestamp");
         descriptors->push_back("unflushed_timestamp");
+        descriptors->push_back(TAttributeDescriptor("errors")
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
@@ -204,6 +206,12 @@ private:
         if (key == "unflushed_timestamp") {
             BuildYsonFluently(consumer)
                 .Value(static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp()));
+            return true;
+        }
+
+        if (key == "errors") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetErrors());
             return true;
         }
 

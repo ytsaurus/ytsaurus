@@ -147,6 +147,11 @@ struct TFakeConnection
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
+    virtual TFuture<void> Abort() override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
     virtual TFuture<void> CloseRead() override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
@@ -165,6 +170,31 @@ struct TFakeConnection
     virtual const TNetworkAddress& RemoteAddress() const override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual int GetHandle() const override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual TConnectionStatistics GetReadStatistics() const override
+    {
+        return {};
+    }
+
+    virtual TConnectionStatistics GetWriteStatistics() const override
+    {
+        return {};
+    }
+
+    virtual i64 GetReadByteCount() const override
+    {
+        return 0;
+    }
+
+    virtual i64 GetWriteByteCount() const override
+    {
+        return 0;
     }
 };
 
@@ -408,7 +438,7 @@ TEST(THttpInputTest, Simple)
         auto fake = New<TFakeConnection>();
         fake->Input = std::get<1>(testCase);
 
-        auto input = New<THttpInput>(fake, GetSyncInvoker(), std::get<0>(testCase), 1024);
+        auto input = New<THttpInput>(fake, TNetworkAddress(), GetSyncInvoker(), std::get<0>(testCase), 1024);
 
         try {
             std::get<2>(testCase)(input.Get());
@@ -456,7 +486,7 @@ class TOKHttpHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         WaitFor(rsp->Close()).ThrowOnError();
@@ -479,7 +509,7 @@ class TEchoHttpHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         while (true) {
@@ -532,7 +562,7 @@ class TTestStatusCodeHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(Code);
         WaitFor(rsp->Close()).ThrowOnError();
@@ -567,7 +597,7 @@ class TTestHeadersHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         for (const auto& header : ExpectedHeaders) {
             EXPECT_EQ(header.second, req->GetHeaders()->Get(header.first));
@@ -615,7 +645,7 @@ class TTestTrailersHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         WaitFor(rsp->Write(TSharedRef::FromString("test"))).ThrowOnError();
 
@@ -643,7 +673,7 @@ class THangingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     { }
 };
 
@@ -651,7 +681,7 @@ class TImpatientHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         WaitFor(rsp->Write(TSharedRef::FromString("body"))).ThrowOnError();
         WaitFor(rsp->Close()).ThrowOnError();
@@ -662,7 +692,7 @@ class TForgetfulHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
     }
@@ -703,7 +733,7 @@ class TThrowingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         THROW_ERROR_EXCEPTION("Your request is bad");
     }
@@ -714,7 +744,7 @@ class TThrowingInTheMiddleHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         WaitFor(rsp->Write(TSharedRef::FromString(""))).ThrowOnError();
@@ -748,7 +778,7 @@ class TConsumingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         while (WaitFor(req->Read()).ValueOrThrow().Size() != 0)
         { }
@@ -776,7 +806,7 @@ class TStreamingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         auto data = TSharedRef::FromString(TString(1024, 'f'));
@@ -804,7 +834,7 @@ class TValidateErrorHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         ASSERT_THROW(ReadAll(req), TErrorException);
         Ok = true;

@@ -13,6 +13,7 @@ namespace NYT {
 namespace NNet {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +64,7 @@ public:
                     << TError::FromSystem();
             }
 
+            bytesRead += size;
             Position_ += size;
 
             if (Position_ == Buffer_.Size() || size == 0) {
@@ -401,6 +403,33 @@ public:
         return RemoteAddress_;
     }
 
+    int GetHandle() const
+    {
+        return FD_;
+    }
+
+    i64 GetReadByteCount() const
+    {
+        return ReadDirection_.BytesTransferred;
+    }
+
+    i64 GetWriteByteCount() const
+    {
+        return WriteDirection_.BytesTransferred;
+    }
+
+    TConnectionStatistics GetReadStatistics() const
+    {
+        auto guard = Guard(Lock_);
+        return ReadDirection_.GetStatistics();
+    }
+
+    TConnectionStatistics GetWriteStatistics() const
+    {
+        auto guard = Guard(Lock_);
+        return WriteDirection_.GetStatistics();
+    }
+
 private:
     const TString Name_;
     const TNetworkAddress LocalAddress_;
@@ -412,9 +441,33 @@ private:
         std::unique_ptr<IIOOperation> Operation;
         bool Starting = false;
         std::atomic<i64> BytesTransferred = {0};
+        TDuration IdleDuration_;
+        TDuration BusyDuration_;
+        TCpuInstant StartTime_ = GetCpuInstant();
 
         TClosure DoIO;
         EPollControl PollFlag;
+
+        void StartBusyTimer()
+        {
+            auto now = GetCpuInstant();
+            IdleDuration_ += CpuDurationToDuration(now - StartTime_);
+            StartTime_ = now;
+        }
+
+        void StopBusyTimer()
+        {
+            auto now = GetCpuInstant();
+            BusyDuration_ += CpuDurationToDuration(now - StartTime_);
+            StartTime_ = now;            
+        }
+
+        TConnectionStatistics GetStatistics() const
+        {
+            TConnectionStatistics statistics{IdleDuration_, BusyDuration_};
+            (Operation ? statistics.BusyDuration : statistics.IdleDuration) += CpuDurationToDuration(GetCpuInstant() - StartTime_);
+            return statistics;
+        }
     };
 
     TSpinLock Lock_;
@@ -437,6 +490,7 @@ private:
             if (Error_.IsOK()) {
                 YCHECK(!direction->Operation);
                 direction->Operation = std::move(operation);
+                direction->StartBusyTimer();
 
                 YCHECK(!direction->Starting);
                 direction->Starting = true;
@@ -488,6 +542,7 @@ private:
                     Error_ = result;
                     UnregisterFromPoller();
                 }
+                direction->StopBusyTimer();
             } else if (!Error_.IsOK()) {
                 // IO was aborted.
                 operation = std::move(direction->Operation);
@@ -495,13 +550,15 @@ private:
                 if (result.Value().Retry) {
                     result = Error_;
                 }
+                direction->StopBusyTimer();
             } else if (result.Value().Retry) {
                 // IO not completed.
                 Control_ |= direction->PollFlag;
             } else {
                 // IO finished successfully.
                 operation = std::move(direction->Operation);
-            }
+                direction->StopBusyTimer();
+              }
 
             direction->Starting = false;
             if (AbortDelayed_ && !WriteDirection_.Starting && !ReadDirection_.Starting) {
@@ -571,8 +628,10 @@ public:
         int fd,
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
-        const IPollerPtr& poller)
+        const IPollerPtr& poller,
+        TIntrusivePtr<TRefCounted> pipeHolder = nullptr)
         : Impl_(New<TFDConnectionImpl>(fd, localAddress, remoteAddress, poller))
+        , PipeHolder_(std::move(pipeHolder))
     { }
 
     ~TFDConnection()
@@ -588,6 +647,11 @@ public:
     virtual const TNetworkAddress& RemoteAddress() const override
     {
         return Impl_->RemoteAddress();
+    }
+
+    virtual int GetHandle() const override
+    {
+        return Impl_->GetHandle();
     }
     
     virtual TFuture<size_t> Read(const TSharedMutableRef& data) override
@@ -610,6 +674,11 @@ public:
         return Impl_->Close();
     }
 
+    virtual TFuture<void> Abort() override
+    {
+        return Impl_->Abort(TError(EErrorCode::Aborted, "Connection aborted"));
+    }
+
     virtual TFuture<void> CloseRead() override
     {
         return Impl_->CloseRead();
@@ -619,9 +688,30 @@ public:
     {
         return Impl_->CloseWrite();
     }
+
+    virtual i64 GetReadByteCount() const override
+    {
+        return Impl_->GetReadByteCount();
+    }
+
+    virtual i64 GetWriteByteCount() const override
+    {
+        return Impl_->GetWriteByteCount();
+    }
+
+    virtual TConnectionStatistics GetReadStatistics() const override
+    {
+        return Impl_->GetReadStatistics();
+    }
+
+    virtual TConnectionStatistics GetWriteStatistics() const override
+    {
+        return Impl_->GetWriteStatistics();
+    }
     
 private:
     const TFDConnectionImplPtr Impl_;
+    TIntrusivePtr<TRefCounted> PipeHolder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,9 +747,41 @@ IConnectionPtr CreateConnectionFromFD(
     int fd,
     const TNetworkAddress& localAddress,
     const TNetworkAddress& remoteAddress,
-    const NConcurrency::IPollerPtr& poller)
+    const IPollerPtr& poller)
 {
     return New<TFDConnection>(fd, localAddress, remoteAddress, poller);
+}
+
+IConnectionReaderPtr CreateInputConnectionFromPath(
+    const TString& pipePath,
+    const IPollerPtr& poller,
+    const TIntrusivePtr<TRefCounted>& pipeHolder)
+{
+    int flags = O_RDONLY | O_CLOEXEC | O_NONBLOCK;
+    int fd = HandleEintr(::open, pipePath.c_str(), flags);
+    if (fd == -1) {
+        THROW_ERROR_EXCEPTION("Failed to open named pipe")
+            << TError::FromSystem()
+            << TErrorAttribute("path", pipePath);
+    }
+
+    return New<TFDConnection>(fd, TNetworkAddress{}, TNetworkAddress{}, poller, pipeHolder);
+}
+
+IConnectionWriterPtr CreateOutputConnectionFromPath(
+    const TString& pipePath,
+    const IPollerPtr& poller,
+    const TIntrusivePtr<TRefCounted>& pipeHolder)
+{
+    int flags = O_WRONLY | O_CLOEXEC | O_NONBLOCK;
+    int fd = HandleEintr(::open, pipePath.c_str(), flags);
+    if (fd == -1) {
+        THROW_ERROR_EXCEPTION("Failed to open named pipe")
+            << TError::FromSystem()
+            << TErrorAttribute("path", pipePath);
+    }
+
+    return New<TFDConnection>(fd, TNetworkAddress{}, TNetworkAddress{}, poller, pipeHolder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

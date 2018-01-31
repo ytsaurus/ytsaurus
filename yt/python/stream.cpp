@@ -1,14 +1,6 @@
 #include "stream.h"
 #include "helpers.h"
 
-#include <util/stream/input.h>
-#include <util/stream/output.h>
-
-#include <contrib/libs/pycxx/Objects.hxx>
-
-#include <iostream>
-#include <string>
-
 namespace NYT {
 namespace NPython {
 
@@ -166,11 +158,6 @@ TSharedRef TStreamReader::ExtractPrefix(const char* endPtr)
 
     PrefixStart_ = endPtr;
     return result;
-}
-
-TSharedRef TStreamReader::ExtractPrefix()
-{
-    return ExtractPrefix(CurrentPtr_);
 }
 
 void TStreamReader::ReadNextBlob()

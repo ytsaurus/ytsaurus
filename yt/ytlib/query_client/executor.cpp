@@ -640,7 +640,7 @@ private:
 
             TDuration serializationTime;
             {
-                NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
+                NProfiling::TCpuTimingGuard timingGuard(&serializationTime);
                 ToProto(req->mutable_query(), query);
                 req->mutable_query()->set_input_row_limit(options.InputRowLimit);
                 req->mutable_query()->set_output_row_limit(options.OutputRowLimit);

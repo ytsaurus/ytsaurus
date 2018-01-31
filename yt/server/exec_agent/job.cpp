@@ -133,8 +133,18 @@ public:
 
             InitializeArtifacts();
 
+            i64 diskSpaceLimit = Config_->MinRequiredDiskSpace;
+
+            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            if (schedulerJobSpecExt.has_user_job_spec()) {
+                const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+                if (userJobSpec.has_disk_space_limit()) {
+                    diskSpaceLimit = userJobSpec.disk_space_limit();
+                }
+            }
+
             auto slotManager = Bootstrap_->GetExecSlotManager();
-            Slot_ = slotManager->AcquireSlot();
+            Slot_ = slotManager->AcquireSlot(diskSpaceLimit);
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
@@ -875,6 +885,8 @@ private:
         LOG_INFO("Job finalized (Error: %v, JobState: %v)",
             error,
             GetState());
+
+        Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
     }
 
     // Preparation.
@@ -945,8 +957,8 @@ private:
             }
 
             if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
-                THROW_ERROR_EXCEPTION("Unresolved node id %v in job spec",
-                    *unresolvedNodeId);
+                LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)", *unresolvedNodeId);
+                break;
             }
 
             LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
@@ -1177,12 +1189,13 @@ private:
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::AllLocationsDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::SlotNotFound) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::RootVolumePreparationFailed) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::NotEnoughDiskSpace) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {

@@ -174,6 +174,9 @@ void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
+TSharedRef PushEnvelope(const TSharedRef& data);
+TSharedRef PopEnvelope(const TSharedRef& data);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBinaryProtoSerializer

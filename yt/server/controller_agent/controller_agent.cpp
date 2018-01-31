@@ -3,15 +3,23 @@
 #include "master_connector.h"
 #include "config.h"
 #include "private.h"
+#include "operation_controller_host.h"
+#include "operation.h"
+#include "scheduling_context.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
 #include <yt/server/scheduler/cache.h>
+#include <yt/server/scheduler/operation.h>
+#include <yt/server/scheduler/message_queue.h>
+#include <yt/server/scheduler/job.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/event_log/event_log.h>
 
@@ -26,8 +34,6 @@
 
 #include <yt/core/ytree/convert.h>
 
-#include <util/string/join.h>
-
 namespace NYT {
 namespace NControllerAgent {
 
@@ -40,10 +46,69 @@ using namespace NNodeTrackerClient;
 using namespace NEventLog;
 using namespace NProfiling;
 using namespace NYson;
+using namespace NRpc;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ControllerAgentLogger;
+
+////////////////////////////////////////////////////////////////////
+
+struct TAgentToSchedulerScheduleJobResponse
+{
+    TJobId JobId;
+    TScheduleJobResultPtr Result;
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TSchedulingContext
+    : public ISchedulingContext
+{
+public:
+    TSchedulingContext(
+        const NScheduler::NProto::TScheduleJobRequest* request,
+        const TExecNodeDescriptor& nodeDescriptor)
+        : ResourceLimits_(FromProto<TJobResources>(request->node_resource_limits()))
+        , DiskInfo_(request->node_disk_info())
+        , JobId_(FromProto<TJobId>(request->job_id()))
+        , NodeDescriptor_(nodeDescriptor)
+    { }
+
+    virtual const TExecNodeDescriptor& GetNodeDescriptor() const override
+    {
+        return NodeDescriptor_;
+    }
+
+    virtual const TJobResources& ResourceLimits() const override
+    {
+        return ResourceLimits_;
+    }
+
+    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const override
+    {
+        return DiskInfo_;
+    }
+
+    virtual TJobId GetJobId() const override
+    {
+        return JobId_;
+    }
+
+    virtual NProfiling::TCpuInstant GetNow() const override
+    {
+        return NProfiling::GetCpuInstant();
+    }
+
+private:
+    const TJobResources ResourceLimits_;
+    const NNodeTrackerClient::NProto::TDiskResources& DiskInfo_;
+    const TJobId JobId_;
+    const TExecNodeDescriptor& NodeDescriptor_;
+};
 
 ////////////////////////////////////////////////////////////////////
 
@@ -200,52 +265,80 @@ public:
             MasterConnector_->UpdateConfig(config);
         }
 
-        for (const auto& pair : GetControllers()) {
-            const auto& controller = pair.second;
+        for (const auto& pair : GetOperations()) {
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
     }
 
 
-    void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller)
+    TOperationPtr CreateOperation(const NScheduler::TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ControllerMap_.emplace(operationId, controller);
+        auto agentOperation = New<NControllerAgent::TOperation>(operation.Get());
+        auto host = New<TOperationControllerHost>(
+            agentOperation.Get(),
+            CancelableInvoker_,
+            OperationEventsOutbox_,
+            JobEventsOutbox_,
+            Bootstrap_);
+        agentOperation->SetHost(host);
+        return agentOperation;
     }
 
-    void UnregisterController(const TOperationId& operationId)
+    void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(ControllerMap_.erase(operationId) == 1);
+        YCHECK(IdToOperation_.emplace(operationId, operation).second);
+        LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    IOperationControllerPtr FindController(const TOperationId& operationId)
+    void UnregisterOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto it = ControllerMap_.find(operationId);
-        return it == ControllerMap_.end() ? nullptr : it->second;
+        YCHECK(IdToOperation_.erase(operationId) == 1);
+        LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
-    IOperationControllerPtr GetControllerOrThrow(const TOperationId& operationId)
+    TOperationPtr FindOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto controller = FindController(operationId);
-        if (!controller) {
+        auto it = IdToOperation_.find(operationId);
+        return it == IdToOperation_.end() ? nullptr : it->second;
+    }
+
+    TOperationPtr GetOperation(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        YCHECK(operation);
+
+        return operation;
+    }
+
+    TOperationPtr GetOperationOrThrow(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
             THROW_ERROR_EXCEPTION("No such operation %v", operationId);
         }
-        return controller;
+        return operation;
     }
 
-    TOperationIdToControllerMap GetControllers()
+    const TOperationIdToOperationMap& GetOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ControllerMap_;
+        return IdToOperation_;
     }
 
 
@@ -255,17 +348,18 @@ public:
 
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
         for (const auto& request : requests) {
-            LOG_DEBUG("Retrieving job spec (OperationId: %v, JobId: %v)",
+            LOG_DEBUG("Extracting job spec (OperationId: %v, JobId: %v)",
                 request.OperationId,
                 request.JobId);
 
-            auto controller = FindController(request.OperationId);
-            if (!controller) {
+            auto operation = FindOperation(request.OperationId);
+            if (!operation) {
                 asyncJobSpecs.push_back(MakeFuture<TSharedRef>(TError("No such operation %v",
                     request.OperationId)));
                 continue;
             }
 
+            auto controller = operation->GetController();
             auto asyncJobSpec = BIND(&IOperationController::ExtractJobSpec,
                 controller,
                 request.JobId)
@@ -276,23 +370,13 @@ public:
         }
 
         return CombineAll(asyncJobSpecs);
-        //int index = 0;
-        //for (const auto& result : jobSpecs) {
-        //    if (!result.IsOK()) {
-        //        const auto& jobId = jobSpecRequests[index].second;
-        //        LOG_DEBUG(result, "Failed to extract job spec (JobId: %v)", jobId);
-        //    }
-        //    ++index;
-        //}
-        //
-        //return jobSpecs;
     }
 
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto controller = GetControllerOrThrow(operationId);
+        auto controller = GetOperationOrThrow(operationId)->GetController();
         return BIND(&IOperationController::BuildOperationInfo, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
@@ -304,35 +388,18 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto controller = GetControllerOrThrow(operationId);
+        auto controller = GetOperationOrThrow(operationId)->GetController();
         return BIND(&IOperationController::BuildJobYson, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(jobId, /* outputStatistics */ true);
     }
 
-    TFuture<void> GetHeartbeatSentFuture()
-    {
-        // In the a bit more far future this function will become unnecessary
-        // because of changes in processing operation statuses.
-        return HeartbeatExecutor_->GetExecutedEvent();
-    }
-
-    void AttachJobContext(
-        const TYPath& path,
-        const TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId)
-    {
-        MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId);
-    }
-
-    TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (filter.IsEmpty()) {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
-
             return CachedExecNodeDescriptors_;
         }
 
@@ -344,51 +411,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TReaderGuard guard(ExecNodeDescriptorsLock_);
-        return static_cast<int>(CachedExecNodeDescriptors_->Descriptors.size());
-    }
-
-    void InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason)
-    {
-        PopulateHeartbeatRequest(
-            incarnationId,
-            [&] (const auto& request) {
-                auto* jobToInterrupt = request->add_jobs_to_interrupt();
-                ToProto(jobToInterrupt->mutable_job_id(), jobId);
-                jobToInterrupt->set_reason(static_cast<int>(reason));
-            });
-    }
-
-    void AbortJob(const TIncarnationId& incarnationId, const TJobId& jobId, const TError& error)
-    {
-        PopulateHeartbeatRequest(
-            incarnationId,
-            [&] (const auto& request) {
-                auto* jobToAbort = request->add_jobs_to_abort();
-                ToProto(jobToAbort->mutable_job_id(), jobId);
-                ToProto(jobToAbort->mutable_error(), error);
-            });
-    }
-
-    void FailJob(const TIncarnationId& incarnationId, const TJobId& jobId)
-    {
-        PopulateHeartbeatRequest(
-            incarnationId,
-            [&] (const auto& request) {
-                auto* jobToFail = request->add_jobs_to_fail();
-                ToProto(jobToFail->mutable_job_id(), jobId);
-            });
-    }
-
-    void ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds)
-    {
-        PopulateHeartbeatRequest(
-            incarnationId,
-            [&] (const auto& request) {
-                for (const auto& jobId : jobIds) {
-                    auto* jobToRelease = request->add_jobs_to_release();
-                    ToProto(jobToRelease->mutable_job_id(), jobId);
-                }
-            });
+        return static_cast<int>(CachedExecNodeDescriptors_->size());
     }
 
     const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const
@@ -414,19 +437,25 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    TOperationIdToControllerMap ControllerMap_;
+    TOperationIdToOperationMap IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
-    TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
-    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
+    TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
+    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
-    TCpuInstant LastExecNodesUpdateTime_ = TCpuInstant();
+    TInstant LastExecNodesUpdateTime_;
 
-    TSpinLock HeartbeatRequestLock_;
-    TIncarnationId HeartbeatIncarnationId_;
-    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr HeartbeatRequest_;
+    TIncarnationId IncarnationId_;
+
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
+    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>> ScheduleJobResposesOutbox_;
+
+    std::unique_ptr<NScheduler::TMessageQueueInbox> JobEventsInbox_;
+    std::unique_ptr<NScheduler::TMessageQueueInbox> OperationEventsInbox_;
+    std::unique_ptr<NScheduler::TMessageQueueInbox> ScheduleJobRequestsInbox_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -444,19 +473,35 @@ private:
         CancelableContext_ = New<TCancelableContext>();
         // TODO(babenko): better queue
         CancelableInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
+
+        IncarnationId_ = MasterConnector_->GetIncarnationId();
+
+        OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_));
+        JobEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_));
+        ScheduleJobResposesOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v", IncarnationId_));
+
+        JobEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_));
+        OperationEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: SchedulerToAgentOperation, IncarnationId: %v", IncarnationId_));
+        ScheduleJobRequestsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+            NLogging::TLogger(ControllerAgentLogger)
+                .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
     }
 
     void OnMasterConnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        {
-            auto guard = Guard(HeartbeatRequestLock_);
-            HeartbeatIncarnationId_ = MasterConnector_->GetIncarnationId();
-            PrepareHeartbeatRequest();
-        }
-
-        CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
+        CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
             BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
             GetCancelableInvoker());
@@ -471,11 +516,12 @@ private:
 
     void DoCleanup()
     {
-        for (const auto& pair : ControllerMap_) {
-            const auto& controller = pair.second;
+        for (const auto& pair : IdToOperation_) {
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
             controller->Cancel();
         }
-        ControllerMap_.clear();
+        IdToOperation_.clear();
 
         if (CancelableContext_) {
             CancelableContext_->Cancel();
@@ -492,11 +538,15 @@ private:
             HeartbeatExecutor_.Reset();
         }
 
-        {
-            auto guard = Guard(HeartbeatRequestLock_);
-            HeartbeatIncarnationId_ = {};
-            HeartbeatRequest_.Reset();
-        }
+        IncarnationId_ = {};
+
+        OperationEventsOutbox_.Reset();
+        JobEventsOutbox_.Reset();
+        ScheduleJobResposesOutbox_.Reset();
+
+        JobEventsInbox_.reset();
+        OperationEventsInbox_.reset();
+        ScheduleJobRequestsInbox_.reset();
     }
 
     void OnMasterDisconnected()
@@ -514,150 +564,300 @@ private:
             "Master is not connected");
     }
 
-    template <class F>
-    void PopulateHeartbeatRequest(const TIncarnationId& incarnationId, F callback)
+    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest()
     {
-        auto guard = Guard(HeartbeatRequestLock_);
-        if (HeartbeatIncarnationId_ != incarnationId) {
-            return;
+        auto req = SchedulerProxy_.Heartbeat();
+
+        ToProto(req->mutable_agent_incarnation_id(), IncarnationId_);
+
+        OperationEventsOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_operation_events(),
+            [] (auto* protoEvent, const auto& event) {
+                protoEvent->set_event_type(static_cast<int>(event.EventType));
+                ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+                switch (event.EventType) {
+                    case EAgentToSchedulerOperationEventType::Completed:
+                        break;
+                    case EAgentToSchedulerOperationEventType::Aborted:
+                    case EAgentToSchedulerOperationEventType::Failed:
+                    case EAgentToSchedulerOperationEventType::Suspended:
+                        ToProto(protoEvent->mutable_error(), event.Error);
+                        break;
+                    default:
+                        Y_UNREACHABLE();
+                }
+            });
+
+        JobEventsOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_job_events(),
+            [] (auto* protoEvent, const auto& event) {
+                protoEvent->set_event_type(static_cast<int>(event.EventType));
+                ToProto(protoEvent->mutable_job_id(), event.JobId);
+                if (event.InterruptReason) {
+                    protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
+                }
+                if (!event.Error.IsOK()) {
+                    ToProto(protoEvent->mutable_error(), event.Error);
+                }
+            });
+
+        ScheduleJobResposesOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_schedule_job_responses(),
+            [] (auto* protoResponse, const auto& response) {
+                const auto& scheduleJobResult = *response.Result;
+                ToProto(protoResponse->mutable_job_id(), response.JobId);
+                if (scheduleJobResult.StartDescriptor) {
+                    const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
+                    Y_ASSERT(response.JobId == startDescriptor.Id);
+                    protoResponse->set_job_type(static_cast<int>(startDescriptor.Type));
+                    ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
+                    protoResponse->set_interruptible(startDescriptor.Interruptible);
+                }
+                protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
+                for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+                    if (scheduleJobResult.Failed[reason] > 0) {
+                        auto* protoCounter = protoResponse->add_failed();
+                        protoCounter->set_reason(static_cast<int>(reason));
+                        protoCounter->set_value(scheduleJobResult.Failed[reason]);
+                    }
+                }
+            });
+
+        JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
+        OperationEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_operation_events());
+        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_responses());
+
+        for (const auto& pair : GetOperations()) {
+            const auto& operationId = pair.first;
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
+
+            auto* protoOperation = req->add_operations();
+            ToProto(protoOperation->mutable_operation_id(), operationId);
+
+            {
+                auto jobMetricsDelta = controller->PullJobMetricsDelta();
+                ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
+            }
+
+            for (const auto& pair : controller->GetAlerts()) {
+                auto alertType = pair.first;
+                const auto& alert = pair.second;
+                auto* protoAlert = protoOperation->add_alerts();
+                protoAlert->set_type(static_cast<int>(alertType));
+                ToProto(protoAlert->mutable_error(), alert);
+            }
+
+            // TODO(ignat): add some backoff.
+            protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+            protoOperation->set_pending_job_count(controller->GetPendingJobCount());
+            ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
+            ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
         }
-        YCHECK(HeartbeatRequest_);
-        callback(HeartbeatRequest_);
-    }
 
-    void PrepareHeartbeatRequest()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        VERIFY_SPINLOCK_AFFINITY(HeartbeatRequestLock_);
+        {
+            auto now = TInstant::Now();
+            bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + Config_->ExecNodesRequestPeriod < now;
+            req->set_exec_nodes_requested(shouldRequestExecNodes);
+        }
 
-        HeartbeatRequest_ = SchedulerProxy_.Heartbeat();
-        ToProto(HeartbeatRequest_->mutable_agent_incarnation_id(), MasterConnector_->GetIncarnationId());
+        return req;
     }
 
     void SendHeartbeat()
     {
-        TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr req;
-        {
-            auto guard = Guard(HeartbeatRequestLock_);
-            req = HeartbeatRequest_;
-            PrepareHeartbeatRequest();
-        }
+        LOG_INFO("Sending heartbeat");
 
-        auto controllers = GetControllers();
-        for (const auto& pair : controllers) {
-            const auto& operationId = pair.first;
-            const auto& controller = pair.second;
-
-            auto event = controller->PullEvent();
-            switch (event.Tag()) {
-                case TOperationControllerEvent::TagOf<TNullOperationEvent>():
-                    break;
-
-                case TOperationControllerEvent::TagOf<TOperationCompletedEvent>(): {
-                    auto* proto = req->add_completed_operations();
-                    ToProto(proto->mutable_operation_id(), operationId);
-                    break;
-                }
-
-                case TOperationControllerEvent::TagOf<TOperationAbortedEvent>(): {
-                    const auto& typedEvent = event.As<TOperationAbortedEvent>();
-                    auto* proto = req->add_aborted_operations();
-                    ToProto(proto->mutable_operation_id(), operationId);
-                    ToProto(proto->mutable_error(), typedEvent.Error);
-                    break;
-                }
-
-                case TOperationControllerEvent::TagOf<TOperationFailedEvent>(): {
-                    const auto& typedEvent = event.As<TOperationFailedEvent>();
-                    auto failedOperationProto = req->add_failed_operations();
-                    ToProto(failedOperationProto->mutable_operation_id(), operationId);
-                    ToProto(failedOperationProto->mutable_error(), typedEvent.Error);
-                    break;
-                }
-
-                case TOperationControllerEvent::TagOf<TOperationSuspendedEvent>(): {
-                    const auto& typedEvent = event.As<TOperationSuspendedEvent>();
-                    auto* proto = req->add_suspended_operations();
-                    ToProto(proto->mutable_operation_id(), operationId);
-                    ToProto(proto->mutable_error(), typedEvent.Error);
-                    break;
-                }
-
-                default:
-                    Y_UNREACHABLE();
-            }
-
-            {
-                auto jobMetricsDelta = controller->PullJobMetricsDelta();
-                ToProto(req->add_job_metrics(), jobMetricsDelta);
-            }
-
-
-            {
-                auto* operationAlertsProto = req->add_operation_alerts();
-                ToProto(operationAlertsProto->mutable_operation_id(), operationId);
-                for (const auto& pair : controller->GetAlerts()) {
-                    auto alertType = pair.first;
-                    const auto& alert = pair.second;
-                    auto* protoAlert = operationAlertsProto->add_alerts();
-                    protoAlert->set_type(static_cast<int>(alertType));
-                    ToProto(protoAlert->mutable_error(), alert);
-                }
-            }
-        }
-
-        auto now = GetCpuInstant();
-        bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + DurationToCpuDuration(Config_->ExecNodesRequestPeriod) < now;
-        req->set_exec_nodes_requested(shouldRequestExecNodes);
-
-        // TODO(ignat): add some backoff.
-        {
-            std::vector<TString> suspiciousJobsYsons;
-            for (const auto& pair : controllers) {
-                const auto& controller = pair.second;
-                suspiciousJobsYsons.push_back(controller->GetSuspiciousJobsYson().GetData());
-            }
-            req->set_suspicious_jobs(JoinSeq("", suspiciousJobsYsons));
-        }
-
+        auto req = PrepareHeartbeatRequest();
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            if (rspOrError.FindMatching(NRpc::EErrorCode::Unavailable)) {
-                LOG_DEBUG(rspOrError, "Scheduler is currently unavailable; retrying heartbeat");
-            } else {
-                LOG_WARNING(rspOrError, "Error reporting heratbeat to scheduler; disconnecting");
-                // TODO(ignat): this class is not ready from disconnection inside! Fix it!!!
-                //Disconnect();
-            }
+            LOG_WARNING(rspOrError, "Heartbeat failed; backing off and retrying");
+            Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
             return;
         }
 
+        LOG_INFO("Heartbeat succeeded");
         const auto& rsp = rspOrError.Value();
 
+        OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
+        JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events());
+        ScheduleJobResposesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
+
+        HandleJobEvents(rsp);
+        HandleOperationEvents(rsp);
+        HandleScheduleJobRequests(rsp, GetExecNodeDescriptors({}));
+
         if (rsp->has_exec_nodes()) {
-            auto execNodeDescriptors = New<TExecNodeDescriptorList>();
-            FromProto(&execNodeDescriptors->Descriptors, rsp->exec_nodes().exec_nodes());
+            auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
+            for (const auto& protoDescriptor : rsp->exec_nodes().exec_nodes()) {
+                YCHECK(execNodeDescriptors->emplace(
+                    protoDescriptor.node_id(),
+                    FromProto<TExecNodeDescriptor>(protoDescriptor)).second);
+            }
 
             {
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
 
-            LastExecNodesUpdateTime_ = now;
+            LastExecNodesUpdateTime_ = TInstant::Now();
         }
     }
 
+    void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
+    {
+        THashMap<TOperationPtr, std::vector<NScheduler::NProto::TSchedulerToAgentJobEvent*>> groupedJobEvents;
+        JobEventsInbox_->HandleIncoming(
+            rsp->mutable_scheduler_to_agent_job_events(),
+            [&] (auto* protoEvent) {
+                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                auto operation = this->FindOperation(operationId);
+                if (!operation) {
+                    return;
+                }
+                groupedJobEvents[operation].push_back(protoEvent);
+            });
+
+        for (auto& pair : groupedJobEvents) {
+            const auto& operation = pair.first;
+            auto controller = operation->GetController();
+            controller->GetCancelableInvoker()->Invoke(
+                BIND([rsp, controller, this_ = MakeStrong(this), protoEvents = std::move(pair.second)] {
+                    for (auto* protoEvent : protoEvents) {
+                        auto eventType = static_cast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
+                        switch (eventType) {
+                            case ESchedulerToAgentJobEventType::Started:
+                                controller->OnJobStarted(std::make_unique<TStartedJobSummary>(protoEvent));
+                                break;
+                            case ESchedulerToAgentJobEventType::Completed:
+                                controller->OnJobCompleted(std::make_unique<TCompletedJobSummary>(protoEvent));
+                                break;
+                            case ESchedulerToAgentJobEventType::Failed:
+                                controller->OnJobFailed(std::make_unique<TFailedJobSummary>(protoEvent));
+                                break;
+                            case ESchedulerToAgentJobEventType::Aborted:
+                                controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(protoEvent));
+                                break;
+                            case ESchedulerToAgentJobEventType::Running:
+                                controller->OnJobRunning(std::make_unique<TRunningJobSummary>(protoEvent));
+                                break;
+                            default:
+                                Y_UNREACHABLE();
+                        }
+                    }
+                }));
+        }
+    }
+
+    void HandleOperationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
+    {
+        OperationEventsInbox_->HandleIncoming(
+            rsp->mutable_scheduler_to_agent_operation_events(),
+            [&] (const auto* protoEvent) {
+                auto eventType = static_cast<ESchedulerToAgentOperationEventType>(protoEvent->event_type());
+                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                auto operation = this->FindOperation(operationId);
+                if (!operation) {
+                    return;
+                }
+
+                switch (eventType) {
+                    case ESchedulerToAgentOperationEventType::Abandon:
+                        // TODO(babenko)
+                        break;
+
+                    case ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources:
+                        operation->GetController()->UpdateMinNeededJobResources();
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
+                }
+            });
+    }
+
+    void HandleScheduleJobRequests(
+        const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp,
+        const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
+    {
+        auto outbox = ScheduleJobResposesOutbox_;
+
+        auto replyWithFailure = [=] (const TJobId& jobId, EScheduleJobFailReason reason) {
+            TAgentToSchedulerScheduleJobResponse response;
+            response.JobId = jobId;
+            response.Result = New<TScheduleJobResult>();
+            response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
+            outbox->Enqueue(std::move(response));
+        };
+
+        ScheduleJobRequestsInbox_->HandleIncoming(
+            rsp->mutable_scheduler_to_agent_schedule_job_requests(),
+            [&] (auto* protoRequest) {
+                auto jobId = FromProto<TJobId>(protoRequest->job_id());
+                auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
+                auto operation = this->FindOperation(operationId);
+                if (!operation) {
+                    replyWithFailure(jobId, EScheduleJobFailReason::UnknownOperation);
+                    LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
+                        operationId,
+                        jobId);
+                    return;
+                }
+
+                auto controller = operation->GetController();
+                GuardedInvoke(
+                    controller->GetCancelableInvoker(),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        auto nodeId = NodeIdFromJobId(jobId);
+                        auto descriptorIt = execNodeDescriptors->find(nodeId);
+                        if (descriptorIt == execNodeDescriptors->end()) {
+                            replyWithFailure(jobId, EScheduleJobFailReason::UnknownNode);
+                            LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
+                                operationId,
+                                jobId,
+                                nodeId);
+                            return;
+                        }
+
+                        auto jobLimits = FromProto<TJobResourcesWithQuota>(protoRequest->job_resource_limits());
+                        const auto& treeId = protoRequest->tree_id();
+
+                        TAgentToSchedulerScheduleJobResponse response;
+                        TSchedulingContext context(protoRequest, descriptorIt->second);
+                        response.JobId = jobId;
+                        response.Result = controller->ScheduleJob(
+                            &context,
+                            jobLimits,
+                            treeId);
+
+                        outbox->Enqueue(std::move(response));
+                        LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
+                            operationId,
+                            jobId);
+                    }),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        replyWithFailure(jobId, EScheduleJobFailReason::UnknownOperation);
+                        LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
+                            operationId,
+                            jobId);
+                    }));
+            });
+    }
+
+
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
-    TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-        auto result = New<TExecNodeDescriptorList>();
-        for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
+        auto result = New<TRefCountedExecNodeDescriptorMap>();
+        for (const auto& pair : *CachedExecNodeDescriptors_) {
+            auto nodeId = pair.first;
+            const auto& descriptor = pair.second;
             if (filter.CanSchedule(descriptor.Tags)) {
-                result->Descriptors.push_back(descriptor);
+                YCHECK(result->emplace(nodeId, descriptor).second);
             }
         }
         return result;
@@ -673,11 +873,6 @@ TControllerAgent::TControllerAgent(
 { }
 
 TControllerAgent::~TControllerAgent() = default;
-
-const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
-{
-    return Impl_->GetCancelableInvoker();
-}
 
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 {
@@ -744,24 +939,39 @@ void TControllerAgent::UpdateConfig(const TControllerAgentConfigPtr& config)
     Impl_->UpdateConfig(config);
 }
 
-void TControllerAgent::RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller)
+TOperationPtr TControllerAgent::CreateOperation(const NScheduler::TOperationPtr& operation)
 {
-    Impl_->RegisterController(operationId, controller);
+    return Impl_->CreateOperation(operation);
 }
 
-void TControllerAgent::UnregisterController(const TOperationId& operationId)
+void TControllerAgent::RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation)
 {
-    Impl_->UnregisterController(operationId);
+    Impl_->RegisterOperation(operationId, operation);
 }
 
-IOperationControllerPtr TControllerAgent::FindController(const TOperationId& operationId)
+void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
 {
-    return Impl_->FindController(operationId);
+    Impl_->UnregisterOperation(operationId);
 }
 
-TOperationIdToControllerMap TControllerAgent::GetControllers()
+TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
 {
-    return Impl_->GetControllers();
+    return Impl_->FindOperation(operationId);
+}
+
+TOperationPtr TControllerAgent::GetOperation(const TOperationId& operationId)
+{
+    return Impl_->GetOperation(operationId);
+}
+
+TOperationPtr TControllerAgent::GetOperationOrThrow(const TOperationId& operationId)
+{
+    return Impl_->GetOperationOrThrow(operationId);
+}
+
+const TOperationIdToOperationMap& TControllerAgent::GetOperations()
+{
+    return Impl_->GetOperations();
 }
 
 TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(
@@ -782,48 +992,14 @@ TFuture<TYsonString> TControllerAgent::BuildJobInfo(
     return Impl_->BuildJobInfo(operationId, jobId);
 }
 
-TFuture<void> TControllerAgent::GetHeartbeatSentFuture()
-{
-    return Impl_->GetHeartbeatSentFuture();
-}
-
 int TControllerAgent::GetExecNodeCount() const
 {
     return Impl_->GetExecNodeCount();
 }
 
-TExecNodeDescriptorListPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+TRefCountedExecNodeDescriptorMapPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
 {
     return Impl_->GetExecNodeDescriptors(filter);
-}
-
-void TControllerAgent::AttachJobContext(
-    const TYPath& path,
-    const TChunkId& chunkId,
-    const TOperationId& operationId,
-    const TJobId& jobId)
-{
-    Impl_->AttachJobContext(path, chunkId, operationId, jobId);
-}
-
-void TControllerAgent::InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason)
-{
-    Impl_->InterruptJob(incarnationId, jobId, reason);
-}
-
-void TControllerAgent::AbortJob(const TIncarnationId& incarnationId, const TJobId& jobId, const TError& error)
-{
-    Impl_->AbortJob(incarnationId, jobId, error);
-}
-
-void TControllerAgent::FailJob(const TIncarnationId& incarnationId, const TJobId& jobId)
-{
-    Impl_->FailJob(incarnationId, jobId);
-}
-
-void TControllerAgent::ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds)
-{
-    Impl_->ReleaseJobs(incarnationId, jobIds);
 }
 
 const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() const

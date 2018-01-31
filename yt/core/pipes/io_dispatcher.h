@@ -2,13 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/shutdownable.h>
-
 #include <yt/core/actions/public.h>
 
-namespace ev {
-    struct loop_ref;
-}
+#include <yt/core/concurrency/public.h>
 
 namespace NYT {
 namespace NPipes {
@@ -16,7 +12,6 @@ namespace NPipes {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIODispatcher
-    : public IShutdownable
 {
 public:
     ~TIODispatcher();
@@ -25,19 +20,18 @@ public:
 
     static void StaticShutdown();
 
-    virtual void Shutdown() override;
+    void Shutdown();
 
     IInvokerPtr GetInvoker();
 
-    const ev::loop_ref& GetEventLoop();
+    NConcurrency::IPollerPtr GetPoller();
 
 private:
     TIODispatcher();
 
     Y_DECLARE_SINGLETON_FRIEND();
 
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    NConcurrency::IPollerPtr Poller_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

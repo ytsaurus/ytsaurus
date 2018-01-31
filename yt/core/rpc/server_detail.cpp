@@ -138,6 +138,10 @@ TSharedRefArray TServiceContextBase::GetResponseMessage() const
         ToProto(header.mutable_request_id(), RequestId_);
         ToProto(header.mutable_error(), Error_);
 
+        if (RequestHeader_->has_response_format()) {
+            header.set_response_format(RequestHeader_->response_format());
+        }
+
         ResponseMessage_ = Error_.IsOK()
             ? CreateResponseMessage(
                 header,

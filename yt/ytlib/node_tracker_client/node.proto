@@ -127,6 +127,7 @@ message TNodeDescriptor
     required TAddressMap addresses = 1;
     optional string rack = 2;
     optional string data_center = 3;
+    repeated string tags = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

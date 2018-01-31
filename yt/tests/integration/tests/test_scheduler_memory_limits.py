@@ -37,7 +37,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "enable_cgroups": True,                                       # <= 18.4
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+            "supported_cgroups": ["cpuacct", "blkio", "cpu"],   # <= 18.4
             "slot_manager": {
                 "enforce_job_control": True,                              # <= 18.4
                 "memory_watchdog_period" : 100,                           # <= 18.4
@@ -47,7 +47,6 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
                     "supported_cgroups": [                                # >= 18.5
                         "cpuacct",
                         "blkio",
-                        "memory",
                         "cpu"],
                 },
             }
@@ -109,7 +108,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "enable_cgroups": True,                                       # <= 18.4
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+            "supported_cgroups": ["cpuacct", "blkio", "cpu"],   # <= 18.4
             "slot_manager": {
                 "enforce_job_control": True,                              # <= 18.4
                 "memory_watchdog_period" : 100,                           # <= 18.4
@@ -119,7 +118,6 @@ class TestMemoryReserveFactor(YTEnvSetup):
                     "supported_cgroups": [                                # >= 18.5
                         "cpuacct",
                         "blkio",
-                        "memory",
                         "cpu"],
                 },
             }

@@ -62,7 +62,7 @@ THashSet<TString> TYsonSerializableLite::GetRegisteredKeys() const
 
 void TYsonSerializableLite::Load(
     INodePtr node,
-    bool validate,
+    bool postprocess,
     bool setDefaults,
     const TYPath& path)
 {
@@ -106,11 +106,9 @@ void TYsonSerializableLite::Load(
         }
     }
 
-    if (validate) {
-        Validate(path);
+    if (postprocess) {
+        Postprocess(path);
     }
-
-    OnLoaded();
 }
 
 void TYsonSerializableLite::Save(
@@ -152,18 +150,18 @@ void TYsonSerializableLite::Save(
     consumer->OnEndMap();
 }
 
-void TYsonSerializableLite::Validate(const TYPath& path) const
+void TYsonSerializableLite::Postprocess(const TYPath& path) const
 {
     for (const auto& pair : Parameters) {
-        pair.second->Validate(path + "/" + pair.first);
+        pair.second->Postprocess(path + "/" + pair.first);
     }
 
     try {
-        for (const auto& validator : Validators) {
-            validator();
+        for (const auto& postprocessor : Postprocessors) {
+            postprocessor();
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Validation failed at %v",
+        THROW_ERROR_EXCEPTION("Postprocess failed at %v",
             path.empty() ? "root" : path)
             << ex;
     }
@@ -174,23 +172,20 @@ void TYsonSerializableLite::SetDefaults()
     for (const auto& pair : Parameters) {
         pair.second->SetDefaults();
     }
-    for (const auto& initializer : Initializers) {
+    for (const auto& initializer : Preprocessors) {
         initializer();
     }
 }
 
-void TYsonSerializableLite::OnLoaded()
-{ }
-
-void TYsonSerializableLite::RegisterInitializer(const TInitializer& func)
+void TYsonSerializableLite::RegisterPreprocessor(const TPreprocessor& func)
 {
     func();
-    Initializers.push_back(func);
+    Preprocessors.push_back(func);
 }
 
-void TYsonSerializableLite::RegisterValidator(const TValidator& func)
+void TYsonSerializableLite::RegisterPostprocessor(const TPostprocessor& func)
 {
-    Validators.push_back(func);
+    Postprocessors.push_back(func);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

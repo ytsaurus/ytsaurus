@@ -111,19 +111,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if defined(__GNUC__) || defined(__clang__)
-#define WARN_UNUSED_RESULT_ATTRIBUTE __attribute__((warn_unused_result))
-#else
-#define WARN_UNUSED_RESULT_ATTRIBUTE
-#endif
+template <class T>
+TErrorOr<T> WaitFor(TFuture<T> future) Y_WARN_UNUSED_RESULT;
 
 template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future) WARN_UNUSED_RESULT_ATTRIBUTE;
-
-template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker) WARN_UNUSED_RESULT_ATTRIBUTE;
-
-#undef WARN_UNUSED_RESULT_ATTRIBUTE
+TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker) Y_WARN_UNUSED_RESULT;
 
 ////////////////////////////////////////////////////////////////////////////////
 

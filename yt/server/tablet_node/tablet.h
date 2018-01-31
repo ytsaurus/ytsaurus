@@ -82,6 +82,7 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
     std::atomic<i64> DynamicMemoryPoolSize = {0};
+    TEnumIndexedVector<TAtomicObject<TError>, NTabletClient::ETabletBackgroundActivity> Errors;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)

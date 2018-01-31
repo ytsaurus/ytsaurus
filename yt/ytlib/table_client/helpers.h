@@ -47,12 +47,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPipeReaderToWriterOptions
+{
+    int BufferRowCount = 0;
+    bool ValidateValues = false;
+    NConcurrency::IThroughputThrottlerPtr Throttler = nullptr;
+    // Used only for testing.
+    TDuration PipeDelay;
+};
+
 void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
-    int bufferRowCount,
-    bool validateValues = false,
-    NConcurrency::IThroughputThrottlerPtr throttler = nullptr);
+    TPipeReaderToWriterOptions options);
 
 void PipeInputToOutput(
     IInputStream* input,

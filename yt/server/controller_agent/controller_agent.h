@@ -45,9 +45,6 @@ public:
         NCellScheduler::TBootstrap* bootstrap);
     ~TControllerAgent();
 
-    // XXX(babenko): remove this after getting rid of AttachJobContext
-    const IInvokerPtr& GetCancelableInvoker();
-
     /*!
      *  \note Thread affinity: any
      */
@@ -97,19 +94,20 @@ public:
      */
     const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
 
-    void RegisterController(const TOperationId& operationId, const IOperationControllerPtr& controller);
-    void UnregisterController(const TOperationId& operationId);
-    IOperationControllerPtr FindController(const TOperationId& operationId);
-    TOperationIdToControllerMap GetControllers();
+    // TODO(babenko)
+    TOperationPtr CreateOperation(const NScheduler::TOperationPtr& operation);
+    void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation);
+    void UnregisterOperation(const TOperationId& operationId);
+    TOperationPtr FindOperation(const TOperationId& operationId);
+    TOperationPtr GetOperation(const TOperationId& operationId);
+    TOperationPtr GetOperationOrThrow(const TOperationId& operationId);
+    const TOperationIdToOperationMap& GetOperations();
 
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);
 
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId);
     TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, const TJobId& jobId);
-
-    // XXX(babenko)
-    TFuture<void> GetHeartbeatSentFuture();
 
     //! Returns the total number of online exec nodes.
     /*!
@@ -121,31 +119,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    NScheduler::TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
-
-    // XXX(babenko): this method does not belong here
-    void AttachJobContext(
-        const NYTree::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId);
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    void InterruptJob(const TIncarnationId& incarnationId, const TJobId& jobId, EInterruptReason reason);
-    /*!
-     *  \note Thread affinity: any
-     */
-    void AbortJob(const TIncarnationId& incarnationId, const TJobId& jobId, const TError& error);
-    /*!
-     *  \note Thread affinity: any
-     */
-    void FailJob(const TIncarnationId& incarnationId, const TJobId& jobId);
-    /*!
-     *  \note Thread affinity: any
-     */
-    void ReleaseJobs(const TIncarnationId& incarnationId, const std::vector<TJobId>& jobIds);
+    NScheduler::TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
 
     /*!
      *  \note Thread affinity: any

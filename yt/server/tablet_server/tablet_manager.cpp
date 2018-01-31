@@ -1496,7 +1496,7 @@ public:
                 hiveManager->PostMessage(mailbox, req);
             }
 
-            for (auto& pair  : tablet->Replicas()) {
+            for (auto& pair : GetPairsSortedByKey(tablet->Replicas())) {
                 auto* replica = pair.first;
                 auto& replicaInfo = pair.second;
                 if (replica->GetState() != ETableReplicaState::Enabled) {
@@ -1802,7 +1802,7 @@ public:
         int newTabletCount,
         const std::vector<TOwningKey>& pivotKeys)
     {
-        if (!pivotKeys.empty() || !table->IsSorted()) {
+        if (!pivotKeys.empty() || !table->IsPhysicallySorted()) {
             DoReshardTable(
                 table,
                 firstTabletIndex,
@@ -2949,6 +2949,14 @@ private:
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
 
+            auto errors = FromProto<std::vector<TError>>(tabletInfo.errors());
+            for (auto errorKey : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                size_t idx = static_cast<size_t>(errorKey);
+                if (idx < errors.size()) {
+                    tablet->Errors()[errorKey] = errors[idx];
+                }
+            }
+
             for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
                 auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
                 auto* replica = FindTableReplica(replicaId);
@@ -3466,9 +3474,17 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet)) {
+
+        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
+                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
+                tabletId,
+                transaction->GetId(),
+                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
             return;
         }
+
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
@@ -3481,12 +3497,7 @@ private:
             return;
         }
 
-        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
-                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
-                tabletId,
-                transaction->GetId(),
-                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
+        if (!IsObjectAlive(tablet)) {
             return;
         }
 
@@ -3559,6 +3570,12 @@ private:
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
+        // Schedule property update for newly created chunks (the protocol
+        // doesn't allow for creating chunks with correct properties from the start).
+        for (auto* chunk : chunksToAttach) {
+            chunkManager->ScheduleChunkPropertiesUpdate(chunk);
+        }
+
         // Schedule propery update for deleted chunks.
         for (auto* chunk : chunksToDetach) {
             chunkManager->ScheduleChunkPropertiesUpdate(chunk);
@@ -3576,10 +3593,6 @@ private:
         // Update table resource usage.
         for (auto* chunk : chunksToAttach) {
             chunkManager->UnstageChunk(chunk->AsChunk());
-        }
-
-        if (tablet->GetStoresUpdatePreparedTransaction() == transaction) {
-            tablet->SetStoresUpdatePreparedTransaction(nullptr);
         }
 
         // Update node resource usage.

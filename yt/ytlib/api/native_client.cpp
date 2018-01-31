@@ -26,6 +26,9 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/file_client/file_chunk_writer.h>
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -85,6 +88,8 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/crypto/crypto.h>
+
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -107,6 +112,7 @@ using namespace NYson;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NCypressClient;
+using namespace NFileClient;
 using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NTableClient;
@@ -127,6 +133,7 @@ using NTableClient::TColumnSchema;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
 using NNodeTrackerClient::TNetworkPreferenceList;
+using NNodeTrackerClient::TNodeDescriptor;
 
 using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplicaCount>;
 
@@ -219,6 +226,20 @@ TUnversionedOwningRow CreateJobKey(const TJobId& jobId, const TNameTablePtr& nam
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+constexpr int FileCacheHashDigitCount = 2;
+
+NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cachePath)
+{
+    auto lastDigits = md5.substr(md5.size() - FileCacheHashDigitCount);
+    return cachePath + "/" + lastDigits + "/" + md5;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TError TCheckPermissionResult::ToError(const TString& user, EPermission permission) const
 {
     switch (Action) {
@@ -262,7 +283,7 @@ class TJobInputReader
     : public NConcurrency::IAsyncZeroCopyInputStream
 {
 public:
-    TJobInputReader(NJobProxy::TUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
+    TJobInputReader(NJobProxy::IUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
         : Invoker_(std::move(invoker))
         , UserJobReadController_(std::move(userJobReadController))
         , AsyncStreamPipe_(New<TAsyncStreamPipe>())
@@ -288,7 +309,7 @@ public:
 
 private:
     const IInvokerPtr Invoker_;
-    const NJobProxy::TUserJobReadControllerPtr UserJobReadController_;
+    const NJobProxy::IUserJobReadControllerPtr UserJobReadController_;
     const NConcurrency::TAsyncStreamPipePtr AsyncStreamPipe_;
 
     TFuture<void> TransferResultFuture_;
@@ -745,6 +766,17 @@ public:
     {
         return NApi::CreateTableWriter(this, path, options);
     }
+
+    IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
+        const TString& md5,
+        const TGetFileFromCacheOptions& options),
+        (md5, options))
+
+    IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options),
+        (path, expectedMD5, options))
 
     IMPLEMENT_METHOD(void, AddMember, (
         const TString& group,
@@ -2867,6 +2899,201 @@ private:
         return FromProto<TObjectId>(rsp->object_id());
     }
 
+    TGetFileFromCacheResult DoGetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options)
+    {
+        TGetFileFromCacheResult result;
+        auto destination = GetFilePathInCache(md5, options.CachePath);
+
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto req = TYPathProxy::Get(destination + "/@");
+
+        std::vector<TString> attributeKeys{
+            "md5"
+        };
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+        SetTransactionId(req, options, true);
+
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        if (!rspOrError.IsOK()) {
+            LOG_DEBUG(
+                rspOrError,
+                "File is missing "
+                "(Destination: %v, MD5: %v)",
+                destination,
+                md5);
+
+            return result;
+        }
+
+        auto rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        auto originalMD5 = attributes->Get<TString>("md5", "");
+        if (md5 != originalMD5) {
+            LOG_DEBUG(
+                "File has incorrect md5 hash "
+                "(Destination: %v, expectedMD5: %v, originalMD5: %v)",
+                destination,
+                md5,
+                originalMD5);
+
+            return result;
+        }
+
+        result.Path = destination;
+        return result;
+    }
+
+
+    TPutFileToCacheResult DoPutFileToCache(
+        const NYPath::TYPath &path,
+        const TString &expectedMD5,
+        const TPutFileToCacheOptions &options)
+    {
+        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
+        auto Logger = logger;
+
+        TPutFileToCacheResult result;
+
+        // Start transaction.
+        ITransactionPtr transaction;
+        {
+            auto transactionStartOptions = TTransactionStartOptions();
+            transactionStartOptions.ParentId = GetTransactionId(options, true);
+            transactionStartOptions.Sticky = true;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Format("Putting file %v to cache", path));
+            transactionStartOptions.Attributes = std::move(attributes);
+
+            auto asyncTransaction = StartTransaction(ETransactionType::Master, transactionStartOptions);
+            transaction = WaitFor(asyncTransaction)
+                .ValueOrThrow();
+
+            auto transactionAttachOptions = TTransactionAttachOptions();
+            transactionAttachOptions.AutoAbort = true;
+            transactionAttachOptions.PingAncestors = options.PingAncestors;
+            transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
+
+            LOG_DEBUG(
+                "Transaction started (TransactionId: %v)",
+                transaction->GetId());
+        }
+
+        Logger.AddTag("TransactionId: %v", transaction->GetId());
+
+        // Acquire lock.
+        NYPath::TYPath objectIdPath;
+        {
+            TLockNodeOptions lockNodeOptions;
+            lockNodeOptions.TransactionId = transaction->GetId();
+            auto lockResult = DoLockNode(path, ELockMode::Exclusive, lockNodeOptions);
+            objectIdPath = FromObjectId(lockResult.NodeId);
+
+            LOG_DEBUG(
+                "Lock for node acquired (LockId: %v)",
+                lockResult.LockId);
+        }
+
+        // Check permissions.
+        {
+            auto checkPermissionOptions = TCheckPermissionOptions();
+            checkPermissionOptions.TransactionId = transaction->GetId();
+
+            auto readPermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Read, checkPermissionOptions);
+            readPermissionResult.ToError(Options_.User, EPermission::Read)
+                .ThrowOnError();
+
+            auto removePermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Remove, checkPermissionOptions);
+            removePermissionResult.ToError(Options_.User, EPermission::Remove)
+                .ThrowOnError();
+
+            auto usePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Use, checkPermissionOptions);
+            usePermissionResult.ToError(Options_.User, EPermission::Use)
+                .ThrowOnError();
+        }
+
+        // Check that MD5 hash is equal to the original MD5 hash of the file.
+        {
+            auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+            auto req = TYPathProxy::Get(objectIdPath + "/@");
+
+            std::vector<TString> attributeKeys{
+                "md5"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            NCypressClient::SetTransactionId(req, transaction->GetId());
+
+            auto rspOrError = WaitFor(proxy->Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                "Error requesting md5 hash of file %v",
+                path);
+
+            auto rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            auto md5 = attributes->Get<TString>("md5");
+            if (expectedMD5 != md5) {
+                THROW_ERROR_EXCEPTION(
+                    "MD5 mismatch; expected %v, got %v",
+                    expectedMD5,
+                    md5);
+            }
+
+            LOG_DEBUG(
+                "MD5 hash checked (MD5: %v)",
+                expectedMD5);
+        }
+
+        auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
+        auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+
+        // Move file.
+        {
+            auto moveOptions = TMoveNodeOptions();
+            moveOptions.TransactionId = transaction->GetId();
+            moveOptions.Recursive = true;
+            moveOptions.Force = true;
+            moveOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            moveOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+
+            WaitFor(fileCacheClient->MoveNode(objectIdPath, destination, moveOptions))
+                .ValueOrThrow();
+
+            LOG_DEBUG(
+                "File has been moved to cache (Destination: %v)",
+                destination);
+        }
+
+        // Set /@touched attribute.
+        {
+            auto setNodeOptions = TSetNodeOptions();
+            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            setNodeOptions.TransactionId = transaction->GetId();
+
+            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
+            auto rspOrError = WaitFor(asyncResult);
+
+            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
+            }
+
+            LOG_DEBUG(
+                "Attribute /@touched set (Destination: %v)",
+                destination);
+        }
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        result.Path = destination;
+        return result;
+    }
 
     void DoAddMember(
         const TString& group,
@@ -3260,9 +3487,54 @@ private:
             .ThrowOnError();
     }
 
-    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
-        const TJobId& jobId,
-        const TGetJobInputOptions& /*options*/)
+    void ValidateJobSpecVersion(const TJobId& jobId, const NYT::NJobTrackerClient::NProto::TJobSpec& jobSpec)
+    {
+        if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
+            THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("found_version", jobSpec.version())
+                << TErrorAttribute("supported_version", GetJobSpecVersion());
+        }
+    }
+
+    TNodeDescriptor GetJobNodeDescriptor(const TJobId& jobId)
+    {
+        TNodeDescriptor jobNodeDescriptor;
+        auto req = JobProberProxy_->GetJobNode();
+        ToProto(req->mutable_job_id(), jobId);
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+        FromProto(&jobNodeDescriptor, rsp->node_descriptor());
+        return jobNodeDescriptor;
+    }
+
+    TNullable<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(const TJobId& jobId)
+    {
+        try {
+            TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
+
+            auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
+            NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+
+            auto req = jobProberServiceProxy.GetSpec();
+            ToProto(req->mutable_job_id(), jobId);
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
+
+            ValidateJobSpecVersion(jobId, rsp->spec());
+            return rsp->spec();
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob);
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job spec from job node")
+                    << TErrorAttribute("job_id", jobId)
+                    << exception;
+            }
+        }
+        return Null;
+    }
+
+    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(const TJobId& jobId)
     {
         int version = DoGetOperationsArchiveVersion();
 
@@ -3315,12 +3587,20 @@ private:
             THROW_ERROR_EXCEPTION("Cannot parse job spec")
                 << TErrorAttribute("job_id", jobId);
         }
+        ValidateJobSpecVersion(jobId, jobSpec);
 
-        if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
-            THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("found_version", jobSpec.version())
-                << TErrorAttribute("supported_version", GetJobSpecVersion());
+        return jobSpec;
+    }
+
+    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
+        const TJobId& jobId,
+        const TGetJobInputOptions& /*options*/)
+    {
+        NJobTrackerClient::NProto::TJobSpec jobSpec;
+        if (auto jobSpecFromProxy = GetJobSpecFromJobNode(jobId)) {
+            jobSpec.Swap(jobSpecFromProxy.GetPtr());
+        } else {
+            jobSpec = GetJobSpecFromArchive(jobId);
         }
 
         auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -3360,15 +3640,15 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
-        auto userJobReader = CreateUserJobReadController(
+        auto userJobReadController = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
             GetConnection()->GetInvoker(),
-            NNodeTrackerClient::TNodeDescriptor(),
+            TNodeDescriptor(),
             BIND([] { }),
             Null);
 
-        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetInvoker());
+        auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
         jobInputReader->Open();
         return jobInputReader;
     }
@@ -3378,14 +3658,7 @@ private:
         const TJobId& jobId)
     {
         try {
-            NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
-            {
-                auto req = JobProberProxy_->GetJobNode();
-                ToProto(req->mutable_job_id(), jobId);
-                auto rsp = WaitFor(req->Invoke())
-                    .ValueOrThrow();
-                FromProto(&jobNodeDescriptor, rsp->node_descriptor());
-            }
+            TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
 
             auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
             NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);

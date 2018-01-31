@@ -122,6 +122,7 @@ private:
         auto conn = WaitFor(Dialer_->Dial(address)).ValueOrThrow();
         auto input = New<THttpInput>(
             conn,
+            address,
             Invoker_,
             EMessageType::Response,
             Config_->ReadBufferSize);

@@ -79,22 +79,22 @@ public:
     TImpl(
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap)
-        : Config(config)
-        , Bootstrap(bootstrap)
+        : Config_(config)
+        , Bootstrap_(bootstrap)
     { }
 
     void Start()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Bootstrap
+        Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
             ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
-                .Via(Bootstrap->GetControlInvoker(EControlQueue::MasterConnector)));
+                .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)));
 
-        Bootstrap->GetControlInvoker()->Invoke(BIND(
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(
             &TImpl::StartConnecting,
             MakeStrong(this)));
     }
@@ -103,14 +103,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return State.load();
+        return State_.load();
     }
 
     TInstant GetConnectionTime() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return ConnectionTime.load();
+        return ConnectionTime_.load();
     }
 
     void Disconnect()
@@ -124,15 +124,15 @@ public:
     {
         // XXX(babenko): fixme
         //VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EMasterConnectorState::Disconnected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
-        return CancelableControlInvoker;
+        return CancelableControlInvoker_;
     }
 
     void StartOperationNodeUpdates(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EMasterConnectorState::Disconnected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
     }
@@ -140,13 +140,13 @@ public:
     TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EMasterConnectorState::Disconnected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
         LOG_INFO("Creating operation node (OperationId: %v)",
             operationId);
 
-        auto strategy = Bootstrap->GetScheduler()->GetStrategy();
+        auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
 
@@ -210,13 +210,13 @@ public:
 
         return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(CancelableControlInvoker));
+                .AsyncVia(CancelableControlInvoker_));
     }
 
     TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EMasterConnectorState::Disconnected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
         YCHECK(operation->GetState() == EOperationState::Reviving);
 
         auto operationId = operation->GetId();
@@ -248,15 +248,37 @@ public:
                 &TImpl::OnRevivingOperationNodeReset,
                 MakeStrong(this),
                 operation)
-            .AsyncVia(CancelableControlInvoker));
+            .AsyncVia(CancelableControlInvoker_));
     }
 
     TFuture<void> FlushOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EMasterConnectorState::Disconnected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
+    }
+
+    void AttachJobContext(
+        const TYPath& path,
+        const TChunkId& chunkId,
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        try {
+            TJobFile file{
+                jobId,
+                path,
+                chunkId,
+                "input_context"
+            };
+            SaveJobFiles(Bootstrap_->GetMasterClient(), operationId, { file });
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
+                << ex;
+        }
     }
 
 
@@ -264,34 +286,34 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Alerts[alertType] = alert;
+        Alerts_[alertType] = alert;
     }
 
     void AddGlobalWatcherRequester(TWatcherRequester requester)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        GlobalWatcherRequesters.push_back(requester);
+        GlobalWatcherRequesters_.push_back(requester);
     }
 
     void AddGlobalWatcherHandler(TWatcherHandler handler)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        GlobalWatcherHandlers.push_back(handler);
+        GlobalWatcherHandlers_.push_back(handler);
     }
 
     void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CustomGlobalWatcherRecords.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
+        CustomGlobalWatcherRecords_.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
     }
 
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EMasterConnectorState::Disconnected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         auto* list = GetOrCreateWatcherList(operation);
         list->WatcherRequesters.push_back(requester);
@@ -300,7 +322,7 @@ public:
     void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EMasterConnectorState::Disconnected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         auto* list = GetOrCreateWatcherList(operation);
         list->WatcherHandlers.push_back(handler);
@@ -310,16 +332,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Config = config;
+        Config_ = config;
 
         if (OperationNodesUpdateExecutor_) {
-            OperationNodesUpdateExecutor_->SetPeriod(Config->OperationsUpdatePeriod);
+            OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
         }
-        if (WatchersExecutor) {
-            WatchersExecutor->SetPeriod(Config->WatchersUpdatePeriod);
+        if (WatchersExecutor_) {
+            WatchersExecutor_->SetPeriod(Config_->WatchersUpdatePeriod);
         }
-        if (AlertsExecutor) {
-            AlertsExecutor->SetPeriod(Config->AlertsUpdatePeriod);
+        if (AlertsExecutor_) {
+            AlertsExecutor_->SetPeriod(Config_->AlertsUpdatePeriod);
         }
 
         ScheduleTestingDisconnect();
@@ -331,19 +353,19 @@ public:
     DEFINE_SIGNAL(void(), MasterDisconnected);
 
 private:
-    TSchedulerConfigPtr Config;
-    NCellScheduler::TBootstrap* const Bootstrap;
+    TSchedulerConfigPtr Config_;
+    NCellScheduler::TBootstrap* const Bootstrap_;
 
-    TCancelableContextPtr CancelableContext;
-    IInvokerPtr CancelableControlInvoker;
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableControlInvoker_;
 
-    std::atomic<EMasterConnectorState> State = {EMasterConnectorState::Disconnected};
-    std::atomic<TInstant> ConnectionTime;
+    std::atomic<EMasterConnectorState> State_ = {EMasterConnectorState::Disconnected};
+    std::atomic<TInstant> ConnectionTime_;
 
-    ITransactionPtr LockTransaction;
+    ITransactionPtr LockTransaction_;
 
-    TPeriodicExecutorPtr WatchersExecutor;
-    TPeriodicExecutorPtr AlertsExecutor;
+    TPeriodicExecutorPtr WatchersExecutor_;
+    TPeriodicExecutorPtr AlertsExecutor_;
 
     struct TPeriodicExecutorRecord
     {
@@ -352,13 +374,13 @@ private:
         TDuration Period;
     };
 
-    std::vector<TWatcherRequester> GlobalWatcherRequesters;
-    std::vector<TWatcherHandler>   GlobalWatcherHandlers;
+    std::vector<TWatcherRequester> GlobalWatcherRequesters_;
+    std::vector<TWatcherHandler>   GlobalWatcherHandlers_;
 
-    std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords;
-    std::vector<TPeriodicExecutorPtr> CustomGlobalWatcherExecutors;
+    std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords_;
+    std::vector<TPeriodicExecutorPtr> CustomGlobalWatcherExecutors_;
 
-    TEnumIndexedVector<TError, ESchedulerAlertType> Alerts;
+    TEnumIndexedVector<TError, ESchedulerAlertType> Alerts_;
 
     struct TOperationNodeUpdate
     {
@@ -391,17 +413,17 @@ private:
     {
         TDelayedExecutor::Submit(
             BIND(&TImpl::StartConnecting, MakeStrong(this))
-                .Via(Bootstrap->GetControlInvoker()),
-            Config->ConnectRetryBackoffTime);
+                .Via(Bootstrap_->GetControlInvoker()),
+            Config_->ConnectRetryBackoffTime);
     }
 
     void ScheduleTestingDisconnect()
     {
-        if (Config->TestingOptions->EnableRandomMasterDisconnection) {
+        if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
             TDelayedExecutor::Submit(
                 BIND(&TImpl::RandomDisconnect, MakeStrong(this))
-                    .Via(Bootstrap->GetControlInvoker()),
-                RandomDuration(Config->TestingOptions->RandomMasterDisconnectionMaxBackoff));
+                    .Via(Bootstrap_->GetControlInvoker()),
+                RandomDuration(Config_->TestingOptions->RandomMasterDisconnectionMaxBackoff));
         }
     }
 
@@ -409,8 +431,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
-        DoDisconnect();
+        if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
+            LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
+            DoDisconnect();
+        }
     }
 
     void StartConnecting()
@@ -419,57 +443,57 @@ private:
 
         LOG_INFO("Connecting to master");
 
-        YCHECK(State == EMasterConnectorState::Disconnected);
-        State = EMasterConnectorState::Connecting;
+        YCHECK(State_ == EMasterConnectorState::Disconnected);
+        State_ = EMasterConnectorState::Connecting;
 
-        YCHECK(!CancelableContext);
-        CancelableContext = New<TCancelableContext>();
+        YCHECK(!CancelableContext_);
+        CancelableContext_ = New<TCancelableContext>();
 
-        YCHECK(!CancelableControlInvoker);
-        CancelableControlInvoker = CancelableContext->CreateInvoker(
-            Bootstrap->GetControlInvoker(EControlQueue::MasterConnector));
+        YCHECK(!CancelableControlInvoker_);
+        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(
+            Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
 
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            CancelableControlInvoker,
+            CancelableControlInvoker_,
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
-            Config->OperationsUpdatePeriod,
+            Config_->OperationsUpdatePeriod,
             Logger);
 
-        WatchersExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
+        WatchersExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
-            Config->WatchersUpdatePeriod,
+            Config_->WatchersUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
 
-        AlertsExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
+        AlertsExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
-            Config->AlertsUpdatePeriod,
+            Config_->AlertsUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
 
-        for (const auto& record : CustomGlobalWatcherRecords) {
+        for (const auto& record : CustomGlobalWatcherRecords_) {
             auto executor = New<TPeriodicExecutor>(
-                CancelableControlInvoker,
+                CancelableControlInvoker_,
                 BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
                 record.Period,
                 EPeriodicExecutorMode::Automatic);
-            CustomGlobalWatcherExecutors.push_back(executor);
+            CustomGlobalWatcherExecutors_.push_back(executor);
         }
 
         auto pipeline = New<TRegistrationPipeline>(this);
         BIND(&TRegistrationPipeline::Run, pipeline)
-            .AsyncVia(CancelableControlInvoker)
+            .AsyncVia(CancelableControlInvoker_)
             .Run()
             .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this))
-                .Via(CancelableControlInvoker));
+                .Via(CancelableControlInvoker_));
     }
 
     void OnConnected(const TError& error) noexcept
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State == EMasterConnectorState::Connecting);
+        YCHECK(State_ == EMasterConnectorState::Connecting);
 
         if (!error.IsOK()) {
             LOG_WARNING(error, "Error connecting to master");
@@ -480,14 +504,14 @@ private:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        State.store(EMasterConnectorState::Connected);
-        ConnectionTime.store(TInstant::Now());
+        State_.store(EMasterConnectorState::Connected);
+        ConnectionTime_.store(TInstant::Now());
 
         LOG_INFO("Master connected");
 
-        LockTransaction->SubscribeAborted(
-            BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
-                .Via(CancelableControlInvoker));
+        LockTransaction_->SubscribeAborted(
+            BIND(&TImpl::OnLockTransaction_Aborted, MakeWeak(this))
+                .Via(CancelableControlInvoker_));
 
         StartPeriodicActivities();
 
@@ -496,7 +520,7 @@ private:
         ScheduleTestingDisconnect();
     }
 
-    void OnLockTransactionAborted()
+    void OnLockTransaction_Aborted()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -511,8 +535,8 @@ private:
     {
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
-            : Owner(owner)
-            , ServiceAddresses(Owner->Bootstrap->GetLocalAddresses())
+            : Owner_(owner)
+            , ServiceAddresses_(Owner_->Bootstrap_->GetLocalAddresses())
         { }
 
         void Run()
@@ -531,8 +555,8 @@ private:
         }
 
     private:
-        const TIntrusivePtr<TImpl> Owner;
-        const TAddressMap ServiceAddresses;
+        const TIntrusivePtr<TImpl> Owner_;
+        const TAddressMap ServiceAddresses_;
 
         struct TReviveOperationInfo
         {
@@ -540,23 +564,23 @@ private:
             EOperationCypressStorageMode StorageMode;
         };
 
-        std::vector<TReviveOperationInfo> RunningOperations;
-        TMasterHandshakeResult Result;
+        std::vector<TReviveOperationInfo> RunningOperations_;
+        TMasterHandshakeResult Result_;
 
         void FireConnecting()
         {
-            Owner->MasterConnecting_.Fire();
+            Owner_->MasterConnecting_.Fire();
         }
 
         // - Register scheduler instance.
         void RegisterInstance()
         {
-            TObjectServiceProxy proxy(Owner
-                ->Bootstrap
+            TObjectServiceProxy proxy(Owner_
+                ->Bootstrap_
                 ->GetMasterClient()
                 ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
             auto batchReq = proxy.ExecuteBatch();
-            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses));
+            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -569,7 +593,7 @@ private:
                 req->set_ignore_existing(true);
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_addresses", ServiceAddresses);
+                attributes->Set("remote_addresses", ServiceAddresses_);
                 ToProto(req->mutable_node_attributes(), *attributes);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
@@ -584,26 +608,26 @@ private:
         {
             TTransactionStartOptions options;
             options.AutoAbort = true;
-            options.Timeout = Owner->Config->LockTransactionTimeout;
+            options.Timeout = Owner_->Config_->LockTransactionTimeout;
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Scheduler lock at %v", GetDefaultAddress(ServiceAddresses)));
+            attributes->Set("title", Format("Scheduler lock at %v", GetDefaultAddress(ServiceAddresses_)));
             options.Attributes = std::move(attributes);
 
-            auto client = Owner->Bootstrap->GetMasterClient();
-            auto transactionOrError = WaitFor(Owner->Bootstrap->GetMasterClient()->StartTransaction(
+            auto client = Owner_->Bootstrap_->GetMasterClient();
+            auto transactionOrError = WaitFor(Owner_->Bootstrap_->GetMasterClient()->StartTransaction(
                 ETransactionType::Master,
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting lock transaction");
 
-            Owner->LockTransaction = transactionOrError.Value();
+            Owner_->LockTransaction_ = transactionOrError.Value();
 
-            LOG_INFO("Lock transaction is %v", Owner->LockTransaction->GetId());
+            LOG_INFO("Lock transaction is %v", Owner_->LockTransaction_->GetId());
         }
 
         // - Take lock.
         void TakeLock()
         {
-            auto result = WaitFor(Owner->LockTransaction->LockNode("//sys/scheduler/lock", ELockMode::Exclusive));
+            auto result = WaitFor(Owner_->LockTransaction_->LockNode("//sys/scheduler/lock", ELockMode::Exclusive));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error taking scheduler lock");
         }
 
@@ -611,8 +635,8 @@ private:
         // - Update orchid address.
         void AssumeControl()
         {
-            auto batchReq = Owner->StartObjectBatchRequest();
-            auto addresses = Owner->Bootstrap->GetLocalAddresses();
+            auto batchReq = Owner_->StartObjectBatchRequest();
+            auto addresses = Owner_->Bootstrap_->GetLocalAddresses();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@addresses");
                 req->set_value(ConvertToYsonString(addresses).GetData());
@@ -638,8 +662,8 @@ private:
 
         void SyncClusterDirectory()
         {
-            WaitFor(Owner
-                ->Bootstrap
+            WaitFor(Owner_
+                ->Bootstrap_
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectorySynchronizer()
@@ -652,7 +676,7 @@ private:
         {
             static const std::vector<TString> attributeKeys = {"state"};
 
-            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 auto req = TYPathProxy::List("//sys/operations");
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -755,11 +779,11 @@ private:
 
             for (const auto& operationInfo : operations) {
                 if (IsOperationInProgress(operationInfo.first)) {
-                    RunningOperations.push_back(operationInfo.second);
+                    RunningOperations_.push_back(operationInfo.second);
                 }
             }
 
-            LOG_INFO("Operations list received (RunningOperationCount: %v)", RunningOperations.size());
+            LOG_INFO("Operations list received (RunningOperationCount: %v)", RunningOperations_.size());
         }
 
         // - Request attributes for unfinished operations.
@@ -773,8 +797,15 @@ private:
                 "async_scheduler_transaction_id",
                 "input_transaction_id",
                 "output_transaction_id",
+
+                // COMPAT(ignat)
                 "completion_transaction_id",
                 "debug_output_transaction_id",
+                // Proper transactions
+                "debug_transaction_id",
+                "output_completion_transaction_id",
+                "debug_completion_transaction_id",
+
                 "spec",
                 "owners",
                 "authenticated_user",
@@ -785,12 +816,12 @@ private:
                 "slot_index_per_pool_tree"
             };
 
-            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
-                    RunningOperations.size());
+                    RunningOperations_.size());
 
-                for (const auto& operationInfo : RunningOperations) {
+                for (const auto& operationInfo : RunningOperations_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
                     const auto& operationId = operationInfo.Id;
@@ -837,7 +868,7 @@ private:
             const auto& batchRsp = batchRspOrError.Value();
 
             {
-                for (const auto& operationInfo : RunningOperations) {
+                for (const auto& operationInfo : RunningOperations_) {
                     auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
                         "get_op_attr_" + ToString(operationInfo.Id))
                         .ValueOrThrow();
@@ -874,13 +905,13 @@ private:
                             << secureVaultRspOrError;
                     }
 
-                    auto operation = Owner->TryCreateOperationFromAttributes(
+                    auto operation = Owner_->TryCreateOperationFromAttributes(
                         operationInfo.Id,
                         *attributesNode,
                         std::move(secureVault),
                         operationInfo.StorageMode);
                     if (operation) {
-                        Result.Operations.push_back(operation);
+                        Result_.Operations.push_back(operation);
                     }
                 }
             }
@@ -894,11 +925,11 @@ private:
                 return "get_op_committed_attr_" + ToString(operation->GetId());
             };
 
-            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
 
             {
                 LOG_INFO("Fetching committed attribute for operations");
-                for (const auto& operation : Result.Operations) {
+                for (const auto& operation : Result_.Operations) {
                     if (!operation->RevivalDescriptor()) {
                         continue;
                     }
@@ -986,28 +1017,28 @@ private:
 
         void UpdateGlobalWatchers()
         {
-            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : Owner->GlobalWatcherRequesters) {
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            for (auto requester : Owner_->GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
-            for (const auto& record : Owner->CustomGlobalWatcherRecords) {
+            for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
                 record.Requester.Run(batchReq);
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             auto watcherResponses = batchRspOrError.ValueOrThrow();
 
-            for (auto handler : Owner->GlobalWatcherHandlers) {
+            for (auto handler : Owner_->GlobalWatcherHandlers_) {
                 handler.Run(watcherResponses);
             }
-            for (const auto& record : Owner->CustomGlobalWatcherRecords) {
+            for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
                 record.Handler.Run(watcherResponses);
             }
         }
 
         void FireHandshake()
         {
-            Owner->MasterHandshake_.Fire(Result);
+            Owner_->MasterHandshake_.Fire(Result_);
         }
     };
 
@@ -1015,14 +1046,14 @@ private:
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
         TCellTag cellTag = PrimaryMasterCellTag)
     {
-        TObjectServiceProxy proxy(Bootstrap
+        TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
         auto batchReq = proxy.ExecuteBatch();
-        YCHECK(LockTransaction);
+        YCHECK(LockTransaction_);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
         auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
-        ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction->GetId());
+        ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction_->GetId());
         return batchReq;
     }
 
@@ -1031,20 +1062,20 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LockTransaction.Reset();
+        LockTransaction_.Reset();
 
         ClearWatcherLists();
 
         StopPeriodicActivities();
 
-        if (CancelableContext) {
-            CancelableContext->Cancel();
-            CancelableContext.Reset();
+        if (CancelableContext_) {
+            CancelableContext_->Cancel();
+            CancelableContext_.Reset();
         }
 
-        CancelableControlInvoker.Reset();
+        CancelableControlInvoker_.Reset();
 
-        State.store(EMasterConnectorState::Disconnected);
+        State_.store(EMasterConnectorState::Disconnected);
     }
 
     void DoDisconnect() noexcept
@@ -1053,7 +1084,7 @@ private:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        if (State == EMasterConnectorState::Connected) {
+        if (State_ == EMasterConnectorState::Connected) {
             MasterDisconnected_.Fire();
             LOG_WARNING("Master disconnected");
         }
@@ -1097,7 +1128,7 @@ private:
                 return nullptr;
             }
             try {
-                auto connection = Bootstrap->GetRemoteConnectionOrThrow(CellTagFromId(transactionId));
+                auto connection = Bootstrap_->GetRemoteConnectionOrThrow(CellTagFromId(transactionId));
                 auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
 
                 TTransactionAttachOptions options;
@@ -1136,18 +1167,35 @@ private:
             true,
             "output transaction");
 
-        revivalDescriptor.ControllerTransactions->Completion = attachTransaction(
-            attributes.Get<TTransactionId>("completion_transaction_id", TTransactionId()),
+        revivalDescriptor.ControllerTransactions->OutputCompletion = attachTransaction(
+            attributes.Get<TTransactionId>(
+                "output_completion_transaction_id",
+                attributes.Get<TTransactionId>(
+                    "completion_transaction_id",
+                    NullTransactionId
+                )
+            ),
             true,
-            "completion transaction");
+            "output completion transaction");
 
         // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction
         // this default value can be removed as in other transactions above.
-        revivalDescriptor.ControllerTransactions->DebugOutput = attachTransaction(
-            attributes.Get<TTransactionId>("debug_output_transaction_id", NullTransactionId),
+        revivalDescriptor.ControllerTransactions->Debug = attachTransaction(
+            attributes.Get<TTransactionId>(
+                "debug_transaction_id",
+                attributes.Get<TTransactionId>(
+                    "debug_output_transaction_id",
+                    NullTransactionId
+                )
+            ),
             true,
-            "debug output transaction");
+            "debug transaction");
+
+        revivalDescriptor.ControllerTransactions->DebugCompletion = attachTransaction(
+            attributes.Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
+            true,
+            "debug completion transaction");
 
         TOperationSpecBasePtr spec;
         try {
@@ -1172,7 +1220,7 @@ private:
             attributes.Get<TString>("authenticated_user"),
             attributes.Get<std::vector<TString>>("owners", spec->Owners),
             attributes.Get<TInstant>("start_time"),
-            Bootstrap->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(),
             storageMode,
             state,
             attributes.Get<bool>("suspended"),
@@ -1194,11 +1242,11 @@ private:
     {
         OperationNodesUpdateExecutor_->Start();
 
-        WatchersExecutor->Start();
+        WatchersExecutor_->Start();
 
-        AlertsExecutor->Start();
+        AlertsExecutor_->Start();
 
-        for (const auto& executor : CustomGlobalWatcherExecutors) {
+        for (const auto& executor : CustomGlobalWatcherExecutors_) {
             executor->Start();
         }
     }
@@ -1210,20 +1258,20 @@ private:
             OperationNodesUpdateExecutor_.Reset();
         }
 
-        if (WatchersExecutor) {
-            WatchersExecutor->Stop();
-            WatchersExecutor.Reset();
+        if (WatchersExecutor_) {
+            WatchersExecutor_->Stop();
+            WatchersExecutor_.Reset();
         }
 
-        if (AlertsExecutor) {
-            AlertsExecutor->Stop();
-            AlertsExecutor.Reset();
+        if (AlertsExecutor_) {
+            AlertsExecutor_->Stop();
+            AlertsExecutor_.Reset();
         }
 
-        for (const auto& executor : CustomGlobalWatcherExecutors) {
+        for (const auto& executor : CustomGlobalWatcherExecutors_) {
             executor->Stop();
         }
-        CustomGlobalWatcherExecutors.clear();
+        CustomGlobalWatcherExecutors_.clear();
     }
 
 
@@ -1384,7 +1432,7 @@ private:
         return BIND(&TImpl::DoUpdateOperationNode,
             MakeStrong(this),
             update->Operation)
-            .AsyncVia(CancelableControlInvoker);
+            .AsyncVia(CancelableControlInvoker_);
     }
 
     void OnOperationNodeCreated(
@@ -1435,19 +1483,19 @@ private:
     void UpdateWatchers()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State == EMasterConnectorState::Connected);
+        YCHECK(State_ == EMasterConnectorState::Connected);
 
         LOG_INFO("Updating watchers");
 
         // Global watchers.
         {
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : GlobalWatcherRequesters) {
+            for (auto requester : GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
-                    .Via(CancelableControlInvoker));
+                    .Via(CancelableControlInvoker_));
         }
 
         // Purge obsolete watchers.
@@ -1475,14 +1523,14 @@ private:
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
-                    .Via(CancelableControlInvoker));
+                    .Via(CancelableControlInvoker_));
         }
     }
 
     void OnGlobalWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State == EMasterConnectorState::Connected);
+        YCHECK(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
             LOG_ERROR(batchRspOrError, "Error updating global watchers");
@@ -1490,7 +1538,7 @@ private:
         }
 
         const auto& batchRsp = batchRspOrError.Value();
-        for (auto handler : GlobalWatcherHandlers) {
+        for (auto handler : GlobalWatcherHandlers_) {
             handler.Run(batchRsp);
         }
 
@@ -1502,7 +1550,7 @@ private:
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State == EMasterConnectorState::Connected);
+        YCHECK(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
             LOG_ERROR(batchRspOrError, "Error updating operation watchers (OperationId: %v)",
@@ -1530,17 +1578,17 @@ private:
     void UpdateAlerts()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State == EMasterConnectorState::Connected);
+        YCHECK(State_ == EMasterConnectorState::Connected);
 
         std::vector<TError> alerts;
         for (auto alertType : TEnumTraits<ESchedulerAlertType>::GetDomainValues()) {
-            const auto& alert = Alerts[alertType];
+            const auto& alert = Alerts_[alertType];
             if (!alert.IsOK()) {
                 alerts.push_back(alert);
             }
         }
 
-        TObjectServiceProxy proxy(Bootstrap
+        TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
@@ -1566,95 +1614,104 @@ private:
 TMasterConnector::TMasterConnector(
     TSchedulerConfigPtr config,
     NCellScheduler::TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TMasterConnector::~TMasterConnector() = default;
 
 void TMasterConnector::Start()
 {
-    Impl->Start();
+    Impl_->Start();
 }
 
 EMasterConnectorState TMasterConnector::GetState() const
 {
-    return Impl->GetState();
+    return Impl_->GetState();
 }
 
 TInstant TMasterConnector::GetConnectionTime() const
 {
-    return Impl->GetConnectionTime();
+    return Impl_->GetConnectionTime();
 }
 
 void TMasterConnector::Disconnect()
 {
-    Impl->Disconnect();
+    Impl_->Disconnect();
 }
 
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
 {
-    return Impl->GetCancelableControlInvoker();
+    return Impl_->GetCancelableControlInvoker();
 }
 
 void TMasterConnector::StartOperationNodeUpdates(const TOperationPtr& operation)
 {
-    Impl->StartOperationNodeUpdates(operation);
+    Impl_->StartOperationNodeUpdates(operation);
 }
 
 TFuture<void> TMasterConnector::CreateOperationNode(const TOperationPtr& operation)
 {
-    return Impl->CreateOperationNode(operation);
+    return Impl_->CreateOperationNode(operation);
 }
 
 TFuture<void> TMasterConnector::ResetRevivingOperationNode(const TOperationPtr& operation)
 {
-    return Impl->ResetRevivingOperationNode(operation);
+    return Impl_->ResetRevivingOperationNode(operation);
 }
 
 TFuture<void> TMasterConnector::FlushOperationNode(const TOperationPtr& operation)
 {
-    return Impl->FlushOperationNode(operation);
+    return Impl_->FlushOperationNode(operation);
+}
+
+void TMasterConnector::AttachJobContext(
+    const TYPath& path,
+    const TChunkId& chunkId,
+    const TOperationId& operationId,
+    const TJobId& jobId)
+{
+    return Impl_->AttachJobContext(path, chunkId, operationId, jobId);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
-    Impl->SetSchedulerAlert(alertType, alert);
+    Impl_->SetSchedulerAlert(alertType, alert);
 }
 
 void TMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
 {
-    Impl->UpdateConfig(config);
+    Impl_->UpdateConfig(config);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)
 {
-    Impl->AddGlobalWatcherRequester(requester);
+    Impl_->AddGlobalWatcherRequester(requester);
 }
 
 void TMasterConnector::AddGlobalWatcherHandler(TWatcherHandler handler)
 {
-    Impl->AddGlobalWatcherHandler(handler);
+    Impl_->AddGlobalWatcherHandler(handler);
 }
 
 void TMasterConnector::AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
 {
-    Impl->AddGlobalWatcher(std::move(requester), std::move(handler), period);
+    Impl_->AddGlobalWatcher(std::move(requester), std::move(handler), period);
 }
 
 void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
 {
-    Impl->AddOperationWatcherRequester(operation, requester);
+    Impl_->AddOperationWatcherRequester(operation, requester);
 }
 
 void TMasterConnector::AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
 {
-    Impl->AddOperationWatcherHandler(operation, handler);
+    Impl_->AddOperationWatcherHandler(operation, handler);
 }
 
-DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl);
-DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterHandshake, *Impl);
-DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl);
-DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl_);
+DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterHandshake, *Impl_);
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl_);
+DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

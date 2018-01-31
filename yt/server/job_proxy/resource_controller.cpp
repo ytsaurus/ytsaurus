@@ -11,6 +11,8 @@
 
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/misc/proc.h>
+
 #include <yt/core/ytree/convert.h>
 
 namespace NYT {
@@ -27,13 +29,6 @@ using namespace NYTree;
 // Option cpu.share is limited to [2, 1024], see http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
 // To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
 static constexpr int CpuShareMultiplier = 10;
-
-#ifdef _linux_
-
-// Used as porto io_weight parameter.
-static constexpr double RestrictedIOWeight = 0.05;
-
-#endif
 
 static const NLogging::TLogger Logger("ResourceController");
 
@@ -69,18 +64,44 @@ public:
 
     virtual TMemoryStatistics GetMemoryStatistics() const override
     {
-        if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
-            return CGroups_.Memory.GetStatistics();
+        TMemoryStatistics memoryStatistics = {0, 0, 0};
+
+        if (!Process_ || Process_->GetProcessId() <= 0) {
+            return memoryStatistics;
         }
-        THROW_ERROR_EXCEPTION("Memory cgroup is not supported");
+
+        for (auto pid : GetPidsByUid(UserId_)) {
+            try {
+                auto memoryUsage = GetProcessMemoryUsage(pid);
+                // RSS from /proc/pid/statm includes all pages resident to current process,
+                // including memory-mapped files and shared memory.
+                // Since we want to account shared memory separately, let's subtract it here.
+
+                memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
+                memoryStatistics.MappedFile += memoryUsage.Shared;
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to get memory usage (Pid: %v)", pid);
+            }
+        }
+
+        try {
+            PageFaultCount_ = GetProcessCumulativeMajorPageFaults(Process_->GetProcessId());
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Failed to get page fault count (Pid: %v)", Process_->GetProcessId());
+        }
+
+        memoryStatistics.MajorPageFaults = PageFaultCount_;
+
+        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage) {
+            MaxMemoryUsage = memoryStatistics.Rss + memoryStatistics.MappedFile;
+        }
+
+        return memoryStatistics;
     }
 
     virtual i64 GetMaxMemoryUsage() const override
     {
-        if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
-            return  CGroups_.Memory.GetMaxMemoryUsage();
-        }
-        THROW_ERROR_EXCEPTION("Memory cgroup is not supported");
+        return MaxMemoryUsage;
     }
 
     virtual TDuration GetBlockIOWatchdogPeriod() const override
@@ -106,12 +127,6 @@ public:
         }
     }
 
-    virtual void SetRestrictedIOWeight() override
-    {
-        // Do nothing for cgroup controller, since io
-        // weights for all jobs are set with chef.
-    }
-
     virtual void SetIOThrottle(i64 operations) override
     {
         if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
@@ -124,37 +139,37 @@ public:
         return New<TCGroupResourceController>(CGroupsConfig_, Path_ + name);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreDumpHandler) override
     {
         YCHECK(!coreDumpHandler);
-        auto process = New<TSimpleProcess>(path, false);
+        YCHECK(!Process_);
+
+        UserId_ = uid;
+        Process_ = New<TSimpleProcess>(path, false);
         try {
             {
                 CGroups_.Freezer.Create();
-                process->AddArguments({"--cgroup", CGroups_.Freezer.GetFullPath()});
+                Process_->AddArguments({"--cgroup", CGroups_.Freezer.GetFullPath()});
             }
 
             if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CGroups_.CpuAccounting.Create();
-                process->AddArguments({"--cgroup", CGroups_.CpuAccounting.GetFullPath()});
-                process->AddArguments({"--env", Format("YT_CGROUP_CPUACCT=%v", CGroups_.CpuAccounting.GetFullPath())});
+                Process_->AddArguments({"--cgroup", CGroups_.CpuAccounting.GetFullPath()});
+                Process_->AddArguments({"--env", Format("YT_CGROUP_CPUACCT=%v", CGroups_.CpuAccounting.GetFullPath())});
             }
 
             if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
                 CGroups_.BlockIO.Create();
-                process->AddArguments({"--cgroup", CGroups_.BlockIO.GetFullPath()});
-                process->AddArguments({"--env", Format("YT_CGROUP_BLKIO=%v", CGroups_.BlockIO.GetFullPath())});
+                Process_->AddArguments({"--cgroup", CGroups_.BlockIO.GetFullPath()});
+                Process_->AddArguments({"--env", Format("YT_CGROUP_BLKIO=%v", CGroups_.BlockIO.GetFullPath())});
             }
 
-            if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
-                CGroups_.Memory.Create();
-                process->AddArguments({"--cgroup", CGroups_.Memory.GetFullPath()});
-                process->AddArguments({"--env", Format("YT_CGROUP_MEMORY=%v", CGroups_.Memory.GetFullPath())});
-            }
+            Process_->AddArguments({"--uid", ::ToString(uid)});
+
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to create required cgroups");
         }
-        return process;
+        return Process_;
     }
 
 private:
@@ -166,18 +181,20 @@ private:
             : Freezer(name)
             , CpuAccounting(name)
             , BlockIO(name)
-            , Memory(name)
             , Cpu(name)
         { }
 
         TFreezer Freezer;
         TCpuAccounting CpuAccounting;
         TBlockIO BlockIO;
-        TMemory Memory;
         TCpu Cpu;
     } CGroups_;
 
     const TString Path_;
+    TIntrusivePtr<TSimpleProcess> Process_;
+    mutable i64 MaxMemoryUsage = 0;
+    mutable i64 PageFaultCount_ = 0;
+    int UserId_ = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,13 +315,6 @@ public:
         }
     }
 
-    virtual void SetRestrictedIOWeight() override
-    {
-        if (UseResourceLimits_) {
-            Container_->SetIOWeight(RestrictedIOWeight);
-        }
-    }
-
     virtual void SetIOThrottle(i64 operations) override
     {
         if (UseResourceLimits_) {
@@ -321,14 +331,16 @@ public:
         return New<TPortoResourceController>(ContainerManager_, instance, BlockIOWatchdogPeriod_, UseResourceLimits_);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreDumpHandler) override
     {
         if (coreDumpHandler) {
             LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
                 coreDumpHandler.Get());
             Container_->SetCoreDumpHandler(coreDumpHandler.Get());
         }
-        return New<TPortoProcess>(path, Container_, false);
+        auto process = New<TPortoProcess>(path, Container_, false);
+        process->AddArguments({"--uid", ::ToString(uid)});
+        return process;
     }
 
 private:

@@ -323,17 +323,21 @@ class YTEnvSetup(object):
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
-            for config in configs["master"][tag]:
-                update(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
-                cls.modify_master_config(config)
-        for config in configs["scheduler"]:
-            update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
-            cls.modify_scheduler_config(config)
-        for config in configs["node"]:
-            update(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
-            cls.modify_node_config(config)
-        for config in configs["driver"].values():
-            update(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+            for index, config in enumerate(configs["master"][tag]):
+                # TODO(ignat): use update_inplace
+                configs["master"][tag][index] = update(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
+                cls.modify_master_config(configs["master"][tag][index])
+        for index, config in enumerate(configs["scheduler"]):
+            # TODO(ignat): use update_inplace
+            configs["scheduler"][index] = update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            cls.modify_scheduler_config(configs["scheduler"][index])
+        for index, config in enumerate(configs["node"]):
+            # TODO(ignat): use update_inplace
+            configs["node"][index] = update(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
+            cls.modify_node_config(configs["node"][index])
+        for key, config in configs["driver"].iteritems():
+            # TODO(ignat): use update_inplace
+            configs["driver"][key] = update(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):

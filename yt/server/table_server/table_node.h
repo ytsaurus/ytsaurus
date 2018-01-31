@@ -92,7 +92,8 @@ public:
         const NChunkClient::NProto::TDataStatistics* statistics,
         const NTableClient::TTableSchema& schema,
         NTableClient::ETableSchemaMode schemaMode,
-        TNullable<NTableClient::EOptimizeFor> optimizeFor) override;
+        TNullable<NTableClient::EOptimizeFor> optimizeFor,
+        const TNullable<TMD5Hasher>& md5Hasher) override;
 
     virtual bool IsSorted() const override;
 

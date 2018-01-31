@@ -39,7 +39,6 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NApi;
-using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDataNode;
@@ -50,6 +49,10 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+
+using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::TChunkSpec;
+using NChunkClient::NProto::TMiscExt;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 

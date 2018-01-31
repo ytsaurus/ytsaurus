@@ -37,7 +37,6 @@ public:
     virtual NYson::TYsonString StraceJob() override;
     virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
-    virtual void Interrupt() override;
     virtual void Fail() override;
 
 protected:
@@ -68,6 +67,8 @@ public:
 
     virtual bool ShouldSendBoundaryKeys() const;
 
+    virtual void Interrupt() override;
+
 protected:
     const NJobTrackerClient::NProto::TJobSpec& JobSpec_;
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt_;
@@ -78,6 +79,9 @@ protected:
     NTableClient::TSchemalessWriterFactory WriterFactory_;
 
     i64 TotalRowCount_ = 0;
+
+    std::atomic<bool> Initialized_ = {false};
+    std::atomic<bool> Interrupted_ = {false};
 
     virtual void CreateReader() = 0;
     virtual void CreateWriter() = 0;

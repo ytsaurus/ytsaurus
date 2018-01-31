@@ -125,11 +125,11 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterParameter("bus_client", BusClient)
         .DefaultNew();
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         const auto& cellId = PrimaryMaster->CellId;
         auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);
         THashSet<TCellTag> cellTags = {primaryCellTag};

@@ -30,6 +30,8 @@ public:
     i64 MaxInMemoryTabletSize;
     i64 DesiredInMemoryTabletSize;
 
+    double TabletToCellRatio;
+
     TTabletBalancerConfig()
     {
         RegisterParameter("enable_in_memory_balancer", EnableInMemoryBalancer)
@@ -59,7 +61,11 @@ public:
         RegisterParameter("desired_in_memory_tablet_size", DesiredInMemoryTabletSize)
             .Default(1_GB);
 
-        RegisterValidator([&] () {
+        RegisterParameter("tablet_to_cell_ratio", TabletToCellRatio)
+            .GreaterThan(0)
+            .Default(5.0);
+
+        RegisterPostprocessor([&] () {
             if (MinTabletSize > DesiredTabletSize) {
                 THROW_ERROR_EXCEPTION("\"min_tablet_size\" must be less than or equal to \"desired_tablet_size\"");
             }
@@ -180,7 +186,7 @@ public:
         RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             // Override default workload descriptors.
             ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
         });

@@ -27,6 +27,9 @@ message TRequestHeader
 
     optional int32 tos_level = 14;
 
+    optional int32 request_format = 15;
+    optional int32 response_format = 16;
+
     extensions 100 to max;
 }
 
@@ -61,6 +64,8 @@ message TResponseHeader
     
     // If omitted then OK is assumed.
     optional NYT.NProto.TError error = 2;
+
+    optional int32 response_format = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

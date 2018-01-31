@@ -143,11 +143,20 @@ class TErasureReaderConfig
 {
 public:
     bool EnableAutoRepair;
+    double ReplicationReaderSpeedLimitPerSec;
+    TDuration SlowReaderExpirationTimeout;
+    TDuration ReplicationReaderTimeout;
 
     TErasureReaderConfig()
     {
         RegisterParameter("enable_auto_repair", EnableAutoRepair)
             .Default(true);
+        RegisterParameter("replication_reader_speed_limit_per_sec", ReplicationReaderSpeedLimitPerSec)
+            .Default(5_MB);
+        RegisterParameter("slow_reader_expiration_timeout", SlowReaderExpirationTimeout)
+            .Default(TDuration::Minutes(2));
+        RegisterParameter("replication_reader_timeout", ReplicationReaderTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 
@@ -198,7 +207,7 @@ public:
             .Default(15_MB)
             .GreaterThan(0);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (GroupSize > WindowSize) {
                 THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
             }
@@ -292,12 +301,12 @@ public:
         RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
             .Default(10);
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             NodeChannel->RetryBackoffTime = TDuration::Seconds(10);
             NodeChannel->RetryAttempts = 100;
         });
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (SendWindowSize < GroupSize) {
                 THROW_ERROR_EXCEPTION("\"send_window_size\" cannot be less than \"group_size\"");
             }
@@ -537,7 +546,7 @@ public:
             .LessThanOrEqual(1000)
             .Default(512);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (MaxBufferSize < 2 * WindowSize) {
                 THROW_ERROR_EXCEPTION("\"max_buffer_size\" cannot be less than twice \"window_size\"");
             }

@@ -1794,7 +1794,7 @@ void TChunkReplicator::OnCheckEnabled()
             OnCheckEnabledSecondary();
         }
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error updating chunk ```replicator state, disabling until the next attempt");
+        LOG_ERROR(ex, "Error updating chunk replicator state, disabling until the next attempt");
         Enabled_ = false;
     }
 }

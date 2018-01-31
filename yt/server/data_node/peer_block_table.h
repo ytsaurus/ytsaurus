@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
+#include <yt/server/cell_node/public.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -35,22 +37,27 @@ class TPeerBlockTable
     : public TRefCounted
 {
 public:
-    explicit TPeerBlockTable(TPeerBlockTableConfigPtr config);
+    explicit TPeerBlockTable(TPeerBlockTableConfigPtr config, NCellNode::TBootstrap* bootstrap);
     
     //! Gets peers where a particular block was sent to.
     /*!
      *  Also sweeps expired peers.
+     *
+     *  \note Invoker affinity: Control invoker
      */
     const std::vector<TPeerInfo>& GetPeers(const TBlockId& blockId);
 
     //! For a given block, registers a new peer or updates the existing one.
     /*!
      *  Also sweeps expired peers.
+     *
+     *  \note Invoker affinity: Control invoker
      */
     void UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer);
 
 private:
-    TPeerBlockTableConfigPtr Config_;
+    const TPeerBlockTableConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     //! Each vector is sorted by decreasing expiration time.
     THashMap<TBlockId, std::vector<TPeerInfo>> Table_;

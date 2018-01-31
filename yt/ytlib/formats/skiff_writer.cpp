@@ -8,10 +8,13 @@
 #include <yt/ytlib/table_client/name_table.h>
 
 #include <yt/core/concurrency/async_stream.h>
-#include <yt/core/yson/writer.h>
+
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/skiff/skiff.h>
 #include <yt/core/skiff/skiff_schema.h>
+
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -232,11 +235,46 @@ public:
     }
 
 private:
+    std::vector<TErrorAttribute> GetRowPositionErrorAttributes() const
+    {
+        if (CurrentRow_ == nullptr) {
+            return {};
+        }
+
+        i64 tableIndex = 0;
+        TNullable<i64> rowIndex;
+
+        // We don't use tableIndex / rowIndex from DoWrite function because sometimes we want
+        // to throw error before DoWrite knows table index / row index.
+        // To keep things simple we always recompute table index / row index by ourselves.
+        for (const auto& value : *CurrentRow_) {
+            if (value.Id == GetTableIndexColumnId()) {
+                YCHECK(value.Type == EValueType::Int64);
+                tableIndex = value.Data.Int64;
+            } else if (value.Id == GetRowIndexColumnId()) {
+                YCHECK(value.Type == EValueType::Int64);
+                rowIndex = value.Data.Int64;
+            }
+        }
+
+        std::vector<TErrorAttribute> result = {
+            TErrorAttribute("table_index", tableIndex),
+        };
+        if (rowIndex) {
+            result.emplace_back("row_index", *rowIndex);
+        }
+        return result;
+    }
+
     virtual void DoWrite(const TRange<TUnversionedRow>& rows) override
     {
         const auto rowCount = rows.Size();
         for (size_t rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
             const auto& row = rows[rowIndex];
+            CurrentRow_ = &row;
+            auto finallyGuard = Finally([&] {
+                CurrentRow_ = nullptr;
+            });
 
             const auto valueCount = row.GetCount();
             ui32 tableIndex = 0;
@@ -248,7 +286,8 @@ private:
             }
             if (tableIndex >= TableDescriptionList_.size()) {
                 THROW_ERROR_EXCEPTION("Table #%v is not described by Skiff schema",
-                    tableIndex);
+                    tableIndex)
+                    << GetRowPositionErrorAttributes();
             }
 
             const auto& knownFields = TableDescriptionList_[tableIndex].KnownFields;
@@ -302,7 +341,8 @@ private:
                         if (!hasOtherColumns) {
                             THROW_ERROR_EXCEPTION("Column %Qv is not described by Skiff schema and there is no %Qv column",
                                 NameTable_->GetName(columnId),
-                                OtherColumnsName);
+                                OtherColumnsName)
+                                << GetRowPositionErrorAttributes();
                         }
                         OtherValueIndexes_.emplace_back(valueIndex);
                         break;
@@ -310,20 +350,21 @@ private:
                         Y_UNREACHABLE();
                 }
             }
-            if (rowIndexFieldIndex != MissingSystemColumn || rowIndexFieldIndex != MissingSystemColumn) {
+            if (rowIndexFieldIndex != MissingSystemColumn || rangeIndexFieldIndex != MissingSystemColumn) {
                 bool needUpdateRangeIndex = tableIndex != TableIndex_;
                 if (rangeIndexValueId != static_cast<ui32>(-1)) {
                     YCHECK(row[rangeIndexValueId].Type == EValueType::Int64);
                     const auto rangeIndex = row[rangeIndexValueId].Data.Int64;
                     needUpdateRangeIndex = needUpdateRangeIndex || rangeIndex != RangeIndex_;
-                    if (rowIndexFieldIndex != MissingSystemColumn) {
+                    if (rangeIndexFieldIndex != MissingSystemColumn) {
                         if (needUpdateRangeIndex) {
                             DenseIndexes_[rangeIndexFieldIndex] = rangeIndexValueId;
                         }
                     }
                     RangeIndex_ = rangeIndex;
-                } else if (rowIndexFieldIndex != MissingSystemColumn) {
-                    THROW_ERROR_EXCEPTION("Range index requested but reader did not return it");
+                } else if (rangeIndexFieldIndex != MissingSystemColumn) {
+                    THROW_ERROR_EXCEPTION("Range index requested but reader did not return it")
+                        << GetRowPositionErrorAttributes();
                 }
                 if (rowIndexValueId != static_cast<ui32>(-1)) {
                     YCHECK(row[rowIndexValueId].Type == EValueType::Int64);
@@ -336,7 +377,8 @@ private:
                     }
                     RowIndex_ = rowIndex;
                 } else if (rowIndexFieldIndex != MissingSystemColumn) {
-                    THROW_ERROR_EXCEPTION("Row index requested but reader did not return it");
+                    THROW_ERROR_EXCEPTION("Row index requested but reader did not return it")
+                        << GetRowPositionErrorAttributes();
                 }
                 TableIndex_ = tableIndex;
             }
@@ -447,7 +489,8 @@ private:
             THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected %Qlv found %Qlv",
                 NameTable_->GetName(columnId),
                 expected,
-                actual);
+                actual)
+                << GetRowPositionErrorAttributes();
         }
     }
 
@@ -470,6 +513,8 @@ private:
 
     // Buffer that we are going to reuse in order to reduce memory allocations.
     TString YsonBuffer_;
+
+    const TUnversionedRow* CurrentRow_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

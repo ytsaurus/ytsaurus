@@ -23,8 +23,8 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Stack sizes.
-static constexpr size_t SmallExecutionStackSize = 1 << 18; // 256 Kb
-static constexpr size_t LargeExecutionStackSize = 1 << 23; //   8 Mb
+static constexpr size_t SmallExecutionStackSize = 256_KB;
+static constexpr size_t LargeExecutionStackSize = 8_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

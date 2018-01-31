@@ -19,17 +19,17 @@ TEST(TRbTorrentTest, Sample)
 
     TFileMeta file1Meta;
     file1Meta.FileSize = file1.Size();
-    file1Meta.MD5 = TMD5Hasher().Append(file1).Digest();
-    file1Meta.SHA1.emplace_back(TSHA1Hasher().Append(file1).Digest());
+    file1Meta.MD5 = TMD5Hasher().Append(file1).GetDigest();
+    file1Meta.SHA1.emplace_back(TSHA1Hasher().Append(file1).GetDigest());
 
     TFileMeta file2Meta;
     file2Meta.FileSize = file2.Size();
-    file2Meta.MD5 = TMD5Hasher().Append(file2).Digest();
+    file2Meta.MD5 = TMD5Hasher().Append(file2).GetDigest();
     for (int i = 0; i < file2.Size(); i += 4 * 1024 * 1024) {
         file2Meta.SHA1.emplace_back(
-            TSHA1Hasher()
-            .Append(TStringBuf(file2).SubStr(i, 4 * 1024 * 1024))
-            .Digest());
+                TSHA1Hasher()
+                        .Append(TStringBuf(file2).SubStr(i, 4 * 1024 * 1024))
+                        .GetDigest());
     }
 
     TSkynetShareMeta meta;
@@ -44,11 +44,11 @@ TEST(TRbTorrentTest, EmptyFiles)
 {
     TFileMeta file1Meta;
     file1Meta.FileSize = 0;
-    file1Meta.MD5 = TMD5Hasher().Digest();
+    file1Meta.MD5 = TMD5Hasher().GetDigest();
 
     TFileMeta file2Meta;
     file2Meta.FileSize = 0;
-    file2Meta.MD5 = TMD5Hasher().Digest();
+    file2Meta.MD5 = TMD5Hasher().GetDigest();
 
     TSkynetShareMeta meta;
     meta.Files["a/b/c/file1"] = file1Meta;

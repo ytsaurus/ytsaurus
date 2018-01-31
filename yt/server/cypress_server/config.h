@@ -93,7 +93,7 @@ public:
         RegisterParameter("forbid_set_command", ForbidSetCommand)
             .Default(false);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (DefaultJournalReadQuorum + DefaultJournalWriteQuorum < DefaultJournalReplicationFactor + 1) {
                 THROW_ERROR_EXCEPTION("Default read/write quorums are not safe: "
                     "default_journal_read_quorum + default_journal_write_quorum < default_journal_replication_factor + 1");

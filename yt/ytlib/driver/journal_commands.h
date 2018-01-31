@@ -23,7 +23,6 @@ private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr JournalReader;
 
-    virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 

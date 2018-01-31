@@ -178,6 +178,8 @@ template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValue>& entities)
 {
     std::vector<TValue*> values;
+    values.reserve(entities.size());
+
     for (const auto& pair : entities) {
         auto* object = pair.second;
         if (IsObjectAlive(object)) {
@@ -192,6 +194,8 @@ template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
 {
     std::vector<TValue*> values;
+    values.reserve(entities.size());
+
     for (auto* object : entities) {
         if (IsObjectAlive(object)) {
             values.push_back(object);
@@ -199,6 +203,23 @@ std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
     }
     std::sort(values.begin(), values.end(), TObjectRefComparer::Compare);
     return values;
+}
+
+template <class TObject, class TValue>
+std::vector<std::pair<TObject*, TValue>> GetPairsSortedByKey(const THashMap<TObject*, TValue>& entities)
+{
+    std::vector<std::pair<TObject*, TValue>> pairs;
+    pairs.reserve(entities.size());
+
+    for (auto& pair : entities) {
+        if (IsObjectAlive(pair.first)) {
+            pairs.push_back(pair);
+        }
+    }
+    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return TObjectRefComparer::Compare(lhs.first, rhs.first);
+    });
+    return pairs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,8 +11,8 @@
 
 #include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <yt/ytlib/formats/json_writer.h>
-#include <yt/ytlib/formats/config.h>
+#include <yt/core/json/json_writer.h>
+#include <yt/core/json/config.h>
 
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/string.h>
@@ -166,7 +166,7 @@ void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
 
     rsp->WriteHeaders(EStatusCode::Ok);
     auto output = CreateBufferedSyncAdapter(rsp);
-    auto json = NFormats::CreateJsonConsumer(output.get());
+    auto json = NJson::CreateJsonConsumer(output.get());
 
     Serialize(reply, json.get());
 

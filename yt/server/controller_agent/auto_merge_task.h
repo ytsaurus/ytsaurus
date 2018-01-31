@@ -70,11 +70,10 @@ public:
         i64 maxDataWeightPerJob,
         TEdgeDescriptor edgeDescriptor);
 
-    virtual TString GetId() const override;
+    virtual TString GetTitle() const override;
+    virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
 
     virtual TTaskGroupPtr GetGroup() const override;
-
-    virtual TDuration GetLocalityTimeout() const override;
 
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
@@ -86,12 +85,14 @@ public:
 
     virtual int GetPendingJobCount() const override;
 
-    virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override;
+    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
+        ISchedulingContext* context,
+        const TJobResources& jobLimits) override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
-    virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override;
-    virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary) override;
-    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary) override;
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override;
+    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
 
     void RegisterTeleportChunk(NChunkClient::TInputChunkPtr chunk);
 

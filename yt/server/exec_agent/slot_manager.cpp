@@ -125,30 +125,36 @@ void TSlotManager::UpdateAliveLocations()
     }
 }
 
-ISlotPtr TSlotManager::AcquireSlot()
+ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     UpdateAliveLocations();
 
-    if (AliveLocations_.empty()) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::AllLocationsDisabled,
-            "Cannot acquire slot: all slot locations are disabled");
+    int feasibleSlotCount = 0;
+    TSlotLocationPtr bestLocation;
+    for (const auto& location : AliveLocations_) {
+        auto diskInfo = location->GetDiskInfo();
+        if (diskInfo.usage() + diskSpaceRequest > diskInfo.limit()) {
+            continue;
+        }
+        ++feasibleSlotCount;
+        if (!bestLocation || bestLocation->GetSessionCount() > location->GetSessionCount()) {
+            bestLocation = location;
+        }
     }
 
-    auto locationIt = std::min_element(
-        AliveLocations_.begin(),
-        AliveLocations_.end(),
-        [] (const TSlotLocationPtr& lhs, const TSlotLocationPtr& rhs) {
-            return lhs->GetSessionCount() < rhs->GetSessionCount();
-        });
+    if (!bestLocation) {
+        THROW_ERROR_EXCEPTION(EErrorCode::SlotNotFound, "No feasible slot found")
+            << TErrorAttribute("alive_slot_count", AliveLocations_.size())
+            << TErrorAttribute("feasible_slot_count", feasibleSlotCount);
+    }
 
     YCHECK(!FreeSlots_.empty());
     int slotIndex = *FreeSlots_.begin();
     FreeSlots_.erase(slotIndex);
 
-    return CreateSlot(slotIndex, std::move(*locationIt), JobEnvironment_, NodeTag_);
+    return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, NodeTag_);
 }
 
 void TSlotManager::ReleaseSlot(int slotIndex)
@@ -174,7 +180,7 @@ bool TSlotManager::IsEnabled() const
         isEnabled = isEnabled && JobProxySocketNameDirectoryCreated_;
     }
 
-    return isEnabled;
+    return isEnabled && Enabled_;
 }
 
 TNullable<i64> TSlotManager::GetMemoryLimit() const
@@ -196,6 +202,22 @@ bool TSlotManager::ExternalJobMemory() const
     return JobEnvironment_ && JobEnvironment_->IsEnabled()
        ? JobEnvironment_->ExternalJobMemory()
        : false;
+}
+
+void TSlotManager::OnJobFinished(EJobState jobState)
+{
+    if (jobState == EJobState::Aborted) {
+        ++ConsecutiveAbortedJobCount_;
+    } else {
+        ConsecutiveAbortedJobCount_ = 0;
+    }
+
+    if (Enabled_ && ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
+        Enabled_ = false;
+        Bootstrap_->GetMasterConnector()->RegisterAlert(TError(
+            "Too many consecutive job abortions; scheduler jobs are disabled")
+            << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts));
+    }
 }
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()

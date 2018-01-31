@@ -175,6 +175,9 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
 template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities);
 
+template <class TObject, class TValue>
+std::vector<std::pair<TObject*, TValue>> GetPairsSortedByKey(const THashMap<TObject*, TValue>& entities);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNonversionedObjectBase

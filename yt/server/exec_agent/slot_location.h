@@ -95,6 +95,10 @@ private:
 
     TDiskHealthCheckerPtr HealthChecker_;
 
+    NNodeTrackerClient::NProto::TDiskResourcesInfo DiskInfo_;
+    NConcurrency::TReaderWriterSpinLock DiskInfoLock_;
+    NConcurrency::TPeriodicExecutorPtr DiskInfoUpdateExecutor_;
+
     void ValidateEnabled() const;
 
     static void ValidateNotExists(const TString& path);
@@ -104,6 +108,8 @@ private:
     void EnsureNotInUse(const TString& path) const;
 
     void ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const;
+
+    void UpdateDiskInfo();
 
     TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
     TString GetConfigPath(int slotIndex) const;

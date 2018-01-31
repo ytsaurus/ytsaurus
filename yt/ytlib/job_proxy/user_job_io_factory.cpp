@@ -466,9 +466,43 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+class TVanillaJobIOFactory
+    : public IUserJobIOFactory
+{
+public:
+    explicit TVanillaJobIOFactory(IJobSpecHelperPtr jobSpecHelper)
+        : JobSpecHelper_(jobSpecHelper)
+    { }
+
+    virtual ISchemalessMultiChunkReaderPtr CreateReader(
+        INativeClientPtr client,
+        const TNodeDescriptor& nodeDescriptor,
+        TClosure onNetworkReleased,
+        TNameTablePtr nameTable,
+        const TColumnFilter& columnFilter) override
+    {
+        return nullptr;
+    }
+
+    virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
+        INativeClientPtr client,
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        const TChunkListId& chunkListId,
+        const TTransactionId& transactionId,
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& chunkTimestamps) override
+    {
+        return nullptr;
+    }
+
+private:
+    const IJobSpecHelperPtr JobSpecHelper_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 IUserJobIOFactoryPtr CreateUserJobIOFactory(const IJobSpecHelperPtr& jobSpecHelper)
 {
@@ -493,6 +527,9 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(const IJobSpecHelperPtr& jobSpecHelp
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
             return New<TPartitionReduceJobIOFactory>(jobSpecHelper);
+
+        case EJobType::Vanilla:
+            return New<TVanillaJobIOFactory>(jobSpecHelper);
 
         default:
             THROW_ERROR_EXCEPTION(
