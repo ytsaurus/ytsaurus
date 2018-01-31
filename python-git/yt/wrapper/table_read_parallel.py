@@ -3,7 +3,7 @@ from .config import get_config, get_option, set_option
 from .errors import YtChunkUnavailable
 from .format import YtFormatReadError
 from .heavy_commands import process_read_exception, _get_read_response
-from .http_helpers import get_retriable_errors, _get_session
+from .http_helpers import get_retriable_errors
 from .lock_commands import lock
 from .response_stream import ResponseStreamWithReadRow, EmptyResponseStream
 from .retries import Retrier
@@ -53,7 +53,6 @@ class TableReader(object):
         self._thread_data = {}
         self._unordered = unordered
         self._transaction = transaction
-        self._http_session = _get_session(client)
         self._pool = ThreadPool(thread_count, self.init_thread, (get_config(client), params),
                                 max_queue_size=thread_count)
 
@@ -63,7 +62,6 @@ class TableReader(object):
 
         transaction_id = null_transaction_id if not self._transaction else self._transaction.transaction_id
         client = YtClient(config=client_config)
-        set_option("_requests_session", self._http_session, client)
         self._thread_data[ident] = {"client": client,
                                     "params": copy.deepcopy(params),
                                     "retrier": ParallelReadRetrier(transaction_id, client)}
