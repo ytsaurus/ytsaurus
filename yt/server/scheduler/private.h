@@ -24,8 +24,6 @@ DECLARE_REFCOUNTED_CLASS(TCompositeSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TPool)
 DECLARE_REFCOUNTED_CLASS(TRootElement)
 
-DECLARE_REFCOUNTED_CLASS(TNodeShard)
-
 DECLARE_REFCOUNTED_STRUCT(IFairShareTreeSnapshot)
 
 struct TFairShareContext;
@@ -34,11 +32,23 @@ class TJobMetrics;
 
 using TOperationElementByIdMap = THashMap<TOperationId, TOperationElement*>;
 
+using TJobCounter = TEnumIndexedVector<TEnumIndexedVector<i64, EJobType>, EJobState>;
+using TAbortedJobCounter = TEnumIndexedVector<TJobCounter, EAbortReason>;
+using TCompletedJobCounter = TEnumIndexedVector<TJobCounter, EInterruptReason>;
+
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)
     (BelowMinShare)
     (BelowFairShare)
 );
+
+DEFINE_ENUM(EJobRevivalPhase,
+    (RevivingControllers)
+    (ConfirmingJobs)
+    (Finished)
+);
+
+////////////////////////////////////////////////////////////////////////////////
 
 extern const TString RootPoolName;
 extern const TString DefaultTreeAttributeName;

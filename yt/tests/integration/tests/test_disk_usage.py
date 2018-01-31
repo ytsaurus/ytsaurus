@@ -1,15 +1,10 @@
 from yt_env_setup import (
-    YTEnvSetup,
-    require_ytserver_root_privileges
+    require_ytserver_root_privileges,
+    wait
 )
 from yt_commands import *
 
 from quota_mixin import QuotaMixin
-
-import os
-import sys
-import pytest
-import time
 
 class TestDiskUsage(QuotaMixin):
     NUM_SCHEDULERS = 1
@@ -23,7 +18,8 @@ class TestDiskUsage(QuotaMixin):
                         "disk_quota": 1024 * 1024,
                         "disk_usage_watermark": 0
                     }
-                ]
+                ],
+                "disk_info_update_period": 100,
             },
             "job_controller": {
                 "waiting_jobs_timeout": 1000,
@@ -31,7 +27,8 @@ class TestDiskUsage(QuotaMixin):
                     "user_slots": 3,
                     "cpu": 3.0
                 }
-            }
+            },
+            "min_required_disk_space": 0,
         }
     }
 
@@ -53,7 +50,6 @@ class TestDiskUsage(QuotaMixin):
             "in_": tables[0],
             "out": tables[1],
             "dont_track": True,
-            "wait_for_jobs": True,
         }
 
         options.update(fatty_options)
@@ -69,15 +65,14 @@ class TestDiskUsage(QuotaMixin):
             "spec": {"mapper": {"disk_space_limit": 1024 * 1024 / 2}, "max_failed_job_count": 1}
         }
 
-        try:
-            second = map(**check_op)
-        except YtError as err:
-            assert "Not enough disk space to run job" in str(err)
-        else:
-            assert False, "Operation should fail due to lack of disk space"
+        op = map(dont_track=True, **check_op)
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)))
+        get_aborted = lambda suffix = "": get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/aborted{1}".format(op.id, suffix), verbose=False)
+        wait(lambda: get_aborted("/total"))
+        assert get_aborted("/scheduled/other") > 0
+        op.abort()
 
         events.notify_event("finish_job")
-        first.resume_jobs()
         first.track()
 
         map(**check_op)

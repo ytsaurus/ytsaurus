@@ -68,6 +68,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
@@ -92,11 +93,13 @@ TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
     const TAddressMap& rpcAddresses,
     const TAddressMap& skynetHttpAddresses,
+    const TAddressMap& monitoringHttpAddresses,
     const std::vector<TString>& nodeTags,
     TBootstrap* bootstrap)
     : Config_(config)
     , RpcAddresses_(rpcAddresses)
     , SkynetHttpAddresses_(skynetHttpAddresses)
+    , MonitoringHttpAddresses_(monitoringHttpAddresses)
     , NodeTags_(nodeTags)
     , Bootstrap_(bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
@@ -118,7 +121,7 @@ void TMasterConnector::Start()
         MasterCellTags_.push_back(cellTag);
         YCHECK(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
     };
-    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     initializeCell(connection->GetPrimaryMasterCellTag());
     for (auto cellTag : connection->GetSecondaryMasterCellTags()) {
         initializeCell(cellTag);
@@ -402,6 +405,10 @@ void TMasterConnector::RegisterAtPrimaryMaster()
     skynetHttpAddresses->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
     ToProto(skynetHttpAddresses->mutable_addresses(), SkynetHttpAddresses_);
 
+    auto* monitoringHttpAddresses = nodeAddresses->add_entries();
+    monitoringHttpAddresses->set_address_type(static_cast<int>(EAddressType::MonitoringHttp));
+    ToProto(monitoringHttpAddresses->mutable_addresses(), MonitoringHttpAddresses_);
+
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
     ToProto(req->mutable_tags(), NodeTags_);
 
@@ -561,7 +568,7 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
 
 bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
 {
-    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     if (cellTag != connection->GetPrimaryMasterCellTag()) {
         return true;
     }
@@ -746,6 +753,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
             protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
 
+            TEnumIndexedVector<TError, ETabletBackgroundActivity> errors;
+            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                errors[key] = tabletSnapshot->RuntimeData->Errors[key].Load();
+            }
+            ToProto(protoTabletInfo->mutable_errors(), std::vector<TError>(errors.begin(), errors.end()));
+
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;
                 const auto& replicaSnapshot = pair.second;
@@ -836,6 +849,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
         UpdateDataCenter(dc);
+
+        auto tags = FromProto<std::vector<TString>>(rsp->tags());
+        UpdateTags(std::move(tags));
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
@@ -1030,9 +1046,9 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
 IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
 {
     auto cellId = Bootstrap_->GetCellId(cellTag);
-    auto client = Bootstrap_->GetMasterClient();
-    auto connection = client->GetNativeConnection();
-    auto cellDirectory = connection->GetCellDirectory();
+    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& connection = client->GetNativeConnection();
+    const auto& cellDirectory = connection->GetCellDirectory();
     return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }
 
@@ -1042,7 +1058,8 @@ void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         rack,
-        LocalDescriptor_.GetDataCenter());
+        LocalDescriptor_.GetDataCenter(),
+        LocalDescriptor_.GetTags());
 }
 
 void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
@@ -1051,7 +1068,18 @@ void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         LocalDescriptor_.GetRack(),
-        dc);
+        dc,
+        LocalDescriptor_.GetTags());
+}
+
+void TMasterConnector::UpdateTags(std::vector<TString> tags)
+{
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    LocalDescriptor_ = TNodeDescriptor(
+        RpcAddresses_,
+        LocalDescriptor_.GetRack(),
+        LocalDescriptor_.GetDataCenter(),
+        std::move(tags));
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)

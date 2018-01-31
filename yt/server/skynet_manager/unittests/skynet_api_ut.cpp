@@ -41,8 +41,8 @@ TSkynetRbTorrent CreateSampleTorrent(const TString& smallContent)
     TString file1 = smallContent;
     TFileMeta file1Meta;
     file1Meta.FileSize = file1.Size();
-    file1Meta.MD5 = TMD5Hasher().Append(file1).Digest();
-    file1Meta.SHA1.emplace_back(TSHA1Hasher().Append(file1).Digest());
+    file1Meta.MD5 = TMD5Hasher().Append(file1).GetDigest();
+    file1Meta.SHA1.emplace_back(TSHA1Hasher().Append(file1).GetDigest());
 
     TSkynetShareMeta meta;
     meta.Files["file1"] = file1Meta;

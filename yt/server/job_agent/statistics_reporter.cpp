@@ -21,9 +21,10 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/nonblocking_batch.h>
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/profiling/profiler.h>
-#include <yt/core/concurrency/async_semaphore.h>
+
 #include <yt/core/utilex/random.h>
 
 namespace NYT {

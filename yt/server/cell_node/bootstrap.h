@@ -22,13 +22,13 @@
 
 #include <yt/ytlib/misc/public.h>
 
-#include <yt/ytlib/monitoring/http_server.h>
-
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/public.h>
 
 #include <yt/ytlib/hive/public.h>
+
+#include <yt/ytlib/monitoring/public.h>
 
 #include <yt/core/bus/public.h>
 
@@ -82,7 +82,9 @@ public:
     const NDataNode::TChunkMetaManagerPtr& GetChunkMetaManager() const;
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
+    const NDataNode::TPeerBlockDistributorPtr& GetPeerBlockDistributor() const;
     const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
+    const NDataNode::TPeerBlockUpdaterPtr& GetPeerBlockUpdater() const;
     const NDataNode::TBlobReaderCachePtr& GetBlobReaderCache() const;
     const NDataNode::TJournalDispatcherPtr& GetJournalDispatcher() const;
     const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
@@ -104,6 +106,7 @@ public:
     const NObjectClient::TCellId& GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
+    TNullable<TString> GetDefaultNetworkName();
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
 
@@ -129,8 +132,7 @@ private:
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     NRpc::IServicePtr MasterCacheService;
-    std::unique_ptr<NXHttp::TServer> HttpServer;
-    NHttp::IServerPtr NewHttpServer;
+    NHttp::IServerPtr HttpServer;
     NHttp::IServerPtr SkynetHttpServer;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
@@ -148,6 +150,7 @@ private:
     NChunkClient::IBlockCachePtr BlockCache;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
+    NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor;
     NDataNode::TBlobReaderCachePtr BlobReaderCache;
     NDataNode::TJournalDispatcherPtr JournalDispatcher;
     NDataNode::TMasterConnectorPtr MasterConnector;
@@ -164,6 +167,13 @@ private:
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheInThrottler;
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheOutThrottler;
     NConcurrency::IThroughputThrottlerPtr SkynetOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler;
 
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;

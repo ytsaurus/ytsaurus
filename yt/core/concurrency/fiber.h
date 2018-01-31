@@ -177,7 +177,7 @@ private:
     void FsdResize();
 
     // ITrampoLine implementation
-    virtual void DoRun();
+    virtual void DoRunNaked();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFiber)

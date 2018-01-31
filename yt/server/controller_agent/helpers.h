@@ -11,10 +11,14 @@
 
 #include <yt/ytlib/table_client/helpers.h>
 
+#include <yt/ytlib/scheduler/config.h>
+
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
 namespace NControllerAgent {
+
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,17 +127,35 @@ struct TLockedUserObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUserFile
+    : public TLockedUserObject
+{
+    std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
+    TString FileName;
+    std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
+    i64 ChunkCount = -1;
+    bool Executable = false;
+    NYson::TYsonString Format;
+    NTableClient::TTableSchema Schema;
+    bool IsDynamic = false;
+    bool IsLayer = false;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
     const TEdgeDescriptor& outputTable,
     const NTableClient::TRowBufferPtr& rowBuffer);
 
+void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector<TUserFile>& files);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

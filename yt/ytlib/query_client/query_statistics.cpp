@@ -61,7 +61,7 @@ TString ToString(const TQueryStatistics& stats)
         "{"
         "RowsRead: %v, BytesRead: %v, RowsWritten: %v, "
         "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, CodegenTime: %v, "
-        "IncompleteInput: %v, IncompleteOutput: %v"
+        "WaitOnReadyEventTime: %v, IncompleteInput: %v, IncompleteOutput: %v"
         "}",
         stats.RowsRead,
         stats.BytesRead,
@@ -72,6 +72,7 @@ TString ToString(const TQueryStatistics& stats)
         stats.ReadTime,
         stats.WriteTime,
         stats.CodegenTime,
+        stats.WaitOnReadyEventTime,
         stats.IncompleteInput,
         stats.IncompleteOutput);
 }

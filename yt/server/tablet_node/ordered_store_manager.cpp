@@ -206,11 +206,13 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
+        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
+        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
 
         auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode, inMemoryConfigRevision);
 
         auto chunkWriter = CreateConfirmingWriter(
-            tabletSnapshot->WriterConfig,
+            writerConfig,
             writerOptions,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),

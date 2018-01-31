@@ -5,6 +5,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/server/controller_agent/job_size_adjuster.h>
+#include <yt/server/controller_agent/controller_agent.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/ref_tracked.h>
@@ -50,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TExtractedStripeList)
 
 class TUnorderedChunkPool
     : public TChunkPoolInputBase
-    , public TChunkPoolOutputBase
+    , public TChunkPoolOutputWithCountersBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     , public TRefTracked<TUnorderedChunkPool>
@@ -414,7 +415,7 @@ public:
     virtual void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
-        TChunkPoolOutputBase::Persist(context);
+        TChunkPoolOutputWithCountersBase::Persist(context);
 
         using NYT::Persist;
         Persist(context, Stripes);

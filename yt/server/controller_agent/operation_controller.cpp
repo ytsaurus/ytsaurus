@@ -1,10 +1,12 @@
 #include "operation_controller.h"
-
 #include "helpers.h"
+#include "operation.h"
 #include "ordered_controller.h"
 #include "sort_controller.h"
 #include "sorted_controller.h"
 #include "unordered_controller.h"
+#include "operation_controller_host.h"
+#include "vanilla_controller.h"
 
 #include <yt/server/scheduler/operation.h>
 
@@ -13,6 +15,7 @@
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/scheduler/config.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -28,6 +31,119 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NYTree;
+
+using NScheduler::NProto::TSchedulerJobResultExt;
+using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStartedJobSummary::TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : Id(FromProto<TJobId>(event->status().job_id()))
+    , StartTime(FromProto<TInstant>(event->start_time()))
+{
+    YCHECK(event->has_start_time());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobSummary::TJobSummary(const TJobId& id, EJobState state)
+    : Result()
+    , Id(id)
+    , State(state)
+    , LogAndProfile(false)
+{ }
+
+TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : Id(FromProto<TJobId>(event->status().job_id()))
+    , State(static_cast<EJobState>(event->status().state()))
+    , FinishTime(event->has_finish_time() ? MakeNullable(FromProto<TInstant>(event->finish_time())) : Null)
+    , LogAndProfile(event->log_and_profile())
+{
+    auto* status = event->mutable_status();
+    Result.Swap(status->mutable_result());
+    if (status->has_prepare_duration()) {
+        PrepareDuration = FromProto<TDuration>(status->prepare_duration());
+    }
+    if (status->has_download_duration()) {
+        DownloadDuration = FromProto<TDuration>(status->download_duration());
+    }
+    if (status->has_exec_duration()) {
+        ExecDuration = FromProto<TDuration>(status->exec_duration());
+    }
+    if (status->has_statistics()) {
+        StatisticsYson = TYsonString(status->statistics());
+    }
+}
+
+void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Result);
+    Persist(context, Id);
+    Persist(context, State);
+    Persist(context, FinishTime);
+    Persist(context, PrepareDuration);
+    Persist(context, DownloadDuration);
+    Persist(context, ExecDuration);
+    Persist(context, Statistics);
+    Persist(context, StatisticsYson);
+    Persist(context, LogAndProfile);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : TJobSummary(event)
+    , Abandoned(event->abandoned())
+    , InterruptReason(static_cast<EInterruptReason>(event->interrupt_reason()))
+{
+    YCHECK(event->has_abandoned());
+    YCHECK(event->has_interrupt_reason());
+    const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    YCHECK(
+        (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
+        (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() != 0));
+}
+
+void TCompletedJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
+{
+    TJobSummary::Persist(context);
+
+    using NYT::Persist;
+
+    Persist(context, Abandoned);
+    Persist(context, InterruptReason);
+    // TODO(max42): now we persist only those completed job summaries that correspond
+    // to non-interrupted jobs, because Persist(context, UnreadInputDataSlices) produces
+    // lots of ugly template resolution errors. I wasn't able to fix it :(
+    YCHECK(InterruptReason == EInterruptReason::None);
+    Persist(context, SplitJobCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
+    : TJobSummary(id, EJobState::Aborted)
+    , AbortReason(abortReason)
+{ }
+
+TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason)
+    : TJobSummary(other)
+    , AbortReason(abortReason)
+{ }
+
+TAbortedJobSummary::TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : TJobSummary(event)
+    , AbortReason(static_cast<EAbortReason>(event->abort_reason()))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRunningJobSummary::TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : TJobSummary(event)
+    , Progress(event->status().progress())
+    , StderrSize(event->status().stderr_size())
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,9 +220,14 @@ public:
         Underlying_->Cancel();
     }
 
-    virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const override
+    virtual TOperationControllerInitializationResult GetInitializationResult() override
     {
-        return Underlying_->GetInitializationAttributes();
+        return Underlying_->GetInitializationResult();
+    }
+
+    virtual TOperationControllerReviveResult GetReviveResult() override
+    {
+        return Underlying_->GetReviveResult();
     }
 
     virtual NYson::TYsonString GetAttributes() const override
@@ -117,11 +238,6 @@ public:
     virtual void OnTransactionAborted(const TTransactionId& transactionId) override
     {
         Underlying_->OnTransactionAborted(transactionId);
-    }
-
-    virtual std::vector<ITransactionPtr> GetTransactions() override
-    {
-        return Underlying_->GetTransactions();
     }
 
     virtual void Complete() override
@@ -164,24 +280,24 @@ public:
         return Underlying_->IsRunning();
     }
 
-    virtual bool IsRevivedFromSnapshot() const override
-    {
-        return Underlying_->IsRevivedFromSnapshot();
-    }
-
     virtual TJobResources GetNeededResources() const override
     {
         return Underlying_->GetNeededResources();
     }
 
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const
+    virtual void UpdateMinNeededJobResources() override
+    {
+        Underlying_->UpdateMinNeededJobResources();
+    }
+
+    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
         return Underlying_->GetMinNeededJobResources();
     }
 
-    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
+    virtual void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) override
     {
-        Underlying_->OnJobStarted(jobId, startTime);
+        Underlying_->OnJobStarted(std::move(jobSummary));
     }
 
     virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
@@ -205,11 +321,11 @@ public:
     }
 
     virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
+        ISchedulingContext* context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
-        return Underlying_->ScheduleJob(std::move(context), jobLimits, treeId);
+        return Underlying_->ScheduleJob(context, jobLimits, treeId);
     }
 
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override
@@ -230,11 +346,6 @@ public:
     virtual bool HasProgress() const override
     {
         return Underlying_->HasProgress();
-    }
-
-    virtual TString GetLoggingProgress() const override
-    {
-        return Underlying_->GetLoggingProgress();
     }
 
     virtual TYsonString GetProgress() const override
@@ -277,11 +388,6 @@ public:
         return Underlying_->GetSuspiciousJobsYson();
     }
 
-    virtual TOperationControllerEvent PullEvent() override
-    {
-        return Underlying_->PullEvent();
-    }
-
     virtual TSnapshotCookie OnSnapshotStarted() override
     {
         return Underlying_->OnSnapshotStarted();
@@ -297,11 +403,6 @@ public:
         return Underlying_->OnBeforeDisposal();
     }
 
-    virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override
-    {
-        return Underlying_->BuildJobsFromJoblets();
-    }
-
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;
@@ -310,12 +411,48 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobStartDescriptor::TJobStartDescriptor(
+    const TJobId& id,
+    EJobType type,
+    const TJobResources& resourceLimits,
+    bool interruptible)
+    : Id(id)
+    , Type(type)
+    , ResourceLimits(resourceLimits)
+    , Interruptible(interruptible)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
+{
+    ++Failed[reason];
+}
+
+bool TScheduleJobResult::IsBackoffNeeded() const
+{
+    return
+        !StartDescriptor &&
+        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
+        Failed[EScheduleJobFailReason::NoLocalJobs] == 0 &&
+        Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
+}
+
+bool TScheduleJobResult::IsScheduleStopNeeded() const
+{
+    return
+        Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
+        Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
     TOperation* operation)
 {
     IOperationControllerPtr controller;
+    auto host = operation->GetHost();
     switch (operation->GetType()) {
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
@@ -364,6 +501,10 @@ IOperationControllerPtr CreateControllerForOperation(
         }
         case EOperationType::RemoteCopy: {
             controller = CreateRemoteCopyController(config, host, operation);
+            break;
+        }
+        case EOperationType::Vanilla: {
+            controller = CreateVanillaController(config, host, operation);
             break;
         }
         default:

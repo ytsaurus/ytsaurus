@@ -19,13 +19,6 @@ namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAlterTableOptions
-{
-    TNullable<NTableClient::TTableSchema> Schema;
-    TNullable<bool> Dynamic;
-    TNullable<NTabletClient::TTableReplicaId> UpstreamReplicaId;
-};
-
 class TTableNodeProxy
     : public NCypressServer::TCypressNodeProxyBase<NChunkServer::TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode>
 {
@@ -64,9 +57,6 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Reshard);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
-
-private:
-    void AlterTable(const TAlterTableOptions& options);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

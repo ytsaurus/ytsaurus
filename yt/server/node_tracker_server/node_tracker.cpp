@@ -1214,7 +1214,7 @@ private:
             FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false),
-                Config_->IncrementalNodeStatesGossipPeriod);
+                Config_->FullNodeStatesGossipPeriod);
             FullNodeStatesGossipExecutor_->Start();
         }
 

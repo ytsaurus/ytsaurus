@@ -1,5 +1,9 @@
 #pragma once
 
+#include <yt/core/crypto/proto/crypto.pb.h>
+#include <yt/core/misc/ref.h>
+#include <yt/core/misc/serialize.h>
+
 #include <array>
 
 #include <util/generic/strbuf.h>
@@ -9,6 +13,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::array<char, 16> TMD5Hash;
+typedef std::array<char, 92> TMD5State;
 
 TMD5Hash MD5FromString(TStringBuf data);
 
@@ -16,16 +21,22 @@ class TMD5Hasher
 {
 public:
     TMD5Hasher();
+    explicit TMD5Hasher(const TMD5State& data);
 
     TMD5Hasher& Append(TStringBuf data);
+    TMD5Hasher& Append(const TRef& data);
 
-    TMD5Hash Digest();
-    TString HexDigestLower();
-    TString HexDigestUpper();
+    TMD5Hash GetDigest();
+    TString GetHexDigestLower();
+    TString GetHexDigestUpper();
+
+    const TMD5State& GetState() const;
+
+    void Persist(const TStreamPersistenceContext& context);
 
 private:
     //! Erasing openssl struct type... brutally.
-    std::array<char, 92> CtxStorage_;
+    TMD5State State_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,13 +52,22 @@ public:
 
     TSHA1Hasher& Append(TStringBuf data);
 
-    TSHA1Hash Digest();
-    TString HexDigestLower();
-    TString HexDigestUpper();
+    TSHA1Hash GetDigest();
+    TString GetHexDigestLower();
+    TString GetHexDigestUpper();
 
 private:
     std::array<char, 96> CtxStorage_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(NProto::TMD5Hasher* protoHasher, const TNullable<NYT::TMD5Hasher>& hasher);
+void FromProto(TNullable<NYT::TMD5Hasher>* hasher, const NProto::TMD5Hasher& protoHasher);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

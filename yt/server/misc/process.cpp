@@ -9,6 +9,7 @@
 namespace NYT {
 
 using namespace NPipes;
+using namespace NNet;
 using namespace NConcurrency;
 using namespace NContainers;
 
@@ -94,7 +95,7 @@ static TString CreateStdIONamedPipePath()
     return NFS::GetRealPath(NFS::CombinePaths("/tmp", name));
 }
 
-TAsyncWriterPtr TPortoProcess::GetStdInWriter()
+IConnectionWriterPtr TPortoProcess::GetStdInWriter()
 {
     auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
     ContainerInstance_->SetStdIn(pipe->GetPath());
@@ -102,7 +103,7 @@ TAsyncWriterPtr TPortoProcess::GetStdInWriter()
     return pipe->CreateAsyncWriter();
 }
 
-TAsyncReaderPtr TPortoProcess::GetStdOutReader()
+IConnectionReaderPtr TPortoProcess::GetStdOutReader()
 {
     auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
     ContainerInstance_->SetStdOut(pipe->GetPath());
@@ -110,7 +111,7 @@ TAsyncReaderPtr TPortoProcess::GetStdOutReader()
     return pipe->CreateAsyncReader();
 }
 
-TAsyncReaderPtr TPortoProcess::GetStdErrReader()
+IConnectionReaderPtr TPortoProcess::GetStdErrReader()
 {
     auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
     ContainerInstance_->SetStdErr(pipe->GetPath());

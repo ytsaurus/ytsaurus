@@ -70,13 +70,6 @@ public:
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
         bool recursive);
 
-    // XXX(babenko): this method does not belong here
-    void AttachJobContext(
-        const NYPath::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId);
-
     void UpdateConfig(const TControllerAgentConfigPtr& config);
 
     //! Raised when connection process starts.

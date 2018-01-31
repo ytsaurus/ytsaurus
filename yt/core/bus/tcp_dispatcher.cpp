@@ -32,6 +32,11 @@ void TTcpDispatcher::Shutdown()
     Impl_->Shutdown();
 }
 
+const TTcpDispatcherCountersPtr& TTcpDispatcher::GetCounters(const TString& networkName)
+{
+    return Impl_->GetCounters(networkName);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_SHUTDOWN_CALLBACK(6, TTcpDispatcher::StaticShutdown);

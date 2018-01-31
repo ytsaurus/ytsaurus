@@ -28,6 +28,7 @@ class TPythonObjectBuilder
     : public NYson::TYsonConsumerBase
 {
 public:
+    TPythonObjectBuilder();
     explicit TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding);
 
     virtual void OnStringScalar(const TStringBuf& value) override;

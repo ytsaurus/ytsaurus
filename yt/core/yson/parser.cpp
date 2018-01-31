@@ -3,10 +3,6 @@
 #include "format.h"
 #include "parser_detail.h"
 
-#include <yt/core/concurrency/coroutine.h>
-
-#include <yt/core/misc/error.h>
-
 namespace NYT {
 namespace NYson {
 
@@ -173,34 +169,6 @@ void ParseYsonStringBuffer(
         enableLinePositionInfo,
         memoryLimit,
         enableContext);
-}
-
-void ParseYsonSharedRefArray(
-    const TSharedRefArray& refArray,
-    EYsonType type,
-    IYsonConsumer* consumer,
-    bool enableLinePositionInfo,
-    i64 memoryLimit,
-    bool enableContext)
-{
-    typedef TCoroutine<int(const char* begin, const char* end, bool finish)> TParserCoroutine;
-    TParserCoroutine parserCoroutine(BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
-        TParserYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>> Parser;
-        Parser.DoParse(
-            TBlockReader<TParserCoroutine>(self, begin, end, finish),
-            consumer,
-            type,
-            enableLinePositionInfo,
-            memoryLimit,
-            enableContext);
-    }));
-
-    for (const auto& blob: refArray) {
-        auto buffer = TStringBuf(blob.Begin(), blob.End());
-        parserCoroutine.Run(buffer.begin(), buffer.end(), false);
-    }
-
-    parserCoroutine.Run(nullptr, nullptr, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

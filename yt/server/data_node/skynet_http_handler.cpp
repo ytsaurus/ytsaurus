@@ -79,11 +79,11 @@ class TSkynetHttpHandler
     : public IHttpHandler
 {
 public:
-    TSkynetHttpHandler(TBootstrap* bootstrap)
+    explicit TSkynetHttpHandler(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
-    void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp)
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         TChunkId chunkId;
         TReadRange readRange;

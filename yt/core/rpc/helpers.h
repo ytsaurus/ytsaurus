@@ -5,6 +5,7 @@
 #include <yt/core/actions/public.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/ref.h>
 
 #include <yt/core/rpc/public.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
@@ -68,6 +69,19 @@ void GenerateMutationId(const IClientRequestPtr& request);
 void SetMutationId(NProto::TRequestHeader* header, const TMutationId& id, bool retry);
 void SetMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry);
 void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IMessageFormat
+{
+    virtual TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType) = 0;
+    virtual TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType) = 0;
+};
+
+void RegisterCustomMessageFormat(EMessageFormat format, IMessageFormat* formatHandler);
+
+TSharedRef ConvertMessageToFormat(const TSharedRef& message, EMessageFormat format, const NYson::TProtobufMessageType* messageType);
+TSharedRef ConvertMessageFromFormat(const TSharedRef& message, EMessageFormat format, const NYson::TProtobufMessageType* messageType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

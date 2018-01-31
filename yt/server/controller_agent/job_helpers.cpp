@@ -1,8 +1,7 @@
 #include "job_helpers.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
-
-#include <yt/server/scheduler/job.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -248,12 +247,12 @@ TYsonString BuildInputPaths(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
+void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResult& scheduleJobResult)
 {
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        Failed[reason] += scheduleJobResult->Failed[reason];
+        Failed[reason] += scheduleJobResult.Failed[reason];
     }
-    Duration += scheduleJobResult->Duration;
+    Duration += scheduleJobResult.Duration;
     ++Count;
 }
 

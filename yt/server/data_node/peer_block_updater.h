@@ -22,6 +22,8 @@ public:
     void Start();
     void Stop();
 
+    TDuration GetPeerUpdateExpirationTime() const;
+
 private:
     const TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;

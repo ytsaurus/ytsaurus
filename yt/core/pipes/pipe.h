@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/net/public.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -15,8 +17,10 @@ class TNamedPipe
 public:
     ~TNamedPipe();
     static TNamedPipePtr Create(const TString& path);
-    TAsyncReaderPtr CreateAsyncReader();
-    TAsyncWriterPtr CreateAsyncWriter();
+
+    NNet::IConnectionReaderPtr CreateAsyncReader();
+    NNet::IConnectionWriterPtr CreateAsyncWriter();
+
     TString GetPath() const;
 
 private:
@@ -77,8 +81,8 @@ public:
     void CloseReadFD();
     void CloseWriteFD();
 
-    TAsyncReaderPtr CreateAsyncReader();
-    TAsyncWriterPtr CreateAsyncWriter();
+    NNet::IConnectionReaderPtr CreateAsyncReader();
+    NNet::IConnectionWriterPtr CreateAsyncWriter();
 
     int ReleaseReadFD();
     int ReleaseWriteFD();

@@ -66,7 +66,7 @@ public:
 
     TFileReaderPtr GetReader(IChunkPtr chunk)
     {
-        YCHECK(chunk->IsReadLockAcquired());
+        auto guard = TChunkReadGuard::AcquireOrThrow(chunk.Get());
 
         auto location = chunk->GetLocation();
         const auto& Profiler = location->GetProfiler();

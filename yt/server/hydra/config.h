@@ -86,7 +86,7 @@ public:
         RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
            ChangelogReaderCache->Capacity = 4;
         });
     }
@@ -128,9 +128,9 @@ public:
         RegisterParameter("writer", Writer)
             .DefaultNew();
 
-        RegisterInitializer([&] {
+        RegisterPreprocessor([&] {
             Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
-            Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+            Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletSnapshot;
         });
     }
 };
@@ -151,7 +151,7 @@ public:
         RegisterParameter("writer", Writer)
             .DefaultNew();
 
-        RegisterInitializer([&] {
+        RegisterPreprocessor([&] {
             Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
             Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletLogging;
         });
@@ -320,7 +320,7 @@ public:
         RegisterParameter("automaton_thread_log_batching_period", AutomatonThreadLogBatchingPeriod)
             .Default(TDuration::MilliSeconds(100));
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
                 THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");
             }

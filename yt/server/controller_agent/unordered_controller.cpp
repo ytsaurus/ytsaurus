@@ -7,6 +7,7 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "operation.h"
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -63,11 +64,6 @@ public:
             : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
         { }
-
-        virtual TString GetId() const override
-        {
-            return "Unordered";
-        }
 
         virtual TTaskGroupPtr GetGroup() const override
         {
@@ -380,15 +376,15 @@ protected:
                 } else {
                     UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
                 }
+                RegisterTask(UnorderedTask);
+
                 UnorderedTask->AddInput(stripes);
                 FinishTaskInput(UnorderedTask);
                 for (int index = 0; index < AutoMergeTasks.size(); ++index) {
                     if (AutoMergeTasks[index]) {
-                        AutoMergeTasks[index]->FinishInput(UnorderedTask->GetJobType());
+                        AutoMergeTasks[index]->FinishInput(UnorderedTask->GetVertexDescriptor());
                     }
                 }
-
-                RegisterTask(UnorderedTask);
 
                 LOG_INFO("Inputs processed (JobCount: %v, IsExplicitJobCount: %v)",
                     UnorderedTask->GetPendingJobCount(),
@@ -411,22 +407,6 @@ protected:
         result.SetCpu(GetCpuLimit());
         result.SetJobProxyMemory(GetFinalIOMemorySize(Spec->JobIO, AggregateStatistics(statistics)));
         return result;
-    }
-
-    // Progress reporting.
-    virtual TString GetLoggingProgress() const override
-    {
-        return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-            "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
-            GetUnavailableInputChunkCount());
     }
 
     virtual void OnChunksReleased(int chunkCount) override
@@ -467,11 +447,6 @@ protected:
         return 1;
     }
 
-    virtual i64 GetUserJobMemoryReserve() const
-    {
-        return 0;
-    }
-
     void InitJobIOConfig()
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
@@ -497,14 +472,11 @@ protected:
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
 
         SetInputDataSources(schedulerJobSpecExt);
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
     }
 };
@@ -532,13 +504,7 @@ public:
             operation)
         , Spec(spec)
         , Options(options)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::Map, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
-        if (Spec->AutoMerge->Mode != EAutoMergeMode::Disabled) {
-            RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, Spec->JobProxyMemoryDigest);
-        }
-    }
+    { }
 
     virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
@@ -628,22 +594,9 @@ private:
         return Spec->CoreTableWriterConfig;
     }
 
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec->Mapper->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
-    }
-
-    virtual std::vector<TPathWithStage> GetLayerPaths() const override
-    {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec->Mapper->LayerPaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
+        return {Spec->Mapper};
     }
 
     virtual void DoInitialize() override
@@ -664,11 +617,6 @@ private:
         return Spec->Mapper->CpuLimit;
     }
 
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return ComputeUserJobMemoryReserve(EJobType::Map, Spec->Mapper);
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         TUnorderedControllerBase::InitJobSpecTemplate();
@@ -676,7 +624,7 @@ private:
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
-            Files,
+            UserJobFiles_[Spec->Mapper],
             Spec->JobNodeAccount);
     }
 
@@ -684,17 +632,6 @@ private:
     {
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
-    }
-
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
-    {
-        if (joblet->JobType != EJobType::Map) {
-            return;
-        }
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet);
     }
 
     virtual bool IsInputDataSizeHistogramSupported() const override
@@ -750,9 +687,7 @@ public:
             host,
             operation)
         , Spec(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
@@ -873,6 +808,11 @@ private:
     virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec;
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
     }
 };
 

@@ -1,6 +1,6 @@
 #include "controller_agent_tracker_service.h"
+#include "controller_agent_tracker.h"
 #include "private.h"
-#include "scheduler.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
@@ -11,9 +11,6 @@ namespace NScheduler {
 
 using namespace NRpc;
 using namespace NCellScheduler;
-using namespace NJobTrackerClient;
-using namespace NNodeTrackerClient;
-using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,8 +36,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Heartbeat)
     {
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        scheduler->ProcessAgentHeartbeat(context);
+        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
+        controllerAgentTracker->ProcessAgentHeartbeat(context);
     }
 };
 

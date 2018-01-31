@@ -152,7 +152,7 @@ void SerializeLazyMapFragment(
         if (value.Value) {
             Serialize(value.Value.Get(), consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
         } else {
-            consumer->OnRaw(value.Data, NYson::EYsonType::Node);
+            consumer->OnRaw(TStringBuf(value.Data.Begin(), value.Data.Size()), NYson::EYsonType::Node);
         }
         context->Pop();
     }

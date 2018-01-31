@@ -5,9 +5,8 @@
 
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
-#include <yt/core/pipes/io_dispatcher.h>
+#include <yt/core/net/connection.h>
+
 #include <yt/core/pipes/pipe.h>
 
 #include <random>
@@ -18,6 +17,7 @@ namespace NPipes {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
+using namespace NNet;
 
 #ifndef _win_
 
@@ -34,7 +34,7 @@ TEST(TPipeIOHolder, CanInstantiate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
+TBlob ReadAll(IConnectionReaderPtr reader, bool useWaitFor)
 {
     auto buffer = TSharedMutableRef::Allocate(1024 * 1024, false);
     auto whole = TBlob(TDefaultBlobTag());
@@ -122,8 +122,8 @@ protected:
     virtual void TearDown() override
     { }
 
-    TAsyncReaderPtr Reader;
-    TAsyncWriterPtr Writer;
+    IConnectionReaderPtr Reader;
+    IConnectionWriterPtr Writer;
 };
 
 class TNamedPipeReadWriteTest
@@ -140,8 +140,8 @@ protected:
     virtual void TearDown() override
     { }
 
-    TAsyncReaderPtr Reader;
-    TAsyncWriterPtr Writer;
+    IConnectionReaderPtr Reader;
+    IConnectionWriterPtr Writer;
 };
 
 TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
@@ -237,7 +237,7 @@ TEST_F(TNamedPipeReadWriteTest, ReadWrite)
     EXPECT_EQ(text, TString(textFromPipe.Begin(), textFromPipe.End()));
 }
 
-void WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t blockSize)
+void WriteAll(IConnectionWriterPtr writer, const char* data, size_t size, size_t blockSize)
 {
     while (size > 0) {
         const size_t currentBlockSize = std::min(blockSize, size);

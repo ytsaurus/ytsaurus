@@ -44,32 +44,39 @@ struct TEdgeDescriptor
 class TDataFlowGraph
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(TProgressCounterPtr, TotalJobCounter, New<TProgressCounter>(0));
+    using TVertexDescriptor = TString;
 
-    // NB: It is correct until the moment we have two tasks in the same controller
-    // that share the job type. Such situation didn't happen yet though :)
-    using TVertexDescriptor = EJobType;
+    static TVertexDescriptor SourceDescriptor;
+    static TVertexDescriptor SinkDescriptor;
 
-public:
     TDataFlowGraph() = default;
 
     void BuildYson(NYTree::TFluentMap fluent) const;
 
-    const TProgressCounterPtr& JobCounter(TVertexDescriptor vertexDescriptor);
-
     void Persist(const TPersistenceContext& context);
 
-    std::vector<TVertexDescriptor> GetTopologicalOrdering() const;
+    const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
 
-    void RegisterFlow(TVertexDescriptor from, TVertexDescriptor to, const NChunkClient::NProto::TDataStatistics& statistics);
+    void RegisterFlow(
+        const TVertexDescriptor& from,
+        const TVertexDescriptor& to,
+        const NChunkClient::NProto::TDataStatistics& statistics);
+
+    void RegisterTask(
+        const TVertexDescriptor& vertex,
+        const TProgressCounterPtr& taskCounter,
+        EJobType jobType);
 
 private:
     THashMap<TVertexDescriptor, TProgressCounterPtr> JobCounters_;
+    TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
+
+    THashMap<TVertexDescriptor, EJobType> JobTypes_;
 
     using TFlowMap = THashMap<TVertexDescriptor, THashMap<TVertexDescriptor, NChunkClient::NProto::TDataStatistics>>;
     TFlowMap Flow_;
 
-    TIncrementalTopologicalOrdering TopologicalOrdering_;
+    TIncrementalTopologicalOrdering<TVertexDescriptor> TopologicalOrdering_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

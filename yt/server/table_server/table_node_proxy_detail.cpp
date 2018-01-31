@@ -117,6 +117,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablet_statistics")
         .SetPresent(isDynamic)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("tablet_errors")
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
         .SetWritable(true)
         .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
@@ -320,6 +323,17 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
             .Value(New<TSerializableTabletStatistics>(
                 tabletStatistics,
                 chunkManager));
+        return true;
+    }
+
+    if (key == "tablet_errors" && isDynamic) {
+        std::vector<TError> errors;
+        for (const auto& tablet : trunkTable->Tablets()) {
+            const auto& tabletErrors = tablet->GetErrors();
+            errors.insert(errors.end(), tabletErrors.begin(), tabletErrors.end());
+        }
+        BuildYsonFluently(consumer)
+            .Value(errors);
         return true;
     }
 
@@ -647,88 +661,6 @@ void TTableNodeProxy::ValidateFetchParameters(
     }
 }
 
-void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
-{
-    auto* table = LockThisImpl();
-
-    if (table->IsReplicated()) {
-        THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
-    }
-
-    if (options.Dynamic) {
-        ValidateNoTransaction();
-
-        if (*options.Dynamic && table->IsExternal()) {
-            THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
-        }
-    }
-
-    if (options.Schema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
-        THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
-            ETabletState::Unmounted);
-    }
-
-    auto dynamic = options.Dynamic.Get(table->IsDynamic());
-    auto schema = options.Schema.Get(table->TableSchema());
-
-    if (options.UpstreamReplicaId) {
-        ValidateNoTransaction();
-
-        if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
-        }
-        if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
-        }
-        if (!schema.IsSorted()) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
-        }
-        if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
-        }
-    }
-
-    // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
-        schema = schema.ToUniqueKeys();
-    }
-
-    ValidateTableSchemaUpdate(
-        table->TableSchema(),
-        schema,
-        dynamic,
-        table->IsEmpty());
-
-    auto oldSchema = table->TableSchema();
-    auto oldSchemaMode = table->GetSchemaMode();
-
-    if (options.Schema) {
-        table->TableSchema() = std::move(schema);
-        table->SetSchemaMode(ETableSchemaMode::Strong);
-    }
-
-    try {
-        if (options.Dynamic) {
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            if (*options.Dynamic) {
-                tabletManager->MakeTableDynamic(table);
-            } else {
-                tabletManager->MakeTableStatic(table);
-            }
-        }
-    } catch (const std::exception&) {
-        table->TableSchema() = std::move(oldSchema);
-        table->SetSchemaMode(oldSchemaMode);
-        throw;
-    }
-
-    if (options.UpstreamReplicaId) {
-        table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
-    }
-}
-
-
 bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Mount);
@@ -992,7 +924,13 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 {
     DeclareMutating();
 
-    TAlterTableOptions options;
+    struct TAlterTableOptions
+    {
+        TNullable<NTableClient::TTableSchema> Schema;
+        TNullable<bool> Dynamic;
+        TNullable<NTabletClient::TTableReplicaId> UpstreamReplicaId;
+    } options;
+
     if (request->has_schema()) {
         options.Schema = FromProto<TTableSchema>(request->schema());
     }
@@ -1008,7 +946,84 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.Dynamic,
         options.UpstreamReplicaId);
 
-    AlterTable(options);
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+    auto* table = LockThisImpl();
+
+    if (table->IsReplicated()) {
+        THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+    }
+
+    if (options.Dynamic) {
+        ValidateNoTransaction();
+
+        if (*options.Dynamic && table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
+        }
+    }
+    if (options.Schema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
+            ETabletState::Unmounted);
+    }
+
+    auto dynamic = options.Dynamic.Get(table->IsDynamic());
+    auto schema = options.Schema.Get(table->TableSchema());
+
+    if (options.UpstreamReplicaId) {
+        ValidateNoTransaction();
+
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
+        }
+        if (!schema.IsSorted()) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
+        }
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
+        }
+    }
+
+    // NB: Sorted dynamic tables contain unique keys, set this for user.
+    if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
+        schema = schema.ToUniqueKeys();
+    }
+
+    ValidateTableSchemaUpdate(
+        table->TableSchema(),
+        schema,
+        dynamic,
+        table->IsEmpty());
+
+    auto oldSchema = table->TableSchema();
+    auto oldSchemaMode = table->GetSchemaMode();
+
+    if (options.Schema) {
+        table->TableSchema() = std::move(schema);
+        table->SetSchemaMode(ETableSchemaMode::Strong);
+    }
+
+    try {
+        if (options.Dynamic) {
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            if (*options.Dynamic) {
+                tabletManager->MakeTableDynamic(table);
+            } else {
+                tabletManager->MakeTableStatic(table);
+            }
+        }
+    } catch (const std::exception&) {
+        table->TableSchema() = std::move(oldSchema);
+        table->SetSchemaMode(oldSchemaMode);
+        throw;
+    }
+
+    if (options.UpstreamReplicaId) {
+        table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
+    }
 
     context->Reply();
 }

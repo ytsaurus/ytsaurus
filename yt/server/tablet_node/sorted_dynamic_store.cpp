@@ -326,6 +326,8 @@ protected:
 
     TVersionedRow ProduceAllRowVersions(TSortedDynamicRow dynamicRow)
     {
+        Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
+
         // Prepare values and write timestamps.
         VersionedValues_.clear();
         WriteTimestamps_.clear();
@@ -865,10 +867,12 @@ void TSortedDynamicStore::WaitOnBlockedRow(
     ui32 lockMask,
     TTimestamp timestamp)
 {
-    if (timestamp == AsyncLastCommittedTimestamp)
+    if (timestamp == AsyncLastCommittedTimestamp ||
+        timestamp == AllCommittedTimestamp ||
+        Atomicity_ == EAtomicity::None)
+    {
         return;
-    if (Atomicity_ == EAtomicity::None)
-        return;
+    }
 
     auto now = NProfiling::GetCpuInstant();
     auto deadline = now + NProfiling::DurationToCpuDuration(Config_->MaxBlockedRowWaitTime);

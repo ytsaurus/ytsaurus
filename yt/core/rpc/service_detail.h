@@ -11,6 +11,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/yson/protobuf_interop.h>
+
 #include <yt/core/misc/object_pool.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/ref.h>
@@ -117,7 +119,15 @@ public:
         Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context_ = UnderlyingContext_.Get();
 
-        if (!TryDeserializeProtoWithEnvelope(Request_.get(), UnderlyingContext_->GetRequestBody())) {
+        auto body = UnderlyingContext_->GetRequestBody();
+        if (GetRequestHeader().has_request_format()) {
+            auto format = static_cast<EMessageFormat>(GetRequestHeader().request_format());
+            if (format != EMessageFormat::Protobuf) {
+                body = ConvertMessageFromFormat(body, format, NYson::ReflectProtobufMessageType<TRequestMessage>());
+            }
+        }
+
+        if (!TryDeserializeProtoWithEnvelope(Request_.get(), body)) {
             UnderlyingContext_->Reply(TError(
                 NRpc::EErrorCode::ProtocolError,
                 "Error deserializing request body"));
@@ -176,6 +186,14 @@ protected:
     {
         if (error.IsOK()) {
             auto data = SerializeProtoToRefWithEnvelope(*Response_, this->Options_.ResponseCodec, false);
+
+            if (GetRequestHeader().has_response_format()) {
+                auto format = static_cast<EMessageFormat>(GetRequestHeader().response_format());
+                if (format != EMessageFormat::Protobuf) {
+                    data = ConvertMessageToFormat(data, format, NYson::ReflectProtobufMessageType<TResponseMessage>());
+                }
+            }
+            
             this->UnderlyingContext_->SetResponseBody(std::move(data));
         }
         this->UnderlyingContext_->Reply(error);
@@ -291,9 +309,6 @@ protected:
         //! A handler that will serve heavy requests.
         THeavyHandler HeavyHandler;
 
-        //! Is the method one-way?
-        bool OneWay = false;
-
         //! Options to pass to the handler.
         THandlerInvocationOptions Options;
 
@@ -321,16 +336,13 @@ protected:
         //! but not attachements.
         bool GenerateAttachmentChecksums = true;
 
+        const google::protobuf::Descriptor* RequestDescriptor = nullptr;
+
+        const google::protobuf::Descriptor* ResponseDescriptor = nullptr;
 
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {
             Invoker = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetOneWay(bool value)
-        {
-            OneWay = value;
             return *this;
         }
 

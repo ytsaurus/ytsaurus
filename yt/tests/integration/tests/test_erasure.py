@@ -1,13 +1,10 @@
 import pytest
-import re
-import os
-import os.path
 
-import subprocess
+import time
 
-from yt_env_setup import YTEnvSetup, wait, SANDBOX_ROOTDIR
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
-from yt_driver_bindings import Request, BufferedStream
+from yt_driver_bindings import BufferedStream
 from yt.common import YtResponseError
 import yt.yson as yson
 
@@ -120,12 +117,12 @@ class TestErasure(YTEnvSetup):
         has_failed = None
 
         try:
-            response = read_table("//tmp/table",
-                                  table_reader={
-                                      "unavailable_chunk_strategy": chunk_strategy,
-                                      "pass_count": 1,
-                                      "retry_count": 1,
-                                  })
+            read_table("//tmp/table",
+                       table_reader={
+                           "unavailable_chunk_strategy": chunk_strategy,
+                           "pass_count": 1,
+                           "retry_count": 1,
+                       })
         except YtResponseError:
             has_failed = True
         else:
@@ -135,13 +132,43 @@ class TestErasure(YTEnvSetup):
 
         return has_failed
 
+    def test_slow_read(self):
+        replicas, _ = self._prepare_table()
+
+        set("//sys/@config/enable_chunk_replicator", False)
+        wait(lambda: not get("//sys/@chunk_replicator_enabled"))
+
+        try:
+            replica = replicas[3]
+            address_to_ban = str(replica)
+            self.set_node_banned(address_to_ban, True)
+            time.sleep(1)
+
+            start = time.time()
+            read_table("//tmp/table",
+                       table_reader={
+                           "block_rpc_timeout": 1000,
+                           "meta_rpc_timeout": 1000,
+                           # So much passes will take more than 1 seconds and we detect that reader is slow.
+                           "pass_count": 100,
+                           "replication_reader_timeout": 1000
+                       },
+                       verbose=False)
+            end = time.time()
+            time_passed = end - start
+            self.set_node_banned(address_to_ban, False)
+            assert time_passed <= 5
+        finally:
+            set("//sys/@config/enable_chunk_replicator", True)
+            wait(lambda: get("//sys/@chunk_replicator_enabled"))
+
     def test_throw_error(self):
         has_failed = self._test_fetching_specs("throw_error")
         assert has_failed, "Expected to fail due to unavailable chunk specs"
 
     def test_repair_works(self):
         has_failed = self._test_fetching_specs("restore")
-        assert not has_failed, "Expected successful read"
+        assert has_failed == False, "Expected successful read"
 
     def _test_repair_on_spot(self, allow_repair):
         replicas, content = self._prepare_table()

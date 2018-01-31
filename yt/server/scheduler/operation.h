@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
+#include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -21,12 +22,12 @@
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/crash_handler.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <yt/core/ytree/node.h>
 
 namespace NYT {
 namespace NScheduler {
-
-using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,7 +143,11 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
+    DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeDataPtr, RuntimeData);
+
     DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
+
+    DEFINE_BYREF_RW_PROPERTY(NControllerAgent::TOperationControllerReviveResult, ReviveResult);
 
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain
@@ -160,8 +165,8 @@ public:
     using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
 
-    //! Controller that owns the operation.
-    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerSchedulerHostPtr, Controller);
+    // TODO(babenko)
+    DEFINE_BYVAL_RW_PROPERTY(NScheduler::IOperationControllerPtr, LocalController);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
@@ -274,6 +279,33 @@ private:
 #undef DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH
 
 DEFINE_REFCOUNTED_TYPE(TOperation)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationRuntimeData
+    : public TIntrinsicRefCounted
+{
+public:
+    int GetPendingJobCount() const;
+    void SetPendingJobCount(int value);
+
+    TJobResources GetNeededResources();
+    void SetNeededResources(const TJobResources& value);
+
+    TJobResourcesWithQuotaList GetMinNeededJobResources() const;
+    void SetMinNeededJobResources(const TJobResourcesWithQuotaList& value);
+
+private:
+    std::atomic<int> PendingJobCount_ = {0};
+
+    mutable NConcurrency::TReaderWriterSpinLock NeededResourcesLock_;
+    TJobResources NeededResources_;
+
+    mutable NConcurrency::TReaderWriterSpinLock MinNeededResourcesJobLock_;
+    TJobResourcesWithQuotaList MinNeededJobResources_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 

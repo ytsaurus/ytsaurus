@@ -1,7 +1,7 @@
-#include <yt/server/program/program.h>
-#include <yt/server/program/program_config_mixin.h>
-#include <yt/server/program/program_cgroup_mixin.h>
-#include <yt/server/program/program_tool_mixin.h>
+#include <yt/ytlib/program/program.h>
+#include <yt/ytlib/program/program_config_mixin.h>
+#include <yt/ytlib/program/program_cgroup_mixin.h>
+#include <yt/ytlib/program/program_tool_mixin.h>
 
 #include <yt/server/misc/configure_singletons.h>
 

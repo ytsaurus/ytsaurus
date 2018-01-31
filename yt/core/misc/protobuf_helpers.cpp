@@ -186,6 +186,33 @@ void DeserializeProtoWithEnvelope(
     YCHECK(TryDeserializeProtoWithEnvelope(message, data));
 }
 
+TSharedRef PopEnvelope(const TSharedRef& data)
+{
+    TEnvelopeFixedHeader header;
+    if (data.Size() < sizeof(header)) {
+        THROW_ERROR_EXCEPTION("Fixed header is missing");
+    }
+
+    memcpy(&header, data.Begin(), sizeof(header));
+    if (header.EnvelopeSize != 0) {
+        THROW_ERROR_EXCEPTION("Envelope is not empty");
+    }
+
+    return data.Slice(sizeof(TEnvelopeFixedHeader), data.Size());
+}
+
+TSharedRef PushEnvelope(const TSharedRef& data)
+{
+    TEnvelopeFixedHeader header;
+    header.EnvelopeSize = 0;
+    header.MessageSize = data.Size();
+
+    auto headerRef = TSharedMutableRef::Allocate(sizeof(header));
+    memcpy(headerRef.Begin(), &header, sizeof(header));
+
+    return MergeRefsToRef<TDefaultSharedBlobTag>(std::vector<TSharedRef>{headerRef, data});
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)

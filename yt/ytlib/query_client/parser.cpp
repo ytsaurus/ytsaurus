@@ -2120,13 +2120,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 84:
     {
-            yylhs.value.as< TReferenceExpressionPtr > () = New<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
+            yylhs.value.as< TReferenceExpressionPtr > () = New<TReferenceExpression>(yylhs.location, TString(yystack_[0].value.as< TStringBuf > ()));
         }
     break;
 
   case 85:
     {
-            yylhs.value.as< TReferenceExpressionPtr > () = New<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > (), yystack_[2].value.as< TStringBuf > ());
+            yylhs.value.as< TReferenceExpressionPtr > () = New<TReferenceExpression>(yylhs.location, TString(yystack_[0].value.as< TStringBuf > ()), TString(yystack_[2].value.as< TStringBuf > ()));
         }
     break;
 

@@ -597,7 +597,9 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErasureChunkReaderBase::TErasureChunkReaderBase(NErasure::ICodec* codec, const std::vector<IChunkReaderPtr>& readers)
+TErasureChunkReaderBase::TErasureChunkReaderBase(
+    NErasure::ICodec* codec,
+    const std::vector<IChunkReaderAllowingRepairPtr>& readers)
     : Codec_(codec)
     , Readers_(readers)
 { }

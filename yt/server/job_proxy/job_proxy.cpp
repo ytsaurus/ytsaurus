@@ -8,7 +8,7 @@
 #include "simple_sort_job.h"
 #include "sorted_merge_job.h"
 #include "user_job.h"
-#include "user_job_io.h"
+#include "user_job_write_controller.h"
 #include "user_job_synchronizer.h"
 
 #include <yt/server/containers/public.h>
@@ -395,6 +395,7 @@ TJobResult TJobProxy::DoRun()
             LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
 
             TRootFS rootFS;
+            rootFS.IsRootReadOnly = true;
             rootFS.RootPath = *Config_->RootPath;
             rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
 
@@ -462,7 +463,7 @@ TJobResult TJobProxy::DoRun()
             this,
             userJobSpec,
             JobId_,
-            std::make_unique<TUserJobIO>(this));
+            std::make_unique<TUserJobWriteController>(this));
     } else {
         Job_ = CreateBuiltinJob();
     }
@@ -627,7 +628,7 @@ const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const
 
 void TJobProxy::CheckMemoryUsage()
 {
-    i64 jobProxyMemoryUsage = GetProcessRss();
+    i64 jobProxyMemoryUsage = GetProcessMemoryUsage().Rss;
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
 
     LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",
@@ -700,6 +701,7 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
         LOG_WARNING("Stderr table boundary keys are absent");
         auto* stderrBoundaryKeys = schedulerJobResultExt->mutable_stderr_table_boundary_keys();
         stderrBoundaryKeys->set_sorted(true);
+        stderrBoundaryKeys->set_unique_keys(true);
     }
 }
 

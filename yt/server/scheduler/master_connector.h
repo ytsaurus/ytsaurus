@@ -68,6 +68,12 @@ public:
     TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation);
     TFuture<void> FlushOperationNode(const TOperationPtr& operation);
 
+    void AttachJobContext(
+        const NYPath::TYPath& path,
+        const NChunkClient::TChunkId& chunkId,
+        const TOperationId& operationId,
+        const TJobId& jobId);
+
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
@@ -98,7 +104,7 @@ public:
 
 private:
     class TImpl;
-    const TIntrusivePtr<TImpl> Impl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

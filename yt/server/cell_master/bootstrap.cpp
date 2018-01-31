@@ -436,16 +436,9 @@ void TBootstrap::DoInitialize()
         YCHECK(CellDirectory_->ReconfigureCell(cellConfig));
     }
 
-    if (!Config_->UseNewHttpServer) {
-        HttpServer_.reset(new NXHttp::TServer(
-            Config_->MonitoringPort,
-            Config_->BusServer->BindRetryCount,
-            Config_->BusServer->BindRetryBackoff));
-    } else {
-        Config_->MonitoringServer->Port = Config_->MonitoringPort;
-        Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-        Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    }
+    Config_->MonitoringServer->Port = Config_->MonitoringPort;
+    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
+    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
 
     if (Config_->CoreDumper) {
         CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
@@ -589,13 +582,7 @@ void TBootstrap::DoInitialize()
         "/config",
         ConfigNode_);
 
-    if (HttpServer_) {
-        HttpServer_->Register(
-            "/orchid",
-            NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
-    } else {
-        OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker()));
-    }
+    OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker()));
 
     SetBuildAttributes(orchidRoot, "master");
 
@@ -659,13 +646,9 @@ void TBootstrap::DoRun()
     MonitoringManager_->Start();
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-    if (HttpServer_) {
-        HttpServer_->Start();
-    } else {
-        NewHttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
-        NewHttpServer_->AddHandler("/orchid/", OrchidHttpHandler_);
-        NewHttpServer_->Start();
-    }
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_->AddHandler("/orchid/", OrchidHttpHandler_);
+    HttpServer_->Start();
 
     LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Start();

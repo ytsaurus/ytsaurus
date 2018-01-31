@@ -34,9 +34,9 @@ public:
 
     void SetWorkingDirectory(const TString& path);
 
-    virtual NPipes::TAsyncWriterPtr GetStdInWriter() = 0;
-    virtual NPipes::TAsyncReaderPtr GetStdOutReader() = 0;
-    virtual NPipes::TAsyncReaderPtr GetStdErrReader() = 0;
+    virtual NNet::IConnectionWriterPtr GetStdInWriter() = 0;
+    virtual NNet::IConnectionReaderPtr GetStdOutReader() = 0;
+    virtual NNet::IConnectionReaderPtr GetStdErrReader() = 0;
 
     TFuture<void> Spawn();
     virtual void Kill(int signal) = 0;
@@ -89,9 +89,9 @@ public:
         bool copyEnv = true,
         TDuration pollPeriod = TDuration::MilliSeconds(100));
     virtual void Kill(int signal) override;
-    virtual NPipes::TAsyncWriterPtr GetStdInWriter() override;
-    virtual NPipes::TAsyncReaderPtr GetStdOutReader() override;
-    virtual NPipes::TAsyncReaderPtr GetStdErrReader() override;
+    virtual NNet::IConnectionWriterPtr GetStdInWriter() override;
+    virtual NNet::IConnectionReaderPtr GetStdOutReader() override;
+    virtual NNet::IConnectionReaderPtr GetStdErrReader() override;
 
 private:
     const TDuration PollPeriod_;

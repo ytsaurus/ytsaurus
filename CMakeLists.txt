@@ -12,6 +12,7 @@ project(YT)
 #################################################################################
 # Specify available build options.
 
+option(YT_BUILD_ENABLE_SERVER_BINARIES    "Build ytserver-* binaries" TRUE)
 option(YT_BUILD_ENABLE_BENCHMARKS         "Build benchmarks" TRUE)
 option(YT_BUILD_ENABLE_EXPERIMENTS        "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS              "Build tests" TRUE)
@@ -60,6 +61,11 @@ include(Version)
 # Create CompilationDatabase (build/compile_commands.json).
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+add_custom_target(compile-commands
+  ln -sf "${CMAKE_BINARY_DIR}/compile_commands.json" "${CMAKE_SOURCE_DIR}/compile_commands.json"
+  COMMENT "Linking compilation database from build dir to source tree..."
+)
 
 ################################################################################
 # Configure all the things!
@@ -263,7 +269,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   add_subdirectory(cmake/deps-yt-contrib-coredumper)
 endif()
 add_subdirectory(cmake/deps-yt-contrib-jerasure)
-add_subdirectory(cmake/deps-yt-contrib-libev)
 add_subdirectory(cmake/deps-yt-contrib-fastlz)
 add_subdirectory(cmake/deps-yt-contrib-quicklz)
 add_subdirectory(cmake/deps-yt-contrib-http-parser)
@@ -413,5 +418,3 @@ add_custom_target(version
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Stamping YT..."
 )
-
-

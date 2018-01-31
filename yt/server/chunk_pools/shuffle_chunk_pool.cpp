@@ -196,7 +196,7 @@ private:
     i64 DataWeightThreshold;
 
     class TOutput
-        : public TChunkPoolOutputBase
+        : public TChunkPoolOutputWithCountersBase
         , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     {
     public:
@@ -319,11 +319,6 @@ private:
             return static_cast<int>(PendingRuns.size());
         }
 
-        virtual i64 GetLocality(TNodeId /*nodeId*/) const override
-        {
-            Y_UNREACHABLE();
-        }
-
         virtual TCookie Extract(TNodeId /*nodeId*/) override
         {
             if (GetPendingJobCount() == 0) {
@@ -428,7 +423,7 @@ private:
 
         virtual void Persist(const TPersistenceContext& context) override
         {
-            TChunkPoolOutputBase::Persist(context);
+            TChunkPoolOutputWithCountersBase::Persist(context);
 
             using NYT::Persist;
             Persist(context, Owner);

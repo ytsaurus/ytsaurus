@@ -71,6 +71,7 @@ public:
             case NScheduler::EJobType::Map:
             case NScheduler::EJobType::OrderedMap:
             case NScheduler::EJobType::PartitionMap:
+            case NScheduler::EJobType::Vanilla:
                 return 0;
 
             case NScheduler::EJobType::JoinReduce:
@@ -102,19 +103,17 @@ public:
             case NScheduler::EJobType::JoinReduce:
             case NScheduler::EJobType::ReduceCombiner:
             case NScheduler::EJobType::PartitionReduce:
+            case NScheduler::EJobType::SortedMerge:
+            case NScheduler::EJobType::OrderedMerge:
                 return true;
-
-            case NScheduler::EJobType::PartitionMap:
-                return false;
-
             default:
-                Y_UNREACHABLE();
+                return false;
         }
     }
 
 private:
     TJobSpec JobSpec_;
-    TJobIOConfigPtr  JobIOConfig_;
+    TJobIOConfigPtr JobIOConfig_;
     TNodeDirectoryPtr InputNodeDirectory_;
 };
 

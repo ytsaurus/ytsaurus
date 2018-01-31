@@ -2,7 +2,7 @@
 #include "default_blackbox_service.h"
 #include "private.h"
 
-#include <yt/ytlib/formats/json_parser.h>
+#include <yt/core/json/json_parser.h>
 
 #include <library/http/simple/http_client.h>
 
@@ -205,9 +205,9 @@ private:
             TStringInput inputStream(buffer);
             auto factory = NYTree::CreateEphemeralNodeFactory();
             auto builder = NYTree::CreateBuilderFromFactory(factory.get());
-            auto config = New<NFormats::TJsonFormatConfig>();
+            auto config = New<NJson::TJsonFormatConfig>();
             config->EncodeUtf8 = false; // Hipsters use real Utf8.
-            NFormats::ParseJson(&inputStream, builder.get(), std::move(config));
+            NJson::ParseJson(&inputStream, builder.get(), std::move(config));
             result = builder->EndTree();
         }
 

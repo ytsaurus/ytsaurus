@@ -29,12 +29,12 @@ public:
     TMD5Hash GetMD5()
     {
         auto md5Copy = MD5_;
-        return md5Copy.Digest();
+        return md5Copy.GetDigest();
     }
 
     TSHA1Hash GetSHA1()
     {
-        return SHA1_.Digest();
+        return SHA1_.GetDigest();
     }
 
 private:

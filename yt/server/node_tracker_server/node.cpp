@@ -177,7 +177,8 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
     return TNodeDescriptor(
         GetAddressesOrThrow(addressType),
         Rack_ ? MakeNullable(Rack_->GetName()) : Null,
-        (Rack_ && Rack_->GetDataCenter()) ? MakeNullable(Rack_->GetDataCenter()->GetName()) : Null);
+        (Rack_ && Rack_->GetDataCenter()) ? MakeNullable(Rack_->GetDataCenter()->GetName()) : Null,
+        std::vector<TString>(Tags_.begin(), Tags_.end()));
 }
 
 

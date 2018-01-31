@@ -154,7 +154,8 @@ void TChunkOwnerBase::EndUpload(
     const TDataStatistics* statistics,
     const NTableClient::TTableSchema& /*schema*/,
     NTableClient::ETableSchemaMode /*schemaMode*/,
-    TNullable<NTableClient::EOptimizeFor> /*optimizeFor*/)
+    TNullable<NTableClient::EOptimizeFor> /*optimizeFor*/,
+    const TNullable<TMD5Hasher>& /*md5Hasher*/)
 {
     TNullable<TDataStatistics> updateStatistics;
 
@@ -181,6 +182,9 @@ void TChunkOwnerBase::EndUpload(
         }
     }
 }
+
+void TChunkOwnerBase::GetUploadParams(TNullable<TMD5Hasher>* /*md5Hasher*/)
+{ }
 
 bool TChunkOwnerBase::IsSorted() const
 {

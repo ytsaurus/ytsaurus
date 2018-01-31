@@ -106,9 +106,6 @@ public:
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
     std::vector<TCachedBlockPtr> GetAllBlocks() const;
 
-    //! Returns YPath-service that provides block manager related information in the node Orchid.
-    NYTree::IYPathServicePtr GetOrchidService();
-
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

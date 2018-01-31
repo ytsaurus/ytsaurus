@@ -287,6 +287,7 @@ public:
         SchedulerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffc);
         ReplicatorUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffb);
         OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
+        FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -1184,6 +1185,9 @@ private:
     TUserId OwnerUserId_;
     TUser* OwnerUser_ = nullptr;
 
+    TUserId FileCacheUserId_;
+    TUser* FileCacheUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -1313,7 +1317,8 @@ private:
             id == RootUserId_ ||
             id == JobUserId_ ||
             id == SchedulerUserId_ ||
-            id == ReplicatorUserId_)
+            id == ReplicatorUserId_ ||
+            id == FileCacheUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -1638,6 +1643,7 @@ private:
         SchedulerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
+        FileCacheUser_ = nullptr;
         EveryoneGroup_ = nullptr;
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
@@ -1746,6 +1752,12 @@ private:
 
         // owner
         EnsureBuiltinUserInitialized(OwnerUser_, OwnerUserId_, OwnerUserName);
+
+        // file cache
+        if (EnsureBuiltinUserInitialized(FileCacheUser_, FileCacheUserId_, FileCacheUserName)) {
+            FileCacheUser_->SetRequestRateLimit(1000000);
+            FileCacheUser_->SetRequestQueueSizeLimit(1000000);
+        }
 
         // Accounts
 

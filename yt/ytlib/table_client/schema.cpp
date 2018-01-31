@@ -128,7 +128,7 @@ struct TSerializableColumnSchema
         RegisterParameter("required", Required_)
             .Default(false);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             // Name
             if (Name().empty()) {
                 THROW_ERROR_EXCEPTION("Column name cannot be empty");
@@ -635,6 +635,7 @@ bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
 {
     return lhs.Name() == rhs.Name()
            && lhs.LogicalType() == rhs.LogicalType()
+           && lhs.Required() == rhs.Required()
            && lhs.SortOrder() == rhs.SortOrder()
            && lhs.Aggregate() == rhs.Aggregate()
            && lhs.Expression() == rhs.Expression();

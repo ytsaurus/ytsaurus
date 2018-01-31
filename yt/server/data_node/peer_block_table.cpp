@@ -2,23 +2,31 @@
 #include "private.h"
 #include "config.h"
 
+#include <yt/server/cell_node/bootstrap.h>
+
+#include <yt/core/concurrency/thread_affinity.h>
+
 namespace NYT {
 namespace NDataNode {
 
 using namespace NChunkClient;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
+static const auto& Logger = P2PLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerBlockTable::TPeerBlockTable(TPeerBlockTableConfigPtr config)
+TPeerBlockTable::TPeerBlockTable(TPeerBlockTableConfigPtr config, TBootstrap* bootstrap)
     : Config_(config)
+    , Bootstrap_(bootstrap)
 { }
 
 const std::vector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
     SweepAllExpiredPeers();
 
     auto it = Table_.find(blockId);
@@ -33,6 +41,8 @@ const std::vector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
 
 void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
     LOG_DEBUG("Updating peer (BlockId: %v, Address: %v, ExpirationTime: %v)",
         blockId,
         peer.Descriptor.GetDefaultAddress(),

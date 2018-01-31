@@ -1069,6 +1069,48 @@ TEST(TSkiffWriter, TestRowRangeIndex)
     }
 }
 
+TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
+{
+    TString columnNameList[] = {
+        RowIndexColumnName,
+        RangeIndexColumnName,
+    };
+
+    for (const auto columnName : columnNameList) {
+        auto skiffSchema = CreateTupleSchema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateSimpleTypeSchema(EWireType::Int64),
+            })->SetName(columnName),
+        });
+
+        TStringStream resultStream;
+        auto nameTable = New<TNameTable>();
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, 1);
+
+        // Row 0.
+        writer->Write({
+            MakeRow({
+                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(columnName)),
+                }).Get(),
+            });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+
+        TStringInput resultInput(resultStream.Str());
+        TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+        // row 0
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
+
+        ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+        checkedSkiffParser.ValidateFinished();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSkiffParser, Simple)

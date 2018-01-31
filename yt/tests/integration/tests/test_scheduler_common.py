@@ -22,7 +22,7 @@ import sys
 cgroups_delta_node_config = {
     "exec_agent": {
         "enable_cgroups": True,                                       # <= 18.4
-        "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+        "supported_cgroups": ["cpuacct", "blkio", "cpu"],   # <= 18.4
         "slot_manager": {
             "enforce_job_control": True,                              # <= 18.4
             "job_environment": {
@@ -30,7 +30,6 @@ cgroups_delta_node_config = {
                 "supported_cgroups": [                                # >= 18.5
                     "cpuacct",
                     "blkio",
-                    "memory",
                     "cpu"],
             },
         }
@@ -49,14 +48,6 @@ porto_delta_node_config = {
         }
     }
 }
-
-def _wait_for(condition, error_msg, period=0.5, iterations=60):
-    for i in range(iterations):
-        if condition():
-            break
-        time.sleep(period)
-    else:
-        raise RuntimeError(error_msg + " (timeout = {0}".format(period * iterations))
 
 ##################################################################
 
@@ -349,30 +340,27 @@ class TestJobStderr(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(20)])
 
-        # All jobs with index < 19 will successfuly finish on "exit 0;"
-        # The job with index 19 will be waiting because of wait_for_jobs=True
-        # until it is manualy resumed.
-        command = """grep -v row_19 > /dev/null;
+        events = EventsOnFs()
+        command = """
+                {breakpoint_cmd};
+                grep -v row_19 > /dev/null;
                 IS_FAILING_JOB=$?;
                 echo stderr 1>&2;
                 if [ $IS_FAILING_JOB -eq 1 ]; then
-                    trap "exit 125" EXIT
+                    exit 125;
                 else
                     exit 0;
-                fi;"""
-
+                fi;""".format(breakpoint_cmd=events.breakpoint_cmd())
         op = map(
             dont_track=True,
-            wait_timeout=120,
-            wait_for_jobs=True,
             label="stderr_of_failed_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
             spec={"max_failed_job_count": 1, "max_stderr_count": 10, "job_count": 20})
 
+        events.release_breakpoint()
         with pytest.raises(YtError):
-            op.resume_jobs()
             op.track()
 
         # The default number of stderr is 10. We check that we have 11-st stderr of failed job,
@@ -727,23 +715,24 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={"test_flag": to_yson_type("value", attributes={"attr": 0})})
 
-        progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0]))
+        jobs = events.wait_breakpoint()
+        progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, jobs[0]))
         assert progress >= 0
 
         test_flag = get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/test_flag".format(op.id))
         assert str(test_flag) == "value"
         assert test_flag.attributes == {"attr": 0}
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
     def test_job_stderr_size(self):
@@ -752,22 +741,19 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
 
         events = EventsOnFs()
-
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="echo FOOBAR >&2 ; {wait_cmd}; cat".format(wait_cmd= events.wait_event_cmd("checked_stderr")))
-        op.resume_jobs()
+            command="echo FOOBAR >&2 ; {breakpoint_cmd}; cat".format(breakpoint_cmd=events.breakpoint_cmd()))
 
+        jobs = events.wait_breakpoint()
         def get_stderr_size():
-            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, op.jobs[0]))
+            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
         wait(lambda: get_stderr_size() == len("FOOBAR\n"))
 
-        events.notify_event("checked_stderr")
-
+        events.release_breakpoint()
         op.track()
 
     def test_estimated_statistics(self):
@@ -823,13 +809,13 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "input_format": "json",
@@ -837,14 +823,14 @@ class TestSchedulerCommon(YTEnvSetup):
                 }
             })
 
+        jobs = events.wait_breakpoint()
         # Wait till job starts reading input
-        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0])
-        while get(progress_path) < 0.5:
-            time.sleep(1)
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, jobs[0])
+        wait(lambda : get(progress_path) >= 0.5)
 
-        dump_job_context(op.jobs[0], "//tmp/input_context")
+        dump_job_context(jobs[0], "//tmp/input_context")
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
         context = read_file("//tmp/input_context")
@@ -1077,12 +1063,12 @@ class TestSchedulerCommon(YTEnvSetup):
         for i in xrange(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
+        events = EventsOnFs()
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="echo job_index=$YT_JOB_INDEX",
+            command="echo job_index=$YT_JOB_INDEX ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -1090,9 +1076,10 @@ class TestSchedulerCommon(YTEnvSetup):
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
             })
+        jobs = events.wait_breakpoint(job_count=5)
 
-        for job_id in op.jobs[:3]:
-            op.resume_job(job_id)
+        for job_id in jobs[:3]:
+            events.release_breakpoint(job_id=job_id)
 
         path = "//sys/operations/{0}/@state".format(op.id)
         assert get(path) != "completed"
@@ -1239,7 +1226,7 @@ class TestSchedulerRevive(YTEnvSetup):
                     assert get("//sys/operations/{0}/@state".format(op.id)) == "failed"
         finally:
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
-            time.sleep(5)
+            time.sleep(2)
 
     def test_many_operations_hard(self):
         self._prepare_tables()
@@ -1273,7 +1260,7 @@ class TestSchedulerRevive(YTEnvSetup):
                     assert get("//sys/operations/{0}/@state".format(op.id)) == "failed"
         finally:
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
-            time.sleep(5)
+            time.sleep(2)
 
 ################################################################################
 
@@ -1288,7 +1275,6 @@ class TestJobRevival(YTEnvSetup):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "snapshot_period": 500,
-            "lock_transaction_timeout": 3000,
             "operations_update_period": 100,
             "job_revival_abort_timeout": 2000,
         },
@@ -1333,8 +1319,8 @@ class TestJobRevival(YTEnvSetup):
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
         cypress_path = "//sys/operations/{0}".format(op.id)
 
-        _wait_for(lambda: ls("{0}/running_jobs".format(orchid_path)),
-                  "Job did not start")
+        wait(lambda: ls("{0}/running_jobs".format(orchid_path)),
+             "Job did not start")
         jobs = ls("{0}/running_jobs".format(orchid_path))
         assert len(jobs) == 1
         job_id = jobs[0]
@@ -1343,11 +1329,11 @@ class TestJobRevival(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        _wait_for(lambda: exists(orchid_path),
-                  "Operation did not re-appear within 30 seconds")
+        wait(lambda: exists(orchid_path),
+             "Operation did not re-appear within 30 seconds")
 
-        _wait_for(lambda: get("{0}/running_jobs".format(orchid_path)),
-                  "Job did not re-appear within 30 seconds")
+        wait(lambda: get("{0}/running_jobs".format(orchid_path)),
+             "Job did not re-appear within 30 seconds")
         jobs = get("{0}/running_jobs".format(orchid_path)).keys()
         assert len(jobs) == 1
         assert jobs[0] == job_id
@@ -1523,8 +1509,8 @@ class TestDisabledJobRevival(YTEnvSetup):
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
         cypress_path = "//sys/operations/{0}".format(op.id)
 
-        _wait_for(lambda: ls("{0}/running_jobs".format(orchid_path)),
-                  "Job did not start")
+        wait(lambda: ls("{0}/running_jobs".format(orchid_path)),
+             "Job did not start")
         jobs = ls("{0}/running_jobs".format(orchid_path))
         assert len(jobs) == 1
         job_id = jobs[0]
@@ -1533,11 +1519,11 @@ class TestDisabledJobRevival(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        _wait_for(lambda: exists(orchid_path),
-                  "Operation did not re-appear within 30 seconds")
+        wait(lambda: exists(orchid_path),
+             "Operation did not re-appear within 30 seconds")
 
-        _wait_for(lambda: get("{0}/running_jobs".format(orchid_path)),
-                  "Job did not re-appear within 30 seconds")
+        wait(lambda: get("{0}/running_jobs".format(orchid_path)),
+             "Job did not re-appear within 30 seconds")
         jobs = get("{0}/running_jobs".format(orchid_path)).keys()
         assert len(jobs) == 1
 
@@ -1689,16 +1675,18 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
 
+        events = EventsOnFs()
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             in_="//tmp/in",
             out="//tmp/out",
             spec={"data_size_per_job": 1})
 
-        op.resume_job(op.jobs[0])
-        op.resume_job(op.jobs[1])
+        jobs = events.wait_breakpoint(job_count=3)
+
+        for job_id in jobs[:2]:
+            events.release_breakpoint(job_id=job_id)
 
         operation_path = "//sys/operations/{0}".format(op.id)
         for iter in xrange(100):
@@ -1714,7 +1702,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         assert len(read_table(operation_path + "/output_0", tx=transaction_id)) == 2
         assert get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
 ##################################################################
@@ -1951,16 +1939,16 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         testing_options = {"scheduling_delay": 500}
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
-            command="cat",
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
             in_="//tmp/in",
             out="//tmp/out",
             spec={"data_weight_per_job": 1, "testing": testing_options})
 
         snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
-        track_path(snapshot_path, 10)
+        wait(lambda: exists(snapshot_path))
 
         # This is done to avoid read failures due to snapshot file rewriting.
         snapshot_backup_path = snapshot_path + ".backup"
@@ -1970,7 +1958,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         ts = get("//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/last_successful_snapshot_time")
         assert time.time() - datetime_str_to_ts(ts) < 60
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
     def test_parallel_snapshots(self):
@@ -1984,25 +1972,27 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         operation_count = 5
         ops = []
+        events = EventsOnFs()
         for index in range(operation_count):
             output = "//tmp/output" + str(index)
             create("table", output)
             ops.append(
                 map(dont_track=True,
-                    wait_for_jobs=True,
-                    command="cat",
+                    command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
                     in_="//tmp/input",
                     out=[output],
                     spec={"data_size_per_job": 1, "testing": testing_options}))
 
         for op in ops:
             snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
-            track_path(snapshot_path, 10)
+            wait(lambda: exists(snapshot_path))
 
             snapshot_backup_path = snapshot_path + ".backup"
             copy(snapshot_path, snapshot_backup_path)
             assert len(read_file(snapshot_backup_path, verbose=False)) > 0
-            op.resume_jobs()
+
+        # All our operations use 'default' breakpoint so we release it and all operations continue execution.
+        events.release_breakpoint()
 
         for op in ops:
             op.track()
@@ -2111,14 +2101,16 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
-            command="cat")
+            command="{breakpoint_cmd} ; cat".format(breakpoint_cmd=events.breakpoint_cmd()))
 
+        events.wait_breakpoint()
         running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         job_id = running_jobs.keys()[0]
         job_info = running_jobs.values()[0]
@@ -2140,19 +2132,20 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         self._create_table("//tmp/out")
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
 
+        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
-            command="cat")
+            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()))
 
+        events.wait_breakpoint()
         running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         job_id = running_jobs.keys()[0]
 
         statistics_appeared = False
-        for iter in xrange(30):
+        for iter in xrange(300):
             statistics = get("//sys/scheduler/orchid/scheduler/jobs/{0}/statistics".format(job_id))
             data = statistics.get("data", {})
             _input = data.get("input", {})
@@ -2161,11 +2154,11 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             if _sum == 10:
                 statistics_appeared = True
                 break
-            time.sleep(1.0)
+            time.sleep(0.1)
 
         assert statistics_appeared
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
 ##################################################################
@@ -2392,7 +2385,7 @@ class TestPoolMetrics(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "enable_cgroups": True,
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
+            "supported_cgroups": ["cpuacct", "blkio", "cpu"],
             "slot_manager": {
                 "enforce_job_control": True,
                 "job_environment": {
@@ -2400,7 +2393,6 @@ class TestPoolMetrics(YTEnvSetup):
                     "supported_cgroups": [
                         "cpuacct",
                         "blkio",
-                        "memory",
                         "cpu"],
                 },
             },
@@ -2435,14 +2427,12 @@ class TestPoolMetrics(YTEnvSetup):
         op11 = map(
             in_="//t_input",
             out="//t_output",
-            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child1"},
         )
         op12 = map(
             in_="//t_input",
             out="//t_output",
-            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child1"},
         )
@@ -2450,7 +2440,6 @@ class TestPoolMetrics(YTEnvSetup):
         op2 = map(
             in_="//t_input",
             out="//t_output",
-            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child2"},
         )
@@ -2627,8 +2616,8 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             out="//tmp/t_output",
             dont_track=True)
 
-        _wait_for(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
-                  "Failed waiting for the first job")
+        wait(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
+             "Failed waiting for the first job")
 
         jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         job_id = jobs.keys()[0]
@@ -2654,8 +2643,8 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             spec={"mapper" : {"memory_limit" : 50 * 1024 * 1024}},
             dont_track=True)
 
-        _wait_for(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
-                  "Failed waiting for the first job")
+        wait(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
+             "Failed waiting for the first job")
 
         jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         job_id = jobs.keys()[0]
