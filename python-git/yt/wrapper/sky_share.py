@@ -19,7 +19,7 @@ def sky_share(path, cluster=None, client=None):
     if cluster is None:
         cluster = get_proxy_url(client=client).split(".")[0]
 
-    params = {"path": str(TablePath(path)), "cluster": cluster}
+    params = {"path": TablePath(path).to_yson_string(), "cluster": cluster}
     headers = {"X-YT-Parameters": yson.dumps(params, yson_format="text")}
 
     make_request = lambda: make_request_with_retries(
