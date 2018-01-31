@@ -120,7 +120,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
 
-    bool IncludeStoredJobsInNextSchedulerHeartbeat_ = false;
+    THashSet<TJobId> JobIdsToConfirm_;
     TInstant LastStoredJobsSendTime_;
 
     std::unique_ptr<TMemoryUsageTracker<EMemoryCategory>> ExternalMemoryUsageTracker_;
@@ -655,18 +655,17 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
     i64 completedJobsStatisticsSize = 0;
 
-    bool includeStoredJobs = false;
+    bool totalConfirmation = false;
     if (jobObjectType == EObjectType::SchedulerJob) {
         auto now = TInstant::Now();
-        includeStoredJobs =
-            IncludeStoredJobsInNextSchedulerHeartbeat_ ||
-            LastStoredJobsSendTime_ + Config_->StoredJobsSendPeriod < now;
-        if (includeStoredJobs) {
+        if (LastStoredJobsSendTime_ + Config_->TotalConfirmationPeriod < now) {
             LastStoredJobsSendTime_ = now;
             LOG_INFO("Including all stored jobs in heartbeat");
+            totalConfirmation = true;
         }
-        request->set_stored_jobs_included(includeStoredJobs);
     }
+
+    int confirmedJobCount = 0;
 
     for (const auto& pair : Jobs_) {
         const auto& jobId = pair.first;
@@ -675,8 +674,21 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
             continue;
         if (TypeFromId(jobId) != jobObjectType)
             continue;
-        if (job->GetStored() && !includeStoredJobs)
+        auto it = JobIdsToConfirm_.find(jobId);
+        if (job->GetStored() && !totalConfirmation && it == JobIdsToConfirm_.end()) {
             continue;
+        }
+        if (job->GetStored() || it != JobIdsToConfirm_.end()) {
+            LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
+                jobId,
+                job->GetOperationId(),
+                job->GetStored(),
+                job->GetState());
+            ++confirmedJobCount;
+        }
+        if (it != JobIdsToConfirm_.end()) {
+            JobIdsToConfirm_.erase(it);
+        }
 
         auto* jobStatus = request->add_jobs();
         FillJobStatus(jobStatus, job);
@@ -703,6 +715,8 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
                 break;
         }
     }
+
+    request->set_confirmed_job_count(confirmedJobCount);
 
     if (jobObjectType == EObjectType::SchedulerJob) {
         std::sort(
@@ -743,6 +757,14 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
                 << TErrorAttribute("abort_reason", NScheduler::EAbortReason::GetSpecFailed);
             ToProto(jobResult.mutable_error(), error);
             *jobStatus->mutable_result() = jobResult;
+        }
+
+        if (!JobIdsToConfirm_.empty()) {
+            LOG_WARNING("Unconfirmed jobs found (UnconfirmedJobCount: %v)", JobIdsToConfirm_.size());
+            for (const auto& jobId : JobIdsToConfirm_) {
+                LOG_DEBUG("Unconfirmed job (JobId: %v)", jobId);
+            }
+            ToProto(request->mutable_unconfirmed_jobs(), JobIdsToConfirm_);
         }
     }
 }
@@ -812,8 +834,10 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         }
     }
 
+    JobIdsToConfirm_.clear();
     if (jobObjectType == EObjectType::SchedulerJob) {
-        IncludeStoredJobsInNextSchedulerHeartbeat_ = response->include_stored_jobs_in_next_heartbeat();
+        auto jobIdsToConfirm = FromProto<std::vector<TJobId>>(response->jobs_to_confirm());
+        JobIdsToConfirm_.insert(jobIdsToConfirm.begin(), jobIdsToConfirm.end());
     }
 
     std::vector<TJobSpec> specs(response->jobs_to_start_size());

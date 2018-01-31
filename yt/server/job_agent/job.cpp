@@ -11,6 +11,7 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
 {
     auto jobType = EJobType(job->GetSpec().type());
     ToProto(jobStatus->mutable_job_id(), job->GetId());
+    ToProto(jobStatus->mutable_operation_id(), job->GetOperationId());
     jobStatus->set_job_type(static_cast<int>(jobType));
     jobStatus->set_state(static_cast<int>(job->GetState()));
     jobStatus->set_phase(static_cast<int>(job->GetPhase()));

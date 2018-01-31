@@ -71,6 +71,16 @@ public:
     //! is complete.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
+    //! Jobs at this node that are waiting for confirmation.
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, UnconfirmedJobIds);
+
+    //! Ids of jobs that were completed recently and are yet to be saved to the snapshot.
+    //! We remember them in order to not remove them as unknown jobs.
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, RecentlyCompletedJobIds);
+
+    //! Jobs that are to be removed with a next heartbeat response.
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TJobId>, JobIdsToRemove);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,

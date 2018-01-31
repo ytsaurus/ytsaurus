@@ -16,7 +16,7 @@ class TJobTrackerServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TJobTrackerServiceProxy, JobTrackerService,
-        .SetProtocolVersion(15));
+        .SetProtocolVersion(16));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
 };

@@ -118,6 +118,7 @@ public:
 
         auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
         ToProto(status->mutable_job_id(), jobId);
+        ToProto(status->mutable_operation_id(), OperationId_);
         JobEventsOutbox_->Enqueue(TSchedulerToAgentJobEvent{
             ESchedulerToAgentJobEventType::Aborted,
             OperationId_,
@@ -248,6 +249,7 @@ private:
             statusHolder->CopyFrom(*status);
         }
         ToProto(statusHolder->mutable_job_id(), job->GetId());
+        ToProto(statusHolder->mutable_operation_id(), job->GetOperationId());
         statusHolder->set_job_type(static_cast<int>(job->GetType()));
         statusHolder->set_state(static_cast<int>(job->GetState()));
         return TSchedulerToAgentJobEvent{

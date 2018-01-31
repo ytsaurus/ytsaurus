@@ -101,7 +101,7 @@ public:
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& controller);
+    void RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& controller, bool isReviving);
     void UnregisterOperation(const TOperationId& operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
@@ -139,8 +139,7 @@ public:
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
     void RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
-
-    void StartReviving();
+    void AbortUnconfirmedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
 
     TOperationId FindOperationIdByJobId(const TJobId& job);
 
@@ -163,49 +162,6 @@ public:
     void EndScheduleJob(const NProto::TScheduleJobResponse& response);
 
 private:
-    //! This class holds nodeshard-specific information for the revival process that happens
-    //! each time scheduler becomes connected to master. It contains information about
-    //! all revived jobs and tells which nodes should include stored jobs into their heartbeats
-    //! next time.
-    class TRevivalState
-        : public TRefCounted
-    {
-    public:
-        DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, RecentlyCompletedJobIds);
-
-        //! List of all jobs that should be added to jobs_to_remove
-        //! in the next heartbeat response for each node defined by its id.
-        using TJobIdsToRemove = THashMap<NNodeTrackerClient::TNodeId, std::vector<TJobId>>;
-        DEFINE_BYREF_RW_PROPERTY(TJobIdsToRemove, JobIdsToRemove);
-
-        DEFINE_BYVAL_RO_PROPERTY(EJobRevivalPhase, Phase, EJobRevivalPhase::Finished);
-
-    public:
-        explicit TRevivalState(TNodeShard* shard);
-
-        bool ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const;
-
-        void OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId);
-
-        void RegisterRevivedJob(const TJobPtr& job);
-        void ConfirmJob(const TJobPtr& job);
-        void UnregisterJob(const TJobPtr& job);
-
-        void PrepareReviving();
-        void StartReviving();
-
-    private:
-        TNodeShard* const Shard_;
-        const NLogging::TLogger& Logger;
-
-        THashSet<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
-        THashSet<TJobPtr> NotConfirmedJobs_;
-
-        void FinalizeReviving();
-    };
-
-    using TRevivalStatePtr = TIntrusivePtr<TRevivalState>;
-
     const int Id_;
     TSchedulerConfigPtr Config_;
     INodeShardHost* const Host_;
@@ -221,8 +177,6 @@ private:
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
-
-    TRevivalStatePtr RevivalState_;
 
     int ConcurrentHeartbeatCount_ = 0;
 
@@ -257,14 +211,18 @@ private:
 
     struct TOperationState
     {
-        explicit TOperationState(IOperationControllerPtr controller)
+        TOperationState(IOperationControllerPtr controller, bool jobsReady)
             : Controller(std::move(controller))
+            , JobsReady(jobsReady)
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
+        //! Flag showing that we already know about all jobs of this operation
+        //! and it is OK to abort unknown jobs that claim to be a part of this operation.
+        bool JobsReady = false;
     };
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
@@ -274,7 +232,11 @@ private:
 
     void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
-    NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);
+    NLogging::TLogger CreateJobLogger(
+        const TJobId& jobId,
+        const TOperationId& operationId,
+        EJobState state,
+        const TString& address);
 
     TJobResources CalculateResourceLimits(const TSchedulingTagFilter& filter);
 
