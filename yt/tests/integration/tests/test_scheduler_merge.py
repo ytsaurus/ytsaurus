@@ -1054,7 +1054,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "job_io": {
                     "testing_options": {"pipe_delay": 250},
                     "buffer_row_count": 1,
-                }
+                },
+                "enable_job_splitting": False,
             })
         while True:
             jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
