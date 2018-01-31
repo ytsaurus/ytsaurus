@@ -2063,6 +2063,9 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 0
 
+        assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2
+        assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 0
+
         op = map(
             dont_track=True,
             command="sleep 100",
@@ -2075,6 +2078,9 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_usage/user_slots".format(op.id)) == 2
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 2
+
+        assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2
+        assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 2
 
         op.abort()
 
