@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -111,7 +112,9 @@ public final class DataCenter {
     }
 
     public List<BalancingDestination> getAliveDestinations() {
-        return Stream.of(backends).collect(Collectors.toList());
+        synchronized (backends) {
+            return Arrays.stream(backends, 0, aliveCount).collect(Collectors.toList());
+        }
     }
 
     public List<BalancingDestination> selectDestinations(final int maxSelect, Random rnd) {
