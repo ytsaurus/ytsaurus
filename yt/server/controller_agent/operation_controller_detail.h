@@ -305,8 +305,9 @@ public:
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const override;
 
-    virtual const TChunkListPoolPtr& GetChunkListPool() const override;
-    virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) override;
+    virtual const TChunkListPoolPtr& GetOutputChunkListPool() const override;
+    virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
+    virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         bool unstageRecursively,
@@ -565,7 +566,7 @@ protected:
     virtual void PrepareInputQuery();
 
     void PickIntermediateDataCell();
-    void InitChunkListPool();
+    void InitChunkListPools();
 
     // Completion.
     void TeleportOutputChunks();
@@ -867,8 +868,10 @@ private:
     TOperationOptionsPtr Options;
 
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
-    TChunkListPoolPtr ChunkListPool_;
-    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredChunkLists;
+    TChunkListPoolPtr OutputChunkListPool_;
+    TChunkListPoolPtr DebugChunkListPool_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkLists_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkLists_;
 
     std::atomic<int> CachedPendingJobCount = {0};
 
