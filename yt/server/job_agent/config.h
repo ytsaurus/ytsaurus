@@ -80,7 +80,7 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration WaitingJobsTimeout;
     TDuration GetJobSpecsTimeout;
-    TDuration StoredJobsSendPeriod;
+    TDuration TotalConfirmationPeriod;
 
     TDuration CpuOverdraftTimeout;
     TDuration MemoryOverdraftTimeout;
@@ -101,7 +101,7 @@ public:
         RegisterParameter("get_job_specs_timeout", GetJobSpecsTimeout)
             .Default(TDuration::Seconds(5));
 
-        RegisterParameter("stored_jobs_send_period", StoredJobsSendPeriod)
+        RegisterParameter("total_confirmation_period", TotalConfirmationPeriod)
             .Default(TDuration::Minutes(10));
 
         RegisterParameter("memory_overdraft_timeout", MemoryOverdraftTimeout)

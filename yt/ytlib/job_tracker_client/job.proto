@@ -27,17 +27,18 @@ message TJobResult
 message TJobStatus
 {
     required NYT.NProto.TGuid job_id = 1;
-    optional int32 job_type = 2;
-    optional int32 state = 3;
-    optional int32 phase = 4;
-    optional double progress = 5;
-    optional TJobResult result = 6;
-    optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 7;
-    optional string statistics = 8;
-    optional int64 prepare_duration = 9;
-    optional int64 exec_duration = 10;
-    optional int64 download_duration = 11;
-    optional int64 stderr_size = 12;
+    required NYT.NProto.TGuid operation_id = 2;
+    optional int32 job_type = 3;
+    optional int32 state = 4;
+    optional int32 phase = 5;
+    optional double progress = 6;
+    optional TJobResult result = 7;
+    optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
+    optional string statistics = 9;
+    optional int64 prepare_duration = 10;
+    optional int64 exec_duration = 11;
+    optional int64 download_duration = 12;
+    optional int64 stderr_size = 13;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

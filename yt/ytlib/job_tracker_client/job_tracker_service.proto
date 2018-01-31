@@ -15,8 +15,9 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TNodeResources resource_usage = 3;
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 4;
     repeated TJobStatus jobs = 5;
-    optional bool stored_jobs_included = 6 [default = false];
-    required NNodeTrackerClient.NProto.TDiskResources disk_info = 7;
+    repeated NYT.NProto.TGuid unconfirmed_jobs = 6;
+    required int64 confirmed_job_count = 7;
+    required NNodeTrackerClient.NProto.TDiskResources disk_info = 8;
 }
 
 message TJobStartInfo
@@ -38,7 +39,8 @@ message TRspHeartbeat
     repeated NYT.NProto.TGuid jobs_to_store = 4;
     repeated NYT.NProto.TGuid jobs_to_interrupt = 5;
     repeated NYT.NProto.TGuid jobs_to_fail = 6;
-    optional bool include_stored_jobs_in_next_heartbeat = 7;
+    // Ids of jobs that should be included in the next heartbeat even if they are stored.
+    repeated NYT.NProto.TGuid jobs_to_confirm = 7;
     optional bool scheduling_skipped = 8;
     optional bool enable_job_reporter = 9;
     optional bool enable_job_spec_reporter = 10;

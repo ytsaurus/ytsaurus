@@ -825,6 +825,8 @@ public:
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
+        // We extract operation states here as they may be accessed only from
+
         const auto& nodeShard = GetNodeShard(nodeId);
         nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
     }
@@ -1776,7 +1778,7 @@ private:
         auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
         operation->SetLocalController(localController);
 
-        RegisterOperation(operation);
+        RegisterOperation(operation, false /* reviving */);
 
         try {
             auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
@@ -1919,7 +1921,7 @@ private:
         auto localController = Bootstrap_->GetControllerAgentTracker()->CreateController(Bootstrap_->GetControllerAgentTracker()->GetAgent().Get(), operation.Get());
         operation->SetLocalController(localController);
 
-        RegisterOperation(operation);
+        RegisterOperation(operation, true /* reviving */);
 
         try {
             auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
@@ -2039,12 +2041,16 @@ private:
         return Combine(asyncResults);
     }
 
-    void RegisterOperation(const TOperationPtr& operation)
+    void RegisterOperation(const TOperationPtr& operation, bool reviving)
     {
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
         for (const auto& nodeShard : NodeShards_) {
-            nodeShard->GetInvoker()->Invoke(
-                BIND(&TNodeShard::RegisterOperation, nodeShard, operation->GetId(), operation->GetLocalController()));
+            nodeShard->GetInvoker()->Invoke(BIND(
+                &TNodeShard::RegisterOperation,
+                nodeShard,
+                operation->GetId(),
+                operation->GetLocalController(),
+                reviving));
         }
 
         Strategy_->RegisterOperation(operation.Get());
@@ -2484,24 +2490,6 @@ private:
             auto error = WaitFor(CombineAll(asyncResults));
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to revive operations")
-                    << error;
-            }
-        }
-
-        {
-            LOG_INFO("Reviving node shards");
-
-            std::vector<TFuture<void>> asyncResults;
-            for (const auto& nodeShard : NodeShards_) {
-                auto startFuture = BIND(&TNodeShard::StartReviving, nodeShard)
-                    .AsyncVia(nodeShard->GetInvoker())
-                    .Run();
-                asyncResults.emplace_back(std::move(startFuture));
-            }
-
-            auto error = WaitFor(Combine(asyncResults));
-            if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to start revival at node shards")
                     << error;
             }
         }
