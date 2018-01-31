@@ -197,6 +197,7 @@ public:
 
     using TErrorVector = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
     DEFINE_BYREF_RW_PROPERTY(TErrorVector, Errors);
+    DEFINE_BYVAL_RW_PROPERTY(int, ErrorCount);
 
     using TReplicaMap = yhash<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
