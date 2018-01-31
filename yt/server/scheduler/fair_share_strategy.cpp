@@ -721,6 +721,14 @@ public:
             });
     }
 
+    void BuildOrchid(TFluentMap fluent)
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        fluent
+            .Item("resource_usage").Value(RootElement->GetResourceUsage());
+    }
+
     void BuildFairShareInfo(TFluentMap fluent)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -2877,9 +2885,9 @@ private:
         const std::vector<TExecNodeDescriptor>& descriptors,
         TFluentMap fluent)
     {
-        TJobResources resources = ZeroJobResources();
+        TJobResources resourceLimits = ZeroJobResources();
         for (const auto& descriptor : descriptors) {
-            resources += descriptor.ResourceLimits;
+            resourceLimits += descriptor.ResourceLimits;
         }
 
         fluent
@@ -2887,7 +2895,8 @@ private:
             .Item("fair_share_info").BeginMap()
                 .Do(BIND(&TFairShareTree::BuildFairShareInfo, tree))
             .EndMap()
-            .Item("resource_limits").Value(resources)
+            .Do(BIND(&TFairShareTree::BuildOrchid, tree))
+            .Item("resource_limits").Value(resourceLimits)
             .Item("node_count").Value(descriptors.size())
             .Item("node_addresses").BeginList()
                 .DoFor(descriptors, [&] (TFluentList fluent, const auto& descriptor) {
