@@ -195,6 +195,10 @@ public:
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 
+    using TErrorVector = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
+    DEFINE_BYREF_RW_PROPERTY(TErrorVector, Errors);
+    DEFINE_BYVAL_RW_PROPERTY(int, ErrorCount);
+
     using TReplicaMap = yhash<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
