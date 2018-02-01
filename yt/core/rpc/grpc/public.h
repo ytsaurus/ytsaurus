@@ -8,7 +8,7 @@ namespace NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSslBlobConfig)
+DECLARE_REFCOUNTED_CLASS(TPemBlobConfig)
 DECLARE_REFCOUNTED_CLASS(TSslPemKeyCertPairConfig)
 DECLARE_REFCOUNTED_CLASS(TServerCredentialsConfig)
 DECLARE_REFCOUNTED_CLASS(TServerAddressConfig)

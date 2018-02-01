@@ -280,7 +280,7 @@ TError DeserializeError(const TStringBuf& serializedError)
     return FromProto<TError>(protoError);
 }
 
-TString LoadSslBlob(const TSslBlobConfigPtr& config)
+TString LoadPemBlob(const TPemBlobConfigPtr& config)
 {
     if (config->FileName) {
         return TFileInput(*config->FileName).ReadAll();
@@ -294,23 +294,23 @@ TString LoadSslBlob(const TSslBlobConfigPtr& config)
 TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config)
 {
     return TGrpcPemKeyCertPair(
-        LoadSslBlob(config->PrivateKey),
-        LoadSslBlob(config->CertChain));
+        LoadPemBlob(config->PrivateKey),
+        LoadPemBlob(config->CertChain));
 }
 
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config)
 {
-    auto rootCerts = LoadSslBlob(config->PemRootCerts);
+    auto rootCerts = config->PemRootCerts ? LoadPemBlob(config->PemRootCerts) : TString();
     auto keyCertPair = LoadPemKeyCertPair(config->PemKeyCertPair);
     return TGrpcChannelCredentialsPtr(grpc_ssl_credentials_create(
-        rootCerts.c_str(),
+        rootCerts ? rootCerts.c_str() : nullptr,
         keyCertPair.Unwrap(),
         nullptr));
 }
 
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config)
 {
-    auto rootCerts = LoadSslBlob(config->PemRootCerts);
+    auto rootCerts = config->PemRootCerts? LoadPemBlob(config->PemRootCerts) : TString();
     std::vector<TGrpcPemKeyCertPair> keyCertPairs;
     std::vector<grpc_ssl_pem_key_cert_pair> nativeKeyCertPairs;
     for (const auto& pairConfig : config->PemKeyCertPairs) {
@@ -318,7 +318,7 @@ TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPt
         nativeKeyCertPairs.push_back(*keyCertPairs.back().Unwrap());
     }
     return TGrpcServerCredentialsPtr(grpc_ssl_server_credentials_create_ex(
-        rootCerts.c_str(),
+        rootCerts ? rootCerts.c_str() : nullptr,
         nativeKeyCertPairs.data(),
         nativeKeyCertPairs.size(),
         static_cast<grpc_ssl_client_certificate_request_type>(config->ClientCertificateRequest),

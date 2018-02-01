@@ -96,7 +96,7 @@ private:
                     THROW_ERROR_EXCEPTION("Error configuring server to listen at %Qv",
                         addressConfig->Address);
                 }
-                LOG_DEBUG("Insecure server address configured (Address: %v)", addressConfig->Address);
+                LOG_DEBUG("Server address configured (Address: %v)", addressConfig->Address);
             }
         } catch (const std::exception& ex) {
             Cleanup();
