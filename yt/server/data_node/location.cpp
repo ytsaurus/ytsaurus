@@ -64,6 +64,8 @@ TLocation::TLocation(
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
     , IOEngine_(CreateIOEngine(Config_->IOEngineType, Config_->IOConfig))
+    , ThrottledReadsCounter_("/throttled_reads", {}, NProfiling::EAggregateMode::Max, config->ThrottleCounterInterval)
+    , ThrottledWritesCounter_("/throttled_writes", {}, NProfiling::EAggregateMode::Max, config->ThrottleCounterInterval)
     , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
@@ -490,6 +492,26 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
         default:
             return UnlimitedOutThrottler_;
     }
+}
+
+void TLocation::IncrementThrottledReadsCounter()
+{
+    Profiler_.Increment(ThrottledReadsCounter_);
+}
+
+void TLocation::IncrementThrottledWritesCounter()
+{
+    Profiler_.Increment(ThrottledWritesCounter_);
+}
+
+bool TLocation::IsReadThrottling()
+{
+    return ThrottledReadsCounter_.GetMax() > 0;
+}
+
+bool TLocation::IsWriteThrottling()
+{
+    return ThrottledWritesCounter_.GetMax() > 0;
 }
 
 void TLocation::UpdatePutBlocksWallTimeCounter(NProfiling::TValue value)

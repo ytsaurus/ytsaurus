@@ -219,6 +219,8 @@ private:
                                     .Item("session_count").Value(locationStatistics.session_count())
                                     .Item("full").Value(locationStatistics.full())
                                     .Item("enabled").Value(locationStatistics.enabled())
+                                    .Item("throttling_reads").Value(locationStatistics.throttling_reads())
+                                    .Item("throttling_writes").Value(locationStatistics.throttling_writes())
                                 .EndMap();
                         })
                         .Item("media").DoMapFor(statistics.media(), [&] (TFluentMap fluent, const TMediumStatistics& mediumStatistics) {
@@ -244,6 +246,14 @@ private:
                                             fluent.Item("limit").Value(category.limit());
                                         })
                                         .Item("used").Value(category.used())
+                                    .EndMap();
+                            })
+                        .EndMap()
+                        .Item("network").BeginMap()
+                            .DoFor(statistics.network(), [] (TFluentMap fluent, const TNetworkStatistics& statistics) {
+                                fluent.Item(statistics.network())
+                                    .BeginMap()
+                                        .Item("throttling_reads").Value(statistics.throttling_reads())
                                     .EndMap();
                             })
                         .EndMap()

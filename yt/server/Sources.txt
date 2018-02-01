@@ -153,6 +153,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/data_node/local_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/master_connector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/network_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_distributor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_updater.cpp

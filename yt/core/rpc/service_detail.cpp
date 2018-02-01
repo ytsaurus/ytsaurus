@@ -115,6 +115,11 @@ public:
         return ReplyBus_->GetStatistics();
     }
 
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    {
+        return ReplyBus_->GetEndpointAttributes();
+    }
+
     const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
     {
         return RuntimeInfo_;

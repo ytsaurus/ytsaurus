@@ -15,6 +15,7 @@
 #include <yt/server/data_node/journal_dispatcher.h>
 #include <yt/server/data_node/location.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/network_statistics.h>
 #include <yt/server/data_node/peer_block_distributor.h>
 #include <yt/server/data_node/peer_block_table.h>
 #include <yt/server/data_node/peer_block_updater.h>
@@ -278,6 +279,8 @@ void TBootstrap::DoRun()
     ChunkMetaManager = New<TChunkMetaManager>(Config->DataNode, this);
 
     ChunkBlockManager = New<TChunkBlockManager>(Config->DataNode, this);
+
+    NetworkStatistics = New<TNetworkStatistics>(Config->DataNode);
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
@@ -697,6 +700,11 @@ const TSessionManagerPtr& TBootstrap::GetSessionManager() const
 const TChunkBlockManagerPtr& TBootstrap::GetChunkBlockManager() const
 {
     return ChunkBlockManager;
+}
+
+const TNetworkStatisticsPtr& TBootstrap::GetNetworkStatistics() const
+{
+    return NetworkStatistics;
 }
 
 const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const

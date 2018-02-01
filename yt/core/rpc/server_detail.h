@@ -130,6 +130,7 @@ public:
 
     virtual NRpc::TRequestId GetRequestId() const override;
     virtual NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
     virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;

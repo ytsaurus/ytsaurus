@@ -13,6 +13,9 @@ message TLocationStatistics
     required int32 session_count = 4;
     required bool enabled = 5;
     required bool full = 6;
+
+    optional bool throttling_reads = 9 [default = false];
+    optional bool throttling_writes = 10 [default = false];
 }
 
 // Provides detailed information on memory consumption.
@@ -37,6 +40,12 @@ message TMediumStatistics
     required double io_weight = 3;
 }
 
+message TNetworkStatistics
+{
+    required string network = 1;
+    required bool throttling_reads = 2 [default = false];
+}
+
 // Describes the current state of the whole node.
 message TNodeStatistics
 {
@@ -54,6 +63,7 @@ message TNodeStatistics
     required int32 used_tablet_slots = 12;
     required TMemoryStatistics memory = 15;
     repeated TMediumStatistics media = 17;
+    repeated TNetworkStatistics network = 18;
 }
 
 // Measures limits and utilization of various resources.

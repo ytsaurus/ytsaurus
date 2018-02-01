@@ -309,6 +309,11 @@ void ExecuteVerb(
             return UnderlyingContext_->GetBusStatistics();
         }
 
+        virtual const IAttributeDictionary& GetEndpointAttributes() const override
+        {
+            return UnderlyingContext_->GetEndpointAttributes();
+        }
+
         virtual void SetRawRequestInfo(const TString& info) override
         {
             UnderlyingContext_->SetRawRequestInfo(info);
