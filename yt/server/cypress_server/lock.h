@@ -40,7 +40,7 @@ void FormatValue(TStringBuilder* builder, const TLockKey& key, const TStringBuf&
 
 struct TLockRequest
 {
-    TLockRequest();
+    TLockRequest() = default;
     TLockRequest(ELockMode mode);
 
     static TLockRequest MakeSharedChild(const TString& key);
@@ -65,9 +65,11 @@ struct TCypressNodeLockingState
     std::list<TLock*> PendingLocks;
     // NB: We rely on THash* containers not to invalidate iterators on rehash.
     // Keep this in mind when replacing them with std::* analogues.
-    THashSet<TLock*> ExclusiveLocks;
-    THashMultiMap<TLockKey, TLock*> SharedLocks;
-    THashMultiMap<NTransactionServer::TTransaction*, TLock*> SnapshotLocks;
+    THashMultiMap<NTransactionServer::TTransaction*, TLock*> TransactionToExclusiveLocks;
+    THashMultiMap<std::pair<NTransactionServer::TTransaction*, TLockKey>, TLock*> TransactionAndKeyToSharedLocks;
+    // Only contains "child" and "attribute" shared locks.
+    THashMultiMap<TLockKey, TLock*> KeyToSharedLocks;
+    THashMultiMap<NTransactionServer::TTransaction*, TLock*> TransactionToSnapshotLocks;
 
     bool IsEmpty() const;
     void Persist(NCellMaster::TPersistenceContext& context);
@@ -84,7 +86,7 @@ class TLock
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Implicit);
-    DEFINE_BYVAL_RW_PROPERTY(ELockState, State);
+    DEFINE_BYVAL_RW_PROPERTY(ELockState, State, ELockState::Pending);
     DEFINE_BYREF_RW_PROPERTY(TLockRequest, Request);
     DEFINE_BYVAL_RW_PROPERTY(TCypressNodeBase*, TrunkNode);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
@@ -92,12 +94,18 @@ public:
     // Not persisted.
     using TLockListIterator = std::list<TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TLockListIterator, LockListIterator);
-    using TExclusiveLocksIterator = THashSet<TLock*>::iterator;
-    DEFINE_BYVAL_RW_PROPERTY(TExclusiveLocksIterator, ExclusiveLocksIterator);
-    using TSharedLocksIterator = THashMultiMap<TLockKey, TLock*>::iterator;
-    DEFINE_BYVAL_RW_PROPERTY(TSharedLocksIterator, SharedLocksIterator);
-    using TSnapshotLocksIterator = THashMultiMap<NTransactionServer::TTransaction*, TLock*>::iterator;
-    DEFINE_BYVAL_RW_PROPERTY(TSnapshotLocksIterator, SnapshotLocksIterator);
+
+    using TTransactionToExclusiveLocksIterator = THashMultiMap<NTransactionServer::TTransaction*, TLock*>::iterator;
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionToExclusiveLocksIterator, TransactionToExclusiveLocksIterator);
+
+    using TTransactionAndKeyToSharedLocksIterator = THashMultiMap<std::pair<NTransactionServer::TTransaction*, TLockKey>, TLock*>::iterator;
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionAndKeyToSharedLocksIterator, TransactionAndKeyToSharedLocksIterator);
+
+    using TKeyToSharedLocksIterator = THashMultiMap<TLockKey, TLock*>::iterator;
+    DEFINE_BYVAL_RW_PROPERTY(TKeyToSharedLocksIterator, KeyToSharedLocksIterator);
+
+    using TTransactionToSnapshotLocksIterator = THashMultiMap<NTransactionServer::TTransaction*, TLock*>::iterator;
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionToSnapshotLocksIterator, TransactionToSnapshotLocksIterator);
 
 public:
     explicit TLock(const TLockId& id);
