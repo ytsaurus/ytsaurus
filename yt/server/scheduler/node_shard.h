@@ -141,7 +141,7 @@ public:
 
     void StartReviving();
 
-    TOperationId GetOperationIdByJobId(const TJobId& job);
+    TOperationId FindOperationIdByJobId(const TJobId& job);
 
     TJobResources GetTotalResourceLimits();
     TJobResources GetTotalResourceUsage();

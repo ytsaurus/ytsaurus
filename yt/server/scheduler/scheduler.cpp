@@ -2754,7 +2754,7 @@ private:
         {
             const auto& nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
 
-            auto getOperationIdCallback = BIND(&TNodeShard::GetOperationIdByJobId, nodeShard, jobId)
+            auto getOperationIdCallback = BIND(&TNodeShard::FindOperationIdByJobId, nodeShard, jobId)
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run();
             auto operationId = WaitFor(getOperationIdCallback)
