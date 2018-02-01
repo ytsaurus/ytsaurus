@@ -150,7 +150,7 @@ TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data);
 TString SerializeError(const TError& error);
 TError DeserializeError(const TStringBuf& serializedError);
 
-TString LoadSslBlob(const TSslBlobConfigPtr& config);
+TString LoadPemBlob(const TPemBlobConfigPtr& config);
 TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config);
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config);
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config);

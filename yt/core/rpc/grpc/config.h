@@ -12,32 +12,32 @@ namespace NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSslBlobConfig
+class TPemBlobConfig
     : public NYTree::TYsonSerializable
 {
 public:
     TNullable<TString> FileName;
     TNullable<TString> Value;
 
-    TSslBlobConfig()
+    TPemBlobConfig()
     {
         RegisterParameter("file_name", FileName)
             .Optional();
         RegisterParameter("value", Value)
             .Optional();
 
-        RegisterPreprocessor([&] {
+        RegisterPostprocessor([&] {
             if (FileName && Value) {
                 THROW_ERROR_EXCEPTION("Cannot specify both \"file_name\" and \"value\"");
             }
             if (!FileName && !Value) {
-                THROW_ERROR_EXCEPTION("Cannot specify either \"file_name\" or \"value\"");
+                THROW_ERROR_EXCEPTION("Must specify either \"file_name\" or \"value\"");
             }
         });
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSslBlobConfig)
+DEFINE_REFCOUNTED_TYPE(TPemBlobConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +45,8 @@ class TSslPemKeyCertPairConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TSslBlobConfigPtr PrivateKey;
-    TSslBlobConfigPtr CertChain;
+    TPemBlobConfigPtr PrivateKey;
+    TPemBlobConfigPtr CertChain;
         
     TSslPemKeyCertPairConfig()
     {
@@ -65,8 +65,8 @@ DEFINE_ENUM(EClientCertificateRequest,
     ((DontRequestClientCertificate)(GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE))
     ((RequestClientCertificateButDontVerify)(GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_BUT_DONT_VERIFY))
     ((RequestClientCertificateAndVerify)(GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY))
-    ((RequestAndRequestClientCertificateButDontVerify)(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY))
-    ((RequestAndRequestClientCertificateAndVerify)(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY))
+    ((RequestAndRequireClientCertificateButDontVerify)(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY))
+    ((RequestAndRequireClientCertificateAndVerify)(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +75,7 @@ class TServerCredentialsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TSslBlobConfigPtr PemRootCerts;
+    TPemBlobConfigPtr PemRootCerts;
     std::vector<TSslPemKeyCertPairConfigPtr> PemKeyCertPairs;
     EClientCertificateRequest ClientCertificateRequest;
 
@@ -83,10 +83,9 @@ public:
     {
         RegisterParameter("pem_root_certs", PemRootCerts)
             .Optional();
-        RegisterParameter("pem_key_cert_pairs", PemKeyCertPairs)
-            .Optional();
+        RegisterParameter("pem_key_cert_pairs", PemKeyCertPairs);
         RegisterParameter("client_certificate_request", ClientCertificateRequest)
-            .Default(EClientCertificateRequest::DontRequestClientCertificate);
+            .Default(EClientCertificateRequest::RequestAndRequireClientCertificateAndVerify);
     }
 };
 
@@ -136,15 +135,14 @@ class TChannelCredentialsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TSslBlobConfigPtr PemRootCerts;
+    TPemBlobConfigPtr PemRootCerts;
     TSslPemKeyCertPairConfigPtr PemKeyCertPair;
 
     TChannelCredentialsConfig()
     {
         RegisterParameter("pem_root_certs", PemRootCerts)
             .Optional();
-        RegisterParameter("pem_key_cert_pair", PemKeyCertPair)
-            .Optional();
+        RegisterParameter("pem_key_cert_pair", PemKeyCertPair);
     }
 };
 
