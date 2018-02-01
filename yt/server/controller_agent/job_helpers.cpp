@@ -1,7 +1,9 @@
 #include "job_helpers.h"
+#include "config.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 
+#include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/job.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -40,10 +42,9 @@ void TBriefJobStatistics::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, ProcessedOutputUncompressedDataSize);
     Persist(context, ProcessedOutputCompressedDataSize);
     Persist(context, InputPipeIdleTime);
+    Persist(context, OutputPipeIdleTime);
     Persist(context, JobProxyCpuUsage);
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* consumer)
 {
@@ -68,10 +69,29 @@ void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* 
             .DoIf(static_cast<bool>(briefJobStatistics->InputPipeIdleTime), [&] (TFluentMap fluent) {
                 fluent.Item("input_pipe_idle_time").Value(*(briefJobStatistics->InputPipeIdleTime));
             })
+            .DoIf(static_cast<bool>(briefJobStatistics->OutputPipeIdleTime), [&] (TFluentMap fluent) {
+                fluent.Item("output_pipe_idle_time").Value(*(briefJobStatistics->OutputPipeIdleTime));
+            })
             .DoIf(static_cast<bool>(briefJobStatistics->JobProxyCpuUsage), [&] (TFluentMap fluent) {
                 fluent.Item("job_proxy_cpu_usage").Value(*(briefJobStatistics->JobProxyCpuUsage));
             })
         .EndMap();
+}
+
+TString ToString(const TBriefJobStatisticsPtr& briefStatistics)
+{
+    return Format("{PIRC: %v, PIUDS: %v, PIDW: %v, PICDS: %v, PORC: %v, POUDS: %v, POCDS: %v, IPIT: %v, OPIT: %v, JPCU: %v, T: %v}",
+        briefStatistics->ProcessedInputRowCount,
+        briefStatistics->ProcessedInputUncompressedDataSize,
+        briefStatistics->ProcessedInputDataWeight,
+        briefStatistics->ProcessedInputCompressedDataSize,
+        briefStatistics->ProcessedOutputRowCount,
+        briefStatistics->ProcessedOutputUncompressedDataSize,
+        briefStatistics->ProcessedOutputCompressedDataSize,
+        briefStatistics->InputPipeIdleTime,
+        briefStatistics->OutputPipeIdleTime,
+        briefStatistics->JobProxyCpuUsage,
+        briefStatistics->Timestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,8 +99,7 @@ void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* 
 bool CheckJobActivity(
     const TBriefJobStatisticsPtr& lhs,
     const TBriefJobStatisticsPtr& rhs,
-    i64 cpuUsageThreshold,
-    double inputPipeIdleTimeFraction)
+    const TSuspiciousJobsOptionsPtr& options)
 {
     bool wasActive = lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount;
     wasActive |= lhs->ProcessedInputUncompressedDataSize < rhs->ProcessedInputUncompressedDataSize;
@@ -89,10 +108,15 @@ bool CheckJobActivity(
     wasActive |= lhs->ProcessedOutputUncompressedDataSize < rhs->ProcessedOutputUncompressedDataSize;
     wasActive |= lhs->ProcessedOutputCompressedDataSize < rhs->ProcessedOutputCompressedDataSize;
     if (lhs->JobProxyCpuUsage && rhs->JobProxyCpuUsage) {
-        wasActive |= *lhs->JobProxyCpuUsage + cpuUsageThreshold < *rhs->JobProxyCpuUsage;
+        wasActive |= *lhs->JobProxyCpuUsage + options->CpuUsageThreshold < *rhs->JobProxyCpuUsage;
     }
     if (lhs->InputPipeIdleTime && rhs->InputPipeIdleTime && lhs->Timestamp < rhs->Timestamp) {
-        wasActive |= (*rhs->InputPipeIdleTime - *lhs->InputPipeIdleTime) < (rhs->Timestamp - lhs->Timestamp).MilliSeconds() * inputPipeIdleTimeFraction;
+        wasActive |= (*rhs->InputPipeIdleTime - *lhs->InputPipeIdleTime) <
+            (rhs->Timestamp - lhs->Timestamp).MilliSeconds() * options->InputPipeIdleTimeFraction;
+    }
+    if (lhs->OutputPipeIdleTime && rhs->OutputPipeIdleTime && lhs->Timestamp < rhs->Timestamp) {
+        wasActive |= (*rhs->OutputPipeIdleTime - *lhs->OutputPipeIdleTime) <
+            (rhs->Timestamp - lhs->Timestamp).MilliSeconds() * options->OutputPipeIdleTimeFraction;
     }
     return wasActive;
 }
@@ -110,6 +134,15 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, InputPipeIdleTimePath);
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
     briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
+
+    auto outputPipeIdleTimes = GetOutputPipeIdleTimes(statistics);
+    if (!outputPipeIdleTimes.empty()) {
+        briefStatistics->OutputPipeIdleTime = 0;
+        // This is a simplest way to achieve the desired result, although not the most fair one.
+        for (const auto& pair : outputPipeIdleTimes) {
+            briefStatistics->OutputPipeIdleTime = std::max<i64>(*briefStatistics->OutputPipeIdleTime, pair.second);
+        }
+    }
 
     // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates yhash containing
     // output data statistics per output table and then aggregates them). Rewrite it without any new allocations.

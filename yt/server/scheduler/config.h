@@ -455,6 +455,32 @@ DEFINE_REFCOUNTED_TYPE(TOperationAlertsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSuspiciousJobsOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Duration of no activity by job to be considered as suspicious.
+    TDuration InactivityTimeout;
+
+    //! Cpu usage delta that is considered insignificant when checking if job is suspicious.
+    i64 CpuUsageThreshold;
+
+    //! Time fraction spent in idle state of JobProxy -> UserJob pipe enough for job to be considered suspicious.
+    double InputPipeIdleTimeFraction;
+
+    //! Time fraction spent in idle state of UserJob -> JobProxy pipe enough for job to be considered suspicious.
+    double OutputPipeIdleTimeFraction;
+
+    //! Suspicious jobs per operation recalculation period.
+    TDuration UpdatePeriod;
+
+    TSuspiciousJobsOptions();
+};
+
+DEFINE_REFCOUNTED_TYPE(TSuspiciousJobsOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -615,6 +641,8 @@ public:
     //! of failed safe assertions inside controllers.
     int MaxConcurrentSafeCoreDumps;
 
+	TSuspiciousJobsOptionsPtr SuspiciousJobs;
+
     //! Patch for all operation options.
     NYT::NYTree::INodePtr OperationOptions;
 
@@ -702,13 +730,7 @@ public:
     double JobProxyMemoryReserveQuantile;
     double ResourceOverdraftFactor;
 
-    // Duration of no activity by job to be considered as suspicious.
-    TDuration SuspiciousInactivityTimeout;
 
-    // Cpu usage delta that is considered insignificant when checking if job is suspicious.
-    i64 SuspiciousCpuUsageThreshold;
-    // Time fraction spent in idle state enough for job to be considered suspicious.
-    double SuspiciousInputPipeIdleTimeFraction;
 
     // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     TNullable<i32> IopsThreshold;
@@ -768,9 +790,6 @@ public:
     // run jobs with custom rootfs, e.g. statically linked job-satellite.
     // Is applied on top of user layers if they are used.
     TNullable<TString> SystemLayerPath;
-
-    // Suspicious jobs per operation recalculation period.
-    TDuration SuspiciousJobsUpdatePeriod;
 
     TSchedulerConfig();
 
