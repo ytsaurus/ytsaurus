@@ -228,7 +228,7 @@ public:
     void RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
 
     void ClearSessionHints();
-    void AddSessionHint(NChunkClient::ESessionType sessionType);
+    void AddSessionHint(int mediumIndex, NChunkClient::ESessionType sessionType);
 
     int GetSessionCount(NChunkClient::ESessionType sessionType) const;
     int GetTotalSessionCount() const;
@@ -264,22 +264,30 @@ private:
     NNodeTrackerClient::TNodeAddressMap NodeAddresses_;
     TString DefaultAddress_;
 
-    int HintedUserSessionCount_;
-    int HintedReplicationSessionCount_;
-    int HintedRepairSessionCount_;
+    TPerMediumArray<int> HintedUserSessionCount_;
+    TPerMediumArray<int> HintedReplicationSessionCount_;
+    TPerMediumArray<int> HintedRepairSessionCount_;
+
+    int TotalHintedUserSessionCount_;
+    int TotalHintedReplicationSessionCount_;
+    int TotalHintedRepairSessionCount_;
 
     TPerMediumArray<TMediumReplicaSet::iterator> RandomReplicaIters_;
 
     TPerMediumArray<ui64> VisitMarks_{};
 
     TPerMediumArray<TNullable<double>> FillFactors_;
+    TPerMediumArray<TNullable<int>> SessionCount_;
 
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;
 
+    int GetHintedSessionCount(int mediumIndex) const;
+
     void ComputeAggregatedState();
     void ComputeDefaultAddress();
     void ComputeFillFactors();
+    void ComputeSessionCount();
 
     bool DoAddReplica(TChunkPtrWithIndexes replica);
     bool DoRemoveReplica(TChunkPtrWithIndexes replica);
