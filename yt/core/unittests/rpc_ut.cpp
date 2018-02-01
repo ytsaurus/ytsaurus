@@ -201,25 +201,6 @@ class TRpcOverGrpc;
 template <class TImpl>
 class TRpcOverBus;
 
-template <class T>
-struct TErrorCodeTraits {};
-
-template <class T>
-struct TErrorCodeTraits<TRpcOverBus<T>>
-{
-    static constexpr int TimeoutCode = static_cast<int>(NYT::EErrorCode::Timeout);
-    static constexpr int CancelCode = static_cast<int>(NYT::EErrorCode::Canceled);
-    static constexpr int TransportCode = static_cast<int>(NRpc::EErrorCode::TransportError);
-};
-
-template <bool Secure>
-struct TErrorCodeTraits<TRpcOverGrpc<Secure>>
-{
-    static constexpr int TimeoutCode = NGrpc::GenericErrorStatusCode;
-    static constexpr int CancelCode = static_cast<int>(NYT::EErrorCode::Canceled);
-    static constexpr int TransportCode = NGrpc::GenericErrorStatusCode;
-};
-
 template <class TImpl>
 class TTestBase
     : public ::testing::Test
@@ -250,25 +231,28 @@ public:
         return TImpl::CreateChannel(address);
     }
 
-    int ConvertToInt(NYT::TErrorCode errorCode)
+    static bool CheckCancelCode(TErrorCode code)
     {
-        return errorCode;
+        if (code == NYT::EErrorCode::Canceled) {
+            return true;
+        }
+        if (code == NYT::NRpc::EErrorCode::TransportError && TImpl::AllowTransportErrors) {
+            return true;
+        }
+        return false;
     }
 
-    int GetTimeoutCode()
+    static bool CheckTimeoutCode(TErrorCode code)
     {
-        return TErrorCodeTraits<TImpl>::TimeoutCode;
+        if (code == NYT::EErrorCode::Timeout) {
+            return true;
+        }
+        if (code == NYT::NRpc::EErrorCode::TransportError && TImpl::AllowTransportErrors) {
+            return true;
+        }
+        return false;
     }
 
-    int GetCancelCode()
-    {
-        return TErrorCodeTraits<TImpl>::CancelCode;
-    }
-
-    int GetTransportCode()
-    {
-        return TErrorCodeTraits<TImpl>::TransportCode;
-    }
 protected:
     TActionQueuePtr Queue_;
     TIntrusivePtr<TMyService> Service_;
@@ -281,6 +265,8 @@ template <class TImpl>
 class TRpcOverBus
 {
 public:
+    static constexpr bool AllowTransportErrors = false;
+
     static IServerPtr CreateServer()
     {
         auto busServer = MakeBusServer();
@@ -406,6 +392,8 @@ template <bool Secure>
 class TRpcOverGrpc
 {
 public:
+    static constexpr bool AllowTransportErrors = true;
+
     static IChannelPtr CreateChannel(const TString& address)
     {
         auto channelConfig = New<NGrpc::TChannelConfig>();
@@ -449,6 +437,8 @@ public:
 class TRpcOverUnixDomainImpl
 {
 public:
+    static constexpr bool AllowTransportErrors = false;
+
     static IBusServerPtr MakeBusServer()
     {
         auto busConfig = TTcpBusServerConfig::CreateUnixDomain("unix_domain");
@@ -481,10 +471,10 @@ using WithoutGrpc = ::testing::Types<
     TRpcOverBus<TRpcOverBusImpl>
 >;
 
-template <class I>
-using TRpcTest = TTestBase<I>;
-template <class I>
-using TNotGrpcTest = TTestBase<I>;
+template <class TImpl>
+using TRpcTest = TTestBase<TImpl>;
+template <class TImpl>
+using TNotGrpcTest = TTestBase<TImpl>;
 TYPED_TEST_CASE(TRpcTest, AllTransport);
 TYPED_TEST_CASE(TNotGrpcTest, WithoutGrpc);
 
@@ -625,7 +615,7 @@ TYPED_TEST(TRpcTest, ClientTimeout)
     proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
     auto req = proxy.SlowCall();
     auto rspOrError = req->Invoke().Get();
-    EXPECT_EQ(this->GetTimeoutCode(), this->ConvertToInt(rspOrError.GetCode()));
+    EXPECT_TRUE(this->CheckTimeoutCode(rspOrError.GetCode()));
 }
 
 TYPED_TEST(TRpcTest, ServerTimeout)
@@ -634,7 +624,7 @@ TYPED_TEST(TRpcTest, ServerTimeout)
     proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
     auto req = proxy.SlowCanceledCall();
     auto rspOrError = req->Invoke().Get();
-    EXPECT_EQ(this->GetTimeoutCode(), this->ConvertToInt(rspOrError.GetCode()));
+    EXPECT_TRUE(this->CheckTimeoutCode(rspOrError.GetCode()));
     Sleep(TDuration::Seconds(1));
     EXPECT_TRUE(this->Service_->GetSlowCallCanceled());
 }
@@ -650,7 +640,7 @@ TYPED_TEST(TRpcTest, ClientCancel)
     Sleep(TDuration::Seconds(0.1));
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
-    EXPECT_EQ(this->GetCancelCode(), this->ConvertToInt(rspOrError.GetCode()));
+    EXPECT_TRUE(this->CheckCancelCode(rspOrError.GetCode()));
     Sleep(TDuration::Seconds(1));
     EXPECT_TRUE(this->Service_->GetSlowCallCanceled());
 }
@@ -697,7 +687,7 @@ TYPED_TEST(TRpcTest, ConnectionLost)
 
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
-    EXPECT_EQ(this->GetTransportCode(), this->ConvertToInt(rspOrError.GetCode()));
+    EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
     EXPECT_TRUE(this->Service_->GetSlowCallCanceled());
 }
 
