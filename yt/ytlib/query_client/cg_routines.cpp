@@ -868,6 +868,8 @@ void MultiJoinOpHelper(
             closure.Items[joinId].LastKey = nullptr;
         }
 
+        TYielder yielder;
+
         std::vector<std::vector<TValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
@@ -935,6 +937,8 @@ void MultiJoinOpHelper(
                 }
             };
 
+            TDuration sortingForeignTime;
+
             while (currentKey != orderedKeys.end()) {
                 bool hasMoreData;
                 {
@@ -948,14 +952,19 @@ void MultiJoinOpHelper(
                     foreignValues.push_back(closure.Buffer->Capture(foreignRows[rowIndex]).Begin());
                 }
 
-                if (isPartiallySorted) {
-                    processForeignSequence(foreignValues.begin(), foreignValues.end());
-                } else {
-                    sortedForeignSequence.insert(
-                        sortedForeignSequence.end(),
-                        foreignValues.begin(),
-                        foreignValues.end());
+                {
+                    NProfiling::TCpuTimingGuard timingGuard(&sortingForeignTime);
+                    if (isPartiallySorted) {
+                        processForeignSequence(foreignValues.begin(), foreignValues.end());
+                    } else {
+                        sortedForeignSequence.insert(
+                            sortedForeignSequence.end(),
+                            foreignValues.begin(),
+                            foreignValues.end());
+                    }
                 }
+
+                yielder.Checkpoint(sortedForeignSequence.size());
 
                 foreignRows.clear();
                 foreignValues.clear();
@@ -971,22 +980,27 @@ void MultiJoinOpHelper(
                 }
             }
 
-            if (isPartiallySorted) {
-                std::sort(
-                    sortedForeignSequence.begin() + unsortedOffset,
-                    sortedForeignSequence.end(),
-                    foreignSuffixLessComparer);
+            {
+                NProfiling::TCpuTimingGuard timingGuard(&sortingForeignTime);
+
+                if (isPartiallySorted) {
+                    std::sort(
+                        sortedForeignSequence.begin() + unsortedOffset,
+                        sortedForeignSequence.end(),
+                        foreignSuffixLessComparer);
+                }
+
+                processSortedForeignSequence();
             }
 
-            processSortedForeignSequence();
-
             sortedForeignSequences.push_back(std::move(sortedForeignSequence));
+
+            LOG_DEBUG("Finished precessing foreign rowset (SortingTime: %v)", sortingForeignTime);
         }
 
         auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
         std::vector<const TValue*> joinedRows;
 
-        TYielder yielder;
         size_t processedRows = 0;
 
         auto consumeJoinedRows = [&] () {
