@@ -195,13 +195,13 @@ private:
                     ythrow TFileError();
                 }
 
-                if (reallyRead == 0) { // file exausted
-                    break;
-                }
-
                 buf += reallyRead;
                 from += reallyRead;
                 readPortion -= reallyRead;
+
+                if (reallyRead < toRead) { // file exausted
+                    break;
+                }
             }
 
             result = buf - reinterpret_cast<ui8*>(data.Begin()) - delta;
