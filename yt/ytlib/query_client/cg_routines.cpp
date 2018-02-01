@@ -137,7 +137,7 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
         LOG_DEBUG("Finalizing scan helper");
@@ -267,7 +267,7 @@ void InsertJoinRow(
 }
 
 
-char* AllocateAlignedBytes(TRowBuffer* buffer, size_t byteCount)
+char* AllocateAlignedBytes(TExpressionContext* buffer, size_t byteCount)
 {
     return buffer
         ->GetPool()
@@ -363,7 +363,7 @@ class TJoinBatchState
 public:
     TJoinBatchState(
         void** consumeRowsClosure,
-        void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size),
+        void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size),
         const std::vector<size_t>& selfColumns,
         const std::vector<size_t>& foreignColumns)
         : ConsumeRowsClosure(consumeRowsClosure)
@@ -626,7 +626,7 @@ public:
 
 private:
     void** const ConsumeRowsClosure;
-    void (* const ConsumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size);
+    void (* const ConsumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
 
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
@@ -652,9 +652,9 @@ void JoinOpHelper(
     void (*collectRows)(
         void** closure,
         TJoinClosure* joinClosure,
-        TRowBuffer* buffer),
+        TExpressionContext* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     TJoinClosure closure(
         lookupHasher,
@@ -817,9 +817,9 @@ void MultiJoinOpHelper(
     void (*collectRows)(
         void** closure,
         TMultiJoinClosure* joinClosure,
-        TRowBuffer* buffer),
+        TExpressionContext* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
         LOG_DEBUG("Finalizing multijoin helper");
@@ -1140,9 +1140,9 @@ void GroupOpHelper(
     void (*collectRows)(
         void** closure,
         TGroupByClosure* groupByClosure,
-        TRowBuffer* buffer),
+        TExpressionContext* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
         LOG_DEBUG("Finalizing group helper");
@@ -1175,7 +1175,7 @@ void GroupOpHelper(
     }
 }
 
-void AllocatePermanentRow(TExecutionContext* context, TRowBuffer* buffer, int valueCount, TValue** row)
+void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer, int valueCount, TValue** row)
 {
     CHECK_STACK();
 
@@ -1193,7 +1193,7 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size),
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size),
     size_t rowSize)
 {
     auto finalLogger = Finally([&] () {
