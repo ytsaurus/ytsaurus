@@ -1699,8 +1699,8 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
         operation_path = "//sys/operations/{0}".format(op.id)
         transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        wait(lambda: get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2)
         assert len(read_table(operation_path + "/output_0", tx=transaction_id)) == 2
-        assert get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2
 
         events.release_breakpoint()
         op.track()
