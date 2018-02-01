@@ -148,6 +148,8 @@ public:
     EIOEngineType IOEngineType;
     NYTree::INodePtr IOConfig;
 
+    TDuration ThrottleCounterInterval;
+
     TStoreLocationConfigBase()
     {
         RegisterParameter("quota", Quota)
@@ -165,6 +167,8 @@ public:
             .Default(EIOEngineType::ThreadPool);
         RegisterParameter("io_config", IOConfig)
             .Optional();
+        RegisterParameter("throttle_counter_interval", ThrottleCounterInterval)
+            .Default(TDuration::Seconds(30));
     }
 };
 
@@ -511,6 +515,8 @@ public:
     //! Cf. TTcpDispatcherStatistics::PendingOutBytes
     i64 NetOutThrottlingLimit;
 
+    TDuration NetOutThrottleCounterInterval;
+
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
     i64 DiskWriteThrottlingLimit;
@@ -689,6 +695,9 @@ public:
         RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
             .GreaterThan(0)
             .Default(512_MB);
+        RegisterParameter("net_out_throttle_counter_interval", NetOutThrottleCounterInterval)
+            .Default(TDuration::Seconds(30));
+
         RegisterParameter("disk_write_throttling_limit", DiskWriteThrottlingLimit)
             .GreaterThan(0)
             .Default(1_GB);

@@ -13,6 +13,7 @@
 #include "peer_block_distributor.h"
 #include "session.h"
 #include "session_manager.h"
+#include "network_statistics.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -266,6 +267,7 @@ private:
             location->GetMediumName());
 
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
+            location->IncrementThrottledWritesCounter();
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
@@ -411,6 +413,9 @@ private:
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
+        if (diskThrottling) {
+            chunk->GetLocation()->IncrementThrottledReadsCounter();
+        }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
@@ -421,6 +426,10 @@ private:
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
+        if (netThrottling) {
+            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+        }
 
         // Try suggesting other peers. This can never hurt.
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
@@ -539,6 +548,9 @@ private:
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
+        if (diskThrottling) {
+            chunk->GetLocation()->IncrementThrottledReadsCounter();
+        }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
@@ -549,6 +561,10 @@ private:
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
+        if (netThrottling) {
+            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+        }
 
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;
@@ -619,6 +635,8 @@ private:
 
         if (request->enable_throttling() && context->GetBusStatistics().PendingOutBytes > Config_->NetOutThrottlingLimit) {
             response->set_net_throttling(true);
+            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
             context->Reply();
             return;
         }

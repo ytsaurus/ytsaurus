@@ -321,6 +321,11 @@ TTcpDispatcherStatistics TServiceContextWrapper::GetBusStatistics() const
     return UnderlyingContext_->GetBusStatistics();
 }
 
+const NYTree::IAttributeDictionary& TServiceContextWrapper::GetEndpointAttributes() const
+{
+    return UnderlyingContext_->GetEndpointAttributes();
+}
+
 TSharedRefArray TServiceContextWrapper::GetRequestMessage() const
 {
     return UnderlyingContext_->GetRequestMessage();

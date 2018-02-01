@@ -527,6 +527,8 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_session_count(location->GetSessionCount());
         locationStatistics->set_enabled(location->IsEnabled());
         locationStatistics->set_full(location->IsFull());
+        locationStatistics->set_throttling_reads(location->IsReadThrottling());
+        locationStatistics->set_throttling_writes(location->IsWriteThrottling());
 
         auto& mediumStatistics = mediaStatistics[mediumIndex];
         if (location->IsEnabled() && !location->IsFull()) {

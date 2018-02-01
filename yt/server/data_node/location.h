@@ -177,6 +177,12 @@ public:
 
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
+    void IncrementThrottledReadsCounter();
+    void IncrementThrottledWritesCounter();
+
+    bool IsReadThrottling();
+    bool IsWriteThrottling();
+
 protected:
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -227,6 +233,9 @@ private:
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
     std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;
+
+    NProfiling::TAggregateCounter ThrottledReadsCounter_;
+    NProfiling::TAggregateCounter ThrottledWritesCounter_;
 
     NProfiling::TAggregateCounter PutBlocksWallTimeCounter_;
 

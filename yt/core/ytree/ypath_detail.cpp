@@ -1168,6 +1168,11 @@ public:
         return {};
     }
 
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    {
+        return EmptyAttributes();
+    }
+
 protected:
     const TString LoggingInfo_;
 
