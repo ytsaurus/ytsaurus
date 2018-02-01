@@ -1,4 +1,5 @@
 #include "medium.h"
+#include "config.h"
 
 #include <yt/server/cell_master/serialize.h>
 
@@ -10,6 +11,7 @@ namespace NChunkServer {
 TMedium::TMedium(const TMediumId& id)
     : TObjectBase(id)
     , Index_(-1)
+    , Config_(New<TMediumConfig>())
     , Acd_(this)
 { }
 
@@ -23,6 +25,7 @@ void TMedium::Save(NCellMaster::TSaveContext& context) const
     Save(context, Priority_);
     Save(context, Transient_);
     Save(context, Cache_);
+    Save(context, *Config_);
     Save(context, Acd_);
 }
 
@@ -41,6 +44,10 @@ void TMedium::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, Transient_);
     Load(context, Cache_);
+    //COMPAT(savrus)
+    if (context.GetVersion() >= 629) {
+        Load(context, *Config_);
+    }
     Load(context, Acd_);
 }
 

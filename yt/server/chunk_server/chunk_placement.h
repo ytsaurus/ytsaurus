@@ -67,6 +67,10 @@ public:
         const TDataCenterSet& dataCenters);
 
     int GetMaxReplicasPerRack(
+        const TMedium* medium,
+        TChunk* chunk,
+        TNullable<int> replicationFactorOverride = Null);
+    int GetMaxReplicasPerRack(
         int mediumIndex,
         TChunk* chunk,
         TNullable<int> replicationFactorOverride = Null);
