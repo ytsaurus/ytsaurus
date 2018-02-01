@@ -114,7 +114,10 @@ private:
             return;
         }
 
-        auto dataTtl = std::max(config->MinDataTtl, config->MaxDataTtl);
+        auto dataTtl = config->MaxDataVersions == 0
+            ? config->MinDataTtl
+            : std::max(config->MinDataTtl, config->MaxDataTtl);
+
         auto now = TimestampToInstant(Bootstrap_->GetLatestTimestamp()).first;
         auto deathTimestamp = InstantToTimestamp(now - dataTtl).first;
 
