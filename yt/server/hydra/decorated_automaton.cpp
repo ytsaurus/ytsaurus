@@ -614,6 +614,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
     , BatchCommitTimeCounter_("/batch_commit_time")
+    , MutationWatiTimeCounter_("/mutation_wait_time", {CellManager_->GetCellIdTag()})
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
@@ -1063,11 +1064,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         auto syncTime = GetInstant() - context->GetTimestamp();
 
         if (!IsRecovery()) {
-            Profiler.Enqueue(
-                "/mutation_wait_time",
-                DurationToValue(syncTime),
-                EMetricType::Gauge,
-                {CellManager_->GetCellIdTag()});
+            Profiler.Update(MutationWatiTimeCounter_, DurationToValue(syncTime));
         }
 
         auto* descriptor = GetTypeDescriptor(mutationType);
