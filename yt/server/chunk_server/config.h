@@ -309,5 +309,43 @@ DEFINE_REFCOUNTED_TYPE(TChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMediumConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Provides an additional bound for the number of replicas per rack for every chunk.
+    //! Currently used to simulate DC awareness.
+    int MaxReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to regular chunks.
+    int MaxRegularReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to journal chunks.
+    int MaxJournalReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
+    int MaxErasureReplicasPerRack;
+
+    TMediumConfig()
+    {
+        RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_regular_replicas_per_rack", MaxRegularReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_journal_replicas_per_rack", MaxJournalReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkServer
 } // namespace NYT
