@@ -555,6 +555,10 @@ class EventsOnFs(object):
                 raise TimeoutError("Timeout exceeded while waiting for {0}".format(event_name))
             time.sleep(0.1)
 
+    def check_event(self, event_name):
+        file_name = self._get_event_filename(event_name)
+        return os.path.exists(file_name)
+
     def wait_event_cmd(self, event_name, timeout=timedelta(seconds=60)):
         return (
             " {{ wait_limit={wait_limit}\n"

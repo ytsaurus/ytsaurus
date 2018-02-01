@@ -1437,8 +1437,8 @@ class TestJobRevival(YTEnvSetup):
                      "auto_merge": {"mode": "manual", "chunk_count_per_merge_job": 3, "max_intermediate_chunk_count": 100}
                  })
 
-        for i in range(user_slots_limit):
-            events.wait_event("ready_for_revival_" + str(i))
+        # Comment about '+5' - we need some additional room for jobs that can be aborted.
+        wait(lambda: sum([events.check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 5)]) == user_slots_limit)
 
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
