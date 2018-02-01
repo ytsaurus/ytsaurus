@@ -197,11 +197,13 @@ class ConfigsProvider(object):
     def _build_ui_config(self, provision, master_connection_configs, proxy_address):
         pass
 
+    @abc.abstractmethod
     def _build_rpc_proxy_config(self, provision, master_connection_configs, ports_generator):
-        raise NotImplementedError("RPC proxy is not supported for this yt version")
+        pass
 
+    @abc.abstractmethod
     def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_address, ports_generator):
-        raise NotImplementedError("Skynet manager is not supported for this yt version")
+        pass
 
 def init_logging(node, path, name, enable_debug_logging):
     if not node:
@@ -311,7 +313,7 @@ def _get_node_resource_limits_config(provision):
 
     return {"memory": memory}
 
-class ConfigsProvider_18(ConfigsProvider):
+class ConfigsProvider_19_2(ConfigsProvider):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         ports = []
 
@@ -358,10 +360,6 @@ class ConfigsProvider_18(ConfigsProvider):
 
                 config["hydra_manager"] = _get_hydra_manager_config()
 
-                set_at(config, "security_manager/user_statistics_gossip_period", 150)
-                set_at(config, "security_manager/account_statistics_gossip_period", 150)
-                set_at(config, "node_tracker/node_states_gossip_period", 150)
-
                 config["rpc_port"], config["monitoring_port"] = ports[cell_index][master_index]
 
                 config["primary_master"] = connection_configs[cell_tags[0]]
@@ -381,18 +379,6 @@ class ConfigsProvider_18(ConfigsProvider):
 
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                                  "master-{0}-{1}".format(cell_index, master_index), provision["enable_debug_logging"])
-
-                update_inplace(config, {
-                    "tablet_manager": {
-                        "cell_scan_period": 100
-                    },
-                    "multicell_manager": {
-                        "cell_statistics_gossip_period": 80
-                    },
-                    "cell_directory_synchronizer": {
-                        "sync_period": 500
-                    }
-                })
 
                 _set_bind_retry_options(config, key="bus_server")
 
@@ -417,13 +403,22 @@ class ConfigsProvider_18(ConfigsProvider):
                 "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
             },
             "timestamp_provider": {
-                "addresses": master_connection_configs[primary_cell_tag]["addresses"]
+                "addresses": master_connection_configs[primary_cell_tag]["addresses"],
+                "update_period": 500,
+                "soft_backoff_time": 100,
+                "hard_backoff_time": 100
             },
             "cell_directory_synchronizer": {
                 "sync_period": 500
             },
             "cluster_directory_synchronizer": {
                 "sync_period": 500
+            },
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0
             }
         }
 
@@ -442,6 +437,9 @@ class ConfigsProvider_18(ConfigsProvider):
 
         if enable_master_cache and master_cache_nodes:
             cluster_connection["master_cache"] = {
+                "soft_backoff_time": 100,
+                "hard_backoff_time": 100,
+                "rpc_timeout": 5000,
                 "addresses": master_cache_nodes,
                 "cell_id": master_connection_configs[primary_cell_tag]["cell_id"]}
         else:
@@ -466,15 +464,15 @@ class ConfigsProvider_18(ConfigsProvider):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[index], "snapshots"))
-            set_at(config, "scheduler/orchid_cache_update_period", 0)
 
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
-            _set_bind_retry_options(config, key="bus_server")
 
             # TODO(ignat): temporary solution to check that correctness of connected scheduler.
             # correct solution is to publish cell_id in some separate place in orchid.
             set_at(config, "scheduler/environment/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
+
+            _set_bind_retry_options(config, key="bus_server")
 
             configs.append(config)
 
@@ -498,32 +496,28 @@ class ConfigsProvider_18(ConfigsProvider):
         configs = []
         addresses = []
 
+        current_user = 10000
+
         for index in xrange(provision["node"]["count"]):
             config = default_configs.get_node_config(provision["enable_debug_logging"])
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
 
-            config["addresses"] = {
-                "default": provision["fqdn"],
-                "interconnect": provision["fqdn"]
-            }
+            config["addresses"] = [
+                ("interconnect", provision["fqdn"]),
+                ("default", provision["fqdn"])
+            ]
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
+            config["skynet_http_port"] = next(ports_generator)
 
             addresses.append("{0}:{1}".format(provision["fqdn"], config["rpc_port"]))
-
-            config["cell_directory_synchronizer"] = {
-                "sync_period": 500
-            }
 
             config["cluster_connection"] = \
                self._build_cluster_connection_config(
                     master_connection_configs,
                     config_template=config["cluster_connection"])
-
-            set_at(config, "data_node/read_thread_count", 2)
-            set_at(config, "data_node/write_thread_count", 2)
 
             set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[index], "multiplexed"))
 
@@ -537,6 +531,11 @@ class ConfigsProvider_18(ConfigsProvider):
                 cache_location_config["path"] = os.path.join(node_dirs[index], "chunk_cache")
 
             set_at(config, "data_node/cache_locations", [cache_location_config])
+
+            start_uid = current_user + config["rpc_port"]
+            set_at(config, "exec_agent/slot_manager/job_environment/start_uid", start_uid)
+            set_at(config, "exec_agent/slot_manager/locations", [
+                {"path" : os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}])
 
             store_location_config = {
                 "low_watermark": 0,
@@ -617,90 +616,6 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return configs
 
-    def _build_ui_config(self, provision, master_connection_configs, proxy_address):
-        address_blocks = []
-        # Primary masters cell index is 0
-        for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
-            if cell_index == 0:
-                cell_tag = master_connection_configs["primary_cell_tag"]
-                cell_addresses = master_connection_configs[cell_tag]["addresses"]
-            else:
-                cell_tag = master_connection_configs["secondary_cell_tags"][cell_index - 1]
-                cell_addresses = master_connection_configs[cell_tag]["addresses"]
-            block = "{{ addresses: [ '{0}' ], cellTag: {1} }}"\
-                .format("', '".join(cell_addresses), int(cell_tag))
-            address_blocks.append(block)
-        masters = "primaryMaster: {0}".format(address_blocks[0])
-        if provision["master"]["secondary_cell_count"]:
-            masters += ", secondaryMasters: [ '{0}' ]".format("', '".join(address_blocks[1:]))
-
-        template_conf_path = os.path.join(WEB_INTERFACE_RESOURCES_PATH, "configs/localmode.js.tmpl")
-        if os.path.exists(template_conf_path):
-            return open(template_conf_path).read()\
-                .replace("%%proxy%%", "'{0}'".format(proxy_address))
-        else:
-            return default_configs.get_ui_config()\
-                .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
-                .replace("%%masters%%", masters)
-
-class ConfigsProvider_18_5(ConfigsProvider_18):
-    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
-        configs, addresses = super(ConfigsProvider_18_5, self)._build_node_configs(
-                provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
-
-        current_user = 10000
-        for i, config in enumerate(configs):
-            # TODO(psushin): This is a very dirty hack to ensure that different parallel
-            # test and yt_node instances do not share same uids range for user jobs.
-            start_uid = current_user + config["rpc_port"]
-
-            set_at(config, "exec_agent/slot_manager/job_environment", {
-                "type": "simple",
-                "start_uid" : start_uid,
-            })
-            set_at(config, "exec_agent/slot_manager/locations", [
-                {"path" : os.path.join(node_dirs[i], "slots"), "disk_usage_watermark": 0}])
-
-            set_at(config, "exec_agent/node_directory_prepare_backoff_time", 100)
-            set_at(config, "node_directory_synchronizer/sync_period", 100)
-
-            config["addresses"] = [
-                ("interconnect", provision["fqdn"]),
-                ("default", provision["fqdn"])
-            ]
-
-        return configs, addresses
-
-    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
-                                 ports_generator, log_path):
-        configs = super(ConfigsProvider_18_5, self)._build_scheduler_configs(
-                provision, scheduler_dirs, master_connection_configs, ports_generator, log_path)
-
-        for config in configs:
-            # Since 18.5 scheduler Orchid consists of a static part (that is periodically cached)
-            # and a dynamic part, so the name of the option was changed.
-            del config["scheduler"]["orchid_cache_update_period"]
-            set_at(config, "scheduler/static_orchid_cache_update_period", 100)
-            set_at(config, "scheduler/orchid_keys_update_period", 100)
-
-        return configs
-
-class ConfigsProvider_19_0(ConfigsProvider_18_5):
-    pass
-
-class ConfigsProvider_19_1(ConfigsProvider_19_0):
-    pass
-
-class ConfigsProvider_19_2(ConfigsProvider_19_1):
-    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
-        configs, addresses = super(ConfigsProvider_19_2, self)._build_node_configs(
-                provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
-
-        for config in configs:
-            config["skynet_http_port"] = next(ports_generator)
-
-        return configs, addresses
-
     def _build_rpc_proxy_config(self, provision, proxy_logs_dir, master_connection_configs, ports_generator):
         config = {
             "cluster_connection": master_connection_configs,
@@ -739,11 +654,33 @@ class ConfigsProvider_19_2(ConfigsProvider_19_1):
 
         return configs
 
+    def _build_ui_config(self, provision, master_connection_configs, proxy_address):
+        address_blocks = []
+        # Primary masters cell index is 0
+        for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
+            if cell_index == 0:
+                cell_tag = master_connection_configs["primary_cell_tag"]
+                cell_addresses = master_connection_configs[cell_tag]["addresses"]
+            else:
+                cell_tag = master_connection_configs["secondary_cell_tags"][cell_index - 1]
+                cell_addresses = master_connection_configs[cell_tag]["addresses"]
+            block = "{{ addresses: [ '{0}' ], cellTag: {1} }}"\
+                .format("', '".join(cell_addresses), int(cell_tag))
+            address_blocks.append(block)
+        masters = "primaryMaster: {0}".format(address_blocks[0])
+        if provision["master"]["secondary_cell_count"]:
+            masters += ", secondaryMasters: [ '{0}' ]".format("', '".join(address_blocks[1:]))
+
+        template_conf_path = os.path.join(WEB_INTERFACE_RESOURCES_PATH, "configs/localmode.js.tmpl")
+        if os.path.exists(template_conf_path):
+            return open(template_conf_path).read()\
+                .replace("%%proxy%%", "'{0}'".format(proxy_address))
+        else:
+            return default_configs.get_ui_config()\
+                .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
+                .replace("%%masters%%", masters)
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
-    (18, 5): ConfigsProvider_18_5,
-    (19, 0): ConfigsProvider_19_0,
-    (19, 1): ConfigsProvider_19_1,
     (19, 2): ConfigsProvider_19_2
 }
 
