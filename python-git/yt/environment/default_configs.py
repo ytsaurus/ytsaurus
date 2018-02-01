@@ -51,6 +51,7 @@ b"""
     timestamp_provider = {
         soft_backoff_time = 100;
         hard_backoff_time = 100;
+        update_period = 500;
     };
 
     changelogs = {
