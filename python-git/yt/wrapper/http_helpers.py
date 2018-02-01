@@ -121,6 +121,7 @@ def create_response(response, request_info, error_format, client):
     def get_error():
         error_content = get_error_from_headers(response.headers)
         if error_content is None and not str(response.status_code).startswith("2"):
+            check_response_is_decodable(response, error_format)
             error_content = response.content
         if error_content is not None:
             if error_format == "json":
