@@ -134,6 +134,32 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSuspiciousJobsOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Duration of no activity by job to be considered as suspicious.
+    TDuration InactivityTimeout;
+
+    //! Cpu usage delta that is considered insignificant when checking if job is suspicious.
+    i64 CpuUsageThreshold;
+
+    //! Time fraction spent in idle state of JobProxy -> UserJob pipe enough for job to be considered suspicious.
+    double InputPipeIdleTimeFraction;
+
+    //! Time fraction spent in idle state of UserJob -> JobProxy pipe enough for job to be considered suspicious.
+    double OutputPipeIdleTimeFraction;
+
+    //! Suspicious jobs per operation recalculation period.
+    TDuration UpdatePeriod;
+
+    TSuspiciousJobsOptions();
+};
+
+DEFINE_REFCOUNTED_TYPE(TSuspiciousJobsOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationOptions
     : public NYTree::TYsonSerializable
     , public virtual NPhoenix::TDynamicTag
@@ -432,17 +458,7 @@ public:
     //! for scheduling tag filter without access.
     TDuration SchedulingTagFilterExpireTimeout;
 
-    //! Duration of no activity by job to be considered as suspicious.
-    TDuration SuspiciousInactivityTimeout;
-
-    //! Cpu usage delta that is considered insignificant when checking if job is suspicious.
-    i64 SuspiciousCpuUsageThreshold;
-
-    //! Time fraction spent in idle state enough for job to be considered suspicious.
-    double SuspiciousInputPipeIdleTimeFraction;
-
-    //! Suspicious jobs per operation recalculation period.
-    TDuration SuspiciousJobsUpdatePeriod;
+    TSuspiciousJobsOptionsPtr SuspiciousJobs;
 
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;

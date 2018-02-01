@@ -190,7 +190,7 @@ TOperationControllerBase::TOperationControllerBase(
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::UpdateSuspiciousJobsYson, MakeWeak(this)),
-        Config->SuspiciousJobsUpdatePeriod))
+        Config->SuspiciousJobs->UpdatePeriod))
     , ScheduleJobStatistics_(New<TScheduleJobStatistics>())
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -1869,9 +1869,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
             &TOperationControllerBase::AnalyzeBriefStatistics,
             MakeStrong(this),
             joblet,
-            Config->SuspiciousInactivityTimeout,
-            Config->SuspiciousCpuUsageThreshold,
-            Config->SuspiciousInputPipeIdleTimeFraction)
+            Config->SuspiciousJobs)
             .Via(GetInvoker()));
     }
 }
@@ -5955,9 +5953,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 
 void TOperationControllerBase::AnalyzeBriefStatistics(
     const TJobletPtr& job,
-    TDuration suspiciousInactivityTimeout,
-    i64 suspiciousCpuUsageThreshold,
-    double suspiciousInputPipeIdleTimeFraction,
+    const TSuspiciousJobsOptionsPtr& options,
     const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError)
 {
     if (!briefStatisticsOrError.IsOK()) {
@@ -5981,19 +5977,21 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
         CheckJobActivity(
             job->BriefStatistics,
             briefStatistics,
-            suspiciousCpuUsageThreshold,
-            suspiciousInputPipeIdleTimeFraction);
-
-    job->BriefStatistics = briefStatistics;
+            options);
 
     bool wasSuspicious = job->Suspicious;
-    job->Suspicious = (!wasActive && job->BriefStatistics->Timestamp - job->LastActivityTime > suspiciousInactivityTimeout);
+    job->Suspicious = (!wasActive && briefStatistics->Timestamp - job->LastActivityTime > options->InactivityTimeout);
     if (!wasSuspicious && job->Suspicious) {
-        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
+        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v, "
+            "OldBriefStatistics: %v, NewBriefStatistics: %v)",
             job->JobId,
             job->LastActivityTime,
-            suspiciousInactivityTimeout);
+            options->InactivityTimeout,
+            job->BriefStatistics,
+            briefStatistics);
     }
+
+    job->BriefStatistics = briefStatistics;
 
     if (wasActive) {
         job->LastActivityTime = job->BriefStatistics->Timestamp;
