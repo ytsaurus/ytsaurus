@@ -153,7 +153,7 @@ void TNode::SetNodeAddresses(const TNodeAddressMap& nodeAddresses)
 
 const TAddressMap& TNode::GetAddressesOrThrow(EAddressType addressType) const
 {
-    return NNodeTrackerClient::GetAddresses(NodeAddresses_, addressType);
+    return NNodeTrackerClient::GetAddressesOrThrow(NodeAddresses_, addressType);
 }
 
 const TString& TNode::GetDefaultAddress() const

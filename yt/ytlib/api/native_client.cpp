@@ -1085,7 +1085,7 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, EPeerKind::Leader);
-        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddress(Connection_->GetNetworks()));
+        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
     }
 
 

@@ -855,7 +855,7 @@ private:
         }
 
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
-        const auto& addresses = GetAddresses(nodeAddresses, EAddressType::InternalRpc);
+        const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
         auto& statistics = *request->mutable_statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());

@@ -3754,7 +3754,7 @@ private:
             if (peer.Descriptor.IsNull()) {
                 config->Addresses.push_back(Null);
             } else {
-                config->Addresses.push_back(peer.Descriptor.GetAddress(Bootstrap_->GetConfig()->Networks));
+                config->Addresses.push_back(peer.Descriptor.GetAddressOrThrow(Bootstrap_->GetConfig()->Networks));
             }
         }
 

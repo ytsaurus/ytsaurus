@@ -655,7 +655,7 @@ private:
         VERIFY_THREAD_AFFINITY(WriterThread);
 
         auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
-        auto address = nodeDescriptor.GetAddress(Networks_);
+        auto address = nodeDescriptor.GetAddressOrThrow(Networks_);
         LOG_DEBUG("Starting write session (Address: %v)", address);
 
         auto lightChannel = Client_->GetChannelFactory()->CreateChannel(address);

@@ -67,7 +67,7 @@ TCellPeerConfig TCellPeerDescriptor::ToConfig(const TNetworkPreferenceList& netw
 {
     TCellPeerConfig config;
     config.Voting = Voting_;
-    config.Address = IsNull() ? Null : MakeNullable(GetAddress(networks));
+    config.Address = IsNull() ? Null : MakeNullable(GetAddressOrThrow(networks));
     return config;
 }
 
@@ -315,7 +315,7 @@ private:
         peerConfig->CellId = entry->Descriptor.CellId;
         for (const auto& peer : entry->Descriptor.Peers) {
             if (!peer.IsNull()) {
-                peerConfig->Addresses.emplace_back(peer.GetAddress(Networks_));
+                peerConfig->Addresses.emplace_back(peer.GetAddressOrThrow(Networks_));
             }
         }
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
