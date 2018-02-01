@@ -330,7 +330,6 @@ public:
     static IServerPtr CreateServer()
     {
         auto serverAddressConfig = New<NGrpc::TServerAddressConfig>();
-        serverAddressConfig->Type = NGrpc::EAddressType::Insecure;
         serverAddressConfig->Address = DefaultAddress;
         auto serverConfig = New<NGrpc::TServerConfig>();
         serverConfig->Addresses.push_back(serverAddressConfig);

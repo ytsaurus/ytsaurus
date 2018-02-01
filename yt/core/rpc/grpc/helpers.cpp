@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "config.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/proto/protobuf_helpers.pb.h>
@@ -14,12 +15,20 @@
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
+#include <contrib/libs/grpc/include/grpc/support/alloc.h>
 
 namespace NYT {
 namespace NRpc {
 namespace NGrpc {
 
 using NYTree::ENodeType;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGprString MakeGprString(char* str)
+{
+    return TGprString(str, gpr_free);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +106,6 @@ grpc_call_details* TGrpcCallDetails::operator->()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TGrpcChannelArgs::TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& args)
 {
     for (const auto& pair : args) {
@@ -145,6 +153,22 @@ TGrpcChannelArgs::TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& ar
 }
 
 grpc_channel_args* TGrpcChannelArgs::Unwrap()
+{
+    return &Native_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGrpcPemKeyCertPair::TGrpcPemKeyCertPair(TString privateKey, TString certChain)
+    : Native_({
+        privateKey.c_str(),
+        certChain.c_str()
+    })
+    , PrivateKey_(std::move(privateKey))
+    , CertChain_(std::move(certChain))
+{ }
+
+grpc_ssl_pem_key_cert_pair* TGrpcPemKeyCertPair::Unwrap()
 {
     return &Native_;
 }
@@ -254,6 +278,51 @@ TError DeserializeError(const TStringBuf& serializedError)
         THROW_ERROR_EXCEPTION("Error deserializing error");
     }
     return FromProto<TError>(protoError);
+}
+
+TString LoadSslBlob(const TSslBlobConfigPtr& config)
+{
+    if (config->FileName) {
+        return TFileInput(*config->FileName).ReadAll();
+    } else if (config->Value) {
+        return *config->Value;
+    } else {
+        Y_UNREACHABLE();
+    }
+}
+
+TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config)
+{
+    return TGrpcPemKeyCertPair(
+        LoadSslBlob(config->PrivateKey),
+        LoadSslBlob(config->CertChain));
+}
+
+TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config)
+{
+    auto rootCerts = LoadSslBlob(config->PemRootCerts);
+    auto keyCertPair = LoadPemKeyCertPair(config->PemKeyCertPair);
+    return TGrpcChannelCredentialsPtr(grpc_ssl_credentials_create(
+        rootCerts.c_str(),
+        keyCertPair.Unwrap(),
+        nullptr));
+}
+
+TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config)
+{
+    auto rootCerts = LoadSslBlob(config->PemRootCerts);
+    std::vector<TGrpcPemKeyCertPair> keyCertPairs;
+    std::vector<grpc_ssl_pem_key_cert_pair> nativeKeyCertPairs;
+    for (const auto& pairConfig : config->PemKeyCertPairs) {
+        keyCertPairs.push_back(LoadPemKeyCertPair(pairConfig));
+        nativeKeyCertPairs.push_back(*keyCertPairs.back().Unwrap());
+    }
+    return TGrpcServerCredentialsPtr(grpc_ssl_server_credentials_create_ex(
+        rootCerts.c_str(),
+        nativeKeyCertPairs.data(),
+        nativeKeyCertPairs.size(),
+        static_cast<grpc_ssl_client_certificate_request_type>(config->ClientCertificateRequest),
+        nullptr));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
