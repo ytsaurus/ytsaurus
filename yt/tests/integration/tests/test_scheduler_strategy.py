@@ -1309,9 +1309,11 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "suspicious_inactivity_timeout": 2000,  # 2 sec
+            "suspicious_jobs": {
+                "inactivity_timeout": 2000,  # 2 sec
+                "update_period": 100,  # 100 msec
+            },
             "running_jobs_update_period": 100,  # 100 msec
-            "suspicious_jobs_update_period": 100,  # 100 msec
         }
     }
 
@@ -1364,15 +1366,85 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         suspicious1 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job1_id))
         suspicious2 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job2_id))
 
+        if suspicious1 or suspicious2:
+            print >>sys.stderr, "Some of jobs considered suspicious, their brief statistics are:"
+            for i in range(50):
+                if suspicious1 and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id)):
+                    print >>sys.stderr, "job1 brief statistics:", \
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id))
+                if suspicious2 and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id)):
+                    print >>sys.stderr, "job2 brief statistics:", \
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id))
+
         assert not suspicious1
         assert not suspicious2
 
         op1.abort()
         op2.abort()
 
+    def test_true_suspicious_jobs(self):
+        def get_running_jobs(op_id):
+            path = "//sys/scheduler/orchid/scheduler/operations/" + op_id
+            if not exists(path, verbose=False):
+                return []
+            else:
+                return get(path + "/running_jobs", verbose=False)
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        for i in range(15):
+            write_table("<append=%true>//tmp/t_in", {"a": i})
+        op = merge(
+            dont_track=True,
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                "mode": "ordered",
+                "job_io": {
+                    "testing_options": {"pipe_delay": 4000},
+                    "buffer_row_count": 1,
+                },
+                "enable_job_splitting": False,
+            })
+
+        running_jobs = None
+        for i in xrange(200):
+            running_jobs = get_running_jobs(op.id)
+            print >>sys.stderr, "running_jobs:", len(running_jobs)
+            if not running_jobs:
+                time.sleep(0.1)
+            else:
+                break
+
+        if not running_jobs:
+            assert False, "Failed to have running jobs"
+
+        time.sleep(5)
+
+        job_id = running_jobs.keys()[0]
+
+        # Most part of the time we should be suspicious, let's check that
+        for i in range(30):
+            suspicious = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job_id))
+            if suspicious:
+                break
+            time.sleep(0.1)
+
+        if not suspicious:
+            print >>sys.stderr, "Job is not considered suspicious, its brief statistics are:"
+            for i in range(50):
+                if suspicious and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
+                    print >>sys.stderr, "job brief statistics:", \
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id))
+
+        assert suspicious
+        op.abort()
+
     @pytest.mark.xfail(reason="TODO(max42)")
     @require_ytserver_root_privileges
-    def test_true_suspicious_job(self):
+    def test_true_suspicious_jobs_old(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the
         # user job for a long time).
