@@ -469,7 +469,6 @@ private:
     const int MaxQueueSize_;
 
     NConcurrency::TAsyncSemaphore Semaphore_;
-    int Inflight_ = 0;
     std::atomic<bool> Alive_ = {true};
 
     const i64 Alignment_ = 512;
