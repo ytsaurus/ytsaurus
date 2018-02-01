@@ -1,5 +1,6 @@
 add_subdirectory(codegen)
-add_subdirectory(grpc)
+add_subdirectory(rpc/grpc)
+add_subdirectory(rpc/http)
 add_subdirectory(crypto)
 
 include(Sources.txt)

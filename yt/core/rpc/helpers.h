@@ -72,18 +72,5 @@ void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IMessageFormat
-{
-    virtual TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType) = 0;
-    virtual TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType) = 0;
-};
-
-void RegisterCustomMessageFormat(EMessageFormat format, IMessageFormat* formatHandler);
-
-TSharedRef ConvertMessageToFormat(const TSharedRef& message, EMessageFormat format, const NYson::TProtobufMessageType* messageType);
-TSharedRef ConvertMessageFromFormat(const TSharedRef& message, EMessageFormat format, const NYson::TProtobufMessageType* messageType);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NRpc
 } // namespace NYT

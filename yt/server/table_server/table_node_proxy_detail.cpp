@@ -120,6 +120,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablet_errors")
         .SetPresent(isDynamic)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("tablet_error_count")
+        .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
         .SetWritable(true)
         .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
@@ -288,6 +290,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
                         .DoIf(cell, [&] (TFluentMap fluent) {
                             fluent.Item("cell_id").Value(cell->GetId());
                         })
+                        .Item("error_count").Value(tablet->GetErrorCount())
                     .EndMap();
             });
         return true;
@@ -334,6 +337,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
         }
         BuildYsonFluently(consumer)
             .Value(errors);
+        return true;
+    }
+
+    if (key == "tablet_error_count" && isDynamic) {
+        BuildYsonFluently(consumer)
+            .Value(trunkTable->GetTabletErrorCount());
         return true;
     }
 

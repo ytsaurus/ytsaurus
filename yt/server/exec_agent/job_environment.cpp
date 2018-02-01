@@ -10,7 +10,7 @@
 #include <yt/server/data_node/master_connector.h>
 #include <yt/server/data_node/volume_manager.h>
 
-#include <yt/ytlib/program/names.h>
+#include <yt/server/misc/public.h>
 
 #ifdef _linux_
 #include <yt/server/containers/container_manager.h>

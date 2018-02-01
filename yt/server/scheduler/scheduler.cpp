@@ -2234,7 +2234,7 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        LOG_INFO(error, "Aboring operation (OperationId: %v, State: %v)",
+        LOG_INFO(error, "Aborting operation (OperationId: %v, State: %v)",
             operation->GetId(),
             operation->GetState());
 

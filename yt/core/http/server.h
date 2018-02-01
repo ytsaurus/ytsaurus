@@ -28,8 +28,11 @@ struct IServer
         const TString& pattern,
         const IHttpHandlerPtr& handler) = 0;
 
-    //! Starts the server. Canceling the returned future stops it.
-    virtual TFuture<void> Start() = 0;
+    //! Starts the server.
+    virtual void Start() = 0;
+
+    //! Stops the server.
+    virtual void Stop() = 0;
 
     // Extension methods
     void AddHandler(

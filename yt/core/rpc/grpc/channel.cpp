@@ -22,6 +22,7 @@
 #include <array>
 
 namespace NYT {
+namespace NRpc {
 namespace NGrpc {
 
 using namespace NRpc;
@@ -439,4 +440,5 @@ IChannelFactoryPtr GetGrpcChannelFactory()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NGrpc
+} // namespace NRpc
 } // namespace NYT

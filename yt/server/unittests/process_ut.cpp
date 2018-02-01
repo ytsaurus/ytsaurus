@@ -1,5 +1,3 @@
-#ifdef _linux_
-
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/actions/bind.h>
@@ -11,12 +9,16 @@
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/pipes/async_reader.h>
+#include <yt/core/net/connection.h>
 
 #include <yt/server/misc/process.h>
 
 #include <yt/server/containers/porto_executor.h>
 #include <yt/server/containers/instance.h>
+
+#include <util/system/platform.h>
+
+#ifdef _linux_
 
 namespace NYT {
 namespace {

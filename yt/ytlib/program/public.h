@@ -1,14 +1,13 @@
-#include <yt/core/rpc/helpers.h>
+#pragma once
+
+#include <yt/core/misc/public.h>
 
 namespace NYT {
-namespace NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns pointer only for side effect of linking static object.
-NRpc::IMessageFormat* RegisterJsonRpcMessageFormat();
+DECLARE_REFCOUNTED_CLASS(TSingletonsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
 } // namespace NYT

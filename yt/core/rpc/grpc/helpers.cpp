@@ -16,6 +16,7 @@
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 
 namespace NYT {
+namespace NRpc {
 namespace NGrpc {
 
 using NYTree::ENodeType;
@@ -155,7 +156,7 @@ struct TMessageTag
 
 TSharedRef ByteBufferToEnvelopedMessage(grpc_byte_buffer* buffer)
 {
-    NProto::TSerializedMessageEnvelope envelope;
+    NYT::NProto::TSerializedMessageEnvelope envelope;
     // Codec remains "none".
 
     TEnvelopeFixedHeader fixedHeader;
@@ -203,7 +204,7 @@ TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data)
     const char* sourceHeader = data.Begin() + sizeof (TEnvelopeFixedHeader);
     const char* sourceMessage = sourceHeader + fixedHeader->EnvelopeSize;
 
-    NProto::TSerializedMessageEnvelope envelope;
+    NYT::NProto::TSerializedMessageEnvelope envelope;
     YCHECK(envelope.ParseFromArray(sourceHeader, fixedHeader->EnvelopeSize));
 
     auto compressedMessage = data.Slice(sourceMessage, sourceMessage + fixedHeader->MessageSize);
@@ -239,7 +240,7 @@ TString SerializeError(const TError& error)
 {
     TString serializedError;
     google::protobuf::io::StringOutputStream output(&serializedError);
-    NProto::TError protoError;
+    NYT::NProto::TError protoError;
     ToProto(&protoError, error);
     YCHECK(protoError.SerializeToZeroCopyStream(&output));
     return serializedError;
@@ -247,7 +248,7 @@ TString SerializeError(const TError& error)
 
 TError DeserializeError(const TStringBuf& serializedError)
 {
-    NProto::TError protoError;
+    NYT::NProto::TError protoError;
     google::protobuf::io::ArrayInputStream input(serializedError.data(), serializedError.size());
     if (!protoError.ParseFromZeroCopyStream(&input)) {
         THROW_ERROR_EXCEPTION("Error deserializing error");
@@ -258,4 +259,5 @@ TError DeserializeError(const TStringBuf& serializedError)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NGrpc
+} // namespace NRpc
 } // namespace NYT

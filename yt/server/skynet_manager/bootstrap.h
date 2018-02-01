@@ -4,10 +4,10 @@
 
 #include "config.h"
 
-#include <yt/server/misc/bootstrap.h>
-
 #include <yt/core/concurrency/public.h>
+
 #include <yt/core/net/public.h>
+
 #include <yt/core/http/public.h>
 
 namespace NYT {
@@ -16,12 +16,12 @@ namespace NSkynetManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBootstrap
-    : public TBootstrapBase
-    , public virtual TRefCounted
+    : public virtual TRefCounted
 {
     explicit TBootstrap(TSkynetManagerConfigPtr config);
 
-    void Run();
+    void Start();
+    void Stop();
 
     TSkynetManagerConfigPtr Config;
 

@@ -403,10 +403,12 @@ bool SyncYPathExists(
 void SyncYPathSet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TYsonString& value)
+    const TYsonString& value,
+    bool recursive)
 {
     auto request = TYPathProxy::Set(path);
     request->set_value(value.GetData());
+    request->set_recursive(recursive);
     ExecuteVerb(service, request)
         .Get()
         .ThrowOnError();

@@ -21,7 +21,7 @@ class TSkynetManager
     : public TRefCounted
 {
 public:
-    TSkynetManager(TBootstrap* bootstrap);
+    explicit TSkynetManager(TBootstrap* bootstrap);
 
     void Share(NHttp::IRequestPtr req, NHttp::IResponseWriterPtr rsp);
     void Discover(NHttp::IRequestPtr req, NHttp::IResponseWriterPtr rsp);
@@ -29,7 +29,7 @@ public:
     TClusterConnectionConfigPtr GetCluster(const TString& name);
 
 private:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSkynetManager);

@@ -325,7 +325,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("backround_activity", ETabletBackgroundActivity::Flush);
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(error);
             LOG_ERROR(error, "Error flushing tablet store, backing off");
