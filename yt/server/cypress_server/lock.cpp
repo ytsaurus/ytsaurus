@@ -51,9 +51,6 @@ void FormatValue(TStringBuilder* builder, const TLockKey& key, const TStringBuf&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLockRequest::TLockRequest()
-{ }
-
 TLockRequest::TLockRequest(ELockMode mode)
     : Mode(mode)
 { }
@@ -102,9 +99,10 @@ bool TCypressNodeLockingState::IsEmpty() const
     return
         AcquiredLocks.empty() &&
         PendingLocks.empty() &&
-        ExclusiveLocks.empty() &&
-        SharedLocks.empty() &&
-        SnapshotLocks.empty();
+        TransactionToExclusiveLocks.empty() &&
+        TransactionAndKeyToSharedLocks.empty() &&
+        KeyToSharedLocks.empty() &&
+        TransactionToSnapshotLocks.empty();
 }
 
 void TCypressNodeLockingState::Persist(TPersistenceContext& context)
@@ -112,9 +110,12 @@ void TCypressNodeLockingState::Persist(TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, AcquiredLocks);
     Persist(context, PendingLocks);
-    Persist(context, ExclusiveLocks);
-    Persist(context, SharedLocks);
-    Persist(context, SnapshotLocks);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 630) {
+        Load<THashSet<TLock*>>(context.LoadContext());
+        Load<THashMultiMap<TLockKey, TLock*>>(context.LoadContext());
+        Load<THashMultiMap<NTransactionServer::TTransaction*, TLock*>>(context.LoadContext());
+    }
 }
 
 const TCypressNodeLockingState TCypressNodeLockingState::Empty;
@@ -123,7 +124,6 @@ const TCypressNodeLockingState TCypressNodeLockingState::Empty;
 
 TLock::TLock(const TLockId& id)
     : TNonversionedObjectBase(id)
-    , State_(ELockState::Pending)
 { }
 
 void TLock::Save(TSaveContext& context) const
