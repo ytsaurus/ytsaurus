@@ -138,6 +138,7 @@ private:
 
     void AddSessionHint(
         TNode* node,
+        int mediumIndex,
         NChunkClient::ESessionType sessionType);
 
 };
