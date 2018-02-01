@@ -1,13 +1,19 @@
 #pragma once
 
-#include "config.h"
+#include "public.h"
+
+#include <yt/core/http/public.h>
 
 namespace NYT {
+namespace NRpc {
+namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigureServerSingletons(const TServerConfigPtr& config);
+NRpc::IServerPtr CreateServer(NYT::NHttp::IServerPtr httpServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NHttp
+} // namespace NRpc
 } // namespace NYT

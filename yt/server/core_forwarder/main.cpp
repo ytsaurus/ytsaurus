@@ -27,7 +27,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoreForwarderProgram
-    : public TYTProgram
+    : public TProgram
 {
 public:
     TCoreForwarderProgram()

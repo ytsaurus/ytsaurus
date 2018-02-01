@@ -3,7 +3,7 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/program/names.h>
+#include <yt/server/misc/public.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

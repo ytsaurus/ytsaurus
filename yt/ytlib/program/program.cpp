@@ -130,28 +130,6 @@ const char* TProgramException::what() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* TYTProgram::GetVersion()
-{
-    return NYT::GetVersion();
-}
-
-const char* TYTProgram::GetBuildHost()
-{
-    return NYT::GetBuildHost();
-}
-
-const char* TYTProgram::GetBuildMachine()
-{
-    return NYT::GetBuildMachine();
-}
-
-const char* TYTProgram::GetBuildTime()
-{
-    return NYT::GetBuildTime();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TString CheckPathExistsArgMapper(const TString& arg)
 {
     if (!NFS::Exists(arg)) {

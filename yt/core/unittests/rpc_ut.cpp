@@ -19,9 +19,9 @@
 
 #include <yt/core/unittests/proto/rpc_ut.pb.h>
 
-#include <yt/core/grpc/config.h>
-#include <yt/core/grpc/channel.h>
-#include <yt/core/grpc/server.h>
+#include <yt/core/rpc/grpc/config.h>
+#include <yt/core/rpc/grpc/channel.h>
+#include <yt/core/rpc/grpc/server.h>
 
 namespace NYT {
 namespace NRpc {

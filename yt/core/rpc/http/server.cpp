@@ -1,24 +1,23 @@
-#include "handler.h"
+#include "server.h"
 
 #include <yt/core/net/address.h>
 
 #include <yt/core/http/http.h>
 #include <yt/core/http/private.h>
 #include <yt/core/http/helpers.h>
+#include <yt/core/http/server.h>
 
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/service.h>
+#include <yt/core/rpc/server_detail.h>
 
 #include <yt/core/bus/bus.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/json/json_rpc_message_format.h>
-
 namespace NYT {
-namespace NHttpRpc {
+namespace NRpc {
+namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +26,6 @@ using namespace NYT::NHttp;
 using namespace NYT::NYTree;
 using namespace NYT::NBus;
 using namespace NYT::NRpc;
-using namespace NYT::NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,17 +33,22 @@ static const auto& Logger = HttpLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(THttpReplyBus)
+DECLARE_REFCOUNTED_CLASS(THttpHandler)
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString ToHttpContentType(EMessageFormat format)
 {
     switch (format) {
-    case EMessageFormat::Protobuf:
-        return "application/x-protobuf";
-    case EMessageFormat::Json:
-        return "application/json";
-    case EMessageFormat::Yson:
-        return "application/x-yson";
-    default:
-        Y_UNREACHABLE();
+        case EMessageFormat::Protobuf:
+            return "application/x-protobuf";
+        case EMessageFormat::Json:
+            return "application/json";
+        case EMessageFormat::Yson:
+            return "application/x-yson";
+        default:
+            Y_UNREACHABLE();
     }
 }
 
@@ -155,16 +158,15 @@ private:
     TPromise<void> ReplySent_ = NewPromise<void>();
 };
 
-DECLARE_REFCOUNTED_CLASS(THttpReplyBus)
 DEFINE_REFCOUNTED_TYPE(THttpReplyBus)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcHttpHandler
+class THttpHandler
     : public IHttpHandler
 {
 public:
-    TRpcHttpHandler(IServicePtr underlying, const TString& baseUrl)
+    THttpHandler(IServicePtr underlying, const TString& baseUrl)
         : Underlying_(std::move(underlying))
         , BaseUrl_(baseUrl)
     { }
@@ -265,18 +267,61 @@ private:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TRpcHttpHandler)
-DEFINE_REFCOUNTED_TYPE(TRpcHttpHandler)
+DEFINE_REFCOUNTED_TYPE(THttpHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IHttpHandlerPtr CreateRpcHttpHandler(IServicePtr service, const TString& baseUrl)
+class TServer
+    : public NRpc::TServerBase
 {
-    RegisterJsonRpcMessageFormat();
-    return New<TRpcHttpHandler>(std::move(service), baseUrl);
+public:
+    explicit TServer(NYT::NHttp::IServerPtr httpServer)
+        : TServerBase(HttpLogger)
+        , HttpServer_(std::move(httpServer))
+    { }
+
+private:
+    NYT::NHttp::IServerPtr HttpServer_;
+
+    virtual void DoStart() override
+    {
+        HttpServer_->Start();
+        TServerBase::DoStart();
+    }
+
+    virtual TFuture<void> DoStop(bool graceful) override
+    {
+        HttpServer_->Stop();
+        HttpServer_.Reset();
+        return TServerBase::DoStop(graceful);
+    }
+
+    virtual void DoRegisterService(const IServicePtr& service) override
+    {
+        auto baseUrl = Format("/%v/", service->GetServiceId().ServiceName);
+        HttpServer_->AddHandler(baseUrl, New<THttpHandler>(std::move(service), baseUrl));
+
+        // XXX(babenko): remove this once fully migrated to new url scheme
+        auto index = service->GetServiceId().ServiceName.find_last_of('.');
+        if (index != TString::npos) {
+            auto anotherBaseUrl = Format("/%v/", service->GetServiceId().ServiceName.substr(index + 1));
+            HttpServer_->AddHandler(anotherBaseUrl, New<THttpHandler>(std::move(service), anotherBaseUrl));
+        }
+    }
+
+    virtual void DoUnregisterService(const IServicePtr& /*service*/) override
+    {
+        Y_UNREACHABLE();
+    }
+};
+
+NRpc::IServerPtr CreateServer(NYT::NHttp::IServerPtr httpServer)
+{
+    return New<TServer>(std::move(httpServer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpRpc
+} // namespace NHttp
+} // namespace NRpc
 } // namespace NYT

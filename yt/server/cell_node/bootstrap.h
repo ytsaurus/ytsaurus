@@ -12,8 +12,6 @@
 
 #include <yt/server/job_proxy/public.h>
 
-#include <yt/server/misc/bootstrap.h>
-
 #include <yt/server/tablet_node/public.h>
 
 #include <yt/ytlib/api/public.h>
@@ -52,7 +50,6 @@ namespace NCellNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
-    : public TBootstrapBase
 {
 public:
     TBootstrap(TCellNodeConfigPtr config, NYTree::INodePtr configNode);

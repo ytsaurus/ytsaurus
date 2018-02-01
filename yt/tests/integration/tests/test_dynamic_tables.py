@@ -617,10 +617,12 @@ class TestDynamicTables(TestDynamicTablesBase):
         errors = get("//tmp/t/@tablet_errors")
 
         assert len(errors) == 1
-        assert errors[0]["attributes"]["backround_activity"] == "flush"
+        assert errors[0]["attributes"]["background_activity"] == "flush"
         assert errors[0]["attributes"]["tablet_id"] == tablet
-        assert get("#" + tablet + "/@errors")[0]["attributes"]["backround_activity"] == "flush"
+        assert get("#" + tablet + "/@errors")[0]["attributes"]["background_activity"] == "flush"
         assert get("#" + tablet + "/@state") == "unmounting"
+        assert get("//tmp/t/@tablets/0/error_count") == 1
+        assert get("//tmp/t/@tablet_error_count") == 1
 
         for node in ls("//sys/nodes"):
             self.set_node_decommissioned(node, False)

@@ -902,7 +902,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("backround_activity", ETabletBackgroundActivity::Partitioning);
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Partitioning);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(error);
             LOG_ERROR(error, "Error partitioning Eden, backing off");
@@ -1273,7 +1273,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("backround_activity", ETabletBackgroundActivity::Compaction);
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
             LOG_ERROR(error, "Error compacting partition, backing off");

@@ -1653,6 +1653,7 @@ template <class F, class S, class C>
 struct TSerializerTraits<std::pair<F, S>, C, void>
 {
     typedef TTupleSerializer<std::pair<F, S>> TSerializer;
+    typedef TValueBoundComparer TComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,8 +2,7 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/program_tool_mixin.h>
-
-#include <yt/server/misc/configure_singletons.h>
+#include <yt/ytlib/program/configure_singletons.h>
 
 #include <yt/server/job_proxy/job_satellite.h>
 #include <yt/server/job_proxy/job_satellite_connection.h>
@@ -26,7 +25,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramConfigMixin<NJobProxy::TJobSatelliteConnectionConfig>
     , public TProgramCgroupMixin
 {

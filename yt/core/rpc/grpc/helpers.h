@@ -9,6 +9,7 @@
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 
 namespace NYT {
+namespace NRpc {
 namespace NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +128,7 @@ TError DeserializeError(const TStringBuf& serializedError);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NGrpc
+} // namespace NRpc
 } // namespace NYT
 
 #define HELPERS_INL_H_

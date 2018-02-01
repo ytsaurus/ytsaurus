@@ -955,9 +955,11 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto batchReq = StartObjectBatchRequest();
-        auto req = TYPathProxy::Remove(NScheduler::GetSnapshotPath(operationId));
-        req->set_force(true);
-        batchReq->AddRequest(req, "remove_snapshot");
+        for (const auto& path : {NScheduler::GetSnapshotPath(operationId), NScheduler::GetNewSnapshotPath(operationId)}) {
+            auto req = TYPathProxy::Remove(path);
+            req->set_force(true);
+            batchReq->AddRequest(req, "remove_snapshot");
+        }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(batchRspOrError);

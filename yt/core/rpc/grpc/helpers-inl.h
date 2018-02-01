@@ -5,6 +5,7 @@
 #undef HELPERS_INL_H_
 
 namespace NYT {
+namespace NRpc {
 namespace NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,4 +75,5 @@ TGrpcObjectPtr<T, Deletor>& TGrpcObjectPtr<T, Deletor>::operator=(TGrpcObjectPtr
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NGrpc
+} // namespace NRpc
 } // namespace NYT

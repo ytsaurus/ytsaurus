@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include "client.h"
 #include "dispatcher.h"
 #include "server_detail.h"
@@ -18,6 +19,8 @@
 #include <yt/core/misc/ref.h>
 
 #include <yt/core/profiling/profiler.h>
+
+#include <yt/core/rpc/message_format.h>
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 

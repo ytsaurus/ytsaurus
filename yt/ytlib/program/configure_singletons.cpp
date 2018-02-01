@@ -1,4 +1,5 @@
 #include "configure_singletons.h"
+#include "config.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
@@ -20,7 +21,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigureServerSingletons(const TServerConfigPtr& config)
+void ConfigureSingletons(const TSingletonsConfigPtr& config)
 {
     NLFAlloc::SetEnableDefrag(false);
 

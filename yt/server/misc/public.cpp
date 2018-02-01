@@ -1,14 +1,15 @@
-#include "names.h"
+#include "private.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* CellMasterProgramName = "ytserver-master";
-const char* CellNodeProgramName = "ytserver-node";
-const char* CellSchedulerProgramName = "ytserver-scheduler";
+const char* ClusterMasterProgramName = "ytserver-master";
+const char* ClusterNodeProgramName = "ytserver-node";
+const char* ClusterSchedulerProgramName = "ytserver-scheduler";
 const char* ExecProgramName = "ytserver-exec";
 const char* JobProxyProgramName = "ytserver-job-proxy";
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

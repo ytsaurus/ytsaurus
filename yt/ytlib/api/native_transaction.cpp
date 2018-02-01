@@ -1359,7 +1359,7 @@ private:
 
         // Tables with local sync replicas pose a problem since modifications in such tables
         // induce more modifications that need to be taken care of.
-        // Here we iterate over requests and sessions until to more new items are added.
+        // Here we iterate over requests and sessions until no more new items are added.
         while (!PendingRequests_.empty() || !PendingSessions_.empty()) {
             decltype(PendingRequests_) pendingRequests;
             std::swap(PendingRequests_, pendingRequests);
