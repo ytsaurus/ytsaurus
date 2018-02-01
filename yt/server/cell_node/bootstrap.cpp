@@ -207,7 +207,7 @@ void TBootstrap::DoRun()
         // Requesting latest timestamp enables periodic background time synchronization.
         // For tablet nodes, it is crucial because of non-atomic transactions that require
         // in-sync time for clients.
-        MasterConnection->GetTimestampProvider()->GetLatestTimestamp();
+        GetLatestTimestamp();
     }
 
     MasterClient = MasterConnection->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
@@ -882,6 +882,13 @@ TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const
     proxyConfig->Rack = localDescriptor.GetRack();
     proxyConfig->Addresses = localDescriptor.Addresses();
     return proxyConfig;
+}
+
+TTimestamp TBootstrap::GetLatestTimestamp() const
+{
+    return MasterConnection
+        ->GetTimestampProvider()
+        ->GetLatestTimestamp();
 }
 
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)

@@ -224,13 +224,6 @@ public:
         transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))));
         transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))));
         transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
-
-        // Initialize periodic latest timestamp update.
-        const auto& timestampProvider = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetTimestampProvider();
-        timestampProvider->GetLatestTimestamp();
     }
 
 
@@ -2820,11 +2813,7 @@ private:
     void ValidateClientTimestamp(const TTransactionId& transactionId)
     {
         auto clientTimestamp = TimestampFromTransactionId(transactionId);
-        auto timestampProvider = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetTimestampProvider();
-        auto serverTimestamp = timestampProvider->GetLatestTimestamp();
+        auto serverTimestamp = Bootstrap_->GetLatestTimestamp();
         auto clientInstant = TimestampToInstant(clientTimestamp).first;
         auto serverInstant = TimestampToInstant(serverTimestamp).first;
         if (clientInstant > serverInstant + Config_->ClientTimestampThreshold ||
