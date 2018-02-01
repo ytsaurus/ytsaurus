@@ -108,6 +108,8 @@ public:
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
 
+    NTransactionClient::TTimestamp GetLatestTimestamp() const;
+
     void Run();
 
 private:
