@@ -804,7 +804,7 @@ void TNodeShard::StartReviving()
     RevivalState_->StartReviving();
 }
 
-TOperationId TNodeShard::GetOperationIdByJobId(const TJobId& jobId)
+TOperationId TNodeShard::FindOperationIdByJobId(const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
