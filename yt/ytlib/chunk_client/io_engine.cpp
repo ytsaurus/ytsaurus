@@ -3,7 +3,8 @@
 #include <util/system/platform.h>
 
 #ifdef _linux_
-#include <linux/aio_abi.h>
+#include <yt/contrib/aio/aio_abi.h>
+
 #include <sys/syscall.h>
 #include <unistd.h>
 #endif
