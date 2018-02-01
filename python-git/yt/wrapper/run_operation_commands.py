@@ -412,9 +412,10 @@ def run_remote_copy(source_table, destination_table,
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 class OperationRequestRetrier(Retrier):
-    def __init__(self, command_name, spec, client=None):
+    def __init__(self, command_name, spec, run_with_start_op, client=None):
         self.command_name = command_name
         self.spec = spec
+        self.run_with_start_op = run_with_start_op
         self.client = client
 
         retry_config = {
@@ -431,8 +432,12 @@ class OperationRequestRetrier(Retrier):
                                                       exceptions=(YtConcurrentOperationsLimitExceeded,))
 
     def action(self):
-        return _make_formatted_transactional_request(self.command_name, {"spec": self.spec}, format=None,
-                                                     client=self.client)
+        if self.run_with_start_op:
+            return _make_formatted_transactional_request("start_op", {"operation_type": self.command_name, "spec": self.spec}, format=None,
+                                                         client=self.client)
+        else:
+            return _make_formatted_transactional_request(self.command_name, {"spec": self.spec}, format=None,
+                                                         client=self.client)
 
     def backoff_action(self, iter_number, sleep_backoff):
         logger.warning("Failed to start operation since concurrent operation limit exceeded. "
@@ -441,9 +446,11 @@ class OperationRequestRetrier(Retrier):
         time.sleep(sleep_backoff)
 
 def _make_operation_request(command_name, spec, sync,
-                            finalization_actions=None, client=None):
+                            finalization_actions=None,
+                            run_with_start_op=None,
+                            client=None):
     def _manage_operation(finalization_actions):
-        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, client=client)
+        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op, client=client)
         operation_id = retrier.run()
         operation = Operation(command_name, operation_id, finalization_actions=finalization_actions, client=client)
 
@@ -580,6 +587,7 @@ def run_operation(spec_builder, sync=True, enable_optimizations=False, client=No
             result = _make_operation_request(command_name=operation_type,
                                              spec=spec,
                                              finalization_actions=finalization_actions,
+                                             run_with_start_op=spec_builder.run_with_start_op,
                                              sync=sync,
                                              client=client)
 
