@@ -639,7 +639,7 @@ TYPED_TEST(TRpcTest, ServerTimeout)
     EXPECT_TRUE(this->Service_->GetSlowCallCanceled());
 }
 
-TYPED_TEST(TRpcTest , ClientCancel)
+TYPED_TEST(TRpcTest, ClientCancel)
 {
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.SlowCanceledCall();
