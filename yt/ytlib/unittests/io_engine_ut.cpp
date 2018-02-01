@@ -50,8 +50,13 @@ TEST_P(TReadWriteTest, Simple)
     auto data = Allocate(4096);
     ::memset(data.Begin(), 0xdeadbeaf, data.Size());
     engine->Pwrite(file, data, 0).Get().ThrowOnError();
-
+    file->Resize(17);
     auto readData = engine->Pread(file, data.Size(), 0).Get().ValueOrThrow();
+    EXPECT_EQ(readData.Size(), 17);
+    EXPECT_EQ(::memcmp(readData.Begin(), data.Begin(), readData.Size()), 0);
+
+    engine->Pwrite(file, data, 0).Get().ThrowOnError();
+    readData = engine->Pread(file, data.Size(), 0).Get().ValueOrThrow();
     EXPECT_EQ(readData.Size(), data.Size());
     EXPECT_EQ(::memcmp(readData.Begin(), data.Begin(), data.Size()), 0);
 
