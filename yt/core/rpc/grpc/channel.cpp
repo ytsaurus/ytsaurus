@@ -52,15 +52,20 @@ public:
                 .Item("address").Value(EndpointDescription_)
             .EndMap()))
     {
-        // TODO(babenko): secured channels
-        YCHECK(Config_->Type == EAddressType::Insecure);
-
         TGrpcChannelArgs args(Config_->GrpcArguments);
-
-        Channel_= TGrpcChannelPtr(grpc_insecure_channel_create(
-            Config_->Address.c_str(),
-            args.Unwrap(),
-            nullptr));
+        if (Config_->Credentials) {
+            Credentials_ = LoadChannelCredentials(Config_->Credentials);
+            Channel_= TGrpcChannelPtr(grpc_secure_channel_create(
+                Credentials_.Unwrap(),
+                Config_->Address.c_str(),
+                args.Unwrap(),
+                nullptr));
+        } else {
+            Channel_= TGrpcChannelPtr(grpc_insecure_channel_create(
+                Config_->Address.c_str(),
+                args.Unwrap(),
+                nullptr));
+        }
     }
 
     virtual const TString& GetEndpointDescription() const override
@@ -113,6 +118,7 @@ private:
     TError TerminationError_;
     TGrpcLibraryLockPtr LibraryLock_ = TDispatcher::Get()->CreateLibraryLock();
     TGrpcChannelPtr Channel_;
+    TGrpcChannelCredentialsPtr Credentials_;
 
 
     class TCallHandler
@@ -427,7 +433,8 @@ class TChannelFactory
 public:
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
-        auto config = TChannelConfig::CreateInsecure(address);
+        auto config = New<TChannelConfig>();
+        config->Address = address;
         return CreateGrpcChannel(config);
     }
 };

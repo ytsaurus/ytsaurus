@@ -6,11 +6,17 @@
 #include <yt/core/misc/ref.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
+#include <contrib/libs/grpc/include/grpc/grpc_security.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 
 namespace NYT {
 namespace NRpc {
 namespace NGrpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TGprString = std::unique_ptr<char, void(*)(void*)>;
+TGprString MakeGprString(char* str);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +49,8 @@ using TGrpcCallPtr = TGrpcObjectPtr<grpc_call, grpc_call_destroy>;
 using TGrpcChannelPtr = TGrpcObjectPtr<grpc_channel, grpc_channel_destroy>;
 using TGrpcCompletionQueuePtr = TGrpcObjectPtr<grpc_completion_queue, grpc_completion_queue_destroy>;
 using TGrpcServerPtr = TGrpcObjectPtr<grpc_server, grpc_server_destroy>;
+using TGrpcChannelCredentialsPtr = TGrpcObjectPtr<grpc_channel_credentials, grpc_channel_credentials_release>;
+using TGrpcServerCredentialsPtr = TGrpcObjectPtr<grpc_server_credentials, grpc_server_credentials_release>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,11 +127,33 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGrpcPemKeyCertPair
+{
+public:
+    TGrpcPemKeyCertPair(
+        TString privateKey,
+        TString certChain);
+
+    grpc_ssl_pem_key_cert_pair* Unwrap();
+
+private:
+    grpc_ssl_pem_key_cert_pair Native_;
+    TString PrivateKey_;
+    TString CertChain_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSharedRef ByteBufferToEnvelopedMessage(grpc_byte_buffer* buffer);
 TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data);
 
 TString SerializeError(const TError& error);
 TError DeserializeError(const TStringBuf& serializedError);
+
+TString LoadSslBlob(const TSslBlobConfigPtr& config);
+TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config);
+TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config);
+TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

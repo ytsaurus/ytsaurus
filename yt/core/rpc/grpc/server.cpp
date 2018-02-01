@@ -62,6 +62,7 @@ private:
     grpc_completion_queue* const CompletionQueue_;
 
     TGrpcServerPtr Native_;
+    std::vector<TGrpcServerCredentialsPtr> Credentials_;
 
 
     virtual void DoStart() override
@@ -79,14 +80,20 @@ private:
 
         try {
             for (const auto& addressConfig : Config_->Addresses) {
-                // TODO(babenko): secured ports
-                YCHECK(addressConfig->Type == EAddressType::Insecure);
-                auto result = grpc_server_add_insecure_http2_port(
-                    Native_.Unwrap(),
-                    addressConfig->Address.c_str());
+                int result;
+                if (addressConfig->Credentials) {
+                    Credentials_.push_back(LoadServerCredentials(addressConfig->Credentials));
+                    result = grpc_server_add_secure_http2_port(
+                        Native_.Unwrap(),
+                        addressConfig->Address.c_str(),
+                        Credentials_.back().Unwrap());
+                } else {
+                    result = grpc_server_add_insecure_http2_port(
+                        Native_.Unwrap(),
+                        addressConfig->Address.c_str());
+                }
                 if (result == 0) {
-                    THROW_ERROR_EXCEPTION("Error configuring server to listen at %Qlv address %Qv",
-                        addressConfig->Type,
+                    THROW_ERROR_EXCEPTION("Error configuring server to listen at %Qv",
                         addressConfig->Address);
                 }
                 LOG_DEBUG("Insecure server address configured (Address: %v)", addressConfig->Address);
@@ -316,12 +323,14 @@ private:
             }
 
             Timeout_ = GetTimeout(CallDetails_->deadline);
+            auto peerAddress = GetPeerAddress();
 
-            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, Host: %v, Timeout: %v)",
+            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, Host: %v, Peer: %v, Timeout: %v)",
                 RequestId_,
                 ServiceName_,
                 MethodName_,
                 TStringBuf(CallDetails_->host),
+                TStringBuf(peerAddress.get()),
                 Timeout_);
 
             Service_ = Owner_->FindService(TServiceId(ServiceName_));
@@ -386,6 +395,11 @@ private:
                 return Null;
             }
             return TDuration::MicroSeconds(static_cast<ui64>(micros));
+        }
+
+        TGprString GetPeerAddress()
+        {
+            return MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
         }
 
         void OnRequestReceived(bool success)

@@ -10,6 +10,8 @@ struct grpc_server;
 struct grpc_byte_buffer;
 struct grpc_call;
 struct grpc_channel;
+struct grpc_channel_credentials;
+struct grpc_server_credentials;
 
 ////////////////////////////////////////////////////////////////////////////////
 
