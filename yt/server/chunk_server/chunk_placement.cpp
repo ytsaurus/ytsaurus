@@ -183,7 +183,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         preferredHostName);
 
     for (auto* target : targetNodes) {
-        AddSessionHint(target, sessionType);
+        AddSessionHint(target, medium->GetIndex(), sessionType);
     }
 
     return targetNodes;
@@ -335,7 +335,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         &dataCenters);
 
     for (auto* target : targetNodes) {
-        AddSessionHint(target, sessionType);
+        AddSessionHint(target, medium->GetIndex(), sessionType);
     }
 
     return targetNodes;
@@ -419,7 +419,7 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
     auto* target = GetBalancingTarget(medium, &dataCenters, chunk, maxFillFactor);
 
     if (target) {
-        AddSessionHint(target, ESessionType::Replication);
+        AddSessionHint(target, medium->GetIndex(), ESessionType::Replication);
     }
 
     return target;
@@ -608,9 +608,9 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
     return result;
 }
 
-void TChunkPlacement::AddSessionHint(TNode* node, ESessionType sessionType)
+void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType sessionType)
 {
-    node->AddSessionHint(sessionType);
+    node->AddSessionHint(mediumIndex, sessionType);
 
     RemoveFromLoadFactorMaps(node);
     InsertToLoadFactorMaps(node);
