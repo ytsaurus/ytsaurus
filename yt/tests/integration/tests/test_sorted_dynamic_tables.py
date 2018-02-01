@@ -104,12 +104,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         }
     }
 
-    DELTA_MASTER_CONFIG = {
-        "timestamp_provider": {
-            "update_period": 500
-        }
-    }
-
     def test_mount(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -2182,9 +2176,9 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         "max_rows_per_write_request": 2,
 
         "table_mount_cache": {
-            "success_expiration_time": 60000,
-            "success_probation_time": 60000,
-            "failure_expiration_time": 1000,
+            "expire_after_successful_update_time": 60000,
+            "refresh_time": 60000,
+            "expire_after_failed_update_time": 1000,
         }
     }
 
