@@ -38,7 +38,7 @@ public:
 
     const TString& GetDefaultAddress() const;
 
-    const TString& GetAddress(const TNetworkPreferenceList& networks) const;
+    const TString& GetAddressOrThrow(const TNetworkPreferenceList& networks) const;
     TNullable<TString> FindAddress(const TNetworkPreferenceList& networks) const;
 
     const TNullable<TString>& GetRack() const;
@@ -69,10 +69,10 @@ TString ToString(const TNodeDescriptor& descriptor);
 const TString& GetDefaultAddress(const TAddressMap& addresses);
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses);
 
-const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
+const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 TNullable<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 
-const TAddressMap& GetAddresses(const TNodeAddressMap& nodeAddresses, EAddressType type);
+const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAddressType type);
 
 //! Please keep the items in this particular order: the further the better.
 DEFINE_ENUM(EAddressLocality,

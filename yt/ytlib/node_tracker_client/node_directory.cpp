@@ -75,9 +75,9 @@ const TString& TNodeDescriptor::GetDefaultAddress() const
     return DefaultAddress_;
 }
 
-const TString& TNodeDescriptor::GetAddress(const TNetworkPreferenceList& networks) const
+const TString& TNodeDescriptor::GetAddressOrThrow(const TNetworkPreferenceList& networks) const
 {
-    return NNodeTrackerClient::GetAddress(Addresses(), networks);
+    return NNodeTrackerClient::GetAddressOrThrow(Addresses(), networks);
 }
 
 TNullable<TString> TNodeDescriptor::FindAddress(const TNetworkPreferenceList& networks) const
@@ -509,7 +509,7 @@ TNullable<TString> FindAddress(const TAddressMap& addresses, const TNetworkPrefe
     return it == addresses.cend() ? Null : MakeNullable(it->second);
 }
 
-const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
 {
     const auto it = SelectAddress(addresses, networks);
     if (it != addresses.cend()) {
@@ -522,7 +522,7 @@ const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreference
         << TErrorAttribute("local_networks", networks);
 }
 
-const TAddressMap& GetAddresses(const TNodeAddressMap& nodeAddresses, EAddressType type)
+const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAddressType type)
 {
     auto it = nodeAddresses.find(type);
     if (it != nodeAddresses.cend()) {

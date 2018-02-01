@@ -80,7 +80,7 @@ public:
 
                 auto addresses = ConvertTo<TAddressMap>(TYsonString(rsp.Value()->value()));
 
-                auto channel = ChannelFactory_->CreateChannel(GetAddress(addresses, Networks_));
+                auto channel = ChannelFactory_->CreateChannel(GetAddressOrThrow(addresses, Networks_));
                 channel = CreateFailureDetectingChannel(
                     channel,
                     BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)));

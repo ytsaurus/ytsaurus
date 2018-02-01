@@ -281,7 +281,7 @@ private:
 
             // TODO(babenko): pass proper read options
             const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(descriptor);
-            return peerDescriptor.GetAddress(networks);
+            return peerDescriptor.GetAddressOrThrow(networks);
         };
 
         const auto& schema = dataSource.Schema;
