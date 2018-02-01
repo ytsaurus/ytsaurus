@@ -33,6 +33,7 @@ public:
     virtual TJobStatistics GetJobStatistics() override;
     virtual TMaybe<TOperationBriefProgress> GetBriefProgress() override;
     virtual void AbortOperation() override;
+    virtual void CompleteOperation() override;
 
 private:
     TClientPtr Client_;
@@ -134,6 +135,10 @@ void WaitForOperation(
     const TOperationId& operationId);
 
 void AbortOperation(
+    const TAuth& auth,
+    const TOperationId& operationId);
+
+void CompleteOperation(
     const TAuth& auth,
     const TOperationId& operationId);
 

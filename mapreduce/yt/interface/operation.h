@@ -719,6 +719,10 @@ struct IOperation
     //
     // Abort operation.
     virtual void AbortOperation() = 0;
+
+    //
+    // Complete operation.
+    virtual void CompleteOperation() = 0;
 };
 
 struct TOperationOptions
@@ -819,6 +823,9 @@ struct IOperationClient
 
 
     virtual void AbortOperation(
+        const TOperationId& operationId) = 0;
+
+    virtual void CompleteOperation(
         const TOperationId& operationId) = 0;
 
     virtual void WaitForOperation(

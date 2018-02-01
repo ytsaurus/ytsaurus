@@ -62,6 +62,8 @@ public:
 
     void AbortOperation(const TOperationId&) override;
 
+    void CompleteOperation(const TOperationId&) override;
+
     void WaitForOperation(const TOperationId&) override;
 
     EOperationStatus CheckOperation(const TOperationId&) override;

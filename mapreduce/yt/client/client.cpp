@@ -405,6 +405,11 @@ void TClientBase::AbortOperation(const TOperationId& operationId)
     NYT::NDetail::AbortOperation(Auth_, operationId);
 }
 
+void TClientBase::CompleteOperation(const TOperationId& operationId)
+{
+    NYT::NDetail::CompleteOperation(Auth_, operationId);
+}
+
 void TClientBase::WaitForOperation(const TOperationId& operationId)
 {
     NYT::NDetail::WaitForOperation(Auth_, operationId);

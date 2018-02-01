@@ -836,6 +836,16 @@ void AbortOperation(
     RetryRequest(auth, header);
 }
 
+void CompleteOperation(
+    const TAuth& auth,
+    const TOperationId& operationId)
+{
+    THttpHeader header("POST", "complete_op");
+    header.AddOperationId(operationId);
+    header.AddMutationId();
+    RetryRequest(auth, header);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -1836,6 +1846,7 @@ public:
     TJobStatistics GetJobStatistics();
     TMaybe<TOperationBriefProgress> GetBriefProgress();
     void AbortOperation();
+    void CompleteOperation();
 
     void AsyncFinishOperation(TOperationAttributes operationAttributes);
     void FinishWithException(std::exception_ptr exception);
@@ -2019,6 +2030,10 @@ void TOperation::TOperationImpl::AbortOperation() {
     NYT::NDetail::AbortOperation(Auth_, Id_);
 }
 
+void TOperation::TOperationImpl::CompleteOperation() {
+    NYT::NDetail::CompleteOperation(Auth_, Id_);
+}
+
 struct TAsyncFinishOperationsArgs
 {
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl;
@@ -2134,6 +2149,11 @@ TMaybe<TOperationBriefProgress> TOperation::GetBriefProgress()
 void TOperation::AbortOperation()
 {
     return Impl_->AbortOperation();
+}
+
+void TOperation::CompleteOperation()
+{
+    return Impl_->CompleteOperation();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
