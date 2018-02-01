@@ -174,11 +174,11 @@ public:
             size_t ioVectorsCount = 1;
             for (; ioVectorsCount < MaxEntries && ioVectorsCount + Index_ < Buffers_.Size(); ++ioVectorsCount) {
                 const auto& ref = Buffers_[Index_ + ioVectorsCount];
-            
+
                 ioVectors[ioVectorsCount].iov_base = reinterpret_cast<void*>(const_cast<char*>(ref.Begin()));
                 ioVectors[ioVectorsCount].iov_len = ref.Size();
             }
-        
+
             ssize_t size = HandleEintr(::writev, fd, ioVectors, ioVectorsCount);
 
             if (size == -1) {
@@ -338,7 +338,7 @@ public:
         }
         FinishShutdown();
     }
-    
+
     TFuture<size_t> Read(const TSharedMutableRef& data)
     {
         auto read = std::make_unique<TReadOperation>(data);
@@ -476,7 +476,7 @@ private:
         } else {
             result << TErrorAttribute("connection", Name_);
         }
-        
+
         bool needClose = false;
         std::unique_ptr<IIOOperation> operation;
         {
@@ -532,7 +532,7 @@ private:
         }
         return ShutdownPromise_.ToFuture();
     }
-    
+
     void UnregisterFromPoller()
     {
         Poller_->Unarm(FD_);
@@ -545,7 +545,7 @@ private:
             Poller_->Arm(FD_, this, Control_);
         }
     }
-    
+
     void FinishShutdown()
     {
         YCHECK(TryClose(FD_, false));
@@ -589,7 +589,7 @@ public:
     {
         return Impl_->RemoteAddress();
     }
-    
+
     virtual TFuture<size_t> Read(const TSharedMutableRef& data) override
     {
         return Impl_->Read(data);
@@ -619,7 +619,7 @@ public:
     {
         return Impl_->CloseWrite();
     }
-    
+
 private:
     const TFDConnectionImplPtr Impl_;
 };

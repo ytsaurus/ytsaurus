@@ -1116,9 +1116,7 @@ private:
 
     void AnalyzeBriefStatistics(
         const TJobletPtr& job,
-        TDuration suspiciousInactivityTimeout,
-        i64 suspiciousCpuUsageThreshold,
-        double suspiciousInputPipeIdleTimeFraction,
+        const TSuspiciousJobsOptionsPtr& options,
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
     void UpdateSuspiciousJobsYson();

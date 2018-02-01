@@ -361,6 +361,22 @@ TOperationAlertsConfig::TOperationAlertsConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSuspiciousJobsOptions::TSuspiciousJobsOptions()
+{
+    RegisterParameter("inactivity_timeout", InactivityTimeout)
+        .Default(TDuration::Minutes(1));
+    RegisterParameter("cpu_usage_threshold", CpuUsageThreshold)
+        .Default(300);
+    RegisterParameter("input_pipe_time_idle_fraction", InputPipeIdleTimeFraction)
+        .Default(0.95);
+    RegisterParameter("output_pipe_time_idle_fraction", OutputPipeIdleTimeFraction)
+        .Default(0.95);
+    RegisterParameter("update_period", UpdatePeriod)
+        .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -638,13 +654,6 @@ TSchedulerConfig::TSchedulerConfig()
         .InRange(1.0, 10.0)
         .Default(1.1);
 
-    RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
-        .Default(TDuration::Minutes(1));
-    RegisterParameter("suspicious_cpu_usage_threshold", SuspiciousCpuUsageThreshold)
-        .Default(300);
-    RegisterParameter("suspicious_input_pipe_time_idle_fraction", SuspiciousInputPipeIdleTimeFraction)
-        .Default(0.95);
-
     RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
@@ -701,14 +710,14 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("suspicious_jobs_update_period", SuspiciousJobsUpdatePeriod)
-        .Default(TDuration::Seconds(5));
-
     RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
         .Default(TDuration::Seconds(15));
 
     RegisterParameter("system_layer_path", SystemLayerPath)
         .Default(Null);
+
+	RegisterParameter("suspicious_jobs", SuspiciousJobs)
+		.DefaultNew();
 
     RegisterPreprocessor([&] () {
         ChunkLocationThrottler->Limit = 10000;

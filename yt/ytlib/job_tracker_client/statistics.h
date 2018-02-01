@@ -16,6 +16,8 @@
 #include <yt/core/misc/phoenix.h>
 #include <yt/core/misc/property.h>
 
+#include <util/generic/iterator_range.h>
+
 namespace NYT {
 namespace NJobTrackerClient {
 
@@ -54,6 +56,7 @@ class TStatistics
 {
 public:
     using TSummaryMap = std::map<NYPath::TYPath, TSummary>;
+    using TSummaryRange = TIteratorRange<TSummaryMap::const_iterator>;
     DEFINE_BYREF_RO_PROPERTY(TSummaryMap, Data);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, Timestamp);
 
@@ -68,6 +71,13 @@ public:
     void Update(const TStatistics& statistics);
 
     void AddSuffixToNames(const TString& suffix);
+
+    //! Get range of all elements whose path starts with a given strict prefix path (possibly empty).
+    /*!
+     * Pre-requisites: `prefixPath` must not have terminating slash.
+     * Examples: /a/b is a prefix path for /a/bcd/efg but not for /a/b/hij nor /a/b itself.
+     */
+    TSummaryRange GetRangeByPrefix(const TString& prefixPath) const;
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
@@ -93,6 +103,7 @@ void CreateBuildingYsonConsumer(std::unique_ptr<NYson::IBuildingYsonConsumer<TSt
 NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics);
 NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics);
 yhash<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
+yhash<int, int> GetOutputPipeIdleTimes(const TStatistics& jobStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
