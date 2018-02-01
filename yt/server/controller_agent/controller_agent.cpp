@@ -807,7 +807,7 @@ private:
                 auto controller = operation->GetController();
                 GuardedInvoke(
                     controller->GetCancelableInvoker(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
                         auto nodeId = NodeIdFromJobId(jobId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
