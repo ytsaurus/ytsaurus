@@ -66,19 +66,6 @@ class YtTestEnvironment(object):
         uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
         dir = os.path.join(get_tests_sandbox(), uniq_dir_name)
 
-        common_delta_proxy_config = {
-            "proxy": {
-                "driver": {
-                    # Disable cache
-                    "table_mount_cache": {
-                        "expire_after_successful_update_time": 0,
-                        "expire_after_failed_update_time": 0,
-                        "expire_after_access_time": 0,
-                        "refresh_time": 0
-                    }
-                }
-            }
-        }
         common_delta_node_config = {
             "exec_agent" : {
                 "enable_cgroups" : ENABLE_JOB_CONTROL,
@@ -95,15 +82,6 @@ class YtTestEnvironment(object):
                         "max_trash_ttl": 2000
                     }
                 ]
-            },
-            "cluster_connection": {
-                # Disable cache
-                "table_mount_cache": {
-                    "expire_after_successful_update_time": 0,
-                    "expire_after_failed_update_time": 0,
-                    "expire_after_access_time": 0,
-                    "refresh_time": 0
-                }
             },
         }
         common_delta_scheduler_config = {
@@ -127,7 +105,6 @@ class YtTestEnvironment(object):
                 if delta_node_config:
                     update_inplace(config, delta_node_config)
             for config in configs["proxy"]:
-                update_inplace(config, common_delta_proxy_config)
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)
 
