@@ -37,7 +37,7 @@ private:
     TDataNodeConfigPtr Config_;
 
     NConcurrency::TReaderWriterSpinLock Lock_;
-    yhash<TString, TNetworkCounters> Counters_;
+    THashMap<TString, TNetworkCounters> Counters_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNetworkStatistics)
