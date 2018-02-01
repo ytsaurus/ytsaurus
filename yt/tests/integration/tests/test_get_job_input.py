@@ -67,17 +67,6 @@ class TestGetJobInput(YTEnvSetup):
                 "max_repeat_delay": 10,
             }
         },
-
-        # Turn off mount cache otherwise our statistic reporter would be unhappy
-        # because of tablets of job statistics table are changed between tests.
-        "cluster_connection": {
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            }
-        },
     }
 
     DELTA_SCHEDULER_CONFIG = {
