@@ -949,6 +949,52 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         AbortedOperationWatchImpl(true);
     }
 
+    void CompletedOperationWatchImpl(bool useOperationComplete)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .MaxFailedJobCount(1),
+            new TSleepingMapper(TDuration::Seconds(3600)),
+            TOperationOptions().Wait(false));
+
+        while (GetOperationState(client, operation->GetId()) != "running") {
+            Sleep(TDuration::MilliSeconds(100));
+        }
+
+        if (useOperationComplete) {
+            client->CompleteOperation(operation->GetId());
+        } else {
+            operation->CompleteOperation();
+        }
+
+        auto fut = operation->Watch();
+        fut.Wait(TDuration::Seconds(10));
+        UNIT_ASSERT_NO_EXCEPTION(fut.GetValue());
+        UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "completed");
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT(!operation->GetError().Defined());
+    }
+
+    SIMPLE_UNIT_TEST(CompletedOperationWatch_ClientComplete)
+    {
+        CompletedOperationWatchImpl(false);
+    }
+
+    SIMPLE_UNIT_TEST(CompletedOperationWatch_OperationComplete)
+    {
+        CompletedOperationWatchImpl(true);
+    }
+
     void TestGetFailedJobInfoImpl(IClientBasePtr client)
     {
         {

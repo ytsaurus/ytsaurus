@@ -171,6 +171,8 @@ public:
 
     void AbortOperation(const TOperationId& operationId) override;
 
+    void CompleteOperation(const TOperationId& operationId) override;
+
     void WaitForOperation(const TOperationId& operationId) override;
 
     void AlterTable(

@@ -326,6 +326,9 @@ IOperationPtr TMockClient::Erase(const TEraseOperationSpec&, const TOperationOpt
 void TMockClient::AbortOperation(const TOperationId&) {
 }
 
+void TMockClient::CompleteOperation(const TOperationId&) {
+}
+
 void TMockClient::WaitForOperation(const TOperationId&) {
 }
 
