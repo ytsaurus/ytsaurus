@@ -13,6 +13,8 @@ from yt.packages.six.moves import zip as izip
 from copy import deepcopy
 
 class YtBatchRequestFailedError(YtError):
+    """Batch request failed error.
+       Can be raised if at least one request in batch failed."""
     pass
 
 class BatchRequestRetrier(Retrier):
