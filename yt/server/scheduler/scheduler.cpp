@@ -1786,7 +1786,6 @@ private:
             THROW_ERROR(wrappedError);
         }
 
-        YCHECK(registered);
         ValidateOperationState(operation, EOperationState::Initializing);
 
         LogEventFluently(ELogEventType::OperationStarted)
