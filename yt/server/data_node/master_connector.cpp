@@ -8,6 +8,7 @@
 #include "config.h"
 #include "location.h"
 #include "session_manager.h"
+#include "network_statistics.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -435,6 +436,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     TNodeStatistics result;
     ComputeTotalStatistics(&result);
     ComputeLocationSpecificStatistics(&result);
+    Bootstrap_->GetNetworkStatistics()->UpdateStatistics(&result);
     return result;
 }
 
