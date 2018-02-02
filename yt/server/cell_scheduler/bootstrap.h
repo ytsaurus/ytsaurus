@@ -29,16 +29,6 @@ namespace NCellScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EControlQueue,
-    (Default)
-    (UserRequest)
-    (MasterConnector)
-    (Orchid)
-    (PeriodicActivity)
-    (Operation)
-    (AgentTracker)
-);
-
 class TBootstrap
 {
 public:

@@ -59,7 +59,7 @@ public:
      */
     TInstant GetConnectionTime() const;
 
-    IInvokerPtr GetCancelableControlInvoker() const;
+    const IInvokerPtr& GetCancelableControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const;
 
     void Disconnect();
 
