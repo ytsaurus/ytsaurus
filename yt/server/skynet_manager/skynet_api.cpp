@@ -74,7 +74,7 @@ private:
             rbTorrentId,
             discoveryUrl);
 
-        LOG_INFO("Running msgpack conversion (rbTorrentId: %v)", rbTorrentId);
+        LOG_INFO("Running msgpack conversion (RbTorrentId: %v)", rbTorrentId);
         TSubprocess conversionProcess(PythonInterpreterPath_, false);
         conversionProcess.AddArguments({"-c", conversionScript});
 
@@ -106,7 +106,7 @@ private:
 
     void DoRemoveResource(const TString& rbTorrentId)
     {
-        LOG_INFO("Removing resource (rbTorrentId: %v)", rbTorrentId);
+        LOG_INFO("Removing resource (RbTorrentId: %v)", rbTorrentId);
 
         TSubprocess toolProcess(MdsToolPath_, false);
         toolProcess.AddArguments({"resource_remove", rbTorrentId});
