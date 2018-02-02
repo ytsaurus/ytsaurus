@@ -190,7 +190,9 @@ public:
         Persist(context, JobSizeConstraints_);
         Persist(context, SupportLocality_);
         Persist(context, OperationId_);
-        Persist(context, Task_);
+        if (context.GetVersion() >= 202044) {
+            Persist(context, Task_);
+        }
         Persist(context, ChunkPoolId_);
         Persist(context, MaxTotalSliceCount_);
         Persist(context, ShouldSliceByRowIndices_);

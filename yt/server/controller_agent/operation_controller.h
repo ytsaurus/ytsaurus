@@ -383,6 +383,7 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: Controller invoker.
      */
     virtual void OnBeforeDisposal() = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)

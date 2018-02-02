@@ -12,6 +12,8 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/checksum.h>
 
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NChunkClient {
 namespace NErasureHelpers {
@@ -616,7 +618,9 @@ TFuture<TChunkMeta> TErasureChunkReaderBase::GetMeta(
             YCHECK(it == extensionTags->end());
         }
     }
-    return Readers_.front()->GetMeta(workloadDescriptor, partitionTag, extensionTags);
+
+    auto& reader = Readers_[RandomNumber(Readers_.size())];
+    return reader->GetMeta(workloadDescriptor, partitionTag, extensionTags);
 }
 
 TChunkId TErasureChunkReaderBase::GetChunkId() const
