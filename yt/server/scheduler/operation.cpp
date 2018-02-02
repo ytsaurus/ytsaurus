@@ -152,7 +152,7 @@ TCodicilGuard TOperation::MakeCodicilGuard() const
     return TCodicilGuard(CodicilData_);
 }
 
-void TOperation::SetState(EOperationState state)
+void TOperation::SetStateAndEnqueueEvent(EOperationState state)
 {
     State_ = state;
     Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
