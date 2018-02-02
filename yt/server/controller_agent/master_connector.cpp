@@ -473,8 +473,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        std::vector<bool> failedRequestSet(jobRequests.size(), false);
         try {
-            CreateJobNodes(operationId, storageMode, jobRequests);
+            CreateJobNodes(operationId, storageMode, jobRequests, &failedRequestSet);
         } catch (const std::exception& ex) {
             auto error = TError("Error creating job nodes for operation %v",
                 operationId)
@@ -490,7 +491,12 @@ private:
         try {
             std::vector<TJobFile> files;
 
-            for (const auto& request : jobRequests) {
+            for (size_t index = 0; index < jobRequests.size(); ++index) {
+                if (failedRequestSet[index]) {
+                    continue;
+                }
+
+                const auto& request = jobRequests[index];
                 if (request.StderrChunkId) {
                     auto paths = GetCompatibilityJobPaths(operationId, request.JobId, storageMode, "stderr");
                     for (const auto& path : paths) {
@@ -624,7 +630,8 @@ private:
     void CreateJobNodes(
         const TOperationId& operationId,
         EOperationCypressStorageMode storageMode,
-        const std::vector<TCreateJobNodeRequest>& requests)
+        const std::vector<TCreateJobNodeRequest>& requests,
+        std::vector<bool>* failedRequestSet)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -646,22 +653,39 @@ private:
                 req->set_type(static_cast<int>(EObjectType::MapNode));
                 req->set_force(true);
                 ToProto(req->mutable_node_attributes(), *attributes);
-                batchReq->AddRequest(req, "create");
+                batchReq->AddRequest(req, "create_" + ToString(jobId));
             }
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        auto error = GetCumulativeError(batchRspOrError);
-        if (!error.IsOK()) {
-            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                LOG_ERROR(error, "Account limit exceeded while creating job nodes");
-            } else {
-                THROW_ERROR_EXCEPTION("Failed to create job nodes") << error;
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        int failedRequestCount = 0;
+        for (size_t index = 0; index < requests.size(); ++index) {
+            const auto& request = requests[index];
+            const auto& jobId = request.JobId;
+            auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_" + ToString(jobId));
+            for (const auto& rsp : rsps) {
+                if (rsp.IsOK()) {
+                    continue;
+                }
+                TError error = rsp;
+                if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                    LOG_ERROR(error, "Account limit exceeded while creating job node (JobId: %v)",
+                        jobId);
+                    (*failedRequestSet)[index] = true;
+                    ++failedRequestCount;
+                } else {
+                    THROW_ERROR_EXCEPTION("Failed to create job node")
+                        << TErrorAttribute("job_id", jobId)
+                        << error;
+                }
             }
         }
 
-        LOG_INFO("Job nodes created (Count: %v, OperationId: %v)",
+        LOG_INFO("Job nodes created (TotalCount: %v, FailedCount: %v, OperationId: %v)",
             requests.size(),
+            failedRequestCount,
             operationId);
     }
 
@@ -930,7 +954,7 @@ private:
 
         auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
-            LOG_DEBUG("Trying to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
+            LOG_DEBUG("Create a job node for an unknown operation is impossible (OperationId: %v, JobId: %v)",
                 operationId,
                 request.JobId);
             return;
