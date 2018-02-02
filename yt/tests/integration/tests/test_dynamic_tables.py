@@ -586,6 +586,23 @@ class TestDynamicTables(TestDynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         assert get("#" + tablet_id + "/@table_path") == "//tmp/t"
 
+    def test_disallowed_dynamic_table_alter(self):
+        sorted_schema = make_schema([
+                {"name": "key", "type": "string", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ], unique_keys=True, strict=True)
+        ordered_schema = make_schema([
+                {"name": "key", "type": "string"},
+                {"name": "value", "type": "string"},
+            ], strict=True)
+
+        create("table", "//tmp/t1", attributes={"schema": ordered_schema, "dynamic": True})
+        create("table", "//tmp/t2", attributes={"schema": sorted_schema, "dynamic": True})
+        with pytest.raises(YtError):
+            alter_table("//tmp/t1", schema=sorted_schema)
+        with pytest.raises(YtError):
+            alter_table("//tmp/t2", schema=ordered_schema)
+
 ##################################################################
 
 class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
