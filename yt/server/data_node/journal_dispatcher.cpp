@@ -185,6 +185,11 @@ public:
         return UnderlyingChangelog_->Close();
     }
 
+    virtual TFuture<void> Preallocate(size_t size) override
+    {
+        return UnderlyingChangelog_->Preallocate(size);
+    }
+
 private:
     const TImplPtr Owner_;
     const TStoreLocationPtr Location_;

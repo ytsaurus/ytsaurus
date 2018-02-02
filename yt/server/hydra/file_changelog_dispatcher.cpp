@@ -354,6 +354,13 @@ public:
             .Run(std::move(queue));
     }
 
+    TFuture<void> Preallocate(TFileChangelogQueuePtr queue, size_t size)
+    {
+        return BIND(&TImpl::DoPreallocate, MakeStrong(this))
+            .AsyncVia(GetInvoker())
+            .Run(std::move(queue), size);
+    }
+
     TFuture<void> FlushChangelogs()
     {
         return BIND(&TImpl::DoFlushChangelogs, MakeStrong(this))
@@ -476,6 +483,15 @@ private:
         }
     }
 
+    void DoPreallocate(const TFileChangelogQueuePtr& queue, size_t size)
+    {
+        YCHECK(!queue->HasUnflushedRecords());
+        PROFILE_TIMING("/changelog_preallocate_io_time") {
+            const auto& changelog = queue->GetChangelog();
+            changelog->Preallocate(size);
+        }
+    }
+
     TFuture<void> DoFlushChangelogs()
     {
         std::vector<TFuture<void>> flushResults;
@@ -571,6 +587,11 @@ public:
         // NB: See #Truncate above.
         Flush();
         return DispatcherImpl_->Close(Queue_);
+    }
+
+    virtual TFuture<void> Preallocate(size_t size) override
+    {
+        return DispatcherImpl_->Preallocate(Queue_, size);
     }
 
 private:

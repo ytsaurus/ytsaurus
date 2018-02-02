@@ -576,6 +576,19 @@ public:
         LOG_DEBUG("Finished truncating changelog");
     }
 
+    void Preallocate(size_t size)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        std::lock_guard<std::mutex> guard(Mutex_);
+
+        YCHECK(CurrentFilePosition_ <= size);
+
+        // PB: acually does ftruncate
+        DataFile_->Resize(size);
+        LOG_DEBUG("Finished preallocating changelog");
+    }
+
 private:
     struct TEnvelopeData
     {
@@ -1014,6 +1027,11 @@ std::vector<TSharedRef> TSyncFileChangelog::Read(
 void TSyncFileChangelog::Truncate(int recordCount)
 {
     Impl_->Truncate(recordCount);
+}
+
+void TSyncFileChangelog::Preallocate(size_t size)
+{
+    return Impl_->Preallocate(size);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
