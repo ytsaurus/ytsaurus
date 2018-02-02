@@ -207,8 +207,9 @@ public:
             .AsyncVia(Invoker_)
             .Run();
         return future.Apply(
-            BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            BIND([operationId, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
+                    LOG_ERROR(error, "Failed to remove snapshot (OperationId: %v)", operationId);
                     Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
                         .AsyncVia(Bootstrap_->GetControlInvoker())
                         .Run()));
