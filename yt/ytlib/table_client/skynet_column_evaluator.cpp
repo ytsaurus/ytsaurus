@@ -157,13 +157,13 @@ void TSkynetColumnEvaluator::UnpackFields(
     *filename = TStringBuf(fullRow[FilenameId_].Data.String, fullRow[FilenameId_].Length);
 
     YCHECK(fullRow.GetCount() >= PartIndexId_);
-    if (fullRow[PartIndexId_].Type == EValueType::Int64) {
+    if (fullRow[PartIndexId_].Type != EValueType::Int64) {
         THROW_ERROR_EXCEPTION("Missing \"part_index\" column");
     }
     *partIndex = fullRow[PartIndexId_].Data.Int64;
 
     YCHECK(fullRow.GetCount() >= DataId_);
-    if (fullRow[DataId_].Type == EValueType::String) {
+    if (fullRow[DataId_].Type != EValueType::String) {
         THROW_ERROR_EXCEPTION("Missing \"data\" column");
     }
     *data = TStringBuf(fullRow[DataId_].Data.String, fullRow[DataId_].Length);
