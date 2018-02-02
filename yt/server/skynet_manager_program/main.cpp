@@ -49,8 +49,7 @@ protected:
         ConfigureSingletons(config);
 
         auto bootstrap = New<TBootstrap>(std::move(config));
-        bootstrap->Start();
-        Sleep(TDuration::Max());
+        bootstrap->Run();
     }
 };
 

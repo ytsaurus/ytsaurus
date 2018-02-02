@@ -16,6 +16,20 @@ namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCallbackHandler
+    : public IHttpHandler
+{
+public:
+    explicit TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler);
+
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override;
+
+private:
+    TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> Handler_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IServer
     : public virtual TRefCounted
 {

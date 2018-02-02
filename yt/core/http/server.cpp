@@ -24,22 +24,14 @@ static const auto& Logger = HttpLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCallbackHandler
-    : public IHttpHandler
+TCallbackHandler::TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
+    : Handler_(std::move(handler))
+{ }
+
+void TCallbackHandler::HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
-public:
-    explicit TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
-        : Handler_(handler)
-    { }
-
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
-    {
-        Handler_(req, rsp);
-    }
-
-private:
-    TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> Handler_;
-};
+    Handler_(req, rsp);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

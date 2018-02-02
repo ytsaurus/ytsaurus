@@ -10,6 +10,8 @@
 
 #include <yt/core/http/config.h>
 
+#include <yt/core/concurrency/config.h>
+
 namespace NYT {
 namespace NSkynetManager {
 
@@ -19,14 +21,26 @@ class TClusterConnectionConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TString Name;
+    TString ClusterName;
     TString ProxyUrl;
+    TString User;
     TString OAuthTokenEnv;
 
     TString OAuthToken;
 
+    NYPath::TYPath Root;
+
+    NYTree::INodePtr Connection;
+
+    NConcurrency::TThroughputThrottlerConfigPtr UserRequestThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr BackgroundThrottler;
+    
     void LoadToken()
     {
+        if (OAuthTokenEnv.empty()) {
+            return;
+        }
+
         auto token = getenv(OAuthTokenEnv.c_str());
         if (!token) {
             THROW_ERROR_EXCEPTION("%v environment variable is not set", OAuthTokenEnv);
@@ -36,14 +50,50 @@ public:
 
     TClusterConnectionConfig()
     {
-        RegisterParameter("name", Name);
+        RegisterParameter("cluster_name", ClusterName);
         RegisterParameter("proxy_url", ProxyUrl);
+        RegisterParameter("user", User)
+            .Default("robot-yt-skynet-m5r");
         RegisterParameter("oauth_token_env", OAuthTokenEnv)
             .Default("YT_TOKEN");
+
+        RegisterParameter("root", Root)
+            .Default("//home/yt-skynet-m5r");
+
+        RegisterParameter("connection", Connection);
+
+        RegisterParameter("user_request_throttler", UserRequestThrottler)
+            .DefaultNew();
+
+        RegisterParameter("background_throttler", BackgroundThrottler)
+            .DefaultNew();
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTombstoneCacheConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration Ttl;
+    size_t MaxSize;
+
+    TTombstoneCacheConfig()
+    {
+        RegisterParameter("ttl", Ttl)
+            .Default(TDuration::Seconds(30));
+
+        RegisterParameter("max_size", MaxSize)
+            .Default(1000 * 1000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTombstoneCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSkynetManagerConfig
     : public TServerConfig
@@ -63,6 +113,8 @@ public:
 
     NHttp::TServerConfigPtr HttpServer;
     NHttp::TClientConfigPtr HttpClient;
+
+    TTombstoneCacheConfigPtr TombstoneCache;
     
     TSkynetManagerConfig()
     {
@@ -83,6 +135,9 @@ public:
         RegisterParameter("http_server", HttpServer)
             .DefaultNew();
         RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
+
+        RegisterParameter("tombstone_cache", TombstoneCache)
             .DefaultNew();
     }
 };
