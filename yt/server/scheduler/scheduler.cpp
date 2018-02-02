@@ -1822,7 +1822,7 @@ private:
 
             ValidateOperationState(operation, EOperationState::Preparing);
 
-            operation->SetState(EOperationState::Pending);
+            operation->SetStateAndEnqueueEvent(EOperationState::Pending);
             operation->SetPrepared(true);
             if (operation->GetActivated()) {
                 MaterializeOperation(operation);
