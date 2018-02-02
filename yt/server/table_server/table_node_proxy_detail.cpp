@@ -1005,7 +1005,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         table->TableSchema(),
         schema,
         dynamic,
-        table->IsEmpty());
+        table->IsEmpty() && !table->IsDynamic());
 
     auto oldSchema = table->TableSchema();
     auto oldSchemaMode = table->GetSchemaMode();
