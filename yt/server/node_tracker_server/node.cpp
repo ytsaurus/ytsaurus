@@ -517,7 +517,7 @@ void TNode::AddSessionHint(int mediumIndex, ESessionType sessionType)
 
 int TNode::GetHintedSessionCount(int mediumIndex) const
 {
-    return SessionCount_[mediumIndex].Get(0) + 
+    return SessionCount_[mediumIndex].Get(0) +
         HintedUserSessionCount_[mediumIndex] +
         HintedReplicationSessionCount_[mediumIndex] +
         HintedRepairSessionCount_[mediumIndex];
