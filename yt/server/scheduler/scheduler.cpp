@@ -551,7 +551,7 @@ public:
             TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation),
             spec->TestingOperationOptions->CypressStorageMode);
-        operation->SetState(EOperationState::Initializing);
+        operation->SetStateAndEnqueueEvent(EOperationState::Initializing);
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
             type,
@@ -891,7 +891,7 @@ public:
         }
 
         if (operation->ReviveResult().IsRevivedFromSnapshot) {
-            operation->SetState(EOperationState::RevivingJobs);
+            operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
             RegisterJobsFromRevivedOperation(operation)
                 .Subscribe(
                     BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
@@ -899,14 +899,14 @@ public:
                             return;
                         }
                         if (operation->GetState() == EOperationState::RevivingJobs) {
-                            operation->SetState(EOperationState::Running);
+                            operation->SetStateAndEnqueueEvent(EOperationState::Running);
                             Strategy_->OnOperationRunning(operation->GetId());
                         }
                     })
                     .Via(operation->GetCancelableControlInvoker()));
         } else {
             const auto& controller = operation->GetLocalController()->GetAgentController();
-            operation->SetState(EOperationState::Materializing);
+            operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             BIND(&IOperationControllerSchedulerHost::Materialize, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run()
@@ -916,7 +916,7 @@ public:
                             return;
                         }
                         if (operation->GetState() == EOperationState::Materializing) {
-                            operation->SetState(EOperationState::Running);
+                            operation->SetStateAndEnqueueEvent(EOperationState::Running);
                             Strategy_->OnOperationRunning(operation->GetId());
                         }
                     })
@@ -1803,7 +1803,7 @@ private:
         LOG_INFO("Preparing operation (OperationId: %v)",
             operationId);
 
-        operation->SetState(EOperationState::Preparing);
+        operation->SetStateAndEnqueueEvent(EOperationState::Preparing);
 
         try {
             // Run async preparation.
@@ -1966,7 +1966,7 @@ private:
             LOG_INFO("Operation has been revived (OperationId: %v)",
                 operationId);
 
-            operation->SetState(EOperationState::Pending);
+            operation->SetStateAndEnqueueEvent(EOperationState::Pending);
             operation->SetPrepared(true);
 
             if (operation->GetActivated()) {
@@ -2080,7 +2080,7 @@ private:
         if (!operation->GetStarted().IsSet()) {
             operation->SetStarted(error);
         }
-        operation->SetState(state);
+        operation->SetStateAndEnqueueEvent(state);
         operation->SetFinishTime(TInstant::Now());
         ToProto(operation->MutableResult().mutable_error(), error);
     }
@@ -2147,7 +2147,7 @@ private:
         LOG_INFO("Completing operation (OperationId: %v)",
             operationId);
 
-        operation->SetState(EOperationState::Completing);
+        operation->SetStateAndEnqueueEvent(EOperationState::Completing);
 
         // The operation may still have running jobs (e.g. those started speculatively).
         AbortOperationJobs(operation, TError("Operation completed"), /* terminated */ true);
@@ -2314,7 +2314,7 @@ private:
             return;
         }
 
-        operation->SetState(intermediateState);
+        operation->SetStateAndEnqueueEvent(intermediateState);
 
         AbortOperationJobs(
             operation,
@@ -2487,7 +2487,7 @@ private:
             const auto& revivalDescriptor = *operation->RevivalDescriptor();
 
             MasterConnector_->StartOperationNodeUpdates(operation);
-            operation->SetState(EOperationState::Reviving);
+            operation->SetStateAndEnqueueEvent(EOperationState::Reviving);
 
             if (revivalDescriptor.OperationCommitted) {
                 // TODO(babenko): parallelize

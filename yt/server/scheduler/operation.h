@@ -228,8 +228,8 @@ public:
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
 
-    //! Sets operation state and adds corresponding event.
-    void SetState(EOperationState state);
+    //! Sets operation state and adds the corresponding event.
+    void SetStateAndEnqueueEvent(EOperationState state);
 
     //! Slot index machinery.
     TNullable<int> FindSlotIndex(const TString& treeId) const override;
