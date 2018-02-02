@@ -124,17 +124,16 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": "b"} for i in xrange(2)])
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="job_statistics_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat > /dev/null ; {breakpoint_cmd} ;".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat > /dev/null ; BREAKPOINT ;"),
             spec={"max_failed_job_count": 1, "job_count": 2})
 
-        jobs = events.wait_breakpoint()
-        events.release_breakpoint(job_id=jobs[0])
+        jobs = wait_breakpoint()
+        release_breakpoint(job_id=jobs[0])
 
         tries = 0
         statistics = {}
@@ -152,7 +151,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         assert count == 1
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         statistics = get("//sys/operations/{0}/@progress".format(op.id))

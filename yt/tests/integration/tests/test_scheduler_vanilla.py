@@ -16,13 +16,10 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    def setup(self):
-        self.events = EventsOnFs()
-
     def test_simple(self):
         command = " ; ".join([
-            self.events.notify_event_cmd("job_started_${YT_JOB_INDEX}"),
-            self.events.wait_event_cmd("finish")
+            events_on_fs().notify_event_cmd("job_started_${YT_JOB_INDEX}"),
+            events_on_fs().wait_event_cmd("finish")
         ])
         op = vanilla(
             dont_track=True,
@@ -40,11 +37,11 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             })
 
         # Ensure that all three jobs have started.
-        self.events.wait_event("job_started_0", timeout=datetime.timedelta(1000))
-        self.events.wait_event("job_started_1", timeout=datetime.timedelta(1000))
-        self.events.wait_event("job_started_2", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_1", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_2", timeout=datetime.timedelta(1000))
 
-        self.events.notify_event("finish")
+        events_on_fs().notify_event("finish")
 
         op.track()
 
@@ -150,16 +147,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "tasks": {
                     "tasks_a": {
                         "job_count": 1,
-                        "command": "{breakpoint_cmd} ; exit 0".format(breakpoint_cmd=self.events.breakpoint_cmd()),
+                        "command": with_breakpoint("BREAKPOINT ; exit 0"),
                     }
                 },
                 "fail_on_job_restart": True
             })
-        job_id = self.events.wait_breakpoint()[0]
+        job_id = wait_breakpoint()[0]
         jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         assert len(jobs) == 1
         abandon_job(job_id)
-        self.events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
     def test_non_interruptible(self):
@@ -169,12 +166,12 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "tasks": {
                     "tasks_a": {
                         "job_count": 1,
-                        "command": "{breakpoint_cmd} ; exit 0".format(breakpoint_cmd=self.events.breakpoint_cmd()),
+                        "command": with_breakpoint("BREAKPOINT ; exit 0"),
                     }
                 },
                 "fail_on_job_restart": True
             })
-        self.events.wait_breakpoint()
+        wait_breakpoint()
         jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         assert len(jobs) == 1
         job_id = jobs[0]
@@ -191,23 +188,23 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     "tasks": {
                         "task_a": {
                             "job_count": 1,
-                            "command": " ; ".join([self.events.notify_event_cmd("job_started_a"), self.events.wait_event_cmd("finish_a")]),
+                            "command": " ; ".join([events_on_fs().notify_event_cmd("job_started_a"), events_on_fs().wait_event_cmd("finish_a")]),
                         },
                         "task_b": {
                             "job_count": 1,
-                            "command": " ; ".join([self.events.notify_event_cmd("job_started_b"), self.events.wait_event_cmd("finish_b")]),
+                            "command": " ; ".join([events_on_fs().notify_event_cmd("job_started_b"), events_on_fs().wait_event_cmd("finish_b")]),
                         },
                     },
                     "fail_on_job_restart": True,
                 })
-            self.events.wait_event("job_started_a")
-            self.events.wait_event("job_started_b")
+            events_on_fs().wait_event("job_started_a")
+            events_on_fs().wait_event("job_started_b")
             jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
             assert len(jobs) == 2
             job_id = jobs[0]
             action(job_id)
-            self.events.notify_event("finish_a")
-            self.events.notify_event("finish_b")
+            events_on_fs().notify_event("finish_a")
+            events_on_fs().notify_event("finish_b")
             op.track()
 
 ##################################################################

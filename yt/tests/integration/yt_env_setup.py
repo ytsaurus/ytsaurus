@@ -403,6 +403,7 @@ class YTEnvSetup(object):
             self.transactions_at_start.append(set(yt_commands.get_transactions(driver=driver)))
             self.wait_for_nodes(driver=driver)
             self.wait_for_chunk_replicator(driver=driver)
+        yt_commands.reset_events_on_fs()
 
     def teardown_method(self, method):
         yt_commands._zombie_responses[:] = []

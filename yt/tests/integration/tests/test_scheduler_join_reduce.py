@@ -923,13 +923,12 @@ echo {v = 2} >&7
 
         create("table", "//tmp/output")
 
-        events = EventsOnFs()
         op = join_reduce(
             dont_track=True,
             label="interrupt_job",
             in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
             out="<sorted_by=[key]>//tmp/output",
-            command="""read; echo "${{REPLY/(???)/(job)}}"; echo "$REPLY"; {breakpoint_cmd} ; cat """.format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"; BREAKPOINT ; cat """),
             join_by=["key"],
             spec={
                 "reducer": {
@@ -942,9 +941,9 @@ echo {v = 2} >&7
                 "enable_job_splitting": False,
             })
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
         interrupt_job(jobs[0])
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         result = read_table("//tmp/output", verbose=False)

@@ -55,15 +55,14 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="strace_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="{notify_running} ; sleep 5000".format(notify_running=events.notify_event_cmd("job_is_running")))
+            command="{notify_running} ; sleep 5000".format(notify_running=events_on_fs().notify_event_cmd("job_is_running")))
 
-        events.wait_event("job_is_running")
+        events_on_fs().wait_event("job_is_running")
         jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
         result = strace_job(jobs[0])
 
@@ -81,13 +80,12 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="signal_job_with_no_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="""(trap "echo got=SIGUSR1" USR1 ; trap "echo got=SIGUSR2" USR2 ; cat ; {breakpoint_cmd})""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""(trap "echo got=SIGUSR1" USR1 ; trap "echo got=SIGUSR2" USR2 ; cat ; BREAKPOINT)"""),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -95,12 +93,12 @@ class TestJobProber(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
 
         signal_job(jobs[0], "SIGUSR1")
         signal_job(jobs[0], "SIGUSR2")
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
@@ -113,13 +111,12 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="""(trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1 ; cat ; {breakpoint_cmd})""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""(trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1 ; cat ; BREAKPOINT)"""),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -127,10 +124,10 @@ class TestJobProber(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
 
         signal_job(jobs[0], "SIGUSR1")
-        events.release_breakpoint()
+        release_breakpoint()
 
         op.track()
 
@@ -149,21 +146,20 @@ class TestJobProber(YTEnvSetup):
         for i in xrange(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat ; BREAKPOINT"),
             spec={
                 "data_size_per_job": 1
             })
 
-        jobs = events.wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(job_count=5)
         abandon_job(jobs[0])
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
         assert len(read_table("//tmp/t2")) == 4
 
@@ -173,15 +169,14 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("<append=true>//tmp/t1", {"key": "foo", "value": "bar"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="<sorted_by=[key]>//tmp/t2",
-            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()))
+            command=with_breakpoint("cat ; BREAKPOINT"))
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
         abandon_job(jobs[0])
 
         op.track()
@@ -197,23 +192,22 @@ class TestJobProber(YTEnvSetup):
         for i in xrange(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat ; BREAKPOINT"),
             spec={
                 "data_size_per_job": 1
             },
             authenticated_user="u1")
-        jobs = events.wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(job_count=5)
 
         with pytest.raises(YtError):
             abandon_job(jobs[0], authenticated_user="u2")
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
         assert len(read_table("//tmp/t2")) == 5
 
@@ -248,14 +242,13 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="{breakpoint_cmd} ; cat".format(breakpoint_cmd=events.breakpoint_cmd()))
-        job_id = events.wait_breakpoint()[0]
+            command=with_breakpoint("BREAKPOINT ; cat"))
+        job_id = wait_breakpoint()[0]
 
         r = poll_job_shell(job_id, operation="spawn", term="screen-256color", height=50, width=132)
         shell_id = r["shell_id"]
@@ -282,14 +275,13 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()))
-        job_id = events.wait_breakpoint()[0]
+            command=with_breakpoint("cat ; BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
 
         r = poll_job_shell(job_id, operation="spawn", command="echo $TERM; tput lines; tput cols; env | grep -c YT_OPERATION_ID")
         shell_id = r["shell_id"]
@@ -315,16 +307,15 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat ; BREAKPOINT"),
             authenticated_user="u1")
 
-        job_id = events.wait_breakpoint()[0]
+        job_id = wait_breakpoint()[0]
         with pytest.raises(YtError):
             poll_job_shell(
                 job_id,
@@ -366,21 +357,20 @@ class TestJobProber(YTEnvSetup):
         for i in xrange(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="abort_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat ; BREAKPOINT"),
             spec={
                 "data_size_per_job": 1
             })
 
-        jobs = events.wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(job_count=5)
         abort_job(jobs[0])
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         assert len(read_table("//tmp/t2")) == 5

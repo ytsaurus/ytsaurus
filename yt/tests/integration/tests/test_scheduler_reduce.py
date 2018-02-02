@@ -1199,14 +1199,12 @@ echo {v = 2} >&7
 
         create("table", "//tmp/output")
 
-        events = EventsOnFs()
-
         op = reduce(
             dont_track=True,
             label="interrupt_job",
             in_=in_,
             out="<sorted_by=[key]>//tmp/output",
-            command="""read; echo "${{REPLY/(???)/(job)}}" ; echo "$REPLY" ; {breakpoint_cmd} ; cat""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}" ; echo "$REPLY" ; BREAKPOINT ; cat"""),
             reduce_by=["key", "value"],
             spec={
                 "reducer": {
@@ -1221,9 +1219,9 @@ echo {v = 2} >&7
             },
             **kwargs)
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
         interrupt_job(jobs[0], interrupt_timeout=2000000)
-        events.release_breakpoint()
+        release_breakpoint()
 
         op.track()
 

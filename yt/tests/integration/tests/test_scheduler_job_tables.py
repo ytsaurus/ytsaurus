@@ -107,11 +107,10 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_stderr")
         write_table("//tmp/t_input", [{"key": i} for i in xrange(2)])
 
-        events = EventsOnFs()
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""{breakpoint_cmd} ; echo GG >&2 ; cat""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""BREAKPOINT ; echo GG >&2 ; cat"""),
             dont_track=True,
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
@@ -120,9 +119,9 @@ class TestStderrTable(YTEnvSetup):
             }
         )
 
-        jobs = events.wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(job_count=2)
 
-        events.release_breakpoint(job_id=jobs[0])
+        release_breakpoint(job_id=jobs[0])
         wait(lambda: op.get_job_count("running") == 1);
 
         op.abort()
@@ -399,8 +398,6 @@ class TestStderrTable(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": "complete_after_scheduler_restart"}])
         write_table("<append=%true>//tmp/t_input", [{"key": "complete_while_scheduler_dead   "}])
 
-        events = EventsOnFs()
-
         op = map(
             dont_track=True,
             command=(
@@ -422,8 +419,8 @@ class TestStderrTable(YTEnvSetup):
 
                 "cat input"
             ).format(
-                wait_scheduler_dead=events.wait_event_cmd("scheduler_dead"),
-                wait_scheduler_restart=events.wait_event_cmd("scheduler_restart")),
+                wait_scheduler_dead=events_on_fs().wait_event_cmd("scheduler_dead"),
+                wait_scheduler_restart=events_on_fs().wait_event_cmd("scheduler_restart")),
             format="dsv",
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -442,13 +439,13 @@ class TestStderrTable(YTEnvSetup):
 
         self.Env.kill_schedulers()
 
-        events.notify_event("scheduler_dead")
+        events_on_fs().notify_event("scheduler_dead")
 
         # Wait some time to give `complete_while_scheduler_dead'-job time to complete.
         time.sleep(1)
 
         self.Env.start_schedulers()
-        events.notify_event("scheduler_restart")
+        events_on_fs().notify_event("scheduler_restart")
         op.track()
 
         stderr_rows = read_table("//tmp/t_stderr")
@@ -506,7 +503,6 @@ class TestCoreTable(YTEnvSetup):
 
     def setup(self):
         create("table", self.CORE_TABLE)
-        self.events = EventsOnFs()
 
     def teardown(self):
         core_path = os.environ.get("YT_CORE_PATH")
@@ -533,9 +529,7 @@ class TestCoreTable(YTEnvSetup):
         open(correspondence_file_path, "w").close()
         os.chmod(correspondence_file_path, 0777)
 
-        command = "echo $YT_JOB_ID $UID >>{correspondence_file_path} && cat ; {breakpoint_cmd} ; ".format(
-            correspondence_file_path=correspondence_file_path,
-            breakpoint_cmd=self.events.breakpoint_cmd())
+        command = with_breakpoint("echo $YT_JOB_ID $UID >>{correspondence_file_path} && cat ; BREAKPOINT ; ".format(correspondence_file_path=correspondence_file_path))
 
         if kill_self:
             command += "kill -ABRT $$ ;"
@@ -556,7 +550,7 @@ class TestCoreTable(YTEnvSetup):
     def _get_job_uid_correspondence(self, op, correspondence_file_path):
         op.ensure_running()
         total_jobs = op.get_job_count("total")
-        jobs = frozenset(self.events.wait_breakpoint(job_count=total_jobs))
+        jobs = frozenset(wait_breakpoint(job_count=total_jobs))
 
         job_id_to_uid = {}
 
@@ -630,7 +624,7 @@ class TestCoreTable(YTEnvSetup):
     @unix_only
     def test_no_cores(self):
         op, correspondence_file_path = self._start_operation(2)
-        self.events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {}
@@ -650,7 +644,7 @@ class TestCoreTable(YTEnvSetup):
         t.join()
         assert ret_dict["return_code"] == 0
 
-        self.events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
@@ -670,7 +664,7 @@ class TestCoreTable(YTEnvSetup):
         t.join()
         assert ret_dict["return_code"] == 0
 
-        self.events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
@@ -713,7 +707,7 @@ class TestCoreTable(YTEnvSetup):
         assert ret_dict1["return_code"] == 0
         assert ret_dict2["return_code"] == 0
 
-        self.events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job: [ret_dict1["core_info"], ret_dict2["core_info"]]}
@@ -733,7 +727,7 @@ class TestCoreTable(YTEnvSetup):
         t.join()
         assert ret_dict["return_code"] == 0
 
-        self.events.release_breakpoint()
+        release_breakpoint()
         with pytest.raises(YtError):
             op.track()
 
@@ -771,8 +765,8 @@ class TestCoreTable(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        for job_id in self.events.wait_breakpoint():
-            self.events.release_breakpoint(job_id=job_id)
+        for job_id in wait_breakpoint():
+            release_breakpoint(job_id=job_id)
 
         q.put("def")
         q.put(None)
@@ -801,7 +795,7 @@ class TestCoreTable(YTEnvSetup):
 
         assert ret_dict2["return_code"] == 0
 
-        self.events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job: [ret_dict2["core_info"]]}
@@ -824,7 +818,7 @@ class TestCoreTable(YTEnvSetup):
         q.put(None)
         t.join()
 
-        self.events.release_breakpoint()
+        release_breakpoint()
         op.track()
         core_infos = self._get_core_infos(op)
         assert len(core_infos[job]) == 1
@@ -844,7 +838,7 @@ class TestCoreTable(YTEnvSetup):
 
         job, uid = job_id_to_uid.items()[0]
 
-        self.events.release_breakpoint()
+        release_breakpoint()
 
         time.sleep(2)
 
@@ -868,7 +862,7 @@ class TestCoreTable(YTEnvSetup):
 
         job, uid = job_id_to_uid.items()[0]
 
-        self.events.release_breakpoint()
+        release_breakpoint()
 
         time.sleep(7)
 
@@ -896,7 +890,7 @@ class TestCoreTablePorto(YTEnvSetup):
 
         job, uid = job_id_to_uid.items()[0]
 
-        self.events.release_breakpoint()
+        release_breakpoint()
 
         time.sleep(2)
 

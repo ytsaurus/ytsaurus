@@ -510,14 +510,13 @@ print row + table_index
         schema = make_schema([{"name": "foo", "type": "int64"}], strict=True, unique_keys=False)
         alter_table("//tmp/t2", schema=schema)
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
-            command="cat && {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat && BREAKPOINT"),
             in_="//tmp/t1",
             out="//tmp/t2",
             spec={"data_size_per_job": 1})
-        jobs = events.wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(job_count=2)
 
         operation_path = "//sys/operations/{0}".format(op.id)
 
@@ -527,7 +526,7 @@ print row + table_index
         assert schema == get(operation_path + "/output_0/@schema", tx=async_transaction_id)
 
         for job_id in jobs[:2]:
-            events.release_breakpoint(job_id=job_id)
+            release_breakpoint(job_id=job_id)
 
         wait(lambda : op.get_job_count("completed") >= 2)
 
@@ -537,7 +536,7 @@ print row + table_index
         assert len(live_preview_data) == 2
         assert all(record in data for record in live_preview_data)
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
@@ -574,22 +573,21 @@ print row + table_index
             write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
 
         create("table", "//tmp/output")
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
-            command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat ; BREAKPOINT"),
             oredered=ordered,
             spec={
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
             })
-        jobs = events.wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(job_count=5)
         assert len(jobs) == 5
 
         for job_id in jobs[:3]:
-            events.release_breakpoint(job_id=job_id)
+            release_breakpoint(job_id=job_id)
 
         op.track()
         assert len(read_table("//tmp/output")) == 3
@@ -601,18 +599,17 @@ print row + table_index
         for i in xrange(5):
             write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
 
-        events = EventsOnFs()
         create("table", "//tmp/output")
         op = map(
             dont_track=True,
             in_="//tmp/input",
             out="//tmp/output",
-            command="cat && {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat && BREAKPOINT"),
             spec={
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
             })
-        events.wait_breakpoint(job_count=5)
+        wait_breakpoint(job_count=5)
 
         for n in get("//sys/nodes"):
             job_controller = get("//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
@@ -631,22 +628,21 @@ print row + table_index
         for i in xrange(5):
             write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
 
-        events = EventsOnFs()
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
         op = map(
             dont_track=True,
             in_="//tmp/input",
             out=["//tmp/out_1", "<row_count_limit=3>//tmp/out_2"],
-            command="cat >&4 ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("cat >&4 ; BREAKPOINT"),
             spec={
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
             })
 
-        jobs = events.wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(job_count=5)
         for job_id in jobs[:3]:
-            events.release_breakpoint(job_id=job_id)
+            release_breakpoint(job_id=job_id)
 
         op.track()
         assert len(read_table("//tmp/out_1")) == 0
@@ -802,14 +798,13 @@ print row + table_index
             job_type = "ordered_map"
         create("table", output)
 
-        events = EventsOnFs()
         op = map(
             ordered=ordered,
             dont_track=True,
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
-            command="""read; echo "${{REPLY/(???)/(job)}}"; echo "$REPLY" ; {breakpoint_cmd} ; cat""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}"; echo "$REPLY" ; BREAKPOINT ; cat"""),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -821,9 +816,9 @@ print row + table_index
                 "enable_job_splitting": False,
             })
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
         interrupt_job(jobs[0])
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         result = read_table("//tmp/output", verbose=False)
