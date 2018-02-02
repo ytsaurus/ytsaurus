@@ -120,13 +120,12 @@ public:
         DoDisconnect();
     }
 
-    IInvokerPtr GetCancelableControlInvoker() const
+    const IInvokerPtr& GetCancelableControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::MasterConnector) const
     {
-        // XXX(babenko): fixme
-        //VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
-        return CancelableControlInvoker_;
+        return CancelableControlInvokers_[queue];
     }
 
     void StartOperationNodeUpdates(const TOperationPtr& operation)
@@ -210,7 +209,7 @@ public:
 
         return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(CancelableControlInvoker_));
+                .AsyncVia(GetCancelableControlInvoker()));
     }
 
     TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation)
@@ -248,7 +247,7 @@ public:
                 &TImpl::OnRevivingOperationNodeReset,
                 MakeStrong(this),
                 operation)
-            .AsyncVia(CancelableControlInvoker_));
+            .AsyncVia(GetCancelableControlInvoker()));
     }
 
     TFuture<void> FlushOperationNode(const TOperationPtr& operation)
@@ -357,7 +356,7 @@ private:
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     TCancelableContextPtr CancelableContext_;
-    IInvokerPtr CancelableControlInvoker_;
+    TEnumIndexedVector<IInvokerPtr, NCellScheduler::EControlQueue> CancelableControlInvokers_;
 
     std::atomic<EMasterConnectorState> State_ = {EMasterConnectorState::Disconnected};
     std::atomic<TInstant> ConnectionTime_;
@@ -449,12 +448,14 @@ private:
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
 
-        YCHECK(!CancelableControlInvoker_);
-        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(
-            Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
+        for (auto queue : TEnumTraits<NCellScheduler::EControlQueue>::GetDomainValues()) {
+            YCHECK(!CancelableControlInvokers_[queue]);
+            CancelableControlInvokers_[queue] = CancelableContext_->CreateInvoker(
+                Bootstrap_->GetControlInvoker(queue));
+        }
 
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            CancelableControlInvoker_,
+            GetCancelableControlInvoker(),
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
@@ -462,20 +463,20 @@ private:
             Logger);
 
         WatchersExecutor_ = New<TPeriodicExecutor>(
-            CancelableControlInvoker_,
+            GetCancelableControlInvoker(),
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config_->WatchersUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
 
         AlertsExecutor_ = New<TPeriodicExecutor>(
-            CancelableControlInvoker_,
+            GetCancelableControlInvoker(),
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
             Config_->AlertsUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
 
         for (const auto& record : CustomGlobalWatcherRecords_) {
             auto executor = New<TPeriodicExecutor>(
-                CancelableControlInvoker_,
+                GetCancelableControlInvoker(),
                 BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
                 record.Period,
                 EPeriodicExecutorMode::Automatic);
@@ -484,10 +485,10 @@ private:
 
         auto pipeline = New<TRegistrationPipeline>(this);
         BIND(&TRegistrationPipeline::Run, pipeline)
-            .AsyncVia(CancelableControlInvoker_)
+            .AsyncVia(GetCancelableControlInvoker())
             .Run()
             .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this))
-                .Via(CancelableControlInvoker_));
+                .Via(GetCancelableControlInvoker()));
     }
 
     void OnConnected(const TError& error) noexcept
@@ -511,7 +512,7 @@ private:
 
         LockTransaction_->SubscribeAborted(
             BIND(&TImpl::OnLockTransaction_Aborted, MakeWeak(this))
-                .Via(CancelableControlInvoker_));
+                .Via(GetCancelableControlInvoker()));
 
         StartPeriodicActivities();
 
@@ -1073,7 +1074,7 @@ private:
             CancelableContext_.Reset();
         }
 
-        CancelableControlInvoker_.Reset();
+        std::fill(CancelableControlInvokers_.begin(), CancelableControlInvokers_.end(), nullptr);
 
         State_.store(EMasterConnectorState::Disconnected);
     }
@@ -1432,7 +1433,7 @@ private:
         return BIND(&TImpl::DoUpdateOperationNode,
             MakeStrong(this),
             update->Operation)
-            .AsyncVia(CancelableControlInvoker_);
+            .AsyncVia(GetCancelableControlInvoker());
     }
 
     void OnOperationNodeCreated(
@@ -1495,7 +1496,7 @@ private:
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
-                    .Via(CancelableControlInvoker_));
+                    .Via(GetCancelableControlInvoker()));
         }
 
         // Purge obsolete watchers.
@@ -1523,7 +1524,7 @@ private:
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
-                    .Via(CancelableControlInvoker_));
+                    .Via(GetCancelableControlInvoker()));
         }
     }
 
@@ -1639,9 +1640,9 @@ void TMasterConnector::Disconnect()
     Impl_->Disconnect();
 }
 
-IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
+const IInvokerPtr& TMasterConnector::GetCancelableControlInvoker(NCellScheduler::EControlQueue queue) const
 {
-    return Impl_->GetCancelableControlInvoker();
+    return Impl_->GetCancelableControlInvoker(queue);
 }
 
 void TMasterConnector::StartOperationNodeUpdates(const TOperationPtr& operation)

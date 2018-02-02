@@ -549,12 +549,9 @@ public:
             user,
             spec->Owners,
             TInstant::Now(),
-            GetControlInvoker(EControlQueue::Operation),
+            MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation),
             spec->TestingOperationOptions->CypressStorageMode);
         operation->SetState(EOperationState::Initializing);
-
-        WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
-            .ThrowOnError();
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
             type,
@@ -568,7 +565,7 @@ public:
 
         // Spawn a new fiber where all startup logic will work asynchronously.
         BIND(&TImpl::DoStartOperation, MakeStrong(this), operation)
-            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .AsyncVia(operation->GetCancelableControlInvoker())
             .Run();
 
         return operation->GetStarted();
@@ -1736,6 +1733,8 @@ private:
         ValidateOperationState(operation, EOperationState::Initializing);
 
         try {
+            WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
+                .ThrowOnError();
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation failed to register in strategy")
@@ -1763,6 +1762,8 @@ private:
                     .Run();
                 auto error = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
+                ValidateOperationState(operation, EOperationState::Initializing);
             }
 
             auto initializationResult = controller->GetInitializationResult();
@@ -1772,12 +1773,12 @@ private:
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
 
+            ValidateOperationState(operation, EOperationState::Initializing);
+
             MasterConnector_->StartOperationNodeUpdates(operation);
             // TODO(babenko): rework when separating scheduler and agent
 
             Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
-
-            ValidateOperationState(operation, EOperationState::Initializing);
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation failed to initialize")
                 << ex;
@@ -1785,27 +1786,17 @@ private:
             THROW_ERROR(wrappedError);
         }
 
+        YCHECK(registered);
+        ValidateOperationState(operation, EOperationState::Initializing);
+
         LogEventFluently(ELogEventType::OperationStarted)
             .Do(std::bind(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation, _1))
             .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1));
 
         // NB: Once we've registered the operation in Cypress we're free to complete
-        // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
+        // StartOperation request. Preparation will happen in a non-blocking
         // fashion.
-        BIND(&TImpl::DoPrepareOperation, MakeStrong(this), operation)
-            .AsyncVia(operation->GetCancelableControlInvoker())
-            .Run();
-
         operation->SetStarted(TError());
-    }
-
-    void DoPrepareOperation(const TOperationPtr& operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto codicilGuard = operation->MakeCodicilGuard();
-
-        ValidateOperationState(operation, EOperationState::Initializing);
 
         const auto& operationId = operation->GetId();
 
@@ -1823,8 +1814,7 @@ private:
 
             TWallTimer timer;
             auto result = WaitFor(asyncResult);
-            auto prepareDuration = timer.GetElapsedTime();
-            operation->UpdateControllerTimeStatistics("/prepare", prepareDuration);
+            operation->UpdateControllerTimeStatistics("/prepare", timer.GetElapsedTime());
 
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
