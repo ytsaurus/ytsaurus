@@ -1209,6 +1209,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
+    @flaky(max_runs=5)
     def test_action_failed_after_table_removed(self, skip_freezing, freeze):
         set("//sys/@config/enable_tablet_balancer", False)
         self._configure_bundle("default")
@@ -1230,6 +1231,7 @@ class TestTabletActions(TestDynamicTablesBase):
     @pytest.mark.parametrize("touch", ["mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
+    @flaky(max_runs=5)
     def test_action_failed_after_tablet_touched(self, skip_freezing, freeze, touch):
         touches = {
             "mount": [mount_table, "mounted"],
