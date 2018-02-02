@@ -67,7 +67,7 @@ public:
      */
     void ValidateConnected();
 
-    void Disconnect();
+    void Disconnect(const TError& error);
 
     TOperationPtr FindOperation(const TOperationId& id) const;
     TOperationPtr GetOperationOrThrow(const TOperationId& id) const;

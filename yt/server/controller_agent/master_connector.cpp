@@ -988,8 +988,7 @@ private:
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(batchRspOrError);
         if (!error.IsOK()) {
-            LOG_WARNING(error, "Failed to remove snapshot");
-            Bootstrap_->GetScheduler()->Disconnect();
+            Bootstrap_->GetScheduler()->Disconnect(TError("Failed to remove snapshot") << error);
         }
     }
 

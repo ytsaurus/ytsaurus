@@ -356,11 +356,11 @@ public:
     }
 
 
-    void Disconnect()
+    void Disconnect(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->Disconnect();
+        MasterConnector_->Disconnect(error);
     }
 
     virtual TInstant GetConnectionTime() const override
@@ -1338,8 +1338,9 @@ private:
                 try {
                     ReviveOperations();
                 } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Error reviving operations");
-                    Disconnect();
+                    auto error = TError("Error reviving operations")
+                        << ex;
+                    Disconnect(error);
                 }
             }));
     }
@@ -2376,8 +2377,10 @@ private:
             try {
                 controller->Abort();
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Failed to abort controller (OperationId: %v)", operation->GetId());
-                MasterConnector_->Disconnect();
+                auto error = TError("Failed to abort controller")
+                    << TErrorAttribute("operation_id", operation->GetId())
+                    << ex;
+                MasterConnector_->Disconnect(error);
                 return;
             }
         }
@@ -2864,9 +2867,9 @@ void TScheduler::ValidateConnected()
     Impl_->ValidateConnected();
 }
 
-void TScheduler::Disconnect()
+void TScheduler::Disconnect(const TError& error)
 {
-    Impl_->Disconnect();
+    Impl_->Disconnect(error);
 }
 
 TOperationPtr TScheduler::FindOperation(const TOperationId& id) const

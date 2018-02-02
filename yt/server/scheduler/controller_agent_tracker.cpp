@@ -479,7 +479,7 @@ public:
 
         auto error = WaitFor(Combine(asyncResults));
         if (!error.IsOK()) {
-            scheduler->Disconnect();
+            scheduler->Disconnect(error);
             context->Reply(error);
             return;
         }
