@@ -77,7 +77,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "max_failed_job_count": 1,
             })
 
-    def test_stderr_table(self):
+    def test_stderr(self):
         create("table", "//tmp/stderr")
 
         op = vanilla(
@@ -95,9 +95,14 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "stderr_table_path": "//tmp/stderr"
             })
 
-        stderrs = read_table("//tmp/stderr")
-        per_task = Counter(row["data"] for row in stderrs)
-        assert dict(per_task) == {"task_a\n": 3, "task_b\n": 2}
+        table_stderrs = read_table("//tmp/stderr")
+        table_stderrs_per_task = Counter(row["data"] for row in table_stderrs)
+
+        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
+        cypress_stderrs_per_task = Counter(read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_id)) for job_id in job_ids)
+
+        assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
+        assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
 
     def test_fail_on_failed_job(self):
         with pytest.raises(YtError):
