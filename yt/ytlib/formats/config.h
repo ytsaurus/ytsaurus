@@ -112,7 +112,7 @@ public:
         RegisterParameter("support_infinity", SupportInfinity)
             .Default(false);
         RegisterParameter("buffer_size", BufferSize)
-            .Default(16 * 1024 * 1024);
+            .Default(16 * 1024);
         RegisterParameter("skip_null_values", SkipNullValues)
             .Default(false);
 
