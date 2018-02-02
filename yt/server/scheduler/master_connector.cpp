@@ -113,11 +113,11 @@ public:
         return ConnectionTime_.load();
     }
 
-    void Disconnect()
+    void Disconnect(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        DoDisconnect();
+        DoDisconnect(error);
     }
 
     const IInvokerPtr& GetCancelableControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::MasterConnector) const
@@ -431,8 +431,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
-            LOG_INFO("Disconnecting scheduler due to enabled random disconnection");
-            DoDisconnect();
+            DoDisconnect(TError("Disconnecting scheduler due to enabled random disconnection"));
         }
     }
 
@@ -511,7 +510,7 @@ private:
         LOG_INFO("Master connected");
 
         LockTransaction_->SubscribeAborted(
-            BIND(&TImpl::OnLockTransaction_Aborted, MakeWeak(this))
+            BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(GetCancelableControlInvoker()));
 
         StartPeriodicActivities();
@@ -521,13 +520,11 @@ private:
         ScheduleTestingDisconnect();
     }
 
-    void OnLockTransaction_Aborted()
+    void OnLockTransactionAborted()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_WARNING("Lock transaction aborted");
-
-        Disconnect();
+        Disconnect(TError("Lock transaction aborted"));
     }
 
 
@@ -1079,13 +1076,14 @@ private:
         State_.store(EMasterConnectorState::Disconnected);
     }
 
-    void DoDisconnect() noexcept
+    void DoDisconnect(const TError& error) noexcept
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
         if (State_ == EMasterConnectorState::Connected) {
+            LOG_WARNING(error, "Disconnecting master");
             MasterDisconnected_.Fire();
             LOG_WARNING("Master disconnected");
         }
@@ -1312,9 +1310,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(!error.IsOK());
-        LOG_ERROR(error, "Failed to update operation node");
 
-        Disconnect();
+        Disconnect(TError("Failed to update operation node") << error);
     }
 
     void DoUpdateOperationNode(const TOperationPtr& operation)
@@ -1635,9 +1632,9 @@ TInstant TMasterConnector::GetConnectionTime() const
     return Impl_->GetConnectionTime();
 }
 
-void TMasterConnector::Disconnect()
+void TMasterConnector::Disconnect(const TError& error)
 {
-    Impl_->Disconnect();
+    Impl_->Disconnect(error);
 }
 
 const IInvokerPtr& TMasterConnector::GetCancelableControlInvoker(NCellScheduler::EControlQueue queue) const
