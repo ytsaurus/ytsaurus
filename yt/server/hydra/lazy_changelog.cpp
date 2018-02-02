@@ -112,6 +112,13 @@ public:
         }));
     }
 
+    virtual TFuture<void> Preallocate(size_t size) override
+    {
+        return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
+            return changelog->Preallocate(size);
+        }));
+    }
+
 private:
     TFuture<IChangelogPtr> FutureChangelog_;
 

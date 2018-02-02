@@ -289,6 +289,11 @@ private:
             return Writer_ ? Writer_->Close() : VoidFuture;
         }
 
+        virtual TFuture<void> Preallocate(size_t size) override
+        {
+            Y_UNREACHABLE();
+        }
+
     private:
         const TYPath Path_;
         const TChangelogMeta Meta_;

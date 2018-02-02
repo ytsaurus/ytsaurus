@@ -78,6 +78,8 @@ public:
     //! Synchronously seals the changelog truncating it if necessary.
     void Truncate(int recordCount);
 
+    void Preallocate(size_t size);
+
 private:
     class TImpl;
     const std::unique_ptr<TImpl> Impl_;
