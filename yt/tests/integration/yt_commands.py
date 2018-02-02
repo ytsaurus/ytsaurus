@@ -23,6 +23,7 @@ clusters_drivers = {}
 is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
+_events_on_fs = None
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
@@ -524,6 +525,32 @@ def put_file_to_cache(path, md5, **kwargs):
     kwargs["md5"] = md5
     return execute_command("put_file_to_cache", kwargs)
 
+###########################################################################
+
+def reset_events_on_fs():
+    global _events_on_fs
+    _events_on_fs = None
+
+def events_on_fs():
+    global _events_on_fs
+    if _events_on_fs is None:
+        _events_on_fs = EventsOnFs()
+    return _events_on_fs
+
+def with_breakpoint(cmd):
+    if "BREAKPOINT" not in cmd:
+        raise ValueError("Command doesn't have BREAKPOINT: {0}".format(cmd))
+    result = cmd.replace("BREAKPOINT", events_on_fs().breakpoint_cmd(), 1)
+    if "BREAKPOINT" in result:
+        raise ValueError("Command has multiple BREAKPOINT: {0}".format(cmd))
+    return result
+
+def wait_breakpoint(*args, **kwargs):
+    return events_on_fs().wait_breakpoint(*args, **kwargs)
+
+def release_breakpoint(*args, **kwargs):
+    return events_on_fs().release_breakpoint(*args, **kwargs)
+
 class TimeoutError(Exception):
     pass
 
@@ -660,6 +687,7 @@ class EventsOnFs(object):
             raise ValueError("event_name must be non empty")
         return os.path.join(self._tmpdir, event_name)
 
+###########################################################################
 
 class Operation(object):
     def __init__(self):

@@ -76,14 +76,13 @@ class TestListJobs(YTEnvSetup):
 
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
-        events = EventsOnFs()
         op = map_reduce(
             dont_track=True,
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
             # Jobs write to stderr so they will be saved.
-            mapper_command="""echo foo >&2 ; test $YT_JOB_INDEX -eq "1" && exit 1 ; {breakpoint_cmd}""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            mapper_command=with_breakpoint("""echo foo >&2 ; test $YT_JOB_INDEX -eq "1" && exit 1 ; BREAKPOINT"""),
             reducer_command="echo foo >&2 ; cat",
             sort_by="foo",
             reduce_by="foo",
@@ -95,7 +94,7 @@ class TestListJobs(YTEnvSetup):
                 "job_count" : 3
             })
 
-        job_ids = events.wait_breakpoint()
+        job_ids = wait_breakpoint()
 
         validate_address_filter(op, False, False, True)
 
@@ -113,7 +112,7 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="completed")["jobs"]
         assert len(res) == 0
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
@@ -212,14 +211,13 @@ class TestListJobs(YTEnvSetup):
 
         write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             in_="//tmp/input",
             out="//tmp/output",
-            command="echo MAPPER-STDERR-OUTPUT >&2 ; cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()))
+            command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"))
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
         def get_stderr_size():
             return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
         wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
@@ -237,5 +235,5 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=False)
         assert res["jobs"] == []
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()

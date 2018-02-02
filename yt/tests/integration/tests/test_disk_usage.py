@@ -45,7 +45,7 @@ class TestDiskUsage(QuotaMixin):
         write_table(tables[0], [{"foo": "bar"} for _ in xrange(10)])
         return tables
 
-    def run_test(self, tables, events, fatty_options):
+    def run_test(self, tables, fatty_options):
         options = {
             "in_": tables[0],
             "out": tables[1],
@@ -56,7 +56,7 @@ class TestDiskUsage(QuotaMixin):
 
         first = map(**options)
 
-        events.wait_event("file_written")
+        events_on_fs().wait_event("file_written")
 
         check_op = {
             "in_": tables[0],
@@ -72,7 +72,7 @@ class TestDiskUsage(QuotaMixin):
         assert get_aborted("/scheduled/other") > 0
         op.abort()
 
-        events.notify_event("finish_job")
+        events_on_fs().notify_event("finish_job")
         first.track()
 
         map(**check_op)
@@ -80,28 +80,26 @@ class TestDiskUsage(QuotaMixin):
     @require_ytserver_root_privileges
     def test_lack_space_node(self):
         tables = self._init_tables()
-        events = EventsOnFs()
         options = {
             "command": " ; ".join([
                 "dd if=/dev/zero of=zeros.txt count=1500",
-                events.notify_event_cmd("file_written"),
-                events.wait_event_cmd("finish_job"),
+                events_on_fs().notify_event_cmd("file_written"),
+                events_on_fs().wait_event_cmd("finish_job"),
             ])
         }
 
-        self.run_test(tables, events, options)
+        self.run_test(tables, options)
 
     @require_ytserver_root_privileges
     def test_lack_space_node_with_quota(self):
         tables = self._init_tables()
-        events = EventsOnFs()
         options = {
             "command": " ; ".join([
                 "true",
-                events.notify_event_cmd("file_written"),
-                events.wait_event_cmd("finish_job"),
+                events_on_fs().notify_event_cmd("file_written"),
+                events_on_fs().wait_event_cmd("finish_job"),
             ]),
             "spec": {"mapper": {"disk_space_limit": 1024 * 1024 * 2 / 3}, "max_failed_job_count": 1}
         }
 
-        self.run_test(tables, events, options)
+        self.run_test(tables, options)
