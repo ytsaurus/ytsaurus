@@ -802,6 +802,8 @@ void TOperationControllerBase::StartTransactions()
         StartTransaction(ETransactionType::Async, Client),
         StartTransaction(ETransactionType::Input, InputClient, GetInputTransactionParentId()),
         StartTransaction(ETransactionType::Output, OutputClient, GetOutputTransactionParentId()),
+        // NB: we do not start Debug transaction under User transaction since we want to save debug results
+        // even if user transaction is aborted.
         StartTransaction(ETransactionType::Debug, Client),
     };
 
@@ -2326,6 +2328,8 @@ void TOperationControllerBase::DoAbort()
                 // Bad luck we can't commit transaction.
                 // Such a pity can happen for example if somebody aborted our transaction manually.
                 LOG_ERROR(ex, "Failed to commit debug transaction");
+                // Intentionally do not wait for abort.
+                DebugTransaction->Abort();
             }
         }
     }
