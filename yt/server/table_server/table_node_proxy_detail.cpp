@@ -698,7 +698,7 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
         table->TableSchema(),
         schema,
         dynamic,
-        table->isempty() && !table->isdynamic());
+        table->IsEmpty() && !table->IsDynamic());
 
     auto oldSchema = table->TableSchema();
     auto oldSchemaMode = table->GetSchemaMode();
