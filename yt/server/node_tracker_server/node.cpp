@@ -124,7 +124,7 @@ void TNode::ComputeFillFactors()
 
     for (const auto& location : Statistics_.locations()) {
         auto mediumIndex = location.medium_index();
-        freeSpace[mediumIndex] += (location.available_space() - location.low_watermark_space());
+        freeSpace[mediumIndex] += std::max(static_cast<i64>(0), location.available_space() - location.low_watermark_space());
         usedSpace[mediumIndex] += location.used_space();
     }
 
