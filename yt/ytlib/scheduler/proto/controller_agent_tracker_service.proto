@@ -179,7 +179,7 @@ message TReqHeartbeat
 
     required TEventQueueInbox scheduler_to_agent_job_events = 7;
     required TEventQueueInbox scheduler_to_agent_operation_events = 8;
-    required TEventQueueInbox scheduler_to_agent_schedule_job_responses = 10;
+    required TEventQueueInbox scheduler_to_agent_schedule_job_requests = 10;
 }
 
 message TRspHeartbeat

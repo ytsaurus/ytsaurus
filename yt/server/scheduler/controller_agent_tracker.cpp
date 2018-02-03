@@ -470,6 +470,8 @@ public:
         }
 
         agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
+        agent->GetOperationEventsOutbox()->HandleStatus(request->scheduler_to_agent_operation_events());
+        agent->GetScheduleJobRequestsOutbox()->HandleStatus(request->scheduler_to_agent_schedule_job_requests());
 
         if (request->exec_nodes_requested()) {
             for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
