@@ -147,12 +147,7 @@ NODE_CONFIG_PATCHES = [
                     "capacity": 500 * MB
                 }
             },
-            "incremental_heartbeat_period": 300,
-            "store_locations": [
-                {
-                    "enable_journals": True
-                }
-            ]
+            "incremental_heartbeat_period": 300
         },
         "exec_agent": {
             "scheduler_connector": None
