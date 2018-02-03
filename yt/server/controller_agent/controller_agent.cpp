@@ -625,7 +625,7 @@ private:
 
         JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
         OperationEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_operation_events());
-        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_responses());
+        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_requests());
 
         for (const auto& pair : GetOperations()) {
             const auto& operationId = pair.first;
