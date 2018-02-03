@@ -1115,8 +1115,8 @@ private:
             THROW_ERROR_EXCEPTION("Unknown field number %v at %v",
                 fieldNumber,
                 YPathStack_.GetPath())
-                    << TErrorAttribute("ypath", YPathStack_.GetPath())
-                    << TErrorAttribute("proto_type", type->GetFullName());
+                << TErrorAttribute("ypath", YPathStack_.GetPath())
+                << TErrorAttribute("proto_type", type->GetFullName());
         }
 
         if (RepeatedFieldNumberStack_.back().FieldNumber == fieldNumber) {
