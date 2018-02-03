@@ -735,7 +735,7 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
 
     auto job = FindJob(jobId);
     if (!job) {
-        LOG_DEBUG("Cannot abort job, it is already finished (JobId: %v)", jobId);
+        LOG_DEBUG("Cannot abort an unknown job (JobId: %v)", jobId);
         return;
     }
     LOG_DEBUG(error, "Aborting job by internal request (JobId: %v, OperationId: %v)",
@@ -752,7 +752,7 @@ void TNodeShard::FailJob(const TJobId& jobId)
 
     auto job = FindJob(jobId);
     if (!job) {
-        LOG_DEBUG("Cannot fail job, it is already finished (JobId: %v)", jobId);
+        LOG_DEBUG("Cannot fail an unknown job (JobId: %v)", jobId);
         return;
     }
 
@@ -943,8 +943,13 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto result = New<TScheduleJobResult>();
+    auto operationId = FromProto<TJobId>(response.operation_id());
     auto jobId = FromProto<TJobId>(response.job_id());
+    LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v)",
+        operationId,
+        jobId);
+
+    auto result = New<TScheduleJobResult>();
     if (response.has_job_type()) {
         result->StartDescriptor.Emplace(
             jobId,
