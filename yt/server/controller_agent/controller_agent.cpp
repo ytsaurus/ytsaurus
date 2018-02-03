@@ -491,7 +491,7 @@ private:
                 .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_));
         OperationEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: SchedulerToAgentOperation, IncarnationId: %v", IncarnationId_));
+                .AddTag("Kind: SchedulerToAgentOperations, IncarnationId: %v", IncarnationId_));
         ScheduleJobRequestsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
