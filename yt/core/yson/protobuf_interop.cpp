@@ -176,6 +176,7 @@ public:
     TProtobufMessageType(TProtobufTypeRegistry* registry, const Descriptor* descriptor)
         : Registry_(registry)
         , Underlying_(descriptor)
+        , IsAttributeDictionary_(descriptor->options().GetExtension(NYT::NYson::NProto::attribute_dictionary))
     { }
 
     void Build()
@@ -190,6 +191,11 @@ public:
             YCHECK(NameToField_.emplace(field->GetYsonName(), std::move(fieldHolder)).second);
             YCHECK(NumberToField_.emplace(field->GetNumber(), field).second);
         }
+    }
+
+    bool IsAttributeDictionary() const
+    {
+        return IsAttributeDictionary_;
     }
 
     const TString& GetFullName() const
@@ -217,6 +223,7 @@ public:
 private:
     TProtobufTypeRegistry* const Registry_;
     const Descriptor* const Underlying_;
+    const bool IsAttributeDictionary_;
 
     std::vector<int> RequiredFieldNumbers_;
     THashMap<TStringBuf, std::unique_ptr<TProtobufField>> NameToField_;
@@ -359,8 +366,6 @@ private:
 class TProtobufTranscoderBase
 {
 protected:
-    const TProtobufMessageType* const AttributeDictionaryType = ReflectProtobufMessageType<NYTree::NProto::TAttributeDictionary>();
-
     TYPathStack YPathStack_;
 
 
@@ -476,7 +481,7 @@ private:
         int ByteSize = -1;
     };
     std::vector<TNestedMessageEntry> NestedMessages_;
-    
+
     TString AttributeKey_;
     TString AttributeValue_;
     TStringOutput AttributeValueStream_;
@@ -625,7 +630,7 @@ private:
         Y_ASSERT(TypeStack_.size() > 0);
         const auto* type = TypeStack_.back().Type;
 
-        if (type == AttributeDictionaryType) {
+        if (type->IsAttributeDictionary()) {
             OnMyKeyedItemAttributeDictionary(key);
         } else {
             OnMyKeyedItemRegular(key);
@@ -1021,7 +1026,7 @@ public:
             const auto* type = typeEntry.Type;
 
             bool flag;
-            if (type == AttributeDictionaryType) {
+            if (type->IsAttributeDictionary()) {
                 flag = ParseAttributeDictionary();
             } else {
                 flag = ParseRegular();
