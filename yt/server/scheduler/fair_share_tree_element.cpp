@@ -2222,16 +2222,14 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
             scheduleJobResult = New<TScheduleJobResult>();
             scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
         }
-    } else {
-        if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
-            auto error = TError(
-                "Scheduling job in controller of operation %v timed out; "
-                "it means that either scheduler is under heavy load or operation is too heavy",
-                OperationId_);
+    } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
+        LOG_DEBUG("Job scheduling timed out (OperationId: %v)",
+            OperationId_);
 
-            LOG_WARNING(error);
-            SetOperationAlert(OperationId_, EOperationAlertType::ScheduleJobTimedOut, error);
-        }
+        SetOperationAlert(
+            OperationId_,
+            EOperationAlertType::ScheduleJobTimedOut,
+            TError("Job scheduling timed out: either scheduler is under heavy load or operation is too heavy"));
     }
 
     return scheduleJobResult;

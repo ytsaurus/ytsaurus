@@ -943,11 +943,10 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto operationId = FromProto<TJobId>(response.operation_id());
     auto jobId = FromProto<TJobId>(response.job_id());
-    LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v)",
-        operationId,
-        jobId);
+    LOG_DEBUG("Job schedule response received (JobId: %v, Success: %v)",
+        jobId,
+        response.has_job_type());
 
     auto result = New<TScheduleJobResult>();
     if (response.has_job_type()) {
