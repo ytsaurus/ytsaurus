@@ -45,13 +45,6 @@ using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
 class TProtobufTypeRegistry
 {
 public:
-    TStringBuf InternString(const TString& str)
-    {
-        auto guard = Guard(SpinLock_);
-        InternedStrings_.push_back(str);
-        return InternedStrings_.back();
-    }
-
     TStringBuf GetYsonName(const FieldDescriptor* descriptor)
     {
         const auto& name = descriptor->options().GetExtension(NYT::NYson::NProto::field_name);
@@ -68,7 +61,7 @@ public:
         if (name) {
             return InternString(name);
         } else {
-            return InternString(CamelCaseToUnderscoreCase(descriptor->name()));
+            return InternString(descriptor->name());
         }
     }
 
@@ -83,6 +76,14 @@ public:
 private:
     Y_DECLARE_SINGLETON_FRIEND();
     TProtobufTypeRegistry() = default;
+
+    TStringBuf InternString(const TString& str)
+    {
+        auto guard = Guard(SpinLock_);
+        InternedStrings_.push_back(str);
+        return InternedStrings_.back();
+    }
+
 
     TSpinLock SpinLock_;
     std::vector<TString> InternedStrings_;
@@ -245,7 +246,7 @@ public:
         for (int index = 0; index < Underlying_->value_count(); ++index) {
             const auto* valueDescriptor = Underlying_->value(index);
             auto literal = Registry_->GetYsonLiteral(valueDescriptor);
-            YCHECK(LitrealToValue_.emplace(literal, valueDescriptor->number()).second);
+            YCHECK(LiteralToValue_.emplace(literal, valueDescriptor->number()).second);
             YCHECK(ValueToLiteral_.emplace(valueDescriptor->number(), literal).second);
         }
     }
@@ -257,8 +258,8 @@ public:
 
     TNullable<int> FindValueByLiteral(const TStringBuf& literal) const
     {
-        auto it = LitrealToValue_.find(literal);
-        return it == LitrealToValue_.end() ? Null : MakeNullable(it->second);
+        auto it = LiteralToValue_.find(literal);
+        return it == LiteralToValue_.end() ? Null : MakeNullable(it->second);
     }
 
     TStringBuf FindLiteralByValue(int value) const
@@ -271,7 +272,7 @@ private:
     TProtobufTypeRegistry* const Registry_;
     const EnumDescriptor* const Underlying_;
 
-    THashMap<TStringBuf, int> LitrealToValue_;
+    THashMap<TStringBuf, int> LiteralToValue_;
     THashMap<int, TStringBuf> ValueToLiteral_;
 };
 
