@@ -310,6 +310,7 @@ private:
         {
             if (!success) {
                 // This normally happens on server shutdown.
+                LOG_DEBUG("Server accept failed");
                 Unref();
                 return;
             }
