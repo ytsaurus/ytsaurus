@@ -386,7 +386,8 @@ private:
     virtual void LogRequest() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v <- ",
+        builder.AppendFormat("%v:%v <- ",
+            GetService(),
             GetMethod());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
@@ -429,7 +430,8 @@ private:
     virtual void LogResponse() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v -> ",
+        builder.AppendFormat("%v:%v -> ",
+            GetService(),
             GetMethod());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
