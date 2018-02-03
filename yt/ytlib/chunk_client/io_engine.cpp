@@ -151,7 +151,7 @@ private:
     NConcurrency::TThreadPool ThreadPool_;
 
     bool UseDirectIO_;
-    const i64 Alignment_ = 4096;
+    const i64 Alignment_ = 4_KB;
 
     bool DoFlushData(const std::shared_ptr<TFileHandle>& fh)
     {
@@ -471,7 +471,7 @@ private:
     NConcurrency::TAsyncSemaphore Semaphore_;
     std::atomic<bool> Alive_ = {true};
 
-    const i64 Alignment_ = 4096;
+    const i64 Alignment_ = 4_KB;
 
     TThread Thread_;
 
