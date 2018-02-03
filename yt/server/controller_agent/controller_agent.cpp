@@ -657,7 +657,7 @@ private:
 
         {
             auto now = TInstant::Now();
-            bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + Config_->ExecNodesRequestPeriod < now;
+            bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
             req->set_exec_nodes_requested(shouldRequestExecNodes);
         }
 

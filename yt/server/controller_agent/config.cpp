@@ -269,7 +269,7 @@ TControllerAgentConfig::TControllerAgentConfig()
 	RegisterParameter("controller_agent_heartbeat_failure_backoff", ControllerAgentHeartbeatFailureBackoff)
 		.Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("exec_nodes_request_period", ExecNodesRequestPeriod)
+    RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
     RegisterParameter("controller_thread_count", ControllerThreadCount)

@@ -416,7 +416,7 @@ public:
     TDuration ControllerAgentHeartbeatFailureBackoff;
 
     //! Period between requesting exec nodes from scheduler.
-    TDuration ExecNodesRequestPeriod;
+    TDuration ExecNodesUpdatePeriod;
 
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
