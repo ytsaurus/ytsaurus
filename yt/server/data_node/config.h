@@ -221,18 +221,18 @@ public:
     {
         RegisterParameter("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
-            .Default(50_GB);
+            .Default(5_GB);
         RegisterParameter("high_watermark", HighWatermark)
             .GreaterThanOrEqual(0)
-            .Default(20_GB);
+            .Default(2_GB);
         RegisterParameter("disable_writes_watermark", DisableWritesWatermark)
             .GreaterThanOrEqual(0)
-            .Default(10_GB);
+            .Default(1_GB);
         RegisterParameter("max_trash_ttl", MaxTrashTtl)
             .Default(TDuration::Hours(1));
         RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
             .GreaterThanOrEqual(0)
-            .Default(40_GB);
+            .Default(4_GB);
         RegisterParameter("repair_in_throttler", RepairInThrottler)
             .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
