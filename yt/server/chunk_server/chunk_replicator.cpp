@@ -1414,9 +1414,9 @@ void TChunkReplicator::ScheduleNewJobs(
                 continue; // No storage of this medium on this node.
             }
 
-            double targetFillFactor = *sourceFillFactor - Config_->MinBalancingFillFactorDiff;
+            double targetFillFactor = *sourceFillFactor - Config_->MinChunkBalancingFillFactorDiff;
             if (hasSpareReplicationResources() &&
-                *sourceFillFactor > Config_->MinBalancingFillFactor &&
+                *sourceFillFactor > Config_->MinChunkBalancingFillFactor &&
                 ChunkPlacement_->HasBalancingTargets(medium, targetFillFactor) &&
                 HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
             {

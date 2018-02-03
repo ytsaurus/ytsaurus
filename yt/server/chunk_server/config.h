@@ -102,10 +102,10 @@ public:
     int SafeLostChunkCount;
 
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
-    double MinBalancingFillFactorDiff;
+    double MinChunkBalancingFillFactorDiff;
 
     //! Minimum fill coefficient of the most loaded node to start balancing.
-    double MinBalancingFillFactor;
+    double MinChunkBalancingFillFactor;
 
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
@@ -211,10 +211,10 @@ public:
             .GreaterThan(0)
             .Default(1000);
 
-        RegisterParameter("min_chunk_balancing_fill_factor_diff", MinBalancingFillFactorDiff)
+        RegisterParameter("min_chunk_balancing_fill_factor_diff", MinChunkBalancingFillFactorDiff)
             .InRange(0.0, 1.0)
             .Default(0.2);
-        RegisterParameter("min_chunk_balancing_fill_factor", MinBalancingFillFactor)
+        RegisterParameter("min_chunk_balancing_fill_factor", MinChunkBalancingFillFactor)
             .InRange(0.0, 1.0)
             .Default(0.1);
 
