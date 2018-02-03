@@ -1026,9 +1026,11 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 
     YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
-    Host_->UnregisterNode(node->GetId(), node->GetDefaultAddress());
+    auto address = node->GetDefaultAddress();
 
-    LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
+    Host_->UnregisterNode(node->GetId(), address);
+
+    LOG_INFO("Node unregistered (Address: %v)", address);
 }
 
 void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node)
