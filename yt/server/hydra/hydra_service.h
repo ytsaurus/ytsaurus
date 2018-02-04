@@ -25,8 +25,7 @@ protected:
     virtual IHydraManagerPtr GetHydraManager() = 0;
     
 private:
-    virtual bool IsUp(TCtxDiscoverPtr context) override;
-
+    virtual bool IsUp(const TCtxDiscoverPtr& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

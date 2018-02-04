@@ -869,7 +869,7 @@ IInvokerPtr TServiceBase::GetDefaultInvoker()
 void TServiceBase::BeforeInvoke(IServiceContext* context)
 { }
 
-bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/)
+bool TServiceBase::IsUp(const TCtxDiscoverPtr& /*context*/)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
