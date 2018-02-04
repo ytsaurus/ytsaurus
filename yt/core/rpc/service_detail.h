@@ -498,7 +498,7 @@ protected:
      *  \note
      *  Thread affinity: any
      */
-    virtual bool IsUp(TCtxDiscoverPtr context);
+    virtual bool IsUp(const TCtxDiscoverPtr& context);
 
     //! Used by peer discovery.
     //! Returns addresses of neighboring peers to be suggested to the client.

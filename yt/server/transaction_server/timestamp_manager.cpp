@@ -334,13 +334,12 @@ private:
     }
 
 
-    virtual bool IsUp(TCtxDiscoverPtr /*context*/) override
+    virtual bool IsUp(const TCtxDiscoverPtr& /*context*/) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Active_;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
