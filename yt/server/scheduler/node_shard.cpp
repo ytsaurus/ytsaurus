@@ -1043,7 +1043,7 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node)
     auto jobs = node->Jobs();
     const auto& address = node->GetDefaultAddress();
     for (const auto& job : jobs) {
-        LOG_DEBUG("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
+        LOG_DEBUG("Aborting job on an offline node (Address: %v, JobId: %v, OperationId: %v)",
             address,
             job->GetId(),
             job->GetOperationId());
