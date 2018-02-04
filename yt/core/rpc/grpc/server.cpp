@@ -3,6 +3,8 @@
 #include "config.h"
 #include "helpers.h"
 
+#include <yt/core/rpc/grpc/proto/grpc.pb.h>
+
 #include <yt/core/rpc/server_detail.h>
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
@@ -14,6 +16,7 @@
 #include <yt/core/ytree/convert.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
+#include <contrib/libs/grpc/include/grpc/grpc_security.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 
 #include <array>
@@ -273,6 +276,7 @@ private:
         TRequestId RequestId_;
         TString ServiceName_;
         TString MethodName_;
+        TNullable<TString> PeerIdentity_;
         TNullable<TDuration> Timeout_;
         IServicePtr Service_;
 
@@ -322,15 +326,16 @@ private:
                 return;
             }
 
-            Timeout_ = GetTimeout(CallDetails_->deadline);
-            auto peerAddress = GetPeerAddress();
+            ParseAuthParameters();
 
-            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, Host: %v, Peer: %v, Timeout: %v)",
+            ParseTimeout();
+
+            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, PeerIdentity: %v, PeerAddress: %v, Timeout: %v)",
                 RequestId_,
                 ServiceName_,
                 MethodName_,
-                TStringBuf(CallDetails_->host),
-                TStringBuf(peerAddress.get()),
+                PeerIdentity_,
+                TStringBuf(GetPeerAddress().get()),
                 Timeout_);
 
             Service_ = Owner_->FindService(TServiceId(ServiceName_));
@@ -366,6 +371,45 @@ private:
             }
         }
 
+        void ParseAuthParameters()
+        {
+            auto authContext = TGrpcAuthContextPtr(grpc_call_auth_context(Call_.Unwrap()));
+            if (!authContext) {
+                return;
+            }
+
+            const char* peerIdentityPropertyName = grpc_auth_context_peer_identity_property_name(authContext.Unwrap());
+            if (!peerIdentityPropertyName) {
+                return;
+            }
+
+            auto peerIdentityPropertyIt = grpc_auth_context_find_properties_by_name(authContext.Unwrap(), peerIdentityPropertyName);
+            auto* peerIdentityProperty = grpc_auth_property_iterator_next(&peerIdentityPropertyIt);
+            if (!peerIdentityProperty) {
+                return;
+            }
+
+            PeerIdentity_ = TString(peerIdentityProperty->value);
+        }
+
+        void ParseTimeout()
+        {
+            auto deadline = CallDetails_->deadline;
+            deadline = gpr_convert_clock_type(deadline, GPR_CLOCK_REALTIME);
+            auto now = gpr_now(GPR_CLOCK_REALTIME);
+            if (gpr_time_cmp(now, deadline) >= 0) {
+                Timeout_ = TDuration::Zero();
+                return;
+            }
+
+            auto micros = gpr_timespec_to_micros(gpr_time_sub(deadline, now));
+            if (micros > std::numeric_limits<ui64>::max() / 2) {
+                return;
+            }
+
+            Timeout_ = TDuration::MicroSeconds(static_cast<ui64>(micros));
+        }
+
         bool ParseRoutingParameters()
         {
             if (CallDetails_->method[0] != '/') {
@@ -381,20 +425,6 @@ private:
             ServiceName_.assign(CallDetails_->method + 1, secondSlash);
             MethodName_.assign(secondSlash + 1, CallDetails_->method + methodLength);
             return true;
-        }
-
-        static TNullable<TDuration> GetTimeout(gpr_timespec deadline)
-        {
-            deadline = gpr_convert_clock_type(deadline, GPR_CLOCK_REALTIME);
-            auto now = gpr_now(GPR_CLOCK_REALTIME);
-            if (gpr_time_cmp(now, deadline) >= 0) {
-                return TDuration::Zero();
-            }
-            auto micros = gpr_timespec_to_micros(gpr_time_sub(deadline, now));
-            if (micros > std::numeric_limits<ui64>::max() / 2) {
-                return Null;
-            }
-            return TDuration::MicroSeconds(static_cast<ui64>(micros));
         }
 
         TGprString GetPeerAddress()
@@ -428,18 +458,17 @@ private:
             if (Timeout_) {
                 header->set_timeout(ToProto<i64>(*Timeout_));
             }
-            // TODO: start time
-            // TODO: user
-
-            LOG_DEBUG("Request received (RequestId: %v)",
-                RequestId_);
+            if (PeerIdentity_) {
+                auto* ext = header->MutableExtension(NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext);
+                ext->set_peer_identity(*PeerIdentity_);
+            }
 
             {
                 auto guard = Guard(SpinLock_);
                 Stage_ = EServerCallStage::SendingInitialMetadata;
             }
 
-            LOG_DEBUG("Sending initial metadata (RequestId: %v)",
+            LOG_DEBUG("Request received (RequestId: %v)",
                 RequestId_);
 
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(RequestId_));

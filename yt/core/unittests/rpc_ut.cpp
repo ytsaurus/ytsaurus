@@ -22,6 +22,7 @@
 #include <yt/core/rpc/grpc/config.h>
 #include <yt/core/rpc/grpc/channel.h>
 #include <yt/core/rpc/grpc/server.h>
+#include <yt/core/rpc/grpc/proto/grpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
@@ -90,11 +91,12 @@ class TMyService
     : public TServiceBase
 {
 public:
-    explicit TMyService(IInvokerPtr invoker)
+    TMyService(IInvokerPtr invoker, bool secure)
         : TServiceBase(
             invoker,
             TMyProxy::GetDescriptor(),
             NLogging::TLogger("Main"))
+        , Secure_(secure)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PassCall));
@@ -190,14 +192,24 @@ public:
     }
 
 private:
+    const bool Secure_;
     bool SlowCallCanceled_ = false;
 
+
+    virtual void BeforeInvoke(IServiceContext* context) override
+    {
+        TServiceBase::BeforeInvoke(context);
+        if (Secure_) {
+            const auto& ext = context->GetRequestHeader().GetExtension(NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext);
+            EXPECT_EQ("localhost", ext.peer_identity());
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Secure>
-class TRpcOverGrpc;
+class TRpcOverGrpcImpl;
 template <class TImpl>
 class TRpcOverBus;
 
@@ -210,7 +222,8 @@ public:
     {
         Server_ = CreateServer();
         Queue_ = New<TActionQueue>();
-        Service_ = New<TMyService>(Queue_->GetInvoker());
+        bool secure = TImpl::Secure;
+        Service_ = New<TMyService>(Queue_->GetInvoker(), secure);
         Server_->RegisterService(Service_);
         Server_->Start();
     }
@@ -266,6 +279,7 @@ class TRpcOverBus
 {
 public:
     static constexpr bool AllowTransportErrors = false;
+    static constexpr bool Secure = false;
 
     static IServerPtr CreateServer()
     {
@@ -388,16 +402,17 @@ static const TString ServerCert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Secure>
-class TRpcOverGrpc
+template <bool EnableSsl>
+class TRpcOverGrpcImpl
 {
 public:
     static constexpr bool AllowTransportErrors = true;
+    static constexpr bool Secure = EnableSsl;
 
     static IChannelPtr CreateChannel(const TString& address)
     {
         auto channelConfig = New<NGrpc::TChannelConfig>();
-        if (Secure) {
+        if (EnableSsl) {
             channelConfig->Credentials = New<NGrpc::TChannelCredentialsConfig>();
             channelConfig->Credentials->PemRootCerts = New<NGrpc::TPemBlobConfig>();
             channelConfig->Credentials->PemRootCerts->Value = RootCert;
@@ -414,7 +429,7 @@ public:
     static IServerPtr CreateServer()
     {
         auto serverAddressConfig = New<NGrpc::TServerAddressConfig>();
-        if (Secure) {
+        if (EnableSsl) {
             serverAddressConfig->Credentials = New<NGrpc::TServerCredentialsConfig>();
             serverAddressConfig->Credentials->PemRootCerts = New<NGrpc::TPemBlobConfig>();
             serverAddressConfig->Credentials->PemRootCerts->Value = RootCert;
@@ -461,8 +476,8 @@ using AllTransport = ::testing::Types<
     TRpcOverBus<TRpcOverUnixDomainImpl>,
 #endif
 //    TRpcOverBus<TRpcOverBusImpl>,
-    TRpcOverGrpc<false>,
-    TRpcOverGrpc<true>
+    TRpcOverGrpcImpl<false>,
+    TRpcOverGrpcImpl<true>
 >;
 using WithoutGrpc = ::testing::Types<
 #ifdef _linux_
@@ -480,6 +495,17 @@ TYPED_TEST_CASE(TNotGrpcTest, WithoutGrpc);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//template <>
+//const bool TRpcOverBus<TRpcOverBusImpl>::Secure;
+//template <>
+//const bool TRpcOverBus<TRpcOverUnixDomainImpl>::Secure;
+//template <>
+//const bool TRpcOverBus<TRpcOverGrpcImpl<false>>::Secure;
+//template <>
+//const bool TRpcOverBus<TRpcOverGrpcImpl<true>>::Secure;
+//
+//////////////////////////////////////////////////////////////////////////////////
+//
 TYPED_TEST(TRpcTest, Send)
 {
     TMyProxy proxy(this->CreateChannel());
