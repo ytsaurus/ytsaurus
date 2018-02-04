@@ -45,7 +45,7 @@ void THydraServiceBase::SyncWithUpstream()
         .ThrowOnError();
 }
 
-bool THydraServiceBase::IsUp(TCtxDiscoverPtr context)
+bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)
 {
     const auto& request = context->Request();
     EPeerKind kind;
