@@ -866,7 +866,7 @@ IInvokerPtr TServiceBase::GetDefaultInvoker()
     return DefaultInvoker_;
 }
 
-void TServiceBase::BeforeInvoke(IServiceContext* context)
+void TServiceBase::BeforeInvoke(NRpc::IServiceContext* context)
 { }
 
 bool TServiceBase::IsUp(const TCtxDiscoverPtr& /*context*/)
