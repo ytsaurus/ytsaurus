@@ -299,7 +299,7 @@ private:
         const auto& descriptor = RuntimeInfo_->Descriptor;
 
         if (!descriptor.System) {
-            Service_->BeforeInvoke();
+            Service_->BeforeInvoke(this);
         }
 
         auto timeout = GetTimeout();
@@ -866,7 +866,7 @@ IInvokerPtr TServiceBase::GetDefaultInvoker()
     return DefaultInvoker_;
 }
 
-void TServiceBase::BeforeInvoke()
+void TServiceBase::BeforeInvoke(IServiceContext* context)
 { }
 
 bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/)

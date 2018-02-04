@@ -490,7 +490,7 @@ protected:
     IInvokerPtr GetDefaultInvoker();
 
     //! Called right before each method handler invocation.
-    virtual void BeforeInvoke();
+    virtual void BeforeInvoke(IServiceContext* context);
 
     //! Used by peer discovery.
     //! Returns |true| is this service instance is up, i.e. can handle requests.
