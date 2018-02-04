@@ -352,12 +352,13 @@ public:
                 continue;
             }
 
-            TOperationAlertMap alerts;
-            for (const auto& protoAlert : protoOperation.alerts()) {
-                auto alertType = EOperationAlertType(protoAlert.type());
-                auto alert = FromProto<TError>(protoAlert.error());
-                if (operation->Alerts()[alertType] != alert) {
-                    operation->MutableAlerts()[alertType] = alert;
+            if (protoOperation.has_alerts()) {
+                for (const auto& protoAlert : protoOperation.alerts().alerts()) {
+                    auto alertType = EOperationAlertType(protoAlert.type());
+                    auto alert = FromProto<TError>(protoAlert.error());
+                    if (operation->Alerts()[alertType] != alert) {
+                        operation->MutableAlerts()[alertType] = alert;
+                    }
                 }
             }
 
