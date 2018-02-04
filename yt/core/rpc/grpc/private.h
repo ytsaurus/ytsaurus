@@ -12,6 +12,7 @@ struct grpc_call;
 struct grpc_channel;
 struct grpc_channel_credentials;
 struct grpc_server_credentials;
+struct grpc_auth_context;
 
 ////////////////////////////////////////////////////////////////////////////////
 
