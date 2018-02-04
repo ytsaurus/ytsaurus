@@ -54,11 +54,16 @@ message TOperationAlert
     required NYT.NProto.TError error = 2;
 }
 
+message TOperationAlerts
+{
+    repeated TOperationAlert alerts = 1;
+}
+
 message TOperationInfo
 {
     required NYT.NProto.TGuid operation_id = 1;
     repeated TTreeTaggedJobMetrics job_metrics = 2;
-    repeated TOperationAlert alerts = 3;
+    optional TOperationAlerts alerts = 3;
     optional bytes suspicious_jobs = 4;
     required int32 pending_job_count = 5;
     required TJobResources needed_resources = 6;

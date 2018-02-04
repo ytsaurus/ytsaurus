@@ -446,6 +446,7 @@ private:
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
     TInstant LastExecNodesUpdateTime_;
+    TInstant LastOperationAlertsUpdateTime_;
 
     TIncarnationId IncarnationId_;
 
@@ -564,7 +565,9 @@ private:
             "Master is not connected");
     }
 
-    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest()
+    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
+        bool* execNodesRequested,
+        bool* operationAlertsSent)
     {
         auto req = SchedulerProxy_.Heartbeat();
 
@@ -627,6 +630,10 @@ private:
         OperationEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_operation_events());
         ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_requests());
 
+        auto now = TInstant::Now();
+        *execNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
+        *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
+
         for (const auto& pair : GetOperations()) {
             const auto& operationId = pair.first;
             const auto& operation = pair.second;
@@ -640,12 +647,15 @@ private:
                 ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
             }
 
-            for (const auto& pair : controller->GetAlerts()) {
-                auto alertType = pair.first;
-                const auto& alert = pair.second;
-                auto* protoAlert = protoOperation->add_alerts();
-                protoAlert->set_type(static_cast<int>(alertType));
-                ToProto(protoAlert->mutable_error(), alert);
+            if (*operationAlertsSent) {
+                auto* protoAlerts = protoOperation->mutable_alerts();
+                for (const auto& pair : controller->GetAlerts()) {
+                    auto alertType = pair.first;
+                    const auto& alert = pair.second;
+                    auto* protoAlert = protoAlerts->add_alerts();
+                    protoAlert->set_type(static_cast<int>(alertType));
+                    ToProto(protoAlert->mutable_error(), alert);
+                }
             }
 
             // TODO(ignat): add some backoff.
@@ -655,11 +665,7 @@ private:
             ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
         }
 
-        {
-            auto now = TInstant::Now();
-            bool shouldRequestExecNodes = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
-            req->set_exec_nodes_requested(shouldRequestExecNodes);
-        }
+        req->set_exec_nodes_requested(*execNodesRequested);
 
         return req;
     }
@@ -668,7 +674,12 @@ private:
     {
         LOG_INFO("Sending heartbeat");
 
-        auto req = PrepareHeartbeatRequest();
+        bool execNodesRequested;
+        bool operationAlertsSent;
+        auto req = PrepareHeartbeatRequest(
+            &execNodesRequested,
+            &operationAlertsSent);
+
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Heartbeat failed; backing off and retrying");
@@ -694,13 +705,18 @@ private:
                     protoDescriptor.node_id(),
                     FromProto<TExecNodeDescriptor>(protoDescriptor)).second);
             }
-
             {
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
+        }
 
-            LastExecNodesUpdateTime_ = TInstant::Now();
+        auto now = TInstant::Now();
+        if (operationAlertsSent) {
+            LastExecNodesUpdateTime_ = now;
+        }
+        if (operationAlertsSent) {
+            LastOperationAlertsUpdateTime_ = now;
         }
     }
 

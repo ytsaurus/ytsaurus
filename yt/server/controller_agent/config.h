@@ -415,8 +415,11 @@ public:
     //! Controller agent-to-scheduler heartbeat failure backoff.
     TDuration ControllerAgentHeartbeatFailureBackoff;
 
-    //! Period between requesting exec nodes from scheduler.
+    //! Period for requesting exec nodes from scheduler.
     TDuration ExecNodesUpdatePeriod;
+
+    //! Period for pushing operation alerts from agent to scheduler.
+    TDuration OperationAlertsUpdatePeriod;
 
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
