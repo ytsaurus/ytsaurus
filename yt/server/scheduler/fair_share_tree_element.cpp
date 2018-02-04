@@ -2131,8 +2131,8 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
 {
-    auto resourceUsage = SharedState_->RemoveJob(jobId);
-    IncreaseResourceUsage(-resourceUsage);
+    auto delta = SharedState_->RemoveJob(jobId);
+    IncreaseResourceUsage(-delta);
 
     UpdatePreemptableJobsList();
 }
