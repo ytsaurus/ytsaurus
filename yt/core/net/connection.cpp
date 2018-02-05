@@ -459,7 +459,7 @@ private:
         {
             auto now = GetCpuInstant();
             BusyDuration_ += CpuDurationToDuration(now - StartTime_);
-            StartTime_ = now;            
+            StartTime_ = now;
         }
 
         TConnectionStatistics GetStatistics() const
