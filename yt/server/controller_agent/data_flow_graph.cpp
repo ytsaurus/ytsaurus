@@ -16,8 +16,8 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TDataFlowGraph::SourceDescriptor("Source");
-TString TDataFlowGraph::SinkDescriptor("Sink");
+TString TDataFlowGraph::SourceDescriptor("source");
+TString TDataFlowGraph::SinkDescriptor("sink");
 
 ////////////////////////////////////////////////////////////////////////////////
 
