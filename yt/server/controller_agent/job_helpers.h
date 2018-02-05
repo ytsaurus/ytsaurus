@@ -26,6 +26,8 @@ struct TBriefJobStatistics
     i64 ProcessedOutputCompressedDataSize = 0;
     // Time is given in milliseconds.
     TNullable<i64> InputPipeIdleTime = Null;
+    // Maximum across all output tables. This should work fine.
+    TNullable<i64> OutputPipeIdleTime = Null;
     TNullable<i64> JobProxyCpuUsage = Null;
 
     void Persist(const NPhoenix::TPersistenceContext& context);
@@ -34,6 +36,8 @@ struct TBriefJobStatistics
 DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
 
 void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, NYson::IYsonConsumer* consumer);
+
+TString ToString(const TBriefJobStatisticsPtr& briefStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,8 +48,7 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
 bool CheckJobActivity(
     const TBriefJobStatisticsPtr& lhs,
     const TBriefJobStatisticsPtr& rhs,
-    i64 cpuUsageThreshold,
-    double inputPipeIdleTimeFraction);
+    const TSuspiciousJobsOptionsPtr& options);
 
 // Performs statistics parsing and put it inside jobSummary.
 void ParseStatistics(TJobSummary* jobSummary, const NYson::TYsonString& lastObservedStatisticsYson = NYson::TYsonString());

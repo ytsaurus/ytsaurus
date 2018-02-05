@@ -174,6 +174,14 @@ void TStatistics::AddSuffixToNames(const TString& suffix)
     std::swap(Data_, newData);
 }
 
+TStatistics::TSummaryRange TStatistics::GetRangeByPrefix(const TString& prefix) const
+{
+    auto begin = Data().lower_bound(prefix + '/');
+    // This will efficiently return an iterator to the first path not starting with "`prefix`/".
+    auto end = Data().lower_bound(prefix + ('/' + 1));
+    return TSummaryRange(begin, end);
+}
+
 void TStatistics::Persist(NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -465,17 +473,16 @@ void CreateBuildingYsonConsumer(std::unique_ptr<IBuildingYsonConsumer<TStatistic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString inputPrefix = "/data/input";
-const TString outputPrefix = "/data/output";
+const TString InputPrefix = "/data/input";
+const TString OutputPrefix = "/data/output";
+const TString OutputPipePrefix = "/user_job/pipes/output";
+const TString IdleTimeSuffix = "/idle_time";
 
 TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
 {
     TDataStatistics result;
-    for (auto iterator = jobStatistics.Data().upper_bound(inputPrefix);
-         iterator != jobStatistics.Data().end() && HasPrefix(iterator->first, inputPrefix);
-         ++iterator)
-    {
-        SetDataStatisticsField(result, TStringBuf(iterator->first.begin() + 1 + inputPrefix.size(), iterator->first.end()), iterator->second.GetSum());
+    for (const auto& pair : jobStatistics.GetRangeByPrefix(InputPrefix)) {
+        SetDataStatisticsField(result, TStringBuf(pair.first.begin() + 1 + InputPrefix.size(), pair.first.end()), pair.second.GetSum());
     }
 
     return result;
@@ -484,22 +491,36 @@ TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
 THashMap<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
 {
     THashMap<int, TDataStatistics> result;
-    for (auto iterator = jobStatistics.Data().upper_bound(outputPrefix);
-         iterator != jobStatistics.Data().end() && HasPrefix(iterator->first, outputPrefix);
-         ++iterator)
-    {
-        TStringBuf currentPath(iterator->first.begin() + outputPrefix.size() + 1, iterator->first.end());
+    for (const auto& pair : jobStatistics.GetRangeByPrefix(OutputPrefix)) {
+        TStringBuf currentPath(pair.first.begin() + OutputPrefix.size() + 1, pair.first.end());
         size_t slashPos = currentPath.find("/");
         if (slashPos == TStringBuf::npos) {
             // Looks like a malformed path in /data/output, let's skip it.
             continue;
         }
         int tableIndex = a2i(TString(currentPath.substr(0, slashPos)));
-        SetDataStatisticsField(result[tableIndex], currentPath.substr(slashPos + 1), iterator->second.GetSum());
+        SetDataStatisticsField(result[tableIndex], currentPath.substr(slashPos + 1), pair.second.GetSum());
     }
 
     return result;
 }
+
+THashMap<int, int> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
+{
+    THashMap<int, int> result;
+    for (const auto& pair : jobStatistics.GetRangeByPrefix(OutputPipePrefix)) {
+        const auto& path = pair.first;
+        // Note that path should contain at least OutputPipePrefix + '/'.
+        YCHECK(path.size() >= OutputPipePrefix.size() + 1);
+        if (path.substr(path.size() - IdleTimeSuffix.size()) != IdleTimeSuffix) {
+            continue;
+        }
+        int tableIndex = a2i(TString(path.begin() + OutputPipePrefix.size() + 1, path.end() - IdleTimeSuffix.size()));
+        result[tableIndex] = pair.second.GetSum();
+    }
+
+    return result;
+};
 
 TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics)
 {

@@ -102,6 +102,20 @@ TJobSplitterConfig::TJobSplitterConfig()
         .Default(5);
 }
 
+TSuspiciousJobsOptions::TSuspiciousJobsOptions()
+{
+    RegisterParameter("inactivity_timeout", InactivityTimeout)
+        .Default(TDuration::Minutes(1));
+    RegisterParameter("cpu_usage_threshold", CpuUsageThreshold)
+        .Default(300);
+    RegisterParameter("input_pipe_time_idle_fraction", InputPipeIdleTimeFraction)
+        .Default(0.95);
+    RegisterParameter("output_pipe_time_idle_fraction", OutputPipeIdleTimeFraction)
+        .Default(0.95);
+    RegisterParameter("update_period", UpdatePeriod)
+        .Default(TDuration::Seconds(5));
+}
+
 TOperationOptions::TOperationOptions()
 {
     RegisterParameter("spec_template", SpecTemplate)
@@ -285,15 +299,6 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
-        .Default(TDuration::Minutes(1));
-    RegisterParameter("suspicious_cpu_usage_threshold", SuspiciousCpuUsageThreshold)
-        .Default(300);
-    RegisterParameter("suspicious_input_pipe_time_idle_fraction", SuspiciousInputPipeIdleTimeFraction)
-        .Default(0.95);
-    RegisterParameter("suspicious_jobs_update_period", SuspiciousJobsUpdatePeriod)
-        .Default(TDuration::Seconds(5));
-
     RegisterParameter("operation_time_limit", OperationTimeLimit)
         .Default();
     RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
@@ -466,6 +471,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .GreaterThan(0);
 
     RegisterParameter("testing_options", TestingOptions)
+        .DefaultNew();
+
+    RegisterParameter("suspicious_jobs", SuspiciousJobs)
         .DefaultNew();
 
     RegisterParameter("job_spec_codec", JobSpecCodec)
