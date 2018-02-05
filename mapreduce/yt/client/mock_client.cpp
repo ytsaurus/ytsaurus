@@ -398,13 +398,16 @@ void TMockClient::UnfreezeTable(const TYPath&, const TUnfreezeTableOptions&) {
 void TMockClient::ReshardTable(const TYPath&, const TVector<TKey>&, const TReshardTableOptions&) {
 }
 
-void TMockClient::ReshardTable(const TYPath&, i32, const TReshardTableOptions&) {
+void TMockClient::ReshardTable(const TYPath&, i64, const TReshardTableOptions&) {
 }
 
 void TMockClient::InsertRows(const TYPath&, const TNode::TListType&, const TInsertRowsOptions&) {
 }
 
 void TMockClient::DeleteRows(const TYPath&, const TNode::TListType&, const TDeleteRowsOptions&) {
+}
+
+void TMockClient::TrimRows(const TYPath&, i64, i64, const TTrimRowsOptions&) {
 }
 
 TNode::TListType TMockClient::LookupRows(const TYPath&, const TNode::TListType&, const TLookupRowsOptions&) {

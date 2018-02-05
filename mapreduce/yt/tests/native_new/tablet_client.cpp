@@ -59,8 +59,13 @@ private:
     IClientPtr Client_;
 };
 
-void CreateTestTable(const IClientPtr& client, const TYPath& table)
+void CreateTestTable(const IClientPtr& client, const TYPath& table, bool sorted = true)
 {
+    auto firstColumnSchema = TNode()("name", "key")("type", "int64");
+    if (sorted) {
+        firstColumnSchema["sort_order"] = "ascending";
+    }
+
     client->Create(
         table,
         NT_TABLE,
@@ -69,7 +74,7 @@ void CreateTestTable(const IClientPtr& client, const TYPath& table)
             TNode()
             ("dynamic", true)
             ("schema", TNode()
-             .Add(TNode()("name", "key")("type", "int64")("sort_order", "ascending"))
+             .Add(firstColumnSchema)
              .Add(TNode()("name", "value")("type", "string")))));
 }
 
@@ -204,6 +209,42 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         {
             auto result = client->LookupRows(tablePath, {TNode()("key", 42), TNode()("key", 1)});
             UNIT_ASSERT_VALUES_EQUAL(result, TNode::TListType({rows[0]}));
+        }
+
+        client->UnmountTable(tablePath);
+        WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
+    }
+
+    SIMPLE_UNIT_TEST(TestTrimRows)
+    {
+        TTabletFixture fixture;
+        auto client = fixture.Client();
+        const TString tablePath = "//testing/test-trim-rows";
+        CreateTestTable(client, tablePath, /* sorted = */ false);
+        client->MountTable(tablePath);
+        WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
+
+        TNode::TListType rows = {
+            TNode()("key", 1)("value", "one"),
+            TNode()("key", 2)("value", "two"),
+            TNode()("key", 3)("value", "three"),
+            TNode()("key", 4)("value", "four"),
+            TNode()("key", 5)("value", "five"),
+        };
+        client->InsertRows(tablePath, rows);
+
+        client->TrimRows(tablePath, 0, 2);
+        {
+            auto result = client->SelectRows(
+                "* from [//testing/test-trim-rows] where [$tablet_index] = 0 and [$row_index] between 0 and 2");
+            UNIT_ASSERT_VALUES_EQUAL(result[0]["key"], rows[2]["key"]);
+        }
+
+        client->TrimRows(tablePath, 0, 3);
+        {
+            auto result = client->SelectRows(
+                "* from [//testing/test-trim-rows] where [$tablet_index] = 0 and [$row_index] between 0 and 3");
+            UNIT_ASSERT_VALUES_EQUAL(result[0]["key"], rows[3]["key"]);
         }
 
         client->UnmountTable(tablePath);

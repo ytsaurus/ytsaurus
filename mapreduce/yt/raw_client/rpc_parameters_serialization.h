@@ -69,6 +69,10 @@ TNode SerializeParametersForDeleteRows(
     const TYPath& path,
     const TDeleteRowsOptions& options);
 
+TNode SerializeParametersForTrimRows(
+    const TYPath& path,
+    const TTrimRowsOptions& options);
+
 TNode SerializeParamsForParseYPath(const TRichYPath& path);
 
 TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options);

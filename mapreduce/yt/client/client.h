@@ -302,7 +302,7 @@ public:
 
     void ReshardTable(
         const TYPath& path,
-        i32 tabletCount,
+        i64 tabletCount,
         const TReshardTableOptions& options) override;
 
     void InsertRows(
@@ -314,6 +314,12 @@ public:
         const TYPath& path,
         const TNode::TListType& keys,
         const TDeleteRowsOptions& options) override;
+
+     void TrimRows(
+        const TYPath& path,
+        i64 tabletIndex,
+        i64 rowCount,
+        const TTrimRowsOptions& options) override;
 
     TNode::TListType LookupRows(
         const TYPath& path,

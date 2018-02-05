@@ -392,6 +392,10 @@ struct TDeleteRowsOptions
     FLUENT_FIELD_OPTION(bool, RequireSyncReplica);
 };
 
+struct TTrimRowsOptions
+    : public TTabletTransactionOptions<TTrimRowsOptions>
+{ };
+
 // https://wiki.yandex-team.ru/yt/userdoc/api/#altertablereplica
 // https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/
 struct TAlterTableReplicaOptions

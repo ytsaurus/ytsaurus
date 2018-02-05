@@ -122,7 +122,7 @@ public:
 
     virtual void ReshardTable(
         const TYPath& path,
-        i32 tabletCount,
+        i64 tabletCount,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
     virtual void InsertRows(
@@ -134,6 +134,12 @@ public:
         const TYPath& path,
         const TNode::TListType& keys,
         const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
+
+    virtual void TrimRows(
+        const TYPath& path,
+        i64 tabletIndex,
+        i64 rowCount,
+        const TTrimRowsOptions& options = TTrimRowsOptions()) = 0;
 
     virtual TNode::TListType LookupRows(
         const TYPath& path,
