@@ -78,7 +78,7 @@ TString TTask::GetTitle() const
 
 TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
 {
-    return ToString(GetJobType());
+    return FormatEnum(GetJobType());
 }
 
 int TTask::GetPendingJobCount() const
