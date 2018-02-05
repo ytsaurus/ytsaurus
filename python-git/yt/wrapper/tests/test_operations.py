@@ -537,11 +537,11 @@ class Mapper(object):
         failures = 0
         for i in xrange(5):
             yt.run_map(func, input, output)
-            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             assert len(files_in_cache) > 0
 
             yt.run_map(func, input, output)
-            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             if sorted(files_in_cache) != sorted(files_in_cache_again):
                 failures += 1
 
@@ -1348,6 +1348,8 @@ if __name__ == "__main__":
                                spec={"data_size_per_job": 1}, input_format=yt.JsonFormat())
 
         stderrs_list = get_stderrs(operation.id, False)
+        for stderr in stderrs_list:
+            assert stderr["stderr"] == "Job with stderr"
         assert len(stderrs_list) == 10
 
         assert yt.format_operation_stderrs(stderrs_list)

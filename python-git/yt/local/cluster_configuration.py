@@ -74,7 +74,6 @@ SCHEDULER_CONFIG_PATCH = {
         "watchers_update_period": 300,
         "connect_grace_delay": None,
         "lock_transaction_timeout": 30000,
-        "max_running_operation_count_per_pool": 1,
         "sort_operation_options": {
             "spec_template": {
                 "partition_data_size": 512 * MB
@@ -148,12 +147,7 @@ NODE_CONFIG_PATCHES = [
                     "capacity": 500 * MB
                 }
             },
-            "incremental_heartbeat_period": 300,
-            "store_locations": [
-                {
-                    "enable_journals": True
-                }
-            ]
+            "incremental_heartbeat_period": 300
         },
         "exec_agent": {
             "scheduler_connector": None

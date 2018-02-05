@@ -212,7 +212,7 @@ class TestSpecBuilders(object):
                 .input_table_paths(input) \
                 .output_table_paths(output)
             yt.run_operation(spec_builder)
-            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             assert len(files_in_cache) > 0
 
             spec_builder = MapSpecBuilder() \
@@ -223,7 +223,7 @@ class TestSpecBuilders(object):
                 .input_table_paths(input) \
                 .output_table_paths(output)
             yt.run_operation(spec_builder)
-            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             if sorted(files_in_cache) != sorted(files_in_cache_again):
                 failures += 1
 
