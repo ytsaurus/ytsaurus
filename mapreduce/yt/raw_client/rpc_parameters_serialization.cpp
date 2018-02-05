@@ -246,6 +246,15 @@ TNode SerializeParametersForDeleteRows(
     return result;
 }
 
+TNode SerializeParametersForTrimRows(
+    const TYPath& path,
+    const TTrimRowsOptions& /* options*/)
+{
+    TNode result;
+    SetPathParam(&result, path);
+    return result;
+}
+
 TNode SerializeParamsForParseYPath(const TRichYPath& path)
 {
     TNode result;

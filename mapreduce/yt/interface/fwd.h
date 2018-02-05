@@ -93,6 +93,8 @@ namespace NYT {
 
     struct TDeleteRowsOptions;
 
+    struct TTrimRowsOptions;
+
     class ICypressClient;
 
     ////////////////////////////////////////////////////////////////////////////////

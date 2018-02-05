@@ -98,11 +98,13 @@ public:
 
     void ReshardTable(const TYPath&, const TVector<TKey>&, const TReshardTableOptions&) override;
 
-    void ReshardTable(const TYPath&, i32, const TReshardTableOptions&) override;
+    void ReshardTable(const TYPath&, i64, const TReshardTableOptions&) override;
 
     void InsertRows(const TYPath&, const TNode::TListType&, const TInsertRowsOptions&) override;
 
     void DeleteRows(const TYPath&, const TNode::TListType&, const TDeleteRowsOptions&) override;
+
+    void TrimRows(const TYPath&, i64, i64, const TTrimRowsOptions&) override;
 
     TNode::TListType LookupRows(const TYPath&, const TNode::TListType&, const TLookupRowsOptions&) override;
 

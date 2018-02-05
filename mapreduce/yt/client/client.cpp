@@ -673,12 +673,12 @@ void TClient::ReshardTable(
 
 void TClient::ReshardTable(
     const TYPath& path,
-    i32 tabletCount,
+    i64 tabletCount,
     const TReshardTableOptions& options)
 {
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
-    header.AddParameter("tablet_count", static_cast<i64>(tabletCount));
+    header.AddParameter("tablet_count", tabletCount);
     RetryRequest(Auth_, header);
 }
 
@@ -706,6 +706,19 @@ void TClient::DeleteRows(
 
     auto body = NodeListToYsonString(keys);
     RetryRequest(Auth_, header, body, true);
+}
+
+void TClient::TrimRows(
+    const TYPath& path,
+    i64 tabletIndex,
+    i64 rowCount,
+    const TTrimRowsOptions& options)
+{
+    THttpHeader header("POST", "trim_rows");
+    header.AddParameter("trimmed_row_count", rowCount);
+    header.AddParameter("tablet_index", tabletIndex);
+    header.MergeParameters(NDetail::SerializeParametersForTrimRows(path, options));
+    RetryRequest(Auth_, header, "", true);
 }
 
 TNode::TListType TClient::LookupRows(
