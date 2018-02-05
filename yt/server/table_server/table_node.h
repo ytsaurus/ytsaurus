@@ -84,8 +84,6 @@ public:
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
 
-    virtual NObjectClient::EObjectType GetObjectType() const;
-
     TTableNode* GetTrunkNode();
     const TTableNode* GetTrunkNode() const;
 

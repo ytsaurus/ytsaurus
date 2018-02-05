@@ -16,11 +16,6 @@ TReplicatedTableNode::TReplicatedTableNode(const TVersionedNodeId& id)
     : TTableNode(id)
 { }
 
-EObjectType TReplicatedTableNode::GetObjectType() const
-{
-    return EObjectType::ReplicatedTable;
-}
-
 void TReplicatedTableNode::Save(TSaveContext& context) const
 {
     TTableNode::Save(context);
