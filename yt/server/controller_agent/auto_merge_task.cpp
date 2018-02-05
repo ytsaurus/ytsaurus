@@ -155,7 +155,7 @@ TString TAutoMergeTask::GetTitle() const
 
 TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptor() const
 {
-    return "AutoMerge";
+    return "auto_merge";
 }
 
 TTaskGroupPtr TAutoMergeTask::GetGroup() const
