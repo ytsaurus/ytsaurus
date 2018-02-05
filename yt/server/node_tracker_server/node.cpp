@@ -398,6 +398,9 @@ void TNode::ClearReplicas()
         replicas.clear();
     }
     UnapprovedReplicas_.clear();
+    for (int index = 0; index < MaxMediumCount; ++index) {
+        RandomReplicaIters_[index] = Replicas_[index].end();
+    }
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
