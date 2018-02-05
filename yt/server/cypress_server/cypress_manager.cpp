@@ -198,6 +198,7 @@ public:
         if (maybeAccount) {
             account = securityManager->GetAccountByNameOrThrow(*maybeAccount);
         }
+        securityManager->ValidatePermission(account, EPermission::Use);
         securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();

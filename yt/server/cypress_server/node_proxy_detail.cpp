@@ -1360,8 +1360,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto* node = GetThisImpl();
-    auto* account = node->GetAccount();
-    ValidatePermission(account, EPermission::Use);
+    auto* account = replace ? node->GetParent()->GetAccount() : node->GetAccount();
 
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
 

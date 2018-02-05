@@ -1135,6 +1135,30 @@ class TestAccounts(YTEnvSetup):
             }
         ]
 
+    def test_inherited_account_override_yt_8391(self):
+        create_account("a1")
+        create_account("a2")
+
+        create_user("u1")
+        create_user("u2")
+
+        set("//sys/accounts/a1/@acl", [make_ace("allow", "u1", "use")])
+        set("//sys/accounts/a2/@acl", [make_ace("allow", "u2", "use")])
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/dir1", attributes={"account": "a1"}, authenticated_user="u2")
+
+        create("map_node", "//tmp/dir1", attributes={"account": "a1"}, authenticated_user="u1")
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/dir1/dir2", authenticated_user="u2")
+
+        create("map_node", "//tmp/dir1/dir2", attributes={"account": "a2"}, authenticated_user="u2")
+
+        assert get("//tmp/dir1/@account") == "a1"
+        assert get("//tmp/dir1/dir2/@account") == "a2"
+
+
 ##################################################################
 
 class TestAccountsMulticell(TestAccounts):
