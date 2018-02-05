@@ -39,10 +39,6 @@ class TestFileCommands(object):
         destinationB = yt.smart_upload_file(filename, placement_strategy="hash")
         assert destinationA == destinationB
 
-        # Lets break link
-        yt.remove(yt.get_attribute(destinationB + "&", "target_path"), force=True)
-        assert yt.smart_upload_file(filename, placement_strategy="hash") == destinationA
-
         destination = yt.smart_upload_file(filename, placement_strategy="random")
         path = os.path.join(os.path.basename(filename), yt.config["remote_temp_files_directory"])
         assert destination.startswith(path)

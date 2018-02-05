@@ -1,7 +1,8 @@
 from .cypress_commands import (set, get, list, exists, remove, mkdir, copy, move, link, get_type, create,
                                has_attribute, set_attribute, list_attributes)
 from .acl_commands import check_permission, add_member, remove_member
-from .file_commands import LocalFile
+from .lock_commands import lock
+from .file_commands import LocalFile, put_file_to_cache, get_file_from_cache
 from .table_commands import create_table, row_count, is_sorted, is_empty, alter_table
 from .dynamic_table_commands import (mount_table, unmount_table, remount_table,
                                      freeze_table, unfreeze_table, reshard_table, trim_rows, alter_table_replica)

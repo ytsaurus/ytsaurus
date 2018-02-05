@@ -187,6 +187,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     if enable_parallel_writing:
+        force_create = True
         make_parallel_write_request(
             "write_table",
             input_stream,
@@ -213,7 +214,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
 def _prepare_table_path_for_read_blob_table(table, part_index_column_name, client=None):
     table = TablePath(table, client=client)
 
-    sorted_by = get_attribute(table, "sorted_by")
+    sorted_by = get_attribute(table, "sorted_by", client=client)
     if part_index_column_name not in sorted_by:
         raise YtError('Table should be sorted by "{0}"'.format(part_index_column_name))
 
@@ -384,6 +385,9 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
             raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response._get_response())
         set_response_parameters(response.response_parameters)
 
+    chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
+    multiple_ranges_allowed = get_config(client)["read_retries"]["allow_multiple_ranges"]
+
     class RetriableState(object):
         def __init__(self):
             # Whether reading started, it is used only for reading without ranges in <= 0.17.3 versions.
@@ -425,7 +429,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     fix_range(table.attributes)
             else:
                 if len(table.attributes["ranges"]) > 1:
-                    if get_config(client)["read_retries"]["allow_multiple_ranges"]:
+                    if multiple_ranges_allowed:
                         if "control_attributes" not in params:
                             params["control_attributes"] = {}
                         params["control_attributes"]["enable_row_index"] = True
@@ -491,7 +495,6 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 self.started = True
 
             for row in format_for_raw_load.load_rows(response, raw=True):
-                chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
                 if chaos_monkey_enabled and random.randint(1, 5) == 1:
                     raise YtRetriableError()
 
