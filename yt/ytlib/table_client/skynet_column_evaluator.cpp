@@ -150,13 +150,22 @@ void TSkynetColumnEvaluator::UnpackFields(
     TUnversionedValue** md5,
     TUnversionedValue** dataSize)
 {
-    YCHECK(fullRow.GetCount() >= FilenameId_ && fullRow[FilenameId_].Type == EValueType::String);
+    YCHECK(fullRow.GetCount() >= FilenameId_);
+    if (fullRow[FilenameId_].Type != EValueType::String) {
+        THROW_ERROR_EXCEPTION("Missing \"filename\" column");
+    }
     *filename = TStringBuf(fullRow[FilenameId_].Data.String, fullRow[FilenameId_].Length);
 
-    YCHECK(fullRow.GetCount() >= PartIndexId_ && fullRow[PartIndexId_].Type == EValueType::Int64);
+    YCHECK(fullRow.GetCount() >= PartIndexId_);
+    if (fullRow[PartIndexId_].Type != EValueType::Int64) {
+        THROW_ERROR_EXCEPTION("Missing \"part_index\" column");
+    }
     *partIndex = fullRow[PartIndexId_].Data.Int64;
 
-    YCHECK(fullRow.GetCount() >= DataId_ && fullRow[DataId_].Type == EValueType::String);
+    YCHECK(fullRow.GetCount() >= DataId_);
+    if (fullRow[DataId_].Type != EValueType::String) {
+        THROW_ERROR_EXCEPTION("Missing \"data\" column");
+    }
     *data = TStringBuf(fullRow[DataId_].Data.String, fullRow[DataId_].Length);
 
     YCHECK(fullRow.GetCount() >= Sha1Id_);

@@ -27,37 +27,30 @@ public:
     TSchedulingContextBase(
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs,
-        NObjectClient::TCellTag cellTag);
+        const std::vector<TJobPtr>& runningJobs);
 
     virtual const TExecNodeDescriptor& GetNodeDescriptor() const override;
 
-    virtual TJobPtr GetStartedJob(const TJobId& jobId) const override;
-
-    virtual bool CanStartJob(const TJobResources& jobResources) const override;
-    virtual bool CanStartJobWithQuota(const TJobResourcesWithQuota& jobResourcesWithQuota) const override;
+    virtual bool CanStartJob(const TJobResourcesWithQuota& jobResourcesWithQuota) const override;
     virtual bool CanStartMoreJobs() const override;
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const override;
 
-    virtual TJobPtr StartJob(
+    virtual void StartJob(
         const TString& treeId,
         const TOperationId& operationId,
-        const TJobStartRequest& jobStartRequest) override;
+        const NControllerAgent::TJobStartDescriptor& startDescriptor) override;
 
-    virtual void PreemptJob(TJobPtr job) override;
-
-    virtual TJobId GenerateJobId() override;
+    virtual void PreemptJob(const TJobPtr& job) override;
 
     virtual TJobResources GetFreeResources() override;
 
 private:
-    virtual bool HasEnoughResources(const TJobResources& neededResources) const;
-
     const TSchedulerConfigPtr Config_;
-    const NObjectClient::TCellTag CellTag_;
     const TExecNodePtr Node_;
     const TExecNodeDescriptor NodeDescriptor_;
-    const yhash_set<TString> NodeTags_;
+    const THashSet<TString> NodeTags_;
+
+    bool CanSatisfyResouceRequest(const TJobResources& jobResources) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

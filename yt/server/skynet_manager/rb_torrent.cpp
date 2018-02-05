@@ -229,7 +229,7 @@ void CreateTorrentsAndDirs(
     std::map<TString, TSkynetTorrent>* torrents)
 {
     for (const auto& file : meta.Files) {
-        yvector<TString> directories;
+        TVector<TString> directories;
         TString filename = file.first;
 
         if (filename.find('/') != TString::npos) {
@@ -300,7 +300,7 @@ TString ComputeRbTorrentId(const TString& headBinary)
     TBencodeWriter metaBencode;
     Serialize(metaTorrent, &metaBencode);
 
-    return Format("rbtorrent:%v", TSHA1Hasher().Append(metaBencode.Finish()).GetHexDigestLower());
+    return TSHA1Hasher().Append(metaBencode.Finish()).GetHexDigestLower();
 }
 
 TSkynetRbTorrent GenerateResource(const TSkynetShareMeta& meta)
@@ -328,7 +328,8 @@ TSkynetRbTorrent GenerateResource(const TSkynetShareMeta& meta)
     TString headBinary = head.Finish();
 
     TSkynetRbTorrent torrent;
-    torrent.RbTorrentId = ComputeRbTorrentId(headBinary);
+    torrent.RbTorrentHash = ComputeRbTorrentId(headBinary);
+    torrent.RbTorrentId = "rbtorrent:" + torrent.RbTorrentHash;
     torrent.BencodedTorrentMeta = headBinary;
 
     return torrent;

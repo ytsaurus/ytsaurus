@@ -15,6 +15,7 @@
 #include <yt/server/data_node/journal_dispatcher.h>
 #include <yt/server/data_node/location.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/network_statistics.h>
 #include <yt/server/data_node/peer_block_distributor.h>
 #include <yt/server/data_node/peer_block_table.h>
 #include <yt/server/data_node/peer_block_updater.h>
@@ -37,7 +38,6 @@
 #include <yt/server/job_agent/statistics_reporter.h>
 
 #include <yt/server/misc/address_helpers.h>
-#include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/object_server/master_cache_service.h>
 
@@ -55,6 +55,8 @@
 #include <yt/server/transaction_server/timestamp_proxy_service.h>
 
 #include <yt/server/admin_server/admin_service.h>
+
+#include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -145,17 +147,19 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 FootprintMemorySize = 1_GB;
+static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
-    : TBootstrapBase(CellNodeLogger, config)
-    , Config(std::move(config))
+    : Config(std::move(config))
     , ConfigNode(std::move(configNode))
     , QueryThreadPool(BIND([this] () {
         return CreateFairShareThreadPool(Config->QueryAgent->ThreadPoolSize, "Query");
     }))
-{ }
+{
+    WarnForUnrecognizedOptions(Logger, Config);
+}
 
 TBootstrap::~TBootstrap() = default;
 
@@ -207,7 +211,7 @@ void TBootstrap::DoRun()
         // Requesting latest timestamp enables periodic background time synchronization.
         // For tablet nodes, it is crucial because of non-atomic transactions that require
         // in-sync time for clients.
-        MasterConnection->GetTimestampProvider()->GetLatestTimestamp();
+        GetLatestTimestamp();
     }
 
     MasterClient = MasterConnection->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
@@ -276,6 +280,8 @@ void TBootstrap::DoRun()
 
     ChunkBlockManager = New<TChunkBlockManager>(Config->DataNode, this);
 
+    NetworkStatistics = New<TNetworkStatistics>(Config->DataNode);
+
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
     PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
@@ -303,15 +309,12 @@ void TBootstrap::DoRun()
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
 
-    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const TString& name) {
-        auto logger = DataNodeLogger;
-        logger.AddTag("Throttler: %v", name);
-
-        auto profiler = NProfiling::TProfiler(
-            DataNodeProfiler.GetPathPrefix() + "/" +
-            CamelCaseToUnderscoreCase(name));
-
-        return CreateReconfigurableThroughputThrottler(config, logger, profiler);
+    auto createThrottler = [] (const TThroughputThrottlerConfigPtr& config, const TString& name) {
+        return CreateNamedReconfigurableThroughputThrottler(
+            config,
+            name,
+            DataNodeLogger,
+            DataNodeProfiler);
     };
 
     TotalInThrottler = createThrottler(Config->DataNode->TotalInThrottler, "TotalIn");
@@ -346,6 +349,35 @@ void TBootstrap::DoRun()
     SkynetOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalOutThrottler,
         createThrottler(Config->DataNode->SkynetOutThrottler, "SkynetOut")
+    });
+
+    TabletCompactionAndPartitioningInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletCompactionAndPartitioningInThrottler, "TabletCompactionAndPartitioningIn")
+    });
+    TabletCompactionAndPartitioningOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletCompactionAndPartitioningOutThrottler, "TabletCompactionAndPartitioningOut")
+    });
+    TabletLoggingInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletLoggingInThrottler, "TabletLoggingIn")
+    });
+    TabletPreloadOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletPreloadOutThrottler, "TabletPreloadOut")
+    });
+    TabletSnapshotInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletSnapshotInThrottler, "TabletSnapshotIn")
+    });
+    TabletStoreFlushInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->TabletStoreFlushInThrottler, "TabletStoreFlushIn")
+    });
+    TabletRecoveryOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "TabletRecoveryOut")
     });
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
@@ -670,6 +702,11 @@ const TChunkBlockManagerPtr& TBootstrap::GetChunkBlockManager() const
     return ChunkBlockManager;
 }
 
+const TNetworkStatisticsPtr& TBootstrap::GetNetworkStatistics() const
+{
+    return NetworkStatistics;
+}
+
 const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
 {
     return ChunkMetaManager;
@@ -784,6 +821,19 @@ const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescrip
         case EWorkloadCategory::SystemArtifactCacheDownload:
             return ArtifactCacheInThrottler;
 
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningInThrottler;
+
+        case EWorkloadCategory::SystemTabletLogging:
+            return TabletLoggingInThrottler;
+
+        case EWorkloadCategory::SystemTabletSnapshot:
+            return TabletSnapshotInThrottler;
+
+        case EWorkloadCategory::SystemTabletStoreFlush:
+            return TabletStoreFlushInThrottler;
+
         default:
             return TotalInThrottler;
     }
@@ -800,6 +850,16 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
 
         case EWorkloadCategory::SystemArtifactCacheDownload:
             return ArtifactCacheOutThrottler;
+
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningOutThrottler;
+
+        case EWorkloadCategory::SystemTabletPreload:
+            return TabletPreloadOutThrottler;
+
+        case EWorkloadCategory::SystemTabletRecovery:
+            return TabletRecoveryOutThrottler;
 
         default:
             return TotalOutThrottler;
@@ -826,6 +886,13 @@ TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const
     proxyConfig->Rack = localDescriptor.GetRack();
     proxyConfig->Addresses = localDescriptor.Addresses();
     return proxyConfig;
+}
+
+TTimestamp TBootstrap::GetLatestTimestamp() const
+{
+    return MasterConnection
+        ->GetTimestampProvider()
+        ->GetLatestTimestamp();
 }
 
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)

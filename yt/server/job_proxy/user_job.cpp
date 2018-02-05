@@ -14,7 +14,7 @@
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/ytlib/program/names.h>
+#include <yt/server/misc/public.h>
 
 #include <yt/server/shell/shell_manager.h>
 
@@ -67,8 +67,7 @@
 #include <yt/core/misc/subprocess.h>
 #include <yt/core/misc/signaler.h>
 
-#include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
+#include <yt/core/net/connection.h>
 
 #include <yt/core/rpc/server.h>
 
@@ -91,6 +90,7 @@ namespace NJobProxy {
 using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
+using namespace NNet;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
@@ -174,12 +174,6 @@ public:
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-        , Process_(ResourceController_
-            ? ResourceController_->CreateControlledProcess(
-                ExecProgramName,
-                CreateCoreDumpHandlerPath(
-                    host->GetConfig()->BusServer->UnixDomainName))
-            : New<TSimpleProcess>(ExecProgramName, false))
         , JobSatelliteConnection_(
             jobId,
             host->GetConfig()->BusServer,
@@ -215,10 +209,21 @@ public:
         }
 
         if (ResourceController_) {
+            YCHECK(UserId_);
+            Process_ = ResourceController_->CreateControlledProcess(
+                ExecProgramName,
+                *UserId_,
+                CreateCoreDumpHandlerPath(host->GetConfig()->BusServer->UnixDomainName));
+
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),
                 BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
                 ResourceController_->GetBlockIOWatchdogPeriod());
+        } else {
+            Process_ = New<TSimpleProcess>(ExecProgramName, false);
+            if (UserId_) {
+                Process_->AddArguments({"--uid", ::ToString(*UserId_)});
+            }
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -406,8 +411,8 @@ private:
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
-    const TProcessBasePtr Process_;
 
+    TProcessBasePtr Process_;
     TJobSatelliteConnection JobSatelliteConnection_;
 
     TString InputPipePath_;
@@ -439,10 +444,10 @@ private:
     std::unique_ptr<TTableOutput> StatisticsOutput_;
     std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
-    std::vector<TAsyncReaderPtr> TablePipeReaders_;
-    std::vector<TAsyncWriterPtr> TablePipeWriters_;
-    TAsyncReaderPtr StatisticsPipeReader_;
-    TAsyncReaderPtr StderrPipeReader_;
+    std::vector<IConnectionReaderPtr> TablePipeReaders_;
+    std::vector<IConnectionWriterPtr> TablePipeWriters_;
+    IConnectionReaderPtr StatisticsPipeReader_;
+    IConnectionReaderPtr StderrPipeReader_;
 
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
@@ -482,10 +487,6 @@ private:
 
         if (UserJobSpec_.has_core_table_spec()) {
             Process_->AddArgument("--enable-core-dump");
-        }
-
-        if (UserId_) {
-            Process_->AddArguments({"--uid", ::ToString(*UserId_)});
         }
 
         // Init environment variables.
@@ -745,17 +746,22 @@ private:
         }
 
         FinalizeActions_.push_back(BIND([=] () {
+            auto checkErrors = [&] (const std::vector<TFuture<void>>& asyncErrors) {
+                auto error = WaitFor(Combine(asyncErrors));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
+            };
+
+            std::vector<TFuture<void>> flushResults;
             for (const auto& valueConsumer : WritingValueConsumers_) {
-                valueConsumer->Flush();
+                flushResults.push_back(valueConsumer->Flush());
             }
+            checkErrors(flushResults);
 
-            std::vector<TFuture<void>> asyncResults;
+            std::vector<TFuture<void>> closeResults;
             for (auto writer : UserJobWriteController_->GetWriters()) {
-                asyncResults.push_back(writer->Close());
+                closeResults.push_back(writer->Close());
             }
-
-            auto error = WaitFor(Combine(asyncResults));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
+            checkErrors(closeResults);
         }));
     }
 
@@ -767,7 +773,7 @@ private:
         return adjustedPath;
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(
+    IConnectionReaderPtr PrepareOutputPipe(
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
@@ -994,28 +1000,30 @@ private:
 
         // Pipe statistics.
         if (Prepared_) {
+            auto inputStatistics = TablePipeWriters_[0]->GetWriteStatistics();
             statistics.AddSample(
                 "/user_job/pipes/input/idle_time",
-                WaitFor(TablePipeWriters_[0]->GetIdleDuration()).Value());
+                inputStatistics.IdleDuration);
             statistics.AddSample(
                 "/user_job/pipes/input/busy_time",
-                WaitFor(TablePipeWriters_[0]->GetBusyDuration()).Value());
+                inputStatistics.BusyDuration);
             statistics.AddSample(
                 "/user_job/pipes/input/bytes",
-                TablePipeWriters_[0]->GetByteCount());
+                TablePipeWriters_[0]->GetWriteByteCount());
 
             for (int i = 0; i < TablePipeReaders_.size(); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
+                auto outputStatistics = tablePipeReader->GetReadStatistics();
 
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/idle_time", NYPath::ToYPathLiteral(i)),
-                    WaitFor(tablePipeReader->GetIdleDuration()).Value());
+                    outputStatistics.IdleDuration);
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/busy_time", NYPath::ToYPathLiteral(i)),
-                    WaitFor(tablePipeReader->GetBusyDuration()).Value());
+                    outputStatistics.BusyDuration);
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/bytes", NYPath::ToYPathLiteral(i)),
-                    tablePipeReader->GetByteCount());
+                    tablePipeReader->GetReadByteCount());
             }
         }
 
@@ -1024,7 +1032,7 @@ private:
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {
-        if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
+        if (error.IsOK() || error.FindMatching(NNet::EErrorCode::Aborted)) {
             return;
         }
 
@@ -1187,14 +1195,15 @@ private:
                 continue;
             }
             try {
-                i64 processRss = GetProcessRss(pid);
-                LOG_DEBUG("PID: %v, ProcessName: %Qv, RSS: %v",
+                auto memoryUsage = GetProcessMemoryUsage(pid);
+                LOG_DEBUG("Pid: %v, ProcessName: %Qv, Rss: %v, Shared: %v",
                     pid,
                     GetProcessName(pid),
-                    processRss);
-                rss += processRss;
+                    memoryUsage.Rss,
+                    memoryUsage.Shared);
+                rss += memoryUsage.Rss;
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get RSS for PID %v", pid);
+                LOG_DEBUG(ex, "Failed to get memory usage for pid %v", pid);
             }
         }
         return rss;
@@ -1225,26 +1234,26 @@ private:
             return;
         }
 
-        i64 rss = GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
-
-        if (ResourceController_) {
+        auto getMemoryUsage = [&] () {
             try {
-                auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-                i64 uidRss = rss;
-                rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
-                rss += memoryStatistics.Rss;
+                if (ResourceController_) {
+                    auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-                if (rss > 1.05 * uidRss && uidRss > 0) {
-                    LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
-                        rss,
-                        uidRss);
+                    i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
+                    rss += memoryStatistics.Rss;
+                    return rss;
+                } else {
+                    return GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
                 }
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Unable to get memory statistics to check memory limits");
             }
-        }
 
+            return 0l;
+        };
+
+        auto rss = getMemoryUsage();
         i64 tmpfsSize = GetTmpfsSize();
         i64 memoryLimit = UserJobSpec_.memory_limit();
         i64 currentMemoryUsage = rss + tmpfsSize;
@@ -1323,7 +1332,7 @@ private:
         if (fd >= 0) {
             ::close(fd);
         } else {
-            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
+            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe (Path: %v)", InputPipePath_);
         }
     }
 

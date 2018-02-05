@@ -1,0 +1,19 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/http/public.h>
+
+namespace NYT {
+namespace NRpc {
+namespace NHttp {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IServerPtr CreateServer(NYT::NHttp::IServerPtr httpServer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NHttp
+} // namespace NRpc
+} // namespace NYT

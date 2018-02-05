@@ -112,7 +112,7 @@ struct TPersistentQueueTabletState
 
 //! Reads the state of tablets with certain #tabletIndexes.
 //! The resulting hashtable maps tablet indexes to tablet states.
-TFuture<yhash<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsState(
+TFuture<THashMap<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsState(
     const IClientBasePtr& client,
     const NYPath::TYPath& path,
     const std::vector<int>& tabletIndexes);
@@ -128,7 +128,7 @@ struct TPersistentQueueTabletUpdate
 TFuture<void> UpdatePersistentQueueTabletsState(
     const IClientBasePtr& client,
     const NYPath::TYPath& path,
-    const yhash<int, TPersistentQueueTabletUpdate>& tabletMap);
+    const THashMap<int, TPersistentQueueTabletUpdate>& tabletMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

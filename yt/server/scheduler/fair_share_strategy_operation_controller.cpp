@@ -6,6 +6,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NConcurrency;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,42 +35,23 @@ void TFairShareStrategyOperationController::SetLastScheduleJobFailTime(NProfilin
     LastScheduleJobFailTime_ = now;
 }
 
-void TFairShareStrategyOperationController::SetMinNeededJobResources(std::vector<TJobResourcesWithQuota> jobResourcesList)
+TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedMinNeededJobResources() const
 {
-    TWriterGuard guard(CachedMinNeededJobResourcesLock_);
-    CachedMinNeededJobResourcesList_ = std::move(jobResourcesList);
+    return Controller_->GetMinNeededJobResources();
+}
 
-    CachedMinNeededJobResources_ = InfiniteJobResourcesWithQuota();
-    for (const auto& jobResources : CachedMinNeededJobResourcesList_) {
-        CachedMinNeededJobResources_ = Min(CachedMinNeededJobResources_, jobResources);
+TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededJobResources() const
+{
+    auto result = InfiniteJobResourcesWithQuota();
+    for (const auto& jobResources : GetDetailedMinNeededJobResources()) {
+        result = Min(result, jobResources);
     }
+    return result.ToJobResources();
 }
 
-std::vector<TJobResourcesWithQuota> TFairShareStrategyOperationController::GetMinNeededJobResourcesList() const
+void TFairShareStrategyOperationController::UpdateMinNeededJobResources()
 {
-    TReaderGuard guard(CachedMinNeededJobResourcesLock_);
-    return CachedMinNeededJobResourcesList_;
-}
-
-TJobResourcesWithQuota TFairShareStrategyOperationController::GetMinNeededJobResources() const
-{
-    TReaderGuard guard(CachedMinNeededJobResourcesLock_);
-    return CachedMinNeededJobResources_;
-}
-
-void TFairShareStrategyOperationController::InvokeMinNeededJobResourcesUpdate()
-{
-    BIND(&NControllerAgent::IOperationControllerSchedulerHost::GetMinNeededJobResources, Controller_)
-        .AsyncVia(Controller_->GetCancelableInvoker())
-        .Run()
-        .Subscribe(
-            BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TJobResourcesWithQuota>>& resultOrError) {
-                if (!resultOrError.IsOK()) {
-                    LOG_WARNING(resultOrError, "Failed to update min needed resources from controller");
-                    return;
-                }
-                SetMinNeededJobResources(std::move(resultOrError.Value()));
-        }));
+    Controller_->UpdateMinNeededJobResources();
 }
 
 bool TFairShareStrategyOperationController::IsBlocked(
@@ -95,9 +77,7 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     TDuration timeLimit,
     const TString& treeId)
 {
-    auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationControllerStrategyHost::ScheduleJob, Controller_)
-        .AsyncVia(Controller_->GetCancelableInvoker())
-        .Run(context, jobLimits, treeId);
+    auto scheduleJobResultFuture = Controller_->ScheduleJob(context, jobLimits, treeId);
 
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
         .WithTimeout(timeLimit);
@@ -107,7 +87,7 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
         auto scheduleJobResult = New<TScheduleJobResult>();
         if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::Timeout);
             // If ScheduleJob was not canceled we need to abort created job.
             scheduleJobResultFuture.Subscribe(
                 BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TScheduleJobResultPtr>& scheduleJobResultOrError) {
@@ -116,8 +96,8 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                     }
 
                     const auto& scheduleJobResult = scheduleJobResultOrError.Value();
-                    if (scheduleJobResult->JobStartRequest) {
-                        const auto& jobId = scheduleJobResult->JobStartRequest->Id;
+                    if (scheduleJobResult->StartDescriptor) {
+                        const auto& jobId = scheduleJobResult->StartDescriptor->Id;
                         LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
                             jobId,
                             OperationId_);

@@ -1,7 +1,8 @@
 #include "pipe.h"
 #include "private.h"
-#include "async_reader.h"
-#include "async_writer.h"
+#include "io_dispatcher.h"
+
+#include <yt/core/net/connection.h>
 
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/fs.h>
@@ -11,6 +12,8 @@
 
 namespace NYT {
 namespace NPipes {
+
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +36,7 @@ TNamedPipePtr TNamedPipe::Create(const TString& path)
 {
     auto pipe = New<TNamedPipe>(path);
     pipe->Open();
+    LOG_DEBUG("Named pipe created (Path: %v)", path);
     return pipe;
 }
 
@@ -44,16 +48,16 @@ void TNamedPipe::Open()
     }
 }
 
-TAsyncReaderPtr TNamedPipe::CreateAsyncReader()
+IConnectionReaderPtr TNamedPipe::CreateAsyncReader()
 {
     YCHECK(!Path_.empty());
-    return New<TAsyncReader>(MakeStrong(this));
+    return CreateInputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this));
 }
 
-TAsyncWriterPtr TNamedPipe::CreateAsyncWriter()
+IConnectionWriterPtr TNamedPipe::CreateAsyncWriter()
 {
     YCHECK(!Path_.empty());
-    return New<TAsyncWriter>(MakeStrong(this));
+    return CreateOutputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this));
 }
 
 TString TNamedPipe::GetPath() const
@@ -104,18 +108,18 @@ void TPipe::operator=(TPipe&& other)
     Init(std::move(other));
 }
 
-TAsyncWriterPtr TPipe::CreateAsyncWriter()
+IConnectionWriterPtr TPipe::CreateAsyncWriter()
 {
     YCHECK(WriteFD_ != InvalidFD);
     SafeMakeNonblocking(WriteFD_);
-    return New<TAsyncWriter>(ReleaseWriteFD());
+    return CreateConnectionFromFD(ReleaseWriteFD(), {}, {}, TIODispatcher::Get()->GetPoller());
 }
 
-TAsyncReaderPtr TPipe::CreateAsyncReader()
+IConnectionReaderPtr TPipe::CreateAsyncReader()
 {
     YCHECK(ReadFD_ != InvalidFD);
     SafeMakeNonblocking(ReadFD_);
-    return New<TAsyncReader>(ReleaseReadFD());
+    return CreateConnectionFromFD(ReleaseReadFD(), {}, {}, TIODispatcher::Get()->GetPoller());
 }
 
 int TPipe::ReleaseReadFD()

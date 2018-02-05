@@ -32,7 +32,7 @@ protected:
 
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual const yhash_set<const char*>& GetBuiltinAttributeKeys() override;
+    virtual const THashSet<const char*>& GetBuiltinAttributeKeys() override;
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
     virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;

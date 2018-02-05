@@ -222,7 +222,7 @@ void TPeerBlockDistributor::DistributeBlocks()
             destinationNodes);
 
         for (const auto& destinationNode : destinationNodes) {
-            const auto& destinationAddress = destinationNode.GetAddress(Bootstrap_->GetLocalNetworks());
+            const auto& destinationAddress = destinationNode.GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
             auto heavyChannel = CreateRetryingChannel(
                 Config_->NodeChannel,
                 channelFactory->CreateChannel(destinationAddress));
@@ -359,7 +359,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
 
 std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes(const std::vector<TNodeDescriptor>& nodes) const
 {
-    yhash_set<TNodeDescriptor> destinationNodes;
+    THashSet<TNodeDescriptor> destinationNodes;
 
     while (destinationNodes.size() < Config_->DestinationNodeCount && destinationNodes.size() < nodes.size()) {
         auto index = RandomNumber<size_t>(nodes.size());

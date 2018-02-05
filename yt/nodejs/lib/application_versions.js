@@ -7,6 +7,7 @@ var utils = require("./utils");
 
 var YtError = require("./error").that;
 var YtHttpRequest = require("./http_request").that;
+var YtRegistry = require("./registry").that;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,10 +15,12 @@ var __DBG = require("./debug").that("V", "Versions");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var TIMEOUT = 3000;
+var TIMEOUT = 10000;
 
 function YtApplicationVersions(driver)
 {
+    var logger = YtRegistry.get("logger");
+
     function executeWithTimeout(commandName, parameters)
     {
         parameters.timeout = TIMEOUT;
@@ -109,7 +112,11 @@ function YtApplicationVersions(driver)
                 }));
             }),
             "nodes": getListAndData("nodes", ["addresses"], function(entity, name) {
-                var parsed_url = url.parse("http://" + utils.getYsonAttribute(name, "addresses")["monitoring_http"]["default"]);
+                var addresses = utils.getYsonAttribute(name, "addresses");
+                if ((typeof addresses === "undefined") || !addresses.hasOwnProperty("monitoring_http")) {
+                    return Q.reject(new YtError("Failed to discover monitoring port"));
+                }
+                var parsed_url = url.parse("http://" + addresses["monitoring_http"]["default"]);
                 return new YtHttpRequest(parsed_url.hostname, parsed_url.port)
                 .withPath(url.format({
                     pathname: "/orchid/service"

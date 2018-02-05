@@ -298,7 +298,7 @@ private:
 
         TNonblockingQueue<TCommand> CommandQueue_;
 
-        yhash<TString, TInstant> BannedNodeToDeadline_;
+        THashMap<TString, TInstant> BannedNodeToDeadline_;
 
 
         void EnqueueCommand(TCommand command)
@@ -579,7 +579,7 @@ private:
 
             const auto& networks = Client_->GetNativeConnection()->GetNetworks();
             for (const auto& target : targets) {
-                auto address = target.GetAddress(networks);
+                auto address = target.GetAddressOrThrow(networks);
                 auto lightChannel = Client_->GetChannelFactory()->CreateChannel(address);
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,

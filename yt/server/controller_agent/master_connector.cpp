@@ -324,7 +324,7 @@ private:
         bool Recursive;
     };
 
-    yhash<TCellTag, std::vector<TUnstageRequest>> CellTagToUnstageList_;
+    THashMap<TCellTag, std::vector<TUnstageRequest>> CellTagToUnstageList_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -388,7 +388,7 @@ private:
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
 
         // Collect all transactions that are used by currently running operations.
-        yhash_set<TTransactionId> watchSet;
+        THashSet<TTransactionId> watchSet;
         for (const auto& pair : controllerAgent->GetOperations()) {
             const auto& operation = pair.second;
             for (const auto& transaction : operation->GetTransactions()) {
@@ -396,7 +396,7 @@ private:
             }
         }
 
-        yhash<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
+        THashMap<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
 
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
@@ -417,7 +417,7 @@ private:
 
         LOG_INFO("Refreshing transactions");
 
-        yhash<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
+        THashMap<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
 
         for (const auto& pair : batchReqs) {
             auto cellTag = pair.first;
@@ -431,7 +431,7 @@ private:
             }
         }
 
-        yhash_set<TTransactionId> deadTransactionIds;
+        THashSet<TTransactionId> deadTransactionIds;
 
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
@@ -473,8 +473,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        std::vector<bool> failedRequestSet(jobRequests.size(), false);
         try {
-            CreateJobNodes(operationId, storageMode, jobRequests);
+            CreateJobNodes(operationId, storageMode, jobRequests, &failedRequestSet);
         } catch (const std::exception& ex) {
             auto error = TError("Error creating job nodes for operation %v",
                 operationId)
@@ -490,7 +491,12 @@ private:
         try {
             std::vector<TJobFile> files;
 
-            for (const auto& request : jobRequests) {
+            for (size_t index = 0; index < jobRequests.size(); ++index) {
+                if (failedRequestSet[index]) {
+                    continue;
+                }
+
+                const auto& request = jobRequests[index];
                 if (request.StderrChunkId) {
                     auto paths = GetCompatibilityJobPaths(operationId, request.JobId, storageMode, "stderr");
                     for (const auto& path : paths) {
@@ -624,7 +630,8 @@ private:
     void CreateJobNodes(
         const TOperationId& operationId,
         EOperationCypressStorageMode storageMode,
-        const std::vector<TCreateJobNodeRequest>& requests)
+        const std::vector<TCreateJobNodeRequest>& requests,
+        std::vector<bool>* failedRequestSet)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -646,22 +653,39 @@ private:
                 req->set_type(static_cast<int>(EObjectType::MapNode));
                 req->set_force(true);
                 ToProto(req->mutable_node_attributes(), *attributes);
-                batchReq->AddRequest(req, "create");
+                batchReq->AddRequest(req, "create_" + ToString(jobId));
             }
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        auto error = GetCumulativeError(batchRspOrError);
-        if (!error.IsOK()) {
-            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                LOG_ERROR(error, "Account limit exceeded while creating job nodes");
-            } else {
-                THROW_ERROR_EXCEPTION("Failed to create job nodes") << error;
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        int failedRequestCount = 0;
+        for (size_t index = 0; index < requests.size(); ++index) {
+            const auto& request = requests[index];
+            const auto& jobId = request.JobId;
+            auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_" + ToString(jobId));
+            for (const auto& rsp : rsps) {
+                if (rsp.IsOK()) {
+                    continue;
+                }
+                TError error = rsp;
+                if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                    LOG_ERROR(error, "Account limit exceeded while creating job node (JobId: %v)",
+                        jobId);
+                    (*failedRequestSet)[index] = true;
+                    ++failedRequestCount;
+                } else {
+                    THROW_ERROR_EXCEPTION("Failed to create job node")
+                        << TErrorAttribute("job_id", jobId)
+                        << error;
+                }
             }
         }
 
-        LOG_INFO("Job nodes created (Count: %v, OperationId: %v)",
+        LOG_INFO("Job nodes created (TotalCount: %v, FailedCount: %v, OperationId: %v)",
             requests.size(),
+            failedRequestCount,
             operationId);
     }
 
@@ -682,7 +706,7 @@ private:
             NChunkClient::NProto::TDataStatistics Statistics;
         };
 
-        yhash<TNodeId, TTableInfo> tableIdToInfo;
+        THashMap<TNodeId, TTableInfo> tableIdToInfo;
         for (const auto& request : requests) {
             auto& tableInfo = tableIdToInfo[request.TableId];
             tableInfo.TableId = request.TableId;
@@ -730,7 +754,7 @@ private:
             }
         }
 
-        yhash<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
+        THashMap<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
         for (auto& pair : tableIdToInfo) {
             auto& tableInfo  = pair.second;
             cellTagToInfos[tableInfo.CellTag].push_back(&tableInfo);
@@ -930,7 +954,7 @@ private:
 
         auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
-            LOG_DEBUG("Trying to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
+            LOG_DEBUG("Create a job node for an unknown operation is impossible (OperationId: %v, JobId: %v)",
                 operationId,
                 request.JobId);
             return;
@@ -955,15 +979,16 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto batchReq = StartObjectBatchRequest();
-        auto req = TYPathProxy::Remove(NScheduler::GetSnapshotPath(operationId));
-        req->set_force(true);
-        batchReq->AddRequest(req, "remove_snapshot");
+        for (const auto& path : {NScheduler::GetSnapshotPath(operationId), NScheduler::GetNewSnapshotPath(operationId)}) {
+            auto req = TYPathProxy::Remove(path);
+            req->set_force(true);
+            batchReq->AddRequest(req, "remove_snapshot");
+        }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(batchRspOrError);
         if (!error.IsOK()) {
-            LOG_WARNING(error, "Failed to remove snapshot");
-            Bootstrap_->GetScheduler()->Disconnect();
+            Bootstrap_->GetScheduler()->Disconnect(TError("Failed to remove snapshot") << error);
         }
     }
 

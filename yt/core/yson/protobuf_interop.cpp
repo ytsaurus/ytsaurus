@@ -45,13 +45,6 @@ using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
 class TProtobufTypeRegistry
 {
 public:
-    TStringBuf InternString(const TString& str)
-    {
-        auto guard = Guard(SpinLock_);
-        InternedStrings_.push_back(str);
-        return InternedStrings_.back();
-    }
-
     TStringBuf GetYsonName(const FieldDescriptor* descriptor)
     {
         const auto& name = descriptor->options().GetExtension(NYT::NYson::NProto::field_name);
@@ -68,7 +61,7 @@ public:
         if (name) {
             return InternString(name);
         } else {
-            return InternString(CamelCaseToUnderscoreCase(descriptor->name()));
+            return InternString(descriptor->name());
         }
     }
 
@@ -84,10 +77,18 @@ private:
     Y_DECLARE_SINGLETON_FRIEND();
     TProtobufTypeRegistry() = default;
 
+    TStringBuf InternString(const TString& str)
+    {
+        auto guard = Guard(SpinLock_);
+        InternedStrings_.push_back(str);
+        return InternedStrings_.back();
+    }
+
+
     TSpinLock SpinLock_;
     std::vector<TString> InternedStrings_;
-    yhash<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
-    yhash<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
+    THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
+    THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,6 +177,7 @@ public:
     TProtobufMessageType(TProtobufTypeRegistry* registry, const Descriptor* descriptor)
         : Registry_(registry)
         , Underlying_(descriptor)
+        , IsAttributeDictionary_(descriptor->options().GetExtension(NYT::NYson::NProto::attribute_dictionary))
     { }
 
     void Build()
@@ -190,6 +192,11 @@ public:
             YCHECK(NameToField_.emplace(field->GetYsonName(), std::move(fieldHolder)).second);
             YCHECK(NumberToField_.emplace(field->GetNumber(), field).second);
         }
+    }
+
+    bool IsAttributeDictionary() const
+    {
+        return IsAttributeDictionary_;
     }
 
     const TString& GetFullName() const
@@ -217,10 +224,11 @@ public:
 private:
     TProtobufTypeRegistry* const Registry_;
     const Descriptor* const Underlying_;
+    const bool IsAttributeDictionary_;
 
     std::vector<int> RequiredFieldNumbers_;
-    yhash<TStringBuf, std::unique_ptr<TProtobufField>> NameToField_;
-    yhash<int, const TProtobufField*> NumberToField_;
+    THashMap<TStringBuf, std::unique_ptr<TProtobufField>> NameToField_;
+    THashMap<int, const TProtobufField*> NumberToField_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,7 +246,7 @@ public:
         for (int index = 0; index < Underlying_->value_count(); ++index) {
             const auto* valueDescriptor = Underlying_->value(index);
             auto literal = Registry_->GetYsonLiteral(valueDescriptor);
-            YCHECK(LitrealToValue_.emplace(literal, valueDescriptor->number()).second);
+            YCHECK(LiteralToValue_.emplace(literal, valueDescriptor->number()).second);
             YCHECK(ValueToLiteral_.emplace(valueDescriptor->number(), literal).second);
         }
     }
@@ -250,8 +258,8 @@ public:
 
     TNullable<int> FindValueByLiteral(const TStringBuf& literal) const
     {
-        auto it = LitrealToValue_.find(literal);
-        return it == LitrealToValue_.end() ? Null : MakeNullable(it->second);
+        auto it = LiteralToValue_.find(literal);
+        return it == LiteralToValue_.end() ? Null : MakeNullable(it->second);
     }
 
     TStringBuf FindLiteralByValue(int value) const
@@ -264,8 +272,8 @@ private:
     TProtobufTypeRegistry* const Registry_;
     const EnumDescriptor* const Underlying_;
 
-    yhash<TStringBuf, int> LitrealToValue_;
-    yhash<int, TStringBuf> ValueToLiteral_;
+    THashMap<TStringBuf, int> LiteralToValue_;
+    THashMap<int, TStringBuf> ValueToLiteral_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,8 +367,6 @@ private:
 class TProtobufTranscoderBase
 {
 protected:
-    const TProtobufMessageType* const AttributeDictionaryType = ReflectProtobufMessageType<NYTree::NProto::TAttributeDictionary>();
-
     TYPathStack YPathStack_;
 
 
@@ -476,7 +482,7 @@ private:
         int ByteSize = -1;
     };
     std::vector<TNestedMessageEntry> NestedMessages_;
-    
+
     TString AttributeKey_;
     TString AttributeValue_;
     TStringOutput AttributeValueStream_;
@@ -625,7 +631,7 @@ private:
         Y_ASSERT(TypeStack_.size() > 0);
         const auto* type = TypeStack_.back().Type;
 
-        if (type == AttributeDictionaryType) {
+        if (type->IsAttributeDictionary()) {
             OnMyKeyedItemAttributeDictionary(key);
         } else {
             OnMyKeyedItemRegular(key);
@@ -945,6 +951,21 @@ private:
                     break;
                 }
 
+                case FieldDescriptor::TYPE_ENUM: {
+                    auto i32Value = CheckedCast<i32>(value, STRINGBUF("i32"));
+                    const auto* enumType = field->GetEnumType();
+                    auto literal = enumType->FindLiteralByValue(i32Value);
+                    if (!literal) {
+                        THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
+                            i32Value,
+                            YPathStack_.GetPath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath())
+                            << TErrorAttribute("proto_field", field->GetFullName());
+                    }
+                    BodyCodedStream_.WriteVarint32SignExtended(i32Value);
+                    break;
+                }
+
                 default:
                     THROW_ERROR_EXCEPTION("Field %v cannot be parsed from integer values",
                         YPathStack_.GetPath())
@@ -1006,7 +1027,7 @@ public:
             const auto* type = typeEntry.Type;
 
             bool flag;
-            if (type == AttributeDictionaryType) {
+            if (type->IsAttributeDictionary()) {
                 flag = ParseAttributeDictionary();
             } else {
                 flag = ParseRegular();
@@ -1095,8 +1116,8 @@ private:
             THROW_ERROR_EXCEPTION("Unknown field number %v at %v",
                 fieldNumber,
                 YPathStack_.GetPath())
-                    << TErrorAttribute("ypath", YPathStack_.GetPath())
-                    << TErrorAttribute("proto_type", type->GetFullName());
+                << TErrorAttribute("ypath", YPathStack_.GetPath())
+                << TErrorAttribute("proto_type", type->GetFullName());
         }
 
         if (RepeatedFieldNumberStack_.back().FieldNumber == fieldNumber) {

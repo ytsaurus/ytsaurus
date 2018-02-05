@@ -20,18 +20,16 @@ public:
 
     void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
 
-    void SetMinNeededJobResources(std::vector<TJobResourcesWithQuota> jobResourcesList);
-    std::vector<TJobResourcesWithQuota> GetMinNeededJobResourcesList() const;
-    TJobResourcesWithQuota GetMinNeededJobResources() const;
-
-    void InvokeMinNeededJobResourcesUpdate();
+    TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
+    TJobResources GetAggregatedMinNeededJobResources() const;
+    void UpdateMinNeededJobResources();
 
     bool IsBlocked(
         NProfiling::TCpuInstant now,
         int maxConcurrentScheduleJobCalls,
         TDuration scheduleJobFailBackoffTime) const;
 
-    TScheduleJobResultPtr ScheduleJob(
+    NControllerAgent::TScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& jobLimits,
         TDuration timeLimit,
@@ -45,15 +43,11 @@ public:
     TJobResources GetNeededResources() const;
 
 private:
-    const NControllerAgent::IOperationControllerStrategyHostPtr Controller_;
+    const IOperationControllerStrategyHostPtr Controller_;
     const TOperationId OperationId_;
 
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
     std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = {0};
-
-    NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
-    std::vector<TJobResourcesWithQuota> CachedMinNeededJobResourcesList_;
-    TJobResourcesWithQuota CachedMinNeededJobResources_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationController)

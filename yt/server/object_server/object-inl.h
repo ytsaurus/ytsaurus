@@ -222,7 +222,7 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
 }
 
 template <class TValue>
-std::vector<TValue*> GetValuesSortedByKey(const yhash_set<TValue*>& entities)
+std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
 {
     std::vector<TValue*> values;
     values.reserve(entities.size());
@@ -237,7 +237,7 @@ std::vector<TValue*> GetValuesSortedByKey(const yhash_set<TValue*>& entities)
 }
 
 template <class TObject, class TValue>
-std::vector<std::pair<TObject*, TValue>> GetPairsSortedByKey(const yhash<TObject*, TValue>& entities)
+std::vector<std::pair<TObject*, TValue>> GetPairsSortedByKey(const THashMap<TObject*, TValue>& entities)
 {
     std::vector<std::pair<TObject*, TValue>> pairs;
     pairs.reserve(entities.size());

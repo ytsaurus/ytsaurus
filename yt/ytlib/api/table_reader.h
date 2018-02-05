@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/ypath/public.h>
 
+#include <yt/core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -15,7 +17,10 @@ namespace NApi {
 TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
     INativeClientPtr client,
     const NYPath::TRichYPath& path,
-    const TTableReaderOptions& options);
+    const TTableReaderOptions& options,
+    NTableClient::TNameTablePtr nameTable,
+    const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter(),
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     NTableClient::ISchemalessChunkReaderPtr reader,

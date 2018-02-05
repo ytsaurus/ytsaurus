@@ -225,7 +225,8 @@ bool SyncYPathExists(
 void SyncYPathSet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const NYson::TYsonString& value);
+    const NYson::TYsonString& value,
+    bool recursive = false);
 
 //! Synchronously executes |Remove| verb. Throws if an error has occurred.
 void SyncYPathRemove(

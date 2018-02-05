@@ -27,7 +27,7 @@ struct ISchedulerStrategyHost
     virtual TJobResources GetTotalResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
-    virtual TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;
 
@@ -86,7 +86,6 @@ struct TCompletedJob
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 struct ISchedulerStrategy
     : public virtual TRefCounted
@@ -149,11 +148,11 @@ struct ISchedulerStrategy
         std::vector<NScheduler::TCompletedJob>* completedJobs,
         std::vector<TJobId>* jobsToAbort) = 0;
 
-    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& operationJobMetrics) = 0;
+    virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
     virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
 
-    virtual void ValidateNodeTags(const yhash_set<TString>& tags) = 0;
+    virtual void ValidateNodeTags(const THashSet<TString>& tags) = 0;
 
     virtual void UpdateOperationRuntimeParams(
         IOperationStrategyHost* operation,
@@ -196,6 +195,8 @@ struct ISchedulerStrategy
     virtual void BuildBriefSpec(
         const TOperationId& operationId,
         NYTree::TFluentMap fluent) = 0;
+
+    virtual std::vector<TSchedulingTagFilter> GetOperationPoolTreeSchedulingTagFilters(const TOperationId& operationId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

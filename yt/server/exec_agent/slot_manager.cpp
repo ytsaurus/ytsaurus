@@ -98,7 +98,7 @@ void TSlotManager::Initialize()
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
                 auto filePath = Format("%v/%v", *Config_->JobProxySocketNameDirectory, JobEnvironment_->GetUserId(slotIndex));
                 TFile file(filePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TFileOutput fileOutput(file);
+                TUnbufferedFileOutput fileOutput(file);
                 fileOutput << GetJobProxyUnixDomainName(NodeTag_, slotIndex) << Endl;
             }
             JobProxySocketNameDirectoryCreated_ = true;
@@ -180,7 +180,7 @@ bool TSlotManager::IsEnabled() const
         isEnabled = isEnabled && JobProxySocketNameDirectoryCreated_;
     }
 
-    return isEnabled;
+    return isEnabled && Enabled_;
 }
 
 TNullable<i64> TSlotManager::GetMemoryLimit() const
@@ -202,6 +202,22 @@ bool TSlotManager::ExternalJobMemory() const
     return JobEnvironment_ && JobEnvironment_->IsEnabled()
        ? JobEnvironment_->ExternalJobMemory()
        : false;
+}
+
+void TSlotManager::OnJobFinished(EJobState jobState)
+{
+    if (jobState == EJobState::Aborted) {
+        ++ConsecutiveAbortedJobCount_;
+    } else {
+        ConsecutiveAbortedJobCount_ = 0;
+    }
+
+    if (Enabled_ && ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
+        Enabled_ = false;
+        Bootstrap_->GetMasterConnector()->RegisterAlert(TError(
+            "Too many consecutive job abortions; scheduler jobs are disabled")
+            << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts));
+    }
 }
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()

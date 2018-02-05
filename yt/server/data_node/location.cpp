@@ -63,8 +63,10 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-    , ReplicationOutThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationOutThrottler))
     , IOEngine_(CreateIOEngine(Config_->IOEngineType, Config_->IOConfig))
+    , ThrottledReadsCounter_("/throttled_reads", {}, NProfiling::EAggregateMode::Max, config->ThrottleCounterInterval)
+    , ThrottledWritesCounter_("/throttled_writes", {}, NProfiling::EAggregateMode::Max, config->ThrottleCounterInterval)
+    , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
@@ -73,6 +75,21 @@ TLocation::TLocation(
         profileManager->RegisterTag("medium", GetMediumName())
     };
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+
+    auto throttlersProfiler = Profiler_;
+    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
+
+    auto createThrottler = [&] (const auto& config, const auto& name) {
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
+    };
+
+    ReplicationOutThrottler_ = createThrottler(config->ReplicationOutThrottler, "ReplicationOutThrottler");
+    TabletCompactionAndPartitioningOutThrottler_ = createThrottler(
+        config->TabletCompactionAndPartitioningOutThrottler,
+        "TabletCompactionAndPartitioningOutThrottler");
+    TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
+    TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
+    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", throttlersProfiler);
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
@@ -215,7 +232,7 @@ void TLocation::Disable(const TError& reason)
     try {
         auto errorData = ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).GetData();
         TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput fileOutput(file);
+        TUnbufferedFileOutput fileOutput(file);
         fileOutput << errorData;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error creating location lock file");
@@ -301,6 +318,7 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
+        case EWorkloadCategory::SystemTabletStoreFlush:
         case EWorkloadCategory::SystemArtifactCacheDownload:
         case EWorkloadCategory::UserBatch:
             return EIOCategory::Batch;
@@ -461,9 +479,44 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
         case EWorkloadCategory::SystemReplication:
             return ReplicationOutThrottler_;
 
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningOutThrottler_;
+
+        case EWorkloadCategory::SystemTabletPreload:
+            return TabletPreloadOutThrottler_;
+
+        case EWorkloadCategory::SystemTabletRecovery:
+            return TabletRecoveryOutThrottler_;
+
         default:
-            return GetUnlimitedThrottler();
+            return UnlimitedOutThrottler_;
     }
+}
+
+void TLocation::IncrementThrottledReadsCounter()
+{
+    Profiler_.Increment(ThrottledReadsCounter_);
+}
+
+void TLocation::IncrementThrottledWritesCounter()
+{
+    Profiler_.Increment(ThrottledWritesCounter_);
+}
+
+bool TLocation::IsReadThrottling()
+{
+    return ThrottledReadsCounter_.GetMax() > 0;
+}
+
+bool TLocation::IsWriteThrottling()
+{
+    return ThrottledWritesCounter_.GetMax() > 0;
+}
+
+void TLocation::UpdatePutBlocksWallTimeCounter(NProfiling::TValue value)
+{
+    Profiler_.Update(PutBlocksWallTimeCounter_, value);
 }
 
 TString TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
@@ -490,7 +543,7 @@ void TLocation::ValidateLockFile()
     }
 
     TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
-    TBufferedFileInput fileInput(file);
+    TFileInput fileInput(file);
 
     auto errorData = fileInput.ReadAll();
     if (errorData.Empty()) {
@@ -560,7 +613,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     NFS::CleanTempFiles(GetPath());
     ForceHashDirectories(GetPath());
 
-    yhash_set<TChunkId> chunkIds;
+    THashSet<TChunkId> chunkIds;
     {
         // Enumerate files under the location's directory.
         // Note that these also include trash files but the latter are explicitly skipped.
@@ -600,7 +653,7 @@ void TLocation::DoStart()
 {
     auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
     if (NFS::Exists(cellIdPath)) {
-        TFileInput cellIdFile(cellIdPath);
+        TUnbufferedFileInput cellIdFile(cellIdPath);
         auto cellIdString = cellIdFile.ReadAll();
         TCellId cellId;
         if (!TCellId::FromString(cellIdString, &cellId)) {
@@ -615,7 +668,7 @@ void TLocation::DoStart()
     } else {
         LOG_INFO("Cell id file is not found, creating");
         TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput cellIdFile(file);
+        TUnbufferedFileOutput cellIdFile(file);
         cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
     }
 
@@ -645,9 +698,24 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
-    , RepairInThrottler_(CreateReconfigurableThroughputThrottler(config->RepairInThrottler))
-    , ReplicationInThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationInThrottler))
-{ }
+{
+    auto throttlersProfiler = GetProfiler();
+    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
+
+    auto createThrottler = [&] (const auto& config, const auto& name) {
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
+    };
+
+    RepairInThrottler_ = createThrottler(config->RepairInThrottler, "RepairInThrottler");
+    ReplicationInThrottler_ = createThrottler(config->ReplicationInThrottler, "ReplicationInThrottler");
+    TabletCompactionAndPartitioningInThrottler_ = createThrottler(
+        config->TabletCompactionAndPartitioningInThrottler,
+        "TabletCompactionAndPartitioningInThrottler");
+    TabletLoggingInThrottler_ = createThrottler(config->TabletLoggingInThrottler, "TabletLoggingInThrottler");
+    TabletSnapshotInThrottler_ = createThrottler(config->TabletSnapshotInThrottler, "TabletSnapshotInThrottler");
+    TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushInThrottler");
+    UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedInThrottler", throttlersProfiler);
+}
 
 TJournalManagerPtr TStoreLocation::GetJournalManager()
 {
@@ -688,8 +756,21 @@ IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor
         case EWorkloadCategory::SystemReplication:
             return ReplicationInThrottler_;
 
+        case EWorkloadCategory::SystemTabletLogging:
+            return TabletLoggingInThrottler_;
+
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletCompactionAndPartitioningInThrottler_;
+
+        case EWorkloadCategory::SystemTabletSnapshot:
+            return TabletSnapshotInThrottler_;
+
+        case EWorkloadCategory::SystemTabletStoreFlush:
+            return TabletStoreFlushInThrottler_;
+
         default:
-            return GetUnlimitedThrottler();
+            return UnlimitedInThrottler_;
     }
 }
 
@@ -1018,7 +1099,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
 
     ForceHashDirectories(GetTrashPath());
 
-    yhash_set<TChunkId> trashChunkIds;
+    THashSet<TChunkId> trashChunkIds;
     {
         // Enumerate files under the location's trash directory.
         // Note that some of them might have just been moved there during repair.

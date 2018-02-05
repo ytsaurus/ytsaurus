@@ -22,7 +22,7 @@ struct IFetcherChunkScraper
     : public virtual TRefCounted
 {
     //! Returns future, which gets set when all chunks become available.
-    virtual TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs) = 0;
+    virtual TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) = 0;
 
     //! Number of currently unavailable chunks.
     virtual i64 GetUnavailableChunkCount() const = 0;
@@ -97,10 +97,10 @@ private:
     NApi::INativeClientPtr Client_;
 
     //! Indexes of chunks for which no info is fetched yet.
-    yhash_set<int> UnfetchedChunkIndexes_;
+    THashSet<int> UnfetchedChunkIndexes_;
 
     //! Ids of nodes that failed to reply.
-    yhash_set<NNodeTrackerClient::TNodeId> DeadNodes_;
+    THashSet<NNodeTrackerClient::TNodeId> DeadNodes_;
 
     //! |(nodeId, chunkId)| pairs for which an error was returned from the node.
     std::set< std::pair<NNodeTrackerClient::TNodeId, TChunkId> > DeadChunks_;

@@ -46,6 +46,8 @@ struct IServiceContext
      */
     virtual NBus::TTcpDispatcherStatistics GetBusStatistics() const = 0;
 
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
+
     //! Returns the instant when the current retry of request was issued by the client, if known.
     virtual TNullable<TInstant> GetStartTime() const = 0;
 

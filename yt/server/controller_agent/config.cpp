@@ -133,6 +133,9 @@ TOperationOptions::TOperationOptions()
         .Default(20 * 100000)
         .GreaterThanOrEqual(100000);
 
+    RegisterParameter("job_splitter", JobSplitter)
+        .DefaultNew();
+
     RegisterPostprocessor([&] () {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
@@ -157,8 +160,6 @@ TMapOperationOptions::TMapOperationOptions()
 {
     RegisterParameter("job_size_adjuster", JobSizeAdjuster)
         .DefaultNew();
-    RegisterParameter("job_splitter", JobSplitter)
-        .DefaultNew();
 
     RegisterPreprocessor([&] () {
         DataWeightPerJob = 128_MB;
@@ -167,9 +168,6 @@ TMapOperationOptions::TMapOperationOptions()
 
 TReduceOperationOptions::TReduceOperationOptions()
 {
-    RegisterParameter("job_splitter", JobSplitter)
-        .DefaultNew();
-
     RegisterPreprocessor([&] () {
         DataWeightPerJob = 128_MB;
     });
@@ -268,11 +266,13 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
 
-	RegisterParameter("controller_agent_heartbeat_failure_backoff", ControllerAgentHeartbeatFailureBackoff)
-		.Default(TDuration::MilliSeconds(100));
+    RegisterParameter("controller_agent_heartbeat_failure_backoff", ControllerAgentHeartbeatFailureBackoff)
+        .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("exec_nodes_request_period", ExecNodesRequestPeriod)
+    RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
         .Default(TDuration::Seconds(10));
+    RegisterParameter("operation_alerts_update_period", OperationAlertsUpdatePeriod)
+        .Default(TDuration::Seconds(3));
 
     RegisterParameter("controller_thread_count", ControllerThreadCount)
         .Default(4)
@@ -394,7 +394,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         .DefaultNew();
 
     RegisterParameter("environment", Environment)
-        .Default(yhash<TString, TString>())
+        .Default(THashMap<TString, TString>())
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
     RegisterParameter("enable_controller_failure_spec_option", EnableControllerFailureSpecOption)

@@ -26,7 +26,6 @@ TJob::TJob(
     , Node_(std::move(node))
     , StartTime_(startTime)
     , Interruptible_(interruptible)
-    , State_(EJobState::None)
     , TreeId_(treeId)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
@@ -46,45 +45,7 @@ TJobStatus JobStatusFromError(const TError& error)
     return status;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TJobStartRequest::TJobStartRequest(
-    const TJobId& id,
-    EJobType type,
-    const TJobResources& resourceLimits,
-    bool interruptible)
-    : Id(id)
-    , Type(type)
-    , ResourceLimits(resourceLimits)
-    , Interruptible(interruptible)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
-{
-    ++Failed[reason];
-}
-
-bool TScheduleJobResult::IsBackoffNeeded() const
-{
-    return
-        !JobStartRequest &&
-        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
-        Failed[EScheduleJobFailReason::NoLocalJobs] == 0 &&
-        Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
-}
-
-bool TScheduleJobResult::IsScheduleStopNeeded() const
-{
-    return
-        Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
-        Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
+TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
 {
     return MakeId(
         EObjectType::SchedulerJob,

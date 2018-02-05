@@ -243,7 +243,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
         ->GetMasterClient()
         ->GetNativeConnection()
         ->GetChannelFactory();
-    auto channel = channelFactory->CreateChannel(targetDescriptor.GetAddress(Bootstrap_->GetLocalNetworks()));
+    auto channel = channelFactory->CreateChannel(targetDescriptor.GetAddressOrThrow(Bootstrap_->GetLocalNetworks()));
     TDataNodeServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 

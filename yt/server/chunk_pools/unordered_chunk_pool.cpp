@@ -444,7 +444,7 @@ private:
     std::unique_ptr<IJobSizeAdjuster> JobSizeAdjuster;
 
     //! Indexes in #Stripes.
-    yhash_set<int> PendingGlobalStripes;
+    THashSet<int> PendingGlobalStripes;
 
     i64 FreePendingDataWeight = 0;
     i64 SuspendedDataWeight = 0;
@@ -465,7 +465,7 @@ private:
         i64 Locality;
 
         //! Indexes in #Stripes.
-        yhash_set<int> StripeIndexes;
+        THashSet<int> StripeIndexes;
 
         void Persist(const TPersistenceContext& context)
         {
@@ -475,14 +475,14 @@ private:
         }
     };
 
-    yhash<TNodeId, TLocalityEntry> NodeIdToEntry;
+    THashMap<TNodeId, TLocalityEntry> NodeIdToEntry;
 
     TIdGenerator OutputCookieGenerator;
 
-    yhash<IChunkPoolOutput::TCookie, TExtractedStripeListPtr> ExtractedLists;
+    THashMap<IChunkPoolOutput::TCookie, TExtractedStripeListPtr> ExtractedLists;
 
-    yhash_set<IChunkPoolOutput::TCookie> LostCookies;
-    yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;
+    THashSet<IChunkPoolOutput::TCookie> LostCookies;
+    THashSet<IChunkPoolOutput::TCookie> ReplayCookies;
 
     EUnorderedChunkPoolMode Mode;
 

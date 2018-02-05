@@ -123,7 +123,7 @@ public:
 
     //! Contains all nodes with parent pointing here.
     //! When a node dies parent pointers of its immediate descendants are reset.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TCypressNodeBase*>, ImmediateDescendants);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TCypressNodeBase*>, ImmediateDescendants);
 
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode, ELockMode::None);
 

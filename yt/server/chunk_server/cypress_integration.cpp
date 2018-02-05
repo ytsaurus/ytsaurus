@@ -38,7 +38,7 @@ private:
     const EObjectType Type_;
 
 
-    const yhash_set<TChunk*>& GetFilteredChunks() const
+    const THashSet<TChunk*>& GetFilteredChunks() const
     {
         Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();

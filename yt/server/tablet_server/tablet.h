@@ -88,7 +88,7 @@ public:
 private:
     int TabletCount_ = 0;
     i64 DiskSpace_ = 0;
-    yhash<TString, i64> DiskSpacePerMediumMap_;
+    THashMap<TString, i64> DiskSpacePerMediumMap_;
 
     void InitParameters();
 };
@@ -195,7 +195,11 @@ public:
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 
-    using TReplicaMap = yhash<TTableReplica*, TTableReplicaInfo>;
+    using TErrorVector = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
+    DEFINE_BYREF_RW_PROPERTY(TErrorVector, Errors);
+    DEFINE_BYVAL_RW_PROPERTY(int, ErrorCount);
+
+    using TReplicaMap = THashMap<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
@@ -226,6 +230,8 @@ public:
 
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
+
+    std::vector<TError> GetErrors() const;
 
 private:
     ETabletState State_ = ETabletState::Unmounted;

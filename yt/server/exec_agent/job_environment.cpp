@@ -10,7 +10,7 @@
 #include <yt/server/data_node/master_connector.h>
 #include <yt/server/data_node/volume_manager.h>
 
-#include <yt/ytlib/program/names.h>
+#include <yt/server/misc/public.h>
 
 #ifdef _linux_
 #include <yt/server/containers/container_manager.h>
@@ -163,7 +163,7 @@ protected:
     };
 
     const TJobEnvironmentConfigPtr BasicConfig_;
-    yhash<int, TJobProxyProcess> JobProxyProcesses_;
+    THashMap<int, TJobProxyProcess> JobProxyProcesses_;
     const TBootstrap* const Bootstrap_;
     TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
 
@@ -476,7 +476,7 @@ private:
 
     IContainerManagerPtr ContainerManager_;
     IInstancePtr MetaInstance_;
-    yhash<int, IInstancePtr> PortoInstances_;
+    THashMap<int, IInstancePtr> PortoInstances_;
 
     TSpinLock LimitsLock_;
     TNullable<double> CpuLimit_;
@@ -545,6 +545,7 @@ private:
             if (Config_->ExternalJobRootVolume) {
                 TRootFS rootFS;
                 rootFS.RootPath = *Config_->ExternalJobRootVolume;
+                rootFS.IsRootReadOnly = false;
 
                 for (const auto& pair : Config_->ExternalBinds) {
                     rootFS.Binds.push_back(TBind{pair.first, pair.second, false});

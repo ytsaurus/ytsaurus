@@ -140,31 +140,5 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-void ToProto(
-    NScheduler::NProto::TOperationJobMetrics* protoOperationJobMetrics,
-    const NScheduler::TOperationJobMetrics& operationJobMetrics)
-{
-    using NYT::ToProto;
-
-    ToProto(protoOperationJobMetrics->mutable_operation_id(), operationJobMetrics.OperationId);
-    ToProto(protoOperationJobMetrics->mutable_metrics(), operationJobMetrics.Metrics);
-}
-
-void FromProto(
-    NScheduler::TOperationJobMetrics* operationJobMetrics,
-    const NScheduler::NProto::TOperationJobMetrics& protoOperationJobMetrics)
-{
-    using NYT::FromProto;
-
-    FromProto(&operationJobMetrics->OperationId, protoOperationJobMetrics.operation_id());
-    FromProto(&operationJobMetrics->Metrics, protoOperationJobMetrics.metrics());
-}
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NScheduler
 } // namespace NYT

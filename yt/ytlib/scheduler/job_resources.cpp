@@ -500,6 +500,24 @@ void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::T
     resources->SetNetwork(protoResources.network());
 }
 
+void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const NScheduler::TJobResourcesWithQuota& resources)
+{
+    protoResources->set_cpu(static_cast<double>(resources.GetCpu()));
+    protoResources->set_user_slots(resources.GetUserSlots());
+    protoResources->set_memory(resources.GetMemory());
+    protoResources->set_network(resources.GetNetwork());
+    protoResources->set_disk_quota(resources.GetDiskQuota());
+}
+
+void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::NProto::TJobResourcesWithQuota& protoResources)
+{
+    resources->SetCpu(TCpuResource(protoResources.cpu()));
+    resources->SetUserSlots(protoResources.user_slots());
+    resources->SetMemory(protoResources.memory());
+    resources->SetNetwork(protoResources.network());
+    resources->SetDiskQuota(protoResources.disk_quota());
+}
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

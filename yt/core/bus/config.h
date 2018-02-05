@@ -59,7 +59,7 @@ public:
     //! "Default" network is considered when checking if the network is under heavy load.
     TNullable<TString> DefaultNetwork;
 
-    yhash<TString, std::vector<NNet::TIP6Network>> Networks;
+    THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 
     TTcpBusServerConfig()
     {

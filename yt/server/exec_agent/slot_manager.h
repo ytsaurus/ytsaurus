@@ -48,6 +48,8 @@ public:
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskInfo();
 
+    void OnJobFinished(EJobState jobState);
+
 private:
     const TSlotManagerConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
@@ -60,9 +62,15 @@ private:
     IJobEnvironmentPtr JobEnvironment_;
 
     TSpinLock SpinLock_;
-    yhash_set<int> FreeSlots_;
+    THashSet<int> FreeSlots_;
 
     bool JobProxySocketNameDirectoryCreated_ = false;
+
+    //! If we observe too much consecutive aborts, we disable user slots on
+    //! the node until restart and fire alert.
+    std::atomic<int> ConsecutiveAbortedJobCount_ = {0};
+    std::atomic<bool> Enabled_ = {true};
+
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

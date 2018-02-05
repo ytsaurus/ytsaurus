@@ -94,6 +94,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkSealer)
 DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
 
 DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TMediumConfig)
 
 //! Used as an expected upper bound in SmallVector.
 constexpr int TypicalChunkParentCount = 2;

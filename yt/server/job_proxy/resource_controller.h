@@ -33,7 +33,7 @@ struct IResourceController
     virtual void SetCpuShare(double share) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual IResourceControllerPtr CreateSubcontroller(const TString& name) = 0;
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) = 0;
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreDumpHandler) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IResourceController)

@@ -422,5 +422,56 @@ constexpr T Min(T x, Ts... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class... Ts>
+struct TNothrowDestructible;
+
+template <>
+struct TNothrowDestructible<>
+{
+    static constexpr bool Value = true;
+};
+
+template <class T, class... Ts>
+struct TNothrowDestructible<T, Ts...>
+{
+    static constexpr bool Value = std::is_nothrow_destructible<T>::value && TNothrowDestructible<Ts...>::Value;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class... Ts>
+struct TNothrowMoveConstructible;
+
+template <>
+struct TNothrowMoveConstructible<>
+{
+    static constexpr bool Value = true;
+};
+
+template <class T, class... Ts>
+struct TNothrowMoveConstructible<T, Ts...>
+{
+    static constexpr bool Value = std::is_nothrow_move_constructible<T>::value && TNothrowMoveConstructible<Ts...>::Value;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class... Ts>
+struct TNothrowMoveAssignable;
+
+template <>
+struct TNothrowMoveAssignable<>
+{
+    static constexpr bool Value = true;
+};
+
+template <class T, class... Ts>
+struct TNothrowMoveAssignable<T, Ts...>
+{
+    static constexpr bool Value = std::is_nothrow_move_assignable<T>::value && TNothrowMoveAssignable<Ts...>::Value;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NMpl
 } // namespace NYT

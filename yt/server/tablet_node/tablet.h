@@ -82,6 +82,7 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
     std::atomic<i64> DynamicMemoryPoolSize = {0};
+    TEnumIndexedVector<TAtomicObject<TError>, NTabletClient::ETabletBackgroundActivity> Errors;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -138,7 +139,7 @@ struct TTabletSnapshot
 
     TRuntimeTabletDataPtr RuntimeData;
 
-    yhash<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
+    THashMap<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 
     //! Profiler tags is empty iff EnableProfiling is false.
     NProfiling::TTagIdList ProfilerTags;
@@ -298,7 +299,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
 
-    using TReplicaMap = yhash<TTableReplicaId, TTableReplicaInfo>;
+    using TReplicaMap = THashMap<TTableReplicaId, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
@@ -361,7 +362,7 @@ public:
     //! Returns the Eden if no such partition exists.
     TPartition* GetContainingPartition(const TOwningKey& minKey, const TOwningKey& maxKey);
 
-    const yhash<TStoreId, IStorePtr>& StoreIdMap() const;
+    const THashMap<TStoreId, IStorePtr>& StoreIdMap() const;
     const std::map<i64, IOrderedStorePtr>& StoreRowIndexMap() const;
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
@@ -433,9 +434,9 @@ private:
     std::unique_ptr<TPartition> Eden_;
 
     TPartitionList PartitionList_;
-    yhash<TPartitionId, TPartition*> PartitionMap_;
+    THashMap<TPartitionId, TPartition*> PartitionMap_;
 
-    yhash<TStoreId, IStorePtr> StoreIdMap_;
+    THashMap<TStoreId, IStorePtr> StoreIdMap_;
     std::map<i64, IOrderedStorePtr> StoreRowIndexMap_;
 
     TSortedDynamicRowKeyComparer RowKeyComparer_;

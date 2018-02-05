@@ -928,7 +928,7 @@ void TChunkReplicator::ProcessExistingJobs(
     }
 
     // Check for missing jobs
-    yhash_set<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
+    THashSet<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
     std::vector<TJobPtr> missingJobs;
     for (const auto& job : node->Jobs()) {
         if (currentJobSet.find(job) == currentJobSet.end()) {
@@ -1417,9 +1417,9 @@ void TChunkReplicator::ScheduleNewJobs(
                 continue; // No storage of this medium on this node.
             }
 
-            double targetFillFactor = *sourceFillFactor - Config_->MinBalancingFillFactorDiff;
+            double targetFillFactor = *sourceFillFactor - Config_->MinChunkBalancingFillFactorDiff;
             if (hasSpareReplicationResources() &&
-                *sourceFillFactor > Config_->MinBalancingFillFactor &&
+                *sourceFillFactor > Config_->MinChunkBalancingFillFactor &&
                 ChunkPlacement_->HasBalancingTargets(medium, targetFillFactor) &&
                 HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
             {
@@ -1798,7 +1798,7 @@ void TChunkReplicator::OnCheckEnabled()
             OnCheckEnabledSecondary();
         }
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error updating chunk ```replicator state, disabling until the next attempt");
+        LOG_ERROR(ex, "Error updating chunk replicator state, disabling until the next attempt");
         Enabled_ = false;
     }
 }

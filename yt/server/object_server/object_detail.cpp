@@ -367,7 +367,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetReplicated(true));
 }
 
-const yhash_set<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
+const THashSet<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
 {
     return Metadata_->BuiltinAttributeKeysCache.GetBuiltinAttributeKeys(this);
 }
@@ -459,7 +459,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* co
         ReserveAndListSystemAttributes(&systemAttributes);
 
         auto customAttributes = GetCustomAttributes()->List();
-        yhash_set<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
+        THashSet<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
 
         for (const auto& attribute : systemAttributes) {
             if (attribute.Custom) {

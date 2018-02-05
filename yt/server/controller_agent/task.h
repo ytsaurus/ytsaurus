@@ -85,10 +85,10 @@ public:
     virtual bool ValidateChunkCount(int chunkCount);
 
     void ScheduleJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const TJobResources& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        TScheduleJobResult* scheduleJobResult);
 
     virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
@@ -98,10 +98,6 @@ public:
     // First checks against a given node, then against all nodes if needed.
     void CheckResourceDemandSanity(
         const TJobResources& nodeResourceLimits,
-        const TJobResources& neededResources);
-
-    // Checks against all available nodes.
-    void CheckResourceDemandSanity(
         const TJobResources& neededResources);
 
     void DoCheckResourceDemandSanity(const TJobResources& neededResources);
@@ -150,8 +146,8 @@ protected:
     //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
     ITaskHost* TaskHost_;
 
-    virtual TNullable<NScheduler::EScheduleJobFailReason> GetScheduleFailReason(
-        NScheduler::ISchedulingContext* context,
+    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
+        ISchedulingContext* context,
         const TJobResources& jobLimits);
 
     virtual void OnTaskCompleted();
@@ -272,7 +268,7 @@ struct TTaskGroup
     TJobResources MinNeededResources;
 
     //! All non-local tasks.
-    yhash_set<TTaskPtr> NonLocalTasks;
+    THashSet<TTaskPtr> NonLocalTasks;
 
     //! Non-local tasks that may possibly be ready (but a delayed check is still needed)
     //! keyed by min memory demand (as reported by TTask::GetMinNeededResources).
@@ -282,7 +278,7 @@ struct TTaskGroup
     std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
     //! Local tasks keyed by node id.
-    yhash<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TTaskPtr>> NodeIdToTasks;
 
     TTaskGroup();
 

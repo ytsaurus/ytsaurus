@@ -101,7 +101,7 @@ public:
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);
 
-    using TCachedReplicas = yhash_set<TNodePtrWithIndexes>;
+    using TCachedReplicas = THashSet<TNodePtrWithIndexes>;
     const TCachedReplicas& CachedReplicas() const;
 
     using TStoredReplicas = TNodePtrWithIndexesList;

@@ -521,7 +521,7 @@ public:
         , DataToBlockFlush_(Config_->BlockSize)
     {
         // Only scan-optimized version for now.
-        yhash<TString, TDataBlockWriter*> groupBlockWriters;
+        THashMap<TString, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
             if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
@@ -1194,7 +1194,7 @@ private:
 
     std::function<TPartitionChunkWriterPtr(IChunkWriterPtr)> ChunkWriterFactory_;
 
-    yhash_set<int> LargePartitons_;
+    THashSet<int> LargePartitons_;
     std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
 
     TNameTablePtr ChunkNameTable_;

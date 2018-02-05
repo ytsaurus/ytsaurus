@@ -42,19 +42,19 @@ void TTrafficMeter::IncrementByteCount(
     IncrementByteCountImpl(Data_, direction, byteCount);
 }
 
-yhash<TDataCenterName, i64> TTrafficMeter::GetInboundByteCountBySource() const
+THashMap<TDataCenterName, i64> TTrafficMeter::GetInboundByteCountBySource() const
 {
     TGuard<TSpinLock> guard(Lock_);
     return InboundData_;
 }
 
-yhash<TDataCenterName, i64> TTrafficMeter::GetOutboundByteCountByDestination() const
+THashMap<TDataCenterName, i64> TTrafficMeter::GetOutboundByteCountByDestination() const
 {
     TGuard<TSpinLock> guard(Lock_);
     return OutboundData_;
 }
 
-yhash<TTrafficMeter::TDirection, i64> TTrafficMeter::GetByteCountByDirection() const
+THashMap<TTrafficMeter::TDirection, i64> TTrafficMeter::GetByteCountByDirection() const
 
 {
     TGuard<TSpinLock> guard(Lock_);

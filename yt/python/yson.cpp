@@ -3,7 +3,9 @@
 #include "serialize.h"
 #include "shutdown.h"
 #include "stream.h"
+#include "lazy_list_fragment_parser.h"
 #include "lazy_parser.h"
+#include "lazy_yson_consumer.h"
 #include "yson_lazy_map.h"
 #include "object_builder.h"
 #include "protobuf_descriptor_pool.h"
@@ -217,11 +219,8 @@ public:
         bool alwaysCreateAttributes)
     {
         InputStreamOwner_ = std::move(inputStreamOwner);
-        Parser_ = TListFragmentParser(inputStream);
-        LoadsParams_ = loadsParams;
-        Encoding_ = encoding;
-        AlwaysCreateAttributes_ = alwaysCreateAttributes;
-        KeyCache_ = TPythonStringCache(true, Encoding_);
+        KeyCache_ = TPythonStringCache(true, encoding);
+        Parser_.reset(new TLazyListFragmentParser(inputStream, encoding, alwaysCreateAttributes, &KeyCache_));
     }
 
     Py::Object iter()
@@ -232,14 +231,12 @@ public:
     PyObject* iternext()
     {
         try {
-            auto item = Parser_.NextItem();
+            auto item = Parser_->NextItem();
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);
                 return nullptr;
             }
-            auto result = TString(item.Begin(), item.Size() - 1);
-            TOwningStringInput rawStream(result);
-            return ParseLazyDict(&rawStream, NYson::EYsonType::Node, Encoding_, AlwaysCreateAttributes_, &KeyCache_);
+            return item;
         } CATCH("Yson load failed");
     }
 
@@ -259,11 +256,8 @@ public:
 
 private:
     std::unique_ptr<IInputStream> InputStreamOwner_;
-    TListFragmentParser Parser_;
-    Py::Tuple LoadsParams_;
+    std::unique_ptr<TLazyListFragmentParser> Parser_;
     TPythonStringCache KeyCache_;
-    TNullable<TString> Encoding_;
-    bool AlwaysCreateAttributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,7 +396,7 @@ private:
 #if PY_MAJOR_VERSION < 3
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
-                inputStream.reset(new TFileInput(Duplicate(file)));
+                inputStream.reset(new TUnbufferedFileInput(Duplicate(file)));
                 wrapStream = false;
             }
 #endif
@@ -474,9 +468,8 @@ private:
                 iter->Init(inputStreamPtr, std::move(inputStream), params, encoding, alwaysCreateAttributes);
                 return pythonIter;
             }
-            TPythonStringCache keyCacher(false, encoding);
 
-            return Py::Object(ParseLazyDict(inputStreamPtr, ysonType, encoding, alwaysCreateAttributes, &keyCacher));
+            return ParseLazyYson(inputStreamPtr, encoding, alwaysCreateAttributes, ysonType);
         }
 
         if (ysonType == NYson::EYsonType::ListFragment) {
@@ -495,6 +488,7 @@ private:
                 iter->Init(inputStreamPtr, std::move(inputStream), alwaysCreateAttributes, encoding);
                 return pythonIter;
             }
+
         } else {
             if (raw) {
                 throw CreateYsonError("Raw mode is only supported for list fragments");
@@ -529,7 +523,7 @@ private:
 
         // Holds outputStreamWrap if passed non-trivial stream argument
         std::unique_ptr<TOutputStreamWrap> outputStreamWrap;
-        std::unique_ptr<TFileOutput> fileOutput;
+        std::unique_ptr<TUnbufferedFileOutput> fileOutput;
         std::unique_ptr<TBufferedOutput> bufferedOutputStream;
 
         if (!outputStream) {
@@ -538,7 +532,7 @@ private:
 #if PY_MAJOR_VERSION < 3
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
-                fileOutput.reset(new TFileOutput(Duplicate(file)));
+                fileOutput.reset(new TUnbufferedFileOutput(Duplicate(file)));
                 outputStream = fileOutput.get();
                 wrapStream = false;
             }
@@ -682,9 +676,9 @@ private:
         ::google::protobuf::io::ArrayInputStream inputStream(serializedStringBuf.begin(), serializedStringBuf.size());
 
         TString result;
-		TStringOutput outputStream(result);
-		TYsonWriter writer(&outputStream);
-		ParseProtobuf(&writer, &inputStream, messageType);
+        TStringOutput outputStream(result);
+        TYsonWriter writer(&outputStream);
+        ParseProtobuf(&writer, &inputStream, messageType);
 
         return Py::ConvertToPythonString(result);
     }

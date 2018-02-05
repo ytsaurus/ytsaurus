@@ -42,7 +42,7 @@ public:
 
     //! Check that a given set of true-variables satisfies the formula.
     bool IsSatisfiedBy(const std::vector<TString>& value) const;
-    bool IsSatisfiedBy(const yhash_set<TString>& value) const;
+    bool IsSatisfiedBy(const THashSet<TString>& value) const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);

@@ -210,7 +210,7 @@ private:
 
     // These are for the future accounting.
     TReaderWriterSpinLock FutureEffectLock_;
-    yhash<TTabletId, int> FutureEffect_;
+    THashMap<TTabletId, int> FutureEffect_;
 
 
     void OnBeginSlotScan()
@@ -897,8 +897,15 @@ private:
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
             }
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(TError());
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error partitioning Eden, backing off");
+            auto error = TError(ex)
+                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Partitioning);
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(error);
+            LOG_ERROR(error, "Error partitioning Eden, backing off");
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
@@ -1261,8 +1268,15 @@ private:
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
             }
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error compacting partition, backing off");
+            auto error = TError(ex)
+                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
+            LOG_ERROR(error, "Error compacting partition, backing off");
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);

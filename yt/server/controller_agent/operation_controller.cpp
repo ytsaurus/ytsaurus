@@ -94,8 +94,8 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
 
 TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : TJobSummary(event)
-      , Abandoned(event->abandoned())
-      , InterruptReason(static_cast<EInterruptReason>(event->interrupt_reason()))
+    , Abandoned(event->abandoned())
+    , InterruptReason(static_cast<EInterruptReason>(event->interrupt_reason()))
 {
     YCHECK(event->has_abandoned());
     YCHECK(event->has_interrupt_reason());
@@ -285,7 +285,12 @@ public:
         return Underlying_->GetNeededResources();
     }
 
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const
+    virtual void UpdateMinNeededJobResources() override
+    {
+        Underlying_->UpdateMinNeededJobResources();
+    }
+
+    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
         return Underlying_->GetMinNeededJobResources();
     }
@@ -316,11 +321,11 @@ public:
     }
 
     virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
+        ISchedulingContext* context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
-        return Underlying_->ScheduleJob(std::move(context), jobLimits, treeId);
+        return Underlying_->ScheduleJob(context, jobLimits, treeId);
     }
 
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override
@@ -398,19 +403,47 @@ public:
         return Underlying_->OnBeforeDisposal();
     }
 
-    // TODO(babenko)
-    virtual void OnNonscheduledJobAborted(
-        const TJobId& jobid,
-        EAbortReason abortReason) override
-    {
-        Y_UNREACHABLE();
-    }
-
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;
     const IInvokerPtr DtorInvoker_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobStartDescriptor::TJobStartDescriptor(
+    const TJobId& id,
+    EJobType type,
+    const TJobResources& resourceLimits,
+    bool interruptible)
+    : Id(id)
+    , Type(type)
+    , ResourceLimits(resourceLimits)
+    , Interruptible(interruptible)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
+{
+    ++Failed[reason];
+}
+
+bool TScheduleJobResult::IsBackoffNeeded() const
+{
+    return
+        !StartDescriptor &&
+        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
+        Failed[EScheduleJobFailReason::NoLocalJobs] == 0 &&
+        Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
+}
+
+bool TScheduleJobResult::IsScheduleStopNeeded() const
+{
+    return
+        Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
+        Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -471,7 +471,7 @@ private:
         };
 
         std::vector<TRun> Runs;
-        yhash_set<TCookie> PendingRuns;
+        THashSet<TCookie> PendingRuns;
 
 
         void UpdatePendingRunSet(const TRun& run)

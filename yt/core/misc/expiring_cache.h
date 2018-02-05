@@ -58,7 +58,7 @@ private:
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
-    yhash<TKey, TIntrusivePtr<TEntry>> Map_;
+    THashMap<TKey, TIntrusivePtr<TEntry>> Map_;
 
     void SetResult(const TWeakPtr<TEntry>& entry, const TKey& key, const TErrorOr<TValue>& valueOrError);
     void InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys);

@@ -38,7 +38,7 @@ template <typename TVertexDescriptor>
 void TIncrementalTopologicalOrdering<TVertexDescriptor>::Rebuild()
 {
     std::queue<TVertexDescriptor> queue;
-    yhash<TVertexDescriptor, int> inDegree;
+    THashMap<TVertexDescriptor, int> inDegree;
 
     // Initialize in-degrees of all vertices.
     for (const auto& pair : OutgoingEdges_) {

@@ -6,9 +6,9 @@
 #include "job_memory.h"
 #include "helpers.h"
 #include "task_host.h"
+#include "scheduling_context.h"
 
 #include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 
@@ -25,7 +25,6 @@
 #include <yt/core/misc/digest.h>
 
 #include <yt/core/ytree/convert.h>
-
 
 namespace NYT {
 namespace NControllerAgent {
@@ -297,7 +296,7 @@ void TTask::ScheduleJob(
     }
 
     auto jobType = GetJobType();
-    joblet->JobId = context->GenerateJobId();
+    joblet->JobId = context->GetJobId();
 
     // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
@@ -307,7 +306,7 @@ void TTask::ScheduleJob(
     joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
         .AsyncVia(TaskHost_->GetCancelableInvoker())
         .Run();
-    scheduleJobResult->JobStartRequest.Emplace(
+    scheduleJobResult->StartDescriptor.Emplace(
         joblet->JobId,
         jobType,
         neededResources,
@@ -348,15 +347,15 @@ void TTask::ScheduleJob(
         FormatResources(neededResources));
 
     for (const auto& edgeDescriptor : EdgeDescriptors_) {
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractChunkList(edgeDescriptor.CellTag));
+        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(edgeDescriptor.CellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
-        joblet->StderrTableChunkListId = TaskHost_->ExtractChunkList(TaskHost_->StderrTable()->CellTag);
+        joblet->StderrTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->StderrTable()->CellTag);
     }
 
     if (TaskHost_->CoreTable() && IsCoreTableEnabled()) {
-        joblet->CoreTableChunkListId = TaskHost_->ExtractChunkList(TaskHost_->CoreTable()->CellTag);
+        joblet->CoreTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->CoreTable()->CellTag);
     }
 
     // Sync part.
@@ -454,7 +453,7 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {
-                    TaskHost_->GetChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                    TaskHost_->GetOutputChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
                 }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }

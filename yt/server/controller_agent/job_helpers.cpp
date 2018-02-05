@@ -110,7 +110,7 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
     briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
 
-    // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates yhash containing
+    // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates THashMap containing
     // output data statistics per output table and then aggregates them). Rewrite it without any new allocations.
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
     briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
@@ -247,12 +247,12 @@ TYsonString BuildInputPaths(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
+void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResult& scheduleJobResult)
 {
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        Failed[reason] += scheduleJobResult->Failed[reason];
+        Failed[reason] += scheduleJobResult.Failed[reason];
     }
-    Duration += scheduleJobResult->Duration;
+    Duration += scheduleJobResult.Duration;
     ++Count;
 }
 

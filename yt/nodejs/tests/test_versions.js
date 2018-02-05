@@ -1,4 +1,5 @@
 var Q = require("bluebird");
+var _ = require("underscore");
 
 var YtApplicationVersions = require("../lib/application_versions").that;
 
@@ -78,6 +79,13 @@ describe("YtApplicationVersions - discover versions", function() {
 
         function makeNamesList(entity, names, listedAttributes) {
             var name_result = names.map(function(name) {
+                if (name === "node2_no_http") {
+                    return {
+                        "$attributes": {"addresses": {}},
+                        "$value": name
+                    };
+                }
+
                 return {
                     "$attributes": {"addresses": {"monitoring_http": {"default": name}}},
                     "$value": name
@@ -136,10 +144,8 @@ describe("YtApplicationVersions - discover versions", function() {
                 "node1": {
                     "version": "2"
                 },
-                "node2": {
-                    "version": "3"
-                },
-                "node3": {"error" :{"code":-2, "message":"Request to \'node3:80/orchid/service\' has responded with 503", "attributes": {}, "inner_errors": []}}
+                "node2_no_http": {"error": {"code":-2, "message": "Failed to discover monitoring port", "attributes": {}, "inner_errors": []}},
+                "node3": {"error": {"code":-2, "message":"Request to \'node3:80/orchid/service\' has responded with 503", "attributes": {}, "inner_errors": []}}
             }),
             "schedulers": createMock("scheduler/instances", { }),
             "proxies": createMock2("proxies", "/service", [], {

@@ -326,7 +326,7 @@ void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, cons
 
     const auto& transactionId = transaction->GetId();
 
-    yhash<TCellTag, std::vector<TJobFile>> cellTagToFiles;
+    THashMap<TCellTag, std::vector<TJobFile>> cellTagToFiles;
     for (const auto& file : files) {
         cellTagToFiles[CellTagFromId(file.ChunkId)].push_back(file);
     }

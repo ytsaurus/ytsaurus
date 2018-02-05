@@ -587,7 +587,7 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const yhash_set<TString> THttpOutput::FilteredHeaders_ = {
+const THashSet<TString> THttpOutput::FilteredHeaders_ = {
     "transfer-encoding",
     "content-length",
     "connection",

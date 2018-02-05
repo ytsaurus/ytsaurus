@@ -68,12 +68,12 @@ public:
         EJobType jobType);
 
 private:
-    yhash<TVertexDescriptor, TProgressCounterPtr> JobCounters_;
+    THashMap<TVertexDescriptor, TProgressCounterPtr> JobCounters_;
     TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
 
-    yhash<TVertexDescriptor, EJobType> JobTypes_;
+    THashMap<TVertexDescriptor, EJobType> JobTypes_;
 
-    using TFlowMap = yhash<TVertexDescriptor, yhash<TVertexDescriptor, NChunkClient::NProto::TDataStatistics>>;
+    using TFlowMap = THashMap<TVertexDescriptor, THashMap<TVertexDescriptor, NChunkClient::NProto::TDataStatistics>>;
     TFlowMap Flow_;
 
     TIncrementalTopologicalOrdering<TVertexDescriptor> TopologicalOrdering_;

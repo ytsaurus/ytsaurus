@@ -127,7 +127,7 @@ public: \
         TSafeAssertionsGuard guard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
-            {"OperationId: " + ToString(OperationId)}); \
+            CoreNotes_); \
         try { \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
@@ -162,27 +162,27 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY_ANY(), false)
 
     IMPLEMENT_SAFE_METHOD(
-        NScheduler::TScheduleJobResultPtr,
+        TScheduleJobResultPtr,
         ScheduleJob,
-        (NScheduler::ISchedulingContextPtr context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
+        (ISchedulingContext* context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
         INVOKER_AFFINITY(CancelableInvoker),
         true,
-        New<NScheduler::TScheduleJobResult>())
+        New<TScheduleJobResult>())
 
     //! Callback called by TChunkScraper when get information on some chunk.
     IMPLEMENT_SAFE_VOID_METHOD(
         OnInputChunkLocated,
-        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
-        (chunkId, replicas),
+        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (chunkId, replicas, missing),
         THREAD_AFFINITY_ANY(),
         false)
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_VOID_METHOD(
         OnIntermediateChunkLocated,
-        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
-        (chunkId, replicas),
+        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (chunkId, replicas, missing),
         THREAD_AFFINITY_ANY(),
         false)
 
@@ -221,7 +221,8 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override;
+    virtual void UpdateMinNeededJobResources() override;
+    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
 
     virtual bool IsRunning() const override;
 
@@ -304,8 +305,9 @@ public:
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const override;
 
-    virtual const TChunkListPoolPtr& GetChunkListPool() const override;
-    virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) override;
+    virtual const TChunkListPoolPtr& GetOutputChunkListPool() const override;
+    virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
+    virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         bool unstageRecursively,
@@ -347,14 +349,6 @@ public:
 
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 
-    // TODO(babenko)
-    virtual void OnNonscheduledJobAborted(
-        const TJobId& jobid,
-        EAbortReason abortReason) override
-    {
-        Y_UNREACHABLE();
-    }
-
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -370,6 +364,7 @@ protected:
     const NTransactionClient::TTransactionId UserTransactionId;
 
     const NLogging::TLogger Logger;
+    const std::vector<TString> CoreNotes_;
 
     // Usually these clients are all the same (and connected to the current cluster).
     // But `remote copy' operation connects InputClient to remote cluster.
@@ -440,7 +435,7 @@ protected:
 
     TIntermediateTable IntermediateTable;
 
-    yhash<TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
+    THashMap<TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
 
     struct TInputQuery
     {
@@ -506,22 +501,22 @@ protected:
     void UpdateCachedMaxAvailableExecNodeResources();
 
     void DoScheduleJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const TJobResources& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const TJobResources& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        TScheduleJobResult* scheduleJobResult);
 
 
     TJobletPtr FindJoblet(const TJobId& jobId) const;
@@ -571,7 +566,7 @@ protected:
     virtual void PrepareInputQuery();
 
     void PickIntermediateDataCell();
-    void InitChunkListPool();
+    void InitChunkListPools();
 
     // Completion.
     void TeleportOutputChunks();
@@ -633,7 +628,7 @@ protected:
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
 
     //! Gets the list of all intermediate chunks that are not lost.
-    yhash_set<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
+    THashSet<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
 
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
@@ -831,7 +826,7 @@ protected:
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
 
-    const std::vector<NScheduler::TExecNodeDescriptor>& GetExecNodeDescriptors();
+    const TExecNodeDescriptorMap& GetExecNodeDescriptors();
 
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
@@ -861,39 +856,44 @@ protected:
 
     void SetOperationAlert(EOperationAlertType type, const TError& alert);
 
-    void AddFiles(const TUserJobSpecPtr& userJobSpec, const std::vector<NYPath::TRichYPath>& path, bool isLayer);
-
     void AbortAllJoblets();
 
 private:
     typedef TOperationControllerBase TThis;
 
+    std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
+
     //! Keeps information needed to maintain the liveness state of input chunks.
-    yhash<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
+    THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
 
     TOperationSpecBasePtr Spec_;
     TOperationOptionsPtr Options;
 
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
-    TChunkListPoolPtr ChunkListPool_;
-    yhash<NObjectClient::TCellTag, int> CellTagToRequiredChunkLists;
+    TChunkListPoolPtr OutputChunkListPool_;
+    TChunkListPoolPtr DebugChunkListPool_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkLists_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkLists_;
 
     std::atomic<int> CachedPendingJobCount = {0};
 
-    TJobResources CachedNeededResources;
     NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
+    TJobResources CachedNeededResources;
+
+    NConcurrency::TReaderWriterSpinLock CachedMinNeededResourcesJobLock;
+    NScheduler::TJobResourcesWithQuotaList CachedMinNeededJobResources;
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
     NConcurrency::TReaderWriterSpinLock CachedSuspiciousJobsYsonLock_;
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 
     //! Maps an intermediate chunk id to its originating completed job.
-    yhash<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
+    THashMap<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
     TIntermediateChunkScraperPtr IntermediateChunkScraper;
 
     //! Maps scheduler's job ids to controller's joblets.
-    yhash<TJobId, TJobletPtr> JobletMap;
+    THashMap<TJobId, TJobletPtr> JobletMap;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
@@ -910,7 +910,7 @@ private:
 
     TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
-    yhash<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_;
 
     //! Aggregated schedule job statistics.
@@ -941,7 +941,7 @@ private:
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
-    TExecNodeDescriptorListPtr ExecNodesDescriptors_ = New<NScheduler::TExecNodeDescriptorList>();
+    TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
@@ -972,7 +972,7 @@ private:
     int StderrCount_ = 0;
     int JobNodeCount_ = 0;
 
-    yhash<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
+    THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
 
     class TSink;
     std::vector<std::unique_ptr<TSink>> Sinks_;

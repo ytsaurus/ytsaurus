@@ -61,7 +61,7 @@ private:
     // NB: Two fields below are accessed only from `Invoker_`, so there are no races nor contention here.
 
     //! All necessary information about blocks that were at least once accessed during last `Config_->WindowLength`.
-    yhash<TBlockId, TDistributionEntry> BlockIdToDistributionEntry_;
+    THashMap<TBlockId, TDistributionEntry> BlockIdToDistributionEntry_;
     //! At the beginning of each iteration requests that become obsolete (older than `Config_->WindowLength`)
     //! are swept out and corresponding entries in `BlockRequestCount_` are decremented.
     std::queue<std::pair<TInstant, TBlockId>> RequestHistory_;

@@ -827,12 +827,13 @@ private:
                     false, /* enableContextSaving */
                     New<TControlAttributesConfig>(),
                     0);
+                TPipeReaderToWriterOptions options;
+                options.BufferRowCount = TableArtifactBufferRowCount;
+                options.Throttler = location->GetInThrottler();
                 PipeReaderToWriter(
                     reader,
                     writer,
-                    TableArtifactBufferRowCount,
-                    false,
-                    location->GetInThrottler());
+                    std::move(options));
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
@@ -881,7 +882,7 @@ private:
             tempMetaFile->Flock(LOCK_EX);
         })).Run();
 
-        TFileOutput fileOutput(*tempDataFile);
+        TUnbufferedFileOutput fileOutput(*tempDataFile);
         TErrorInterceptingOutput checkedOutput(location, &fileOutput);
 
         producer(&checkedOutput);
@@ -918,7 +919,7 @@ private:
             TFile metaFile(
                 metaFileName,
                 OpenExisting | RdOnly | Seq | CloseOnExec);
-            TBufferedFileInput metaInput(metaFile);
+            TFileInput metaInput(metaFile);
             metaBlob = TSharedMutableRef::Allocate<TArtifactReaderMetaBufferTag>(metaFile.GetLength());
             metaInput.Read(metaBlob.Begin(), metaFile.GetLength());
         })).Run();

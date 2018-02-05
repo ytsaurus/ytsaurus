@@ -13,6 +13,7 @@
 #include "peer_block_distributor.h"
 #include "session.h"
 #include "session_manager.h"
+#include "network_statistics.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -62,6 +63,7 @@ using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NProfiling;
 
 using NYT::FromProto;
 
@@ -250,22 +252,26 @@ private:
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v",
-            sessionId,
-            firstBlockIndex,
-            lastBlockIndex,
-            populateCache,
-            flushBlocks);
-
         ValidateConnected();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-
         auto location = session->GetStoreLocation();
+
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v",
+            sessionId,
+            firstBlockIndex,
+            lastBlockIndex,
+            populateCache,
+            flushBlocks,
+            location->GetMediumName());
+
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
+            location->IncrementThrottledWritesCounter();
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
+
+        TWallTimer timer;
 
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
@@ -279,6 +285,12 @@ private:
                 return session->FlushBlocks(lastBlockIndex);
             }));
         }
+
+        result.Subscribe(BIND([=] (const TError& error) {
+            if (error.IsOK()) {
+                location->UpdatePutBlocksWallTimeCounter(DurationToValue(timer.GetElapsedTime()));
+            }
+        }));
 
         context->ReplyFrom(result);
     }
@@ -401,6 +413,9 @@ private:
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
+        if (diskThrottling) {
+            chunk->GetLocation()->IncrementThrottledReadsCounter();
+        }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
@@ -411,6 +426,10 @@ private:
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
+        if (netThrottling) {
+            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+        }
 
         // Try suggesting other peers. This can never hurt.
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
@@ -529,6 +548,9 @@ private:
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
+        if (diskThrottling) {
+            chunk->GetLocation()->IncrementThrottledReadsCounter();
+        }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
@@ -539,6 +561,10 @@ private:
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
+        if (netThrottling) {
+            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+        }
 
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;
@@ -609,6 +635,8 @@ private:
 
         if (request->enable_throttling() && context->GetBusStatistics().PendingOutBytes > Config_->NetOutThrottlingLimit) {
             response->set_net_throttling(true);
+            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
             context->Reply();
             return;
         }

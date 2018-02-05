@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/misc/bootstrap.h>
-
 #include <yt/server/scheduler/public.h>
 
 #include <yt/server/controller_agent/public.h>
@@ -31,18 +29,7 @@ namespace NCellScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EControlQueue,
-    (Default)
-    (UserRequest)
-    (MasterConnector)
-    (Orchid)
-    (PeriodicActivity)
-    (Operation)
-    (AgentTracker)
-);
-
 class TBootstrap
-    : public TBootstrapBase
 {
 public:
     TBootstrap(TCellSchedulerConfigPtr config, NYTree::INodePtr configNode);

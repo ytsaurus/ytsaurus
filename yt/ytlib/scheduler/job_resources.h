@@ -6,6 +6,7 @@
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
 #include <yt/core/misc/fixed_point_number.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -13,7 +14,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 // For each memory capacity gives the number of nodes with this much memory.
-using TMemoryDistribution = yhash<i64, int>;
+using TMemoryDistribution = THashMap<i64, int>;
 
 // Uses precision of 2 decimal digits.
 using TCpuResource = TFixedPointNumber<int, 2>;
@@ -118,6 +119,7 @@ public:
 };
 
 using TJobResourcesWithQuota = TResourcesWithQuota<TJobResources>;
+using TJobResourcesWithQuotaList = SmallVector<TJobResourcesWithQuota, 8>;
 
 TString FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
 TString FormatResourceUsage(
@@ -201,6 +203,9 @@ namespace NProto {
 
 void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler::TJobResources& resources);
 void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::TJobResources& protoResources);
+
+void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const NScheduler::TJobResourcesWithQuota& resources);
+void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::NProto::TJobResourcesWithQuota& protoResources);
 
 } // namespace NProto
 

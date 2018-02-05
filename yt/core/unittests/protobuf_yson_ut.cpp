@@ -56,9 +56,9 @@ TString ToHex(const TString& data)
     auto protobufWriter = CreateProtobufWriter(&output, ReflectProtobufMessageType<NYT::NProto::type>()); \
     BuildYsonFluently(protobufWriter.get())
 
-#define TEST_EPILOGUE() \
+#define TEST_EPILOGUE(type) \
     Cerr << ToHex(str) << Endl; \
-    NYT::NProto::TMessage message; \
+    NYT::NProto::type message; \
     EXPECT_TRUE(message.ParseFromArray(str.data(), str.length()));
 
 TEST(TYsonToProtobufYsonTest, Success)
@@ -118,7 +118,7 @@ TEST(TYsonToProtobufYsonTest, Success)
         .EndMap();
 
 
-    TEST_EPILOGUE()
+    TEST_EPILOGUE(TMessage)
     EXPECT_EQ(10000, message.int32_field_xxx());
     EXPECT_EQ(10000U, message.uint32_field());
     EXPECT_EQ(10000, message.sint32_field());
@@ -168,7 +168,7 @@ TEST(TYsonToProtobufYsonTest, Success)
                 .Item().Value("foobar")
             .EndList()
         .EndMap();
-    
+
     EXPECT_EQ(ConvertToYsonString(node).GetData(), message.yson_field());
 }
 
@@ -185,7 +185,7 @@ TEST(TYsonToProtobufTest, TypeConversions)
             .Item("fixed64_field").Value(10000)
         .EndMap();
 
-    TEST_EPILOGUE()
+    TEST_EPILOGUE(TMessage)
     EXPECT_EQ(10000, message.int32_field_xxx());
     EXPECT_EQ(10000U, message.uint32_field());
     EXPECT_EQ(10000, message.sint32_field());
@@ -451,6 +451,27 @@ TEST(TYsonToProtobufTest, Failure)
     }, "/fixed64_field");
 }
 
+TEST(TYsonToProtobufTest, ErrorProto)
+{
+    TEST_PROLOGUE(TError)
+        .BeginMap()
+            .Item("message").Value("Hello world")
+            .Item("code").Value(1)
+            .Item("attributes").BeginMap()
+                .Item("host").Value("localhost")
+            .EndMap()
+        .EndMap();
+
+    TEST_EPILOGUE(TError);
+
+    EXPECT_EQ("Hello world", message.message());
+    EXPECT_EQ(1, message.code());
+
+    auto attribute = message.attributes().attributes()[0];
+    EXPECT_EQ(attribute.key(), "host");
+    EXPECT_EQ(ConvertTo<TString>(TYsonString(attribute.value())), "localhost");
+}
+
 #undef TEST_PROLOGUE
 #undef TEST_EPILOGUE
 
@@ -574,6 +595,35 @@ TEST(TProtobufToYsonTest, Success)
                 .Item("b").BeginList()
                     .Item().Value("foobar")
                 .EndList()
+            .EndMap()
+        .EndMap();
+    EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
+}
+
+TEST(TProtobufToYsonTest, ErrorProto)
+{
+    NYT::NProto::TError errorProto;
+    errorProto.set_message("Hello world");
+    errorProto.set_code(1);
+    auto attributeProto = errorProto.mutable_attributes()->add_attributes();
+    attributeProto->set_key("host");
+    attributeProto->set_value(ConvertToYsonString("localhost").GetData());
+
+    auto serialized = SerializeProtoToRef(errorProto);
+
+    ArrayInputStream inputStream(serialized.Begin(), serialized.Size());
+    TString yson;
+    TStringOutput outputStream(yson);
+    TYsonWriter writer(&outputStream, EYsonFormat::Pretty);
+    ParseProtobuf(&writer, &inputStream, ReflectProtobufMessageType<NYT::NProto::TError>());
+
+    auto writtenNode = ConvertToNode(TYsonString(yson));
+    auto expectedNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("message").Value("Hello world")
+            .Item("code").Value(1)
+            .Item("attributes").BeginMap()
+                .Item("host").Value("localhost")
             .EndMap()
         .EndMap();
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));

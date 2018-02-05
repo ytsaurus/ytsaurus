@@ -336,15 +336,14 @@ TWritingValueConsumer::TWritingValueConsumer(
     InitializeIdToTypeMapping();
 }
 
-void TWritingValueConsumer::Flush()
+TFuture<void> TWritingValueConsumer::Flush()
 {
-    if (!Writer_->Write(Rows_)) {
-        auto error = WaitFor(Writer_->GetReadyEvent());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Table writer failed");
-    }
-
-    Rows_.clear();
-    RowBuffer_->Clear();
+    return Writer_->GetReadyEvent()
+        .Apply(BIND([=, rows = std::move(Rows_)] () {
+            Writer_->Write(rows);
+            RowBuffer_->Clear();
+            return Writer_->GetReadyEvent();
+        }));
 }
 
 const TNameTablePtr& TWritingValueConsumer::GetNameTable() const
@@ -374,7 +373,8 @@ void TWritingValueConsumer::OnEndRow()
     Rows_.push_back(row);
 
     if (RowBuffer_->GetSize() > MaxBufferSize || FlushImmediately_) {
-        Flush();
+        auto error = WaitFor(Flush());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Table writer failed")
     }
 }
 

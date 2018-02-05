@@ -52,7 +52,7 @@ protected:
     TNullable<TReleaseQueue<TGuid>> Queue_;
 
 private:
-    yhash_set<TGuid> InQueue_;
+    THashSet<TGuid> InQueue_;
 };
 
 TEST_F(TReleaseQueueTest, Correctness1)

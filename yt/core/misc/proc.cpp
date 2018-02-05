@@ -152,7 +152,7 @@ void SetThreadPriority(int tid, int priority)
 #endif
 }
 
-i64 GetProcessRss(int pid)
+TMemoryUsage GetProcessMemoryUsage(int pid)
 {
 #ifdef _linux_
     TString path = "/proc/self/statm";
@@ -162,7 +162,26 @@ i64 GetProcessRss(int pid)
 
     TIFStream memoryStatFile(path);
     auto memoryStatFields = SplitStroku(memoryStatFile.ReadLine(), " ");
-    return FromString<i64>(memoryStatFields[1]) * NSystemInfo::GetPageSize();
+    return TMemoryUsage {
+        FromString<ui64>(memoryStatFields[1]) * NSystemInfo::GetPageSize(),
+        FromString<ui64>(memoryStatFields[2]) * NSystemInfo::GetPageSize(),
+    };
+#else
+    return TMemoryUsage{0, 0};
+#endif
+}
+
+ui64 GetProcessCumulativeMajorPageFaults(int pid)
+{
+#ifdef _linux_
+    TString path = "/proc/self/stat";
+    if (pid != -1) {
+        path = Format("/proc/%v/stat", pid);
+    }
+
+    TIFStream statFile(path);
+    auto statFields = SplitStroku(statFile.ReadLine(), " ");
+    return FromString<ui64>(statFields[11]) + FromString<ui64>(statFields[12]);
 #else
     return 0;
 #endif
@@ -172,7 +191,7 @@ TString GetProcessName(int pid)
 {
 #ifdef _linux_
     TString path = Format("/proc/%v/comm", pid);
-    return Trim(TFileInput(path).ReadAll(), "\n");
+    return Trim(TUnbufferedFileInput(path).ReadAll(), "\n");
 #else
     return "";
 #endif
@@ -182,7 +201,7 @@ std::vector<TString> GetProcessCommandLine(int pid)
 {
 #ifdef _linux_
     TString path = Format("/proc/%v/cmdline", pid);
-    auto raw = TFileInput(path).ReadAll();
+    auto raw = TUnbufferedFileInput(path).ReadAll();
     std::vector<TString> result;
     auto begin = 0;
     while (begin < raw.length()) {
@@ -884,7 +903,7 @@ bool HasRootPermissions()
 #endif
 }
 
-yhash<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics()
+THashMap<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics()
 {
 #ifdef _linux_
     // According to https://www.kernel.org/doc/Documentation/filesystems/proc.txt,
@@ -895,7 +914,7 @@ yhash<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics()
     // First two lines are header.
     Y_UNUSED(procNetDev.ReadLine());
     Y_UNUSED(procNetDev.ReadLine());
-    yhash<TString, TNetworkInterfaceStatistics> interfaceToStatistics;
+    THashMap<TString, TNetworkInterfaceStatistics> interfaceToStatistics;
     for (TString line; procNetDev.ReadLine(line) != 0; ) {
         TNetworkInterfaceStatistics statistics;
         auto lineParts = SplitStringBySet(line.data(), ": ");

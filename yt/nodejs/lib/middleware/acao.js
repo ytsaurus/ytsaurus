@@ -4,21 +4,16 @@ var worker = require("../worker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function endsWith(str, suffix) {
-    return str.indexOf(suffix, str.length - suffix.length) !== -1;
-}
+var allowedOrigins = /^http(s)?:\/\/([^\/]+\.yandex-team\.ru|localhost)(:\d+)?$/;
 
 exports.that = function Middleware__YtAcao()
 {
     return function(req, rsp, next) {
-        var origin = req.headers["origin"] || "*";
+        var origin = req.headers["origin"];
 
         var allow = false;
-        if (origin !== "*") {
-            var hostname = url.parse(origin).hostname;
-            if (hostname === "localhost" || endsWith(hostname, ".yandex.net") || endsWith(hostname, ".yandex-team.ru")) {
-                allow = true;
-            }
+        if ((typeof origin !== "undefined") && origin.match(allowedOrigins)) {
+            allow = true;
         }
 
         if (allow) {

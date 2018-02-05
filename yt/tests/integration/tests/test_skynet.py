@@ -3,13 +3,28 @@ from yt_commands import *
 
 import yt.yson as yson
 
-import urllib2
+import random
+import requests
 import hashlib
 import pytest
+import subprocess
+import string
 
 ##################################################################
 
-class TestSkynet(YTEnvSetup):
+SKYNET_TABLE_SCHEMA = make_schema([
+    {"name": "sky_share_id", "type": "uint64", "sort_order": "ascending", "group": "meta"},
+    {"name": "filename", "type": "string", "group": "meta"},
+    {"name": "part_index", "type": "int64", "group": "meta"},
+    {"name": "sha1", "type": "string", "group": "meta"},
+    {"name": "md5", "type": "string", "group": "meta"},
+    {"name": "data_size", "type": "int64", "group": "meta"},
+    {"name": "data", "type": "string", "group": "data"},
+], strict=True)
+
+##################################################################
+
+class TestSkynetIntegration(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -20,16 +35,6 @@ class TestSkynet(YTEnvSetup):
             "enable_experimental_skynet_http_api": True
         }
     }
-
-    SKYNET_TABLE_SCHEMA = make_schema([
-        {"name": "sky_share_id", "type": "uint64", "sort_order": "ascending", "group": "meta"},
-        {"name": "filename", "type": "string", "group": "meta"},
-        {"name": "part_index", "type": "int64", "group": "meta"},
-        {"name": "sha1", "type": "string", "group": "meta"},
-        {"name": "md5", "type": "string", "group": "meta"},
-        {"name": "data_size", "type": "int64", "group": "meta"},
-        {"name": "data", "type": "string", "group": "data"},
-    ], strict=True)
 
     def test_locate_single_part(self):
         create("table", "//tmp/table")
@@ -115,10 +120,9 @@ class TestSkynet(YTEnvSetup):
         else:
             raise KeyError(node_id)
 
-        url = "http://{}/read_skynet_part?{}".format(
-            http_address,
-            "&".join("{}={}".format(k, v) for k, v in kwargs.items()))
-        return urllib2.urlopen(url).read()
+        rsp = requests.get("http://{}/read_skynet_part".format(http_address), params=kwargs)
+        rsp.raise_for_status()
+        return rsp.content
 
     def test_http_checks_access(self):
         create("table", "//tmp/table")
@@ -138,14 +142,23 @@ class TestSkynet(YTEnvSetup):
         else:
             assert False, "Node not found: {}, {}".format(chunk["replicas"], str(info["nodes"]))
 
-        with pytest.raises(urllib2.HTTPError):
+        with pytest.raises(requests.HTTPError):
             self.get_skynet_part(node_id, info["nodes"], chunk_id=chunk_id,
                 lower_row_index=0, upper_row_index=2, start_part_index=0)
 
+    def test_write_null_fields(self):
+        create("table", "//tmp/table", attributes={
+            "enable_skynet_sharing": True,
+            "schema": SKYNET_TABLE_SCHEMA,
+        })
+
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{}])
+        
     def test_download_single_part_by_http(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
-            "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
+            "schema": SKYNET_TABLE_SCHEMA,
         })
 
         write_table("//tmp/table", [
@@ -171,7 +184,7 @@ class TestSkynet(YTEnvSetup):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
             "optimize_for": "scan",
-            "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
+            "schema": SKYNET_TABLE_SCHEMA,
         })
 
         def to_skynet_chunk(data):
@@ -217,19 +230,30 @@ class TestSkynet(YTEnvSetup):
 
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
-            "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
+            "schema": SKYNET_TABLE_SCHEMA,
         })
 
         map(in_="//tmp/input", out="//tmp/table", command="cat")
-        row = read_table("//tmp/table")[0]
+        row = read_table("//tmp/table", verbose=False)[0]
         assert 6 == row["data_size"]
         assert "sha1" in row
         assert "md5" in row
 
+    def test_same_filename_in_two_shards(self):
+        create("table", "//tmp/table", attributes={
+            "enable_skynet_sharing": True,
+            "schema": SKYNET_TABLE_SCHEMA,
+        })
+        
+        write_table("//tmp/table", [
+            {"sky_share_id": 0, "filename": "a", "part_index": 0, "data": "aaa"},
+            {"sky_share_id": 1, "filename": "a", "part_index": 0, "data": "aaa"},
+        ])
+        
     def test_skynet_hashes(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
-            "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
+            "schema": SKYNET_TABLE_SCHEMA,
         })
 
         def to_skynet_chunk(data):
@@ -245,8 +269,166 @@ class TestSkynet(YTEnvSetup):
         ])
 
         file_content = {}
-        for row in read_table("//tmp/table"):
+        for row in read_table("//tmp/table", verbose=False):
             assert hashlib.sha1(row["data"]).digest() == row["sha1"], str(row)
 
             file_content[row["filename"]] = file_content.get(row["filename"], "") + row["data"]
             assert hashlib.md5(file_content[row["filename"]]).digest() == row["md5"]
+
+##################################################################
+
+class TestSkynetManager(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    ENABLE_PROXY = True
+    ENABLE_RPC_PROXY = True
+    NUM_SKYNET_MANAGERS = 2
+
+    DELTA_NODE_CONFIG = {
+        "use_new_http_server": True,
+        "data_node": {
+            "enable_experimental_skynet_http_api": True
+        }
+    }
+
+    def prepare_table(self, table_path):
+        create("table", table_path, attributes={
+            "enable_skynet_sharing": True,
+            "schema": SKYNET_TABLE_SCHEMA,
+        })
+        write_table(table_path, [
+            {"filename": "test.txt", "part_index": 0, "data": "testtesttest"}
+        ])
+
+        for i in range(3):
+            write_table("<append=%true>" + table_path, [
+                {
+                    "filename": "test.bin",
+                    "part_index": i,
+                    "data": ''.join(random.choice(string.ascii_uppercase) * 1024 for _ in range(4 * 1024))
+                }
+            ])
+
+    def share(self, path):
+        url = "http://localhost:{}/api/v1/share".format(self.Env.configs["skynet_manager"][0]["port"])
+        for _ in range(5):
+            rsp = requests.post(url, headers={
+                "X-Yt-Parameters": yson.dumps({"cluster": "local", "path": path})
+            })
+
+            if rsp.status_code == 200:
+                return rsp.content
+
+            if rsp.status_code == 202:
+                time.sleep(1)
+                continue
+
+            rsp.raise_for_status()
+
+        raise RuntimeError("Failed to share {} in 5 seconds".format(path))
+
+    def discover(self, manager_idx, rbtorrentid):
+        url = "http://localhost:{}/api/v1/discover?rb_torrent_id={}".format(
+            self.Env.configs["skynet_manager"][manager_idx]["port"],
+            rbtorrentid)
+
+        rsp = requests.get(url)
+        rsp.raise_for_status()
+        return rsp.json
+
+    def test_create_share(self):
+        self.prepare_table("//tmp/table")
+        rbtorrentid = self.share("//tmp/table")
+
+        subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_0", rbtorrentid])
+
+    def test_no_table(self):
+        try:
+            self.share("//tmp/no_table")
+            assert False, "Request must fail"
+        except requests.RequestException as e:
+            assert e.response.status_code == 400
+            assert 'X-YT-Error' in e.response.headers
+            assert 'X-YT-Response-Code' in e.response.headers
+            assert 'X-Yt-Response-Message' in e.response.headers
+
+    def test_empty_file(self):
+        create("table", "//tmp/table_with_empty_file", attributes={
+            "enable_skynet_sharing": True,
+            "schema": SKYNET_TABLE_SCHEMA,
+        })
+        write_table("//tmp/table_with_empty_file", [
+            {"filename": "empty.txt", "part_index": 0, "data": ""}
+        ])
+        rbtorrentid = self.share("//tmp/table_with_empty_file")
+
+        subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_2", rbtorrentid])
+
+    def test_wrong_table_attributes(self):
+        create("table", "//tmp/table_with_wrong_attrs")
+        pass
+
+    def test_wrong_table_schema(self):
+        pass
+
+    def test_wrong_table_content(self):
+        pass
+            
+    def test_duplicate_table_content(self):
+        self.prepare_table("//tmp/orig_table")
+        copy("//tmp/orig_table", "//tmp/copy_table")
+
+        rbtorrentid0 = self.share("//tmp/orig_table")
+        rbtorrentid1 = self.share("//tmp/copy_table")
+        assert rbtorrentid0 == rbtorrentid1
+
+    def test_table_remove(self):
+        self.prepare_table("//tmp/removed_table")
+        rbtorrentid = self.share("//tmp/removed_table")
+        remove("//tmp/removed_table")
+
+        def share_is_removed():
+            try:
+                self.discover(0, rbtorrentid)
+                return False
+            except requests.RequestException as e:
+                return e.response.status_code == 400
+
+        wait(share_is_removed)
+        
+    def test_replication(self):
+        self.prepare_table("//tmp/replicated_table")
+        rbtorrentid = self.share("//tmp/replicated_table")
+
+        def share_is_available():
+            try:
+                self.discover(1, rbtorrentid)
+                return True
+            except requests.RequestException:
+                return False
+
+        wait(share_is_available)
+
+    def test_recovery(self):
+        self.prepare_table("//tmp/recovered_table")
+        rbtorrentid = self.share("//tmp/recovered_table")
+
+        self.Env.kill_service("skynet_manager")
+        self.Env.start_skynet_managers(sync=False)
+
+        subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_1", rbtorrentid])
+
+    def test_many_shards(self):
+        create("table", "//tmp/sharded_table", attributes={
+            "enable_skynet_sharing": True,
+            "schema": SKYNET_TABLE_SCHEMA,
+        })
+        
+        write_table("//tmp/sharded_table", [
+            {"sky_share_id": 0, "filename": "a", "part_index": 0, "data": "aaa"},
+            {"sky_share_id": 1, "filename": "a", "part_index": 0, "data": "aaa"},
+        ])
+
+        rbtorrentid0 = self.share("//tmp/sharded_table[0u]")
+        rbtorrentid1 = self.share("//tmp/sharded_table[1u]")
+

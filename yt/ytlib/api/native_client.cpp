@@ -226,6 +226,20 @@ TUnversionedOwningRow CreateJobKey(const TJobId& jobId, const TNameTablePtr& nam
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+constexpr int FileCacheHashDigitCount = 2;
+
+NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cachePath)
+{
+    auto lastDigits = md5.substr(md5.size() - FileCacheHashDigitCount);
+    return cachePath + "/" + lastDigits + "/" + md5;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TError TCheckPermissionResult::ToError(const TString& user, EPermission permission) const
 {
     switch (Action) {
@@ -736,7 +750,7 @@ public:
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options) override
     {
-        return NApi::CreateTableReader(this, path, options);
+        return NApi::CreateTableReader(this, path, options, New<TNameTable>());
     }
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
@@ -752,6 +766,17 @@ public:
     {
         return NApi::CreateTableWriter(this, path, options);
     }
+
+    IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
+        const TString& md5,
+        const TGetFileFromCacheOptions& options),
+        (md5, options))
+
+    IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options),
+        (path, expectedMD5, options))
 
     IMPLEMENT_METHOD(void, AddMember, (
         const TString& group,
@@ -858,7 +883,7 @@ private:
     const INativeConnectionPtr Connection_;
     const TClientOptions Options_;
 
-    TEnumIndexedVector<yhash<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
@@ -1060,7 +1085,7 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, EPeerKind::Leader);
-        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddress(Connection_->GetNetworks()));
+        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
     }
 
 
@@ -1355,7 +1380,7 @@ private:
         const TTabletReadOptions& options,
         const std::vector<std::pair<NTableClient::TKey, int>>& keys)
     {
-        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
         for (const auto& pair : keys) {
             auto key = pair.first;
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
@@ -1368,7 +1393,7 @@ private:
         const TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options)
     {
-        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
         for (const auto& tabletInfo : tableInfo->Tablets) {
             cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
         }
@@ -1378,7 +1403,7 @@ private:
     TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         const TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options,
-        const yhash<TCellId, std::vector<TTabletId>>& cellIdToTabletIds)
+        const THashMap<TCellId, std::vector<TTabletId>>& cellIdToTabletIds)
     {
         size_t cellCount = cellIdToTabletIds.size();
         size_t tabletCount = 0;
@@ -1412,7 +1437,7 @@ private:
 
         return Combine(asyncResults).Apply(
             BIND([=, this_ = MakeStrong(this)] (const std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>& rsps) {
-                yhash<TTableReplicaId, int> replicaIdToCount;
+                THashMap<TTableReplicaId, int> replicaIdToCount;
                 for (const auto& rsp : rsps) {
                     for (const auto& protoTabletInfo : rsp->tablets()) {
                         for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
@@ -1488,7 +1513,7 @@ private:
         auto candidates = WaitFor(Combine(asyncCandidates))
             .ValueOrThrow();
 
-        yhash<TString, int> clusterNameToCount;
+        THashMap<TString, int> clusterNameToCount;
         for (const auto& replicaInfos : candidates) {
             SmallVector<TString, TypicalReplicaCount> clusterNames;
             for (const auto& replicaInfo : replicaInfos) {
@@ -1676,7 +1701,7 @@ private:
         std::vector<int> keyIndexToResultIndex(keys.Size());
         int currentResultIndex = -1;
 
-        yhash<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
+        THashMap<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
 
         // TODO(sandello): Reuse code from QL here to partition sorted keys between tablets.
         // Get rid of hash map.
@@ -1921,8 +1946,8 @@ private:
                 replicas.push_back(replica->ReplicaId);
             }
         } else {
-            yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
-            yhash_set<TTabletId> tabletIds;
+            THashMap<TCellId, std::vector<TTabletId>> cellToTabletIds;
+            THashSet<TTabletId> tabletIds;
             for (auto key : keys) {
                 ValidateClientKey(key, schema, idMapping, nameTable);
                 auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping);
@@ -1954,7 +1979,7 @@ private:
             auto responsesResult = WaitFor(Combine(futures));
             auto responses = responsesResult.ValueOrThrow();
 
-            yhash<TTableReplicaId, int> replicaIdToCount;
+            THashMap<TTableReplicaId, int> replicaIdToCount;
             for (const auto& response : responses) {
                 for (const auto& protoTabletInfo : response->tablets()) {
                     for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
@@ -1999,7 +2024,7 @@ private:
             std::vector<size_t> ResultIndexes;
         };
 
-        yhash<TCellId, TSubrequest> cellIdToSubrequest;
+        THashMap<TCellId, TSubrequest> cellIdToSubrequest;
 
         for (size_t resultIndex = 0; resultIndex < tabletIndexes.size(); ++resultIndex) {
             auto tabletIndex = tabletIndexes[resultIndex];
@@ -2670,7 +2695,7 @@ private:
             // Maps src index -> list of chunk ids for this src.
             std::vector<std::vector<TChunkId>> groupedChunkIds(srcPaths.size());
             {
-                yhash<TCellTag, std::vector<int>> cellTagToIndexes;
+                THashMap<TCellTag, std::vector<int>> cellTagToIndexes;
                 for (int srcIndex = 0; srcIndex < srcCellTags.size(); ++srcIndex) {
                     cellTagToIndexes[srcCellTags[srcIndex]].push_back(srcIndex);
                 }
@@ -2873,6 +2898,201 @@ private:
         return FromProto<TObjectId>(rsp->object_id());
     }
 
+    TGetFileFromCacheResult DoGetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options)
+    {
+        TGetFileFromCacheResult result;
+        auto destination = GetFilePathInCache(md5, options.CachePath);
+
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto req = TYPathProxy::Get(destination + "/@");
+
+        std::vector<TString> attributeKeys{
+            "md5"
+        };
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+        SetTransactionId(req, options, true);
+
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        if (!rspOrError.IsOK()) {
+            LOG_DEBUG(
+                rspOrError,
+                "File is missing "
+                "(Destination: %v, MD5: %v)",
+                destination,
+                md5);
+
+            return result;
+        }
+
+        auto rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        auto originalMD5 = attributes->Get<TString>("md5", "");
+        if (md5 != originalMD5) {
+            LOG_DEBUG(
+                "File has incorrect md5 hash "
+                "(Destination: %v, expectedMD5: %v, originalMD5: %v)",
+                destination,
+                md5,
+                originalMD5);
+
+            return result;
+        }
+
+        result.Path = destination;
+        return result;
+    }
+
+
+    TPutFileToCacheResult DoPutFileToCache(
+        const NYPath::TYPath &path,
+        const TString &expectedMD5,
+        const TPutFileToCacheOptions &options)
+    {
+        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
+        auto Logger = logger;
+
+        TPutFileToCacheResult result;
+
+        // Start transaction.
+        ITransactionPtr transaction;
+        {
+            auto transactionStartOptions = TTransactionStartOptions();
+            transactionStartOptions.ParentId = GetTransactionId(options, true);
+            transactionStartOptions.Sticky = true;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Format("Putting file %v to cache", path));
+            transactionStartOptions.Attributes = std::move(attributes);
+
+            auto asyncTransaction = StartTransaction(ETransactionType::Master, transactionStartOptions);
+            transaction = WaitFor(asyncTransaction)
+                .ValueOrThrow();
+
+            auto transactionAttachOptions = TTransactionAttachOptions();
+            transactionAttachOptions.AutoAbort = true;
+            transactionAttachOptions.PingAncestors = options.PingAncestors;
+            transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
+
+            LOG_DEBUG(
+                "Transaction started (TransactionId: %v)",
+                transaction->GetId());
+        }
+
+        Logger.AddTag("TransactionId: %v", transaction->GetId());
+
+        // Acquire lock.
+        NYPath::TYPath objectIdPath;
+        {
+            TLockNodeOptions lockNodeOptions;
+            lockNodeOptions.TransactionId = transaction->GetId();
+            auto lockResult = DoLockNode(path, ELockMode::Exclusive, lockNodeOptions);
+            objectIdPath = FromObjectId(lockResult.NodeId);
+
+            LOG_DEBUG(
+                "Lock for node acquired (LockId: %v)",
+                lockResult.LockId);
+        }
+
+        // Check permissions.
+        {
+            auto checkPermissionOptions = TCheckPermissionOptions();
+            checkPermissionOptions.TransactionId = transaction->GetId();
+
+            auto readPermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Read, checkPermissionOptions);
+            readPermissionResult.ToError(Options_.User, EPermission::Read)
+                .ThrowOnError();
+
+            auto removePermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Remove, checkPermissionOptions);
+            removePermissionResult.ToError(Options_.User, EPermission::Remove)
+                .ThrowOnError();
+
+            auto usePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Use, checkPermissionOptions);
+            usePermissionResult.ToError(Options_.User, EPermission::Use)
+                .ThrowOnError();
+        }
+
+        // Check that MD5 hash is equal to the original MD5 hash of the file.
+        {
+            auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+            auto req = TYPathProxy::Get(objectIdPath + "/@");
+
+            std::vector<TString> attributeKeys{
+                "md5"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            NCypressClient::SetTransactionId(req, transaction->GetId());
+
+            auto rspOrError = WaitFor(proxy->Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                "Error requesting md5 hash of file %v",
+                path);
+
+            auto rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            auto md5 = attributes->Get<TString>("md5");
+            if (expectedMD5 != md5) {
+                THROW_ERROR_EXCEPTION(
+                    "MD5 mismatch; expected %v, got %v",
+                    expectedMD5,
+                    md5);
+            }
+
+            LOG_DEBUG(
+                "MD5 hash checked (MD5: %v)",
+                expectedMD5);
+        }
+
+        auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
+        auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+
+        // Move file.
+        {
+            auto moveOptions = TMoveNodeOptions();
+            moveOptions.TransactionId = transaction->GetId();
+            moveOptions.Recursive = true;
+            moveOptions.Force = true;
+            moveOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            moveOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+
+            WaitFor(fileCacheClient->MoveNode(objectIdPath, destination, moveOptions))
+                .ValueOrThrow();
+
+            LOG_DEBUG(
+                "File has been moved to cache (Destination: %v)",
+                destination);
+        }
+
+        // Set /@touched attribute.
+        {
+            auto setNodeOptions = TSetNodeOptions();
+            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            setNodeOptions.TransactionId = transaction->GetId();
+
+            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
+            auto rspOrError = WaitFor(asyncResult);
+
+            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
+            }
+
+            LOG_DEBUG(
+                "Attribute /@touched set (Destination: %v)",
+                destination);
+        }
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        result.Path = destination;
+        return result;
+    }
 
     void DoAddMember(
         const TString& group,
@@ -3049,7 +3269,7 @@ private:
 
         TLookupRowsOptions lookupOptions;
 
-        yhash_set<TString> fields;
+        THashSet<TString> fields;
         bool hasId = false;
         if (options.Attributes) {
             for (const auto& field : *options.Attributes) {
@@ -3081,7 +3301,7 @@ private:
         }
 
         std::vector<int> columnIndexes;
-        yhash<TString, int> fieldToIndex;
+        THashMap<TString, int> fieldToIndex;
 
         int index = 0;
         for (const auto& field : fields) {
@@ -3655,8 +3875,8 @@ private:
         }
 
         TListOperationsResult result;
-        yhash<TString, i64> poolCounts;
-        yhash<TString, i64> userCounts;
+        THashMap<TString, i64> poolCounts;
+        THashMap<TString, i64> userCounts;
         TEnumIndexedVector<i64, NScheduler::EOperationState> stateCounts;
         TEnumIndexedVector<i64, NScheduler::EOperationType> typeCounts;
         i64 failedJobsCount = 0;
@@ -3725,20 +3945,25 @@ private:
             operation.BriefSpec = attributes.GetYson("brief_spec");
 
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-            operation.Pool = briefSpecMapNode->GetChild("pool")->AsString()->GetValue();
+            auto poolNode = briefSpecMapNode->FindChild("pool");
+            if (poolNode) {
+                operation.Pool = poolNode->AsString()->GetValue();
+            }
 
             operation.BriefProgress = attributes.GetYson("brief_progress");
             operation.Suspended = attributes.Get<bool>("suspended");
-            operation.Weight = attributes.Get<double>("weight");
+            operation.Weight = attributes.Find<double>("weight");
             cypressOperations.push_back(operation);
         }
 
         auto filterAndCount =
-            [&] (const TString& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
-                poolCounts[pool] += count;
+            [&] (const TNullable<TString>& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
+                if (pool) {
+                    poolCounts[*pool] += count;
 
-                if (options.Pool && *options.Pool != pool) {
-                    return false;
+                    if (options.Pool && *options.Pool != *pool) {
+                        return false;
+                    }
                 }
 
                 userCounts[user] += count;
@@ -4787,7 +5012,7 @@ private:
 
         TLookupRowsOptions lookupOptions;
 
-        yhash_set<TString> fields = {
+        THashSet<TString> fields = {
             "operation_id_hi",
             "operation_id_lo",
             "job_id_hi",
@@ -4807,7 +5032,7 @@ private:
         }
 
         std::vector<int> columnIndexes;
-        yhash<TString, int> fieldToIndex;
+        THashMap<TString, int> fieldToIndex;
 
         int index = 0;
         for (const auto& field : fields) {

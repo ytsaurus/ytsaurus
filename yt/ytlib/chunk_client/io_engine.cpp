@@ -3,7 +3,8 @@
 #include <util/system/platform.h>
 
 #ifdef _linux_
-#include <linux/aio_abi.h>
+#include <yt/contrib/aio/aio_abi.h>
+
 #include <sys/syscall.h>
 #include <unistd.h>
 #endif
@@ -94,15 +95,14 @@ public:
 
     virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
     {
-        if (UseDirectIO_) {
-            oMode |= DirectAligned;
-        }
-
         auto fh = std::make_shared<TFileHandle>(fName, oMode);
         if (!fh->IsOpen()) {
             THROW_ERROR_EXCEPTION("Cannot open %Qv with mode %v",
                 fName,
                 oMode) << TError::FromSystem();
+        }
+        if (UseDirectIO_) {
+            fh->SetDirect();
         }
         return fh;
     }
@@ -151,7 +151,7 @@ private:
     NConcurrency::TThreadPool ThreadPool_;
 
     bool UseDirectIO_;
-    const i64 Alignment_ = 512;
+    const i64 Alignment_ = 4_KB;
 
     bool DoFlushData(const std::shared_ptr<TFileHandle>& fh)
     {
@@ -181,10 +181,12 @@ private:
         size_t result;
         ui8* buf = reinterpret_cast<ui8*>(data.Begin());
 
+        YCHECK(readPortion <= data.Size());
+
         NFS::ExpectIOErrors([&]() {
-            while (numBytes) {
+            while (readPortion) {
                 const i32 toRead = static_cast<i32>(Min(MaxPortion_, readPortion));
-                const i32 reallyRead = fh->Pread(buf, toRead, offset);
+                const i32 reallyRead = fh->Pread(buf, toRead, from);
 
                 if (reallyRead < 0) {
                     // TODO(aozeritsky): ythrow is placed here consciously.
@@ -194,19 +196,19 @@ private:
                     ythrow TFileError();
                 }
 
-                if (reallyRead == 0) { // file exausted
+                buf += reallyRead;
+                from += reallyRead;
+                readPortion -= reallyRead;
+
+                if (reallyRead < toRead) { // file exausted
                     break;
                 }
-
-                buf += reallyRead;
-                offset += reallyRead;
-                numBytes -= reallyRead;
             }
 
-            result = buf - reinterpret_cast<ui8*>(data.Begin());
+            result = buf - reinterpret_cast<ui8*>(data.Begin()) - delta;
         });
 
-        return data.Slice(delta, delta + result);
+        return data.Slice(delta, delta + Min(result, numBytes));
     }
 
     void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
@@ -327,8 +329,9 @@ private:
 
     virtual void DoComplete(const io_event& ev) override
     {
-        auto result = ev.res;
-        Data_ = Data_.Slice(Offset_ - From_, Offset_ - From_ + Min(static_cast<size_t>(result), Length_));
+        auto delta = Offset_ - From_;
+        auto result = ev.res - delta;
+        Data_ = Data_.Slice(delta, delta + Min(static_cast<size_t>(result), Length_));
         Result_.Set(Data_);
     }
 
@@ -451,13 +454,13 @@ public:
 
     virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
     {
-        oMode |= DirectAligned;
         auto fh = std::make_shared<TFileHandle>(fName, oMode);
         if (!fh->IsOpen()) {
             THROW_ERROR_EXCEPTION("Cannot open %Qv with mode %v",
                 fName,
                 oMode) << TError::FromSystem();
         }
+        fh->SetDirect();
         return fh;
     }
 
@@ -466,10 +469,9 @@ private:
     const int MaxQueueSize_;
 
     NConcurrency::TAsyncSemaphore Semaphore_;
-    int Inflight_ = 0;
     std::atomic<bool> Alive_ = {true};
 
-    const i64 Alignment_ = 512;
+    const i64 Alignment_ = 4_KB;
 
     TThread Thread_;
 

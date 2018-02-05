@@ -122,7 +122,7 @@ public:
             suspendableStripe.Resume(stripe);
         } else {
             JobManager_->Resume(cookie);
-            yhash<TInputChunkPtr, TInputChunkPtr> newChunkMapping;
+            THashMap<TInputChunkPtr, TInputChunkPtr> newChunkMapping;
             try {
                 newChunkMapping = suspendableStripe.ResumeAndBuildChunkMapping(stripe);
             } catch (std::exception& ex) {
@@ -190,7 +190,9 @@ public:
         Persist(context, JobSizeConstraints_);
         Persist(context, SupportLocality_);
         Persist(context, OperationId_);
-        Persist(context, Task_);
+        if (context.GetVersion() >= 202044) {
+            Persist(context, Task_);
+        }
         Persist(context, ChunkPoolId_);
         Persist(context, MaxTotalSliceCount_);
         Persist(context, ShouldSliceByRowIndices_);
@@ -213,7 +215,7 @@ private:
     //! During the pool lifetime some input chunks may be suspended and replaced with
     //! another chunks on resumption. We keep track of all such substitutions in this
     //! map and apply it whenever the `GetStripeList` is called.
-    yhash<TInputChunkPtr, TInputChunkPtr> InputChunkMapping_;
+    THashMap<TInputChunkPtr, TInputChunkPtr> InputChunkMapping_;
 
     //! Information about input sources (e.g. input tables for sorted reduce operation).
     TInputStreamDirectory InputStreamDirectory_;

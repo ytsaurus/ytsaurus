@@ -130,6 +130,7 @@ public:
 
     virtual NRpc::TRequestId GetRequestId() const override;
     virtual NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
     virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
@@ -203,12 +204,15 @@ protected:
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
     TServerConfigPtr Config_;
-    yhash<TServiceId, IServicePtr> ServiceMap_;
+    THashMap<TServiceId, IServicePtr> ServiceMap_;
 
     explicit TServerBase(const NLogging::TLogger& logger);
 
     virtual void DoStart();
     virtual TFuture<void> DoStop(bool graceful);
+
+    virtual void DoRegisterService(const IServicePtr& service);
+    virtual void DoUnregisterService(const IServicePtr& service);
 
     std::vector<IServicePtr> DoFindServices(const TString& serviceName);
 

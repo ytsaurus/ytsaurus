@@ -51,7 +51,7 @@ public:
 
 private:
     std::vector<int> CookieToPosition_;
-    yhash<NChunkClient::TInputChunkPtr, int> TeleportChunkToPosition_;
+    THashMap<NChunkClient::TInputChunkPtr, int> TeleportChunkToPosition_;
 
     std::vector<TEntry> Pool_;
     std::vector<int> NextPosition_;

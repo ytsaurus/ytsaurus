@@ -4,6 +4,7 @@
 
 #include "bootstrap.h"
 #include "skynet_api.h"
+#include "cypress_sync.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -22,8 +23,11 @@
 #include <yt/core/http/client.h>
 #include <yt/core/http/server.h>
 #include <yt/core/http/http.h>
+#include <yt/core/http/helpers.h>
 
 #include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <util/string/cgiparam.h>
 
@@ -60,21 +64,28 @@ TSkynetManager::TSkynetManager(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 {
     bootstrap->HttpServer->AddHandler("/api/v1/share",
-        BIND(&TSkynetManager::Share, MakeStrong(this)));
+        WrapYTException(New<TCallbackHandler>(BIND(&TSkynetManager::Share, MakeStrong(this)))));
 
     bootstrap->HttpServer->AddHandler("/api/v1/discover",
-        BIND(&TSkynetManager::Discover, MakeStrong(this)));
+        WrapYTException(New<TCallbackHandler>(BIND(&TSkynetManager::Discover, MakeStrong(this)))));
+
+    bootstrap->HttpServer->AddHandler("/debug/healthcheck",
+        BIND(&TSkynetManager::HealthCheck, MakeStrong(this)));
 }
 
-TClusterConnectionConfigPtr TSkynetManager::GetCluster(const TString& name)
+void TSkynetManager::HealthCheck(IRequestPtr req, IResponseWriterPtr rsp)
 {
-    for (const auto& cluster : Bootstrap_->Config->Clusters) {
-        if (cluster->Name == name) {
-            return cluster;
-        }
+    bool ok = false;
+    {
+        auto guard = Guard(Lock_);
+        ok = CypressPullErrors_.empty()
+            && TablesScanErrors_.empty()
+            && SyncedClusters_.size() == Bootstrap_->Clusters.size();
     }
 
-    THROW_ERROR_EXCEPTION("Cluster %Qv not found in config", name);
+    rsp->WriteHeaders(ok ? EStatusCode::Ok : EStatusCode::InternalServerError);
+    WaitFor(rsp->Close())
+        .ThrowOnError();
 }
 
 void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
@@ -90,78 +101,85 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
     try {
         params.Load(ConvertToNode(TYsonString(req->GetHeaders()->Get("X-Yt-Parameters"))));
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Cannon parse request parameters");
+        LOG_ERROR(ex, "Failed to parse request parameters");
 
         rsp->WriteHeaders(EStatusCode::BadRequest);
+        FillYTErrorHeaders(rsp, TError(ex));
         WaitFor(rsp->Close())
             .ThrowOnError();
         return;
     }
 
     LOG_INFO("Start creating share (Cluster: %v, Path: %v)", params.Cluster, params.Path);
-    auto clusterConfig = GetCluster(params.Cluster);
+    auto cluster = Bootstrap_->GetCluster(params.Cluster);
 
-    TSkynetShareMeta meta;
-    std::vector<TFileOffset> fileOffsets;
+    auto tableRevision = CheckTableAttributes(params.Cluster, params.Path);
+    if (!tableRevision.IsOK()) {
+        rsp->WriteHeaders(EStatusCode::BadRequest);
+        FillYTErrorHeaders(rsp, tableRevision);
+        WaitFor(rsp->Close())
+            .ThrowOnError();
+        return;
+    }
 
-    std::tie(meta, fileOffsets) = ReadSkynetMetaFromTable(
-        Bootstrap_->HttpClient,
-        clusterConfig->ProxyUrl,
-        clusterConfig->OAuthToken,
-        params.Path);
+    TShareKey shareKey = {params.Cluster, ToString(params.Path), tableRevision.ValueOrThrow()};
 
-    auto skynetResource = GenerateResource(meta);
-    auto callbackUrl = Format(
-        "%v/api/v1/discover?cluster=%v&path=%v",
-        Bootstrap_->Config->SelfUrl,
-        params.Cluster,
-        params.Path);
-
-    auto asyncAddResource = Bootstrap_->SkynetApi->AddResource(
-        skynetResource.RbTorrentId,
-        callbackUrl,
-        skynetResource.BencodedTorrentMeta);
-        
-    WaitFor(asyncAddResource)
+    Bootstrap_->ShareCache->CheckTombstone(shareKey)
         .ThrowOnError();
+    
+    auto maybeRbTorrentId = Bootstrap_->ShareCache->TryShare(shareKey, true);
+    if (!maybeRbTorrentId) {
+        rsp->WriteHeaders(EStatusCode::Accepted);
+        WaitFor(rsp->Close())
+            .ThrowOnError();
+        return;
+    }
 
-    LOG_INFO("Share created (RbTorrentId: %v)", skynetResource.RbTorrentId);
+    auto rbTorrentId = *maybeRbTorrentId;
+    LOG_INFO("Share created (Key: %v, RbTorrentId: %v)", FormatShareKey(shareKey), rbTorrentId);
 
     rsp->GetHeaders()->Add("Content-Type", "text/plain");
     rsp->WriteHeaders(EStatusCode::Ok);
-    WaitFor(rsp->WriteBody(TSharedRef::FromString(skynetResource.RbTorrentId)))
+    WaitFor(rsp->WriteBody(TSharedRef::FromString(rbTorrentId)))
         .ThrowOnError();
 }
 
 void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
 {
     TCgiParameters params(req->GetUrl().RawQuery);
-    auto cluster = params.Get("cluster");
-    TRichYPath path(params.Get("path"));
+    auto rbTorrentId = params.Get("rb_torrent_id");
 
-    LOG_INFO("Start serving discover (Cluster: %v, Path: %v)", cluster, path);
-    auto clusterConfig = GetCluster(cluster);
+    LOG_INFO("Start serving discover (RbTorrentId: %v)", rbTorrentId);
+    auto discoverInfo = Bootstrap_->ShareCache->TryDiscover(rbTorrentId);
+    if (!discoverInfo) {
+        LOG_INFO("Discover failed, share not found (RbTorrentId: %v)", rbTorrentId);
+        rsp->WriteHeaders(EStatusCode::BadRequest);
+        FillYTErrorHeaders(rsp, TError("Share information is missing")
+            << TErrorAttribute("rb_torrent_id", rbTorrentId));
+        WaitFor(rsp->Close())
+            .ThrowOnError();
+        return;
+    }
 
-    TSkynetShareMeta meta;
-    std::vector<TFileOffset> fileOffsets;
-
-    std::tie(meta, fileOffsets) = ReadSkynetMetaFromTable(
-        Bootstrap_->HttpClient,
-        clusterConfig->ProxyUrl,
-        clusterConfig->OAuthToken,
-        path);
+    auto cluster = Bootstrap_->GetCluster(discoverInfo->Cluster);
+    if (!cluster.UserRequestThrottler->TryAcquire(1)) {
+        THROW_ERROR_EXCEPTION("User request rate limit exceeded")
+            << TErrorAttribute("cluster", discoverInfo->Cluster)
+            << TErrorAttribute("rbtorrent_id", rbTorrentId);
+    }
 
     THttpReply reply;
     reply.Parts = FetchSkynetPartsLocations(
         Bootstrap_->HttpClient,
-        clusterConfig->ProxyUrl,
-        clusterConfig->OAuthToken,
-        path,
-        fileOffsets);
+        cluster.Config->ProxyUrl,
+        cluster.Config->OAuthToken,
+        discoverInfo->TablePath,
+        *discoverInfo->Offsets);
 
-    LOG_INFO("Discover finished (Cluster: %v, Path: %v, NumberOfLocations: %v)",
-        cluster,
-        path,
+    LOG_INFO("Discover finished (RbTorrentId: %v, Cluster: %Qv, Path: %Qv, NumberOfLocations: %v)",
+        rbTorrentId,
+        discoverInfo->Cluster,
+        discoverInfo->TablePath,
         reply.Parts.size());
 
     rsp->WriteHeaders(EStatusCode::Ok);
@@ -174,6 +192,140 @@ void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
     output->Finish();
     WaitFor(rsp->Close())
         .ThrowOnError();
+}
+
+TString TSkynetManager::FormatDiscoveryUrl(const TString& rbTorrentId)
+{
+    return Format(
+        "%v/api/v1/discover?rb_torrent_id=%v",
+        Bootstrap_->Config->SelfUrl,
+        rbTorrentId);
+}
+
+IInvokerPtr TSkynetManager::GetInvoker()
+{
+    return Bootstrap_->SkynetApiActionQueue->GetInvoker();
+}
+
+std::pair<TSkynetShareMeta, std::vector<TFileOffset>> TSkynetManager::ReadMeta(
+    const TString& clusterName,
+    const TRichYPath& path)
+{
+    auto& cluster = Bootstrap_->GetCluster(clusterName);
+    return ReadSkynetMetaFromTable(
+        Bootstrap_->HttpClient,
+        cluster.Config->ProxyUrl,
+        cluster.Config->OAuthToken,
+        path);
+}
+
+TErrorOr<i64> TSkynetManager::CheckTableAttributes(const TString& clusterName, const TRichYPath& path)
+{
+    auto revision = Bootstrap_->GetCluster(clusterName).CypressSync->CheckTableAttributes(path);
+    if (!revision.IsOK()) {
+        LOG_ERROR(revision, "Table attributes check failed (Cluster: %Qv, Path: %Qv)", clusterName, path);
+    }
+    return revision;
+}
+
+void TSkynetManager::AddShareToCypress(
+    const TString& clusterName,
+    const TString& rbTorrentId,
+    const TRichYPath& tablePath,
+    i64 tableRevision)
+{
+    Bootstrap_->GetCluster(clusterName).CypressSync->AddShare(rbTorrentId, tablePath, tableRevision);
+}
+
+void TSkynetManager::RemoveShareFromCypress(const TString& clusterName, const TString& rbTorrentId)
+{
+    Bootstrap_->GetCluster(clusterName).CypressSync->RemoveShare(rbTorrentId);
+}
+
+void TSkynetManager::AddResourceToSkynet(const TString& rbTorrentId, const TString& rbTorrent)
+{
+    WaitFor(Bootstrap_->SkynetApi->AddResource(
+        rbTorrentId,
+        FormatDiscoveryUrl(rbTorrentId),
+        rbTorrent))
+        .ThrowOnError();
+}
+
+void TSkynetManager::RemoveResourceFromSkynet(const TString& rbTorrentId)
+{
+    WaitFor(Bootstrap_->SkynetApi->RemoveResource(rbTorrentId))
+        .ThrowOnError();
+}
+
+void TSkynetManager::RunCypressPullIteration(const TCluster& cluster)
+{
+    try {
+        auto& shareCache = Bootstrap_->ShareCache;
+
+        cluster.ThrottleBackground();
+        for (const auto& shardName : cluster.CypressSync->FindChangedShards()) {
+            cluster.ThrottleBackground();
+            auto inCache = shareCache->ListActiveShares(shardName.first, cluster.Config->ClusterName);
+            auto inCypress = cluster.CypressSync->ListShard(shardName.first, shardName.second);
+
+            std::set<TShareKey> cachedShares(inCache.begin(), inCache.end());
+            for (const auto& cypressItem : inCypress) {
+                TShareKey key{cluster.Config->ClusterName, cypressItem.TablePath, cypressItem.TableRevision};
+
+                if (cachedShares.find(key) != cachedShares.end()) {
+                    cachedShares.erase(key);
+                    continue;
+                }
+
+                cluster.ThrottleBackground();
+                auto revision = CheckTableAttributes(std::get<0>(key), std::get<1>(key));
+                if (revision.IsOK() && revision.ValueOrThrow() == cypressItem.TableRevision) {
+                    shareCache->TryShare(key, false);
+                } else {
+                    cluster.CypressSync->RemoveShare(cypressItem.RbTorrentId);
+                }
+            }
+
+            for (const auto& oldShare : cachedShares) {
+                shareCache->Unshare(oldShare);
+            }
+
+            cluster.CypressSync->CommitLastSeenRevision(shardName.first, shardName.second);
+        }
+
+        auto guard = Guard(Lock_);
+        CypressPullErrors_.erase(cluster.Config->ClusterName);
+        SyncedClusters_.insert(cluster.Config->ClusterName);
+    } catch (const std::exception& ex) {
+        auto guard = Guard(Lock_);
+        CypressPullErrors_[cluster.Config->ClusterName] = TError(ex);
+        throw;
+    }
+}
+
+void TSkynetManager::RunTableScanIteration(const TCluster& cluster)
+{
+    auto& shareCache = Bootstrap_->ShareCache;
+    try {
+        cluster.ThrottleBackground();
+        for (const auto& shardName : shareCache->ListShards()) {
+            cluster.ThrottleBackground();
+            for (const auto& shareKey : shareCache->ListActiveShares(shardName, cluster.Config->ClusterName)) {
+                cluster.ThrottleBackground();
+                auto currentRevision = CheckTableAttributes(std::get<0>(shareKey), std::get<1>(shareKey));
+                if (!currentRevision.IsOK() || std::get<2>(shareKey) != currentRevision.ValueOrThrow()) {
+                    shareCache->Unshare(shareKey);
+                }
+            }
+        }
+
+        auto guard = Guard(Lock_);
+        TablesScanErrors_.erase(cluster.Config->ClusterName);
+    } catch (const std::exception& ex) {
+        auto guard = Guard(Lock_);
+        TablesScanErrors_[cluster.Config->ClusterName] = TError(ex);
+        throw;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,15 +416,174 @@ void CheckTrailers(const IResponsePtr& rsp)
     }
 }
 
+DEFINE_ENUM(ESkynetTableColumn,
+    (NoColumn)
+    (Filename)
+    (DataSize)
+    (Sha1)
+    (Md5)
+);
+
+class TSkynetTableConsumer
+    : public IYsonConsumer
+{
+public:
+    TSkynetTableConsumer(i64 startRowIndex)
+        : Meta_{}
+        , RowIndex_(startRowIndex)
+        , CurrentFile_{Meta_.Files.end()}
+    { }
+
+    virtual void OnStringScalar(const TStringBuf& value) override
+    {
+        if (Column_ == ESkynetTableColumn::Filename) {
+            Filename_ = TString(value);
+        } else if (Column_ == ESkynetTableColumn::Sha1) {
+            Sha1_ = SHA1FromString(value);
+        } else if (Column_ == ESkynetTableColumn::Md5) {
+            Md5_ = MD5FromString(value);
+        }
+    }
+
+    virtual void OnInt64Scalar(i64 value) override
+    {
+        if (Column_ == ESkynetTableColumn::DataSize) {
+            DataSize_ = value;
+        }
+    }
+
+    virtual void OnUint64Scalar(ui64 value) override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual void OnDoubleScalar(double value) override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual void OnBooleanScalar(bool value) override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual void OnEntity() override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual void OnBeginList() override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual void OnListItem() override
+    {
+        Column_ = ESkynetTableColumn::NoColumn;
+        Filename_.Reset();
+        DataSize_.Reset();
+        Sha1_.Reset();
+        Md5_.Reset();
+    }
+
+    virtual void OnEndList() override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual void OnBeginMap() override
+    { }
+
+    virtual void OnKeyedItem(const TStringBuf& key) override
+    {
+        if (key == "filename") {
+            Column_ = ESkynetTableColumn::Filename;
+        } else if (key == "data_size") {
+            Column_ = ESkynetTableColumn::DataSize;
+        } else if (key == "md5") {
+            Column_ = ESkynetTableColumn::Md5;
+        } else if (key == "sha1") {
+            Column_ = ESkynetTableColumn::Sha1;
+        }
+    }
+
+    virtual void OnEndMap() override
+    {
+        auto checkColumn = [this] (auto column, TStringBuf name) {
+            if (!column) {
+                THROW_ERROR_EXCEPTION("Column is missing")
+                    << TErrorAttribute("column_name", name);
+            }
+        };
+
+        checkColumn(Filename_, "filename");
+        checkColumn(DataSize_, "data_size");
+        checkColumn(Sha1_, "sha1");
+        checkColumn(Md5_, "md5");
+
+        if (CurrentFile_ == Meta_.Files.end() || *Filename_ != CurrentFile_->first) {
+            bool ok = false;
+            std::tie(CurrentFile_, ok) = Meta_.Files.emplace(*Filename_, TFileMeta{});
+            if (!ok) {
+                THROW_ERROR_EXCEPTION("Duplicate filenames are not allowed")
+                    << TErrorAttribute("filename", *Filename_);
+            }
+
+            FileOffsets_.emplace_back();
+            FileOffsets_.back().FilePath = *Filename_;
+            FileOffsets_.back().StartRow = RowIndex_;
+        }
+
+        CurrentFile_->second.FileSize += *DataSize_;
+        CurrentFile_->second.MD5 = *Md5_;
+        CurrentFile_->second.SHA1.emplace_back(*Sha1_);
+
+        ++FileOffsets_.back().RowCount;
+        FileOffsets_.back().FileSize += *DataSize_;
+
+        ++RowIndex_;
+    }
+
+    virtual void OnBeginAttributes() override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual void OnEndAttributes() override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    std::pair<TSkynetShareMeta, std::vector<TFileOffset>> Finish()
+    {
+        return {std::move(Meta_), std::move(FileOffsets_)};
+    }
+
+private:
+    TSkynetShareMeta Meta_;
+    std::vector<TFileOffset> FileOffsets_;
+
+    i64 RowIndex_;
+    std::map<TString, TFileMeta>::iterator CurrentFile_;
+    TNullable<TString> Filename_;
+    TNullable<i64> DataSize_;
+    TNullable<TMD5Hash> Md5_;
+    TNullable<TSHA1Hash> Sha1_;
+
+    ESkynetTableColumn Column_ = ESkynetTableColumn::NoColumn;
+};
+
 std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadSkynetMetaFromTable(
     const IClientPtr& httpClient,
     const TString& proxyUrl,
     const TString& oauthToken,
     const TRichYPath& path)
 {
-    TSkynetShareMeta meta;
-    std::vector<TFileOffset> fileOffsets;
-
     TRequestParams params;
     params.Path = path;
     params.Path.SetColumns({"filename", "data_size", "md5", "sha1"});
@@ -287,43 +598,21 @@ std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadSkynetMetaFromTable(
 
     auto responseAttributes = ConvertToNode(TYsonString(response->GetHeaders()->Get("X-Yt-Response-Parameters")));
     auto rowIndex = responseAttributes->AsMap()->GetChild("start_row_index")->AsInt64()->GetValue();
-    auto it = meta.Files.end();
-    for (const auto& row : ConvertToNode(input)->AsList()->GetChildren()) {
-        TRowMeta rowMeta;
-        rowMeta.Load(row);
+    TSkynetTableConsumer consumer{rowIndex};
 
-        if (it == meta.Files.end() || rowMeta.FileName != it->first) {
-            bool ok = false;
-            std::tie(it, ok) = meta.Files.emplace(rowMeta.FileName, TFileMeta{});
-            if (!ok) {
-                THROW_ERROR_EXCEPTION("Duplicate filenames are not allowed")
-                    << TErrorAttribute("filename", rowMeta.FileName);
-            }
-
-            fileOffsets.emplace_back();
-            fileOffsets.back().FilePath = rowMeta.FileName;
-            fileOffsets.back().StartRow = rowIndex;
-        }
-
-        it->second.FileSize += rowMeta.DataSize;
-        it->second.MD5 = MD5FromString(rowMeta.Md5);
-        it->second.SHA1.emplace_back(SHA1FromString(rowMeta.Sha1));
-
-        ++fileOffsets.back().RowCount;
-        fileOffsets.back().FileSize += rowMeta.DataSize;
-
-        ++rowIndex;
-    }
+    ParseYson(input, &consumer);
 
     CheckTrailers(response);
 
-    if (meta.Files.empty()) {
+    auto meta = consumer.Finish();
+
+    if (meta.first.Files.empty()) {
         THROW_ERROR_EXCEPTION("Can't share empty table");
     }
 
-    LOG_INFO("Finished reading share meta (Path: %v, NumFiles: %v)", path, meta.Files.size());
+    LOG_INFO("Finished reading share meta (Path: %v, NumFiles: %v)", path, meta.first.Files.size());
 
-    return {meta, fileOffsets};
+    return meta;
 }
 
 TString MakeFileUrl(
@@ -390,9 +679,16 @@ std::vector<THttpPartLocation> FetchSkynetPartsLocations(
     CheckTrailers(response);
 
     auto nodes = ysonResponse->AsMap()->GetChild("nodes")->AsList();
-    std::map<ui64, TString> nodeAddresses;
+    std::map<i64, TString> nodeAddresses;
     for (const auto& node : nodes->GetChildren()) {
-        auto nodeId = node->AsMap()->GetChild("node_id")->AsInt64()->GetValue();
+        auto nodeNode = node->AsMap()->GetChild("node_id");
+        i64 nodeId;
+        // COMPAT(prime@)
+        if (nodeNode->GetType() == ENodeType::Int64) {
+            nodeId = nodeNode->AsInt64()->GetValue();
+        } else {
+            nodeId = nodeNode->AsUint64()->GetValue();
+        }
         auto address = node->AsMap()->GetChild("addresses")->AsMap()->GetChild("default")->AsString()->GetValue();
 
         nodeAddresses[nodeId] = address;
@@ -411,13 +707,19 @@ std::vector<THttpPartLocation> FetchSkynetPartsLocations(
     auto specs = chunks->GetChildren();
     for (int i = 0; i < specs.size(); ++i) {
         TChunkSpec spec;
-
         spec.Load(specs[i]);
 
         // Second iterator
         ui64 currentRowIndex = spec.RowIndex;
         if (spec.LowerLimit.HasRowIndex()) {
             currentRowIndex += spec.LowerLimit.GetRowIndex();
+        }
+
+        if (currentFile == fileOffsets.end()) {
+            THROW_ERROR_EXCEPTION("File offsets are inconsistent with chunk specs")
+                << TErrorAttribute("file_index", currentFile - fileOffsets.begin())
+                << TErrorAttribute("current_file_row", currentFileRow)
+                << TErrorAttribute("chunk_spec", spec);
         }
 
         while (true) {
@@ -469,6 +771,25 @@ std::vector<THttpPartLocation> FetchSkynetPartsLocations(
     }
 
     return locations;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CleanSkynet(const ISkynetApiPtr& skynet, const TShareCachePtr& shareCache)
+{
+    auto resources = WaitFor(skynet->ListResources())
+        .ValueOrThrow();
+
+    i64 count = 0;
+    for (const auto& rbTorrentId : resources) {
+        if (!shareCache->TryDiscover(rbTorrentId)) {
+            ++count;
+            WaitFor(skynet->RemoveResource(rbTorrentId))
+                .ThrowOnError();
+        }
+    }
+
+    LOG_INFO("Removed %d unknown shares", count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

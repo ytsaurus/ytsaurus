@@ -481,9 +481,9 @@ TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
     return result;
 }
 
-yhash<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
+THashMap<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
 {
-    yhash<int, TDataStatistics> result;
+    THashMap<int, TDataStatistics> result;
     for (auto iterator = jobStatistics.Data().upper_bound(outputPrefix);
          iterator != jobStatistics.Data().end() && HasPrefix(iterator->first, outputPrefix);
          ++iterator)

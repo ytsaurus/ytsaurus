@@ -838,12 +838,19 @@ def action_submodule_fast_pull(ctx, args):
             "'%s' is up-to-date: %s superseedes latest commit %s in '%s'",
             ctx.name, abbrev(old_head), abbrev(new_head), ctx.arc_git_remote)
     elif ctx.git.is_ancestor(old_head, new_head):
-        logging.info(
-            "Checking out '%s': %s -> %s",
-            ctx.name, abbrev(old_head), abbrev(new_head))
         ctx.git.call("checkout", new_head)
+        logging.info(
+            "'%s' has been updated with the fast-forward merge: %s -> %s",
+            ctx.name, abbrev(old_head), abbrev(new_head))
     else:
-        logging.warning("Manual pull is required in '%s'!", ctx.name)
+        if ctx.git.test("rebase", "--quiet", new_head):
+            rebased_head = ctx.git.resolve_ref("HEAD")
+            logging.info(
+                "'%s' has been updated with the rebase: %s -> %s over %s",
+                ctx.name, abbrev(old_head), abbrev(rebased_head), abbrev(new_head))
+        else:
+            ctx.git.call("rebase", "--abort")
+            logging.warning("Manual pull is required in '%s'!", ctx.name)
 
 
 def git_dry_run(flag, ctx, *args):
@@ -952,6 +959,7 @@ def submodule_main(args):
 
 SUBMODULES = """
 contrib-libs-base64
+contrib-libs-brotli
 contrib-libs-c--ares
 contrib-libs-double--conversion
 contrib-libs-farmhash
@@ -977,6 +985,7 @@ library-http
 library-lfalloc
 library-malloc-api
 library-openssl
+library-streams-brotli
 library-streams-lz
 library-streams-lzop
 library-string_utils-base64

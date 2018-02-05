@@ -6,7 +6,6 @@
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/server/misc/address_helpers.h>
-#include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/job_prober_service.h>
@@ -20,6 +19,8 @@
 #include <yt/server/controller_agent/job_spec_service.h>
 #include <yt/server/controller_agent/controller_agent_service.h>
 #include <yt/server/controller_agent/controller_agent.h>
+
+#include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -101,11 +102,16 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const NLogging::TLogger Logger("Bootstrap");
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(TCellSchedulerConfigPtr config, INodePtr configNode)
-    : TBootstrapBase(TLogger("Bootstrap"), config)
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
-{ }
+{
+    WarnForUnrecognizedOptions(Logger, Config_);
+}
 
 TBootstrap::~TBootstrap() = default;
 

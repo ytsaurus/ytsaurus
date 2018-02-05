@@ -365,7 +365,7 @@ bool operator != (const TQuery& lhs, const TQuery& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAliasMap = yhash<TString, TExpressionPtr>;
+using TAliasMap = THashMap<TString, TExpressionPtr>;
 
 struct TAstHead
 {

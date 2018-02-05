@@ -124,7 +124,7 @@ public:
     //! Raised when a transaction is aborted.
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
 
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TTransaction*>, TopmostTransactions);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, TopmostTransactions);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
@@ -1067,7 +1067,7 @@ void TTransactionManager::PingTransaction(
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, yhash_set<TTransaction*>, TopmostTransactions, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, THashSet<TTransaction*>, TopmostTransactions, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////

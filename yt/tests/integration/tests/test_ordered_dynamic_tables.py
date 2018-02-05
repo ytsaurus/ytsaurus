@@ -696,6 +696,14 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert timestamp1 < timestamp2
         assert timestamp2 < timestamp3
 
+    def test_data_ttl(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", min_data_ttl=0, max_data_ttl=0, min_data_versions=0)
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 0}])
+        self.sync_flush_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
+
 ##################################################################
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):

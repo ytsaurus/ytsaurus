@@ -401,7 +401,7 @@ public:
         if (auto* action = tablet->GetAction()) {
             OnTabletActionTabletsTouched(
                 action,
-                yhash_set<TTablet*>{tablet},
+                THashSet<TTablet*>{tablet},
                 TError("Tablet %v has been removed", tablet->GetId()));
         }
     }
@@ -869,7 +869,7 @@ public:
 
     void OnTabletActionTabletsTouched(
         TTabletAction* action,
-        const yhash_set<TTablet*>& touchedTablets,
+        const THashSet<TTablet*>& touchedTablets,
         const TError& error)
     {
         bool touched = false;
@@ -908,7 +908,7 @@ public:
         YCHECK(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < table->Tablets().size());
 
         auto error = TError("User request %Qv interfered with the action", request);
-        yhash_set<TTablet*> touchedTablets;
+        THashSet<TTablet*> touchedTablets;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             touchedTablets.insert(table->Tablets()[index]);
         }
@@ -1953,7 +1953,7 @@ public:
         // For each chunk verify that it is covered (without holes) by old tablets.
         if (table->IsPhysicallySorted()) {
             const auto& tabletChunkTrees = table->GetChunkList()->Children();
-            std::vector<yhash_set<TChunk*>> chunkSets(lastTabletIndex + 1);
+            std::vector<THashSet<TChunk*>> chunkSets(lastTabletIndex + 1);
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 std::vector<TChunk*> tabletChunks;
@@ -2221,7 +2221,7 @@ public:
 
         // Check for duplicates.
         // Compute last commit timestamp.
-        yhash_set<TChunk*> chunkSet;
+        THashSet<TChunk*> chunkSet;
         chunkSet.reserve(chunks.size());
         auto lastCommitTimestamp = NTransactionClient::MinTimestamp;
         for (auto* chunk : chunks) {
@@ -2451,10 +2451,10 @@ private:
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
 
-    yhash<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
+    THashMap<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
-    yhash<TString, TTabletCellSet> AddressToCell_;
-    yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
+    THashMap<TString, TTabletCellSet> AddressToCell_;
+    THashMap<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
     TTabletCellBundleId DefaultTabletCellBundleId_;
@@ -2812,7 +2812,7 @@ private:
         const auto& address = node->GetDefaultAddress();
 
         // Our expectations.
-        yhash_set<TTabletCell*> expectedCells;
+        THashSet<TTabletCell*> expectedCells;
         for (const auto& slot : node->TabletSlots()) {
             auto* cell = slot.Cell;
             if (!IsObjectAlive(cell)) {
@@ -2822,7 +2822,7 @@ private:
         }
 
         // Figure out and analyze the reality.
-        yhash_set<TTabletCell*> actualCells;
+        THashSet<TTabletCell*> actualCells;
         for (int slotIndex = 0; slotIndex < request->tablet_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = node->TabletSlots()[slotIndex];
@@ -2949,12 +2949,13 @@ private:
                 i64 prevValue = counter->Count;
                 auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
                 auto valueDelta = std::max(curValue, prevValue) - prevValue;
+                auto rate = valueDelta / timeDelta;
                 counter->Count = curValue;
-                counter->Rate = valueDelta / timeDelta;
+                counter->Rate = rate;
                 auto exp10 = std::exp(-timeDelta / (60 * 10 / 2));
-                counter->Rate10 = valueDelta * (1 - exp10) + counter->Rate10 * exp10;
+                counter->Rate10 = rate * (1 - exp10) + counter->Rate10 * exp10;
                 auto exp60 = std::exp(-timeDelta / (60 * 60 / 2));
-                counter->Rate60 = valueDelta * (1 - exp60) + counter->Rate60 * exp60;
+                counter->Rate60 = rate * (1 - exp60) + counter->Rate60 * exp60;
             };
 
             #define XX(name, Name) updatePerformanceCounter( \
@@ -2963,6 +2964,21 @@ private:
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
+
+            int errorCount = 0;
+            auto errors = FromProto<std::vector<TError>>(tabletInfo.errors());
+            for (auto errorKey : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                size_t idx = static_cast<size_t>(errorKey);
+                if (idx < errors.size()) {
+                    tablet->Errors()[errorKey] = errors[idx];
+                    errorCount += !errors[idx].IsOK();
+                }
+            }
+
+            int restTabletErrorCount = table->GetTabletErrorCount() - tablet->GetErrorCount();
+            Y_ASSERT(restTabletErrorCount >= 0);
+            table->SetTabletErrorCount(restTabletErrorCount + errorCount);
+            tablet->SetErrorCount(errorCount);
 
             for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
                 auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
@@ -3756,7 +3772,7 @@ private:
             if (peer.Descriptor.IsNull()) {
                 config->Addresses.push_back(Null);
             } else {
-                config->Addresses.push_back(peer.Descriptor.GetAddress(Bootstrap_->GetConfig()->Networks));
+                config->Addresses.push_back(peer.Descriptor.GetAddressOrThrow(Bootstrap_->GetConfig()->Networks));
             }
         }
 

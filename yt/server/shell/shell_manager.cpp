@@ -3,13 +3,15 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/program/names.h>
+#include <yt/server/misc/public.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/pipes/public.h>
+
+#include <yt/core/net/public.h>
 
 #include <util/string/hex.h>
 
@@ -142,7 +144,7 @@ public:
                     result.Output = "";
                     break;
                 }
-                if (pollResult.FindMatching(NPipes::EErrorCode::Aborted)) {
+                if (pollResult.FindMatching(NNet::EErrorCode::Aborted)) {
                     THROW_ERROR_EXCEPTION(
                         EErrorCode::ShellManagerShutDown,
                         "Shell manager was shut down")
@@ -205,7 +207,7 @@ private:
     TNullable<TString> MessageOfTheDay_;
 
     std::vector<TString> Environment_;
-    yhash<TShellId, IShellPtr> IdToShell_;
+    THashMap<TShellId, IShellPtr> IdToShell_;
     bool Terminated_ = false;
 
     const NLogging::TLogger Logger = ShellLogger;

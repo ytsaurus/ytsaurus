@@ -13,7 +13,9 @@ CYPRESS_NODES = [
     "19b5c14-c41a6620-7fa0d708-29a241d2",
     "1dee545-fe4c4006-cd95617-54f87a31",
     "bd90befa-101169a-3fc03e8-1cb90ada",
-    "d7df8-7d0c30ec-582ebd65-9ad7535a"]
+    "d7df8-7d0c30ec-582ebd65-9ad7535a",
+    "b0165c58-114d5b9a-3f403e8-5a44ae00"
+]
 
 
 class TestListOperations(YTEnvSetup):
@@ -96,19 +98,19 @@ class TestListOperations(YTEnvSetup):
         #should list operations from cypress without cursor_time/past filter
         res = list_operations(cursor_direction="past", limit=2)
         assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 2L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L), ("sort", 1L)]
+        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("odin", 2L), ("psushin", 1L)]
+        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 2L), ("running", 2L)]
+        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L), ("sort", 2L)]
         assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["bd90befa-101169a-3fc03e8-1cb90ada",
-                                                          "d7df8-7d0c30ec-582ebd65-9ad7535a"]
+        assert [op["id"] for op in res["operations"]] == ["b0165c58-114d5b9a-3f403e8-5a44ae00",
+                                                          "bd90befa-101169a-3fc03e8-1cb90ada"]
 
         #should list operations from cypress without cursor_time/future filter
         res = list_operations(cursor_direction="future", limit=2)
         assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 2L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L), ("sort", 1L)]
+        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("odin", 2L), ("psushin", 1L)]
+        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 2L), ("running", 2L)]
+        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L), ("sort", 2L)]
         assert res["failed_jobs_count"] == 1L
         assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31",
                                                           "19b5c14-c41a6620-7fa0d708-29a241d2"]
@@ -240,8 +242,8 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress and archive without cursor_time/past filter
         res = list_operations(include_archive=True, from_time="2000-01-01T01:00:00Z", to_time="2020-01-01T01:00:00Z", cursor_direction="past", limit=2)
-        assert [op["id"] for op in res["operations"]] == ["bd90befa-101169a-3fc03e8-1cb90ada",
-                                                          "d7df8-7d0c30ec-582ebd65-9ad7535a"]
+        assert [op["id"] for op in res["operations"]] == ["b0165c58-114d5b9a-3f403e8-5a44ae00",
+                                                          "bd90befa-101169a-3fc03e8-1cb90ada"]
 
         #should list operations from cypress and archive without cursor_time/future filter
         res = list_operations(include_archive=True, from_time="2000-01-01T01:00:00Z", to_time="2020-01-01T01:00:00Z", cursor_direction="future", limit=2)

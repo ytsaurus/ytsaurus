@@ -23,6 +23,24 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("time").Value(event.Time)
+            .Item("state").Value(event.State)
+        .EndMap();
+}
+
+void Deserialize(TOperationEvent& event, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    event.Time = ConvertTo<TInstant>(mapNode->GetChild("time"));
+    event.State = ConvertTo<EOperationState>(mapNode->GetChild("state"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
@@ -46,6 +64,7 @@ TOperation::TOperation(
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
     , RuntimeParams_(std::move(runtimeParams))
+    , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
     , Owners_(owners)
     , Events_(events)
@@ -118,7 +137,7 @@ bool TOperation::IsSchedulable() const
     return State_ == EOperationState::Running && !Suspended_;
 }
 
-NControllerAgent::IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
+IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
 {
     return LocalController_;
 }
@@ -133,7 +152,7 @@ TCodicilGuard TOperation::MakeCodicilGuard() const
     return TCodicilGuard(CodicilData_);
 }
 
-void TOperation::SetState(EOperationState state)
+void TOperation::SetStateAndEnqueueEvent(EOperationState state)
 {
     State_ = state;
     Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
@@ -158,7 +177,7 @@ int TOperation::GetSlotIndex(const TString& treeId) const
     return *slotIndex;
 }
 
-const yhash<TString, int>& TOperation::GetSlotIndices() const
+const THashMap<TString, int>& TOperation::GetSlotIndices() const
 {
     return TreeIdToSlotIndex_;
 }
@@ -173,20 +192,40 @@ void TOperation::Cancel()
     CancelableContext_->Cancel();
 }
 
-void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
+////////////////////////////////////////////////////////////////////////////////
+
+int TOperationRuntimeData::GetPendingJobCount() const
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("time").Value(event.Time)
-            .Item("state").Value(event.State)
-        .EndMap();
+    return PendingJobCount_.load();
 }
 
-void Deserialize(TOperationEvent& event, INodePtr node)
+void TOperationRuntimeData::SetPendingJobCount(int value)
 {
-    auto mapNode = node->AsMap();
-    event.Time = ConvertTo<TInstant>(mapNode->GetChild("time"));
-    event.State = ConvertTo<EOperationState>(mapNode->GetChild("state"));
+    PendingJobCount_.store(value);
+}
+
+NScheduler::TJobResources TOperationRuntimeData::GetNeededResources()
+{
+    NConcurrency::TReaderGuard guard(NeededResourcesLock_);
+    return NeededResources_;
+}
+
+void TOperationRuntimeData::SetNeededResources(const NScheduler::TJobResources& value)
+{
+    NConcurrency::TWriterGuard guard(NeededResourcesLock_);
+    NeededResources_ = value;
+}
+
+TJobResourcesWithQuotaList TOperationRuntimeData::GetMinNeededJobResources() const
+{
+    NConcurrency::TReaderGuard guard(MinNeededResourcesJobLock_);
+    return MinNeededJobResources_;
+}
+
+void TOperationRuntimeData::SetMinNeededJobResources(const TJobResourcesWithQuotaList& value)
+{
+    NConcurrency::TWriterGuard guard(MinNeededResourcesJobLock_);
+    MinNeededJobResources_ = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

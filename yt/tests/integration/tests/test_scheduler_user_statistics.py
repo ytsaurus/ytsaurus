@@ -126,14 +126,14 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="job_statistics_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat > /dev/null",
+            command=with_breakpoint("cat > /dev/null ; BREAKPOINT ;"),
             spec={"max_failed_job_count": 1, "job_count": 2})
 
-        op.resume_job(op.jobs[0])
+        jobs = wait_breakpoint()
+        release_breakpoint(job_id=jobs[0])
 
         tries = 0
         statistics = {}
@@ -141,17 +141,17 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         counter_name = "user_job.cpu.user.$.completed.map.count"
         count = None
 
-        while count is None and tries <= 10:
+        while count is None and tries <= 100:
             statistics = get("//sys/operations/{0}/@progress".format(op.id))
             tries += 1
             try:
                 count = get_statistics(statistics["job_statistics"], counter_name)
             except KeyError:
-                time.sleep(1)
+                time.sleep(0.1)
 
         assert count == 1
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
 
         statistics = get("//sys/operations/{0}/@progress".format(op.id))

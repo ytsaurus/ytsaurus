@@ -1,9 +1,8 @@
 #include "stream_stack.h"
 
-#include <yt/core/compression/brotli_stream.h>
-
 #include <library/streams/lzop/lzop.h>
 #include <library/streams/lz/lz.h>
+#include <library/streams/brotli/brotli.h>
 
 #include <util/stream/zlib.h>
 
@@ -65,7 +64,7 @@ void AddCompressionToStack(TGrowingInputStreamStack& stack, ECompression compres
             stack.Add<TLazyInput<TSnappyDecompress>>();
             break;
         case ECompression::Brotli:
-            stack.Add<NCompression::TBrotliDecompress>();
+            stack.Add<TBrotliDecompress>();
             break;
         default:
             Y_UNREACHABLE();
@@ -96,7 +95,7 @@ void AddCompressionToStack(TGrowingOutputStreamStack& stack, ECompression compre
             stack.Add<TSnappyCompress>(DefaultStreamBufferSize);
             break;
         case ECompression::Brotli:
-            stack.Add<NCompression::TBrotliCompress>(3);
+            stack.Add<TBrotliCompress>(3);
             break;
         default:
             Y_UNREACHABLE();

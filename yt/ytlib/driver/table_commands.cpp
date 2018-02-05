@@ -111,10 +111,12 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
             dataStatistics.compressed_data_size());
     });
 
+    TPipeReaderToWriterOptions options;
+    options.BufferRowCount = context->GetConfig()->ReadBufferRowCount;
     PipeReaderToWriter(
         reader,
         writer,
-        context->GetConfig()->ReadBufferRowCount);
+        std::move(options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,7 +258,8 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
     PipeInputToOutput(context->Request().InputStream, &output, config->BlockSize);
 
-    valueConsumer.Flush();
+    WaitFor(valueConsumer.Flush())
+        .ThrowOnError();
 
     WaitFor(writer->Close())
         .ThrowOnError();

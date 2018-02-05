@@ -91,7 +91,7 @@ private:
     std::set<TString> TmpfsPaths_;
 
     NConcurrency::TReaderWriterSpinLock SlotsLock_;
-    yhash<int, TNullable<i64>> OccupiedSlotToDiskLimit_;
+    THashMap<int, TNullable<i64>> OccupiedSlotToDiskLimit_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

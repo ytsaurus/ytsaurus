@@ -47,17 +47,6 @@ class TestListJobs(YTEnvSetup):
             "heartbeat_period": 100  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,  # 100 msec
-
-        # Turn off mount cache otherwise our statistic reporter would be unhappy
-        # because of tablets of job statistics table are changed between tests.
-        "cluster_connection": {
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            }
-        },
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -89,12 +78,11 @@ class TestListJobs(YTEnvSetup):
 
         op = map_reduce(
             dont_track=True,
-            wait_for_jobs=True,
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
             # Jobs write to stderr so they will be saved.
-            mapper_command='echo foo >&2 ; test $YT_JOB_INDEX -eq "1" && exit 1',
+            mapper_command=with_breakpoint("""echo foo >&2 ; test $YT_JOB_INDEX -eq "1" && exit 1 ; BREAKPOINT"""),
             reducer_command="echo foo >&2 ; cat",
             sort_by="foo",
             reduce_by="foo",
@@ -106,26 +94,25 @@ class TestListJobs(YTEnvSetup):
                 "job_count" : 3
             })
 
-        job_ids = op.jobs[:]
+        job_ids = wait_breakpoint()
 
         validate_address_filter(op, False, False, True)
 
         aborted_jobs = []
 
+        print >>sys.stderr, "BEFORE ABORT"
         for job in job_ids:
             abort_job(job)
             aborted_jobs.append(job)
 
-        sleep(1)
-
-        for job in job_ids:
-            op.resume_job(job)
-        op.ensure_jobs_running()
+        print >>sys.stderr, "BEFORE WAIT"
+        wait(lambda: op.get_job_count("running") > 0)
+        print >>sys.stderr, "WAITED"
 
         res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="completed")["jobs"]
         assert len(res) == 0
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
 
         jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
@@ -224,32 +211,29 @@ class TestListJobs(YTEnvSetup):
 
         write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             in_="//tmp/input",
             out="//tmp/output",
-            command="echo MAPPER-STDERR-OUTPUT >&2 ; cat ; {wait_cmd}".format(
-                wait_cmd=events.wait_event_cmd("can_finish_mapper")))
-        op.resume_jobs()
+            command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"))
 
+        jobs = wait_breakpoint()
         def get_stderr_size():
-            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, op.jobs[0]))
+            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
         wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
 
         res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False)
-        assert sorted(job["id"] for job in res["jobs"]) == sorted(op.jobs)
+        assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
         for job in res["jobs"]:
             assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
 
         res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=True)
         for job in res["jobs"]:
             assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
-        assert sorted(job["id"] for job in res["jobs"]) == sorted(op.jobs)
+        assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
 
         res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=False)
         assert res["jobs"] == []
 
-        events.notify_event("can_finish_mapper")
+        release_breakpoint()
         op.track()

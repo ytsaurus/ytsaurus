@@ -214,7 +214,7 @@ TVariant<Ts...>::TVariant(const TVariant& other)
 }
 
 template <class... Ts>
-TVariant<Ts...>::TVariant(TVariant&& other)
+TVariant<Ts...>::TVariant(TVariant&& other) noexcept(NMpl::TNothrowMoveConstructible<Ts...>::Value)
 {
     AssignVariant(std::move(other));
 }
@@ -232,7 +232,7 @@ TVariant<Ts...>& TVariant<Ts...>::operator=(const T& value)
 
 template <class... Ts>
 template <class T, class>
-TVariant<Ts...>& TVariant<Ts...>::operator=(T&& value)
+TVariant<Ts...>& TVariant<Ts...>::operator=(T&& value) noexcept(NMpl::TNothrowMoveAssignable<Ts...>::Value)
 {
     if (&value != &UncheckedAs<T>()) {
         Destroy();
@@ -309,7 +309,7 @@ bool TVariant<Ts...>::Is() const
 }
 
 template <class... Ts>
-TVariant<Ts...>::~TVariant()
+TVariant<Ts...>::~TVariant() noexcept(NMpl::TNothrowDestructible<Ts...>::Value)
 {
     Destroy();
 }

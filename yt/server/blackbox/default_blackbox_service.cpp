@@ -33,7 +33,7 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    virtual TFuture<INodePtr> Call(const TString& method, const yhash<TString, TString>& params) override
+    virtual TFuture<INodePtr> Call(const TString& method, const THashMap<TString, TString>& params) override
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
         return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, deadline)
@@ -42,7 +42,7 @@ public:
     }
 
 private:
-    static std::pair<TString, TString> BuildUrl(const TString& method, const yhash<TString, TString>& params)
+    static std::pair<TString, TString> BuildUrl(const TString& method, const THashMap<TString, TString>& params)
     {
         TStringBuilder realUrl;
         TStringBuilder safeUrl;
@@ -95,7 +95,7 @@ private:
         return std::make_pair(realUrl.Flush(), safeUrl.Flush());
     }
 
-    INodePtr DoCall(const TString& method, const yhash<TString, TString>& params, TInstant deadline)
+    INodePtr DoCall(const TString& method, const THashMap<TString, TString>& params, TInstant deadline)
     {
         auto host = AddSchemePrefix(TString(GetHost(Config_->Host)), Config_->Secure ? "https" : "http");
         auto port = Config_->Port;
@@ -229,10 +229,10 @@ private:
     const TDefaultBlackboxServiceConfigPtr Config_;
     const IInvokerPtr Invoker_;
 
-    static const yhash_set<TString> PrivateUrlParams_;
+    static const THashSet<TString> PrivateUrlParams_;
 };
 
-const yhash_set<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
+const THashSet<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
     "userip",
     "oauth_token",
     "sessionid",

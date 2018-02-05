@@ -139,12 +139,12 @@ public:
 
     //! This options have higher priority than Pool and other options
     //! defined in this class.
-    yhash<TString, TExtendedSchedulableConfigPtr> FairShareOptionsPerPoolTree;
+    THashMap<TString, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
 
     //! Pool trees to schedule operation in.
     //! Operation will be scheduled in default tree (if any) if this parameter
     //! is not specified.
-    yhash_set<TString> PoolTrees;
+    THashSet<TString> PoolTrees;
 
     TStrategyOperationSpec();
 
@@ -171,10 +171,26 @@ public:
 
     int PipeIOPoolSize;
 
+    class TTestingOptions
+        : public TYsonSerializable
+    {
+    public:
+        TDuration PipeDelay;
+
+        TTestingOptions()
+        {
+            RegisterParameter("pipe_delay", PipeDelay)
+                .Default(TDuration::Zero());
+        }
+    };
+
+    TIntrusivePtr<TTestingOptions> Testing;
+
     TJobIOConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
+DEFINE_REFCOUNTED_TYPE(TJobIOConfig::TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -318,6 +334,8 @@ public:
     //! If set to true, any aborted/failed job will result in operation fail.
     bool FailOnJobRestart;
 
+    bool EnableJobSplitting;
+
     TOperationSpecBase();
 
 private:
@@ -346,7 +364,7 @@ public:
 
     TNullable<bool> EnableInputTableIndex;
 
-    yhash<TString, TString> Environment;
+    THashMap<TString, TString> Environment;
 
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;
@@ -422,8 +440,6 @@ public:
 
     TNullable<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
-
-    bool EnableJobSplitting;
 
     TOperationWithUserJobSpec();
 };
@@ -808,7 +824,7 @@ class TVanillaOperationSpec
 {
 public:
     //! Map consisting of pairs <task_name, task_spec>.
-    yhash<TString, TVanillaTaskSpecPtr> Tasks;
+    THashMap<TString, TVanillaTaskSpecPtr> Tasks;
 
     TVanillaOperationSpec();
 

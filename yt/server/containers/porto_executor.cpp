@@ -37,7 +37,7 @@ static std::map<TString, TErrorOr<TString>> ParsePortoResult(
         if (portoProperty.second.Error == 0) {
             result[portoProperty.first] = portoProperty.second.Value;
         } else {
-            result[portoProperty.first] = TError(portoProperty.second.ErrorMsg)
+            result[portoProperty.first] = TError(ContainerErrorCodeBase + portoProperty.second.Error, portoProperty.second.ErrorMsg)
                 << TErrorAttribute("porto_error", portoProperty.second.Error);
         }
     }
@@ -181,7 +181,7 @@ private:
     const TActionQueuePtr Queue_ = New<TActionQueue>("PortoQueue");
     TPeriodicExecutorPtr PollExecutor_;
     std::vector<TString> Containers_;
-    yhash<TString, TPromise<int>> ContainersMap_;
+    THashMap<TString, TPromise<int>> ContainersMap_;
     TSingleShotCallbackList<void(const TError&)> Failed_;
 
     static const std::vector<TString> ContainerRequestVars_;

@@ -76,9 +76,7 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
     auto origin = req->GetHeaders()->Find("Origin");
     if (origin) {
         auto url = ParseUrl(*origin);
-        bool allow = url.Host == "localhost"
-            || url.Host.EndsWith(".yandex.net")
-            || url.Host.EndsWith(".yandex-team.ru");
+        bool allow = url.Host == "localhost" || url.Host.EndsWith(".yandex-team.ru");
 
         if (allow) {
             rsp->GetHeaders()->Add("Access-Control-Allow-Origin", *origin);

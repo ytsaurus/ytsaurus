@@ -17,7 +17,8 @@
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/core/pipes/async_reader.h>
+#include <yt/core/net/connection.h>
+
 #include <yt/core/pipes/pipe.h>
 
 #include <yt/core/ytree/convert.h>
@@ -33,6 +34,7 @@ using namespace NFS;
 using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NPipes;
+using namespace NNet;
 using namespace NRpc;
 using namespace NProto;
 using namespace NScheduler;

@@ -32,8 +32,6 @@
 #include <yt/server/journal_server/journal_node.h>
 #include <yt/server/journal_server/journal_manager.h>
 
-#include <yt/server/misc/build_attributes.h>
-
 #include <yt/server/node_tracker_server/cypress_integration.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
 #include <yt/server/node_tracker_server/node_tracker_service.h>
@@ -62,6 +60,8 @@
 #include <yt/server/election/election_manager.h>
 
 #include <yt/server/admin_server/admin_service.h>
+
+#include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/election/cell_manager.h>
 
@@ -141,11 +141,16 @@ using NTransactionServer::TTransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const NLogging::TLogger Logger("Bootstrap");
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(TCellMasterConfigPtr config, INodePtr configNode)
-    : TBootstrapBase(CellMasterLogger, config)
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
-{ }
+{
+    WarnForUnrecognizedOptions(Logger, Config_);
+}
 
 TBootstrap::~TBootstrap() = default;
 
