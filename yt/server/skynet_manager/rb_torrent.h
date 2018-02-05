@@ -37,6 +37,10 @@ struct TSkynetRbTorrent
 {
     //! The string user would pass to `sky get` command.
     TString RbTorrentId;
+
+    //! RbTorrentId without prefix.
+    TString RbTorrentHash;
+    
     //! Bencoded description of this share, we are passing it to skynet daemon.
     TString BencodedTorrentMeta;
 };

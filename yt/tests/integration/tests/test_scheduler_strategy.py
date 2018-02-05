@@ -90,11 +90,11 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
-            command="cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
             spec={"pool": "big_pool"})
+        wait_breakpoint()
 
         # Wait for fair share update.
         time.sleep(1)
@@ -103,7 +103,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 5.0)
         assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 5.0)
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
 
 
@@ -187,21 +187,22 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         get_pool_fair_share_ratio = lambda pool: \
             get("//sys/scheduler/orchid/scheduler/pools/{0}/fair_share_ratio".format(pool))
 
+        command_with_breakpoint = with_breakpoint("cat ; BREAKPOINT")
         op1 = map(
-            wait_for_jobs=True,
             dont_track=True,
-            command="cat",
+            command=command_with_breakpoint,
             in_="//tmp/t_in",
             out="//tmp/t_out_1",
             spec={"job_count": 1, "pool": "subpool_1"})
 
         op2 = map(
-            wait_for_jobs=True,
             dont_track=True,
-            command="cat",
+            command=command_with_breakpoint,
             in_="//tmp/t_in",
             out="//tmp/t_out_2",
             spec={"job_count": 2, "pool": "high_cpu_pool"})
+
+        wait_breakpoint()
 
         assert assert_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0)
         assert assert_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0)
@@ -219,9 +220,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         assert assert_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0)
         assert assert_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0)
 
-        op1.resume_jobs()
+        release_breakpoint()
         op1.track()
-        op2.resume_jobs()
         op2.track()
         op3.track()
 
@@ -233,17 +233,17 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         write_table("//tmp/t_in", data)
 
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
-            command="cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "mapper": {"cpu_limit": 0.87}})
+        wait_breakpoint()
 
         resource_usage = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_usage".format(op.id))
         assert_almost_equal(resource_usage["cpu"], 3 * 0.87)
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
 
 ##################################################################
@@ -386,38 +386,40 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
         create("table", "//tmp/out3")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": "bar"}])
 
+        command = with_breakpoint("cat > /dev/null && BREAKPOINT")
         op1 = map(
             dont_track=True,
-            wait_for_jobs=True,
-            command="cat >/dev/null",
+            command=command,
             in_=["//tmp/in"],
             out="//tmp/out1",
             spec={"pool": "test_pool_1"})
 
         op2 = map(
             dont_track=True,
-            command="cat >/dev/null",
+            command=command,
             in_=["//tmp/in"],
             out="//tmp/out2",
             spec={"pool": "test_pool_1"})
 
         op3 = map(
             dont_track=True,
-            wait_for_jobs=True,
-            command="cat >/dev/null",
+            command=command,
             in_=["//tmp/in"],
             out="//tmp/out3",
             spec={"pool": "test_pool_2"})
 
-        op1.ensure_running()
-        with pytest.raises(TimeoutError):
-            op2.ensure_running(timeout=1.0)
-        op3.ensure_running()
+        wait_breakpoint(job_count=2)
 
-        op1.resume_jobs()
-        op3.resume_jobs()
+        # We sleep some time to make sure that op2 will not start.
+        time.sleep(1)
+
+        assert op1.get_state() == "running"
+        assert op2.get_state() == "pending"
+        assert op3.get_state() == "running"
+
+        release_breakpoint()
 
         op1.track()
         op2.track()
@@ -495,17 +497,21 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("table", "//tmp/out3")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op1 = map(dont_track=True, wait_for_jobs=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
-        op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
-        op3 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out3")
+        command = with_breakpoint("cat > /dev/null ; BREAKPOINT")
+        op1 = map(dont_track=True, command=command, in_=["//tmp/in"], out="//tmp/out1")
+        op2 = map(dont_track=True, command=command, in_=["//tmp/in"], out="//tmp/out2")
+        op3 = map(dont_track=True, command=command, in_=["//tmp/in"], out="//tmp/out3")
 
-        time.sleep(1.5)
+        wait_breakpoint()
+
+        # Sleep some time to make sure that op2 and op3 will not start.
+        time.sleep(1)
         assert op1.get_state() == "running"
         assert op2.get_state() == "pending"
         assert op3.get_state() == "pending"
 
         op2.abort()
-        op1.resume_jobs()
+        release_breakpoint()
         op1.track()
         op3.track()
 
@@ -524,11 +530,11 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         op1 = map(
             dont_track=True,
-            wait_for_jobs=True,
-            command="cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
             in_=["//tmp/in"],
             out="//tmp/out1",
             spec={"pool": "test_pool_1"})
+        wait_breakpoint()
 
         remove("//sys/pools/test_pool_1")
         create("map_node", "//sys/pools/test_pool_2/test_pool_1")
@@ -541,11 +547,13 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             out="//tmp/out2",
             spec={"pool": "test_pool_2"})
 
-        op1.ensure_running()
-        with pytest.raises(TimeoutError):
-            op2.ensure_running(timeout=1.0)
+        # Wait some time to make sure that op2 will not start.
+        time.sleep(1)
 
-        op1.resume_jobs()
+        assert op1.get_state() == "running"
+        assert op2.get_state() == "pending"
+
+        release_breakpoint()
         op1.track()
         op2.track()
 
@@ -765,8 +773,6 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
 
-        events = EventsOnFs()
-
         spec = {
             "pool": "fake_pool",
             "locality_timeout": 0,
@@ -779,7 +785,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec["job_count"] = 3
 
         mapper = " ; ".join([
-            events.notify_event_cmd("mapper_started_$YT_JOB_INDEX"),
+            events_on_fs().notify_event_cmd("mapper_started_$YT_JOB_INDEX"),
             "sleep 7",
             "cat"])
         op1 = map(
@@ -797,9 +803,9 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("map_node", "//sys/pools/test_pool", attributes={"min_share_ratio": 1.0})
 
         # Ensure that all three jobs have started.
-        events.wait_event("mapper_started_0", timeout=datetime.timedelta(1000))
-        events.wait_event("mapper_started_1", timeout=datetime.timedelta(1000))
-        events.wait_event("mapper_started_2", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("mapper_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("mapper_started_1", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("mapper_started_2", timeout=datetime.timedelta(1000))
 
         op2 = map(
             dont_track=True,
@@ -842,20 +848,21 @@ class TestSchedulerPreemption(YTEnvSetup):
         for min_share_spec in min_share_settings:
             spec = {"job_count": 3, "pool": "test_min_share_ratio_pool"}
             spec.update(min_share_spec)
+            reset_events_on_fs()
             op = map(
                 dont_track=True,
-                wait_for_jobs=True,
-                command="cat",
+                command=with_breakpoint("cat ; BREAKPOINT"),
                 in_=["//tmp/t_in"],
                 out="//tmp/t_out",
                 spec=spec)
+            wait_breakpoint()
 
             # Wait for fair share update.
             time.sleep(0.2)
 
             assert get_operation_min_share_ratio(op.id) == compute_min_share_ratio(min_share_spec)
 
-            op.resume_jobs()
+            release_breakpoint()
             op.track()
 
     def test_recursive_preemption_settings(self):
@@ -1165,20 +1172,21 @@ class TestSchedulerPools(YTEnvSetup):
         create("map_node", "//sys/pools/default_pool")
         time.sleep(0.2)
 
+        command = with_breakpoint("cat ; BREAKPOINT")
         op1 = map(
             dont_track=True,
-            wait_for_jobs=True,
-            command="cat",
+            command=command,
             in_="//tmp/t_in",
             out="//tmp/t_out1")
 
         op2 = map(
             dont_track=True,
-            wait_for_jobs=True,
-            command="cat",
+            command=command,
             in_="//tmp/t_in",
             out="//tmp/t_out2",
             spec={"pool": "my_pool"})
+        # Each operation has one job.
+        wait_breakpoint(job_count=2)
 
         pool = get("//sys/scheduler/orchid/scheduler/pools/root")
         assert pool["parent"] == "default_pool"
@@ -1191,10 +1199,9 @@ class TestSchedulerPools(YTEnvSetup):
                __builtin__.set(get(scheduling_info_per_pool_tree + "/default/user_to_ephemeral_pools/root"))
 
         remove("//sys/pools/default_pool")
-        time.sleep(0.2)
 
+        release_breakpoint()
         for op in [op1, op2]:
-            op.resume_jobs()
             op.track()
 
     def test_ephemeral_pools_limit(self):
@@ -1211,30 +1218,35 @@ class TestSchedulerPools(YTEnvSetup):
         time.sleep(0.2)
 
         ops = []
+        breakpoints = []
         for i in xrange(1, 4):
+            breakpoint_name = "breakpoint{0}".format(i)
+            breakpoints.append(breakpoint_name)
             ops.append(map(
                 dont_track=True,
-                wait_for_jobs=True,
-                command="cat",
+                command="cat ; {breakpoint_cmd}".format(breakpoint_cmd=events_on_fs().breakpoint_cmd(breakpoint_name)),
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(i),
                 spec={"pool": "pool" + str(i)}))
+            wait_breakpoint(breakpoint_name)
 
         scheduling_info_per_pool_tree = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
         assert __builtin__.set(["pool" + str(i) for i in xrange(1, 4)]) == \
                __builtin__.set(get(scheduling_info_per_pool_tree + "/default/user_to_ephemeral_pools/root"))
 
         with pytest.raises(YtError):
-            map(command="cat",
+            map(dont_track=True,
+                command="cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out4",
                 spec={"pool": "pool4"})
 
         remove("//sys/pools/default_pool")
-        time.sleep(0.2)
+
+        for breakpoint_name in breakpoints:
+            release_breakpoint(breakpoint_name)
 
         for op in ops:
-            op.resume_jobs()
             op.track()
 
     def test_event_log(self):
@@ -1750,12 +1762,12 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert op2.id in other_tree_operations
         assert op2.id not in default_tree_operations
 
-class TestFairShareOptionsPerTree(YTEnvSetup):
+class TestSchedulingOptionsPerTree(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
 
-    def test_fair_share_options_per_tree(self):
+    def test_scheduling_options_per_tree(self):
         other_nodes = ls("//sys/nodes")[:3]
         for node in other_nodes:
             set("//sys/nodes/" + node + "/@user_tags/end", "other")
@@ -1775,7 +1787,7 @@ class TestFairShareOptionsPerTree(YTEnvSetup):
             out="//tmp/t_out",
             spec={
                 "pool_trees": ["default", "other"],
-                "fair_share_options_per_pool_tree": {
+                "scheduling_options_per_pool_tree": {
                     "default": {
                         "max_share_ratio": 0.4,
                         "min_share_ratio": 0.37,
@@ -1808,3 +1820,6 @@ class TestFairShareOptionsPerTree(YTEnvSetup):
         assert_almost_equal(get_value("other", op.id, "usage_ratio"), 0.66)
         assert_almost_equal(get_value("other", op.id, "usage_ratio"), 0.66)
         assert get_value("other", op.id, "pool") == "superpool"
+
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/other/pool"
+            .format(op.id)) == "superpool"

@@ -256,8 +256,8 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 
 std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
 {
-    yhash_set<TChunkOwnerBase*> owningNodes;
-    yhash_set<TChunkTree*> visitedTrees;
+    THashSet<TChunkOwnerBase*> owningNodes;
+    THashSet<TChunkTree*> visitedTrees;
     std::vector<TChunkTree*> queue{chunkTree};
 
     auto visit = [&] (TChunkTree* chunkTree) {

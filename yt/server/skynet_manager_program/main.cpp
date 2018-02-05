@@ -4,8 +4,7 @@
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
-
-#include <yt/server/misc/configure_singletons.h>
+#include <yt/ytlib/program/configure_singletons.h>
 
 namespace NYT {
 
@@ -14,7 +13,7 @@ using namespace NSkynetManager;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkynetManagerProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<TSkynetManagerConfig>
 {
@@ -22,8 +21,7 @@ public:
     TSkynetManagerProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
-    {
-    }
+    { }
 
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
@@ -48,7 +46,7 @@ protected:
             cluster->LoadToken();
         }
 
-        ConfigureServerSingletons(config);
+        ConfigureSingletons(config);
 
         auto bootstrap = New<TBootstrap>(std::move(config));
         bootstrap->Run();

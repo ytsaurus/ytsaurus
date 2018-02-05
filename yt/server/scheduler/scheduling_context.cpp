@@ -15,13 +15,11 @@ public:
     TSchedulingContext(
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs,
-        TCellTag cellTag)
+        const std::vector<TJobPtr>& runningJobs)
         : TSchedulingContextBase(
             std::move(config),
             std::move(node),
-            runningJobs,
-            cellTag)
+            runningJobs)
     { }
 
     virtual NProfiling::TCpuInstant GetNow() const override
@@ -35,14 +33,12 @@ public:
 ISchedulingContextPtr CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs,
-    TCellTag cellTag)
+    const std::vector<TJobPtr>& runningJobs)
 {
     return New<TSchedulingContext>(
         std::move(config),
         std::move(node),
-        runningJobs,
-        cellTag);
+        runningJobs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

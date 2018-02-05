@@ -148,7 +148,7 @@ public:
     {
         HasRoot_ = true;
         SetProperty("root", rootFS.RootPath);
-        SetProperty("root_readonly", "true");
+        SetProperty("root_readonly", TString(FormatBool(rootFS.IsRootReadOnly)));
 
         TStringBuilder builder;
         for (const auto& bind : rootFS.Binds) {

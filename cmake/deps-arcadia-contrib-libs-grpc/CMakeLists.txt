@@ -256,8 +256,8 @@ set(SRCS_CORE
   ${BASE}/src/core/lib/surface/completion_queue.c
   ${BASE}/src/core/lib/surface/event_string.c
   ${BASE}/src/core/lib/surface/init.c
-  #${BASE}/src/core/lib/surface/init_secure.c
-  ${BASE}/src/core/lib/surface/init_unsecure.c
+  ${BASE}/src/core/lib/surface/init_secure.c
+  #${BASE}/src/core/lib/surface/init_unsecure.c
   ${BASE}/src/core/lib/surface/lame_client.c
   ${BASE}/src/core/lib/surface/metadata_array.c
   ${BASE}/src/core/lib/surface/server.c

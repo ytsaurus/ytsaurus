@@ -366,12 +366,10 @@ print "x={0}\ty={1}".format(x, y)
 
         write_table("//tmp/t_in", [{"x": 1, "y" : 2}, {"x": 2, "y" : 3}] * 5)
 
-        events = EventsOnFs()
-
         reducer_cmd = " ; ".join([
             "cat",
-            events.notify_event_cmd("reducer_started"),
-            events.wait_event_cmd("continue_reducer")])
+            events_on_fs().notify_event_cmd("reducer_started"),
+            events_on_fs().wait_event_cmd("continue_reducer")])
 
         op = map_reduce(in_="//tmp/t_in",
              out="//tmp/t_out",
@@ -388,7 +386,7 @@ print "x={0}\ty={1}".format(x, y)
              dont_track=True)
 
         # We wait for the first reducer to start (second is pending due to resource_limits).
-        events.wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
         chunks = get("//sys/chunks")
         banned_nodes = []
@@ -403,7 +401,7 @@ print "x={0}\ty={1}".format(x, y)
         # First reducer will probably compelete successfully, but the second one
         # must fail due to unavailable intermediate chunk.
         # This will lead to a lost map job.
-        events.notify_event("continue_reducer")
+        events_on_fs().notify_event("continue_reducer")
         op.track()
 
         assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 1
@@ -418,12 +416,10 @@ print "x={0}\ty={1}".format(x, y)
 
         write_table("//tmp/t_in", [{"x": 1, "y" : 2}, {"x": 2, "y" : 3}] * 5)
 
-        events = EventsOnFs()
-
         reducer_cmd = " ; ".join([
             "cat",
-            events.notify_event_cmd("reducer_started"),
-            events.wait_event_cmd("continue_reducer")])
+            events_on_fs().notify_event_cmd("reducer_started"),
+            events_on_fs().wait_event_cmd("continue_reducer")])
 
         op = map_reduce(in_="//tmp/t_in",
              out="//tmp/t_out",
@@ -441,7 +437,7 @@ print "x={0}\ty={1}".format(x, y)
              dont_track=True)
 
         # We wait for the first reducer to start (second is pending due to resource_limits).
-        events.wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
         chunks = get("//sys/chunks")
         banned_nodes = []
@@ -456,7 +452,7 @@ print "x={0}\ty={1}".format(x, y)
         # First reducer will probably compelete successfully, but the second one
         # must fail due to unavailable intermediate chunk.
         # This will lead to a lost map job.
-        events.notify_event("continue_reducer")
+        events_on_fs().notify_event("continue_reducer")
 
         def get_unavailable_chunk_count():
             return get("//sys/operations/{0}/@progress/estimated_input_statistics/unavailable_chunk_count".format(op.id))

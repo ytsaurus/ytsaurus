@@ -309,6 +309,11 @@ void ExecuteVerb(
             return UnderlyingContext_->GetBusStatistics();
         }
 
+        virtual const IAttributeDictionary& GetEndpointAttributes() const override
+        {
+            return UnderlyingContext_->GetEndpointAttributes();
+        }
+
         virtual void SetRawRequestInfo(const TString& info) override
         {
             UnderlyingContext_->SetRawRequestInfo(info);
@@ -403,10 +408,12 @@ bool SyncYPathExists(
 void SyncYPathSet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TYsonString& value)
+    const TYsonString& value,
+    bool recursive)
 {
     auto request = TYPathProxy::Set(path);
     request->set_value(value.GetData());
+    request->set_recursive(recursive);
     ExecuteVerb(service, request)
         .Get()
         .ThrowOnError();

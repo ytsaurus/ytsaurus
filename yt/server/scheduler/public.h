@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/scheduler/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/actions/callback.h>
 
 namespace NYT {
@@ -17,12 +19,10 @@ using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TOperationRuntimeData)
+
 DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TJob)
-
-DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
-
-struct TJobStartRequest;
 
 using TJobList = std::list<TJobPtr>;
 
@@ -30,7 +30,8 @@ struct TUpdatedJob;
 struct TCompletedJob;
 
 struct TExecNodeDescriptor;
-DECLARE_REFCOUNTED_STRUCT(TExecNodeDescriptorList);
+using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDescriptor>;
+DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap);
 
 DECLARE_REFCOUNTED_CLASS(TNodeShard)
 DECLARE_REFCOUNTED_CLASS(TExecNode)
@@ -51,6 +52,7 @@ struct ISchedulerStrategyHost;
 struct IOperationStrategyHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
+DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 // XXX(babenko): move to private
@@ -92,10 +94,10 @@ DEFINE_ENUM(EOperationAlertType,
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
-    ((Completed) (0))
-    ((Suspended) (1))
-    ((Failed)    (2))
-    ((Aborted)   (3))
+    ((Completed)                (0))
+    ((Suspended)                (1))
+    ((Failed)                   (2))
+    ((Aborted)                  (3))
 );
 
 DEFINE_ENUM(EAgentToSchedulerJobEventType,
@@ -111,6 +113,11 @@ DEFINE_ENUM(ESchedulerToAgentJobEventType,
     ((Failed)    (2))
     ((Aborted)   (3))
     ((Running)   (4))
+);
+
+DEFINE_ENUM(ESchedulerToAgentOperationEventType,
+    ((Abandon)                    (0))
+    ((UpdateMinNeededJobResources)(1))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

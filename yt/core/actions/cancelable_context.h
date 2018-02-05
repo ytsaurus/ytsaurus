@@ -53,8 +53,8 @@ private:
     TSpinLock SpinLock_;
     std::atomic<bool> Canceled_ = {false};
     TCallbackList<void()> Handlers_;
-    yhash_set<TWeakPtr<TCancelableContext>> PropagateToContexts_;
-    yhash_set<TFuture<void>> PropagateToFutures_;
+    THashSet<TWeakPtr<TCancelableContext>> PropagateToContexts_;
+    THashSet<TFuture<void>> PropagateToFutures_;
 
 };
 

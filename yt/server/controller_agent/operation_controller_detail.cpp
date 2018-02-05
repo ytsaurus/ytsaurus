@@ -6,10 +6,10 @@
 #include "counter_manager.h"
 #include "task.h"
 #include "operation.h"
+#include "scheduling_context.h"
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/server/misc/job_table_schema.h>
 
@@ -175,12 +175,16 @@ TOperationControllerBase::TOperationControllerBase(
     , UserTransactionId(operation->GetUserTransactionId())
     , Logger(TLogger(OperationLogger)
         .AddTag("OperationId: %v", OperationId))
+    , CoreNotes_({
+        Format("OperationId: %v", OperationId)
+    })
     , CancelableContext(New<TCancelableContext>())
     , Invoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
+    , PoolTreeSchedulingTagFilters_(operation->GetPoolTreeSchedulingTagFilters())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -579,7 +583,7 @@ void TOperationControllerBase::SafePrepare()
             Logger,
             EPermission::Write);
 
-        yhash_set<TObjectId> updatingTableIds;
+        THashSet<TObjectId> updatingTableIds;
         for (const auto* table : UpdatingTables) {
             const auto& path = table->Path.GetPath();
             if (table->Type != EObjectType::Table) {
@@ -613,7 +617,7 @@ void TOperationControllerBase::SafeMaterialize()
         FetchUserFiles();
 
         PickIntermediateDataCell();
-        InitChunkListPool();
+        InitChunkListPools();
 
         CreateLivePreviewTables();
 
@@ -663,6 +667,8 @@ void TOperationControllerBase::SafeMaterialize()
         // because input chunk scraper works in control thread.
         InitInputChunkScraper();
         InitIntermediateChunkScraper();
+
+        UpdateMinNeededJobResources();
 
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
@@ -731,7 +737,7 @@ void TOperationControllerBase::Revive()
 
     ReviveResult_.IsRevivedFromSnapshot = true;
 
-    InitChunkListPool();
+    InitChunkListPools();
 
     CreateLivePreviewTables();
 
@@ -745,6 +751,8 @@ void TOperationControllerBase::Revive()
     // Input chunk scraper initialization should be the last step to avoid races.
     InitInputChunkScraper();
     InitIntermediateChunkScraper();
+
+    UpdateMinNeededJobResources();
 
     ReinstallLivePreview();
 
@@ -794,6 +802,8 @@ void TOperationControllerBase::StartTransactions()
         StartTransaction(ETransactionType::Async, Client),
         StartTransaction(ETransactionType::Input, InputClient, GetInputTransactionParentId()),
         StartTransaction(ETransactionType::Output, OutputClient, GetOutputTransactionParentId()),
+        // NB: we do not start Debug transaction under User transaction since we want to save debug results
+        // even if user transaction is aborted.
         StartTransaction(ETransactionType::Debug, Client),
     };
 
@@ -881,32 +891,41 @@ void TOperationControllerBase::PickIntermediateDataCell()
         : secondaryCellTags[rand() % secondaryCellTags.size()];
 }
 
-void TOperationControllerBase::InitChunkListPool()
+void TOperationControllerBase::InitChunkListPools()
 {
-    ChunkListPool_ = New<TChunkListPool>(
+    OutputChunkListPool_ = New<TChunkListPool>(
         Config,
         OutputClient,
         CancelableInvoker,
         OperationId,
         OutputTransaction->GetId());
 
-    CellTagToRequiredChunkLists.clear();
+    CellTagToRequiredOutputChunkLists_.clear();
     for (const auto* table : UpdatingTables) {
-        ++CellTagToRequiredChunkLists[table->CellTag];
+        ++CellTagToRequiredOutputChunkLists_[table->CellTag];
     }
 
-    ++CellTagToRequiredChunkLists[IntermediateOutputCellTag];
+    ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
+
+    DebugChunkListPool_ = New<TChunkListPool>(
+        Config,
+        OutputClient,
+        CancelableInvoker,
+        OperationId,
+        DebugTransaction->GetId());
+
+    CellTagToRequiredDebugChunkLists_.clear();
     if (StderrTable_) {
-        ++CellTagToRequiredChunkLists[StderrTable_->CellTag];
+        ++CellTagToRequiredDebugChunkLists_[StderrTable_->CellTag];
     }
     if (CoreTable_) {
-        ++CellTagToRequiredChunkLists[CoreTable_->CellTag];
+        ++CellTagToRequiredDebugChunkLists_[CoreTable_->CellTag];
     }
 }
 
 void TOperationControllerBase::InitInputChunkScraper()
 {
-    yhash_set<TChunkId> chunkIds;
+    THashSet<TChunkId> chunkIds;
     for (const auto& pair : InputChunkMap) {
         chunkIds.insert(pair.first);
     }
@@ -940,7 +959,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
             if (auto this_ = weakThis.Lock()) {
                 return this_->GetAliveIntermediateChunks();
             } else {
-                return yhash_set<TChunkId>();
+                return THashSet<TChunkId>();
             }
         },
         BIND(&TThis::OnIntermediateChunkLocated, MakeWeak(this)),
@@ -1048,9 +1067,9 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
     }
 }
 
-yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
+THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 {
-    yhash_set<TChunkId> intermediateChunks;
+    THashSet<TChunkId> intermediateChunks;
 
     for (const auto& pair : ChunkOriginMap) {
         if (!pair.second->Suspended || pair.second->InputStripe) {
@@ -1981,8 +2000,13 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
-void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
 {
+    if (missing) {
+        // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
+        return;
+    }
+
     // Intermediate chunks are always replicated.
     if (IsUnavailable(replicas, NErasure::ECodec::None)) {
         OnIntermediateChunkUnavailable(chunkId);
@@ -1991,8 +2015,10 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& ch
     }
 }
 
-void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
 {
+    // We have locked all the relevant input chunks, they cannot be missing.
+    YCHECK(!missing);
     auto it = InputChunkMap.find(chunkId);
     YCHECK(it != InputChunkMap.end());
 
@@ -2300,6 +2326,8 @@ void TOperationControllerBase::DoAbort()
                 // Bad luck we can't commit transaction.
                 // Such a pity can happen for example if somebody aborted our transaction manually.
                 LOG_ERROR(ex, "Failed to commit debug transaction");
+                // Intentionally do not wait for abort.
+                DebugTransaction->Abort();
             }
         }
     }
@@ -2373,7 +2401,17 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         return;
     }
 
-    if (GetExecNodeDescriptors().empty()) {
+    bool hasSuitableNodes = false;
+    for (const auto& pair : GetExecNodeDescriptors()) {
+        const auto& descriptor = pair.second;
+        for (const auto& filter : PoolTreeSchedulingTagFilters_) {
+            if (descriptor.CanSchedule(filter)) {
+                hasSuitableNodes = true;
+            }
+        }
+    }
+
+    if (!hasSuitableNodes) {
         auto timeout = DurationToCpuDuration(Spec_->AvailableNodesMissingTimeout);
         if (!AvailableNodesSeen_ && AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
@@ -2392,8 +2430,8 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         return;
     }
 
-    yhash<EJobType, i64> maximumUsedTmfpsSizePerJobType;
-    yhash<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
+    THashMap<EJobType, i64> maximumUsedTmfpsSizePerJobType;
+    THashMap<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
         const auto& userJobSpecPtr = task->GetUserJobSpec();
@@ -2626,8 +2664,8 @@ void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
     const auto& nodeDescriptors = GetExecNodeDescriptors();
 
     TJobResources maxAvailableResources;
-    for (const auto& descriptor : nodeDescriptors) {
-        maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
+    for (const auto& pair : nodeDescriptors) {
+        maxAvailableResources = Max(maxAvailableResources, pair.second.ResourceLimits);
     }
 
     CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
@@ -2658,7 +2696,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 }
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
-    ISchedulingContextPtr context,
+    ISchedulingContext* context,
     const NScheduler::TJobResourcesWithQuota& jobLimits,
     const TString& treeId)
 {
@@ -2675,13 +2713,13 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 
     TWallTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
-    DoScheduleJob(context.Get(), jobLimits, treeId, scheduleJobResult.Get());
-    if (scheduleJobResult->JobStartRequest) {
+    DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
+    if (scheduleJobResult->StartDescriptor) {
         JobCounter->Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
 
-    ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
+    ScheduleJobStatistics_->RecordJobResult(*scheduleJobResult);
 
     auto now = NProfiling::GetCpuInstant();
     if (now > ScheduleJobStatisticsLogDeadline_) {
@@ -2889,7 +2927,7 @@ void TOperationControllerBase::DoScheduleJob(
             return;
         }
         DoScheduleLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
-        if (!scheduleJobResult->JobStartRequest) {
+        if (!scheduleJobResult->StartDescriptor) {
             DoScheduleNonLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
         }
     }
@@ -2980,7 +3018,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
             }
 
             bestTask->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
-            if (scheduleJobResult->JobStartRequest) {
+            if (scheduleJobResult->StartDescriptor) {
                 UpdateTask(bestTask);
                 break;
             }
@@ -3105,7 +3143,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 task->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
-                if (scheduleJobResult->JobStartRequest) {
+                if (scheduleJobResult->StartDescriptor) {
                     UpdateTask(task);
                     return;
                 }
@@ -3218,36 +3256,52 @@ TJobResources TOperationControllerBase::GetNeededResources() const
     return CachedNeededResources;
 }
 
-std::vector<NScheduler::TJobResourcesWithQuota> TOperationControllerBase::GetMinNeededJobResources() const
+TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededJobResources() const
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    yhash<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
+    NConcurrency::TReaderGuard guard(CachedMinNeededResourcesJobLock);
+    return CachedMinNeededJobResources;
+}
 
-    for (const auto& task : Tasks) {
-        if (task->GetPendingJobCount() == 0) {
-            continue;
+void TOperationControllerBase::UpdateMinNeededJobResources()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    CancelableInvoker->Invoke(BIND([=, this_ = MakeStrong(this)] {
+        VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+        THashMap<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
+
+        for (const auto& task : Tasks) {
+            if (task->GetPendingJobCount() == 0) {
+                continue;
+            }
+
+            auto jobType = task->GetJobType();
+            auto resources = task->GetMinNeededResources();
+
+            auto resIt = minNeededJobResources.find(jobType);
+            if (resIt == minNeededJobResources.end()) {
+                minNeededJobResources[jobType] = resources;
+            } else {
+                resIt->second = Min(resIt->second, resources);
+            }
         }
 
-        auto jobType = task->GetJobType();
-        auto resources = task->GetMinNeededResources();
-
-        auto resIt = minNeededJobResources.find(jobType);
-        if (resIt == minNeededJobResources.end()) {
-            minNeededJobResources[jobType] = resources;
-        } else {
-            resIt->second = Min(resIt->second, resources);
+        TJobResourcesWithQuotaList result;
+        for (const auto& pair : minNeededJobResources) {
+            result.push_back(pair.second);
+            LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
+                pair.first,
+                FormatResources(pair.second));
         }
-    }
 
-    std::vector<NScheduler::TJobResourcesWithQuota> result;
-    for (const auto& pair : minNeededJobResources) {
-        result.push_back(pair.second);
-        LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
-            pair.first,
-            FormatResources(pair.second));
-    }
-    return result;
+        {
+            NConcurrency::TWriterGuard guard(CachedMinNeededResourcesJobLock);
+            CachedMinNeededJobResources.swap(result);
+        }
+    }));
 }
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
@@ -4109,7 +4163,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
         }
     }
 
-    yhash<TCellTag, std::vector<TOutputTable*>> cellTagToTables;
+    THashMap<TCellTag, std::vector<TOutputTable*>> cellTagToTables;
     for (auto* table : updatingTables) {
         cellTagToTables[table->CellTag].push_back(table);
     }
@@ -4389,7 +4443,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     for (auto& pair : UserJobFiles_) {
         const auto& userJobSpec = pair.first;
         auto& files = pair.second;
-        yhash_set<TString> userFileNames;
+        THashSet<TString> userFileNames;
         try {
             for (auto& file : files) {
                 const auto& path = file.Path.GetPath();
@@ -5094,7 +5148,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
             return;
         }
 
-        auto columnSet = yhash_set<TString>(columns->begin(), columns->end());
+        auto columnSet = THashSet<TString>(columns->begin(), columns->end());
         for (const auto& keyColumn : keyColumns) {
             if (columnSet.find(keyColumn) == columnSet.end()) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
@@ -5315,7 +5369,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
 
 void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe, const TTaskPtr& task)
 {
-    yhash_set<TChunkId> visitedChunks;
+    THashSet<TChunkId> visitedChunks;
 
     for (const auto& slice : stripe->DataSlices) {
         slice->Tag = CurrentInputDataSliceTag_++;
@@ -5465,7 +5519,6 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
     TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
     NScheduler::TOperationJobMetrics result;
-    result.OperationId = OperationId;
 
     auto now = NProfiling::GetCpuInstant();
 
@@ -5479,7 +5532,7 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
         const auto& treeId = pair.first;
         auto& delta = pair.second;
         if (!delta.IsEmpty()) {
-            result.Metrics.push_back({treeId, delta});
+            result.push_back({treeId, delta});
             delta = NScheduler::TJobMetrics();
         }
     }
@@ -5524,7 +5577,14 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
 {
-    for (const auto& pair : CellTagToRequiredChunkLists) {
+    for (const auto& pair : CellTagToRequiredOutputChunkLists_) {
+        const auto cellTag = pair.first;
+        auto requiredChunkList = pair.second;
+        if (requiredChunkList && !OutputChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
+            return false;
+        }
+    }
+    for (const auto& pair : CellTagToRequiredDebugChunkLists_) {
         const auto cellTag = pair.first;
         auto requiredChunkList = pair.second;
         if (StderrTable_ && !isWritingStderrTable && StderrTable_->CellTag == cellTag) {
@@ -5533,16 +5593,21 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
         if (CoreTable_ && !isWritingCoreTable && CoreTable_->CellTag == cellTag) {
             --requiredChunkList;
         }
-        if (requiredChunkList && !ChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
+        if (requiredChunkList && !DebugChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
             return false;
         }
     }
     return true;
 }
 
-TChunkListId TOperationControllerBase::ExtractChunkList(TCellTag cellTag)
+TChunkListId TOperationControllerBase::ExtractOutputChunkList(TCellTag cellTag)
 {
-    return ChunkListPool_->Extract(cellTag);
+    return OutputChunkListPool_->Extract(cellTag);
+}
+
+TChunkListId TOperationControllerBase::ExtractDebugChunkList(TCellTag cellTag)
+{
+    return DebugChunkListPool_->Extract(cellTag);
 }
 
 void TOperationControllerBase::ReleaseChunkTrees(
@@ -6028,9 +6093,9 @@ TCellTag TOperationControllerBase::GetIntermediateOutputCellTag() const
     return IntermediateOutputCellTag;
 }
 
-const TChunkListPoolPtr& TOperationControllerBase::GetChunkListPool() const
+const TChunkListPoolPtr& TOperationControllerBase::GetOutputChunkListPool() const
 {
-    return ChunkListPool_;
+    return OutputChunkListPool_;
 }
 
 const TControllerAgentConfigPtr& TOperationControllerBase::GetConfig() const
@@ -6167,7 +6232,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
-    auto fillEnvironment = [&] (yhash<TString, TString>& env) {
+    auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
         }
@@ -6397,10 +6462,10 @@ int TOperationControllerBase::GetExecNodeCount()
     return ExecNodeCount_;
 }
 
-const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDescriptors()
+const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
 {
     GetExecNodesInformation();
-    return ExecNodesDescriptors_->Descriptors;
+    return *ExecNodesDescriptors_;
 }
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()
@@ -6477,7 +6542,7 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
 
 void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors()
 {
-    yhash_set<TString> columns;
+    THashSet<TString> columns;
     for (const auto& table : InputTables) {
         if (auto selectors = table.Path.GetColumns()) {
             for (const auto& column : *selectors) {
@@ -6560,7 +6625,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
     Persist(context, IntermediateOutputCellTag);
-    Persist(context, CellTagToRequiredChunkLists);
+    Persist(context, CellTagToRequiredOutputChunkLists_);
+    Persist(context, CellTagToRequiredDebugChunkLists_);
     Persist(context, CachedPendingJobCount);
     Persist(context, CachedNeededResources);
     Persist(context, ChunkOriginMap);

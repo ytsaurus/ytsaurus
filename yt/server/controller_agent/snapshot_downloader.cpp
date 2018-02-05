@@ -35,7 +35,7 @@ TSharedRef TSnapshotDownloader::Run(const NYTree::TYPath& snapshotPath)
 {
     LOG_INFO("Starting downloading snapshot");
 
-    auto client = Bootstrap_->GetMasterClient();
+    const auto& client = Bootstrap_->GetMasterClient();
 
     TFileReaderOptions options;
     options.Config = Config_->SnapshotReader;

@@ -22,6 +22,7 @@
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/transaction_client/action.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/ytree/helpers.h>
 
@@ -79,6 +80,8 @@ private:
             return;
         }
 
+        RequestStoreTrim(slot, tablet);
+
         auto stores = PickStoresForTrimming(tablet);
         if (stores.empty()) {
             return;
@@ -95,6 +98,51 @@ private:
             slot,
             tablet,
             std::move(stores)));
+    }
+
+    void RequestStoreTrim(
+        const TTabletSlotPtr& slot,
+        TTablet* tablet)
+    {
+        if (tablet->IsReplicated()) {
+            return;
+        }
+
+        const auto& config = tablet->GetConfig();
+
+        if (config->MinDataVersions != 0) {
+            return;
+        }
+
+        auto dataTtl = config->MaxDataVersions == 0
+            ? config->MinDataTtl
+            : std::max(config->MinDataTtl, config->MaxDataTtl);
+
+        auto now = TimestampToInstant(Bootstrap_->GetLatestTimestamp()).first;
+        auto deathTimestamp = InstantToTimestamp(now - dataTtl).first;
+
+        i64 trimmedRowCount = 0;
+        std::vector<TOrderedChunkStorePtr> result;
+        for (const auto& pair : tablet->StoreRowIndexMap()) {
+            const auto& store = pair.second;
+            if (!store->IsChunk()) {
+                break;
+            }
+            auto chunkStore = store->AsOrderedChunk();
+            if (chunkStore->GetMaxTimestamp() >= deathTimestamp) {
+                break;
+            }
+            trimmedRowCount = chunkStore->GetStartingRowIndex() + chunkStore->GetRowCount();
+        }
+
+        if (trimmedRowCount > tablet->GetTrimmedRowCount()) {
+            NProto::TReqTrimRows hydraRequest;
+            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
+            hydraRequest.set_mount_revision(tablet->GetMountRevision());
+            hydraRequest.set_trimmed_row_count(trimmedRowCount);
+            CreateMutation(slot->GetHydraManager(), hydraRequest)
+                ->Commit();
+        }
     }
 
     void TrimStores(

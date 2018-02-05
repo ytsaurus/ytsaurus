@@ -402,6 +402,7 @@ TJobResult TJobProxy::DoRun()
             LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
 
             TRootFS rootFS;
+            rootFS.IsRootReadOnly = true;
             rootFS.RootPath = *Config_->RootPath;
             rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
 
@@ -639,7 +640,7 @@ const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const
 
 void TJobProxy::CheckMemoryUsage()
 {
-    i64 jobProxyMemoryUsage = GetProcessRss();
+    i64 jobProxyMemoryUsage = GetProcessMemoryUsage().Rss;
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
 
     LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",

@@ -21,8 +21,6 @@ set(SRCS
 
 set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
 
-add_definitions(-DBUILD_ZLIB -DY_BUILD_AS_ORIGIN)
-
 include_directories(${CMAKE_SOURCE_DIR})
 
 add_library(${NAME} STATIC ${SRCS})

@@ -91,7 +91,7 @@ public:
 private:
     const int MaxSize_;
 
-    yhash_set<TTransactionId> IdSet_;
+    THashSet<TTransactionId> IdSet_;
     TRingQueue<TTransactionId> IdQueue_;
 
 };
@@ -878,11 +878,7 @@ private:
 
     TTimestamp GetLatestTimestamp() const
     {
-        return Bootstrap_
-            ->GetMasterClient()
-            ->GetConnection()
-            ->GetTimestampProvider()
-            ->GetLatestTimestamp();
+        return Bootstrap_->GetLatestTimestamp();
     }
 
     TDuration ComputeTransactionSerializationLag() const

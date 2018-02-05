@@ -84,7 +84,7 @@ void ToProto(
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const yhash_set<TOriginal>& originalArray);
+    const THashSet<TOriginal>& originalArray);
 
 template <class TSerialized, class TOriginal>
 void ToProto(
@@ -250,7 +250,7 @@ bool RemoveProtoExtension(NProto::TExtensionSet* extensions);
 void FilterProtoExtensions(
     NProto::TExtensionSet* target,
     const NProto::TExtensionSet& source,
-    const yhash_set<int>& tags);
+    const THashSet<int>& tags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

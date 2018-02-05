@@ -100,7 +100,7 @@ public:
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
-    TTableSchema Filter(const yhash_set<TString>& columns) const;
+    TTableSchema Filter(const THashSet<TString>& columns) const;
     TTableSchema Filter(const TNullable<std::vector<TString>>& columns) const;
 
     bool HasComputedColumns() const;

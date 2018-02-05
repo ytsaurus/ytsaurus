@@ -1,12 +1,16 @@
 #include "pty.h"
-#include "async_reader.h"
-#include "async_writer.h"
+
+#include "io_dispatcher.h"
 
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/net/connection.h>
+
 namespace NYT {
 namespace NPipes {
+
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,22 +30,22 @@ TPty::~TPty()
     }
 }
 
-TAsyncWriterPtr TPty::CreateMasterAsyncWriter()
+IConnectionWriterPtr TPty::CreateMasterAsyncWriter()
 {
     YCHECK(MasterFD_ != InvalidFD);
     int fd = SafeDup(MasterFD_);
     SafeSetCloexec(fd);
     SafeMakeNonblocking(fd);
-    return New<TAsyncWriter>(fd);
+    return CreateConnectionFromFD(fd, {}, {}, TIODispatcher::Get()->GetPoller());
 }
 
-TAsyncReaderPtr TPty::CreateMasterAsyncReader()
+IConnectionReaderPtr TPty::CreateMasterAsyncReader()
 {
     YCHECK(MasterFD_ != InvalidFD);
     int fd = SafeDup(MasterFD_);
     SafeSetCloexec(fd);
     SafeMakeNonblocking(fd);
-    return New<TAsyncReader>(fd);
+    return CreateConnectionFromFD(fd, {}, {}, TIODispatcher::Get()->GetPoller());
 }
 
 int TPty::GetMasterFD() const

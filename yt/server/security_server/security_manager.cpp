@@ -299,6 +299,7 @@ public:
         SchedulerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffc);
         ReplicatorUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffb);
         OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
+        FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -1240,7 +1241,7 @@ private:
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
-    yhash<TString, TAccount*> AccountNameMap_;
+    THashMap<TString, TAccount*> AccountNameMap_;
 
     TAccountId SysAccountId_;
     TAccount* SysAccount_ = nullptr;
@@ -1255,8 +1256,8 @@ private:
     TAccount* ChunkWiseAccountingMigrationAccount_ = nullptr;
 
     NHydra::TEntityMap<TUser> UserMap_;
-    yhash<TString, TUser*> UserNameMap_;
-    yhash<TString, TTagId> UserNameToProfilingTagId_;
+    THashMap<TString, TUser*> UserNameMap_;
+    THashMap<TString, TTagId> UserNameToProfilingTagId_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
@@ -1276,8 +1277,11 @@ private:
     TUserId OwnerUserId_;
     TUser* OwnerUser_ = nullptr;
 
+    TUserId FileCacheUserId_;
+    TUser* FileCacheUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
-    yhash<TString, TGroup*> GroupNameMap_;
+    THashMap<TString, TGroup*> GroupNameMap_;
 
     TGroupId EveryoneGroupId_;
     TGroup* EveryoneGroup_ = nullptr;
@@ -1421,7 +1425,8 @@ private:
             id == RootUserId_ ||
             id == JobUserId_ ||
             id == SchedulerUserId_ ||
-            id == ReplicatorUserId_)
+            id == ReplicatorUserId_ ||
+            id == FileCacheUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -1718,7 +1723,7 @@ private:
             TClusterResources NodeCommittedUsage;
         };
 
-        yhash<TAccount*, TStat> statMap;
+        THashMap<TAccount*, TStat> statMap;
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -1836,6 +1841,7 @@ private:
         SchedulerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
+        FileCacheUser_ = nullptr;
         EveryoneGroup_ = nullptr;
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
@@ -1945,6 +1951,12 @@ private:
 
         // owner
         EnsureBuiltinUserInitialized(OwnerUser_, OwnerUserId_, OwnerUserName);
+
+        // file cache
+        if (EnsureBuiltinUserInitialized(FileCacheUser_, FileCacheUserId_, FileCacheUserName)) {
+            FileCacheUser_->SetRequestRateLimit(1000000);
+            FileCacheUser_->SetRequestQueueSizeLimit(1000000);
+        }
 
         // Accounts
 

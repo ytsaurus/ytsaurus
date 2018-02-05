@@ -6,6 +6,7 @@
 #include "operation.h"
 #include "node_shard.h"
 #include "operation_controller.h"
+#include "scheduling_context.h"
 #include "helpers.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
@@ -13,12 +14,17 @@
 #include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/controller_agent.h>
 #include <yt/server/controller_agent/master_connector.h>
+#include <yt/server/controller_agent/scheduling_context.h>
 
 #include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/yson/public.h>
+
+#include <util/string/join.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -26,8 +32,7 @@ namespace NScheduler {
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NYson;
-
-using NControllerAgent::TOperationAlertMap;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,18 +45,24 @@ class TOperationController
 {
 public:
     TOperationController(
+        NCellScheduler::TBootstrap* bootstrap,
         TControllerAgent* agent,
         TOperation* operation)
-        : JobEventsOutbox_(agent->GetJobEventsOutbox())
+        : Bootstrap_(bootstrap)
+        , JobEventsOutbox_(agent->GetJobEventsOutbox())
+        , OperationEventsOutbox_(agent->GetOperationEventsOutbox())
+        , ScheduleJobRequestsOutbox_(agent->GetScheduleJobRequestsOutbox())
         , OperationId_(operation->GetId())
+        , RuntimeData_(operation->GetRuntimeData())
     { }
 
     virtual void OnJobStarted(const TJobPtr& job) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
-        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job start notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job start notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -61,12 +72,13 @@ public:
         NJobTrackerClient::NProto::TJobStatus* status,
         bool abandoned) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Completed, job, true, status);
         event.Abandoned = abandoned;
         event.InterruptReason = job->GetInterruptReason();
-        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job completion notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job completion notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -75,10 +87,11 @@ public:
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
-        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job failure notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job failure notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -87,11 +100,12 @@ public:
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
         event.AbortReason = job->GetAbortReason();
-        auto itemId = JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job abort notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        JobEventsOutbox_->Enqueue(std::move(event));
+        LOG_DEBUG("Job abort notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -100,9 +114,11 @@ public:
         const TJobId& jobId,
         EAbortReason abortReason) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
         ToProto(status->mutable_job_id(), jobId);
-        auto itemId = JobEventsOutbox_->Enqueue(TJobEvent{
+        JobEventsOutbox_->Enqueue(TSchedulerToAgentJobEvent{
             ESchedulerToAgentJobEventType::Aborted,
             OperationId_,
             false,
@@ -113,8 +129,7 @@ public:
             {},
             {}
         });
-        LOG_DEBUG("Nonscheduled job abort notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        LOG_DEBUG("Nonscheduled job abort notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             jobId);
     }
@@ -123,44 +138,81 @@ public:
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override
     {
-        auto itemId = JobEventsOutbox_->Enqueue(BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status));
-        LOG_DEBUG("Job run notification enqueued (ItemId: %v, OperationId: %v, JobId: %v)",
-            itemId,
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        JobEventsOutbox_->Enqueue(BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status));
+        LOG_DEBUG("Job run notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
 
 
-    // TODO(babenko)
-    virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
-        NScheduler::ISchedulingContextPtr context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
+    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
+        const ISchedulingContextPtr& context,
+        const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
     {
-        return GetAgentController()->ScheduleJob(
-            std::move(context),
-            jobLimits,
-            treeId);
-    }
+        VERIFY_THREAD_AFFINITY_ANY();
 
-    virtual IInvokerPtr GetCancelableInvoker() const override
-    {
-        return GetAgentController()->GetCancelableInvoker();
+        auto nodeId = context->GetNodeDescriptor().Id;
+        auto cellTag = Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
+        auto jobId = GenerateJobId(cellTag, nodeId);
+
+        auto request = std::make_unique<TScheduleJobRequest>();
+        request->OperationId = OperationId_;
+        request->JobId = jobId;
+        request->JobResourceLimits = jobLimits;
+        request->TreeId = treeId;
+        request->NodeId = nodeId;
+        request->NodeResourceLimits = context->ResourceLimits();
+        request->NodeDiskInfo = context->DiskInfo();
+        ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
+        LOG_DEBUG("Job schedule request enqueued (OperationId: %v, JobId: %v)",
+            OperationId_,
+            jobId);
+
+        const auto& scheduler = Bootstrap_->GetScheduler();
+        auto shardId = scheduler->GetNodeShardId(nodeId);
+        const auto& nodeShard = scheduler->GetNodeShards()[shardId];
+        return nodeShard->BeginScheduleJob(jobId);
     }
 
     virtual TJobResources GetNeededResources() const override
     {
-        return GetAgentController()->GetNeededResources();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return RuntimeData_->GetNeededResources();
     }
 
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const override
+    virtual void UpdateMinNeededJobResources() override
     {
-        return GetAgentController()->GetMinNeededJobResources();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        OperationEventsOutbox_->Enqueue({
+            ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources,
+            OperationId_
+        });
+        LOG_DEBUG("Min needed job resources update request enqueued (OperationId: %v)",
+            OperationId_);
+    }
+
+    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return RuntimeData_->GetMinNeededJobResources();
     }
 
     virtual int GetPendingJobCount() const override
     {
-        return GetAgentController()->GetPendingJobCount();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return RuntimeData_->GetPendingJobCount();
+    }
+
+    virtual NControllerAgent::IOperationControllerPtr FindAgentController() const override
+    {
+        return AgentController_;
     }
 
     virtual NControllerAgent::IOperationControllerPtr GetAgentController() const override
@@ -175,11 +227,17 @@ public:
     }
 
 private:
-    const TIntrusivePtr<TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
+    NCellScheduler::TBootstrap* const Bootstrap_;
+    const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
+    const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
+    const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
     const TOperationId OperationId_;
+    const TOperationRuntimeDataPtr RuntimeData_;
+
     NControllerAgent::IOperationControllerPtr AgentController_;
 
-    TJobEvent BuildEvent(
+
+    TSchedulerToAgentJobEvent BuildEvent(
         ESchedulerToAgentJobEventType eventType,
         const TJobPtr& job,
         bool logAndProfile,
@@ -192,7 +250,7 @@ private:
         ToProto(statusHolder->mutable_job_id(), job->GetId());
         statusHolder->set_job_type(static_cast<int>(job->GetType()));
         statusHolder->set_state(static_cast<int>(job->GetState()));
-        return TJobEvent{
+        return TSchedulerToAgentJobEvent{
             eventType,
             OperationId_,
             logAndProfile,
@@ -238,7 +296,7 @@ public:
         TControllerAgent* agent,
         TOperation* operation)
     {
-        return New<TOperationController>(agent, operation);
+        return New<TOperationController>(Bootstrap_, agent, operation);
     }
 
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
@@ -269,14 +327,64 @@ public:
             return;
         }
 
-        context->SetRequestInfo("AgentIncarnationId: %v", agentIncarnationId);
+        context->SetRequestInfo("AgentIncarnationId: %v, OperationCount: %v",
+            agentIncarnationId,
+            request->operations_size());
 
-        for (const auto& jobMetricsProto : request->job_metrics()) {
-            auto jobMetrics = FromProto<TOperationJobMetrics>(jobMetricsProto);
-            scheduler->GetStrategy()->ApplyJobMetricsDelta(jobMetrics);
+        TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
+        std::vector<TString> suspiciousJobsYsons;
+        for (const auto& protoOperation : request->operations()) {
+            auto operationId = FromProto<TOperationId>(protoOperation.operation_id());
+
+            const auto& scheduler = Bootstrap_->GetScheduler();
+            auto operation = scheduler->FindOperation(operationId);
+            if (!operation) {
+                // TODO(babenko): agentid?
+                LOG_DEBUG("Unknown operation is running at agent (OperationId: %v)",
+                    operationId);
+
+                agent->GetOperationEventsOutbox()->Enqueue({
+                    ESchedulerToAgentOperationEventType::Abandon,
+                    operationId
+                });
+                LOG_DEBUG("Operation abanbon request enqueued (OperationId: %v)",
+                    operationId);
+                continue;
+            }
+
+            if (protoOperation.has_alerts()) {
+                for (const auto& protoAlert : protoOperation.alerts().alerts()) {
+                    auto alertType = EOperationAlertType(protoAlert.type());
+                    auto alert = FromProto<TError>(protoAlert.error());
+                    if (operation->Alerts()[alertType] != alert) {
+                        operation->MutableAlerts()[alertType] = alert;
+                    }
+                }
+            }
+
+            auto operationJobMetrics = FromProto<TOperationJobMetrics>(protoOperation.job_metrics());
+            YCHECK(operationIdToOperationJobMetrics.emplace(operationId, operationJobMetrics).second);
+
+            if (protoOperation.has_suspicious_jobs()) {
+                suspiciousJobsYsons.push_back(protoOperation.suspicious_jobs());
+            }
+
+            auto runtimeData = operation->GetRuntimeData();
+            runtimeData->SetPendingJobCount(protoOperation.pending_job_count());
+            runtimeData->SetNeededResources(FromProto<TJobResources>(protoOperation.needed_resources()));
+            runtimeData->SetMinNeededJobResources(FromProto<TJobResourcesWithQuotaList>(protoOperation.min_needed_job_resources()));
         }
 
+        scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);
+
+        Agent_->SetSuspiciousJobsYson(TYsonString(JoinSeq("", suspiciousJobsYsons), EYsonType::MapFragment));
+
         const auto& nodeShards = scheduler->GetNodeShards();
+
+        // We must wait for all these results before replying since these activities
+        // rely on RPC request to remain alive.
+        std::vector<TFuture<void>> asyncResults;
+
         std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
         agent->JobEventsInbox().HandleIncoming(
             request->mutable_agent_to_scheduler_job_events(),
@@ -286,7 +394,6 @@ public:
                 groupedJobEvents[shardId].push_back(protoEvent);
             });
 
-        std::vector<TFuture<void>> asyncResults;
         for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
             const auto& nodeShard = nodeShards[shardId];
             asyncResults.push_back(
@@ -342,36 +449,47 @@ public:
                 }
             });
 
-        agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
+        std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
+        agent->ScheduleJobResponsesInbox().HandleIncoming(
+            request->mutable_agent_to_scheduler_schedule_job_responses(),
+            [&] (auto* protoEvent) {
+                auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
+                groupedScheduleJobResponses[shardId].push_back(protoEvent);
+            });
 
-        for (const auto& protoOperationAlerts : request->operation_alerts()) {
-            auto operationId = FromProto<TOperationId>(protoOperationAlerts.operation_id());
-            TOperationAlertMap alerts;
-            for (const auto& protoAlert : protoOperationAlerts.alerts()) {
-                auto alertType = EOperationAlertType(protoAlert.type());
-                auto alert = FromProto<TError>(protoAlert.error());
-                YCHECK(alerts.emplace(alertType, std::move(alert)).second);
-            }
-            DoSetOperationAlerts(operationId, alerts);
+        for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
+            const auto& nodeShard = nodeShards[shardId];
+            asyncResults.push_back(
+                BIND([context, nodeShard, protoResponses = std::move(groupedScheduleJobResponses[shardId])] {
+                    for (const auto* protoResponse : protoResponses) {
+                        nodeShard->EndScheduleJob(*protoResponse);
+                    }
+                })
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run());
         }
+
+        agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
+        agent->GetOperationEventsOutbox()->HandleStatus(request->scheduler_to_agent_operation_events());
+        agent->GetScheduleJobRequestsOutbox()->HandleStatus(request->scheduler_to_agent_schedule_job_requests());
 
         if (request->exec_nodes_requested()) {
-            for (const auto& execNode : scheduler->GetCachedExecNodeDescriptors()->Descriptors) {
-                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
+            for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
+                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
             }
         }
-
-        Agent_->SetSuspiciousJobsYson(TYsonString(request->suspicious_jobs(), EYsonType::MapFragment));
 
         auto error = WaitFor(Combine(asyncResults));
         if (!error.IsOK()) {
-            scheduler->Disconnect();
+            scheduler->Disconnect(error);
             context->Reply(error);
             return;
         }
 
         agent->OperationEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_operation_events());
         agent->JobEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_job_events());
+        agent->ScheduleJobResponsesInbox().ReportStatus(response->mutable_agent_to_scheduler_schedule_job_responses());
 
         agent->GetJobEventsOutbox()->BuildOutcoming(
             response->mutable_scheduler_to_agent_job_events(),
@@ -395,6 +513,24 @@ public:
                 }
             });
 
+        agent->GetOperationEventsOutbox()->BuildOutcoming(
+            response->mutable_scheduler_to_agent_operation_events(),
+            [] (auto* protoEvent, const auto& event) {
+                protoEvent->set_event_type(static_cast<int>(event.EventType));
+                ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+            });
+
+        agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
+            response->mutable_scheduler_to_agent_schedule_job_requests(),
+            [] (auto* protoRequest, const auto& request) {
+                ToProto(protoRequest->mutable_operation_id(), request->OperationId);
+                ToProto(protoRequest->mutable_job_id(), request->JobId);
+                protoRequest->set_tree_id(request->TreeId);
+                ToProto(protoRequest->mutable_job_resource_limits(), request->JobResourceLimits);
+                ToProto(protoRequest->mutable_node_resource_limits(), request->NodeResourceLimits);
+                protoRequest->mutable_node_disk_info()->CopyFrom(request->NodeDiskInfo);
+            });
+
         context->Reply();
     }
 
@@ -406,27 +542,6 @@ private:
     TControllerAgentPtr Agent_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-    void DoSetOperationAlerts(
-        const TOperationId& operationId,
-        const TOperationAlertMap& operationAlerts)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        auto operation = scheduler->FindOperation(operationId);
-        if (!operation) {
-            return;
-        }
-
-        for (const auto& pair : operationAlerts) {
-            const auto& alertType = pair.first;
-            const auto& alert = pair.second;
-            if (operation->Alerts()[alertType] != alert) {
-                operation->MutableAlerts()[alertType] = alert;
-            }
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,19 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/rpc/public.h>
+
+namespace NYT {
+namespace NRpc {
+namespace NGrpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IServerPtr CreateServer(TServerConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NGrpc
+} // namespace NRpc
+} // namespace NYT

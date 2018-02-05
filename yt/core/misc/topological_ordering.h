@@ -26,7 +26,7 @@ public:
 
 private:
     std::vector<TVertexDescriptor> TopologicalOrdering_;
-    yhash<TVertexDescriptor, yhash_set<TVertexDescriptor>> OutgoingEdges_;
+    THashMap<TVertexDescriptor, THashSet<TVertexDescriptor>> OutgoingEdges_;
 
     void Rebuild();
 };

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/net/public.h>
+
 namespace NYT {
 namespace NPipes {
 
@@ -16,8 +18,8 @@ public:
     TPty(int height, int width);
     ~TPty();
 
-    TAsyncReaderPtr CreateMasterAsyncReader();
-    TAsyncWriterPtr CreateMasterAsyncWriter();
+    NNet::IConnectionReaderPtr CreateMasterAsyncReader();
+    NNet::IConnectionWriterPtr CreateMasterAsyncWriter();
 
     int GetMasterFD() const;
     int GetSlaveFD() const;

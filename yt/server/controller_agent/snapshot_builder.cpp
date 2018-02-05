@@ -20,8 +20,8 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
+#include <yt/core/net/connection.h>
+
 #include <yt/core/pipes/pipe.h>
 
 #include <yt/core/actions/cancelable_context.h>
@@ -223,7 +223,7 @@ void TSnapshotBuilder::RunParent()
 void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> jobs)
 {
     for (const auto& job : jobs) {
-        TFileOutput outputStream(*job.OutputFile);
+        TUnbufferedFileOutput outputStream(*job.OutputFile);
 
         auto checkpointableOutput = CreateCheckpointableOutputStream(&outputStream);
         auto bufferedOutput = CreateBufferedCheckpointableOutputStream(checkpointableOutput.get(), PipeWriteBufferSize);

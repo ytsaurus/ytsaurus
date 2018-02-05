@@ -1,0 +1,17 @@
+package NYT.NRpc.NGrpc.NProto;
+
+import "yt/core/rpc/proto/rpc.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSslCredentialsExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TSslCredentialsExt ssl_credentials_ext = 120;
+    }
+
+    optional string peer_identity = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

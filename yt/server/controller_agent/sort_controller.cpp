@@ -9,6 +9,7 @@
 #include "operation_controller_detail.h"
 #include "task.h"
 #include "operation.h"
+#include "scheduling_context.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/shuffle_chunk_pool.h>
@@ -17,7 +18,6 @@
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -251,7 +251,7 @@ protected:
         bool Maniac;
 
         //! Number of sorted bytes residing at a given host.
-        yhash<TNodeId, i64> NodeIdToLocality;
+        THashMap<TNodeId, i64> NodeIdToLocality;
 
         //! The node assigned to this partition, #InvalidNodeId if none.
         NNodeTrackerClient::TNodeId AssignedNodeId = NNodeTrackerClient::InvalidNodeId;
@@ -406,7 +406,7 @@ protected:
         //! The total data size of jobs assigned to a particular node
         //! All data sizes are IO weight-adjusted.
         //! No zero values are allowed.
-        yhash<TNodeId, i64> NodeIdToAdjustedDataWeight;
+        THashMap<TNodeId, i64> NodeIdToAdjustedDataWeight;
         //! The sum of all sizes appearing in #NodeIdToDataWeight.
         //! This value is IO weight-adjusted.
         i64 AdjustedScheduledDataWeight = 0;
@@ -586,8 +586,9 @@ protected:
 
             if (Controller->Spec->EnablePartitionedDataBalancing) {
                 auto nodeDescriptors = Controller->GetExecNodeDescriptors();
-                yhash<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
-                for (const auto& descriptor : nodeDescriptors) {
+                THashMap<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
+                for (const auto& pair : nodeDescriptors) {
+                    const auto& descriptor = pair.second;
                     YCHECK(idToNodeDescriptor.insert(std::make_pair(descriptor.Id, descriptor)).second);
                 }
 
@@ -1151,8 +1152,8 @@ protected:
         std::unique_ptr<IChunkPool> ChunkPool_;
         std::unique_ptr<IChunkPoolInput> ChunkPoolInput_;
 
-        yhash_set<TJobletPtr> ActiveJoblets_;
-        yhash_set<TJobletPtr> InvalidatedJoblets_;
+        THashSet<TJobletPtr> ActiveJoblets_;
+        THashSet<TJobletPtr> InvalidatedJoblets_;
         bool Finished_ = false;
         //! This is a dirty hack to make GetTotalJobCount() work correctly
         //! in case when chunk pool was invalidated after the task has been completed.
@@ -1452,18 +1453,20 @@ protected:
         const auto& nodeDescriptors = GetExecNodeDescriptors();
         auto maxResourceLimits = ZeroJobResources();
         double maxIOWeight = 0;
-        for (const auto& descriptor : nodeDescriptors) {
+        for (const auto& pair : nodeDescriptors) {
+            const auto& descriptor = pair.second;
             maxResourceLimits = Max(maxResourceLimits, descriptor.ResourceLimits);
             maxIOWeight = std::max(maxIOWeight, descriptor.IOWeight);
         }
 
         std::vector<TAssignedNodePtr> nodeHeap;
-        for (const auto& node : nodeDescriptors) {
+        for (const auto& pair : nodeDescriptors) {
+            const auto& descriptor = pair.second;
             double weight = 1.0;
-            weight = std::min(weight, GetMinResourceRatio(node.ResourceLimits, maxResourceLimits));
-            weight = std::min(weight, node.IOWeight > 0 ? node.IOWeight / maxIOWeight : 0);
+            weight = std::min(weight, GetMinResourceRatio(descriptor.ResourceLimits, maxResourceLimits));
+            weight = std::min(weight, descriptor.IOWeight > 0 ? descriptor.IOWeight / maxIOWeight : 0);
             if (weight > 0) {
-                auto assignedNode = New<TAssignedNode>(node, weight);
+                auto assignedNode = New<TAssignedNode>(descriptor, weight);
                 nodeHeap.push_back(assignedNode);
             }
         }

@@ -30,7 +30,11 @@ struct TFairShareContext;
 
 class TJobMetrics;
 
-using TOperationElementByIdMap = yhash<TOperationId, TOperationElement*>;
+using TOperationElementByIdMap = THashMap<TOperationId, TOperationElement*>;
+
+using TJobCounter = TEnumIndexedVector<TEnumIndexedVector<i64, EJobType>, EJobState>;
+using TAbortedJobCounter = TEnumIndexedVector<TJobCounter, EAbortReason>;
+using TCompletedJobCounter = TEnumIndexedVector<TJobCounter, EInterruptReason>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)

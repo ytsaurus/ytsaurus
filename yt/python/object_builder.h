@@ -28,6 +28,7 @@ class TPythonObjectBuilder
     : public NYson::TYsonConsumerBase
 {
 public:
+    TPythonObjectBuilder();
     explicit TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -75,7 +76,7 @@ private:
     std::stack<PyObject*> Keys_;
     TNullable<PyObjectPtr> Attributes_;
 
-    yhash<TStringBuf, PyObjectPtr> KeyCache_;
+    THashMap<TStringBuf, PyObjectPtr> KeyCache_;
     std::vector<PyObjectPtr> OriginalKeyCache_;
 
     void AddObject(

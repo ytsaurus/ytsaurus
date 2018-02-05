@@ -334,7 +334,7 @@ private:
     bool EnableProfiling_;
 
     TSpinLock TagMappingSpinLock_;
-    yhash<TFairShareThreadPoolTag, TWeakPtr<TBucket>> TagToBucket_;
+    THashMap<TFairShareThreadPoolTag, TWeakPtr<TBucket>> TagToBucket_;
 
     std::atomic<int> QueueSize_ = {0};
 

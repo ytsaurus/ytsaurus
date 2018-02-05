@@ -153,7 +153,7 @@ private:
     std::vector<TReadRange> Ranges_;
     int CurrentRangeIndex_ = 0;
 
-    yhash_set<int> ExtensionTags_;
+    THashSet<int> ExtensionTags_;
     NNodeTrackerServer::TNodeDirectoryBuilder NodeDirectoryBuilder_;
     bool Finished_ = false;
 
@@ -1052,7 +1052,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         : TTableSchema();
     auto schemaMode = ETableSchemaMode(request->schema_mode());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
-    context->SetRequestInfo("Schema: %v", schema);
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);

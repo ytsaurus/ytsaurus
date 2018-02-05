@@ -61,7 +61,7 @@ private:
     };
 
     NConcurrency::TReaderWriterSpinLock StatisticsLock_;
-    yhash<TString, TNetworkStatistics> NetworkStatistics_;
+    THashMap<TString, TNetworkStatistics> NetworkStatistics_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 };

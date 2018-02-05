@@ -48,10 +48,11 @@ public:
         , ThrottlerManager_(throttlerManager)
         , Client_(client)
         , NodeDirectory_(nodeDirectory)
-        , Logger(logger)
+        , Logger(NLogging::TLogger(logger)
+            .AddTag("FetcherChunkScraper: %v", TGuid::Create()))
     { }
 
-    virtual TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs) override
+    virtual TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) override
     {
         return BIND(&TFetcherChunkScraper::DoScrapeChunks, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -79,15 +80,15 @@ private:
 
     TChunkScraperPtr Scraper_;
 
-    yhash<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
+    THashMap<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
     int UnavailableFetcherChunkCount_ = 0;
     TPromise<void> BatchLocatedPromise_ = NewPromise<void>();
 
     int ChunkLocatedCallCount_ = 0;
 
-    TFuture<void> DoScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs)
+    TFuture<void> DoScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs)
     {
-        yhash_set<TChunkId> chunkIds;
+        THashSet<TChunkId> chunkIds;
         ChunkMap_.clear();
         for (const auto& chunkSpec : chunkSpecs) {
             const auto& chunkId = chunkSpec->ChunkId();
@@ -111,7 +112,7 @@ private:
         return BatchLocatedPromise_;
     }
 
-    void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+    void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
     {
         ++ChunkLocatedCallCount_;
         if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerRequest) {
@@ -121,9 +122,21 @@ private:
                 UnavailableFetcherChunkCount_);
         }
 
-        LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v)",
+        LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v, Missing: %v)",
             chunkId,
-            replicas);
+            replicas,
+            missing);
+
+        if (missing) {
+            LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkId);
+            auto asyncError = Scraper_->Stop()
+                .Apply(BIND([=] () {
+                    THROW_ERROR_EXCEPTION("Chunk scraper failed: chunk %v is missing", chunkId);
+                }));
+
+            BatchLocatedPromise_.TrySetFrom(asyncError);
+            return;
+        }
 
         if (replicas.empty()) {
             return;
@@ -154,7 +167,8 @@ private:
 
         if (UnavailableFetcherChunkCount_ == 0) {
             // Wait for all scraper callbacks to finish before session completion.
-            BatchLocatedPromise_.SetFrom(Scraper_->Stop());
+            BatchLocatedPromise_.TrySetFrom(Scraper_->Stop());
+            LOG_DEBUG("All fetcher chunks are available");
         }
     }
 };
@@ -221,9 +235,9 @@ void TFetcherBase::StartFetchingRound()
         DeadChunks_.size());
 
     // Construct address -> chunk* map.
-    typedef yhash<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
+    typedef THashMap<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
     TNodeIdToChunkIndexes nodeIdToChunkIndexes;
-    yhash_set<TInputChunkPtr> unavailableChunks;
+    THashSet<TInputChunkPtr> unavailableChunks;
 
     for (auto chunkIndex : UnfetchedChunkIndexes_) {
         const auto& chunk = Chunks_[chunkIndex];
@@ -282,7 +296,7 @@ void TFetcherBase::StartFetchingRound()
 
     // Pick nodes greedily.
     std::vector<TFuture<void>> asyncResults;
-    yhash_set<int> requestedChunkIndexes;
+    THashSet<int> requestedChunkIndexes;
     for (const auto& it : nodeIts) {
         std::vector<int> chunkIndexes;
         for (int chunkIndex : it->second) {

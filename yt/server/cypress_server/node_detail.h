@@ -645,8 +645,8 @@ class TMapNode
     : public TCompositeNodeBase
 {
 public:
-    typedef yhash<TString, TCypressNodeBase*> TKeyToChild;
-    typedef yhash<TCypressNodeBase*, TString> TChildToKey;
+    typedef THashMap<TString, TCypressNodeBase*> TKeyToChild;
+    typedef THashMap<TCypressNodeBase*, TString> TChildToKey;
 
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
@@ -708,7 +708,7 @@ class TListNode
 {
 public:
     typedef std::vector<TCypressNodeBase*> TIndexToChild;
-    typedef yhash<TCypressNodeBase*, int> TChildToIndex;
+    typedef THashMap<TCypressNodeBase*, int> TChildToIndex;
 
     DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);

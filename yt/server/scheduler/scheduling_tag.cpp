@@ -22,7 +22,7 @@ void TSchedulingTagFilter::Reload(const TBooleanFormula& formula)
     Hash_ = BooleanFormula_.GetHash();
 }
 
-bool TSchedulingTagFilter::CanSchedule(const yhash_set<TString>& nodeTags) const
+bool TSchedulingTagFilter::CanSchedule(const THashSet<TString>& nodeTags) const
 {
     return BooleanFormula_.IsSatisfiedBy(nodeTags);
 }

@@ -28,7 +28,7 @@ protected:
     void ValidateOrdering()
     {
         const auto& ordering = IncrementalOrdering_.GetOrdering();
-        yhash<int, int> positionInOrdering;
+        THashMap<int, int> positionInOrdering;
         for (int index = 0; index < ordering.size(); ++index) {
             positionInOrdering[ordering[index]] = index;
         }
@@ -81,7 +81,7 @@ TEST_F(TTopologicalOrderingTest, RandomizedTest)
     for (int iteration = 0; iteration < iterationCount; ++iteration) {
         int vertexCount = std::uniform_int_distribution<>(2, maxVertexCount)(gen);
         // Generate the vertex values.
-        yhash_set<int> vertices;
+        THashSet<int> vertices;
         while (vertices.size() < vertexCount) {
             vertices.insert(std::uniform_int_distribution<>(0, maxVertexValue)(gen));
         }

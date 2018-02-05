@@ -72,7 +72,7 @@ class TReadOnlyEntityMap
 protected:
     using TKey = TEntityKey<TValue>;
     using THash = TEntityHash<TValue>;
-    using TMap = yhash<TKey, TValue*, THash>;
+    using TMapType = THashMap<TKey, TValue*, THash>;
 
 public:
     class TIterator
@@ -91,9 +91,9 @@ public:
     private:
         friend class TReadOnlyEntityMap;
 
-        explicit TIterator(typename TMap::const_iterator iterator);
+        explicit TIterator(typename TMapType::const_iterator iterator);
 
-        typename TMap::const_iterator Iterator_;
+        typename TMapType::const_iterator Iterator_;
 
     };
 
@@ -118,7 +118,7 @@ public:
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
 
-    TMap Map_;
+    TMapType Map_;
 
 };
 
@@ -157,7 +157,7 @@ public:
     void LoadValues(TContext& context);
 
 private:
-    typedef typename TReadOnlyEntityMap<TValue>::TMap TMap;
+    typedef typename TReadOnlyEntityMap<TValue>::TMapType TMapType;
 
     TTraits Traits_;
 
@@ -166,7 +166,7 @@ private:
 
     std::vector<TKey> LoadKeys_;
     std::vector<TValue*> LoadValues_;
-    mutable std::vector<typename TMap::const_iterator> SaveIterators_;
+    mutable std::vector<typename TMapType::const_iterator> SaveIterators_;
 
 
     TDynamicData* AllocateDynamicData();

@@ -119,7 +119,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    NScheduler::TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
+    NScheduler::TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
 
     /*!
      *  \note Thread affinity: any

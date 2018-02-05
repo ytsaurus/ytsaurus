@@ -492,7 +492,7 @@ struct TFutureCombineTraits
 {
     using TCombinedVector = std::vector<T>;
     template <class K>
-    using TCombinedHashMap = yhash<K, T>;
+    using TCombinedHashMap = THashMap<K, T>;
 };
 
 template <>
@@ -507,7 +507,7 @@ struct TFutureCombineTraits<void>
 //! Combines a number of same-typed asynchronous computations into a single one.
 /*!
  *  If |T| is |void|, then the asynchronous return type is |void|, otherwise
- *  it is |std::vector<T>| / |yhash<K, T>|.
+ *  it is |std::vector<T>| / |THashMap<K, T>|.
  *  The order of results always coincides with that of #futures (for vector variant of Combine).
  *
  *  If any of #futures fails, the others are canceled and the error is propagated immediately.
@@ -518,7 +518,7 @@ TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
 
 template <class K, class T>
 TFuture<typename TFutureCombineTraits<T>::template TCombinedHashMap<K>> Combine(
-    const yhash<K, TFuture<T>>& futures);
+    const THashMap<K, TFuture<T>>& futures);
 
 //! Same as #Combine but only wait for #quorum successful results.
 /*!

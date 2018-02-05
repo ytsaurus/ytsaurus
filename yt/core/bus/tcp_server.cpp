@@ -134,7 +134,7 @@ protected:
     int ServerSocket_ = INVALID_SOCKET;
 
     TReaderWriterSpinLock ConnectionsSpinLock_;
-    yhash_set<TTcpConnectionPtr> Connections_;
+    THashSet<TTcpConnectionPtr> Connections_;
 
     NLogging::TLogger Logger = BusLogger;
 

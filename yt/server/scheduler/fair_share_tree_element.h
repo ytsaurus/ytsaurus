@@ -62,9 +62,9 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 
 struct TFairShareContext
 {
-    TFairShareContext(const ISchedulingContextPtr& schedulingContext);
+    explicit TFairShareContext(const ISchedulingContextPtr& schedulingContext);
 
-    void InitializeStructures(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
+    void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
     TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element) const;
@@ -77,7 +77,7 @@ struct TFairShareContext
     const ISchedulingContextPtr SchedulingContext;
     TDuration TotalScheduleJobDuration;
     TDuration ExecScheduleJobDuration;
-    TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
+    TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
     bool HasAggressivelyStarvingNodes = false;
 
     int ActiveOperationCount = 0;
@@ -199,10 +199,10 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList);
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled);
-    virtual bool ScheduleJob(TFairShareContext& context) = 0;
+    virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled);
+    virtual bool ScheduleJob(TFairShareContext* context) = 0;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const = 0;
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
@@ -341,10 +341,10 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
-    virtual bool ScheduleJob(TFairShareContext& context) override;
+    virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
+    virtual bool ScheduleJob(TFairShareContext* context) override;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const override;
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
     virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) override;
@@ -379,7 +379,7 @@ public:
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
-    using TChildMap = yhash<TSchedulerElementPtr, int>;
+    using TChildMap = THashMap<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
 
     TChildMap EnabledChildToIndex_;
@@ -646,7 +646,7 @@ private:
         TJobResources ResourceUsage;
     };
 
-    yhash<TJobId, TJobProperties> JobPropertiesMap_;
+    THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
     bool Finalized_ = false;
@@ -690,10 +690,10 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
-    virtual bool ScheduleJob(TFairShareContext& context) override;
+    virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
+    virtual bool ScheduleJob(TFairShareContext* context) override;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const override;
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
     virtual TString GetId() const override;
 
@@ -765,7 +765,10 @@ private:
         NProfiling::TCpuInstant now,
         const TJobResources& minNeededResources);
 
-    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount);
+    NControllerAgent::TScheduleJobResultPtr DoScheduleJob(
+        TFairShareContext* context,
+        const TJobResources& jobLimits,
+        const TJobResources& jobResourceDiscount);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;

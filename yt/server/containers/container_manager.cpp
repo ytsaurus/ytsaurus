@@ -25,17 +25,15 @@ static NLogging::TLogger& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString GetSelfAbsoluteName(IPortoExecutorPtr executor)
+static TString GetAbsoluteName(IPortoExecutorPtr executor, const TString& name)
 {
     auto properties = WaitFor(executor->GetProperties(
-        "self",
+        name,
         std::vector<TString>{"absolute_name"}))
             .ValueOrThrow();
 
-    auto absoluteName = properties.at("absolute_name")
+    return properties.at("absolute_name")
         .ValueOrThrow();
-
-    return absoluteName + "/";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +81,7 @@ public:
                 // Name of root container must end with "/".
                 return *rootContainer + (rootContainer->EndsWith('/') ? "" : "/");
             } else {
-                return GetSelfAbsoluteName(executor);
+                return GetAbsoluteName(executor, "self") + "/";
             }
         };
 
@@ -150,20 +148,32 @@ private:
             if (name == "/") {
                 continue;
             }
-            // ToDo(psushin) : fix this mess.
-            if (!name.StartsWith(BaseName_ + Prefix_) && !name.StartsWith(Prefix_)) {
-                continue;
-            }
 
-            if (PortoManagerConfig_.CleanMode == ECleanMode::Dead) {
-                auto state = GetState(name);
-                if (state != "dead") {
+            try {
+                auto absoluteName = GetAbsoluteName(Executor_, name);
+                if (!absoluteName.StartsWith(BaseName_ + Prefix_)) {
                     continue;
                 }
+
+                if (PortoManagerConfig_.CleanMode == ECleanMode::Dead) {
+                    auto state = GetState(name);
+                    if (state != "dead") {
+                        continue;
+                    }
+                }
+
+                LOG_DEBUG("Cleaning (Container: %v)", absoluteName);
+                actions.push_back(Destroy(name));
+            } catch (const TErrorException& ex) {
+                // If container disappeared, we don't care. 
+                if (ex.Error().FindMatching(ContainerErrorCodeBase + ::rpc::EError::ContainerDoesNotExist)) {
+                    LOG_DEBUG(ex, "Failed to clean container; it vanished");
+                } else {
+                    throw;
+                }
             }
-            LOG_DEBUG("Cleaning (Container: %v)", name);
-            actions.push_back(Destroy(name));
         }
+
         auto errors = WaitFor(CombineAll(actions));
         THROW_ERROR_EXCEPTION_IF_FAILED(errors, "Failed to clean containers");
 

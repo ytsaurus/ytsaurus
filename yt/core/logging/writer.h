@@ -112,7 +112,7 @@ private:
     std::atomic<bool> Disabled_ = {false};
 
     std::unique_ptr<TFile> File_;
-    std::unique_ptr<TBufferedFileOutput> FileOutput_;
+    std::unique_ptr<TFixedBufferFileOutput> FileOutput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

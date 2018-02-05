@@ -115,6 +115,11 @@ public:
         return ReplyBus_->GetStatistics();
     }
 
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    {
+        return ReplyBus_->GetEndpointAttributes();
+    }
+
     const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
     {
         return RuntimeInfo_;
@@ -294,7 +299,7 @@ private:
         const auto& descriptor = RuntimeInfo_->Descriptor;
 
         if (!descriptor.System) {
-            Service_->BeforeInvoke();
+            Service_->BeforeInvoke(this);
         }
 
         auto timeout = GetTimeout();
@@ -381,7 +386,8 @@ private:
     virtual void LogRequest() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v <- ",
+        builder.AppendFormat("%v:%v <- ",
+            GetService(),
             GetMethod());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
@@ -424,7 +430,8 @@ private:
     virtual void LogResponse() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v -> ",
+        builder.AppendFormat("%v:%v -> ",
+            GetService(),
             GetMethod());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
@@ -697,7 +704,7 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
             subscribe = true;
             it = ReplyBusToContexts_.insert(std::make_pair(
                 context->GetReplyBus(),
-                yhash_set<TServiceContext*>())).first;
+                THashSet<TServiceContext*>())).first;
         }
         auto& contexts = it->second;
         contexts.insert(context);
@@ -859,10 +866,10 @@ IInvokerPtr TServiceBase::GetDefaultInvoker()
     return DefaultInvoker_;
 }
 
-void TServiceBase::BeforeInvoke()
+void TServiceBase::BeforeInvoke(NRpc::IServiceContext* context)
 { }
 
-bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/)
+bool TServiceBase::IsUp(const TCtxDiscoverPtr& /*context*/)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

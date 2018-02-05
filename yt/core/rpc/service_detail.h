@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include "client.h"
 #include "dispatcher.h"
 #include "server_detail.h"
@@ -18,6 +19,8 @@
 #include <yt/core/misc/ref.h>
 
 #include <yt/core/profiling/profiler.h>
+
+#include <yt/core/rpc/message_format.h>
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
@@ -446,7 +449,7 @@ protected:
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
-        yhash<TString, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
+        THashMap<TString, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
     };
 
@@ -487,7 +490,7 @@ protected:
     IInvokerPtr GetDefaultInvoker();
 
     //! Called right before each method handler invocation.
-    virtual void BeforeInvoke();
+    virtual void BeforeInvoke(IServiceContext* context);
 
     //! Used by peer discovery.
     //! Returns |true| is this service instance is up, i.e. can handle requests.
@@ -495,7 +498,7 @@ protected:
      *  \note
      *  Thread affinity: any
      */
-    virtual bool IsUp(TCtxDiscoverPtr context);
+    virtual bool IsUp(const TCtxDiscoverPtr& context);
 
     //! Used by peer discovery.
     //! Returns addresses of neighboring peers to be suggested to the client.
@@ -516,11 +519,11 @@ private:
     NProfiling::TTagId ServiceTagId_;
 
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
-    yhash<TString, TRuntimeMethodInfoPtr> MethodMap_;
+    THashMap<TString, TRuntimeMethodInfoPtr> MethodMap_;
 
     TSpinLock CancelableRequestLock_;
-    yhash<TRequestId, TServiceContext*> IdToContext_;
-    yhash<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
+    THashMap<TRequestId, TServiceContext*> IdToContext_;
+    THashMap<NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts_;
 
     std::atomic<bool> Stopped_ = {false};
     TPromise<void> StopResult_ = NewPromise<void>();

@@ -177,7 +177,7 @@ public:
 
     const std::vector<TString>& GetAll(const TString& header) const;
 
-    void WriteTo(IOutputStream* out, const yhash_set<TString>* filtered = nullptr) const;
+    void WriteTo(IOutputStream* out, const THashSet<TString>* filtered = nullptr) const;
 
 private:
     struct TEntry
@@ -186,7 +186,7 @@ private:
         std::vector<TString> Values;
     };
 
-    yhash<TString, TEntry> Raw_;
+    THashMap<TString, TEntry> Raw_;
 
     void ValidateValue(TStringBuf header, TStringBuf value);
 };

@@ -602,7 +602,7 @@ TEST_F(TFutureTest, CombineCancel)
 
 TEST_F(TFutureTest, CombineHashMapEmpty)
 {
-    yhash<TString, TFuture<int>> futures;
+    THashMap<TString, TFuture<int>> futures;
     auto resultOrError = Combine(futures).Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
@@ -611,7 +611,7 @@ TEST_F(TFutureTest, CombineHashMapEmpty)
 
 TEST_F(TFutureTest, CombineHashMapNonEmpty)
 {
-    yhash<TString, TFuture<int>> asyncResults {
+    THashMap<TString, TFuture<int>> asyncResults {
         {"two", AsyncDivide(5, 2, TDuration::Seconds(0.1))},
         {"ten", AsyncDivide(30, 3, TDuration::Seconds(0.2))},
     };
@@ -625,7 +625,7 @@ TEST_F(TFutureTest, CombineHashMapNonEmpty)
 
 TEST_F(TFutureTest, CombineHashMapError)
 {
-    yhash<TString, TFuture<int>> asyncResults {
+    THashMap<TString, TFuture<int>> asyncResults {
         {"two", AsyncDivide(5, 2, TDuration::Seconds(0.1))},
         {"error", AsyncDivide(30, 0, TDuration::Seconds(0.2))},
     };

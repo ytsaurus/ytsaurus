@@ -8,6 +8,7 @@
 #include "config.h"
 #include "location.h"
 #include "session_manager.h"
+#include "network_statistics.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -68,6 +69,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
@@ -120,7 +122,7 @@ void TMasterConnector::Start()
         MasterCellTags_.push_back(cellTag);
         YCHECK(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
     };
-    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     initializeCell(connection->GetPrimaryMasterCellTag());
     for (auto cellTag : connection->GetSecondaryMasterCellTags()) {
         initializeCell(cellTag);
@@ -434,6 +436,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     TNodeStatistics result;
     ComputeTotalStatistics(&result);
     ComputeLocationSpecificStatistics(&result);
+    Bootstrap_->GetNetworkStatistics()->UpdateStatistics(&result);
     return result;
 }
 
@@ -512,7 +515,7 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         double IOWeight = 0.0;
     };
 
-    yhash<int, TMediumStatistics> mediaStatistics;
+    THashMap<int, TMediumStatistics> mediaStatistics;
 
     for (const auto& location : chunkStore->Locations()) {
         auto* locationStatistics = result->add_locations();
@@ -526,6 +529,8 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_session_count(location->GetSessionCount());
         locationStatistics->set_enabled(location->IsEnabled());
         locationStatistics->set_full(location->IsFull());
+        locationStatistics->set_throttling_reads(location->IsReadThrottling());
+        locationStatistics->set_throttling_writes(location->IsWriteThrottling());
 
         auto& mediumStatistics = mediaStatistics[mediumIndex];
         if (location->IsEnabled() && !location->IsFull()) {
@@ -567,7 +572,7 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
 
 bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
 {
-    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     if (cellTag != connection->GetPrimaryMasterCellTag()) {
         return true;
     }
@@ -751,6 +756,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
             protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
+
+            TEnumIndexedVector<TError, ETabletBackgroundActivity> errors;
+            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                errors[key] = tabletSnapshot->RuntimeData->Errors[key].Load();
+            }
+            ToProto(protoTabletInfo->mutable_errors(), std::vector<TError>(errors.begin(), errors.end()));
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;
@@ -1039,9 +1050,9 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
 IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
 {
     auto cellId = Bootstrap_->GetCellId(cellTag);
-    auto client = Bootstrap_->GetMasterClient();
-    auto connection = client->GetNativeConnection();
-    auto cellDirectory = connection->GetCellDirectory();
+    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& connection = client->GetNativeConnection();
+    const auto& cellDirectory = connection->GetCellDirectory();
     return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }
 

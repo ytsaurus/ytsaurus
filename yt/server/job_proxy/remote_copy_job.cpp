@@ -199,6 +199,12 @@ public:
         return { };
     }
 
+    virtual void Interrupt() override
+    {
+        THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
+            << TErrorAttribute("job_type", EJobType::RemoteCopy);
+    }
+
     virtual TStatistics GetStatistics() const override
     {
         TStatistics result;
@@ -411,7 +417,7 @@ private:
         const TChunkReplicaList& writtenReplicas,
         const TChunkMeta& inputChunkMeta)
     {
-        static const yhash_set<int> masterMetaTags {
+        static const THashSet<int> masterMetaTags {
             TProtoExtensionTag<TMiscExt>::Value,
             TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
         };

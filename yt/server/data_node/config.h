@@ -136,8 +136,19 @@ public:
     //! Controls outcoming location bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
 
+    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet preload.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet recovery.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
+
     EIOEngineType IOEngineType;
     NYTree::INodePtr IOConfig;
+
+    TDuration ThrottleCounterInterval;
 
     TStoreLocationConfigBase()
     {
@@ -146,10 +157,18 @@ public:
             .Default(TNullable<i64>());
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
             .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
+            .DefaultNew();
         RegisterParameter("io_engine_type", IOEngineType)
             .Default(EIOEngineType::ThreadPool);
         RegisterParameter("io_config", IOConfig)
             .Optional();
+        RegisterParameter("throttle_counter_interval", ThrottleCounterInterval)
+            .Default(TDuration::Seconds(30));
     }
 };
 
@@ -185,25 +204,46 @@ public:
     //! Controls incoming location bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
 
+    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet journals.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet snapshots.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletSnapshotInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet store flush.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
+
+
     TStoreLocationConfig()
     {
         RegisterParameter("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
-            .Default(50_GB);
+            .Default(5_GB);
         RegisterParameter("high_watermark", HighWatermark)
             .GreaterThanOrEqual(0)
-            .Default(20_GB);
+            .Default(2_GB);
         RegisterParameter("disable_writes_watermark", DisableWritesWatermark)
             .GreaterThanOrEqual(0)
-            .Default(10_GB);
+            .Default(1_GB);
         RegisterParameter("max_trash_ttl", MaxTrashTtl)
             .Default(TDuration::Hours(1));
         RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
             .GreaterThanOrEqual(0)
-            .Default(40_GB);
+            .Default(4_GB);
         RegisterParameter("repair_in_throttler", RepairInThrottler)
             .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", TabletCompactionAndPartitioningInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_logging_in_throttler", TabletLoggingInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_snapshot_in_throttler", TabletSnapshotInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
             .DefaultNew();
 
         // NB: base class's field.
@@ -475,6 +515,8 @@ public:
     //! Cf. TTcpDispatcherStatistics::PendingOutBytes
     i64 NetOutThrottlingLimit;
 
+    TDuration NetOutThrottleCounterInterval;
+
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
     i64 DiskWriteThrottlingLimit;
@@ -531,7 +573,30 @@ public:
     //! Controls outcoming bandwidth used by Artifact Cache downloads.
     NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheOutThrottler;
 
+    //! Controls outcoming location bandwidth used by skynet sharing.
     NConcurrency::TThroughputThrottlerConfigPtr SkynetOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningInThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet journals.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingInThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet preload.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet recovery.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet snapshots.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletSnapshotInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet store flush.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
+
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
@@ -630,6 +695,9 @@ public:
         RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
             .GreaterThan(0)
             .Default(512_MB);
+        RegisterParameter("net_out_throttle_counter_interval", NetOutThrottleCounterInterval)
+            .Default(TDuration::Seconds(30));
+
         RegisterParameter("disk_write_throttling_limit", DiskWriteThrottlingLimit)
             .GreaterThan(0)
             .Default(1_GB);
@@ -674,6 +742,20 @@ public:
         RegisterParameter("artifact_cache_out_throttler", ArtifactCacheOutThrottler)
             .DefaultNew();
         RegisterParameter("skynet_out_throttler", SkynetOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", TabletCompactionAndPartitioningInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_logging_in_throttler", TabletLoggingInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_snapshot_in_throttler", TabletSnapshotInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
             .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)

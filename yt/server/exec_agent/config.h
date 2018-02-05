@@ -98,7 +98,7 @@ public:
     TNullable<TDuration> ResourceLimitsUpdatePeriod;
     TNullable<TString> ExternalJobContainer;
     TNullable<TString> ExternalJobRootVolume;
-    yhash<TString, TString> ExternalBinds;
+    THashMap<TString, TString> ExternalBinds;
 
     double JobsIOWeight;
 
@@ -182,6 +182,8 @@ public:
 
     TDuration DiskInfoUpdatePeriod;
 
+    int MaxConsecutiveAborts;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -202,6 +204,9 @@ public:
 
         RegisterParameter("disk_info_update_period", DiskInfoUpdatePeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("max_consecutive_aborts", MaxConsecutiveAborts)
+            .Default(500);
     }
 };
 

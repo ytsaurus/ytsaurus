@@ -22,20 +22,15 @@ using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
 ////////////////////////////////////////////////////////////////////////////////
 // OPTIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetTimeoutOptions(
-    NRpc::TClientRequest& request,
-    const TTimeoutOptions& options)
-{
-    request.SetTimeout(options.Timeout);
-}
-
 void ToProto(
     NProto::TTransactionalOptions* proto,
-    const TTransactionalOptions& options)
+    const NApi::TTransactionalOptions& options)
 {
     if (options.TransactionId) {
         ToProto(proto->mutable_transaction_id(), options.TransactionId);
@@ -47,7 +42,7 @@ void ToProto(
 
 void ToProto(
     NProto::TPrerequisiteOptions* proto,
-    const TPrerequisiteOptions& options)
+    const NApi::TPrerequisiteOptions& options)
 {
     for (const auto& item : options.PrerequisiteTransactionIds) {
         auto* protoItem = proto->add_transactions();
@@ -63,7 +58,7 @@ void ToProto(
 
 void ToProto(
     NProto::TMasterReadOptions* proto,
-    const TMasterReadOptions& options)
+    const NApi::TMasterReadOptions& options)
 {
     proto->set_read_from(static_cast<NProto::EMasterReadKind>(options.ReadFrom));
     proto->set_success_expiration_time(NYT::ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
@@ -73,7 +68,7 @@ void ToProto(
 
 void ToProto(
     NProto::TMutatingOptions* proto,
-    const TMutatingOptions& options)
+    const NApi::TMutatingOptions& options)
 {
     ToProto(proto->mutable_mutation_id(), options.GetOrGenerateMutationId());
     proto->set_retry(options.Retry);
@@ -81,7 +76,7 @@ void ToProto(
 
 void ToProto(
     NProto::TSuppressableAccessTrackingOptions* proto,
-    const TSuppressableAccessTrackingOptions& options)
+    const NApi::TSuppressableAccessTrackingOptions& options)
 {
     proto->set_suppress_access_tracking(options.SuppressAccessTracking);
     proto->set_suppress_modification_tracking(options.SuppressModificationTracking);
@@ -89,7 +84,7 @@ void ToProto(
 
 void ToProto(
     NProto::TTabletRangeOptions* proto,
-    const TTabletRangeOptions& options)
+    const NApi::TTabletRangeOptions& options)
 {
     if (options.FirstTabletIndex) {
         proto->set_first_tablet_index(*options.FirstTabletIndex);
@@ -97,6 +92,51 @@ void ToProto(
     if (options.LastTabletIndex) {
         proto->set_last_tablet_index(*options.LastTabletIndex);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RESULTS
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NProto::TGetFileFromCacheResult* proto,
+    const NApi::TGetFileFromCacheResult& result)
+{
+    proto->set_path(result.Path);
+}
+
+void FromProto(
+    NApi::TGetFileFromCacheResult* result,
+    const NProto::TGetFileFromCacheResult& proto)
+{
+    result->Path = proto.path();
+}
+
+void ToProto(
+    NProto::TPutFileToCacheResult* proto,
+    const NApi::TPutFileToCacheResult& result)
+{
+    proto->set_path(result.Path);
+}
+
+void FromProto(
+    NApi::TPutFileToCacheResult* result,
+    const NProto::TPutFileToCacheResult& proto)
+{
+    result->Path = proto.path();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SetTimeoutOptions(
+    NRpc::TClientRequest& request,
+    const TTimeoutOptions& options)
+{
+    request.SetTimeout(options.Timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

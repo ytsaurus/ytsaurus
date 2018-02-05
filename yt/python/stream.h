@@ -77,7 +77,6 @@ public:
 
     bool IsFinished() const;
     TSharedRef ExtractPrefix(const char* endPtr);
-    TSharedRef ExtractPrefix();
 
 private:
     IInputStream* Stream_;

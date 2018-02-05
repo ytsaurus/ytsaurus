@@ -16,6 +16,20 @@ namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCallbackHandler
+    : public IHttpHandler
+{
+public:
+    explicit TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler);
+
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override;
+
+private:
+    TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> Handler_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IServer
     : public virtual TRefCounted
 {
@@ -28,8 +42,11 @@ struct IServer
         const TString& pattern,
         const IHttpHandlerPtr& handler) = 0;
 
-    //! Starts the server. Canceling the returned future stops it.
-    virtual TFuture<void> Start() = 0;
+    //! Starts the server.
+    virtual void Start() = 0;
+
+    //! Stops the server.
+    virtual void Stop() = 0;
 
     // Extension methods
     void AddHandler(
@@ -64,8 +81,8 @@ public:
     IHttpHandlerPtr Match(TStringBuf path);
 
 private:
-    yhash<TString, IHttpHandlerPtr> Exact_;
-    yhash<TString, IHttpHandlerPtr> Subtrees_;
+    THashMap<TString, IHttpHandlerPtr> Exact_;
+    THashMap<TString, IHttpHandlerPtr> Subtrees_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -66,7 +66,7 @@ public:
     ui64 GetVisitMark(int mediumIndex);
     void SetVisitMark(int mediumIndex, ui64 mark);
 
-    using TMulticellStates = yhash<NObjectClient::TCellTag, ENodeState>;
+    using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
     DEFINE_BYREF_RO_PROPERTY(TMulticellStates, MulticellStates);
 
     //! Tags specified by user in "user_tags" attribute.
@@ -74,7 +74,7 @@ public:
     //! Tags received from node during registration (those typically come from config).
     DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, NodeTags);
     //! User tags plus node tags.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TString>, Tags);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TString>, Tags);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -118,15 +118,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
-    using TMediumReplicaSet = yhash_set<TChunkPtrWithIndexes>;
+    using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
     using TReplicaSet = TPerMediumArray<TMediumReplicaSet>;
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, Replicas);
 
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
-    using TUnapprovedReplicaMap = yhash<TChunkPtrWithIndexes, TInstant>;
+    using TUnapprovedReplicaMap = THashMap<TChunkPtrWithIndexes, TInstant>;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobPtr>, Jobs);
 
     //! Indexed by priority. Each map is as follows:
     //! Key:
@@ -134,21 +134,21 @@ public:
     //!   Medium index indicates the medium where this replica is being stored.
     //! Value:
     //!   Indicates media where acting as replication targets for this chunk.
-    using TChunkReplicationQueues = std::vector<yhash<TChunkPtrWithIndexes, TMediumIndexSet>>;
+    using TChunkReplicationQueues = std::vector<THashMap<TChunkPtrWithIndexes, TMediumIndexSet>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkReplicationQueues);
 
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
     //! Value:
     //!   Indicates media where removal of this chunk is scheduled.
-    using TChunkRemovalQueue = yhash<NChunkClient::TChunkIdWithIndex, TMediumIndexSet>;
+    using TChunkRemovalQueue = THashMap<NChunkClient::TChunkIdWithIndex, TMediumIndexSet>;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
     //! Key:
     //!   Indicates an unsealed chunk.
     //! Value:
     //!   Indicates media where seal of this chunk is scheduled.
-    using TChunkSealQueue = yhash<TChunk*, TMediumIndexSet>;
+    using TChunkSealQueue = THashMap<TChunk*, TMediumIndexSet>;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     // Tablet Manager stuff.
@@ -228,7 +228,7 @@ public:
     void RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
 
     void ClearSessionHints();
-    void AddSessionHint(NChunkClient::ESessionType sessionType);
+    void AddSessionHint(int mediumIndex, NChunkClient::ESessionType sessionType);
 
     int GetSessionCount(NChunkClient::ESessionType sessionType) const;
     int GetTotalSessionCount() const;
@@ -264,22 +264,30 @@ private:
     NNodeTrackerClient::TNodeAddressMap NodeAddresses_;
     TString DefaultAddress_;
 
-    int HintedUserSessionCount_;
-    int HintedReplicationSessionCount_;
-    int HintedRepairSessionCount_;
+    TPerMediumArray<int> HintedUserSessionCount_;
+    TPerMediumArray<int> HintedReplicationSessionCount_;
+    TPerMediumArray<int> HintedRepairSessionCount_;
+
+    int TotalHintedUserSessionCount_;
+    int TotalHintedReplicationSessionCount_;
+    int TotalHintedRepairSessionCount_;
 
     TPerMediumArray<TMediumReplicaSet::iterator> RandomReplicaIters_;
 
     TPerMediumArray<ui64> VisitMarks_{};
 
     TPerMediumArray<TNullable<double>> FillFactors_;
+    TPerMediumArray<TNullable<int>> SessionCount_;
 
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;
 
+    int GetHintedSessionCount(int mediumIndex) const;
+
     void ComputeAggregatedState();
     void ComputeDefaultAddress();
     void ComputeFillFactors();
+    void ComputeSessionCount();
 
     bool DoAddReplica(TChunkPtrWithIndexes replica);
     bool DoRemoveReplica(TChunkPtrWithIndexes replica);

@@ -66,12 +66,12 @@ void TPeerBlockUpdater::Update()
         ->GetChannelFactory();
 
     typedef TDataNodeServiceProxy TProxy;
-    yhash<TString, TProxy::TReqUpdatePeerPtr> requests;
+    THashMap<TString, TProxy::TReqUpdatePeerPtr> requests;
 
     auto blocks = Bootstrap_->GetChunkBlockManager()->GetAllBlocks();
     for (const auto& block : blocks) {
         if (block->Source()) {
-            const auto& sourceAddress = block->Source()->GetAddress(Bootstrap_->GetLocalNetworks());
+            const auto& sourceAddress = block->Source()->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
             TProxy::TReqUpdatePeerPtr request;
             auto it = requests.find(sourceAddress);
             if (it != requests.end()) {

@@ -90,8 +90,7 @@ public:
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
     void ProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response,
-        NObjectClient::EObjectType jobObjectType,
-        NRpc::IChannelPtr jobSpecsProxyChannel = nullptr);
+        NObjectClient::EObjectType jobObjectType);
 
     //! Orchid server.
     NYTree::IYPathServicePtr GetOrchidService();

@@ -263,9 +263,9 @@ private:
     }
 
     // Account name -> cluster resources.
-    using TAccountResourcesMap = yhash<TString, NSecurityServer::TClusterResources>;
+    using TAccountResourcesMap = THashMap<TString, NSecurityServer::TClusterResources>;
     // Cell tag -> account name -> cluster resources.
-    using TMulticellAccountResourcesMap = yhash<TCellTag, TAccountResourcesMap>;
+    using TMulticellAccountResourcesMap = THashMap<TCellTag, TAccountResourcesMap>;
 
     TFuture<TMulticellAccountResourcesMap> GetMulticellResourceUsageMap()
     {
@@ -345,7 +345,7 @@ private:
     {
         TAccountResourcesMap result;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto serializableAccountResources = ConvertTo<yhash<TString, TSerializableClusterResourcesPtr>>(value);
+        auto serializableAccountResources = ConvertTo<THashMap<TString, TSerializableClusterResourcesPtr>>(value);
         for (const auto& pair : serializableAccountResources) {
             result.insert(std::make_pair(pair.first, pair.second->ToClusterResources(chunkManager)));
         }
@@ -425,7 +425,7 @@ private:
         struct TSession
             : public TIntrinsicRefCounted
         {
-            yhash<TString, TYsonString> Map;
+            THashMap<TString, TYsonString> Map;
         };
 
         using TSessionPtr = TIntrusivePtr<TSession>;
@@ -439,7 +439,7 @@ private:
                     .EndMap();
             }),
             BIND([] (const TSessionPtr& session, const TYsonString& yson) {
-                auto map = ConvertTo<yhash<TString, INodePtr>>(yson);
+                auto map = ConvertTo<THashMap<TString, INodePtr>>(yson);
                 for (const auto& pair : map) {
                     session->Map.emplace(pair.first, ConvertToYsonString(pair.second));
                 }

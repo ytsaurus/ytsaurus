@@ -153,6 +153,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/data_node/local_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/master_connector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/network_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_distributor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_updater.cpp
@@ -270,16 +271,13 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/public.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/bootstrap.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/bootstrap.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/configure_singletons.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/fork_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/job_table_schema.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/process.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/public.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/data_center.cpp
@@ -372,6 +370,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/rb_torrent.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/skynet_api.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/skynet_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/cypress_sync.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/share_cache.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/shell/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/shell/shell.cpp

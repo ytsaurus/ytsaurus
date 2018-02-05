@@ -35,10 +35,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TString>, Title);
     DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, SecondaryCellTags);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectBase*>, StagedObjects);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObjectBase*>, StagedObjects);
 
     struct TExportEntry
     {
@@ -52,9 +52,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObjectBase*>, ImportedObjects);
 
     // Cypress stuff
-    typedef yhash_set<NCypressServer::TCypressNodeBase*> TLockedNodeSet;
+    typedef THashSet<NCypressServer::TCypressNodeBase*> TLockedNodeSet;
     DEFINE_BYREF_RW_PROPERTY(TLockedNodeSet, LockedNodes);
-    typedef yhash_set<NCypressServer::TLock*> TLockSet;
+    typedef THashSet<NCypressServer::TLock*> TLockSet;
     DEFINE_BYREF_RW_PROPERTY(TLockSet, Locks);
     typedef std::vector<NCypressServer::TCypressNodeBase*> TBranchedNodeList;
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeList, BranchedNodes);
@@ -62,7 +62,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
 
     // Security Manager stuff
-    typedef yhash<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
+    typedef THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 

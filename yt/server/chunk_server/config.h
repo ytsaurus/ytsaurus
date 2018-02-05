@@ -48,9 +48,9 @@ public:
         });
     }
 
-    yhash<TNullable<TString>, yhash<TNullable<TString>, i64>> GetCapacities() const
+    THashMap<TNullable<TString>, THashMap<TNullable<TString>, i64>> GetCapacities() const
     {
-        yhash<TNullable<TString>, yhash<TNullable<TString>, i64>> result;
+        THashMap<TNullable<TString>, THashMap<TNullable<TString>, i64>> result;
         for (const auto& pair : Capacities) {
             auto srcDataCenter = MakeNullable(!pair.first.empty(), pair.first);
             auto& srcDataCenterCapacities = result[srcDataCenter];
@@ -76,7 +76,7 @@ private:
 
     // src DC -> dst DC -> data size.
     // NB: that null DC is encoded as an empty string here.
-    yhash<TString, yhash<TString, i64>> Capacities;
+    THashMap<TString, THashMap<TString, i64>> Capacities;
     i64 DefaultCapacity;
     TDuration UpdateInterval;
     NProfiling::TCpuDuration CpuUpdateInterval;
@@ -102,10 +102,10 @@ public:
     int SafeLostChunkCount;
 
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
-    double MinBalancingFillFactorDiff;
+    double MinChunkBalancingFillFactorDiff;
 
     //! Minimum fill coefficient of the most loaded node to start balancing.
-    double MinBalancingFillFactor;
+    double MinChunkBalancingFillFactor;
 
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
@@ -211,10 +211,10 @@ public:
             .GreaterThan(0)
             .Default(1000);
 
-        RegisterParameter("min_chunk_balancing_fill_factor_diff", MinBalancingFillFactorDiff)
+        RegisterParameter("min_chunk_balancing_fill_factor_diff", MinChunkBalancingFillFactorDiff)
             .InRange(0.0, 1.0)
             .Default(0.2);
-        RegisterParameter("min_chunk_balancing_fill_factor", MinBalancingFillFactor)
+        RegisterParameter("min_chunk_balancing_fill_factor", MinChunkBalancingFillFactor)
             .InRange(0.0, 1.0)
             .Default(0.1);
 
@@ -306,6 +306,44 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMediumConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Provides an additional bound for the number of replicas per rack for every chunk.
+    //! Currently used to simulate DC awareness.
+    int MaxReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to regular chunks.
+    int MaxRegularReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to journal chunks.
+    int MaxJournalReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
+    int MaxErasureReplicasPerRack;
+
+    TMediumConfig()
+    {
+        RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_regular_replicas_per_rack", MaxRegularReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_journal_replicas_per_rack", MaxJournalReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

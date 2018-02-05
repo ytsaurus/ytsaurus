@@ -168,9 +168,9 @@ class TObjectTypeHandlerWithMapBase
     : public TObjectTypeHandlerBase<TObject>
 {
 public:
-    typedef typename NHydra::TEntityMap<TObject> TMap;
+    typedef typename NHydra::TEntityMap<TObject> TMapType;
 
-    TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
+    TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMapType* map)
         : TObjectTypeHandlerBase<TObject>(bootstrap)
         , Map_(map)
     { }
@@ -189,7 +189,7 @@ public:
 
 protected:
     // We store map by a raw pointer. In most cases this should be OK.
-    TMap* const Map_;
+    TMapType* const Map_;
 
 
     virtual void DoDestroyObject(TObject* object)

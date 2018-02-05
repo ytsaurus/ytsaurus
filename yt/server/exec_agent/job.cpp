@@ -898,6 +898,8 @@ private:
         LOG_INFO("Job finalized (Error: %v, JobState: %v)",
             error,
             GetState());
+
+        Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
     }
 
     // Preparation.
@@ -968,8 +970,8 @@ private:
             }
 
             if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
-                THROW_ERROR_EXCEPTION("Unresolved node id %v in job spec",
-                    *unresolvedNodeId);
+                LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)", *unresolvedNodeId);
+                break;
             }
 
             LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",

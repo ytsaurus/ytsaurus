@@ -12,8 +12,6 @@
 
 #include <yt/server/journal_server/public.h>
 
-#include <yt/server/misc/bootstrap.h>
-
 #include <yt/server/node_tracker_server/public.h>
 
 #include <yt/server/object_server/public.h>
@@ -48,7 +46,6 @@ namespace NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
-    : public TBootstrapBase
 {
 public:
     TBootstrap(TCellMasterConfigPtr config, NYTree::INodePtr configNode);

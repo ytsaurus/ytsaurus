@@ -1,5 +1,7 @@
 #include "io_dispatcher.h"
-#include "io_dispatcher_impl.h"
+
+#include <yt/core/concurrency/thread_pool_poller.h>
+#include <yt/core/concurrency/poller.h>
 
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
@@ -7,10 +9,12 @@
 namespace NYT {
 namespace NPipes {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TIODispatcher::TIODispatcher()
-    : Impl_(New<TIODispatcher::TImpl>())
+    : Poller_(CreateThreadPoolPoller(1, "Pipes"))
 { }
 
 TIODispatcher::~TIODispatcher()
@@ -23,18 +27,12 @@ TIODispatcher* TIODispatcher::Get()
 
 IInvokerPtr TIODispatcher::GetInvoker()
 {
-    if (Y_UNLIKELY(!Impl_->IsStarted())) {
-        Impl_->Start();
-    }
-    return Impl_->GetInvoker();
+    return Poller_->GetInvoker();
 }
 
-const ev::loop_ref& TIODispatcher::GetEventLoop()
+IPollerPtr TIODispatcher::GetPoller()
 {
-    if (Y_UNLIKELY(!Impl_->IsStarted())) {
-        Impl_->Start();
-    }
-    return Impl_->GetEventLoop();
+    return Poller_;
 }
 
 void TIODispatcher::StaticShutdown()
@@ -44,7 +42,7 @@ void TIODispatcher::StaticShutdown()
 
 void TIODispatcher::Shutdown()
 {
-    return Impl_->Shutdown();
+    return Poller_->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

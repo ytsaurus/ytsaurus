@@ -6,23 +6,23 @@
 
 #include <yt/server/scheduler/message_queue.h>
 
-#include <yt/core/misc/variant.h>
+#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationEvent
+struct TAgentToSchedulerOperationEvent
 {
-    NScheduler::EAgentToSchedulerOperationEventType Type;
+    NScheduler::EAgentToSchedulerOperationEventType EventType;
     TOperationId OperationId;
     TError Error;
 };
 
-struct TJobEvent
+struct TAgentToSchedulerJobEvent
 {
-    NScheduler::EAgentToSchedulerJobEventType Type;
+    NScheduler::EAgentToSchedulerJobEventType EventType;
     TJobId JobId;
     TError Error;
     TNullable<EInterruptReason> InterruptReason;
@@ -37,8 +37,8 @@ public:
     TOperationControllerHost(
         TOperation* operation,
         IInvokerPtr cancelableControlInvoker,
-        TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> operationEventsOutbox,
-        TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> jobEventsOutbox,
+        TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
+        TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
         NCellScheduler::TBootstrap* bootstrap);
 
     virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override;
@@ -70,7 +70,7 @@ public:
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
 
     virtual int GetExecNodeCount() override;
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
+    virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
 
     virtual TInstant GetConnectionTime() override;
 
@@ -82,8 +82,8 @@ public:
 private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;
-    const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TOperationEvent>> OperationEventsOutbox_;
-    const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TJobEvent>> JobEventsOutbox_;
+    const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
+    const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
     NCellScheduler::TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
 };

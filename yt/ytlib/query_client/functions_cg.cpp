@@ -780,7 +780,6 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     codegenAggregate.Merge = [
         this_ = MakeStrong(this),
         mergeName,
-        argumentType,
         stateType,
         name,
         makeCodegenBody

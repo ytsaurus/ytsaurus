@@ -8,6 +8,8 @@ using NPython::GetYsonTypeClass;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPythonObjectBuilder::TPythonObjectBuilder() = default;
+
 TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding)
     : YsonMap(GetYsonTypeClass("YsonMap"))
     , YsonList(GetYsonTypeClass("YsonList"))

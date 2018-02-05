@@ -67,17 +67,6 @@ class TestGetJobInput(YTEnvSetup):
                 "max_repeat_delay": 10,
             }
         },
-
-        # Turn off mount cache otherwise our statistic reporter would be unhappy
-        # because of tablets of job statistics table are changed between tests.
-        "cluster_connection": {
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            }
-        },
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -110,27 +99,26 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_output")
 
         write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
-        events = EventsOnFs();
 
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command="cat > {tmpdir}/$YT_JOB_ID ; {notify} ; {wait}".format(
                 tmpdir=self._tmpdir,
-                notify=events.notify_event_cmd("job_is_running"),
-                wait=events.wait_event_cmd("job_can_finish")),
+                notify=events_on_fs().notify_event_cmd("job_is_running"),
+                wait=events_on_fs().wait_event_cmd("job_can_finish")),
             format=format,
             dont_track=True,
             spec={"job_count": 1})
 
-        events.wait_event("job_is_running")
+        events_on_fs().wait_event("job_is_running")
 
         job_id_list = os.listdir(self._tmpdir)
         assert len(job_id_list) == 1
 
         self.check_job_ids(job_id_list)
 
-        events.notify_event("job_can_finish")
+        events_on_fs().notify_event("job_can_finish")
         op.track()
 
     def test_map_complete(self):
@@ -154,15 +142,14 @@ class TestGetJobInput(YTEnvSetup):
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
-        events = EventsOnFs()
 
         write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
 
         cmd = "echo 1 >&2 ; cat | tee {0}/$YT_JOB_ID".format(self._tmpdir)
         reducer_cmd = " ; ".join([
             cmd,
-            events.notify_event_cmd("reducer_almost_complete"),
-            events.wait_event_cmd("continue_reducer")])
+            events_on_fs().notify_event_cmd("reducer_almost_complete"),
+            events_on_fs().wait_event_cmd("continue_reducer")])
         op = map_reduce(
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -179,7 +166,7 @@ class TestGetJobInput(YTEnvSetup):
             },
             dont_track=True)
 
-        events.wait_event("reducer_almost_complete", timeout=datetime.timedelta(300))
+        events_on_fs().wait_event("reducer_almost_complete", timeout=datetime.timedelta(300))
 
         job_id_list = os.listdir(self._tmpdir)
         assert len(job_id_list) >= 3
@@ -187,7 +174,7 @@ class TestGetJobInput(YTEnvSetup):
 
         self.check_job_ids(job_id_list)
 
-        events.notify_event("continue_reducer")
+        events_on_fs().notify_event("continue_reducer")
         op.track()
 
     @pytest.mark.parametrize("format", FORMAT_LIST)

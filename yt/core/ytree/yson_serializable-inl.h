@@ -220,7 +220,7 @@ void LoadFromNode(
 template <class T, class = void>
 struct TGetUnrecognizedRecursively
 {
-    static IMapNodePtr Do(const T& parameter)
+    static IMapNodePtr Do(const T& /*parameter*/)
     {
         return nullptr;
     }

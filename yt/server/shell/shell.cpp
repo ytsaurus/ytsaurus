@@ -14,8 +14,8 @@
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/process.h>
 
-#include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
+#include <yt/core/net/connection.h>
+
 #include <yt/core/pipes/pty.h>
 
 #include <util/stream/file.h>
@@ -26,6 +26,7 @@ namespace NShell {
 using namespace NConcurrency;
 using namespace NCGroup;
 using namespace NPipes;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +121,7 @@ public:
 
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TFileOutput output(file);
+                TUnbufferedFileOutput output(file);
                 output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell message file")
@@ -133,7 +134,7 @@ public:
 
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TFileOutput output(file);
+                TUnbufferedFileOutput output(file);
                 output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell config file")
@@ -248,11 +249,11 @@ private:
 
     bool IsRunning_ = false;
 
-    TAsyncWriterPtr Writer_;
+    IConnectionWriterPtr Writer_;
     IAsyncZeroCopyOutputStreamPtr ZeroCopyWriter_;
     ui64 ConsumedOffset_ = 0;
 
-    TAsyncReaderPtr Reader_;
+    IConnectionReaderPtr Reader_;
     IAsyncZeroCopyInputStreamPtr ConcurrentReader_;
 
     TInstant LastActivity_ = TInstant::Now();

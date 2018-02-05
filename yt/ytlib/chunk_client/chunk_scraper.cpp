@@ -14,6 +14,8 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
+#include <util/random/shuffle.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -43,8 +45,8 @@ public:
     , Throttler_(throttler)
     , NodeDirectory_(nodeDirectory)
     , CellTag_(cellTag)
-    , ChunkIds_(std::move(chunkIds))
     , OnChunkLocated_(onChunkLocated)
+    , ChunkIds_(std::move(chunkIds))
     , Logger(NLogging::TLogger(logger)
         .AddTag("ScraperTaskId: %v", TGuid::Create())
         .AddTag("CellTag: %v", CellTag_))
@@ -53,7 +55,9 @@ public:
         invoker,
         BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
         TDuration::Zero()))
-    { }
+    {
+        Shuffle(ChunkIds_.begin(), ChunkIds_.end());
+    }
 
     //! Starts periodic polling.
     void Start()
@@ -89,8 +93,11 @@ private:
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TCellTag CellTag_;
-    const std::vector<TChunkId> ChunkIds_;
     const TChunkLocatedHandler OnChunkLocated_;
+
+    //! Non-const since we would like to shuffle it, to avoid scraping the same chunks
+    //! on every restart.
+    std::vector<TChunkId> ChunkIds_;
 
     const NLogging::TLogger Logger;
 
@@ -149,10 +156,12 @@ private:
         for (int index = 0; index < req->subrequests_size(); ++index) {
             const auto& subrequest = req->subrequests(index);
             const auto& subresponse = rsp->subresponses(index);
-            if (!subresponse.missing()) {
-                auto chunkId = FromProto<TChunkId>(subrequest);
+            auto chunkId = FromProto<TChunkId>(subrequest);
+            if (subresponse.missing()) {
+                OnChunkLocated_.Run(chunkId, TChunkReplicaList(), true);
+            } else {
                 auto replicas = FromProto<TChunkReplicaList>(subresponse.replicas());
-                OnChunkLocated_.Run(chunkId, replicas);
+                OnChunkLocated_.Run(chunkId, replicas, false);
             }
         }
     }
@@ -168,7 +177,7 @@ TChunkScraper::TChunkScraper(
     TThrottlerManagerPtr throttlerManager,
     NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const yhash_set<TChunkId>& chunkIds,
+    const THashSet<TChunkId>& chunkIds,
     TChunkLocatedHandler onChunkLocated,
     const NLogging::TLogger& logger)
     : Config_(config)
@@ -198,16 +207,16 @@ TFuture<void> TChunkScraper::Stop()
     return Combine(futures);
 }
 
-void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
+void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
 {
     // Group chunks by cell tags.
-    yhash<TCellTag, int> cellTags;
+    THashMap<TCellTag, int> cellTags;
     for (const auto& chunkId : chunkIds) {
         auto cellTag = CellTagFromId(chunkId);
         ++cellTags[cellTag];
     }
 
-    yhash<TCellTag, std::vector<TChunkId>> chunksByCells(cellTags.size());
+    THashMap<TCellTag, std::vector<TChunkId>> chunksByCells(cellTags.size());
     for (const auto& cellTag : cellTags) {
         chunksByCells[cellTag.first].reserve(cellTag.second);
     }

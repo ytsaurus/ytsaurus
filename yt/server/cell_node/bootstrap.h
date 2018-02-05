@@ -12,8 +12,6 @@
 
 #include <yt/server/job_proxy/public.h>
 
-#include <yt/server/misc/bootstrap.h>
-
 #include <yt/server/tablet_node/public.h>
 
 #include <yt/ytlib/api/public.h>
@@ -52,7 +50,6 @@ namespace NCellNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
-    : public TBootstrapBase
 {
 public:
     TBootstrap(TCellNodeConfigPtr config, NYTree::INodePtr configNode);
@@ -81,6 +78,7 @@ public:
     const NDataNode::TSessionManagerPtr& GetSessionManager() const;
     const NDataNode::TChunkMetaManagerPtr& GetChunkMetaManager() const;
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
+    const NDataNode::TNetworkStatisticsPtr& GetNetworkStatistics() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
     const NDataNode::TPeerBlockDistributorPtr& GetPeerBlockDistributor() const;
     const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
@@ -109,6 +107,8 @@ public:
     TNullable<TString> GetDefaultNetworkName();
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
+
+    NTransactionClient::TTimestamp GetLatestTimestamp() const;
 
     void Run();
 
@@ -147,6 +147,7 @@ private:
     NDataNode::TSessionManagerPtr SessionManager;
     NDataNode::TChunkMetaManagerPtr ChunkMetaManager;
     NDataNode::TChunkBlockManagerPtr ChunkBlockManager;
+    NDataNode::TNetworkStatisticsPtr NetworkStatistics;
     NChunkClient::IBlockCachePtr BlockCache;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
@@ -167,6 +168,13 @@ private:
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheInThrottler;
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheOutThrottler;
     NConcurrency::IThroughputThrottlerPtr SkynetOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler;
 
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;

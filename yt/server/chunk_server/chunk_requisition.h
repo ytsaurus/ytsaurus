@@ -460,8 +460,8 @@ private:
         void Load(NCellMaster::TLoadContext& context);
     };
 
-    yhash<TChunkRequisitionIndex, TIndexedItem> IndexToItem_;
-    yhash<TChunkRequisition, TChunkRequisitionIndex> RequisitionToIndex_;
+    THashMap<TChunkRequisitionIndex, TIndexedItem> IndexToItem_;
+    THashMap<TChunkRequisition, TChunkRequisitionIndex> RequisitionToIndex_;
 
     TChunkRequisitionIndex NextIndex_;
 

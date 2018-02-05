@@ -15,11 +15,11 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const yhash<TString, TCypressNodeBase*>& GetMapNodeChildMap(
+const THashMap<TString, TCypressNodeBase*>& GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction,
-    yhash<TString, TCypressNodeBase*>* storage);
+    THashMap<TString, TCypressNodeBase*>* storage);
 
 std::vector<TCypressNodeBase*> GetMapNodeChildList(
     const TCypressManagerPtr& cypressManager,
@@ -32,7 +32,7 @@ const std::vector<TCypressNodeBase*>& GetListNodeChildList(
     NTransactionServer::TTransaction* transaction);
 
 std::vector<std::pair<TString, TCypressNodeBase*>> SortKeyToChild(
-    const yhash<TString, TCypressNodeBase*>& keyToChildMap);
+    const THashMap<TString, TCypressNodeBase*>& keyToChildMap);
 
 TCypressNodeBase* FindMapNodeChild(
     const TCypressManagerPtr& cypressManager,
@@ -48,12 +48,12 @@ int FindListNodeChildIndex(
     TListNode* parentNode,
     TCypressNodeBase* trunkChildNode);
 
-yhash<TString, NYson::TYsonString> GetNodeAttributes(
+THashMap<TString, NYson::TYsonString> GetNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
-yhash_set<TString> ListNodeAttributes(
+THashSet<TString> ListNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);

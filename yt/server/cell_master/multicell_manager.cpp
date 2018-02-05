@@ -278,7 +278,7 @@ private:
     TCellTagList RegisteredMasterCellTags_;
     EPrimaryRegisterState RegisterState_;
 
-    yhash<TCellTag, TMailbox*> MasterMailboxCache_;
+    THashMap<TCellTag, TMailbox*> MasterMailboxCache_;
     TMailbox* PrimaryMasterMailbox_ = nullptr;
 
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;

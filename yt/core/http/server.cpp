@@ -24,22 +24,14 @@ static const auto& Logger = HttpLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCallbackHandler
-    : public IHttpHandler
+TCallbackHandler::TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
+    : Handler_(std::move(handler))
+{ }
+
+void TCallbackHandler::HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
-public:
-    explicit TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
-        : Handler_(handler)
-    { }
-
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
-    {
-        Handler_(req, rsp);
-    }
-
-private:
-    TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> Handler_;
-};
+    Handler_(req, rsp);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,18 +63,35 @@ public:
         Handlers_.Add(path, handler);
     }
 
-    virtual TFuture<void> Start() override
+    virtual void Start() override
     {
+        if (Started_) {
+            return;
+        }
+
         Started_ = true;
-        return BIND(&TServer::MainLoop, MakeStrong(this))
+        MainLoopFuture_ = BIND(&TServer::MainLoop, MakeStrong(this))
             .AsyncVia(Poller_->GetInvoker())
             .Run();
+    }
+
+    virtual void Stop() override
+    {
+        if (!Started_) {
+            return;
+        }
+
+        Started_ = false;
+        MainLoopFuture_.Cancel();
+        MainLoopFuture_.Reset();
     }
 
 private:
     const TServerConfigPtr Config_;
     const IListenerPtr Listener_;
     const IPollerPtr Poller_;
+
+    TFuture<void> MainLoopFuture_;
 
     std::atomic<int> ActiveClients_ = {0};
 
@@ -101,7 +110,9 @@ private:
         });
 
         while (true) {
-            auto client = WaitFor(Listener_->Accept()).ValueOrThrow();
+            auto client = WaitFor(Listener_->Accept())
+                .ValueOrThrow();
+
             HttpProfiler.Increment(ConnectionsAccepted_);
             if (++ActiveClients_ >= Config_->MaxSimultaneousConnections) {
                 HttpProfiler.Increment(ConnectionsDropped_);
@@ -111,10 +122,9 @@ private:
                 continue;
             }
 
-            LOG_DEBUG("Accepted client (RemoteAddress: %v)", client->RemoteAddress());
-            BIND(&TServer::HandleClient, MakeStrong(this), std::move(client))
-                .AsyncVia(Poller_->GetInvoker())
-                .Run();
+            LOG_DEBUG("Client accepted (RemoteAddress: %v)", client->RemoteAddress());
+            Poller_->GetInvoker()->Invoke(
+                BIND(&TServer::HandleClient, MakeStrong(this), std::move(client)));
         }
     }
 
@@ -146,7 +156,8 @@ private:
             auto handler = Handlers_.Match(request->GetUrl().Path);
             if (!handler) {
                 response->WriteHeaders(EStatusCode::NotFound);
-                WaitFor(response->Close()).ThrowOnError();
+                WaitFor(response->Close())
+                    .ThrowOnError();
                 return;
             }
 
@@ -156,13 +167,19 @@ private:
 
             if (!response->IsHeadersFlushed()) {
                 response->WriteHeaders(EStatusCode::InternalServerError);
-                WaitFor(response->Close()).ThrowOnError();
+                WaitFor(response->Close())
+                    .ThrowOnError();
             }
         }
 
-        WaitFor(connection->Close()).ThrowOnError();
-        LOG_DEBUG("Client connection closed (RemoteAddress: %v)",
-            connection->RemoteAddress());
+        try {
+            WaitFor(connection->Close())
+                .ThrowOnError();
+            LOG_DEBUG("Client connection closed (RemoteAddress: %v)",
+                connection->RemoteAddress());
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error closing HTTPP connection");
+        }
     }
 };
 

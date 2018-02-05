@@ -43,6 +43,7 @@ using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NHydra;
+using namespace NTabletClient;
 using namespace NTabletServer::NProto;
 using namespace NTabletNode::NProto;
 
@@ -259,6 +260,9 @@ private:
             tabletId,
             store->GetId());
 
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+
         try {
             auto beginInstant = TInstant::Now();
 
@@ -316,8 +320,16 @@ private:
                 .ThrowOnError();
 
             storeManager->EndStoreFlush(store);
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(TError());
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error flushing tablet store, backing off");
+            auto error = TError(ex)
+                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(error);
+            LOG_ERROR(error, "Error flushing tablet store, backing off");
+
             storeManager->BackoffStoreFlush(store);
         }
     }

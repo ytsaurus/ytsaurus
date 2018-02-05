@@ -82,7 +82,7 @@ int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
 
 void TChunkTeleporter::Export()
 {
-    yhash<TCellTag, std::vector<TChunkEntry*>> exportMap;
+    THashMap<TCellTag, std::vector<TChunkEntry*>> exportMap;
     for (auto& chunk : Chunks_) {
         exportMap[CellTagFromId(chunk.ChunkId)].push_back(&chunk);
     }
@@ -156,7 +156,7 @@ int TChunkTeleporter::GetImportedObjectCount(TCellTag cellTag)
 
 void TChunkTeleporter::Import()
 {
-    yhash<TCellTag, std::vector<TChunkEntry*>> importMap;
+    THashMap<TCellTag, std::vector<TChunkEntry*>> importMap;
     for (auto& chunk : Chunks_) {
         importMap[chunk.DestinationCellTag].push_back(&chunk);
     }

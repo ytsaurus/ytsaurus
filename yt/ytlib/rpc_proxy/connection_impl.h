@@ -69,8 +69,8 @@ private:
 
     TSpinLock AddressSpinLock_;
     std::vector<TString> Addresses_; // Must be sorted.
-    yhash<TString, yhash_set<NRpc::IRoamingChannelProvider*>> AddressToProviders_;
-    yhash<NRpc::IRoamingChannelProvider*, TString> ProviderToAddress_;
+    THashMap<TString, THashSet<NRpc::IRoamingChannelProvider*>> AddressToProviders_;
+    THashMap<NRpc::IRoamingChannelProvider*, TString> ProviderToAddress_;
 
     NRpc::IChannelPtr DiscoveryChannel_;
     int ProxyListUpdatesFailedAttempts_ = 0;

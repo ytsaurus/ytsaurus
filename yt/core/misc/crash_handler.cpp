@@ -268,6 +268,15 @@ void InvokeDefaultSignalHandler(int signal)
     pthread_kill(pthread_self(), signal);
 }
 
+void CrashTimeoutHandler(int signal)
+{
+    TRawFormatter<256> formatter;
+    formatter.AppendString("*** Process hung during crash ***\n");
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+
+    _exit(1);
+}
+
 // Dumps signal and stack frame information, and invokes the default
 // signal handler once our job is done.
 void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
@@ -330,8 +339,10 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     formatter.AppendString("*** Wait for logger to shut down ***\n");
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 
-    // Okay, we have done enough, so now we can do unsafe (async signal unsafe)
-    // things. The process could be terminated or hung at any time.
+    // Actually, it is not okay to hung.
+    ::signal(SIGALRM, CrashTimeoutHandler);
+    alarm(5);
+
     NLogging::TLogManager::StaticShutdown();
 
     formatter.Reset();

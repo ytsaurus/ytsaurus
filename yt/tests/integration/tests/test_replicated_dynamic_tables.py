@@ -17,27 +17,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
     NUM_REMOTE_CLUSTERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            # Disable cache
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0
-            },
-            "timestamp_provider": {
-                "update_period": 500,
-            }
-        }
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "timestamp_provider": {
-            "update_period": 500,
-        },
-    }
-
     SIMPLE_SCHEMA = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value1", "type": "string"},

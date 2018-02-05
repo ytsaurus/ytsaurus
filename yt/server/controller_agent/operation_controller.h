@@ -4,6 +4,7 @@
 
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
+#include <yt/server/scheduler/operation_controller.h>
 
 #include <yt/ytlib/api/public.h>
 
@@ -45,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOperationAlertMap = yhash<EOperationAlertType, TError>;
+using TOperationAlertMap = THashMap<EOperationAlertType, TError>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,7 +204,7 @@ struct IOperationControllerHost
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
 
     virtual int GetExecNodeCount() = 0;
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
+    virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
 
     virtual void OnOperationCompleted() = 0;
@@ -216,59 +217,41 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): move to NScheduler
-struct IOperationControllerStrategyHost
-    : public virtual TRefCounted
+struct TJobStartDescriptor
 {
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
-    //! Called during heartbeat processing to request actions the node must perform.
-    virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
-        NScheduler::ISchedulingContextPtr context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
-        const TString& treeId) = 0;
+    TJobStartDescriptor(
+        const TJobId& id,
+        EJobType type,
+        const TJobResources& resourceLimits,
+        bool interruptible);
 
-    /*!
-     *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
-     *  Most of non-const controller methods are expected to be run in this invoker.
-     */
-    virtual IInvokerPtr GetCancelableInvoker() const = 0;
-
-    //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void OnNonscheduledJobAborted(
-        const TJobId& jobid,
-        EAbortReason abortReason) = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    //! Returns the total resources that are additionally needed.
-    virtual TJobResources GetNeededResources() const = 0;
-
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
-    //! Called periodically during heartbeat to obtain min needed resources to schedule any operation job.
-    virtual std::vector<NScheduler::TJobResourcesWithQuota> GetMinNeededJobResources() const = 0;
-
-    //! Returns the number of jobs the controller is able to start right away.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual int GetPendingJobCount() const = 0;
+    const TJobId Id;
+    const EJobType Type;
+    const TJobResources ResourceLimits;
+    const bool Interruptible;
 };
 
-DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
+////////////////////////////////////////////////////////////////////////////////
+
+struct TScheduleJobResult
+    : public TIntrinsicRefCounted
+{
+    void RecordFail(EScheduleJobFailReason reason);
+    bool IsBackoffNeeded() const;
+    bool IsScheduleStopNeeded() const;
+
+    TNullable<TJobStartDescriptor> StartDescriptor;
+    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
+    TDuration Duration;
+};
+
+DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(babenko): merge into NScheduler::IOperationController
 struct IOperationControllerSchedulerHost
-    : public IOperationControllerStrategyHost
+    : public virtual TRefCounted
 {
     //! Performs controller inner state initialization. Starts all controller transactions.
     /*
@@ -400,6 +383,7 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: Controller invoker.
      */
     virtual void OnBeforeDisposal() = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)
@@ -487,6 +471,40 @@ struct IOperationController
 {
     virtual IInvokerPtr GetInvoker() const = 0;
     virtual IInvokerPtr GetCancelableInvoker() const = 0;
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
+    //! Called during heartbeat processing to request actions the node must perform.
+    virtual NControllerAgent::TScheduleJobResultPtr ScheduleJob(
+        ISchedulingContext* context,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const TString& treeId) = 0;
+
+    //! Returns the total resources that are additionally needed.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TJobResources GetNeededResources() const = 0;
+
+    //! Initiates updating min needed resources estimates.
+    //! Note that the actual update may happen in background.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void UpdateMinNeededJobResources() = 0;
+
+    //! Returns the cached min needed resources estimate.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
+
+    //! Returns the number of jobs the controller is able to start right away.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual int GetPendingJobCount() const = 0;
 
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;

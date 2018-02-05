@@ -59,9 +59,9 @@ public:
      */
     TInstant GetConnectionTime() const;
 
-    IInvokerPtr GetCancelableControlInvoker() const;
+    const IInvokerPtr& GetCancelableControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const;
 
-    void Disconnect();
+    void Disconnect(const TError& error);
 
     void StartOperationNodeUpdates(const TOperationPtr& operation);
     TFuture<void> CreateOperationNode(const TOperationPtr& operation);

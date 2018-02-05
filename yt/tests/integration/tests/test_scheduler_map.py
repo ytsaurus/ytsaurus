@@ -511,12 +511,12 @@ print row + table_index
         alter_table("//tmp/t2", schema=schema)
 
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
-            command="cat",
+            command=with_breakpoint("cat && BREAKPOINT"),
             in_="//tmp/t1",
             out="//tmp/t2",
             spec={"data_size_per_job": 1})
+        jobs = wait_breakpoint(job_count=2)
 
         operation_path = "//sys/operations/{0}".format(op.id)
 
@@ -525,17 +525,18 @@ print row + table_index
         assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
         assert schema == get(operation_path + "/output_0/@schema", tx=async_transaction_id)
 
-        op.resume_job(op.jobs[0])
-        op.resume_job(op.jobs[1])
-        while op.get_job_count("completed") < 2:
-            time.sleep(0.2)
+        for job_id in jobs[:2]:
+            release_breakpoint(job_id=job_id)
+
+        wait(lambda : op.get_job_count("completed") >= 2)
+
         time.sleep(1)
 
         live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
         assert len(live_preview_data) == 2
         assert all(record in data for record in live_preview_data)
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
@@ -564,29 +565,29 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
+    @pytest.mark.parametrize("ordered", [False, True])
     @unix_only
-    def test_map_row_count_limit(self):
+    def test_map_row_count_limit(self, ordered):
         create("table", "//tmp/input")
         for i in xrange(5):
             write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
 
         create("table", "//tmp/output")
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
-            command="cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            oredered=ordered,
             spec={
-                "mapper": {
-                    "format": "dsv"
-                },
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
             })
+        jobs = wait_breakpoint(job_count=5)
+        assert len(jobs) == 5
 
-        for i in xrange(3):
-            op.resume_job(op.jobs[0])
+        for job_id in jobs[:3]:
+            release_breakpoint(job_id=job_id)
 
         op.track()
         assert len(read_table("//tmp/output")) == 3
@@ -600,18 +601,15 @@ print row + table_index
 
         create("table", "//tmp/output")
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/input",
             out="//tmp/output",
-            command="cat",
+            command=with_breakpoint("cat && BREAKPOINT"),
             spec={
-                "mapper": {
-                    "format": "dsv"
-                },
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
             })
+        wait_breakpoint(job_count=5)
 
         for n in get("//sys/nodes"):
             job_controller = get("//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
@@ -633,53 +631,22 @@ print row + table_index
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
         op = map(
-            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/input",
             out=["//tmp/out_1", "<row_count_limit=3>//tmp/out_2"],
-            command="cat >&4",
+            command=with_breakpoint("cat >&4 ; BREAKPOINT"),
             spec={
-                "mapper": {
-                    "format": "dsv"
-                },
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
             })
 
-        for i in xrange(3):
-            op.resume_job(op.jobs[0])
+        jobs = wait_breakpoint(job_count=5)
+        for job_id in jobs[:3]:
+            release_breakpoint(job_id=job_id)
 
         op.track()
         assert len(read_table("//tmp/out_1")) == 0
         assert len(read_table("//tmp/out_2")) == 3
-
-    @unix_only
-    def test_ordered_map_row_count_limit(self):
-        create("table", "//tmp/input")
-        for i in xrange(5):
-            write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
-
-        create("table", "//tmp/output")
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            in_="//tmp/input",
-            out="<row_count_limit=3>//tmp/output",
-            ordered=True,
-            command="cat",
-            spec={
-                "mapper": {
-                    "format": "dsv"
-                },
-                "data_size_per_job": 1,
-                "max_failed_job_count": 1
-            })
-
-        for i in xrange(3):
-            op.resume_job(op.jobs[0])
-
-        op.track()
-        assert len(read_table("//tmp/output")) == 3
 
     def test_multiple_row_count_limit(self):
         create("table", "//tmp/input")
@@ -687,6 +654,8 @@ print row + table_index
         create("table", "//tmp/output")
         with pytest.raises(YtError):
             map(in_="//tmp/input",
+                # We don't track operation to make sure that we can't even start it.
+                dont_track=True,
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
 
@@ -829,14 +798,13 @@ print row + table_index
             job_type = "ordered_map"
         create("table", output)
 
-        events = EventsOnFs()
         op = map(
             ordered=ordered,
             dont_track=True,
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
-            command="""read; echo "${{REPLY/(???)/(job)}}"; echo "$REPLY" ; {breakpoint_cmd} ; cat""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}"; echo "$REPLY" ; BREAKPOINT ; cat"""),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -848,9 +816,9 @@ print row + table_index
                 "enable_job_splitting": False,
             })
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
         interrupt_job(jobs[0])
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         result = read_table("//tmp/output", verbose=False)
@@ -963,9 +931,8 @@ print row + table_index
         jobs = get("//sys/operations/" + op.id + "/jobs/@count")
         assert jobs == 10
 
-    # ToDo(psushin): uncomment and use parameter after YT-7064.
-    # @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_job_splitter(self):
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_job_splitter(self, ordered):
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
@@ -987,7 +954,7 @@ done
 """
 
         op = map(
-            ordered=False,
+            ordered=ordered,
             dont_track=True,
             label="split_job",
             in_=input_,

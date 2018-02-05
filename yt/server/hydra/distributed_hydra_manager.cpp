@@ -469,7 +469,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor_;
 
-    yhash<TString, NProfiling::TSimpleCounter> RestartCounters_;
+    THashMap<TString, NProfiling::TSimpleCounter> RestartCounters_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
 from yt_commands import *
 
 from flaky import flaky
@@ -13,7 +13,7 @@ from collections import defaultdict
 cgroups_delta_node_config = {
     "exec_agent": {
         "enable_cgroups": True,                                       # <= 18.4
-        "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+        "supported_cgroups": ["cpuacct", "blkio", "cpu"],             # <= 18.4
         "slot_manager": {
             "enforce_job_control": True,                              # <= 18.4
             "job_environment": {
@@ -21,7 +21,6 @@ cgroups_delta_node_config = {
                 "supported_cgroups": [                                # >= 18.5
                     "cpuacct",
                     "blkio",
-                    "memory",
                     "cpu"],
             },
         }
@@ -58,22 +57,22 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="strace_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat")
+            command="{notify_running} ; sleep 5000".format(notify_running=events_on_fs().notify_event_cmd("job_is_running")))
 
-        result = strace_job(op.jobs[0])
+        events_on_fs().wait_event("job_is_running")
+        jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        result = strace_job(jobs[0])
 
+        assert len(result) > 0
         for pid, trace in result["traces"].iteritems():
-            if trace["process_name"] != "sleep" and "No such process" not in trace["trace"]:
-                assert trace["trace"].startswith("Process {0} attached".format(pid))
+            assert trace["trace"].startswith("Process {0} attached".format(pid))
             assert "process_command_line" in trace
             assert "process_name" in trace
 
-        op.resume_jobs()
-        op.track()
+        op.abort()
 
     @unix_only
     def test_signal_job_with_no_job_restart(self):
@@ -81,13 +80,12 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="signal_job_with_no_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="""(trap "echo got=SIGUSR1" USR1 ; trap "echo got=SIGUSR2" USR2 ; cat ; {breakpoint_cmd})""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""(trap "echo got=SIGUSR1" USR1 ; trap "echo got=SIGUSR2" USR2 ; cat ; BREAKPOINT)"""),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -95,12 +93,12 @@ class TestJobProber(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
 
         signal_job(jobs[0], "SIGUSR1")
         signal_job(jobs[0], "SIGUSR2")
 
-        events.release_breakpoint()
+        release_breakpoint()
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
@@ -113,13 +111,12 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="""(trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1 ; cat ; {breakpoint_cmd})""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            command=with_breakpoint("""(trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1 ; cat ; BREAKPOINT)"""),
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -127,10 +124,10 @@ class TestJobProber(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-        jobs = events.wait_breakpoint()
+        jobs = wait_breakpoint()
 
         signal_job(jobs[0], "SIGUSR1")
-        events.release_breakpoint()
+        release_breakpoint()
 
         op.track()
 
@@ -151,18 +148,18 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
             spec={
                 "data_size_per_job": 1
             })
 
-        abandon_job(op.jobs[3])
+        jobs = wait_breakpoint(job_count=5)
+        abandon_job(jobs[0])
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
         assert len(read_table("//tmp/t2")) == 4
 
@@ -174,15 +171,14 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="<sorted_by=[key]>//tmp/t2",
-            command="sleep 5; cat")
+            command=with_breakpoint("cat ; BREAKPOINT"))
 
-        abandon_job(op.jobs[0])
+        jobs = wait_breakpoint()
+        abandon_job(jobs[0])
 
-        op.resume_jobs()
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
@@ -198,20 +194,20 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
             spec={
                 "data_size_per_job": 1
             },
             authenticated_user="u1")
+        jobs = wait_breakpoint(job_count=5)
 
         with pytest.raises(YtError):
-            abandon_job(op.jobs[3], authenticated_user="u2")
+            abandon_job(jobs[0], authenticated_user="u2")
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
         assert len(read_table("//tmp/t2")) == 5
 
@@ -248,13 +244,12 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="sleep 10; cat")
+            command=with_breakpoint("BREAKPOINT ; cat"))
+        job_id = wait_breakpoint()[0]
 
-        job_id = op.jobs[0]
         r = poll_job_shell(job_id, operation="spawn", term="screen-256color", height=50, width=132)
         shell_id = r["shell_id"]
         self._poll_until_prompt(job_id, shell_id)
@@ -272,7 +267,6 @@ class TestJobProber(YTEnvSetup):
 
         abandon_job(job_id)
 
-        op.resume_jobs()
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
@@ -283,13 +277,12 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="sleep 10; cat")
+            command=with_breakpoint("cat ; BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
 
-        job_id = op.jobs[0]
         r = poll_job_shell(job_id, operation="spawn", command="echo $TERM; tput lines; tput cols; env | grep -c YT_OPERATION_ID")
         shell_id = r["shell_id"]
         output = self._poll_until_shell_exited(job_id, shell_id)
@@ -303,7 +296,6 @@ class TestJobProber(YTEnvSetup):
 
         abandon_job(job_id)
 
-        op.resume_jobs()
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
@@ -317,14 +309,13 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
             authenticated_user="u1")
 
-        job_id = op.jobs[0]
+        job_id = wait_breakpoint()[0]
         with pytest.raises(YtError):
             poll_job_shell(
                 job_id,
@@ -333,9 +324,7 @@ class TestJobProber(YTEnvSetup):
                 height=50,
                 width=132,
                 authenticated_user="u2")
-
-        op.resume_jobs()
-        op.track()
+        op.abort()
 
     def get_job_count_profiling(self):
         time.sleep(1.2)
@@ -357,7 +346,6 @@ class TestJobProber(YTEnvSetup):
                 continue
             abort_reason = dict(key)["abort_reason"]
             job_count["abort_reason"][abort_reason] += value
-
         return job_count
 
     @unix_only
@@ -371,18 +359,18 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             label="abort_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
             spec={
                 "data_size_per_job": 1
             })
 
-        abort_job(op.jobs[3])
+        jobs = wait_breakpoint(job_count=5)
+        abort_job(jobs[0])
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
 
         assert len(read_table("//tmp/t2")) == 5

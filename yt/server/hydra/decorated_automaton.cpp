@@ -21,7 +21,8 @@
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/pipes/async_reader.h>
+#include <yt/core/net/connection.h>
+
 #include <yt/core/pipes/pipe.h>
 
 #include <yt/core/profiling/timing.h>
@@ -307,7 +308,7 @@ public:
     { }
 
 private:
-    TAsyncReaderPtr InputStream_;
+    IAsyncInputStreamPtr InputStream_;
     std::unique_ptr<TFile> OutputFile_;
 
     TFuture<void> AsyncTransferResult_;
@@ -344,7 +345,7 @@ private:
             2, // stderr
             int(OutputFile_->GetHandle())
         });
-        TFileOutput output(*OutputFile_);
+        TUnbufferedFileOutput output(*OutputFile_);
         auto writer = CreateAsyncAdapter(&output);
         Owner_->SaveSnapshot(writer)
             .Get()
@@ -613,6 +614,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
     , BatchCommitTimeCounter_("/batch_commit_time")
+    , MutationWatiTimeCounter_("/mutation_wait_time", {CellManager_->GetCellIdTag()})
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
@@ -1062,11 +1064,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         auto syncTime = GetInstant() - context->GetTimestamp();
 
         if (!IsRecovery()) {
-            Profiler.Enqueue(
-                "/mutation_wait_time",
-                DurationToValue(syncTime),
-                EMetricType::Gauge,
-                {CellManager_->GetCellIdTag()});
+            Profiler.Update(MutationWatiTimeCounter_, DurationToValue(syncTime));
         }
 
         auto* descriptor = GetTypeDescriptor(mutationType);

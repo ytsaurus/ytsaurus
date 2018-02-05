@@ -60,7 +60,7 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     //! Each vector is sorted by decreasing expiration time.
-    yhash<TBlockId, std::vector<TPeerInfo>> Table_;
+    THashMap<TBlockId, std::vector<TPeerInfo>> Table_;
 
     TInstant LastSwept_;
 

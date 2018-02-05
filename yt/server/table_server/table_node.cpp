@@ -46,6 +46,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, DesiredTabletSize);
     Save(context, InMemoryMode);
     Save(context, DesiredTabletCount);
+    Save(context, TabletErrorCount);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -72,6 +73,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     //COMPAT(savrus)
     if (context.GetVersion() >= 622) {
         Load(context, DesiredTabletCount);
+    }
+    //COMPAT(iskhakovt)
+    if (context.GetVersion() >= 628) {
+        Load(context, TabletErrorCount);
     }
 }
 

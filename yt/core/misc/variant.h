@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "mpl.h"
 
 #include <memory>
 
@@ -49,7 +50,7 @@ public:
     TVariant(const TVariant& other);
 
     //! Constructs an instance by moving another instance.
-    TVariant(TVariant&& other);
+    TVariant(TVariant&& other) noexcept(NMpl::TNothrowMoveConstructible<Ts...>::Value);
 
     //! Constructs an instance by copying a given value.
     template <class T>
@@ -77,7 +78,7 @@ public:
     TVariant(TVariantTypeTag<T>, TArgs&&... args);
 
     //! Destroys the instance.
-    ~TVariant();
+    ~TVariant() noexcept(NMpl::TNothrowDestructible<Ts...>::Value);
 
     //! Assigns a given value.
     template <class T>
@@ -91,7 +92,7 @@ public:
             !std::is_same<typename std::decay<T>::type, TVariant<Ts...>>::value
         >::type
     >
-    TVariant& operator= (T&& value);
+    TVariant& operator= (T&& value) noexcept(NMpl::TNothrowMoveAssignable<Ts...>::Value);
 
     //! Assigns a given instance.
     TVariant& operator= (const TVariant& other);

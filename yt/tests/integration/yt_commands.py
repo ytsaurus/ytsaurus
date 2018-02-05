@@ -23,6 +23,7 @@ clusters_drivers = {}
 is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
+_events_on_fs = None
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
@@ -514,6 +515,42 @@ def check_permission(user, permission, path, **kwargs):
     kwargs["path"] = path
     return yson.loads(execute_command("check_permission", kwargs))
 
+def get_file_from_cache(md5, cache_path, **kwargs):
+    kwargs["md5"] = md5
+    kwargs["cache_path"] = cache_path
+    return execute_command("get_file_from_cache", kwargs)
+
+def put_file_to_cache(path, md5, **kwargs):
+    kwargs["path"] = path
+    kwargs["md5"] = md5
+    return execute_command("put_file_to_cache", kwargs)
+
+###########################################################################
+
+def reset_events_on_fs():
+    global _events_on_fs
+    _events_on_fs = None
+
+def events_on_fs():
+    global _events_on_fs
+    if _events_on_fs is None:
+        _events_on_fs = EventsOnFs()
+    return _events_on_fs
+
+def with_breakpoint(cmd):
+    if "BREAKPOINT" not in cmd:
+        raise ValueError("Command doesn't have BREAKPOINT: {0}".format(cmd))
+    result = cmd.replace("BREAKPOINT", events_on_fs().breakpoint_cmd(), 1)
+    if "BREAKPOINT" in result:
+        raise ValueError("Command has multiple BREAKPOINT: {0}".format(cmd))
+    return result
+
+def wait_breakpoint(*args, **kwargs):
+    return events_on_fs().wait_breakpoint(*args, **kwargs)
+
+def release_breakpoint(*args, **kwargs):
+    return events_on_fs().release_breakpoint(*args, **kwargs)
+
 class TimeoutError(Exception):
     pass
 
@@ -544,6 +581,10 @@ class EventsOnFs(object):
             if datetime.now() > deadline:
                 raise TimeoutError("Timeout exceeded while waiting for {0}".format(event_name))
             time.sleep(0.1)
+
+    def check_event(self, event_name):
+        file_name = self._get_event_filename(event_name)
+        return os.path.exists(file_name)
 
     def wait_event_cmd(self, event_name, timeout=timedelta(seconds=60)):
         return (
@@ -646,11 +687,10 @@ class EventsOnFs(object):
             raise ValueError("event_name must be non empty")
         return os.path.join(self._tmpdir, event_name)
 
+###########################################################################
 
 class Operation(object):
     def __init__(self):
-        self.resumed_jobs = __builtin__.set()
-
         self._tmpdir = ""
         self._poll_frequency = 0.1
 
@@ -666,66 +706,6 @@ class Operation(object):
         job_phase_path = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(node, job_id)
         return get(job_phase_path, verbose=False)
 
-    def wait_for_running_phase(self, timeout=5.0):
-        while True:
-            wait = False
-            for job in self.jobs:
-                try:
-                    if self.get_job_phase(job) != "running":
-                        wait = True
-                except YtResponseError as error:
-                    if error.is_resolve_error():
-                        continue
-                    raise
-
-            if wait == False:
-                break
-
-            if timeout <= 0:
-                TimeoutError("Job phase didn't become running within timeout")
-
-            print >>sys.stderr, "Some jobs are not in running phase yet, waiting..."
-            time.sleep(self._poll_frequency)
-            timeout -= self._poll_frequency
-
-    def ensure_jobs_running(self, timeout=20.0):
-        print >>sys.stderr, "Ensure operation jobs are running %s" % self.id
-
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(self.id)
-        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(self.id)
-
-        # Wait till all jobs are scheduled.
-        self.jobs = []
-        running_count = 0
-        pending_count = 0
-        while (running_count == 0 or pending_count > 0) and timeout > 0:
-            time.sleep(self._poll_frequency)
-            timeout -= self._poll_frequency
-            try:
-                progress = get(progress_path + "/jobs", verbose=False, verbose_error=False)
-                running_count = progress["running"]
-                pending_count = progress["pending"]
-            except YtResponseError as error:
-                # running_jobs directory is not created yet.
-                if error.is_resolve_error():
-                    continue
-                raise
-
-        if timeout <= 0:
-            raise TimeoutError("Jobs didn't become running within timeout")
-
-        self.jobs = list(frozenset(ls(jobs_path)) - self.resumed_jobs)
-
-        self.wait_for_running_phase()
-
-        # Wait till all jobs are actually running.
-        while not all([os.path.exists(os.path.join(self._tmpdir, "started_" + job)) for job in self.jobs]) and timeout > 0:
-            time.sleep(self._poll_frequency)
-            timeout -= self._poll_frequency
-
-        if timeout <= 0:
-            raise TimeoutError("Could not start jobs within timeout")
-
     def ensure_running(self, timeout=2.0):
         print >>sys.stderr, "Ensure operation is running %s" % self.id
 
@@ -737,28 +717,6 @@ class Operation(object):
 
         if state != "running":
             raise TimeoutError("Operation didn't become running within timeout")
-
-    def _remove_job_files(self, job):
-        os.unlink(os.path.join(self._tmpdir, "started_" + job))
-
-    def resume_job(self, job):
-        print >>sys.stderr, "Resume operation job %s" % job
-
-        self.resumed_jobs.add(job)
-        self.jobs.remove(job)
-        self._remove_job_files(job)
-
-    def resume_jobs(self):
-        if self.jobs is None:
-            raise RuntimeError('"resume_jobs" must be called before resuming jobs')
-
-        for job in self.jobs:
-            self._remove_job_files(job)
-
-        try:
-            os.rmdir(self._tmpdir)
-        except OSError:
-            sys.excepthook(*sys.exc_info())
 
     def get_job_count(self, state):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
@@ -826,8 +784,7 @@ class Operation(object):
         abort_op(self.id, **kwargs)
 
     def complete(self, **kwargs):
-        kwargs["operation_id"] = self.id
-        execute_command("complete_op", kwargs)
+        complete_op(self.id, **kwargs)
 
     def suspend(self, **kwargs):
         suspend_op(self.id, **kwargs)
@@ -880,26 +837,6 @@ def start_op(op_type, **kwargs):
 
     operation = Operation()
 
-    wait_for_jobs = kwargs.get("wait_for_jobs", False)
-    if wait_for_jobs:
-        del kwargs["wait_for_jobs"]
-        paths = ["command", "mapper_command", "reducer_command"] + \
-                [["spec", "tasks", task_name, "command"] for task_name in kwargs.get("spec", {}).get("tasks", [])]
-        for path in paths:
-            label = kwargs.get("label", "test")
-            if not operation._tmpdir:
-                operation._tmpdir = create_tmpdir(label)
-            flat_path = flatten(path)
-            command = get_branch(kwargs, flat_path)
-            if command is not None:
-                set_branch(kwargs, flat_path,
-                    " ( touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
-                    " {1}\n"
-                    " while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n ) "
-                    .format(
-                        operation._tmpdir,
-                        command))
-
     change(kwargs, "table_path", ["spec", "table_path"])
     change(kwargs, "in_", ["spec", input_name])
     change(kwargs, "out", ["spec", output_name])
@@ -923,12 +860,6 @@ def start_op(op_type, **kwargs):
 
     operation.id = yson.loads(execute_command("start_op", kwargs))
 
-    if wait_for_jobs:
-        wait_timeout = kwargs.get("wait_timeout", 20)
-        if "wait_timeout" in kwargs:
-            del kwargs["wait_timeout"]
-        operation.ensure_jobs_running(wait_timeout)
-
     if track:
         operation.track()
 
@@ -941,6 +872,10 @@ def abort_op(op_id, **kwargs):
 def suspend_op(op_id, **kwargs):
     kwargs["operation_id"] = op_id
     execute_command("suspend_op", kwargs)
+
+def complete_op(op_id, **kwargs):
+    kwargs["operation_id"] = op_id
+    execute_command("complete_op", kwargs)
 
 def resume_op(op_id, **kwargs):
     kwargs["operation_id"] = op_id

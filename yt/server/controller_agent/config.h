@@ -156,6 +156,8 @@ public:
     //! Maximum number of output tables times job count an operation can have.
     int MaxOutputTablesTimesJobsCount;
 
+    TJobSplitterConfigPtr JobSplitter;
+
     TOperationOptions();
 };
 
@@ -188,7 +190,6 @@ private:
 
 public:
     NControllerAgent::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
-    TJobSplitterConfigPtr JobSplitter;
 
     TMapOperationOptions();
 };
@@ -237,8 +238,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions, 0x91371bf5);
 
 public:
-    TJobSplitterConfigPtr JobSplitter;
-
     TReduceOperationOptions();
 };
 
@@ -416,8 +415,11 @@ public:
     //! Controller agent-to-scheduler heartbeat failure backoff.
     TDuration ControllerAgentHeartbeatFailureBackoff;
 
-    //! Period between requesting exec nodes from scheduler.
-    TDuration ExecNodesRequestPeriod;
+    //! Period for requesting exec nodes from scheduler.
+    TDuration ExecNodesUpdatePeriod;
+
+    //! Period for pushing operation alerts from agent to scheduler.
+    TDuration OperationAlertsUpdatePeriod;
 
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
@@ -545,7 +547,7 @@ public:
     TVanillaOperationOptionsPtr VanillaOperationOptions;
 
     //! Default environment variables set for every job.
-    yhash<TString, TString> Environment;
+    THashMap<TString, TString> Environment;
 
     //! If |true|, jobs are revived from snapshot.
     bool EnableJobRevival;

@@ -78,7 +78,7 @@ private:
         TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
         TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
 
-        yhash<TKey, TItem*, THash> ItemMap;
+        THashMap<TKey, TItem*, THash> ItemMap;
 
         std::vector<TItem*> TouchBuffer;
         std::atomic<int> TouchBufferPosition = {0};

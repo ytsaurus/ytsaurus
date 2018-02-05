@@ -1,5 +1,7 @@
 package NYT.NYTree.NProto;
 
+import "yt/core/yson/proto/protobuf_interop.proto";
+
 option java_package = "ru.yandex.yt.ytree";
 option java_multiple_files = true;
 
@@ -13,6 +15,7 @@ message TAttribute
 
 message TAttributeDictionary
 {
+    option (NYT.NYson.NProto.attribute_dictionary) = true;
     repeated TAttribute attributes = 1;
 }
 

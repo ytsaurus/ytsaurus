@@ -260,12 +260,14 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/query_client/range_inferrer.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/program/names.cpp
   ${CMAKE_CURRENT_LIST_DIR}/program/program.cpp
   ${CMAKE_CURRENT_LIST_DIR}/program/program_config_mixin.cpp
   ${CMAKE_CURRENT_LIST_DIR}/program/program_cgroup_mixin.cpp
   ${CMAKE_CURRENT_LIST_DIR}/program/program_tool_mixin.cpp
   ${CMAKE_CURRENT_LIST_DIR}/program/program_pdeathsig_mixin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/build_attributes.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/configure_singletons.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/config.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/helpers.cpp

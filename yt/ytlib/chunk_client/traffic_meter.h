@@ -44,9 +44,9 @@ public:
         const TDataCenterName& destinationDataCenter,
         i64 byteCount);
 
-    yhash<TDataCenterName, i64> GetInboundByteCountBySource() const;
-    yhash<TDataCenterName, i64> GetOutboundByteCountByDestination() const;
-    yhash<TDirection, i64> GetByteCountByDirection() const;
+    THashMap<TDataCenterName, i64> GetInboundByteCountBySource() const;
+    THashMap<TDataCenterName, i64> GetOutboundByteCountByDestination() const;
+    THashMap<TDirection, i64> GetByteCountByDirection() const;
 
     TDuration GetDuration() const;
 
@@ -54,12 +54,12 @@ private:
     const TDataCenterName LocalDataCenter_;
     TSpinLock Lock_;
     TInstant StartTime_ = TInstant::Zero();
-    yhash<TDirection, i64> Data_;
-    yhash<TDataCenterName, i64> InboundData_;
-    yhash<TDataCenterName, i64> OutboundData_;
+    THashMap<TDirection, i64> Data_;
+    THashMap<TDataCenterName, i64> InboundData_;
+    THashMap<TDataCenterName, i64> OutboundData_;
 
     template <typename T>
-    void IncrementByteCountImpl(yhash<T, i64>& data, const T& key, i64 byteCount);
+    void IncrementByteCountImpl(THashMap<T, i64>& data, const T& key, i64 byteCount);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTrafficMeter)

@@ -517,6 +517,24 @@ struct TFileWriterOptions
     TFileWriterConfigPtr Config;
 };
 
+struct TGetFileFromCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+{
+    NYPath::TYPath CachePath;
+};
+
+struct TPutFileToCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+    , public TMutatingOptions
+    , public TPrerequisiteOptions
+{
+    NYPath::TYPath CachePath;
+};
+
 struct TJournalReaderOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
@@ -711,7 +729,7 @@ struct TOperation
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
     NScheduler::EOperationState OperationState;
-    TString Pool;
+    TNullable<TString> Pool;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;
     NYson::TYsonString BriefSpec;
@@ -724,8 +742,8 @@ struct TOperation
 struct TListOperationsResult
 {
     std::vector<TOperation> Operations;
-    TNullable<yhash<TString, i64>> PoolCounts;
-    TNullable<yhash<TString, i64>> UserCounts;
+    TNullable<THashMap<TString, i64>> PoolCounts;
+    TNullable<THashMap<TString, i64>> UserCounts;
     TNullable<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
     TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
     TNullable<i64> FailedJobsCount;
@@ -754,6 +772,16 @@ struct TListJobsResult
     int CypressJobCount = -1;
     int SchedulerJobCount = -1;
     int ArchiveJobCount = -1;
+};
+
+struct TGetFileFromCacheResult
+{
+    NYPath::TYPath Path;
+};
+
+struct TPutFileToCacheResult
+{
+    NYPath::TYPath Path;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -970,6 +998,16 @@ struct IClient
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
+
+    // Files
+    virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) = 0;
+
+    virtual TFuture<TPutFileToCacheResult> PutFileToCache(
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

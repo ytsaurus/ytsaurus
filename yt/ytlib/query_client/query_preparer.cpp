@@ -1604,7 +1604,7 @@ class TSchemaProxy
 public:
     TSchemaProxy() = default;
 
-    explicit TSchemaProxy(const yhash<NAst::TReference, TBaseColumn>& lookup)
+    explicit TSchemaProxy(const THashMap<NAst::TReference, TBaseColumn>& lookup)
         : Lookup_(lookup)
     { }
 
@@ -1654,14 +1654,14 @@ public:
     virtual void Finish()
     { }
 
-    const yhash<NAst::TReference, TBaseColumn>& GetLookup() const
+    const THashMap<NAst::TReference, TBaseColumn>& GetLookup() const
     {
         return Lookup_;
     }
 
 private:
-    yhash<NAst::TReference, TBaseColumn> Lookup_;
-    yhash<std::pair<TString, EValueType>, TBaseColumn> AggregateLookup_;
+    THashMap<NAst::TReference, TBaseColumn> Lookup_;
+    THashMap<std::pair<TString, EValueType>, TBaseColumn> AggregateLookup_;
 
 protected:
     virtual TNullable<TBaseColumn> ProvideColumn(const NAst::TReference& /*reference*/)
@@ -1732,7 +1732,7 @@ public:
 
 private:
     std::vector<TColumnDescriptor>* Mapping_;
-    yhash<TString, size_t> ColumnsCollisions_;
+    THashMap<TString, size_t> ColumnsCollisions_;
     const TTableSchema SourceTableSchema_;
     const TNullable<TString> TableName_;
 
@@ -1746,7 +1746,7 @@ public:
     TJoinSchemaProxy(
         std::vector<TString>* selfJoinedColumns,
         std::vector<TString>* foreignJoinedColumns,
-        const yhash_set<NAst::TReference>& sharedColumns,
+        const THashSet<NAst::TReference>& sharedColumns,
         TSchemaProxyPtr self,
         TSchemaProxyPtr foreign)
         : SharedColumns_(sharedColumns)
@@ -1790,7 +1790,7 @@ public:
     }
 
 private:
-    const yhash_set<NAst::TReference> SharedColumns_;
+    const THashSet<NAst::TReference> SharedColumns_;
     const TSchemaProxyPtr Self_;
     const TSchemaProxyPtr Foreign_;
 
@@ -2203,7 +2203,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
         std::vector<std::pair<TConstExpressionPtr, bool>> selfEquations;
         std::vector<TConstExpressionPtr> foreignEquations;
-        yhash_set<NAst::TReference> sharedColumns;
+        THashSet<NAst::TReference> sharedColumns;
         // Merge columns.
         for (const auto& referenceExpr : join.Fields) {
             auto selfColumn = schemaProxy->GetColumnPtr(referenceExpr->Reference);
@@ -2298,7 +2298,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 break;
             }
 
-            yhash_set<TString> references;
+            THashSet<TString> references;
             auto evaluatedColumnExpression = PrepareExpression(
                 foreignColumnExpression.Get(),
                 foreignTableSchema,
@@ -2429,7 +2429,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 break;
             }
 
-            yhash_set<TString> references;
+            THashSet<TString> references;
             auto evaluatedColumnExpression = PrepareExpression(
                 expression.Get(),
                 query->OriginalSchema,
@@ -2539,7 +2539,7 @@ TConstExpressionPtr PrepareExpression(
     const TString& source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
-    yhash_set<TString>* references)
+    THashSet<TString>* references)
 {
     return PrepareExpression(
         *ParseSource(source, EParseMode::Expression),
@@ -2552,7 +2552,7 @@ TConstExpressionPtr PrepareExpression(
     const TParsedSource& parsedSource,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
-    yhash_set<TString>* references)
+    THashSet<TString>* references)
 {
     auto expr = parsedSource.AstHead.Ast.As<NAst::TExpressionPtr>();
     const auto& aliasMap = parsedSource.AstHead.AliasMap;

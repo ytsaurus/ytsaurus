@@ -789,11 +789,11 @@ private:
     int RackCount_ = 0;
     TRackSet UsedRackIndexes_;
 
-    yhash<TString, TNode*> AddressToNodeMap_;
-    yhash_mm<TString, TNode*> HostNameToNodeMap_;
-    yhash<TTransaction*, TNode*> TransactionToNodeMap_;
-    yhash<TString, TRack*> NameToRackMap_;
-    yhash<TString, TDataCenter*> NameToDataCenterMap_;
+    THashMap<TString, TNode*> AddressToNodeMap_;
+    THashMultiMap<TString, TNode*> HostNameToNodeMap_;
+    THashMap<TTransaction*, TNode*> TransactionToNodeMap_;
+    THashMap<TString, TRack*> NameToRackMap_;
+    THashMap<TString, TDataCenter*> NameToDataCenterMap_;
 
     TPeriodicExecutorPtr IncrementalNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
@@ -857,7 +857,7 @@ private:
         }
 
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
-        const auto& addresses = GetAddresses(nodeAddresses, EAddressType::InternalRpc);
+        const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
         auto& statistics = *request->mutable_statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
@@ -1216,7 +1216,7 @@ private:
             FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false),
-                Config_->IncrementalNodeStatesGossipPeriod);
+                Config_->FullNodeStatesGossipPeriod);
             FullNodeStatesGossipExecutor_->Start();
         }
 

@@ -51,26 +51,25 @@ public:
 
     // 'On all of the media' chunk states. E.g. LostChunks contain chunks that
     // have been lost on all of the media.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostVitalChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, DataMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ParityMissingChunks);
     // Medium-wise unsafely placed chunks: all replicas are on transient media
     // (and requisitions of these chunks demand otherwise).
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousVitalChunks);
-
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousVitalChunks);
 
     // 'On any medium'. E.g. UnderreplicatedChunks contain chunks that are
     // underreplicated on at least one medium.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, QuorumMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnderreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, OverreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, QuorumMissingChunks);
     // Rack-wise unsafely placed chunks.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
 
     // src DC -> dst DC -> data size
-    using TInterDCEdgeDataSize = yhash<const NNodeTrackerServer::TDataCenter*, yhash<const NNodeTrackerServer::TDataCenter*, i64>>;
+    using TInterDCEdgeDataSize = THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>>;
     DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeConsumption);
     DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeCapacities);
 
@@ -177,7 +176,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
     const std::unique_ptr<TChunkScanner> RequisitionUpdateScanner_;
 
-    yhash<TJobId, TJobPtr> JobMap_;
+    THashMap<TJobId, TJobPtr> JobMap_;
 
     //! A queue of chunks to be repaired on each medium.
     //! Replica index is always GenericChunkReplicaIndex.
@@ -195,7 +194,7 @@ private:
 
     NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime = {};
     // Cached from InterDCEdgeConsumption and InterDCEdgeCapacities.
-    yhash<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges;
+    THashMap<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges;
 
     void ProcessExistingJobs(
         TNode* node,

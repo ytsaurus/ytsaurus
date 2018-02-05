@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
+#include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -20,6 +21,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/crash_handler.h>
+
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/ytree/node.h>
 
@@ -73,7 +76,7 @@ struct IOperationStrategyHost
 
     virtual const TOperationId& GetId() const = 0;
 
-    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
+    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
     virtual NYTree::IMapNodePtr GetSpec() const = 0;
 
@@ -140,6 +143,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
+    DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeDataPtr, RuntimeData);
+
     DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
 
     DEFINE_BYREF_RW_PROPERTY(NControllerAgent::TOperationControllerReviveResult, ReviveResult);
@@ -179,6 +184,9 @@ public:
     //! Cypress storage mode of the operation.
     DEFINE_BYVAL_RO_PROPERTY(EOperationCypressStorageMode, StorageMode);
 
+    //! Scheduling tag filters of operation pool trees.
+    DEFINE_BYVAL_RW_PROPERTY(std::vector<TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
+
     //! Returns operation id.
     const TOperationId& GetId() const override;
 
@@ -215,19 +223,19 @@ public:
     //! Adds new sample to controller time statistics.
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
 
-    virtual NControllerAgent::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
 
-    //! Sets operation state and adds corresponding event.
-    void SetState(EOperationState state);
+    //! Sets operation state and adds the corresponding event.
+    void SetStateAndEnqueueEvent(EOperationState state);
 
     //! Slot index machinery.
     TNullable<int> FindSlotIndex(const TString& treeId) const override;
     int GetSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int value) override;
-    const yhash<TString, int>& GetSlotIndices() const;
+    const THashMap<TString, int>& GetSlotIndices() const;
 
     //! Returns a cancelable control invoker corresponding to this operation.
     const IInvokerPtr& GetCancelableControlInvoker();
@@ -263,7 +271,7 @@ private:
     const TCancelableContextPtr CancelableContext_;
     const IInvokerPtr CancelableInvoker_;
 
-    yhash<TString, int> TreeIdToSlotIndex_;
+    THashMap<TString, int> TreeIdToSlotIndex_;
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();
@@ -274,6 +282,33 @@ private:
 #undef DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH
 
 DEFINE_REFCOUNTED_TYPE(TOperation)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationRuntimeData
+    : public TIntrinsicRefCounted
+{
+public:
+    int GetPendingJobCount() const;
+    void SetPendingJobCount(int value);
+
+    TJobResources GetNeededResources();
+    void SetNeededResources(const TJobResources& value);
+
+    TJobResourcesWithQuotaList GetMinNeededJobResources() const;
+    void SetMinNeededJobResources(const TJobResourcesWithQuotaList& value);
+
+private:
+    std::atomic<int> PendingJobCount_ = {0};
+
+    mutable NConcurrency::TReaderWriterSpinLock NeededResourcesLock_;
+    TJobResources NeededResources_;
+
+    mutable NConcurrency::TReaderWriterSpinLock MinNeededResourcesJobLock_;
+    TJobResourcesWithQuotaList MinNeededJobResources_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 

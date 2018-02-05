@@ -23,7 +23,7 @@ public:
 
     virtual IChannelPtr CreateChannel(const TAddressMap& addresses) override
     {
-        const auto& address = GetAddress(addresses, Networks_);
+        const auto& address = GetAddressOrThrow(addresses, Networks_);
         return CreateChannel(address);
     }
 

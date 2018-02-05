@@ -147,23 +147,23 @@ public:
     }
 
 private:
-    using TPriorityQueue = std::priority_queue<
+    using TPriorityQueueType = std::priority_queue<
         std::pair<ui64, ui64>,
         std::vector<std::pair<ui64, ui64>>,
         std::greater<std::pair<ui64, ui64>>>;
 
-    const TPriorityQueue DivisorQueue_;
+    const TPriorityQueueType DivisorQueue_;
     const ui64 Estimate_;
     const T Lower_;
     const T Upper_;
 
-    TPriorityQueue CurrentQueue_;
+    TPriorityQueueType CurrentQueue_;
     T Current_ = T();
     ui64 Delta_ = 0;
 
-    static TPriorityQueue CreateDivisorQueue(T lower, const SmallVector<T, 1>& divisors)
+    static TPriorityQueueType CreateDivisorQueue(T lower, const SmallVector<T, 1>& divisors)
     {
-        TPriorityQueue queue;
+        TPriorityQueueType queue;
         for (auto divisor : divisors) {
             ui64 step = lower >= 0 ? Abs(divisor) - (lower % divisor) : - (lower % divisor);
             queue.emplace(step, Abs(divisor));

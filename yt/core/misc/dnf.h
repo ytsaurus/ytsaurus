@@ -21,7 +21,7 @@ public:
     TConjunctiveClause(const std::vector<TString>& include, const std::vector<TString>& exclude);
 
     bool IsSatisfiedBy(const std::vector<TString>& value) const;
-    bool IsSatisfiedBy(const yhash_set<TString>& value) const;
+    bool IsSatisfiedBy(const THashSet<TString>& value) const;
 
     size_t GetHash() const;
 
@@ -49,7 +49,7 @@ public:
     explicit TDnfFormula(const std::vector<TConjunctiveClause>& clauses = {});
 
     bool IsSatisfiedBy(const std::vector<TString>& value) const;
-    bool IsSatisfiedBy(const yhash_set<TString>& value) const;
+    bool IsSatisfiedBy(const THashSet<TString>& value) const;
 
     size_t GetHash() const;
 

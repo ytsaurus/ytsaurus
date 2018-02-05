@@ -25,6 +25,9 @@ message TJobStartInfo
     optional NYT.NProto.TGuid operation_id = 2;
     // Resource limits as predicted by the controller.
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
+    // If missing, either a full spec is provided via attachments
+    // or (otherwise) the scheduler address must be used.
+    optional NNodeTrackerClient.NProto.TAddressMap spec_service_addresses = 4;
 }
 
 message TRspHeartbeat
