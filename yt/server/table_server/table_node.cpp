@@ -90,11 +90,6 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     }
 }
 
-EObjectType TTableNode::GetObjectType() const
-{
-    return EObjectType::Table;
-}
-
 TTableNode* TTableNode::GetTrunkNode()
 {
     return TrunkNode_->As<TTableNode>();
@@ -166,7 +161,7 @@ bool TTableNode::IsUniqueKeys() const
 
 bool TTableNode::IsReplicated() const
 {
-    return GetObjectType() == EObjectType::ReplicatedTable;
+    return GetType() == EObjectType::ReplicatedTable;
 }
 
 bool TTableNode::IsPhysicallySorted() const
