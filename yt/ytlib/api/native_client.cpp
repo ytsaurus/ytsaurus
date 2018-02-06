@@ -323,8 +323,11 @@ class TQueryPreparer
     , public IPrepareCallbacks
 {
 public:
-    explicit TQueryPreparer(INativeConnectionPtr connection)
-        : Connection_(std::move(connection))
+    TQueryPreparer(
+        NTabletClient::ITableMountCachePtr mountTableCache,
+        IInvokerPtr invoker)
+        : MountTableCache_(std::move(mountTableCache))
+        , Invoker_(std::move(invoker))
     { }
 
     // IPrepareCallbacks implementation.
@@ -334,12 +337,13 @@ public:
         TTimestamp timestamp) override
     {
         return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))
-            .AsyncVia(Connection_->GetInvoker())
+            .AsyncVia(Invoker_)
             .Run(path, timestamp);
     }
 
 private:
-    const INativeConnectionPtr Connection_;
+    const NTabletClient::ITableMountCachePtr MountTableCache_;
+    const IInvokerPtr Invoker_;
 
     TTableSchema GetTableSchema(
         const TRichYPath& path,
@@ -359,8 +363,7 @@ private:
         const TRichYPath& path,
         TTimestamp timestamp)
     {
-        const auto& tableMountCache = Connection_->GetTableMountCache();
-        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
+        auto tableInfo = WaitFor(MountTableCache_->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
         tableInfo->ValidateNotReplicated();
@@ -1844,10 +1847,13 @@ private:
             AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
         };
 
-        auto queryPreparer = New<TQueryPreparer>(Connection_);
+        auto queryPreparer = New<TQueryPreparer>(Connection_->GetTableMountCache(), Connection_->GetInvoker());
 
         auto queryExecutor = CreateQueryExecutor(
             Connection_,
+            Connection_->GetInvoker(),
+            Connection_->GetColumnEvaluatorCache(),
+            Connection_->GetQueryEvaluator(),
             ChannelFactory_,
             FunctionImplCache_);
 

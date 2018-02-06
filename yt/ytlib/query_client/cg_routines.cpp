@@ -1239,17 +1239,20 @@ void WriteOpHelper(
         // Continue
     }
 
+    auto& batch = closure.OutputRowsBatch;
+    auto& writer = context->Writer;
+
     LOG_DEBUG("Flushing writer");
-    if (!closure.OutputRowsBatch.empty()) {
+    if (!batch.empty()) {
         bool shouldNotWait;
         {
             NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->WriteTime);
-            shouldNotWait = context->Writer->Write(closure.OutputRowsBatch);
+            shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
             NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
-            WaitFor(context->Writer->GetReadyEvent())
+            WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
     }
