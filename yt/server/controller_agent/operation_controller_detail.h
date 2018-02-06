@@ -148,7 +148,7 @@ private: \
 #define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, affinity, catchStdException) \
     IMPLEMENT_SAFE_METHOD(void, method, signature, args, affinity, catchStdException, )
 
-    IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
+    IMPLEMENT_SAFE_METHOD(TOperationControllerPrepareResult, Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker), false, TOperationControllerPrepareResult())
     IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
 
     IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
@@ -202,15 +202,10 @@ public:
 
     // NB(max42): Don't make Revive safe! It may lead to either destroying all
     // operations on a cluster, or to a scheduler crash.
-    virtual void Revive() override;
+    virtual TOperationControllerReviveResult Revive() override;
 
-    virtual void Initialize() override;
-
-    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
-
-    virtual TOperationControllerInitializationResult GetInitializationResult() override;
-    virtual TOperationControllerReviveResult GetReviveResult() override;
-    virtual NYson::TYsonString GetAttributes() const override;
+    virtual TOperationControllerInitializationResult InitializeClean() override;
+    virtual TOperationControllerInitializationResult InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
 
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) override;
 
@@ -340,7 +335,7 @@ public:
 
     virtual TSnapshotCookie OnSnapshotStarted() override;
 
-    virtual void OnBeforeDisposal() override;
+    virtual void Dispose() override;
 
     virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() override;
 
@@ -534,7 +529,7 @@ protected:
     virtual NTransactionClient::TTransactionId GetOutputTransactionParentId();
     virtual void InitializeStructures();
     virtual void SyncPrepare();
-    virtual void FinishInitialization();
+    TOperationControllerInitializationResult FinishInitialization();
     void InitUpdatingTables();
 
     // Preparation.
@@ -557,7 +552,7 @@ protected:
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
     void InitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
-    void FinishPrepare();
+    TOperationControllerPrepareResult FinishPrepare();
 
     void ParseInputQuery(
         const TString& queryString,
@@ -837,7 +832,7 @@ protected:
 
     virtual void BuildInitializeImmutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildInitializeMutableAttributes(NYTree::TFluentMap fluent) const;
-    virtual void BuildAttributes(NYTree::TFluentMap fluent) const;
+    virtual void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const;
@@ -1016,11 +1011,6 @@ private:
     TSpinLock AlertsLock_;
     TOperationAlertMap Alerts_;
 
-    TOperationControllerInitializationResult InitializationResult_;
-    NYson::TYsonString Attributes_;
-
-    TOperationControllerReviveResult ReviveResult_;
-
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
     ssize_t GetMemoryUsage() const;
@@ -1098,8 +1088,6 @@ private:
     void UpdateSuspiciousJobsYson();
 
     NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
-
-    void DoAbort();
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

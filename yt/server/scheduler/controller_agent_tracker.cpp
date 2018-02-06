@@ -56,6 +56,95 @@ public:
         , RuntimeData_(operation->GetRuntimeData())
     { }
 
+    virtual TFuture<TOperationControllerInitializationResult> InitializeClean() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&IOperationControllerSchedulerHost::InitializeClean, AgentController_)
+            .AsyncVia(AgentController_->GetCancelableInvoker())
+            .Run();
+    }
+
+    virtual TFuture<TOperationControllerInitializationResult> InitializeReviving(const TOperationRevivalDescriptor& descriptor) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&IOperationControllerSchedulerHost::InitializeReviving, AgentController_, descriptor.ControllerTransactions)
+            .AsyncVia(AgentController_->GetCancelableInvoker())
+            .Run();
+    }
+
+    virtual TFuture<TOperationControllerPrepareResult> Prepare() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&IOperationControllerSchedulerHost::Prepare, AgentController_)
+            .AsyncVia(AgentController_->GetCancelableInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> Materialize() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&IOperationControllerSchedulerHost::Materialize, AgentController_)
+            .AsyncVia(AgentController_->GetCancelableInvoker())
+            .Run();
+    }
+
+    virtual TFuture<TOperationControllerReviveResult> Revive() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&IOperationControllerSchedulerHost::Revive, AgentController_)
+            .AsyncVia(AgentController_->GetCancelableInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> Commit() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&IOperationControllerSchedulerHost::Commit, AgentController_)
+            .AsyncVia(AgentController_->GetCancelableInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> Abort() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!AgentController_) {
+            return VoidFuture;
+        }
+        AgentController_->Cancel();
+        return BIND(&IOperationControllerSchedulerHost::Abort, AgentController_)
+            .AsyncVia(AgentController_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> Complete() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&IOperationControllerSchedulerHost::Complete, AgentController_)
+            .AsyncVia(AgentController_->GetCancelableInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> Dispose() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!AgentController_) {
+            return VoidFuture;
+        }
+        return BIND(&IOperationControllerSchedulerHost::Dispose, AgentController_)
+            .AsyncVia(AgentController_->GetInvoker())
+            .Run();
+    }
+
+
     virtual void OnJobStarted(const TJobPtr& job) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -209,17 +298,6 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return RuntimeData_->GetPendingJobCount();
-    }
-
-    virtual NControllerAgent::IOperationControllerPtr FindAgentController() const override
-    {
-        return AgentController_;
-    }
-
-    virtual NControllerAgent::IOperationControllerPtr GetAgentController() const override
-    {
-        YCHECK(AgentController_);
-        return AgentController_;
     }
 
     virtual void SetAgentController(const NControllerAgent::IOperationControllerPtr& controller) override

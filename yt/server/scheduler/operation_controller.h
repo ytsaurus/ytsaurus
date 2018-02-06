@@ -2,6 +2,8 @@
 
 #include "job.h"
 
+#include <yt/server/controller_agent/public.h>
+
 #include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT {
@@ -50,6 +52,34 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
 struct IOperationController
     : public IOperationControllerStrategyHost
 {
+    //! Invokes IOperationControllerSchedulerHost::InitializeClean asynchronously.
+    virtual TFuture<NControllerAgent::TOperationControllerInitializationResult> InitializeClean() = 0;
+
+    //! Invokes IOperationControllerSchedulerHost::InitializeReviving asynchronously.
+    virtual TFuture<NControllerAgent::TOperationControllerInitializationResult> InitializeReviving(const TOperationRevivalDescriptor& descriptor) = 0;
+
+    //! Invokes IOperationControllerSchedulerHost::Prepare asynchronously.
+    virtual TFuture<NControllerAgent::TOperationControllerPrepareResult> Prepare() = 0;
+
+    //! Invokes IOperationControllerSchedulerHost::Materialize asynchronously.
+    virtual TFuture<void> Materialize() = 0;
+
+    //! Invokes IOperationControllerSchedulerHost::Revive asynchronously.
+    virtual TFuture<NControllerAgent::TOperationControllerReviveResult> Revive() = 0;
+
+    //! Invokes IOperationControllerSchedulerHost::Commit asynchronously.
+    virtual TFuture<void> Commit() = 0;
+
+    //! Invokes IOperationControllerSchedulerHost::Abort asynchronously.
+    virtual TFuture<void> Abort() = 0;
+
+    //! Invokes IOperationControllerSchedulerHost::Complete  asynchronously.
+    virtual TFuture<void> Complete() = 0;
+
+    //! Invokes IOperationControllerSchedulerHost::Dispose  asynchronously.
+    virtual TFuture<void> Dispose() = 0;
+
+
     //! Called in the end of heartbeat when scheduler agrees to run operation job.
     virtual void OnJobStarted(const TJobPtr& job) = 0;
 
@@ -75,8 +105,6 @@ struct IOperationController
         NJobTrackerClient::NProto::TJobStatus* status) = 0;
 
     // XXX(ignat): it is temporary methods.
-    virtual NControllerAgent::IOperationControllerPtr FindAgentController() const = 0;
-    virtual NControllerAgent::IOperationControllerPtr GetAgentController() const = 0;
     virtual void SetAgentController(const NControllerAgent::IOperationControllerPtr& controller) = 0;
 };
 

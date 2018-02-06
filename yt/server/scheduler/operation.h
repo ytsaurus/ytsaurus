@@ -45,7 +45,7 @@ void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
 struct TControllerAttributes
 {
     TNullable<NControllerAgent::TOperationControllerInitializationAttributes> InitializationAttributes;
-    TNullable<NYson::TYsonString> Attributes;
+    NYson::TYsonString PrepareAttributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +147,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
 
-    DEFINE_BYREF_RW_PROPERTY(NControllerAgent::TOperationControllerReviveResult, ReviveResult);
+    DEFINE_BYVAL_RW_PROPERTY(bool, RevivedFromSnapshot);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NScheduler::TJobPtr>, RevivedJobs);
 
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain
@@ -165,8 +166,7 @@ public:
     using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
 
-    // TODO(babenko)
-    DEFINE_BYVAL_RW_PROPERTY(NScheduler::IOperationControllerPtr, LocalController);
+    DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, LocalController);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
