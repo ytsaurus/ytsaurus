@@ -8,6 +8,12 @@ namespace NYT {
 
 class TAbortableHttpResponseRegistry;
 
+using TOutageId = size_t;
+
+class TAbortedForTestPurpose
+    : public yexception
+{ };
+
 //
 // Class extends NYT::THttpResponse with possibility to emultate errors.
 class TAbortableHttpResponse
@@ -17,7 +23,7 @@ class TAbortableHttpResponse
 public:
     class TOutage {
     public:
-        TOutage(TString urlPattern, TAbortableHttpResponseRegistry& registry);
+        TOutage(TString urlPattern, size_t responseCount, TAbortableHttpResponseRegistry& registry);
         TOutage(TOutage&&) = default;
         TOutage(const TOutage&) = delete;
         ~TOutage();
@@ -27,6 +33,7 @@ public:
     private:
         TString UrlPattern_;
         TAbortableHttpResponseRegistry& Registry_;
+        TOutageId Id_;
         bool Stopped_ = false;
     };
 
@@ -43,9 +50,9 @@ public:
     // Returns number of aborted responses.
     static int AbortAll(const TString& urlPattern);
 
-    // Starts outage. All future responses which match `urlPattern` (i.e. contain it in url) will fail.
+    // Starts outage. `responseCount` future responses which match `urlPattern` (i.e. contain it in url) will fail.
     // Outage stops when object is destroyed.
-    static TOutage StartOutage(const TString& urlPattern);
+    static TOutage StartOutage(const TString& urlPattern, size_t responseCount = std::numeric_limits<size_t>::max());
 
     void Abort();
     const TString& GetUrl() const;

@@ -572,6 +572,57 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
+    SIMPLE_UNIT_TEST(UnsuccessfulRetries)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryCount = 3;
+        TConfig::Get()->RetryInterval = TDuration::MilliSeconds(0);
+
+        auto client = CreateTestClient();
+        auto path = TRichYPath("//testing/table");
+        client->Create(path.Path_, ENodeType::NT_TABLE);
+
+        try {
+            auto outage = TAbortableHttpResponse::StartOutage("/write_table");
+            auto writer = client->CreateTableWriter<TNode>(path);
+            writer->AddRow(TNode()("key", "value"));
+            writer->Finish();
+            UNIT_FAIL("Retries must have been unsuccessful");
+        } catch (const TAbortedForTestPurpose& e) {
+            // It's OK
+        }
+
+        try {
+            auto outage = TAbortableHttpResponse::StartOutage("/read_table");
+            auto reader = client->CreateRawReader(path, TFormat::YsonBinary());
+            reader->ReadAll();
+            UNIT_FAIL("Retries must have been unsuccessful");
+        } catch (const TAbortedForTestPurpose& e) {
+            // It's OK
+        }
+    }
+
+    SIMPLE_UNIT_TEST(SuccessfulRetries)
+    {
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryCount = 4;
+
+        auto client = CreateTestClient();
+        auto path = TRichYPath("//testing/table");
+        {
+            auto outage = TAbortableHttpResponse::StartOutage("/write_table", TConfig::Get()->RetryCount - 1);
+            auto writer = client->CreateTableWriter<TNode>(path);
+            writer->AddRow(TNode()("key", "value"));
+            UNIT_ASSERT_NO_EXCEPTION(writer->Finish());
+        }
+        {
+            auto outage = TAbortableHttpResponse::StartOutage("/write_table", TConfig::Get()->RetryCount - 1);
+            auto reader = client->CreateTableReader<TNode>(path);
+            UNIT_ASSERT_VALUES_EQUAL(TNode()("key", "value"), reader->GetRow());
+        }
+    }
+
     SIMPLE_UNIT_TEST(TableReaderFromInputStream)
     {
         TString input = "{ key1 = [1; 2; 3; value0]; };  {key2 = { key21 = value1; key22 = value2 };}";

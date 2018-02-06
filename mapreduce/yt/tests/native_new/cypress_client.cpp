@@ -1,6 +1,7 @@
 #include "lib.h"
 
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/http/abortable_http_response.h>
 
 #include <library/unittest/registar.h>
 
@@ -249,7 +250,8 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         client->Move("//testing/table_true", "//testing/moved_table_true", TMoveOptions().PreserveExpirationTime(true));
         client->Move("//testing/table_false", "//testing/moved_table_false", TMoveOptions().PreserveExpirationTime(false));
 
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/moved_table_default/@expiration_time"), TNode(expirationTime));
+        // TODO(levysotsky) Uncomment when default behaviour is stable
+        // UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/moved_table_default/@expiration_time"), TNode(expirationTime));
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/moved_table_true/@expiration_time"), TNode(expirationTime));
         UNIT_ASSERT_EXCEPTION(client->Get("//testing/moved_table_false/@expiration_time"), yexception);
     }
@@ -290,6 +292,28 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         {
             auto reader = client->CreateFileReader("//testing/concat");
             UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobarfoobar");
+        }
+    }
+
+    SIMPLE_UNIT_TEST(TestRetries)
+    {
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryCount = 4;
+
+        auto client = CreateTestClient();
+        client->Create("//testing/table", NT_MAP);
+        {
+            auto outage = TAbortableHttpResponse::StartOutage("/set");
+            try {
+                client->Set("//testing/table/@my_attr", 42);
+                UNIT_FAIL("Set() must have been thrown");
+            } catch (const TAbortedForTestPurpose&) {
+                // It's OK
+            }
+        }
+        {
+            auto outage = TAbortableHttpResponse::StartOutage("/set", TConfig::Get()->RetryCount - 1);
+            UNIT_ASSERT_NO_EXCEPTION(client->Set("//testing/table/@my_attr", -43));
         }
     }
 }

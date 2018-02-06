@@ -10,24 +10,28 @@ namespace NYT {
 
 class TAbortableHttpResponseRegistry {
 public:
-    void StartOutage(TString urlPattern)
+    TOutageId StartOutage(TString urlPattern, size_t responseCount)
     {
         auto g = Guard(Lock_);
-        BrokenUrlPatterns_.insert(std::move(urlPattern));
+        auto id = NextId_++;
+        IdToOutage.emplace(id, TOutageEntry{std::move(urlPattern), responseCount});
+        return id;
     }
 
-    void StopOutage(const TString& urlPattern)
+    void StopOutage(TOutageId id)
     {
         auto g = Guard(Lock_);
-        BrokenUrlPatterns_.erase(urlPattern);
+        IdToOutage.erase(id);
     }
 
     void Add(TAbortableHttpResponse* response)
     {
         auto g = Guard(Lock_);
-        for (const auto& pattern : BrokenUrlPatterns_) {
-            if (response->GetUrl().find(pattern) != TString::npos) {
+        for (auto& p : IdToOutage) {
+            auto& entry = p.second;
+            if (entry.Counter > 0 && response->GetUrl().find(entry.Pattern) != TString::npos) {
                 response->Abort();
+                entry.Counter -= 1;
             }
         }
         ResponseList_.PushBack(response);
@@ -57,19 +61,26 @@ public:
     }
 
 private:
+    struct TOutageEntry
+    {
+        TString Pattern;
+        size_t Counter;
+    };
+
+private:
+    TOutageId NextId_ = 0;
     TIntrusiveList<TAbortableHttpResponse> ResponseList_;
-    THashMultiSet<TString> BrokenUrlPatterns_;
+    THashMap<TOutageId, TOutageEntry> IdToOutage;
     TMutex Lock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortableHttpResponse::TOutage::TOutage(TString urlPattern, TAbortableHttpResponseRegistry& registry)
+TAbortableHttpResponse::TOutage::TOutage(TString urlPattern, size_t responseCount, TAbortableHttpResponseRegistry& registry)
     : UrlPattern_(std::move(urlPattern))
     , Registry_(registry)
-{
-    Registry_.StartOutage(UrlPattern_);
-}
+    , Id_(registry.StartOutage(UrlPattern_, responseCount))
+{ }
 
 TAbortableHttpResponse::TOutage::~TOutage()
 {
@@ -79,7 +90,7 @@ TAbortableHttpResponse::TOutage::~TOutage()
 void TAbortableHttpResponse::TOutage::Stop()
 {
     if (!Stopped_) {
-        Registry_.StopOutage(UrlPattern_);
+        Registry_.StopOutage(Id_);
         Stopped_ = true;
     }
 }
@@ -105,7 +116,7 @@ TAbortableHttpResponse::~TAbortableHttpResponse()
 size_t TAbortableHttpResponse::DoRead(void* buf, size_t len)
 {
     if (Aborted_) {
-        ythrow yexception() << "Response stream was aborted";
+        ythrow TAbortedForTestPurpose();
     }
     return THttpResponse::DoRead(buf, len);
 }
@@ -113,7 +124,7 @@ size_t TAbortableHttpResponse::DoRead(void* buf, size_t len)
 size_t TAbortableHttpResponse::DoSkip(size_t len)
 {
     if (Aborted_) {
-        ythrow yexception() << "Response stream was aborted";
+        ythrow TAbortedForTestPurpose();
     }
     return THttpResponse::DoSkip(len);
 }
@@ -128,9 +139,9 @@ int TAbortableHttpResponse::AbortAll(const TString& urlPattern)
     return TAbortableHttpResponseRegistry::Get().AbortAll(urlPattern);
 }
 
-TAbortableHttpResponse::TOutage TAbortableHttpResponse::StartOutage(const TString& urlPattern)
+TAbortableHttpResponse::TOutage TAbortableHttpResponse::StartOutage(const TString& urlPattern, size_t responseCount)
 {
-    return TOutage(urlPattern, TAbortableHttpResponseRegistry::Get());
+    return TOutage(urlPattern, responseCount, TAbortableHttpResponseRegistry::Get());
 }
 
 const TString& TAbortableHttpResponse::GetUrl() const
