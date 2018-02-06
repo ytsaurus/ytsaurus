@@ -120,12 +120,13 @@ class TestGetOperation(YTEnvSetup):
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
 
-        res_get_operation = get_operation(op.id, attributes=["progress", "state"])
-        res_cypress = get(get_operation_path(op.id, storage_mode) + "/@", attributes=["progress", "state"])
+        for read_from in ("cache", "follower"):
+            res_get_operation = get_operation(op.id, attributes=["progress", "state"], read_from=read_from)
+            res_cypress = get(get_operation_path(op.id, storage_mode) + "/@", attributes=["progress", "state"])
 
-        assert sorted(list(res_get_operation)) == ["progress", "state"]
-        assert sorted(list(res_cypress)) == ["progress", "state"]
-        assert res_get_operation["state"] == res_cypress["state"]
+            assert sorted(list(res_get_operation)) == ["progress", "state"]
+            assert sorted(list(res_cypress)) == ["progress", "state"]
+            assert res_get_operation["state"] == res_cypress["state"]
 
         op.resume_jobs()
         op.track()
