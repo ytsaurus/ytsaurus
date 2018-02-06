@@ -272,7 +272,7 @@ public:
     }
 
     void Write(
-        TTabletSnapshotPtr tabletSnapshot,
+        const TTabletSnapshotPtr& tabletSnapshot,
         const TTransactionId& transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
@@ -408,7 +408,7 @@ public:
     }
 
     TFuture<void> Trim(
-        TTabletSnapshotPtr tabletSnapshot,
+        const TTabletSnapshotPtr& tabletSnapshot,
         i64 trimmedRowCount)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
