@@ -1647,6 +1647,11 @@ private:
 
             for (const auto& pair : AccountMap_) {
                 auto* account = pair.second;
+
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
                 const auto* cellStatistics = account->GetCellStatistics(cellTag);
                 const auto& resourceUsage = committed ? cellStatistics->CommittedResourceUsage : cellStatistics->ResourceUsage;
                 Cerr << account->GetName() << ";"
@@ -1779,6 +1784,11 @@ private:
 
         for (const auto& pair : statMap) {
             auto* account = pair.first;
+
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+
             const auto& stat = pair.second;
             bool log = false;
             const auto& expectedUsage = stat.NodeUsage;
