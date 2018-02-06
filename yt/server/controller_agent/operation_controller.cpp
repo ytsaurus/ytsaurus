@@ -175,19 +175,19 @@ public:
         }));
     }
 
-    virtual void Initialize() override
+    virtual TOperationControllerInitializationResult InitializeClean() override
     {
-        Underlying_->Initialize();
+        return Underlying_->InitializeClean();
     }
 
-    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override
+    virtual TOperationControllerInitializationResult InitializeReviving(TControllerTransactionsPtr operationTransactions) override
     {
-        Underlying_->InitializeReviving(std::move(operationTransactions));
+        return Underlying_->InitializeReviving(std::move(operationTransactions));
     }
 
-    virtual void Prepare() override
+    virtual TOperationControllerPrepareResult Prepare() override
     {
-        Underlying_->Prepare();
+        return Underlying_->Prepare();
     }
 
     virtual void Materialize() override
@@ -205,9 +205,9 @@ public:
         Underlying_->SaveSnapshot(stream);
     }
 
-    virtual void Revive() override
+    virtual TOperationControllerReviveResult Revive() override
     {
-        Underlying_->Revive();
+        return Underlying_->Revive();
     }
 
     virtual void Abort() override
@@ -220,29 +220,19 @@ public:
         Underlying_->Cancel();
     }
 
-    virtual TOperationControllerInitializationResult GetInitializationResult() override
+    virtual void Complete() override
     {
-        return Underlying_->GetInitializationResult();
+        Underlying_->Complete();
     }
 
-    virtual TOperationControllerReviveResult GetReviveResult() override
+    virtual void Dispose() override
     {
-        return Underlying_->GetReviveResult();
-    }
-
-    virtual NYson::TYsonString GetAttributes() const override
-    {
-        return Underlying_->GetAttributes();
+        Underlying_->Dispose();
     }
 
     virtual void OnTransactionAborted(const TTransactionId& transactionId) override
     {
         Underlying_->OnTransactionAborted(transactionId);
-    }
-
-    virtual void Complete() override
-    {
-        Underlying_->Complete();
     }
 
     virtual TCancelableContextPtr GetCancelableContext() const override
@@ -396,11 +386,6 @@ public:
     virtual void OnSnapshotCompleted(const TSnapshotCookie& cookie) override
     {
         return Underlying_->OnSnapshotCompleted(cookie);
-    }
-
-    virtual void OnBeforeDisposal() override
-    {
-        return Underlying_->OnBeforeDisposal();
     }
 
 private:

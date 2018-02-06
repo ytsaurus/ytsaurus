@@ -39,8 +39,8 @@ static const auto& Logger = SchedulerLogger;
 
 void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
-    auto attributes = operation->ControllerAttributes().Attributes;
+    const auto& initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    const auto& prepareAttributes = operation->ControllerAttributes().PrepareAttributes;
     fluent
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
@@ -51,9 +51,9 @@ void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
             fluent
                 .Items(initializationAttributes->Immutable);
         })
-        .DoIf(static_cast<bool>(attributes), [&] (TFluentMap fluent) {
+        .DoIf(static_cast<bool>(prepareAttributes), [&] (TFluentMap fluent) {
             fluent
-                .Items(*attributes);
+                .Items(prepareAttributes);
         })
         .Do(BIND(&BuildMutableOperationAttributes, operation));
 }

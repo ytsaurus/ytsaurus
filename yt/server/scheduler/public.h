@@ -55,6 +55,8 @@ DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
+struct TOperationRevivalDescriptor;
+
 // XXX(babenko): move to private
 class TMasterConnector;
 
@@ -73,8 +75,6 @@ DEFINE_ENUM(ESchedulerAlertType,
     (SyncClusterDirectory)
     (UnrecognizedConfigOptions)
 );
-
-////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EOperationAlertType,
     (UnusedTmpfsSpace)

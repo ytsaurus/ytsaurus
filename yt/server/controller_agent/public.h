@@ -71,6 +71,10 @@ using TOperationIdToOperationMap = THashMap<TOperationId, TOperationPtr>;
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
 
+struct TOperationControllerInitializationResult;
+struct TOperationControllerReviveResult;
+struct TOperationControllerPrepareResult;
+
 struct ISchedulingContext;
 
 struct TJobStartDescriptor;

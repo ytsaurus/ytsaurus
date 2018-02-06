@@ -259,7 +259,7 @@ void TOperationControllerBase::InitializeClients()
     OutputClient = Client;
 }
 
-void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
+TOperationControllerInitializationResult TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
 {
     LOG_INFO("Initializing operation for revive");
 
@@ -367,14 +367,16 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         SyncPrepare();
     }
 
-    FinishInitialization();
+    auto result = FinishInitialization();
 
     LOG_INFO("Operation initialized");
+
+    return result;
 }
 
-void TOperationControllerBase::Initialize()
+TOperationControllerInitializationResult TOperationControllerBase::InitializeClean()
 {
-    LOG_INFO("Initializing operation (Title: %v)",
+    LOG_INFO("Initializing operation for clean start (Title: %v)",
         Spec_->Title);
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] () {
@@ -392,30 +394,11 @@ void TOperationControllerBase::Initialize()
     WaitFor(initializeFuture)
         .ThrowOnError();
 
-    FinishInitialization();
+    auto result = FinishInitialization();
 
     LOG_INFO("Operation initialized");
-}
 
-TOperationControllerInitializationResult TOperationControllerBase::GetInitializationResult()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return std::move(InitializationResult_);
-}
-
-TOperationControllerReviveResult TOperationControllerBase::GetReviveResult()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return std::move(ReviveResult_);
-}
-
-TYsonString TOperationControllerBase::GetAttributes() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Attributes_;
+    return result;
 }
 
 void TOperationControllerBase::InitializeStructures()
@@ -491,25 +474,23 @@ void TOperationControllerBase::InitializeStructures()
     DoInitialize();
 }
 
-void TOperationControllerBase::FinishInitialization()
+TOperationControllerInitializationResult TOperationControllerBase::FinishInitialization()
 {
     UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
 
-    TOperationControllerInitializationAttributes attributes;
-    attributes.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
+    TOperationControllerInitializationResult result;
+    result.InitializationAttributes.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeImmutableAttributes, Unretained(this)))
         .Finish();
-    attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
+    result.InitializationAttributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
         .Finish();
-    attributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
+    result.InitializationAttributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildBriefSpec, Unretained(this)))
         .Finish();
-    attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
-
-    InitializationResult_.InitializationAttributes = attributes;
-
-    InitializationResult_.Transactions = GetTransactions();
+    result.InitializationAttributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
+    result.Transactions = GetTransactions();
+    return result;
 }
 
 void TOperationControllerBase::InitUpdatingTables()
@@ -539,7 +520,7 @@ void TOperationControllerBase::SyncPrepare()
     LockUserFiles();
 }
 
-void TOperationControllerBase::SafePrepare()
+TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 {
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption &&
@@ -606,9 +587,9 @@ void TOperationControllerBase::SafePrepare()
         LockOutputTablesAndGetAttributes();
     }
 
-    FinishPrepare();
-
     InitializeStandardEdgeDescriptors();
+
+    return FinishPrepare();
 }
 
 void TOperationControllerBase::SafeMaterialize()
@@ -714,15 +695,16 @@ void TOperationControllerBase::SaveSnapshot(IOutputStream* output)
 void TOperationControllerBase::SleepInRevive()
 {
     auto delay = Spec_->TestingOperationOptions->DelayInsideRevive;
-
     if (delay) {
         TDelayedExecutor::WaitForDuration(*delay);
     }
 }
 
-void TOperationControllerBase::Revive()
+TOperationControllerReviveResult TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    TOperationControllerReviveResult result;
 
     if (Spec_->FailOnJobRestart) {
         THROW_ERROR_EXCEPTION("Cannot revive operation when spec option fail_on_job_restart is set");
@@ -730,7 +712,7 @@ void TOperationControllerBase::Revive()
 
     if (!Snapshot.Data) {
         Prepare();
-        return;
+        return result;
     }
 
     SleepInRevive();
@@ -738,7 +720,7 @@ void TOperationControllerBase::Revive()
     DoLoadSnapshot(Snapshot);
     Snapshot = TOperationSnapshot();
 
-    ReviveResult_.IsRevivedFromSnapshot = true;
+    result.RevivedFromSnapshot = true;
 
     InitChunkListPools();
 
@@ -746,7 +728,7 @@ void TOperationControllerBase::Revive()
 
     if (IsCompleted()) {
         OnOperationCompleted(/* interrupted */ false);
-        return;
+        return result;
     }
 
     AddAllTaskPendingHints();
@@ -774,14 +756,16 @@ void TOperationControllerBase::Revive()
     MinNeededResourcesSanityCheckExecutor->Start();
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
 
-    FinishPrepare();
+    static_cast<TOperationControllerPrepareResult&>(result) = FinishPrepare();
 
     for (const auto& pair : JobletMap) {
         const auto& joblet = pair.second;
-        ReviveResult_.Jobs.emplace_back(BuildJobFromJoblet(joblet));
+        result.Jobs.emplace_back(BuildJobFromJoblet(joblet));
     }
 
     State = EControllerState::Running;
+
+    return result;
 }
 
 void TOperationControllerBase::AbortAllJoblets()
@@ -2296,8 +2280,10 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
     return false;
 }
 
-void TOperationControllerBase::DoAbort()
+void TOperationControllerBase::SafeAbort()
 {
+    LOG_INFO("Aborting operation controller");
+
     // NB: Errors ignored since we cannot do anything with it.
     Y_UNUSED(WaitFor(Host->FlushOperationNode()));
 
@@ -2360,26 +2346,9 @@ void TOperationControllerBase::DoAbort()
     LOG_INFO("Operation controller aborted");
 }
 
-void TOperationControllerBase::SafeAbort()
-{
-    LOG_INFO("Aborting operation controller");
-
-    // NB: context should be cancelled before aborting transactions,
-    // since controller methods can use these transactions.
-    CancelableContext->Cancel();
-
-    auto asyncResult = BIND(&TOperationControllerBase::DoAbort, MakeStrong(this))
-        .AsyncVia(GetInvoker())
-        .Run();
-    WaitFor(asyncResult)
-        .ThrowOnError();
-}
-
 void TOperationControllerBase::SafeComplete()
 {
-    BIND(&TOperationControllerBase::OnOperationCompleted, MakeStrong(this), true /* interrupted */)
-        .Via(GetCancelableInvoker())
-        .Run();
+    OnOperationCompleted(true);
 }
 
 void TOperationControllerBase::CheckTimeLimit()
@@ -4725,18 +4694,20 @@ void TOperationControllerBase::CollectTotals()
 void TOperationControllerBase::CustomPrepare()
 { }
 
-void TOperationControllerBase::FinishPrepare()
+TOperationControllerPrepareResult TOperationControllerBase::FinishPrepare()
 {
-    Attributes_ = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do(BIND(&TOperationControllerBase::BuildAttributes, Unretained(this)))
+    TOperationControllerPrepareResult result;
+    result.PrepareAttributes = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Do(BIND(&TOperationControllerBase::BuildPrepareAttributes, Unretained(this)))
         .Finish();
+    return result;
 }
 
 void TOperationControllerBase::ClearInputChunkBoundaryKeys()
 {
     for (auto& pair : InputChunkMap) {
         auto& inputChunkDescriptor = pair.second;
-        for (auto chunkSpec : inputChunkDescriptor.InputChunks) {
+        for (const auto& chunkSpec : inputChunkDescriptor.InputChunks) {
             // We don't need boundary key ext after preparation phase (for primary tables only).
             if (InputTables[chunkSpec->GetTableIndex()].IsPrimary()) {
                 chunkSpec->ReleaseBoundaryKeys();
@@ -5516,7 +5487,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
     LastSuccessfulSnapshotTime_ = TInstant::Now();
 }
 
-void TOperationControllerBase::OnBeforeDisposal()
+void TOperationControllerBase::Dispose()
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
 
@@ -5728,7 +5699,7 @@ void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluen
         .Item("user_transaction_id").Value(UserTransactionId);
 }
 
-void TOperationControllerBase::BuildAttributes(TFluentMap fluent) const
+void TOperationControllerBase::BuildPrepareAttributes(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
 

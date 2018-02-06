@@ -690,10 +690,11 @@ public:
                 operation->GetState());
             return operation->GetFinished();
         }
+
         if (operation->GetState() != EOperationState::Running) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
-                "Operation is not running. Its state is %Qlv",
+                "Operation is in %Qlv state",
                 operation->GetState()));
         }
 
@@ -703,9 +704,8 @@ public:
 
         Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions({});
 
-        const auto& controller = operation->GetLocalController()->GetAgentController();
-        YCHECK(controller);
-        controller->Complete();
+        const auto& controller = operation->GetLocalController();
+        Y_UNUSED(controller->Complete());
 
         return operation->GetFinished();
     }
@@ -902,8 +902,9 @@ public:
             return;
         }
 
-        if (operation->ReviveResult().IsRevivedFromSnapshot) {
+        if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
+
             RegisterJobsFromRevivedOperation(operation)
                 .Subscribe(
                     BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
@@ -917,11 +918,10 @@ public:
                     })
                     .Via(operation->GetCancelableControlInvoker()));
         } else {
-            const auto& controller = operation->GetLocalController()->GetAgentController();
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
-            BIND(&IOperationControllerSchedulerHost::Materialize, controller)
-                .AsyncVia(controller->GetCancelableInvoker())
-                .Run()
+
+            const auto& controller = operation->GetLocalController();
+            controller->Materialize()
                 .Subscribe(
                     BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
                         if (!error.IsOK()) {
@@ -1829,22 +1829,17 @@ private:
             auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
             agentOperation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operation->GetId()));
             auto controller = CreateOperationController(agentOperation);
+            // XXX(babenko): agent separation
             Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), agentOperation);
 
             localController->SetAgentController(controller);
             agentOperation->SetController(controller);
 
-            {
-                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Initialize, controller)
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run();
-                auto error = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            auto initializationResult = WaitFor(localController->InitializeClean())
+                .ValueOrThrow();
 
-                ValidateOperationState(operation, EOperationState::Initializing);
-            }
+            ValidateOperationState(operation, EOperationState::Initializing);
 
-            auto initializationResult = controller->GetInitializationResult();
             operation->ControllerAttributes().InitializationAttributes = initializationResult.InitializationAttributes;
             Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions(initializationResult.Transactions);
 
@@ -1858,7 +1853,7 @@ private:
 
             Bootstrap_->GetControllerAgent()->GetMasterConnector()->StartOperationNodeUpdates(operation->GetId(), operation->GetStorageMode());
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Operation failed to initialize")
+            auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
             OnOperationFailed(operation->GetId(), wrappedError);
             THROW_ERROR(wrappedError);
@@ -1884,18 +1879,16 @@ private:
 
         try {
             // Run async preparation.
-            const auto& controller = operation->GetLocalController()->GetAgentController();
-            auto asyncResult = BIND(&IOperationControllerSchedulerHost::Prepare, controller)
-                .AsyncVia(controller->GetCancelableInvoker())
-                .Run();
+            const auto& controller = operation->GetLocalController();
 
-            TWallTimer timer;
-            auto result = WaitFor(asyncResult);
-            operation->UpdateControllerTimeStatistics("/prepare", timer.GetElapsedTime());
+            {
+                TWallTimer timer;
+                auto result = WaitFor(controller->Prepare())
+                    .ValueOrThrow();
 
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-
-            operation->ControllerAttributes().Attributes = controller->GetAttributes();
+                operation->UpdateControllerTimeStatistics("/prepare", timer.GetElapsedTime());
+                operation->ControllerAttributes().PrepareAttributes = std::move(result.PrepareAttributes);
+            }
 
             ValidateOperationState(operation, EOperationState::Preparing);
 
@@ -2002,39 +1995,30 @@ private:
             operationId);
 
         try {
-            const auto& controller = operation->GetLocalController()->GetAgentController();
+            const auto& controller = operation->GetLocalController();
 
             {
-                auto asyncResult = BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, revivalDescriptor.ControllerTransactions)
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run();
-                auto error = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                auto result = WaitFor(controller->InitializeReviving(revivalDescriptor))
+                    .ValueOrThrow();
 
-                auto initializationResult = controller->GetInitializationResult();
-                operation->ControllerAttributes().InitializationAttributes = initializationResult.InitializationAttributes;
-                Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions(initializationResult.Transactions);
-
+                operation->ControllerAttributes().InitializationAttributes = std::move(result.InitializationAttributes);
+                Bootstrap_->GetControllerAgent()->GetOperation(operation->GetId())->SetTransactions(result.Transactions);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
 
-            {
-                auto error = WaitFor(MasterConnector_->ResetRevivingOperationNode(operation));
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
-            }
+            WaitFor(MasterConnector_->ResetRevivingOperationNode(operation))
+                .ThrowOnError();
 
             ValidateOperationState(operation, EOperationState::Reviving);
 
             {
-                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller)
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run();
-                auto error = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                auto result = WaitFor(controller->Revive())
+                    .ValueOrThrow();
 
-                operation->ControllerAttributes().Attributes = controller->GetAttributes();
-                operation->ReviveResult() = controller->GetReviveResult();
+                operation->ControllerAttributes().PrepareAttributes = result.PrepareAttributes;
+                operation->SetRevivedFromSnapshot(result.RevivedFromSnapshot);
+                operation->RevivedJobs() = std::move(result.Jobs);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -2059,7 +2043,7 @@ private:
 
     TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
     {
-        auto jobs = std::move(operation->ReviveResult().Jobs);
+        auto jobs = std::move(operation->RevivedJobs());
         LOG_INFO("Registering running jobs from the revived operation (OperationId: %v, JobCount: %v)",
             operation->GetId(),
             jobs.size());
@@ -2245,11 +2229,8 @@ private:
             }
 
             {
-                const auto& controller = operation->GetLocalController()->GetAgentController();
-                auto asyncResult = BIND(&IOperationControllerSchedulerHost::Commit, controller)
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run();
-                WaitFor(asyncResult)
+                const auto& controller = operation->GetLocalController();
+                WaitFor(controller->Commit())
                     .ThrowOnError();
 
                 ValidateOperationState(operation, EOperationState::Completing);
@@ -2271,9 +2252,9 @@ private:
             }
 
             // Notify controller that it is going to be disposed.
-            if (const auto& controller = operation->GetLocalController()->GetAgentController()) {
-                controller->GetInvoker()->Invoke(BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller));
-            }
+            // Don't wait for the result.
+            const auto& controller = operation->GetLocalController();
+            Y_UNUSED(controller->Dispose());
 
             FinishOperation(operation);
         } catch (const std::exception& ex) {
@@ -2428,16 +2409,16 @@ private:
             agentOperation->SetTransactions({});
         }
 
-        if (auto controller = operation->GetLocalController()->FindAgentController()) {
-            try {
-                controller->Abort();
-            } catch (const std::exception& ex) {
-                auto error = TError("Failed to abort controller")
-                    << TErrorAttribute("operation_id", operation->GetId())
-                    << ex;
-                MasterConnector_->Disconnect(error);
-                return;
-            }
+        try {
+            const auto& controller = operation->GetLocalController();
+            WaitFor(controller->Abort())
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to abort controller")
+                << TErrorAttribute("operation_id", operation->GetId())
+                << ex;
+            MasterConnector_->Disconnect(error);
+            return;
         }
 
         SetOperationFinalState(operation, finalState, error);
@@ -2452,12 +2433,9 @@ private:
         }
 
         // Notify controller that it is going to be disposed.
-        if (auto controller = operation->GetLocalController()->FindAgentController()) {
-            Y_UNUSED(WaitFor(
-                BIND(&IOperationControllerSchedulerHost::OnBeforeDisposal, controller)
-                    .AsyncVia(controller->GetInvoker())
-                    .Run()));
-        }
+        // Don't wait for the result.
+        const auto& controller = operation->GetLocalController();
+        Y_UNUSED(controller->Dispose());
 
         LogOperationFinished(operation, logEventType, error);
 

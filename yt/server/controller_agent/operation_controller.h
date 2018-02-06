@@ -64,9 +64,15 @@ struct TOperationControllerInitializationResult
     TOperationControllerInitializationAttributes InitializationAttributes;
 };
 
-struct TOperationControllerReviveResult
+struct TOperationControllerPrepareResult
 {
-    bool IsRevivedFromSnapshot = false;
+    NYson::TYsonString PrepareAttributes;
+};
+
+struct TOperationControllerReviveResult
+    : public TOperationControllerPrepareResult
+{
+    bool RevivedFromSnapshot = false;
     std::vector<NScheduler::TJobPtr> Jobs;
 };
 
@@ -249,18 +255,17 @@ DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): merge into NScheduler::IOperationController
 struct IOperationControllerSchedulerHost
     : public virtual TRefCounted
 {
-    //! Performs controller inner state initialization. Starts all controller transactions.
+    //! Performs controller internal state initialization. Starts all controller transactions.
     /*
      *  If an exception is thrown then the operation fails immediately.
      *  The diagnostics is returned to the client, no Cypress node is created.
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual void Initialize() = 0;
+    virtual TOperationControllerInitializationResult InitializeClean() = 0;
 
     //! Performs controller inner state initialization for reviving operation.
     /*
@@ -268,13 +273,13 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) = 0;
+    virtual TOperationControllerInitializationResult InitializeReviving(TControllerTransactionsPtr operationTransactions) = 0;
 
     //! Performs a lightweight initial preparation.
     /*!
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual void Prepare() = 0;
+    virtual TOperationControllerPrepareResult Prepare() = 0;
 
     //! Performs a possibly lengthy materialization.
     /*!
@@ -290,7 +295,7 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: cancelable Controller invoker
      *
      */
-    virtual void Revive() = 0;
+    virtual TOperationControllerReviveResult Revive() = 0;
 
     //! Called by a scheduler in operation complete pipeline.
     /*!
@@ -306,7 +311,7 @@ struct IOperationControllerSchedulerHost
      *  All jobs are aborted automatically.
      *  The operation, however, may carry out any additional cleanup it finds necessary.
      *
-     *  \note Invoker affinity: Control invoker
+     *  \note Invoker affinity: Controller invoker
      *
      */
     virtual void Abort() = 0;
@@ -316,30 +321,10 @@ struct IOperationControllerSchedulerHost
      *  All running jobs are aborted automatically.
      *  The operation, however, may carry out any additional cleanup it finds necessary.
      *
-     *  \note Invoker affinity: Control invoker
+     *  \note Invoker affinity: cancelable Controller invoker
      *
      */
     virtual void Complete() = 0;
-
-    //! Returns controller attributes and transactions that determined during initialization.
-    //! Must be called once after initialization since result is moved to caller.
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
-    virtual TOperationControllerInitializationResult GetInitializationResult() = 0;
-
-    //! Returns result of revive process.
-    //! Must be called once after initialization since result is moved to caller.
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
-    virtual TOperationControllerReviveResult GetReviveResult() = 0;
-
-    //! Returns controller attributes that determined after operation is prepared.
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
-    virtual NYson::TYsonString GetAttributes() const = 0;
 
     /*!
      *  Returns the operation controller invoker.
@@ -382,8 +367,7 @@ struct IOperationControllerSchedulerHost
     /*!
      *  \note Invoker affinity: Controller invoker.
      */
-    virtual void OnBeforeDisposal() = 0;
-
+    virtual void Dispose() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)
@@ -510,9 +494,9 @@ struct IOperationController
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
 
-    //! Cancels the context returned by #GetCancelableContext.
+    //! Cancels the controller context
     /*!
-     *  \note Invoker affinity: Control invoker
+     *  \note Invoker affinity: any
      */
     virtual void Cancel() = 0;
 
