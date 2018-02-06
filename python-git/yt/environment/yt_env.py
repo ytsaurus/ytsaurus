@@ -716,8 +716,8 @@ class YTInstance(object):
 
         cell_ready = quorum_ready
 
+        primary_cell_client = self.create_client()
         if secondary:
-            primary_cell_client = self.create_client()
             cell_tag = int(
                 self._cluster_configuration["master"]["secondary_cell_tags"][cell_index - 1])
 
@@ -729,6 +729,11 @@ class YTInstance(object):
                 return cell_tag in primary_cell_client.get("//sys/@registered_master_cell_tags")
 
             cell_ready = quorum_ready_and_cell_registered
+        else:
+            # TODO(asaitgalin): Create this user inside master?
+            if not primary_cell_client.exists("//sys/users/application_operations"):
+                primary_cell_client.create("user", attributes={"name": "application_operations"})
+                primary_cell_client.add_member("application_operations", "superusers")
 
         self._wait_or_skip(lambda: self._wait_for(cell_ready, master_name, max_wait_time=30), sync)
 
