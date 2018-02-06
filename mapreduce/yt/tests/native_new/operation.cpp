@@ -6,6 +6,7 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
 #include <mapreduce/yt/http/abortable_http_response.h>
 
@@ -28,6 +29,14 @@ static TString GetOperationState(const IClientPtr& client, const TOperationId& o
 static void EmulateOperationArchivation(IClientPtr& client, const TOperationId& operationId)
 {
     client->Remove("//sys/operations/" + GetGuidAsString(operationId), TRemoveOptions().Recursive(true));
+}
+
+void CreateTableWithFooColumn(IClientPtr client, const TString& path)
+{
+    auto writer = client->CreateTableWriter<TNode>(path);
+    writer->AddRow(TNode()("foo", "baz"));
+    writer->AddRow(TNode()("foo", "bar"));
+    writer->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -716,7 +725,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
-    SIMPLE_UNIT_TEST(JobPreffix)
+    SIMPLE_UNIT_TEST(JobPrefix)
     {
         auto client = CreateTestClient();
         auto inputTable = TRichYPath("//testing/input");
@@ -842,6 +851,78 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
                 TMapOperationSpec()
                 .AddOutput<TNode>("//testing/output"),
                 new TIdMapper), TApiUsageError);
+        }
+    }
+
+    SIMPLE_UNIT_TEST(MaxOperationCountExceeded)
+    {
+        TConfigSaverGuard csg;
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->StartOperationRetryCount = 3;
+        TConfig::Get()->StartOperationRetryInterval = TDuration::MilliSeconds(0);
+
+        auto client = CreateTestClient();
+
+        size_t maxOperationCount = 1;
+        client->Create("//sys/pools/research/testing", NT_MAP, TCreateOptions().IgnoreExisting(true));
+        client->Set("//sys/pools/research/testing/@max_operation_count", maxOperationCount);
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TVector<IOperationPtr> operations;
+
+        NYT::NDetail::TFinallyGuard finally([&]{
+            for (auto& operation : operations) {
+                operation->AbortOperation();
+            }
+        });
+
+        try {
+            for (size_t i = 0; i < maxOperationCount + 1; ++i) {
+                operations.push_back(client->Map(
+                    TMapOperationSpec()
+                        .AddInput<TNode>("//testing/input")
+                        .AddOutput<TNode>("//testing/output_" + ToString(i)),
+                    new TSleepingMapper(TDuration::Seconds(3600)),
+                    TOperationOptions()
+                        .Spec(TNode()("pool", "testing"))
+                        .Wait(false)));
+            }
+            UNIT_FAIL("Too many Map's must have been failed");
+        } catch (const TErrorResponse& error) {
+            // It's OK
+        }
+    }
+
+    SIMPLE_UNIT_TEST(NetworkProblems)
+    {
+        TConfigSaverGuard csg;
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->StartOperationRetryCount = 3;
+        TConfig::Get()->StartOperationRetryInterval = TDuration::MilliSeconds(0);
+
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        try {
+            auto outage = TAbortableHttpResponse::StartOutage("/map");
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output_1"),
+                new TIdMapper());
+            UNIT_FAIL("Start operation must have been failed");
+        } catch (const TAbortedForTestPurpose&) {
+            // It's OK
+        }
+        {
+            auto outage = TAbortableHttpResponse::StartOutage("/map", TConfig::Get()->StartOperationRetryCount - 1);
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output_2"),
+                new TIdMapper());
         }
     }
 }
@@ -1081,14 +1162,6 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
 
 SIMPLE_UNIT_TEST_SUITE(OperationTracker)
 {
-    void CreateTableWithFooColumn(IClientPtr client, const TString& path)
-    {
-        auto writer = client->CreateTableWriter<TNode>(path);
-        writer->AddRow(TNode()("foo", "baz"));
-        writer->AddRow(TNode()("foo", "bar"));
-        writer->Finish();
-    }
-
     IOperationPtr AsyncSortByFoo(IClientPtr client, const TString& input, const TString& output)
     {
         return client->Sort(

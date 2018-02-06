@@ -306,7 +306,7 @@ TString RetryRequest(
         NDetail::TWaitProxy::Sleep(retryInterval);
     }
 
-    ythrow yexception() << "unreachable";
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
