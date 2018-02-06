@@ -615,7 +615,7 @@ class YTEnvSetup(object):
     def _remove_users(self, driver=None):
         users = yt_commands.ls("//sys/users", attributes=["builtin"], driver=driver)
         for user in users:
-            if not user.attributes["builtin"]:
+            if not user.attributes["builtin"] and str(user) != "application_operations":
                 yt_commands.remove_user(str(user), driver=driver)
 
     def _remove_groups(self, driver=None):
