@@ -18,8 +18,9 @@ TFuture<TMutationResponse> TMutation::Commit()
 
 TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logger)
 {
+    auto type = Request_.Type;
     return Commit().Apply(
-        BIND([Logger = logger, type = Request_.Type] (const TErrorOr<TMutationResponse>& result) {
+        BIND([Logger = logger, type = std::move(type)] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
                 LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
                 return result.Value();
