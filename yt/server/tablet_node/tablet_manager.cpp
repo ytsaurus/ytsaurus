@@ -901,7 +901,7 @@ private:
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %llx, TableId: %v, Keys: %v .. %v, "
             "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v)",
             tabletId,
