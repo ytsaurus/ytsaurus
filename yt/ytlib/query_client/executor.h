@@ -12,8 +12,11 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NQueryClient::IExecutorPtr CreateQueryExecutor(
+IExecutorPtr CreateQueryExecutor(
     NApi::INativeConnectionPtr connection,
+    IInvokerPtr invoker,
+    TColumnEvaluatorCachePtr columnEvaluatorCache,
+    TEvaluatorPtr evaluator,
     NNodeTrackerClient::INodeChannelFactoryPtr nodeChannelFactory,
     TFunctionImplCachePtr functionImplCache);
 

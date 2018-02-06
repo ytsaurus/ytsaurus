@@ -259,18 +259,20 @@ public:
         TQueryAgentConfigPtr config,
         TFunctionImplCachePtr functionImplCache,
         TBootstrap* const bootstrap,
-        const TEvaluatorPtr evaluator,
+        TColumnEvaluatorCachePtr columnEvaluatorCache,
+        TEvaluatorPtr evaluator,
         TConstQueryPtr query,
         const TQueryOptions& options)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
+        , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
         , Evaluator_(std::move(evaluator))
         , Query_(std::move(query))
         , Options_(std::move(options))
         , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(bootstrap->GetTabletSlotManager())
-
+        , Invoker_(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
     { }
 
     TFuture<TQueryStatistics> Execute(
@@ -294,7 +296,7 @@ public:
         MaybeUser_ = securityManager->GetAuthenticatedUser();
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
+            .AsyncVia(Invoker_)
             .Run(
                 std::move(externalCGInfo),
                 std::move(dataSources),
@@ -305,6 +307,7 @@ private:
     const TQueryAgentConfigPtr Config_;
     const TFunctionImplCachePtr FunctionImplCache_;
     TBootstrap* const Bootstrap_;
+    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     const TEvaluatorPtr Evaluator_;
 
     const TConstQueryPtr Query_;
@@ -313,6 +316,7 @@ private:
     const NLogging::TLogger Logger;
 
     TTabletSnapshotCache TabletSnapshots_;
+    const IInvokerPtr Invoker_;
 
     TNullable<TString> MaybeUser_;
 
@@ -351,6 +355,9 @@ private:
 
         auto remoteExecutor = CreateQueryExecutor(
             client->GetNativeConnection(),
+            Invoker_,
+            ColumnEvaluatorCache_,
+            Evaluator_,
             client->GetChannelFactory(),
             FunctionImplCache_);
 
@@ -1219,6 +1226,7 @@ public:
             Config_,
             FunctionImplCache_,
             Bootstrap_,
+            ColumnEvaluatorCache_,
             Evaluator_,
             std::move(query),
             options);
