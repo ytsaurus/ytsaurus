@@ -1389,10 +1389,14 @@ private:
         const std::vector<std::pair<NTableClient::TKey, int>>& keys)
     {
         yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        yhash_set<TTabletId> tabletIds;
         for (const auto& pair : keys) {
             auto key = pair.first;
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            const auto& tabletId = tabletInfo->TabletId;
+            if (tabletIds.insert(tabletId).second) {
+                cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            }
         }
         return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
     }
@@ -1964,8 +1968,7 @@ private:
                     evaluator->EvaluateKeys(capturedKey, rowBuffer);
                 }
                 auto tabletInfo = tableInfo->GetTabletForRow(capturedKey);
-                if (tabletIds.count(tabletInfo->TabletId) == 0) {
-                    tabletIds.insert(tabletInfo->TabletId);
+                if (tabletIds.insert(tabletInfo->TabletId).second) {
                     ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
                     cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
                 }
