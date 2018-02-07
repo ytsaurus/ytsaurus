@@ -331,7 +331,10 @@ def upload_file_to_cache(filename, hash=None, client=None):
     if file_path:
         return file_path
 
-    real_destination = find_free_subpath(get_config(client)["remote_temp_files_directory"], client=client)
+    temp_directory = get_config(client)["remote_temp_files_directory"]
+    if not temp_directory.endswith("/"):
+        temp_directory = temp_directory + "/"
+    real_destination = find_free_subpath(temp_directory, client=client)
     if is_local_mode(client) or get_option("_is_testing_mode", client=client):
         replication_factor = 1
     else:
