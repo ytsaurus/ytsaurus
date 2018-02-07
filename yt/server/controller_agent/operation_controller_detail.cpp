@@ -5839,28 +5839,27 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
 
 void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
 {
-    fluent
-        .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
-            const auto& jobId = pair.first;
-            const auto& joblet = pair.second;
-            if (joblet->StartTime) {
-                fluent.Item(ToString(jobId)).BeginMap()
-                    .Do([&] (TFluentMap fluent) {
-                        BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, fluent);
-                    })
-                .EndMap();
-            }
-        });
-        // NB: Temporaly disabled. We should improve UI to consider completed jobs in orchid.
-        // .DoFor(FinishedJobs_, [&] (TFluentMap fluent, const std::pair<TJobId, TFinishedJobInfoPtr>& pair) {
-        //     const auto& jobId = pair.first;
-        //     const auto& job = pair.second;
-        //     fluent.Item(ToString(jobId)).BeginMap()
-        //         .Do([&] (IYsonConsumer* consumer) {
-        //             BuildFinishedJobAttributes(job, fluent);
-        //         })
-        //     .EndMap();
-        // })
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    auto now = GetInstant();
+    if (CachedRunningJobsUpdateTime_ + Config->CachedRunningJobsUpdatePeriod < now) {
+        CachedRunningJobsYson_ = BuildYsonStringFluently<EYsonType::MapFragment>()
+            .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
+                const auto& jobId = pair.first;
+                const auto& joblet = pair.second;
+                if (joblet->StartTime) {
+                    fluent.Item(ToString(jobId)).BeginMap()
+                        .Do([&] (TFluentMap fluent) {
+                            BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, fluent);
+                        })
+                    .EndMap();
+                }
+            })
+            .Finish();
+        CachedRunningJobsUpdateTime_ = now;
+    }
+
+    fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
 }
 
 TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
