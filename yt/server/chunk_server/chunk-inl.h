@@ -165,36 +165,52 @@ inline TChunkRequisition TChunk::ComputeRequisition(const TChunkRequisitionRegis
     return result;
 }
 
-inline TChunkReplication TChunk::ComputeReplication(const TChunkRequisitionRegistry* registry) const
+inline TNullable<TChunkReplication> TChunk::ComputeReplication(const TChunkRequisitionRegistry* registry) const
 {
     auto result = registry->GetReplication(LocalRequisitionIndex_);
 
+    auto nonEmptyRequisitionCount = 0;
+    if (LocalRequisitionIndex_ != EmptyChunkRequisitionIndex) {
+        ++nonEmptyRequisitionCount;
+    }
+
     // Shortcut for non-exported chunk.
     if (ExportCounter_ == 0) {
-        return result;
+        return MakeNullable(nonEmptyRequisitionCount != 0, result);
     }
 
     for (const auto& data : ExportDataList_) {
         if (data.RefCounter != 0) {
             result |= registry->GetReplication(data.ChunkRequisitionIndex);
+            if (data.ChunkRequisitionIndex != EmptyChunkRequisitionIndex) {
+                ++nonEmptyRequisitionCount;
+            }
         }
     }
-    return result;
+
+    return MakeNullable(nonEmptyRequisitionCount != 0, result);
 }
 
-inline int TChunk::ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
+inline TNullable<int> TChunk::ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
 {
     auto replication = ComputeReplication(registry);
-    return replication[mediumIndex].GetReplicationFactor();
+    if (!replication) {
+        return Null;
+    }
+    return (*replication)[mediumIndex].GetReplicationFactor();
 }
 
-inline TPerMediumIntArray TChunk::ComputeReplicationFactors(const TChunkRequisitionRegistry* registry) const
+inline TNullable<TPerMediumIntArray> TChunk::ComputeReplicationFactors(const TChunkRequisitionRegistry* registry) const
 {
     TPerMediumIntArray result;
 
     auto replication = ComputeReplication(registry);
+    if (!replication) {
+        return Null;
+    }
+
     auto resultIt = std::begin(result);
-    for (const auto& policy : replication) {
+    for (const auto& policy : *replication) {
         *resultIt++ = policy.GetReplicationFactor();
     }
 

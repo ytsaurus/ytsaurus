@@ -162,17 +162,20 @@ public:
     /*!
      *  NB: by default only COMMITTED OWNERS affect this. If the chunk has no
      *  committed owners, then non-committed ones are taken into account.
+     *
+     *  If there're no owners at all, Null is returned. Usually this means that
+     *  this is a newly created staged chunk.
      */
-    TChunkReplication ComputeReplication(const TChunkRequisitionRegistry* registry) const;
+    TNullable<TChunkReplication> ComputeReplication(const TChunkRequisitionRegistry* registry) const;
 
     //! Computes the replication factor for the specified medium by combining the
     //! local and the external values. See #ComputeReplication().
-    int ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
+    TNullable<int> ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
 
     //! Computes the replication factors for all media by combining the local and
     //! the external values. See #ComputeReplication().
     //! NB: most of the time, most of the elements of the returned array will be zero.
-    TPerMediumIntArray ComputeReplicationFactors(const TChunkRequisitionRegistry* registry) const;
+    TNullable<TPerMediumIntArray> ComputeReplicationFactors(const TChunkRequisitionRegistry* registry) const;
 
     int GetReadQuorum() const;
     void SetReadQuorum(int value);
@@ -222,7 +225,7 @@ public:
      *  \param replicationFactorOverride An override for replication factor;
      *  used when one wants to upload fewer replicas but still guarantee placement safety.
      */
-    int GetMaxReplicasPerRack(
+    TNullable<int> GetMaxReplicasPerRack(
         int mediumIndex,
         TNullable<int> replicationFactorOverride,
         const TChunkRequisitionRegistry* registry) const;

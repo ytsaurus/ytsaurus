@@ -447,17 +447,21 @@ void TChunk::Seal(const TMiscExt& info)
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
-int TChunk::GetMaxReplicasPerRack(
+TNullable<int> TChunk::GetMaxReplicasPerRack(
     int mediumIndex,
     TNullable<int> replicationFactorOverride,
     const TChunkRequisitionRegistry* registry) const
 {
     switch (GetType()) {
         case EObjectType::Chunk: {
-            auto replicationFactor = replicationFactorOverride
-                ? *replicationFactorOverride
-                : ComputeReplicationFactor(mediumIndex, registry);
-            return std::max(replicationFactor - 1, 1);
+            if (replicationFactorOverride) {
+                return *replicationFactorOverride;
+            }
+            auto replicationFactor = ComputeReplicationFactor(mediumIndex, registry);
+            if (replicationFactor) {
+                return std::max(*replicationFactor - 1, 1);
+            }
+            return Null;
         }
 
         case EObjectType::ErasureChunk:

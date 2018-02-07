@@ -232,7 +232,11 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 {
     TChunkStatistics result;
 
-    auto replicationFactors = chunk->ComputeReplicationFactors(GetChunkRequisitionRegistry());
+    auto maybeReplicationFactors = chunk->ComputeReplicationFactors(GetChunkRequisitionRegistry());
+    if (!maybeReplicationFactors) {
+        return result;
+    }
+    const auto& replicationFactors = *maybeReplicationFactors;
 
     TPerMediumArray<bool> hasUnsafelyPlacedReplicas{};
     TPerMediumArray<std::array<ui8, RackIndexBound>> perRackReplicaCounters{};
@@ -391,6 +395,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 {
     TChunkStatistics result;
 
+    auto maybeChunkReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
+    if (!maybeChunkReplication) {
+        return result; // See ComputeReplication's comment for an explanation.
+    }
+    const auto& chunkReplication = *maybeChunkReplication;
+
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
     TPerMediumArray<std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>> decommissionedReplicas{};
@@ -436,8 +446,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     bool allMediaDataPartsOnly = true;
     TPerMediumArray<NErasure::TPartIndexSet> mediumToErasedIndexes{};
     TMediumSet activeMedia;
-
-    auto chunkReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
 
     for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
         auto* medium = pair.second;
@@ -662,8 +670,15 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatistics(TChunk* chunk)
 {
+    TChunkStatistics results;
+
+    auto maybeReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
+    if (!maybeReplication) {
+        return results;
+    }
+    const auto& replication = *maybeReplication;
+
     // NB: Journal chunks always have a single configured medium.
-    const auto& replication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
     auto mediumIndex = -1;
     for (auto index = 0; index < MaxMediumCount; ++index) {
         if (replication[index]) {
@@ -673,7 +688,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     }
     YCHECK(mediumIndex >= 0);
 
-    TChunkStatistics results;
     auto& result = results.PerMediumStatistics[mediumIndex];
 
     auto replicationFactor = replication[mediumIndex].GetReplicationFactor();
@@ -972,7 +986,12 @@ bool TChunkReplicator::CreateReplicationJob(
     }
 
     int targetMediumIndex = targetMedium->GetIndex();
-    auto replicationFactor = chunk->ComputeReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
+    auto maybeReplicationFactor = chunk->ComputeReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
+    if (!maybeReplicationFactor) {
+        return true;
+    }
+    const auto& replicationFactor = *maybeReplicationFactor;
+
     auto statistics = ComputeChunkStatistics(chunk);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
     int replicaCount = mediumStatistics.ReplicaCount[replicaIndex];
@@ -1481,14 +1500,18 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         return;
     }
 
+    auto maybeReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
+    if (!maybeReplication) {
+        return;
+    }
+    const auto& replication = *maybeReplication;
+
     ResetChunkStatus(chunk);
     RemoveChunkFromQueuesOnRefresh(chunk);
 
     auto allMediaStatistics = ComputeChunkStatistics(chunk);
 
     auto durabilityRequired = false;
-
-    auto replication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
 
     for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
         auto* medium = mediumIdAndPtrPair.second;
@@ -2103,7 +2126,7 @@ TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* c
         Y_ASSERT(requisition.ToReplication().IsValid());
         result = GetChunkRequisitionRegistry()->GetIndex(requisition, Bootstrap_->GetObjectManager());
     } else {
-        result = chunk->GetLocalRequisitionIndex();
+        result = EmptyChunkRequisitionIndex;
     }
 
     CacheRequisition(chunk, result);
