@@ -260,6 +260,8 @@ private:
     std::vector<TUpdatedJob> UpdatedJobs_;
     std::vector<TCompletedJob> CompletedJobs_;
 
+    NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
+
     struct TOperationState
     {
         TOperationState(const NControllerAgent::IOperationControllerSchedulerHostPtr& controller)
@@ -314,7 +316,7 @@ private:
     void BeginNodeHeartbeatProcessing(TExecNodePtr node);
     void EndNodeHeartbeatProcessing(TExecNodePtr node);
 
-    void SubmitUpdatedAndCompletedJobsToStrategy();
+    void SubmitJobsToStrategy();
 
     void ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,

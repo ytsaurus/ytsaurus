@@ -517,8 +517,6 @@ public:
 
     TDuration ChunkUnstagePeriod;
 
-    TDuration NodeShardsUpdatePeriod;
-
     TDuration ResourceDemandSanityCheckPeriod;
 
     TDuration LockTransactionTimeout;
@@ -633,6 +631,9 @@ public:
     //! Timeout to store cached value of exec nodes information
     //! for scheduling tag filter without access.
     TDuration NodeShardExecNodesCacheUpdatePeriod;
+
+    //! All update and completed jobs submitted to strategy with at least such frequency.
+    TDuration NodeShardSubmitJobsToStrategyPeriod;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
