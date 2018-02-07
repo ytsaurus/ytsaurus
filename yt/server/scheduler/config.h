@@ -745,6 +745,9 @@ public:
     // Suspicious jobs per operation recalculation period.
     TDuration SuspiciousJobsUpdatePeriod;
 
+    // Running jobs cached YSON string update period.
+    TDuration CachedRunningJobsUpdatePeriod;
+
     TSchedulerConfig();
 
     virtual void OnLoaded() override;
