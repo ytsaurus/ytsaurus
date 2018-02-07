@@ -1374,7 +1374,7 @@ private:
 
                 // Avoid overcharging: if, for example, a chunk has 3 'committed' and
                 // 5 'uncommitted' replicas (for the same account and medium), the account
-                // have already been charged for 3 and should now be charged for 2 only.
+                // has already been charged for 3 and should now be charged for 2 only.
                 if (delta > 0) {
                     diskSpace = std::max(i64(0), diskSpace - lastDiskSpace);
                 } else {
@@ -1768,7 +1768,8 @@ private:
         for (const auto& pair : chunkManager->Chunks()) {
             auto* chunk = pair.second;
 
-            if (!IsObjectAlive(chunk)) {
+            // NB: zombie chunks are still accounted.
+            if (!chunk || chunk->IsDestroyed()) {
                 continue;
             }
 

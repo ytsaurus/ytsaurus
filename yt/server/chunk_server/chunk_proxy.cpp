@@ -296,14 +296,17 @@ private:
 
         if (key == "vital" || key == "media" ) {
             auto replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
+            if (!replication) {
+                replication = TChunkReplication();
+            }
 
             if (key == "vital") {
                 BuildYsonFluently(consumer)
-                    .Value(replication.GetVital());
+                    .Value(replication->GetVital());
                 return true;
             } else {
                 BuildYsonFluently(consumer)
-                    .Value(TSerializableChunkReplication(replication, chunkManager));
+                    .Value(TSerializableChunkReplication(*replication, chunkManager));
                 return true;
             }
         }
