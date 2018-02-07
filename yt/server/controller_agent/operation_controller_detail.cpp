@@ -3565,8 +3565,11 @@ void TOperationControllerBase::CreateLivePreviewTables()
         LOG_INFO("Creating live preview for output tables");
 
         for (int index = 0; index < OutputTables_.size(); ++index) {
-            const auto& table = OutputTables_[index];
+            auto& table = OutputTables_[index];
             auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "output_" + ToString(index));
+
+            // We should clear old table ids in case of revive.
+            table.LivePreviewTableIds.clear();
 
             for (const auto& path : paths) {
                 addRequest(
@@ -3584,6 +3587,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
     if (StderrTable_) {
         LOG_INFO("Creating live preview for stderr table");
 
+        // We should clear old table ids in case of revive.
+        StderrTable_->LivePreviewTableIds.clear();
+
         auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "stderr");
         for (const auto& path : paths) {
             addRequest(
@@ -3599,6 +3605,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     if (IsIntermediateLivePreviewSupported()) {
         LOG_INFO("Creating live preview for intermediate table");
+
+        // We should clear old table ids in case of revive.
+        IntermediateTable.LivePreviewTableIds.clear();
 
         auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "intermediate");
         for (const auto& path : paths) {
