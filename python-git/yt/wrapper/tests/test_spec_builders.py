@@ -1,4 +1,4 @@
-from .helpers import TEST_DIR, check, get_test_file_path
+from .helpers import TEST_DIR, check, get_test_file_path, set_config_option
 
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -238,3 +238,43 @@ class TestSpecBuilders(object):
         yt.run_sort(input_, input_, sort_by=["x"], spec=spec)
         yt.run_map("cat", input_, output, format="json", spec=spec)
         yt.run_map_reduce(None, "cat", input_, output, reduce_by=["x"], format="json", spec=spec)
+
+    def test_spec_overrides_and_defaults(self):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [{"x": 1}, {"y": 2}])
+
+        spec_defaults = {
+            "mapper": {
+                "memory_limit": 128 * 1024 * 1024,
+                "cpu_limit": 0.5772156649,
+                "environment": {
+                    "var1": "1",
+                    "var2": "2"}}}
+
+        spec_overrides = {
+            "mapper": {
+                "memory_reserve_factor": 0.31,
+                "environment": {
+                    "var2": "5",
+                    "var3": "6"}}}
+
+        with set_config_option("spec_defaults", spec_defaults):
+            with set_config_option("spec_overrides", spec_overrides):
+                spec_builder = MapSpecBuilder() \
+                    .begin_mapper() \
+                    .command("cat") \
+                    .format("json") \
+                    .memory_limit(256 * 1024 * 1024) \
+                    .end_mapper() \
+                    .input_table_paths(input_table) \
+                    .output_table_paths(output_table)
+
+                op = yt.run_operation(spec_builder)
+                attributes = op.get_attributes()
+                assert attributes["spec"]["mapper"]["memory_limit"] == 256 * 1024 * 1024
+                assert abs(attributes["spec"]["mapper"]["cpu_limit"] - 0.5772156649) < 1e-5
+                assert abs(attributes["spec"]["mapper"]["memory_reserve_factor"] - 0.31) < 1e-5
+                assert attributes["spec"]["mapper"]["environment"]["var1"] == "1"
+                assert attributes["spec"]["mapper"]["environment"]["var2"] == "5"
+                assert attributes["spec"]["mapper"]["environment"]["var3"] == "6"
