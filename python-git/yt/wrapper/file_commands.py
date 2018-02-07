@@ -146,6 +146,7 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
     :param bool force_create: unconditionally create file and ignores exsting file.
+    :param bool compute_md5: compute md5 of file content.
     """
 
     if force_create is None:
