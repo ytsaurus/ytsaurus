@@ -402,6 +402,7 @@ def add_write_file_parser(add_parser):
         add_structured_argument(parser, "--file-writer")
         add_compressed_arg(parser)
         parser.add_argument("--executable", action="store_true", help="do file executable")
+        parser.add_argument("--compute-md5", action="store_true", help="compute md5 of file content")
 
 def add_write_table_parser(add_parser):
     for name, func in [("write", yt.write_table), ("write-table", yt.write_table)]:
