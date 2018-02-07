@@ -411,8 +411,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(1));
     RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
-        .Default(TDuration::Seconds(10));
+    RegisterParameter("node_shard_submit_jobs_to_strategy_period", NodeShardSubmitJobsToStrategyPeriod)
+        .Default(TDuration::MilliSeconds(100));
 
     RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
         .Default(TDuration::Seconds(15));

@@ -84,6 +84,10 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::CalculateResourceLimits, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
+    , SubmitJobsToStrategyExecutor_(New<TPeriodicExecutor>(
+        GetInvoker(),
+        BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),
+        Config_->NodeShardSubmitJobsToStrategyPeriod))
 {
     Logger.AddTag("NodeShardId: %v", Id_);
 }
@@ -135,7 +139,7 @@ void TNodeShard::OnMasterDisconnected()
         }
     }
 
-    SubmitUpdatedAndCompletedJobsToStrategy();
+    SubmitJobsToStrategy();
 }
 
 void TNodeShard::RegisterOperation(const TOperationId& operationId, const IOperationControllerSchedulerHostPtr& operationController)
@@ -255,9 +259,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
                     runningJobs,
                     PrimaryMasterCellTag_);
 
-                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-                    SubmitUpdatedAndCompletedJobsToStrategy();
-                }
+                SubmitJobsToStrategy();
 
                 PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
                     node->SetHasOngoingJobsScheduling(true);
@@ -275,9 +277,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
                     context);
 
                 // NB: some jobs maybe considered aborted after processing scheduled jobs.
-                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-                    SubmitUpdatedAndCompletedJobsToStrategy();
-                }
+                SubmitJobsToStrategy();
 
                 response->set_scheduling_skipped(false);
             }
@@ -1591,18 +1591,20 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
     }
 }
 
-void TNodeShard::SubmitUpdatedAndCompletedJobsToStrategy()
+void TNodeShard::SubmitJobsToStrategy()
 {
-    if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
-        std::vector<TJobId> jobsToAbort;
+    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+        if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
+            std::vector<TJobId> jobsToAbort;
 
-        Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
-            &UpdatedJobs_,
-            &CompletedJobs_,
-            &jobsToAbort);
+            Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
+                &UpdatedJobs_,
+                &CompletedJobs_,
+                &jobsToAbort);
 
-        for (const auto& jobId : jobsToAbort) {
-            AbortJob(jobId, TError("Aborting job by strategy request"));
+            for (const auto& jobId : jobsToAbort) {
+                AbortJob(jobId, TError("Aborting job by strategy request"));
+            }
         }
     }
 }
