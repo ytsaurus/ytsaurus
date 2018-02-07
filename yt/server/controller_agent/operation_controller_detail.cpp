@@ -2416,6 +2416,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 hasSuitableNodes = true;
             }
         }
+        if (hasSuitableNodes) {
+            break;
+        }
     }
 
     if (!hasSuitableNodes) {
