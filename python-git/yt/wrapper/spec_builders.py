@@ -168,7 +168,7 @@ class JobIOSpecBuilder(object):
         if spec:
             self._spec = spec
 
-        self._spec_override = {}
+        self._spec_patch = {}
         self.user_job_spec_builder = user_job_spec_builder
         self.io_name = io_name
 
@@ -204,12 +204,12 @@ class JobIOSpecBuilder(object):
         builder_func(self)
         return user_job_spec_builder
 
-    def _set_spec_override(self, spec):
-        self._spec_override = spec
+    def _apply_spec_patch(self, spec):
+        self._spec_patch = update(spec, self._spec_patch)
 
     def build(self):
-        spec = update(self._spec_override, deepcopy(self._spec))
-        self._spec_override = {}
+        spec = update(self._spec_patch, deepcopy(self._spec))
+        self._spec_patch = {}
         return spec
 
 class PartitionJobIOSpecBuilder(JobIOSpecBuilder):
@@ -252,7 +252,7 @@ class UserJobSpecBuilder(object):
         self._spec = {}
         if spec:
             self._spec = spec
-        self._spec_override = {}
+        self._spec_patch = {}
 
         self._spec_builder = spec_builder
         self._operation_type = operation_type
@@ -500,14 +500,14 @@ class UserJobSpecBuilder(object):
                 spec["tmpfs_path"] = "tmpfs"
         return spec
 
-    def _set_spec_override(self, spec):
-        self._spec_override = spec
+    def _apply_spec_patch(self, spec):
+        self._spec_patch = update(spec, self._spec_patch)
 
     def build(self, input_table_count, output_table_count, operation_type, requires_command,
               local_files_to_remove=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
-        spec = update(self._spec_override, self._deepcopy_spec())
-        self._spec_override = {}
+        spec = update(self._spec_patch, self._deepcopy_spec())
+        self._spec_patch = {}
 
         if "command" not in spec and not requires_command:
             return None
@@ -727,7 +727,7 @@ class SpecBuilder(object):
                     user_job_spec = spec_patches[user_job_script]
 
                 if isinstance(spec[user_job_script], UserJobSpecBuilder):
-                    spec[user_job_script]._set_spec_override(user_job_spec)
+                    spec[user_job_script]._apply_spec_patch(user_job_spec)
                 else:
                     spec[user_job_script] = update(user_job_spec, spec[user_job_script])
 
@@ -742,7 +742,7 @@ class SpecBuilder(object):
                     job_io_spec = spec_patches[job_io_type]
 
                 if isinstance(spec[job_io_type], JobIOSpecBuilder):
-                    spec[job_io_type]._set_spec_override(job_io_spec)
+                    spec[job_io_type]._apply_spec_patch(job_io_spec)
                 else:
                     spec[job_io_type] = update(job_io_spec, spec[job_io_type])
 
@@ -754,6 +754,9 @@ class SpecBuilder(object):
     def _apply_user_spec(self, spec):
         return self._apply_spec_patches(spec, get_value(self._user_spec, {}))
 
+    def _apply_spec_defaults(self, spec, client=None):
+        return update(get_config(client)["spec_defaults"], spec)
+
     def _prepare_spec(self, spec, client=None):
         spec = self._prepare_stderr_table(spec, client=client)
 
@@ -761,7 +764,6 @@ class SpecBuilder(object):
             spec = self._build_job_io(spec, job_io_type=job_io_type, client=client)
 
         started_by = get_started_by()
-        spec = update(get_config(client)["spec_defaults"], spec)
         spec = update({"started_by": started_by}, spec)
         if get_config(client)["pool"] is not None:
             spec = update({"pool": get_config(client)["pool"]}, spec)
@@ -793,7 +795,8 @@ class SpecBuilder(object):
         if self._prepared_spec is None:
             self.prepare(client)
 
-        return self._prepared_spec
+        spec = self._apply_spec_defaults(self._prepared_spec, client=client)
+        return spec
 
     def supports_user_job_spec(self):
         return False
@@ -896,6 +899,7 @@ class ReduceSpecBuilder(SpecBuilder):
                                              output_table_count=len(self.get_output_table_paths()),
                                              group_by=group_by,
                                              client=client)
+        spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
     def supports_user_job_spec(self):
@@ -970,6 +974,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
                                              output_table_count=len(self.get_output_table_paths()),
                                              group_by=spec.get("join_by"),
                                              client=client)
+        spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
     def supports_user_job_spec(self):
@@ -1041,6 +1046,7 @@ class MapSpecBuilder(SpecBuilder):
                                              input_table_count=len(self.get_input_table_paths()),
                                              output_table_count=len(self.get_output_table_paths()),
                                              client=client)
+        spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
     def supports_user_job_spec(self):
@@ -1218,6 +1224,7 @@ class MapReduceSpecBuilder(SpecBuilder):
                                              group_by=spec.get("reduce_by"),
                                              requires_command=False,
                                              client=client)
+        spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
     def supports_user_job_spec(self):
