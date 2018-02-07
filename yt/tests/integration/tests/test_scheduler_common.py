@@ -1274,6 +1274,57 @@ class TestSchedulerRevive(YTEnvSetup):
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
             time.sleep(5)
 
+    def test_live_preview(self):
+        create_user("u")
+
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1})
+
+        operation_path = "//sys/operations/{0}".format(op.id)
+
+        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert exists(operation_path + "/output_0", tx=async_transaction_id)
+
+        op.resume_job(op.jobs[0])
+        op.resume_job(op.jobs[1])
+        wait(lambda: op.get_job_count("completed") == 2)
+
+        wait(lambda: len(read_table(operation_path + "/output_0", tx=async_transaction_id)) == 2)
+        live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
+        assert all(record in data for record in live_preview_data)
+
+        self.Env.kill_schedulers()
+
+        abort_transaction(async_transaction_id)
+
+        self.Env.start_schedulers()
+
+        wait(lambda: op.get_state() == "running")
+
+        new_async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert new_async_transaction_id != async_transaction_id
+
+        async_transaction_id = new_async_transaction_id
+        assert exists(operation_path + "/output_0", tx=async_transaction_id)
+        live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
+        assert all(record in data for record in live_preview_data)
+
+        op.resume_jobs()
+        op.track()
+        assert sorted(read_table("//tmp/t2")) == sorted(data)
+
 ################################################################################
 
 class TestJobRevival(YTEnvSetup):
