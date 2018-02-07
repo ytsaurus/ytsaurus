@@ -54,6 +54,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtMasterCommunicationError
         if self.is_chunk_unavailable():
             self.__class__ = YtChunkUnavailable
+        if self.is_concurrent_transaction_lock_conflict():
+            self.__class__ = YtConcurrentTransactionLockConflict
 
 class YtHttpResponseError(YtResponseError):
     """Reponse error recieved from http proxy with additional http request information."""
@@ -110,9 +112,13 @@ class YtMasterCommunicationError(YtHttpResponseError):
 
 class YtChunkUnavailable(YtHttpResponseError):
     """Chunk unavalable error
-       It is use in read retries"""
+       It is used in read retries"""
     pass
 
+class YtConcurrentTransactionLockConflict(YtHttpResponseError):
+    """Concurrent transaction lock conflict error
+       It is used in upload_file_to_cache retries."""
+    pass
 
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""
