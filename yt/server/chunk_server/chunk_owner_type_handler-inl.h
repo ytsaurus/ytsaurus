@@ -187,6 +187,23 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             ? NChunkClient::EUpdateMode::Overwrite
             : NChunkClient::EUpdateMode::Append;
 
+    // For new chunks, there're two reasons to update chunk requisition.
+    //
+    // 1) To ensure proper replicator behavior. This is only needed for topmost
+    // commits, and only when nodes' replication settings differ.
+    //
+    // 2) To ensure proper resource accounting. This is necessary (A) for all
+    // topmost commits (since committed and uncommitted resources are tracked
+    // separately) and (B) for nested commits when replication changes (NB: node
+    // accounts cannot be changed within transactions and are therefore
+    // irrelevant).
+    //
+    // For old chunks, requisition update is only needed iff they're being
+    // overwritten. (NB: replication settings changes are never merged back to
+    // the originating node and thus have no effect on these chunks.)
+
+    auto requisitionUpdateNeeded = topmostCommit || originatingNode->Replication() != branchedNode->Replication();
+
     // Below, chunk requisition update is scheduled no matter what (for non-external chunks,
     // of course). If nothing else, this is necessary to  update 'committed' flags on chunks.
 
@@ -197,7 +214,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             originatingNode->SetChunkList(branchedChunkList);
 
             chunkManager->ScheduleChunkRequisitionUpdate(originatingChunkList);
-            chunkManager->ScheduleChunkRequisitionUpdate(branchedChunkList);
+            if (requisitionUpdateNeeded) {
+                chunkManager->ScheduleChunkRequisitionUpdate(branchedChunkList);
+            }
 
             objectManager->UnrefObject(originatingChunkList);
         }
@@ -235,6 +254,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
                 chunkManager->AttachToChunkList(newOriginatingChunkList, deltaTree);
+
+                if (requisitionUpdateNeeded) {
+                    chunkManager->ScheduleChunkRequisitionUpdate(deltaTree);
+                }
             }
 
             if (newOriginatingMode == NChunkClient::EUpdateMode::Append) {
@@ -245,8 +268,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
 
         if (!isExternal) {
-            chunkManager->ScheduleChunkRequisitionUpdate(deltaTree);
-
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
         }
