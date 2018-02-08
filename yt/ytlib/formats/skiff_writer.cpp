@@ -316,7 +316,7 @@ private:
                 const auto& value = row[valueIndex];
 
                 const auto columnId = value.Id;
-                static const TSkiffEncodingInfo unknownField;
+                static const TSkiffEncodingInfo unknownField{};
                 const auto& encodingInfo = columnId < knownFields.size() ? knownFields[columnId] : unknownField;
                 switch (encodingInfo.EncodingPart) {
                     case ESkiffWriterColumnType::Dense:
