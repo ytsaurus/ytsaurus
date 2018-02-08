@@ -355,7 +355,7 @@ TOperationFailedError::TOperationFailedError(
     , OperationId_(id)
     , Error_(std::move(ytError))
 {
-    *this << Error_.ShortDescription();
+    *this << Error_.FullDescription();
 }
 
 TOperationFailedError::EState TOperationFailedError::GetState() const
