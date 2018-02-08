@@ -984,11 +984,14 @@ void TNodeShard::OnNodeLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
     YCHECK(it != IdToNode_.end());
+    
+    // NB: Make a copy; the calls below will mutate IdToNode_ and thus invalidate it.
+    auto node = it->second;
 
-    LOG_INFO("Node lease expired, unregistering it (Address: %v)",
-        it->second->GetDefaultAddress());
+    LOG_INFO("Node lease expired, unregistering (Address: %v)",
+        node->GetDefaultAddress());
 
-    UnregisterNode(it->second);
+    UnregisterNode(node);
 }
 
 TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)
@@ -1030,7 +1033,7 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 
     YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
-    auto address = node->GetDefaultAddress();
+    const auto& address = node->GetDefaultAddress();
 
     Host_->UnregisterNode(node->GetId(), address);
 
