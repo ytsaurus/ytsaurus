@@ -272,7 +272,6 @@ def test_environment_job_archive(request):
         }
     )
 
-    yt.create("user", attributes={"name": "application_operations"})
     sync_create_cell()
     init_operation_archive.create_tables_latest_version(yt)
 
