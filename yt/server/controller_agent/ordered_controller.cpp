@@ -609,6 +609,7 @@ private:
     {
         return Spec_;
     }
+
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
@@ -990,6 +991,7 @@ private:
     {
         return Spec_;
     }
+
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);

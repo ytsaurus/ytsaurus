@@ -756,8 +756,7 @@ class Operation(object):
         abort_op(self.id, **kwargs)
 
     def complete(self, **kwargs):
-        kwargs["operation_id"] = self.id
-        execute_command("complete_op", kwargs)
+        complete_op(self.id, **kwargs)
 
     def suspend(self, **kwargs):
         suspend_op(self.id, **kwargs)
@@ -845,6 +844,10 @@ def abort_op(op_id, **kwargs):
 def suspend_op(op_id, **kwargs):
     kwargs["operation_id"] = op_id
     execute_command("suspend_op", kwargs)
+
+def complete_op(op_id, **kwargs):
+    kwargs["operation_id"] = op_id
+    execute_command("complete_op", kwargs)
 
 def resume_op(op_id, **kwargs):
     kwargs["operation_id"] = op_id

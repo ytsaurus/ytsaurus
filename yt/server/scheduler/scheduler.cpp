@@ -476,29 +476,39 @@ public:
             user,
             operationId);
 
-        auto path = GetNewOperationPath(operationId);
-
         const auto& client = GetMasterClient();
-        auto asyncResult = client->CheckPermission(user, path, permission);
-        auto resultOrError = WaitFor(asyncResult);
-        if (!resultOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
-                operationId)
-                << resultOrError;
+
+        std::vector<NYTree::TYPath> paths = {
+            GetOperationPath(operationId),
+            GetNewOperationPath(operationId)
+        };
+
+        for (const auto& path : paths) {
+            auto asyncResult = client->CheckPermission(user, path, permission);
+            auto resultOrError = WaitFor(asyncResult);
+            if (!resultOrError.IsOK()) {
+                if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    continue;
+                }
+
+                THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
+                    operationId)
+                    << resultOrError;
+            }
+
+            const auto& result = resultOrError.Value();
+            if (result.Action == ESecurityAction::Allow) {
+                ValidateConnected();
+                LOG_DEBUG("Operation permission successfully validated");
+                return;
+            }
         }
 
-        const auto& result = resultOrError.Value();
-        if (result.Action == ESecurityAction::Deny) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AuthorizationError,
-                "User %Qv has been denied access to operation %v",
-                user,
-                operationId);
-        }
-
-        ValidateConnected();
-
-        LOG_DEBUG("Operation permission successfully validated");
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "User %Qv has been denied access to operation %v",
+            user,
+            operationId);
     }
 
     TFuture<TOperationPtr> StartOperation(
@@ -958,20 +968,56 @@ public:
         return nodeId % static_cast<int>(NodeShards_.size());
     }
 
-    virtual TFuture<void> RegisterOrUpdateNode(TNodeId nodeId, const THashSet<TString>& tags) override
+    virtual TFuture<void> RegisterOrUpdateNode(
+        TNodeId nodeId,
+        const TString& nodeAddress,
+        const THashSet<TString>& tags) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoRegisterOrUpdateNode, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run(nodeId, tags);
+            .Run(nodeId, nodeAddress, tags);
     }
 
-    virtual void UnregisterNode(TNodeId nodeId) override
+    virtual void UnregisterNode(TNodeId nodeId, const TString& nodeAddress) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        GetControlInvoker()->Invoke(BIND(&TImpl::DoUnregisterNode, MakeStrong(this), nodeId));
+        GetControlInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
+            // NOTE: If node is unregistered from node shard before it becomes online
+            // then its id can be missing in the map.
+            auto it = NodeIdToTags_.find(nodeId);
+            if (it == NodeIdToTags_.end()) {
+                LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
+            } else {
+                NodeIdToTags_.erase(it);
+                LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
+            }
+        }));
+    }
+
+    void DoRegisterOrUpdateNode(
+        TNodeId nodeId,
+        const TString& nodeAddress,
+        const THashSet<TString>& tags)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Strategy_->ValidateNodeTags(tags);
+
+        auto it = NodeIdToTags_.find(nodeId);
+        if (it == NodeIdToTags_.end()) {
+            YCHECK(NodeIdToTags_.emplace(nodeId, tags).second);
+            LOG_INFO("Node is registered at scheduler (Address: %v, Tags: %v)",
+                nodeAddress,
+                tags);
+        } else {
+            it->second = tags;
+            LOG_INFO("Node tags were updated at scheduler (Address: %v, NewTags: %v)",
+                nodeAddress,
+                tags);
+        }
     }
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const override
@@ -1092,23 +1138,6 @@ private:
 
         operation->MutableAlerts()[alertType] = alert;
     }
-
-
-    void DoRegisterOrUpdateNode(TNodeId nodeId, const THashSet<TString>& tags)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        Strategy_->ValidateNodeTags(tags);
-        NodeIdToTags_[nodeId] = tags;
-    }
-
-    void DoUnregisterNode(TNodeId nodeId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(NodeIdToTags_.erase(nodeId) == 1);
-    }
-
 
     const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
     {
@@ -1890,7 +1919,6 @@ private:
         operation->SetLocalController(localController);
 
         RegisterOperation(operation);
-
 
         try {
             auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);

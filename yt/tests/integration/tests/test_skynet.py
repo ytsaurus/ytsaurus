@@ -142,6 +142,15 @@ class TestSkynet(YTEnvSetup):
             self.get_skynet_part(node_id, info["nodes"], chunk_id=chunk_id,
                 lower_row_index=0, upper_row_index=2, start_part_index=0)
 
+    def test_write_null_fields(self):
+        create("table", "//tmp/table", attributes={
+            "enable_skynet_sharing": True,
+            "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
+        })
+
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{}])
+        
     def test_download_single_part_by_http(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
