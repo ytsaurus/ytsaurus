@@ -142,7 +142,11 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("max_operation_count", MaxOperationCount)
         .Default(5000)
-        .GreaterThan(0);
+        .GreaterThan(0)
+        // This value corresponds to the maximum possible number of memory tags.
+        // It should be changed simultaneously with values of all `MaxTagValue`
+        // across the code base.
+        .LessThanOrEqual((1 << 16) - 1);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
         .Alias("max_running_operations")
