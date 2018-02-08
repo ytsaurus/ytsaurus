@@ -42,6 +42,7 @@ porto_delta_node_config = {
 
 ##################################################################
 
+@pytest.mark.skipif("True")
 class TestJobProber(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -411,6 +412,7 @@ class TestJobProber(YTEnvSetup):
 
 ##################################################################
 
+@pytest.mark.skipif("True")
 @patch_porto_env_only(TestJobProber)
 class TestJobProberPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
