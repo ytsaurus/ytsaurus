@@ -1462,7 +1462,7 @@ public:
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 req.set_mount_revision(tablet->GetMountRevision());
                 ToProto(req.mutable_table_id(), table->GetId());
-                ToProto(req.mutable_schema(), table->TableSchema());
+                ToProto(req.mutable_schema(), table->GetTableSchema());
                 if (table->IsPhysicallySorted()) {
                     ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
                     ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
@@ -1921,7 +1921,7 @@ public:
 
             // Validate pivot keys against table schema.
             for (const auto& pivotKey : pivotKeys) {
-                ValidatePivotKey(pivotKey, table->TableSchema());
+                ValidatePivotKey(pivotKey, table->GetTableSchema());
             }
         } else {
             if (!pivotKeys.empty()) {
@@ -1984,7 +1984,7 @@ public:
             chunks.erase(
                 std::unique(chunks.begin(), chunks.end()),
                 chunks.end());
-            int keyColumnCount = table->TableSchema().GetKeyColumnCount();
+            int keyColumnCount = table->GetTableSchema().GetKeyColumnCount();
             auto oldTablets = std::vector<TTablet*>(
                 tablets.begin() + firstTabletIndex,
                 tablets.begin() + lastTabletIndex + 1);
@@ -2082,7 +2082,7 @@ public:
 
         if (table->IsPhysicallySorted()) {
             // Move chunks from the resharded tablets to appropriate chunk lists.
-            int keyColumnCount = table->TableSchema().GetKeyColumnCount();
+            int keyColumnCount = table->GetTableSchema().GetKeyColumnCount();
             for (auto* chunk : chunks) {
                 auto keyPair = GetChunkBoundaryKeys(chunk->ChunkMeta(), keyColumnCount);
                 auto range = GetIntersectingTablets(newTablets, keyPair.first, keyPair.second);

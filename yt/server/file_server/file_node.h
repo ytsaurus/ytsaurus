@@ -30,7 +30,7 @@ public:
 
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
-        const NTableClient::TTableSchema& schema,
+        const NTableServer::TSharedTableSchemaPtr& sharedSchema,
         NTableClient::ETableSchemaMode schemaMode,
         TNullable<NTableClient::EOptimizeFor> optimizeFor,
         const TNullable<TMD5Hasher>& md5Hasher) override;

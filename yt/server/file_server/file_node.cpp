@@ -58,13 +58,13 @@ void TFileNode::Load(NCellMaster::TLoadContext& context)
 
 void TFileNode::EndUpload(
     const NChunkClient::NProto::TDataStatistics* statistics,
-    const NTableClient::TTableSchema& schema,
+    const NTableServer::TSharedTableSchemaPtr& sharedSchema,
     NTableClient::ETableSchemaMode schemaMode,
     TNullable<NTableClient::EOptimizeFor> optimizeFor,
     const TNullable<TMD5Hasher>& md5Hasher)
 {
     SetMD5Hasher(md5Hasher);
-    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
+    TChunkOwnerBase::EndUpload(statistics, sharedSchema, schemaMode, optimizeFor, md5Hasher);
 }
 
 void TFileNode::GetUploadParams(TNullable<TMD5Hasher>* md5Hasher)
