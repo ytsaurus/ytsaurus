@@ -2126,7 +2126,7 @@ TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* c
         Y_ASSERT(requisition.ToReplication().IsValid());
         result = GetChunkRequisitionRegistry()->GetIndex(requisition, Bootstrap_->GetObjectManager());
     } else {
-        result = EmptyChunkRequisitionIndex;
+        result = chunk->GetStagingTransaction() ? chunk->GetLocalRequisitionIndex() : EmptyChunkRequisitionIndex;
     }
 
     CacheRequisition(chunk, result);
