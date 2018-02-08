@@ -23,7 +23,7 @@ Y_FORCE_INLINE TChunkReplica::TChunkReplica(int nodeId, int replicaIndex, int me
         ChunkReplicaIndexBound * MediumIndexBound <= 0x100,
         "Replica and medium indexes must fit into a single byte.");
 
-    Y_ASSERT(nodeId >= 0 && nodeId <= NNodeTrackerClient::MaxNodeId);
+    Y_ASSERT(nodeId >= 0 && nodeId <= static_cast<int>(NNodeTrackerClient::MaxNodeId));
     Y_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
     Y_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
 }
