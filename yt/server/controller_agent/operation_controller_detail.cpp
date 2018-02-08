@@ -198,7 +198,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Logger(TLogger(OperationLogger)
         .AddTag("OperationId: %v", OperationId))
     , CancelableContext(New<TCancelableContext>())
-    , Invoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()))
+    , Invoker(CreateMemoryTaggingInvoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , ReleaseJobsFeasibleInvokers_({Invoker, CancelableInvoker})
@@ -207,6 +207,7 @@ TOperationControllerBase::TOperationControllerBase(
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
     , SchedulerIncarnation_(operation->GetSchedulerIncarnation())
+    , MemoryTag_(operation->GetMemoryTag())
     , Spec_(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
@@ -5601,6 +5602,13 @@ void TOperationControllerBase::BuildOperationInfo(NScheduler::NProto::TRspGetOpe
             .Do(std::bind(&TOperationControllerBase::BuildJobSplitterInfo, this, _1))
         .Finish()
         .GetData());
+
+    response->set_controller_memory_usage(GetMemoryUsage());
+}
+
+ssize_t TOperationControllerBase::GetMemoryUsage() const
+{
+    return GetMemoryCounterForTag(MemoryTag_);
 }
 
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
