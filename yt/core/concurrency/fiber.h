@@ -6,7 +6,6 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/small_vector.h>
 
 #include <atomic>
@@ -152,9 +151,6 @@ public:
      */
     void InvokeContextInHandlers();
 
-    //! Returns memory context currently used in this fiber.
-    i32& MemoryTag();
-
 private:
     TFiberId Id_;
 #ifdef DEBUG
@@ -175,8 +171,6 @@ private:
     void Cancel();
 
     SmallVector<uintptr_t, 8> Fsd_;
-
-    i32 MemoryTag_ = 0;
 
     TContextSwitchHandlersList SwitchHandlers_;
 

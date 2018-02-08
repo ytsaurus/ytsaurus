@@ -53,12 +53,11 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/digest.h>
-#include <yt/core/misc/histogram.h>
 #include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/digest.h>
+#include <yt/core/misc/histogram.h>
 #include <yt/core/misc/safe_assert.h>
 
 #include <yt/core/ytree/ypath_client.h>
@@ -884,10 +883,6 @@ protected:
 
     void AbortAllJoblets();
 
-    //! Private version of cancelable invoker that destroys the given callbacks
-    //! within the controller memory context.
-    IInvokerPtr GetPrivateCancelableInvoker() const;
-
 private:
     typedef TOperationControllerBase TThis;
 
@@ -896,8 +891,6 @@ private:
     //! Scheduler incarnation that spawned this controller.
     //! This field is set in the constructor.
     const int SchedulerIncarnation_;
-
-    const i64 MemoryTag_;
 
     std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
 
@@ -1050,8 +1043,6 @@ private:
 
     TOperationControllerInitializationAttributes InitializationAttributes_;
     NYson::TYsonString Attributes_;
-
-    ssize_t GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
 

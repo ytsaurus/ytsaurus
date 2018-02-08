@@ -169,9 +169,6 @@ public:
     //! Scheduling tag filters of operation pool trees.
     DEFINE_BYVAL_RW_PROPERTY(std::vector<TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
 
-    //! Memory tag associated with this operation.
-    DEFINE_BYVAL_RW_PROPERTY(ui64, MemoryTag);
-
     //! Returns operation id.
     TOperationId GetId() const override;
 

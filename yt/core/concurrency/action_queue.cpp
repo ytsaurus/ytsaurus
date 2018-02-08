@@ -618,35 +618,6 @@ ISuspendableInvokerPtr CreateSuspendableInvoker(IInvokerPtr underlyingInvoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryTaggingInvoker
-    : public TInvokerWrapper
-{
-public:
-    TMemoryTaggingInvoker(IInvokerPtr invoker, ui64 memoryTag)
-        : TInvokerWrapper(std::move(invoker))
-        , MemoryTag_(memoryTag)
-    { }
-
-    virtual void Invoke(TClosure callback) override
-    {
-        UnderlyingInvoker_->Invoke(BIND([callback = std::move(callback), memoryTag = MemoryTag_] () mutable
-        {
-            TMemoryTagGuard guard(memoryTag);
-            callback.Run();
-        }));
-    }
-
-private:
-    ui64 MemoryTag_;
-};
-
-IInvokerPtr CreateMemoryTaggingInvoker(IInvokerPtr underlyingInvoker, ui64 tag)
-{
-    return New<TMemoryTaggingInvoker>(std::move(underlyingInvoker), tag);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NConcurrency
 } // namespace NYT
 

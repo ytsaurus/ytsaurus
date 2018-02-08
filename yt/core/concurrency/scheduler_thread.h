@@ -112,7 +112,6 @@ protected:
 
 private:
     void SwitchContextFrom(TFiber* currentFiber);
-    void SetCurrentFiber(TFiberPtr fiber);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerThread)
