@@ -5,7 +5,6 @@
 #undef SCHEDULER_INL_H_
 
 #include <yt/core/actions/invoker_util.h>
-#include <yt/core/misc/memory_tag.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -26,7 +25,6 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 
     auto* scheduler = TryGetCurrentScheduler();
     if (scheduler) {
-        TMemoryTagGuard guard(NullMemoryTag);
         scheduler->WaitFor(future.template As<void>(), std::move(invoker));
         Y_ASSERT(future.IsSet());
     } else {

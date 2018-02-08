@@ -15,7 +15,6 @@ message TRspGetOperationInfo
     required bytes brief_progress = 2;
     required bytes running_jobs = 3;
     required bytes job_splitter = 4;
-    required int64 controller_memory_usage = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

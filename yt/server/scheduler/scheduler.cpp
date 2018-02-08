@@ -1220,49 +1220,6 @@ private:
     //! should be accessed only from scheduler control thread.
     int SchedulerIncarnation_ = -1;
 
-    class TMemoryTagQueue
-    {
-    public:
-        TMemoryTagQueue()
-        {
-            constexpr int MaxTagValue = 1 << 16;
-            for (ui64 tag = 1; tag < MaxTagValue; ++tag) {
-                AvailableTags_.push(tag);
-            }
-        }
-
-        ui64 AssignTagToOperation(TOperationId operationId)
-        {
-            YCHECK(!AvailableTags_.empty());
-            auto tag = AvailableTags_.front();
-            AvailableTags_.pop();
-            OperationIdToTag_[operationId] = tag;
-            LOG_DEBUG("Assigning memory tag to an operation (OperationId: %v, MemoryTag: %v, AvailableTagCount: %v)",
-                operationId,
-                tag,
-                AvailableTags_.size());
-            return tag;
-        }
-
-        void ReclaimOperationTag(TOperationId operationId)
-        {
-            auto it = OperationIdToTag_.find(operationId);
-            YCHECK(it != OperationIdToTag_.end());
-            auto tag = it->second;
-            OperationIdToTag_.erase(it);
-            AvailableTags_.push(tag);
-            LOG_DEBUG("Reclaiming memory tag of an operation (OperationId: %v, MemoryTag: %v, AvailableTagCount: %v)",
-                operationId,
-                tag,
-                AvailableTags_.size());
-        }
-    private:
-        std::queue<ui64> AvailableTags_;
-        yhash<TOperationId, ui64> OperationIdToTag_;
-    };
-
-    TMemoryTagQueue MemoryTagQueue_;
-
     ISchedulerStrategyPtr Strategy_;
 
     TInstant ConnectionTime_;
@@ -1939,10 +1896,7 @@ private:
 
         bool registered = false;
         try {
-            operation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operation->GetId()));
-            auto controller = CreateControllerForOperation(
-                Bootstrap_->GetControllerAgent(),
-                operation.Get());
+            auto controller = CreateControllerForOperation(Bootstrap_->GetControllerAgent(), operation.Get());
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
@@ -2078,10 +2032,7 @@ private:
 
         IOperationControllerPtr controller;
         try {
-            operation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operation->GetId()));
-            controller = CreateControllerForOperation(
-                Bootstrap_->GetControllerAgent(),
-                operation.Get());
+            controller = CreateControllerForOperation(Bootstrap_->GetControllerAgent(), operation.Get());
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
@@ -2276,7 +2227,6 @@ private:
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
             operation->SetController(nullptr);
-            MemoryTagQueue_.ReclaimOperationTag(operation->GetId());
             UnregisterOperation(operation);
         }
     }
@@ -2801,7 +2751,6 @@ private:
         auto controllerBriefProgress = isOK ? getValue(response.Value()->brief_progress()) : emptyMapFragment;
         auto controllerRunningJobs = isOK ? getValue(response.Value()->running_jobs()) : emptyMapFragment;
         auto controllerJobSplitterInfo = isOK ? getValue(response.Value()->job_splitter()) : emptyMapFragment;
-        auto controllerMemoryUsage = isOK ? MakeNullable(response.Value()->controller_memory_usage()) : Null;
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -2828,7 +2777,6 @@ private:
                     .BeginMap()
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
-                .Item("controller_memory_usage").Value(controllerMemoryUsage)
             .EndMap();
     }
 

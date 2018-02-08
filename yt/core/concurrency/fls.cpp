@@ -74,7 +74,6 @@ static uintptr_t& TsdAt(int index)
         return tsd[index];
     }
 
-    TMemoryTagGuard guard(NullMemoryTag);
     tsd = new uintptr_t[FlsMaxSize];
     YCHECK(tsd);
     memset(tsd, 0, FlsMaxSize * sizeof(uintptr_t));
@@ -110,7 +109,6 @@ int FlsCountSlots()
 
 uintptr_t FlsConstruct(int index)
 {
-    TMemoryTagGuard guard(NullMemoryTag);
     return FlsSlots[index].Ctor();
 }
 
@@ -122,7 +120,8 @@ void FlsDestruct(int index, uintptr_t value)
 uintptr_t& FlsAt(int index, TFiber* fiber)
 {
     if (!fiber) {
-        if (auto* scheduler = TryGetCurrentScheduler()) {
+        auto* scheduler = TryGetCurrentScheduler();
+        if (scheduler) {
             fiber = scheduler->GetCurrentFiber();
         }
     }

@@ -184,7 +184,7 @@ void TSchedulerThread::ThreadMainStep()
     }
 
     Y_ASSERT(!RunQueue_.empty());
-    SetCurrentFiber(std::move(RunQueue_.front()));
+    CurrentFiber_ = std::move(RunQueue_.front());
     SetCurrentFiberId(CurrentFiber_->GetId());
     RunQueue_.pop_front();
 
@@ -410,7 +410,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     // TODO(babenko): handle canceled caller
 
     RunQueue_.emplace_front(std::move(CurrentFiber_));
-    SetCurrentFiber(std::move(other));
+    CurrentFiber_ = std::move(other);
     SetCurrentFiberId(target->GetId());
 
     caller->SetSuspended();
@@ -497,12 +497,6 @@ void TSchedulerThread::SwitchContextFrom(TFiber* currentFiber)
     currentFiber->InvokeContextInHandlers();
 
     CheckForCanceledFiber(currentFiber);
-}
-
-void TSchedulerThread::SetCurrentFiber(TFiberPtr fiber)
-{
-    CurrentFiber_ = std::move(fiber);
-    SetCurrentMemoryTag(CurrentFiber_->MemoryTag());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
