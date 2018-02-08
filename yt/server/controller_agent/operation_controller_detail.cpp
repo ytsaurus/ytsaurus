@@ -2413,8 +2413,6 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         }
     }
 
-    LOG_DEBUG("NODE COUNT %v, POOL TREE %v", GetExecNodeDescriptors().size(), PoolTreeSchedulingTagFilters_.size());
-
     if (!hasSuitableNodes) {
         auto timeout = DurationToCpuDuration(Spec_->AvailableNodesMissingTimeout);
         if (!AvailableNodesSeen_ && AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {

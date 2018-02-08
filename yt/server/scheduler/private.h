@@ -48,8 +48,6 @@ DEFINE_ENUM(EJobRevivalPhase,
     (Finished)
 );
 
-////////////////////////////////////////////////////////////////////////////////
-
 extern const TString RootPoolName;
 extern const TString DefaultTreeAttributeName;
 
