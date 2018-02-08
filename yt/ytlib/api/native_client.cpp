@@ -3939,7 +3939,7 @@ private:
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>(0)
             .ValueOrThrow();
 
-        auto items = ConvertToNode(rsp->value())->AsList();
+        auto items = ConvertToNode(TYsonString(rsp->value()))->AsList();
 
         std::vector<TOperation> cypressOperations;
         for (const auto& item : items->GetChildren()) {
