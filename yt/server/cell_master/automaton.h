@@ -6,6 +6,8 @@
 
 #include <yt/server/hydra/composite_automaton.h>
 
+#include <yt/server/table_server/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/core/misc/property.h>
@@ -17,7 +19,11 @@ namespace NCellMaster {
 
 class TSaveContext
     : public NHydra::TSaveContext
-{ };
+{
+public:
+    using TSavedSchemaMap = THashMap<NTableServer::TSharedTableSchema*, NObjectClient::TObjectId>;
+    DEFINE_BYREF_RW_PROPERTY(TSavedSchemaMap, SavedSchemas);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +31,9 @@ class TLoadContext
     : public NHydra::TLoadContext
 {
 public:
+    using TLoadedSchemaMap = THashMap<NObjectClient::TObjectId, NTableServer::TSharedTableSchema*>;
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
+    DEFINE_BYREF_RW_PROPERTY(TLoadedSchemaMap, LoadedSchemas);
 
 public:
     explicit TLoadContext(TBootstrap* bootstrap);

@@ -1,4 +1,5 @@
 #include "table_node.h"
+#include "shared_table_schema.h"
 #include "private.h"
 
 #include <yt/server/tablet_server/tablet.h>
@@ -26,6 +27,14 @@ using namespace NYson;
 static auto const& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESchemaSerializationMethod,
+    (Schema)
+    (TableIdWithSameSchema)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
 { }
@@ -107,17 +116,17 @@ void TTableNode::BeginUpload(EUpdateMode mode)
 
 void TTableNode::EndUpload(
     const TDataStatistics* statistics,
-    const TTableSchema& schema,
+    const TSharedTableSchemaPtr& sharedSchema,
     ETableSchemaMode schemaMode,
     TNullable<NTableClient::EOptimizeFor> optimizeFor,
     const TNullable<TMD5Hasher>& md5Hasher)
 {
     SchemaMode_ = schemaMode;
-    TableSchema_ = schema;
+    SharedTableSchema() = sharedSchema;
     if (optimizeFor) {
         OptimizeFor_.Set(*optimizeFor);
     }
-    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
+    TChunkOwnerBase::EndUpload(statistics, sharedSchema, schemaMode, optimizeFor, md5Hasher);
 }
 
 TClusterResources TTableNode::GetDeltaResourceUsage() const
@@ -151,12 +160,12 @@ TClusterResources TTableNode::GetTabletResourceUsage() const
 
 bool TTableNode::IsSorted() const
 {
-    return TableSchema_.IsSorted();
+    return GetTableSchema().IsSorted();
 }
 
 bool TTableNode::IsUniqueKeys() const
 {
-    return TableSchema_.IsUniqueKeys();
+    return GetTableSchema().IsUniqueKeys();
 }
 
 bool TTableNode::IsReplicated() const
@@ -190,7 +199,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     TChunkOwnerBase::Save(context);
 
     using NYT::Save;
-    Save(context, TableSchema_);
+    SaveTableSchema(context);
     Save(context, SchemaMode_);
     Save(context, OptimizeFor_);
     Save(context, RetainedTimestamp_);
@@ -209,7 +218,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     }
 
     using NYT::Load;
-    Load(context, TableSchema_);
+    LoadTableSchema(context);
     Load(context, SchemaMode_);
     Load(context, OptimizeFor_);
     Load(context, RetainedTimestamp_);
@@ -220,12 +229,58 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     LoadCompatAfter609(context);
 }
 
+void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+    const auto& registry = context.GetBootstrap()->GetCypressManager()->GetSharedTableSchemaRegistry();
+    if (context.GetVersion() < 704) {
+        TTableSchema tableSchema = Load<TTableSchema>(context);
+        if (tableSchema != TSharedTableSchemaRegistry::EmptyTableSchema) {
+            SharedTableSchema() = registry->GetSchema(std::move(tableSchema));
+        }
+    } else {
+        switch (Load<ESchemaSerializationMethod>(context)) {
+            case ESchemaSerializationMethod::Schema: {
+                SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
+                auto inserted = context.LoadedSchemas().emplace(Id_, SharedTableSchema().Get()).second;
+                YCHECK(inserted);
+                break;
+            }
+            case ESchemaSerializationMethod::TableIdWithSameSchema: {
+                TObjectId previousTableId = Load<TObjectId>(context);
+                YCHECK(context.LoadedSchemas().has(previousTableId));
+                SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
+                break;
+            }
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+}
+
+void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    // NB `emplace' doesn't overwrite existing element so if key is already preset in map it won't be updated.
+    auto pair = context.SavedSchemas().emplace(SharedTableSchema().Get(), Id_);
+    auto insertedNew = pair.second;
+    if (insertedNew) {
+        Save(context, ESchemaSerializationMethod::Schema);
+        Save(context, GetTableSchema());
+    } else {
+        const auto& previousId = pair.first->second;
+        Save(context, ESchemaSerializationMethod::TableIdWithSameSchema);
+        Save(context, previousId);
+    }
+}
+
 void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
 {
     auto dynamic = std::make_unique<TDynamicTableAttributes>();
 
     using NYT::Load;
-    Load(context, TableSchema_);
+    LoadTableSchema(context);
     Load(context, SchemaMode_);
     Load(context, dynamic->Tablets);
     Load(context, dynamic->Atomicity);
@@ -430,6 +485,11 @@ TTimestamp TTableNode::CalculateRetainedTimestamp() const
         result = std::max(result, timestamp);
     }
     return result;
+}
+
+const NTableClient::TTableSchema& TTableNode::GetTableSchema() const
+{
+    return SharedTableSchema() ? SharedTableSchema()->GetTableSchema() : TSharedTableSchemaRegistry::EmptyTableSchema;
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);

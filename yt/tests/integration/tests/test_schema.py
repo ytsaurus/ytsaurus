@@ -349,3 +349,26 @@ class TestRequiredOption(YTEnvSetup):
         with pytest.raises(YtError):
             # Schemas are incompatible
             merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")
+
+class TestSchemaDeduplication(YTEnvSetup):
+    def test_empty_schema(self):
+        create("table", "//tmp/table")
+        assert get("//tmp/table/@schema_duplicate_count") == 0
+
+    def test_simple_schema(self):
+        def get_schema(strict):
+            return make_schema([{"name": "value", "type": "string", "required": True}], unique_keys=False, strict=strict)
+
+        create("table", "//tmp/table1", attributes={"schema": get_schema(True)})
+        create("table", "//tmp/table2", attributes={"schema": get_schema(True)})
+        create("table", "//tmp/table3", attributes={"schema": get_schema(False)})
+
+        assert get("//tmp/table1/@schema_duplicate_count") == 2
+        assert get("//tmp/table2/@schema_duplicate_count") == 2
+        assert get("//tmp/table3/@schema_duplicate_count") == 1
+
+        alter_table("//tmp/table2", schema=get_schema(False))
+
+        assert get("//tmp/table1/@schema_duplicate_count") == 1
+        assert get("//tmp/table2/@schema_duplicate_count") == 2
+        assert get("//tmp/table3/@schema_duplicate_count") == 2
