@@ -1183,8 +1183,8 @@ private:
 
     void HydraLeaderExecuteWrite(
         const TTransactionId& transactionId,
-        TTransactionSignature signature,
         i64 mountRevision,
+        TTransactionSignature signature,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
         const TString& user,
