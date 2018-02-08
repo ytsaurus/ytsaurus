@@ -671,7 +671,7 @@ void DumpJobInfoForException(
         }
         TStringStream nextChunk;
         nextChunk << '\n';
-        nextChunk << "Error: " << failedJobInfo.Error.ShortDescription() << '\n';
+        nextChunk << "Error: " << failedJobInfo.Error.FullDescription() << '\n';
         if (!failedJobInfo.Stderr.empty()) {
             nextChunk << "Stderr: " << Endl;
             size_t tmpWritten = written + nextChunk.Str().size();
