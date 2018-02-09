@@ -70,7 +70,7 @@ b"""
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 10;
-        chunk_properties_update_period = 10;
+        chunk_requisition_update_period = 10;
     };
 
     cypress_manager = {
