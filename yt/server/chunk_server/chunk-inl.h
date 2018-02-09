@@ -114,6 +114,16 @@ inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) con
     }
 }
 
+inline void TChunk::UnrefUsedRequisitions(
+    TChunkRequisitionRegistry* registry,
+    const NObjectServer::TObjectManagerPtr& objectManager) const
+{
+    registry->Unref(LocalRequisitionIndex_, objectManager);
+    for (const auto& exportData : ExportDataList_) {
+        registry->Unref(exportData.ChunkRequisitionIndex, objectManager);
+    }
+}
+
 inline TChunkRequisitionIndex TChunk::GetLocalRequisitionIndex() const
 {
     return LocalRequisitionIndex_;

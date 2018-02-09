@@ -140,6 +140,11 @@ public:
     //! Supposed to be called soon after the chunk is constructed or loaded.
     void RefUsedRequisitions(TChunkRequisitionRegistry* registry) const;
 
+    //! A reciprocal to the above. Called at chunk destruction.
+    void UnrefUsedRequisitions(
+        TChunkRequisitionRegistry* registry,
+        const NObjectServer::TObjectManagerPtr& objectManager) const;
+
     TChunkRequisitionIndex GetLocalRequisitionIndex() const;
     void SetLocalRequisitionIndex(
         TChunkRequisitionIndex requisitionIndex,
