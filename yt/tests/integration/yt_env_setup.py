@@ -1,8 +1,13 @@
 import yt_commands
 
 from yt.environment import YTInstance
-from yt.common import makedirp, update, YtError, format_error
+from yt.common import makedirp, YtError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
+
+try:
+    from yt.common import update_inplace as update
+except ImportError:
+    from yt.common import update
 
 import pytest
 
