@@ -70,12 +70,29 @@ class ITransaction
 public:
     virtual const TTransactionId& GetId() const = 0;
 
+    //
+    // Try to lock given path. Lock will be held until transaction is commited/aborted.
+    // Lock modes:
+    //   LM_EXCLUSIVE: if exclusive lock is taken no other transaction can take exclusive or shared lock.
+    //   LM_SHARED: if shared lock is taken other transactions can take shared lock but not exclusive.
+    //
+    //   LM_SNAPSHOT: snapshot lock always succeeds, when snapshot lock is taken current transaction
+    //
+    // Exclusive/shared lock can be waitable or not.
+    // If nonwaitable lock cannot be taken exception is thrown.
+    // If waitable lock cannot be taken it is created in pending state and client can wait until it actually taken.
+    // Check TLockOptions::Waitable and ILock::GetAcquiredFuture for more details.
     virtual ILockPtr Lock(
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) = 0;
 
+    //
+    // Commit transaction. All changes that are made by transactions become visible globaly or to parent transaction.
     virtual void Commit() = 0;
+
+    //
+    // Abort transaction. All changes that are made by current transaction are lost.
     virtual void Abort() = 0;
 };
 
