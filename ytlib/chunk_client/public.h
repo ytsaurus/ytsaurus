@@ -111,6 +111,11 @@ DEFINE_ENUM(EChunkType,
     ((Journal) (3))
 );
 
+DEFINE_ENUM(EIOEngineType,
+    (ThreadPool)
+    (Aio)
+);
+
 const int GenericChunkReplicaIndex = 16;  // no specific replica; the default one for regular chunks
 
 // Journal chunks only:

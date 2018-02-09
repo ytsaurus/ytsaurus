@@ -257,7 +257,7 @@ public:
         auto repairIndices = *codec->GetRepairIndices(erasedIndices);
         std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
-        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
             if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
@@ -281,7 +281,7 @@ public:
     static std::vector<IChunkReaderAllowingRepairPtr> GetFileReaders(int partCount)
     {
         std::vector<IChunkReaderAllowingRepairPtr> readers;
-        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
         readers.reserve(partCount);
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
@@ -397,7 +397,7 @@ public:
 
         std::vector<IChunkReaderAllowingRepairPtr> readers;
         readers.reserve(partCount);
-        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             if (failingTimes[i] == 0) {

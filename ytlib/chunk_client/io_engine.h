@@ -5,8 +5,6 @@
 #include <yt/core/actions/future.h>
 #include <yt/core/misc/ref.h>
 
-#include <yt/server/data_node/public.h>
-
 #include <util/system/file.h>
 
 namespace NYT {
@@ -30,7 +28,7 @@ struct IIOEngine
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)
 
-IIOEnginePtr CreateIOEngine(NDataNode::EIOEngineType ioType, const NYTree::INodePtr& ioConfig);
+IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
