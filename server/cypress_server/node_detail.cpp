@@ -587,8 +587,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
     // Make sure that target_path is valid upon creation.
     auto targetPath = attributes->GetAndRemove<TString>("target_path");
     const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto* resolver = objectManager->GetObjectResolver();
-    resolver->ResolvePath(targetPath, transaction);
+    objectManager->ResolvePathToObject(targetPath, transaction);
 
     auto implHolder = TBase::DoCreate(
         id,

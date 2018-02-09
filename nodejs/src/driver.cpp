@@ -109,7 +109,7 @@ private:
             .Run();
 
         // Await for the future, see YT-1095.
-        WaitFor(std::move(future));
+        Y_UNUSED(WaitFor(std::move(future)));
     }
 };
 
@@ -156,7 +156,7 @@ public:
         : Echo_(echo)
         , Driver_(std::move(driver))
         , IOInvoker_(CreateSerializedInvoker(
-            NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker()))
+            NChunkClient::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker()))
         , InputStack_(New<TNodeJSInputStack>(inputStream, IOInvoker_))
         , OutputStack_(New<TNodeJSOutputStack>(outputStream, IOInvoker_))
         , ExecuteCallback_(Persistent<Function>::New(executeCallback))

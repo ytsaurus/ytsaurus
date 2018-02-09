@@ -27,9 +27,9 @@ public:
         }
     }
 
-    virtual bool CanScheduleJob(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override
+    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context, const TJobResources& jobLimits) override
     {
-        return CanScheduleJob_;
+        return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
     }
 
     virtual void OnTaskCompleted() override
@@ -60,21 +60,21 @@ public:
         return CanScheduleJob_;
     }
 
-    virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobAborted(joblet, jobSummary);
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary) override
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobFailed(joblet, jobSummary);
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary) override
+    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobCompleted(joblet, jobSummary);
 
@@ -88,22 +88,28 @@ public:
         this->TaskHost_->GetAutoMergeDirector()->SubscribeStateChanged(BIND(&TAutoMergeableOutputMixin::UpdateSelf, MakeWeak(this)));
     }
 
-    virtual TString GetId() const override
+    virtual TString GetTitle() const override
     {
-        return TUnderlyingTask::GetId() + " + AutoMergeableOutputMixin";
+        return TUnderlyingTask::GetTitle() + " + AutoMergeableOutputMixin";
     }
 
-    void Persist(const TPersistenceContext& context)
+    virtual bool CanLoseJobs() const override
+    {
+        // If user code is deterministic, it is safe to restart it arbitrarily.
+        return this->GetUserJobSpec()->Deterministic;
+    }
+
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TUnderlyingTask::Persist(context);
 
         using NYT::Persist;
 
-        Persist(context, CanScheduleJob_);
         Persist(context, LastChunkCount_);
     }
 
 private:
+    // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
     bool CanScheduleJob_ = true;
     // Our current best estimate to the number of chunks in the next job we are able to schedule.
     int LastChunkCount_ = 1;

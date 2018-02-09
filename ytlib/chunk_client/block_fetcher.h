@@ -53,7 +53,8 @@ public:
         NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
-        NCompression::ECodec codecId);
+        NCompression::ECodec codecId,
+        const TReadSessionId& sessionId);
 
     //! Returns |true| if there are requested blocks that were not fetched enough times.
     bool HasMoreBlocks() const;
@@ -150,7 +151,8 @@ public:
         NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
-        NCompression::ECodec codecId);
+        NCompression::ECodec codecId,
+        const TReadSessionId& sessionId);
 
     TFuture<NChunkClient::TBlock> FetchNextBlock();
 

@@ -11,6 +11,9 @@
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/misc/config.h>
+#include <yt/core/misc/boolean_formula.h>
+
+#include <yt/core/re2/re2.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -36,6 +39,88 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TPeerBlockDistributorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between distributor iterations.
+    TDuration IterationPeriod;
+
+    //! Transmitted byte count per second enough for P2P to become active.
+    i64 OutTrafficActivationThreshold;
+
+    //! Out queue size (Out throttler queue size + default network bus pending byte count) enough for P2P to become active.
+    i64 OutQueueSizeActivationThreshold;
+
+    //! Block throughput in bytes per second enough for P2P to become active.
+    i64 TotalRequestedBlockSizeActivationThreshold;
+
+    //! Regex for names of network interfaces considered when calculating transmitted byte count.
+    NRe2::TRe2Ptr NetOutInterfaces;
+
+    //! Maximum total size of blocks transmitted to a single node during the iteration.
+    i64 MaxPopulateRequestSize;
+
+    //! Number of nodes to send blocks on a given iteration.
+    int DestinationNodeCount;
+
+    //! Upper bound on number of times block may be distributed while we track it as an active. We do not want
+    //! the same block to be distributed again and again.
+    int MaxDistributionCount;
+
+    //! Minimum number of times block should be requested during `WindowLength` time period in order to be
+    //! considered as a candidate for distribution.
+    int MinRequestCount;
+
+    //! Delay between consecutive distributions of a given block.
+    TDuration ConsecutiveDistributionDelay;
+
+    //! Length of the window in which we consider events of blocks being accessed.
+    TDuration WindowLength;
+
+    //! Configuration of the retying channel used for `PopulateCache` requests.
+    NRpc::TRetryingChannelConfigPtr NodeChannel;
+
+    //! Node tag filter defining which nodes will be considered as candidates for distribution.
+    TBooleanFormula NodeTagFilter;
+
+    TPeerBlockDistributorConfig()
+    {
+        RegisterParameter("iteration_period", IterationPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("out_traffic_activation_threshold", OutTrafficActivationThreshold)
+            .Default(768_MB);
+        RegisterParameter("out_queue_size_activation_threshold", OutQueueSizeActivationThreshold)
+            .Default(256_MB);
+        RegisterParameter("total_requested_block_size_activation_threshold", TotalRequestedBlockSizeActivationThreshold)
+            .Default(512_MB);
+        RegisterParameter("net_out_interfaces", NetOutInterfaces)
+            .Default(New<NRe2::TRe2>("eth\\d*"));
+        RegisterParameter("max_populate_request_size", MaxPopulateRequestSize)
+            .Default(64_MB);
+        RegisterParameter("destination_node_count", DestinationNodeCount)
+            .Default(3);
+        RegisterParameter("max_distribution_count", MaxDistributionCount)
+            .Default(12);
+        RegisterParameter("min_request_count", MinRequestCount)
+            .Default(3);
+        RegisterParameter("consecutive_distribution_delay", ConsecutiveDistributionDelay)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("window_length", WindowLength)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("node_channel", NodeChannel)
+            .DefaultNew();
+        RegisterParameter("node_tag_filter", NodeTagFilter)
+            .Default(MakeBooleanFormula("!CLOUD"));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPeerBlockDistributorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreLocationConfigBase
     : public TDiskLocationConfig
 {
@@ -48,25 +133,62 @@ public:
     // is subclass-specific).
     TString MediumName;
 
+    //! Controls outcoming location bandwidth used by replication jobs.
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet preload.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet recovery.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
+
+    EIOEngineType IOEngineType;
+    NYTree::INodePtr IOConfig;
+
+    TDuration ThrottleCounterInterval;
+
     TStoreLocationConfigBase()
     {
         RegisterParameter("quota", Quota)
             .GreaterThanOrEqual(0)
             .Default(TNullable<i64>());
+        RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
+            .DefaultNew();
+        RegisterParameter("io_engine_type", IOEngineType)
+            .Default(EIOEngineType::ThreadPool);
+        RegisterParameter("io_config", IOConfig)
+            .Optional();
+        RegisterParameter("throttle_counter_interval", ThrottleCounterInterval)
+            .Default(TDuration::Seconds(30));
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocationConfigBase)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreLocationConfig
     : public TStoreLocationConfigBase
 {
 public:
-    //! The location is considered to be full when available space becomes less than #LowWatermark.
+    //! A currently full location is considered to be non-full again when available space grows
+    //! above this limit.
     i64 LowWatermark;
 
-    //! All uploads to the location are aborted when available space becomes less than #HighWatermark.
+    //! A location is considered to be full when available space becomes less than #HighWatermark.
     i64 HighWatermark;
+
+    //! All writes to the location are aborted when available space becomes less than #DisableWritesWatermark.
+    i64 DisableWritesWatermark;
 
     //! Maximum amount of time files of a deleted chunk could rest in trash directory before
     //! being permanently removed.
@@ -82,12 +204,28 @@ public:
     //! Controls incoming location bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
 
+    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet journals.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet snapshots.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletSnapshotInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet store flush.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
+
+
     TStoreLocationConfig()
     {
         RegisterParameter("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
-            .Default(20_GB);
+            .Default(50_GB);
         RegisterParameter("high_watermark", HighWatermark)
+            .GreaterThanOrEqual(0)
+            .Default(20_GB);
+        RegisterParameter("disable_writes_watermark", DisableWritesWatermark)
             .GreaterThanOrEqual(0)
             .Default(10_GB);
         RegisterParameter("max_trash_ttl", MaxTrashTtl)
@@ -99,23 +237,36 @@ public:
             .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
             .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", TabletCompactionAndPartitioningInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_logging_in_throttler", TabletLoggingInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_snapshot_in_throttler", TabletSnapshotInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
+            .DefaultNew();
 
         // NB: base class's field.
         RegisterParameter("medium_name", MediumName)
             .Default(NChunkClient::DefaultStoreMediumName);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (HighWatermark > LowWatermark) {
-                THROW_ERROR_EXCEPTION("\"high_watermark\" must be less than or equal to \"low_watermark\"");
+                THROW_ERROR_EXCEPTION("\"high_full_watermark\" must be less than or equal to \"low_watermark\"");
             }
-            if (LowWatermark > TrashCleanupWatermark) {
-                THROW_ERROR_EXCEPTION("\"low_watermark\" must be less than or equal to \"trash_cleanup_watermark\"");
+            if (DisableWritesWatermark > HighWatermark) {
+                THROW_ERROR_EXCEPTION("\"write_disable_watermark\" must be less than or equal to \"high_watermark\"");
+            }
+            if (DisableWritesWatermark > TrashCleanupWatermark) {
+                THROW_ERROR_EXCEPTION("\"disable_writes_watermark\" must be less than or equal to \"trash_cleanup_watermark\"");
             }
         });
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TCacheLocationConfig
     : public TStoreLocationConfigBase
@@ -136,6 +287,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
@@ -191,6 +344,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TArtifactCacheReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
     , public virtual NTableClient::TTableReaderConfig
@@ -199,6 +354,8 @@ class TArtifactCacheReaderConfig
 
 DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TRepairReaderConfig
     : public NChunkClient::TReplicationReaderConfig
     , public TWorkloadConfig
@@ -206,12 +363,82 @@ class TRepairReaderConfig
 
 DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TSealReaderConfig
     : public NChunkClient::TReplicationReaderConfig
     , public TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TSealReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLayerLocationConfig
+    : public TDiskLocationConfig
+{
+public:
+    //! The location is considered to be full when available space becomes less than #LowWatermark.
+    i64 LowWatermark;
+
+    //! Maximum space layers are allowed to occupy.
+    //! (If not initialized then indicates to occupy all available space on drive).
+    TNullable<i64> Quota;
+
+    TLayerLocationConfig()
+    {
+        RegisterParameter("low_watermark", LowWatermark)
+            .Default(1_GB)
+            .GreaterThanOrEqual(0);
+
+        RegisterParameter("quota", Quota)
+            .Default(Null);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLayerLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVolumeManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::vector<TLayerLocationConfigPtr> LayerLocations;
+    TDuration PortoRetryTimeout;
+    TDuration PortoPollPeriod;
+
+    TVolumeManagerConfig()
+    {
+        RegisterParameter("layer_locations", LayerLocations);
+
+        RegisterParameter("porto_retry_timeout", PortoRetryTimeout)
+            .Default(TDuration::Seconds(1))
+            .GreaterThan(TDuration::Zero());
+
+        RegisterParameter("porto_poll_period", PortoPollPeriod)
+            .Default(TDuration::MilliSeconds(200))
+            .GreaterThan(TDuration::Zero());
+    }
+
+    i64 GetCacheCapacity() const
+    {
+        i64 result = 0;
+        for (const auto& location : LayerLocations) {
+            if (!location->Quota) {
+                // Infinite capacity.
+                return std::numeric_limits<i64>::max();
+            } else {
+                result += *location->Quota;
+            }
+        }
+        return result;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TVolumeManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Describes a configuration of a data node.
 class TDataNodeConfig
@@ -288,6 +515,8 @@ public:
     //! Cf. TTcpDispatcherStatistics::PendingOutBytes
     i64 NetOutThrottlingLimit;
 
+    TDuration NetOutThrottleCounterInterval;
+
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
     i64 DiskWriteThrottlingLimit;
@@ -301,6 +530,9 @@ public:
 
     //! Cached chunks location.
     std::vector<TCacheLocationConfigPtr> CacheLocations;
+
+    //! Manages layers and root volumes for porto job environment.
+    TVolumeManagerConfigPtr VolumeManager;
 
     //! Reader configuration used to download chunks into cache.
     TArtifactCacheReaderConfigPtr ArtifactCacheReader;
@@ -341,8 +573,36 @@ public:
     //! Controls outcoming bandwidth used by Artifact Cache downloads.
     NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheOutThrottler;
 
+    //! Controls outcoming location bandwidth used by skynet sharing.
+    NConcurrency::TThroughputThrottlerConfigPtr SkynetOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningInThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet journals.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingInThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet preload.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
+
+    //! Controls outcoming location bandwidth used by tablet recovery.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
+
+    //! Controls incoming location bandwidth used by tablet snapshots.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletSnapshotInThrottler;
+
+    //! Controls incoming location bandwidth used by tablet store flush.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
+
+
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
+
+    //! Distributes blocks when node is under heavy load.
+    TPeerBlockDistributorConfigPtr PeerBlockDistributor;
 
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
@@ -375,6 +635,16 @@ public:
 
     //! The time after which any registered placement info expires.
     TDuration PlacementExpirationTime;
+
+    //! Controls if cluster and cell directories are to be synchronized on connect.
+    //! Useful for tests.
+    bool SyncDirectoriesOnConnect;
+
+    //! Maximum number of blocks to store in the RecentlyReadBlockQueue in ChunkBlockManager.
+    int RecentlyReadBlockQueueSize;
+
+    //! Sample rate of blocks that will be added to the RecentlyReadBlockQueue in ChunkBlockManager.
+    double RecentlyReadBlockQueueSampleRate;
 
     TDataNodeConfig()
     {
@@ -425,6 +695,9 @@ public:
         RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
             .GreaterThan(0)
             .Default(512_MB);
+        RegisterParameter("net_out_throttle_counter_interval", NetOutThrottleCounterInterval)
+            .Default(TDuration::Seconds(30));
+
         RegisterParameter("disk_write_throttling_limit", DiskWriteThrottlingLimit)
             .GreaterThan(0)
             .Default(1_GB);
@@ -436,6 +709,9 @@ public:
             .NonEmpty();
         RegisterParameter("cache_locations", CacheLocations)
             .NonEmpty();
+
+        RegisterParameter("volume_manager", VolumeManager)
+            .DefaultNew();
 
         RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
             .DefaultNew();
@@ -465,8 +741,26 @@ public:
             .DefaultNew();
         RegisterParameter("artifact_cache_out_throttler", ArtifactCacheOutThrottler)
             .DefaultNew();
+        RegisterParameter("skynet_out_throttler", SkynetOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", TabletCompactionAndPartitioningInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_logging_in_throttler", TabletLoggingInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_snapshot_in_throttler", TabletSnapshotInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
+            .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)
+            .DefaultNew();
+        RegisterParameter("peer_block_distributor", PeerBlockDistributor)
             .DefaultNew();
 
         RegisterParameter("disk_health_checker", DiskHealthChecker)
@@ -496,16 +790,27 @@ public:
         RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
             .Default(true);
 
-        RegisterParameter("placement_expiration_time", PlacementExpirationTime)
-            .Default(TDuration::Hours(1));
-
         RegisterParameter("use_direct_io", UseDirectIO)
             .Default(EDirectIOPolicy::Never);
 
         RegisterParameter("enable_experimental_skynet_http_api", EnableExperimentalSkynetHttpApi)
             .Default(false);
 
-        RegisterInitializer([&] () {
+        RegisterParameter("placement_expiration_time", PlacementExpirationTime)
+            .Default(TDuration::Hours(1));
+
+        RegisterParameter("sync_directories_on_connect", SyncDirectoriesOnConnect)
+            .Default(false);
+
+        RegisterParameter("recently_read_block_queue_size", RecentlyReadBlockQueueSize)
+            .GreaterThanOrEqual(0)
+            .Default(0);
+        RegisterParameter("recently_read_block_queue_sample_rate", RecentlyReadBlockQueueSampleRate)
+            .GreaterThanOrEqual(0.0)
+            .LessThanOrEqual(1.0)
+            .Default(0.0);
+
+        RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
 
             BlockCache->CompressedData->Capacity = 1_GB;

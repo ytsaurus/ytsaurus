@@ -1,12 +1,7 @@
 #include "node_detail.h"
-#include "convert.h"
-#include "tree_builder.h"
 #include "tree_visitor.h"
-#include "ypath_client.h"
-#include "ypath_detail.h"
-#include "ypath_service.h"
+#include "exception_helpers.h"
 
-#include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/ypath/token.h>
@@ -91,11 +86,11 @@ void TNodeBase::GetKeySelf(
     TString key;
     switch (parent->GetType()) {
         case ENodeType::Map:
-            key = parent->AsMap()->GetChildKey(this);
+            key = parent->AsMap()->GetChildKeyOrThrow(this);
             break;
 
         case ENodeType::List:
-            key = ToString(parent->AsList()->GetChildIndex(this));
+            key = ToString(parent->AsList()->GetChildIndexOrThrow(this));
             break;
 
         default:
@@ -149,6 +144,42 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     Y_UNREACHABLE();
 }
 
+TYPath TNodeBase::GetPath() const
+{
+    SmallVector<TString, 64> tokens;
+    IConstNodePtr current(this);
+    while (true) {
+        auto parent = current->GetParent();
+        if (!parent) {
+            break;
+        }
+        TString token;
+        switch (parent->GetType()) {
+            case ENodeType::List: {
+                auto index = parent->AsList()->GetChildIndexOrThrow(current);
+                token = ToYPathLiteral(index);
+                break;
+            }
+            case ENodeType::Map: {
+                auto key = parent->AsMap()->GetChildKeyOrThrow(current);
+                token = ToYPathLiteral(key);
+                break;
+            }
+            default:
+                Y_UNREACHABLE();
+        }
+        tokens.emplace_back(std::move(token));
+        current = parent;
+    }
+
+    TStringBuilder builder;
+    for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
+        builder.AppendChar('/');
+        builder.AppendString(*it);
+    }
+    return builder.Flush();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCompositeNodeMixin::SetRecursive(
@@ -163,7 +194,7 @@ void TCompositeNodeMixin::SetRecursive(
 
     auto factory = CreateFactory();
     auto child = ConvertToNode(TYsonString(request->value()), factory.get());
-    SetChild(factory.get(), "/" + path, child, false);
+    SetChild(factory.get(), "/" + path, child, request->recursive());
     factory->Commit();
 
     context->Reply();
@@ -227,8 +258,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                 THROW_ERROR_EXCEPTION("Child key cannot be empty");
             }
 
-            auto suffix = tokenizer.GetSuffix();
-            bool lastToken =  tokenizer.Advance() == NYPath::ETokenType::EndOfStream;
+            auto suffix = TYPath(tokenizer.GetSuffix());
 
             auto child = FindChild(key);
             if (!child) {
@@ -236,7 +266,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                     method == "Create" ||
                     method == "Copy" ||
                     method == "Remove" ||
-                    method == "Set" && lastToken)
+                    method == "Set")
                 {
                     return IYPathService::TResolveResultHere{"/" + path};
                 } else {
@@ -316,49 +346,68 @@ void TMapNodeMixin::SetChild(
         tokenizer.ThrowUnexpected();
     }
 
-    auto currentNode = AsMap();
-    while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
-        tokenizer.Skip(NYPath::ETokenType::Ampersand);
-        tokenizer.Expect(NYPath::ETokenType::Slash);
+    IMapNodePtr rootNode = AsMap();
+    INodePtr rootChild;
+    TString rootKey;
 
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        auto key = tokenizer.GetLiteralValue();
+    auto currentNode = rootNode;
+    try {
+        while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+            tokenizer.Skip(NYPath::ETokenType::Ampersand);
+            tokenizer.Expect(NYPath::ETokenType::Slash);
 
-        int maxKeyLength = GetMaxKeyLength();
-        if (key.length() > maxKeyLength) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::MaxKeyLengthViolation,
-                "Map node %v is not allowed to contain items with keys longer than %v symbols",
-                GetPath(),
-                maxKeyLength);
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            auto key = tokenizer.GetLiteralValue();
+
+            int maxKeyLength = GetMaxKeyLength();
+            if (key.length() > maxKeyLength) {
+                THROW_ERROR_EXCEPTION(
+                    NYTree::EErrorCode::MaxKeyLengthViolation,
+                    "Map node %v is not allowed to contain items with keys longer than %v symbols",
+                    GetPath(),
+                    maxKeyLength);
+            }
+
+            tokenizer.Advance();
+
+            bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
+            if (!recursive && !lastStep) {
+                ThrowNoSuchChildKeySuggestRecursive(currentNode, key);
+            }
+
+            int maxChildCount = GetMaxChildCount();
+            if (currentNode->GetChildCount() >= maxChildCount) {
+                THROW_ERROR_EXCEPTION(
+                    NYTree::EErrorCode::MaxChildCountViolation,
+                    "Map node %v is not allowed to contain more than %v items",
+                    GetPath(),
+                    maxChildCount);
+            }
+
+            auto newChild = lastStep ? child : factory->CreateMap();
+            if (currentNode != rootNode) {
+                YCHECK(currentNode->AddChild(newChild, key));
+            } else {
+                rootChild = newChild;
+                rootKey = key;
+            }
+
+            if (!lastStep) {
+                currentNode = newChild->AsMap();
+            }
         }
-
-        tokenizer.Advance();
-
-        bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
-        if (!recursive && !lastStep) {
-            THROW_ERROR_EXCEPTION("%v has no child %Qv; consider using \"recursive\" option to force its creation",
-                currentNode->GetPath(),
-                key);
-        }
-
-        int maxChildCount = GetMaxChildCount();
-        if (currentNode->GetChildCount() >= maxChildCount) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::MaxChildCountViolation,
-                "Map node %v is not allowed to contain more than %v items",
-                GetPath(),
-                maxChildCount);
-        }
-
-        auto newChild = lastStep ? child : factory->CreateMap();
-        YCHECK(currentNode->AddChild(newChild, key));
-
-        if (!lastStep) {
-            currentNode = newChild->AsMap();
+    } catch (const TErrorException& ex) {
+        if (recursive) {
+            THROW_ERROR_EXCEPTION("Failed to set node recursively")
+                << ex.Error();
+        } else {
+            throw;
         }
     }
+
+    YCHECK(rootKey);
+    rootNode->AddChild(rootChild, rootKey);
 }
 
 int TMapNodeMixin::GetMaxKeyLength() const
@@ -410,7 +459,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                     return IYPathService::TResolveResultHere{"/" + path};
                 }
 
-                return IYPathService::TResolveResultThere{std::move(child), tokenizer.GetSuffix()};
+                return IYPathService::TResolveResultThere{std::move(child), TYPath(tokenizer.GetSuffix())};
             }
         }
 

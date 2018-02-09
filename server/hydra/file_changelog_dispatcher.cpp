@@ -12,6 +12,8 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/fs.h>
 
+#include <yt/core/profiling/timing.h>
+
 #include <atomic>
 
 #ifdef _linux_
@@ -80,7 +82,7 @@ public:
             return VoidFuture;
         }
 
-        FlushForced_ = true;
+        FlushForced_.store(true);
         return FlushPromise_;
     }
 
@@ -91,16 +93,15 @@ public:
 
         const auto& config = Changelog_->GetConfig();
 
-        // Unguarded access seems OK.
-        if (ByteSize_ >= config->FlushBufferSize) {
+        if (ByteSize_.load() >= config->FlushBufferSize) {
             return true;
         }
 
-        if (Changelog_->GetLastFlushed() < TInstant::Now() - config->FlushPeriod) {
+        if (LastFlushed_.load() + NProfiling::DurationToCpuDuration(config->FlushPeriod) <  NProfiling::GetCpuInstant()) {
             return true;
         }
 
-        if (FlushForced_) {
+        if (FlushForced_.load()) {
             return true;
         }
 
@@ -193,10 +194,11 @@ private:
     //! Newly appended records go here. These records immediately follow the flush part.
     std::vector<TSharedRef> AppendQueue_;
 
-    i64 ByteSize_ = 0;
+    std::atomic<i64> ByteSize_ = {0};
 
     TPromise<void> FlushPromise_ = NewPromise<void>();
-    bool FlushForced_ = false;
+    std::atomic<bool> FlushForced_ = {false};
+    std::atomic<NProfiling::TCpuInstant> LastFlushed_ = {0};
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
@@ -209,12 +211,12 @@ private:
 
             YCHECK(FlushQueue_.empty());
             FlushQueue_.swap(AppendQueue_);
-            ByteSize_ = 0;
+            ByteSize_.store(0);
 
             YCHECK(FlushPromise_);
             flushPromise = FlushPromise_;
             FlushPromise_ = NewPromise<void>();
-            FlushForced_ = false;
+            FlushForced_.store(false);
         }
 
         TError error;
@@ -223,6 +225,7 @@ private:
                 try {
                     Changelog_->Append(FlushedRecordCount_, FlushQueue_);
                     Changelog_->Flush();
+                    LastFlushed_.store(NProfiling::GetCpuInstant());
                 } catch (const std::exception& ex) {
                     error = ex;
                 }
@@ -349,9 +352,9 @@ public:
             .Run(std::move(queue));
     }
 
-    TFuture<void> FlushAll()
+    TFuture<void> FlushChangelogs()
     {
-        return BIND(&TImpl::DoFlushAll, MakeStrong(this))
+        return BIND(&TImpl::DoFlushChangelogs, MakeStrong(this))
             .AsyncVia(GetInvoker())
             .Run();
     }
@@ -465,7 +468,7 @@ private:
         }
     }
 
-    TFuture<void> DoFlushAll()
+    TFuture<void> DoFlushChangelogs()
     {
         std::vector<TFuture<void>> flushResults;
         for (const auto& queue : Queues_) {
@@ -581,7 +584,7 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileChangelogDispatcher::TFileChangelogDispatcher(
-    TFileChangelogDispatcherConfigPtr config,
+    const TFileChangelogDispatcherConfigPtr& config,
     const TString& threadName,
     const TProfiler& profiler)
     : Impl_(New<TImpl>(
@@ -600,7 +603,7 @@ IInvokerPtr TFileChangelogDispatcher::GetInvoker()
 IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
     const TString& path,
     const TChangelogMeta& meta,
-    TFileChangelogConfigPtr config)
+    const TFileChangelogConfigPtr& config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(path, config);
     syncChangelog->Create(meta);
@@ -610,7 +613,7 @@ IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
 
 IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
     const TString& path,
-    TFileChangelogConfigPtr config)
+    const TFileChangelogConfigPtr& config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(path, config);
     syncChangelog->Open();
@@ -620,7 +623,7 @@ IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
 
 TFuture<void> TFileChangelogDispatcher::FlushChangelogs()
 {
-    return Impl_->FlushAll();
+    return Impl_->FlushChangelogs();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

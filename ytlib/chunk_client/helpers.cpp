@@ -2,7 +2,6 @@
 #include "private.h"
 #include "config.h"
 #include "input_chunk_slice.h"
-#include "erasure_reader.h"
 #include "replication_reader.h"
 #include "repairing_reader.h"
 
@@ -29,7 +28,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
 
 #include <array>
 
@@ -39,11 +38,13 @@ namespace NChunkClient {
 using namespace NApi;
 using namespace NRpc;
 using namespace NConcurrency;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NErasure;
 using namespace NNodeTrackerClient;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NNet;
 using namespace NCypressClient;
 
 using NYT::FromProto;
@@ -350,16 +351,14 @@ IChunkReaderPtr CreateRemoteReader(
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {
-    const auto& Logger = ChunkClientLogger;
-
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
+    auto Logger = TLogger(ChunkClientLogger).AddTag("ChunkId: %v", chunkId);
+
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
-        LOG_DEBUG("Creating erasure remote reader (ChunkId: %v, Codec: %v)",
-            chunkId,
-            erasureCodecId);
+        LOG_DEBUG("Creating erasure remote reader (Codec: %v)", erasureCodecId);
 
         std::array<TNodeId, MaxTotalPartCount> partIndexToNodeId;
         std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
@@ -376,7 +375,7 @@ IChunkReaderPtr CreateRemoteReader(
             erasureCodec->GetTotalPartCount() :
             erasureCodec->GetDataPartCount();
 
-        std::vector<IChunkReaderPtr> readers;
+        std::vector<IChunkReaderAllowingRepairPtr> readers;
         readers.reserve(partCount);
 
         for (int index = 0; index < partCount; ++index) {
@@ -402,10 +401,9 @@ IChunkReaderPtr CreateRemoteReader(
             readers.push_back(reader);
         }
 
-        return CreateRepairingReader(erasureCodec, config, readers);
+        return CreateRepairingReader(erasureCodec, config, readers, Logger);
     } else {
-        LOG_DEBUG("Creating regular remote reader (ChunkId: %v)",
-            chunkId);
+        LOG_DEBUG("Creating regular remote reader");
 
         return CreateReplicationReader(
             config,

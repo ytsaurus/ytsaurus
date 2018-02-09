@@ -34,16 +34,17 @@
 namespace NYT {
 namespace NQueryAgent {
 
-using namespace NYTree;
-using namespace NConcurrency;
-using namespace NRpc;
+using namespace NCellNode;
+using namespace NChunkClient;
 using namespace NCompression;
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NQueryClient;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
-using namespace NCellNode;
-using namespace NHydra;
+using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +57,7 @@ public:
         TQueryAgentConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetQueryPoolInvoker(),
+            bootstrap->GetQueryPoolInvoker({}),
             TQueryServiceProxy::GetDescriptor(),
             QueryAgentLogger)
         , Config_(config)
@@ -94,7 +95,7 @@ private:
 
         LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "DataRangeCount: %v)",
+            "ReadSesisonId: %v, DataRangeCount: %v)",
             query->Id,
             options.InputRowLimit,
             options.OutputRowLimit,
@@ -102,6 +103,7 @@ private:
             options.MaxSubqueries,
             options.EnableCodeCache,
             options.WorkloadDescriptor,
+            options.ReadSessionId,
             dataSources.size());
 
         const auto& user = context->GetUser();
@@ -143,6 +145,7 @@ private:
         auto timestamp = TTimestamp(request->timestamp());
         // TODO(sandello): Extract this out of RPC request.
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
+        auto sessionId = TReadSessionId::Create();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto responseCodecId = NCompression::ECodec(request->response_codec());
 
@@ -151,11 +154,12 @@ private:
             retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
         }
 
-        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, RetentionConfig: %Qv",
+        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %Qv",
             tabletId,
             timestamp,
             requestCodecId,
             responseCodecId,
+            sessionId,
             retentionConfig
                 ? ConvertToYsonString(retentionConfig, EYsonFormat::Text).GetData()
                 : TString("<nullptr>"));
@@ -169,36 +173,43 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
-        ExecuteRequestWithRetries(
-            Config_->MaxQueryRetries,
-            Logger,
-            [&] () {
-                const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-                slotManager->ValidateTabletAccess(
-                    tabletSnapshot,
-                    EPermission::Read,
-                    timestamp);
+        const auto &slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
-                tabletSnapshot->ValidateMountRevision(mountRevision);
+        try {
+            ExecuteRequestWithRetries(
+                Config_->MaxQueryRetries,
+                Logger,
+                [&]() {
+                    slotManager->ValidateTabletAccess(
+                        tabletSnapshot,
+                        EPermission::Read,
+                        timestamp);
 
-                struct TLookupRowBufferTag { };
-                TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
-                TWireProtocolWriter writer;
+                    tabletSnapshot->ValidateMountRevision(mountRevision);
 
-                const auto& tabletManager = tabletSnapshot->TabletManager;
-                tabletManager->Read(
-                    tabletSnapshot,
-                    timestamp,
-                    user,
-                    workloadDescriptor,
-                    retentionConfig,
-                    &reader,
-                    &writer);
+                    struct TLookupRowBufferTag { };
+                    TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
+                    TWireProtocolWriter writer;
 
-                response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
-                context->Reply();
-            });
+                    const auto &tabletManager = tabletSnapshot->TabletManager;
+                    tabletManager->Read(
+                        tabletSnapshot,
+                        timestamp,
+                        user,
+                        workloadDescriptor,
+                        sessionId,
+                        retentionConfig,
+                        &reader,
+                        &writer);
+
+                    response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
+                    context->Reply();
+                });
+        } catch (const TErrorException&) {
+            ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+            throw;
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)
@@ -215,6 +226,7 @@ private:
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
             protoTabletInfo->set_total_row_count(tabletSnapshot->RuntimeData->TotalRowCount.load());
+            protoTabletInfo->set_trimmed_row_count(tabletSnapshot->RuntimeData->TrimmedRowCount.load());
 
             for (const auto& replicaPair : tabletSnapshot->Replicas) {
                 const auto& replicaId = replicaPair.first;

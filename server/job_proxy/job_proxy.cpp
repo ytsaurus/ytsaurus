@@ -1,19 +1,17 @@
 #include "job_proxy.h"
 #include "config.h"
 #include "job_prober_service.h"
-#include "map_job_io.h"
 #include "merge_job.h"
 #include "partition_job.h"
-#include "partition_map_job_io.h"
-#include "partition_reduce_job_io.h"
 #include "partition_sort_job.h"
 #include "remote_copy_job.h"
 #include "simple_sort_job.h"
 #include "sorted_merge_job.h"
-#include "sorted_reduce_job_io.h"
 #include "user_job.h"
-#include "user_job_io.h"
+#include "user_job_write_controller.h"
 #include "user_job_synchronizer.h"
+
+#include <yt/server/containers/public.h>
 
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/supervisor_service.pb.h>
@@ -53,6 +51,11 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <util/system/fs.h>
+#include <util/system/execpath.h>
+
+#include <util/folder/dirut.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -73,8 +76,11 @@ using namespace NConcurrency;
 using namespace NCGroup;
 using namespace NYTree;
 using namespace NYson;
+using namespace NContainers;
 
 using NJobTrackerClient::TStatistics;
+
+const TString SlotBindPath("/slot");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +98,18 @@ TJobProxy::TJobProxy(
     Logger.AddTag("OperationId: %v, JobId: %v",
         OperationId_,
         JobId_);
+}
+
+TString TJobProxy::GetPreparationPath() const
+{
+    return NFs::CurrentWorkingDirectory();
+}
+
+TString TJobProxy::GetSlotPath() const
+{
+    return Config_->RootPath && !Config_->TestRootFS
+       ? SlotBindPath
+       : NFs::CurrentWorkingDirectory();
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
@@ -153,6 +171,7 @@ void TJobProxy::SendHeartbeat()
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(Job_->GetProgress());
     req->set_statistics(ConvertToYsonString(GetStatistics()).GetData());
+    req->set_stderr_size(Job_->GetStderrSize());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -297,18 +316,19 @@ void TJobProxy::Run()
                     schedulerResultExt->ShortDebugString());
             } else {
                 if (result.error().code() == 0) {
-                    auto getReadRowCount = [&] () -> i64 {
-                        auto statistics = GetStatistics();
-                        auto it = statistics.Data().find("/data/input/row_count");
-                        if (it == statistics.Data().end()) {
-                            return 0;
-                        } else {
-                            return it->second.GetSum();
-                        }
-                    };
-                    // Validate that job really didn't read anything.
-                    YCHECK(getReadRowCount() == 0);
+                    // It is tempting to check /data/input/row_count statistics to be equal to zero.
+                    // Surprisingly we could still have read some foreign rows, but since we didn't read primary rows
+                    // we made no progress. So let's chunk data slice count at least.
 
+                    auto getPrimaryDataSliceCount = [&] () {
+                        int result = 0;
+                        for (const auto& inputTableSpec : JobSpecHelper_->GetSchedulerJobSpecExt().input_table_specs()) {
+                            result += inputTableSpec.chunk_spec_count_per_data_slice_size();
+                        }
+                        return result;
+                    };
+
+                    YCHECK(getPrimaryDataSliceCount() == interruptDescriptor.UnreadDataSliceDescriptors.size());
 
                     ToProto(
                         result.mutable_error(),
@@ -323,34 +343,6 @@ void TJobProxy::Run()
     EnsureStderrResult(&result);
 
     ReportResult(result, statistics, startTime, finishTime);
-}
-
-std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
-{
-    auto jobType = GetJobSpecHelper()->GetJobType();
-
-    switch (jobType) {
-        case NScheduler::EJobType::Map:
-            return CreateMapJobIO(this);
-
-        case NScheduler::EJobType::OrderedMap:
-            return CreateOrderedMapJobIO(this);
-
-        case NScheduler::EJobType::JoinReduce:
-        case NScheduler::EJobType::SortedReduce:
-            return CreateSortedReduceJobIO(this);
-
-        case NScheduler::EJobType::PartitionMap:
-            return CreatePartitionMapJobIO(this);
-
-        // ToDo(psushin): handle separately to form job result differently.
-        case NScheduler::EJobType::ReduceCombiner:
-        case NScheduler::EJobType::PartitionReduce:
-            return CreatePartitionReduceJobIO(this);
-
-        default:
-            Y_UNREACHABLE();
-    }
 }
 
 IJobPtr TJobProxy::CreateBuiltinJob()
@@ -387,7 +379,30 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 TJobResult TJobProxy::DoRun()
 {
     try {
-        ResourceController = CreateResourceController(Config_->JobEnvironment);
+        // Use everything.
+
+        auto createRootFS = [&] () -> TNullable<TRootFS> {
+            if (!Config_->RootPath) {
+                LOG_DEBUG("Job is not using custom root fs");
+                return Null;
+            }
+
+            if (Config_->TestRootFS) {
+                LOG_DEBUG("Job is running in testing root fs mode");
+                return Null;
+            }
+
+            LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
+
+            TRootFS rootFS;
+            rootFS.IsRootReadOnly = true;
+            rootFS.RootPath = *Config_->RootPath;
+            rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
+
+            return rootFS;
+        };
+
+        ResourceController = CreateResourceController(Config_->JobEnvironment, createRootFS());
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 
@@ -448,7 +463,7 @@ TJobResult TJobProxy::DoRun()
             this,
             userJobSpec,
             JobId_,
-            CreateUserJobIO());
+            std::make_unique<TUserJobWriteController>(this));
     } else {
         Job_ = CreateBuiltinJob();
     }
@@ -613,7 +628,7 @@ const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const
 
 void TJobProxy::CheckMemoryUsage()
 {
-    i64 jobProxyMemoryUsage = GetProcessRss();
+    i64 jobProxyMemoryUsage = GetProcessMemoryUsage().Rss;
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
 
     LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",
@@ -686,6 +701,7 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
         LOG_WARNING("Stderr table boundary keys are absent");
         auto* stderrBoundaryKeys = schedulerJobResultExt->mutable_stderr_table_boundary_keys();
         stderrBoundaryKeys->set_sorted(true);
+        stderrBoundaryKeys->set_unique_keys(true);
     }
 }
 

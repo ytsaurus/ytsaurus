@@ -8,6 +8,11 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TAtomicObject<T>::TAtomicObject(const T& other)
+    : Object_(other.Load())
+{ }
+
+template <class T>
 template <class U>
 void TAtomicObject<T>::Store(U&& u)
 {

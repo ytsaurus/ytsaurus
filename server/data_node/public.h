@@ -59,6 +59,7 @@ DECLARE_REFCOUNTED_STRUCT(ISession)
 DECLARE_REFCOUNTED_CLASS(TBlobSession)
 DECLARE_REFCOUNTED_CLASS(TSessionManager)
 
+DECLARE_REFCOUNTED_CLASS(TPeerBlockDistributor)
 DECLARE_REFCOUNTED_CLASS(TPeerBlockTable)
 DECLARE_REFCOUNTED_CLASS(TPeerBlockUpdater)
 
@@ -71,7 +72,15 @@ DECLARE_REFCOUNTED_CLASS(TArtifactCacheReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TRepairReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TSealReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)
+DECLARE_REFCOUNTED_CLASS(TPeerBlockDistributorConfig)
 DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
+DECLARE_REFCOUNTED_CLASS(TLayerLocationConfig)
+DECLARE_REFCOUNTED_CLASS(TVolumeManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TNetworkStatistics)
+
+DECLARE_REFCOUNTED_STRUCT(IVolume)
+DECLARE_REFCOUNTED_STRUCT(IVolumeManager)
+DECLARE_REFCOUNTED_STRUCT(IPlainVolumeManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +92,11 @@ DEFINE_ENUM(EDirectIOPolicy,
     (Always)
     (Never)
     (ForSyncOnCloseChunks)
+);
+
+DEFINE_ENUM(EIOEngineType,
+    (ThreadPool)
+    (Aio)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

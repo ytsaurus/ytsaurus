@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/protos/discovery_service.pb.h>
+#include <yt/ytlib/rpc_proxy/proto/discovery_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
@@ -15,10 +15,11 @@ class TDiscoveryServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TDiscoveryServiceProxy, RPC_PROXY_DESC(DiscoveryService)
+    DEFINE_RPC_PROXY(TDiscoveryServiceProxy, DiscoveryService,
         .SetProtocolVersion(0));
 
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DiscoverProxies);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DiscoverProxies,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

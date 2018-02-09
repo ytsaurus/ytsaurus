@@ -18,6 +18,7 @@ const int LinuxErrorCodeBase = 4200;
 
 DEFINE_ENUM(ELinuxErrorCode,
     ((NOSPC)((LinuxErrorCodeBase + ENOSPC)))
+    ((NOENT)((LinuxErrorCodeBase + ENOENT)))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,9 +29,23 @@ std::vector<int> GetPidsByUid(int uid = -1);
 /*!
    \note If |pid == -1| then self RSS is returned.
  */
-i64 GetProcessRss(int pid = -1);
+
+struct TMemoryUsage
+{
+    ui64 Rss;
+    ui64 Shared;
+};
+
+TMemoryUsage GetProcessMemoryUsage(int pid = -1);
+
+ui64 GetProcessCumulativeMajorPageFaults(int pid = -1);
 
 int GetCurrentThreadId();
+
+void ChownChmodDirectoriesRecursively(
+    const TString& path,
+    const TNullable<uid_t>& userId,
+    const TNullable<int>& permissions);
 
 void SetThreadPriority(int tid, int priority);
 
@@ -82,6 +97,38 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>())
 //! Return true iff ytserver was started with root permissions (e.g. via sudo or with suid bit).
 bool HasRootPermissions();
 
+struct TNetworkInterfaceStatistics
+{
+    struct TReceiveStatistics
+    {
+        ui64 Bytes = 0;
+        ui64 Packets = 0;
+        ui64 Errs = 0;
+        ui64 Drop = 0;
+        ui64 Fifo = 0;
+        ui64 Frame = 0;
+        ui64 Compressed = 0;
+        ui64 Multicast = 0;
+    };
+    struct TTransmitStatistics
+    {
+        ui64 Bytes = 0;
+        ui64 Packets = 0;
+        ui64 Errs = 0;
+        ui64 Drop = 0;
+        ui64 Fifo = 0;
+        ui64 Colls = 0;
+        ui64 Carrier = 0;
+        ui64 Compressed = 0;
+    };
+
+    TReceiveStatistics Rx;
+    TTransmitStatistics Tx;
+};
+
+//! Return mapping from interface name to network statistics.
+THashMap<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoveDirAsRootTool
@@ -101,6 +148,29 @@ struct TKillAllByUidTool
 struct TRemoveDirContentAsRootTool
 {
     void operator()(const TString& arg) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExtractTarConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString ArchivePath;
+    TString DirectoryPath;
+
+    TExtractTarConfig()
+    {
+        RegisterParameter("archive_path", ArchivePath);
+        RegisterParameter("directory_path", DirectoryPath);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TExtractTarConfig)
+
+struct TExtractTarAsRootTool
+{
+    void operator()(const TExtractTarConfigPtr& config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,17 +261,19 @@ public:
     TNullable<i64> DiskSpaceLimit;
     TNullable<i64> InodeLimit;
     int UserId;
-    TString SlotPath;
+    TString Path;
 
     TFSQuotaConfig()
     {
         RegisterParameter("disk_space_limit", DiskSpaceLimit)
-            .GreaterThanOrEqual(0);
+            .GreaterThanOrEqual(0)
+            .Default(Null);
         RegisterParameter("inode_limit", InodeLimit)
-            .GreaterThanOrEqual(0);
+            .GreaterThanOrEqual(0)
+            .Default(Null);
         RegisterParameter("user_id", UserId)
             .GreaterThanOrEqual(0);
-        RegisterParameter("slot_path", SlotPath);
+        RegisterParameter("path", Path);
     }
 };
 
@@ -210,6 +282,34 @@ DEFINE_REFCOUNTED_TYPE(TFSQuotaConfig)
 struct TFSQuotaTool
 {
     void operator()(TFSQuotaConfigPtr config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChownChmodConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Path;
+    TNullable<uid_t> UserId;
+    TNullable<int> Permissions;
+
+    TChownChmodConfig()
+    {
+        RegisterParameter("path", Path)
+            .NonEmpty();
+        RegisterParameter("user_id", UserId)
+            .Default(Null);
+        RegisterParameter("permissions", Permissions)
+            .Default(Null);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChownChmodConfig)
+
+struct TChownChmodTool
+{
+    void operator()(TChownChmodConfigPtr config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

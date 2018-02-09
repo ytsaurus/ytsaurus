@@ -71,6 +71,12 @@ TConstExpressionPtr PrepareExpression(
     const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
     THashSet<TString>* references = nullptr);
 
+TConstExpressionPtr PrepareExpression(
+    const TParsedSource& parsedSource,
+    const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
+    THashSet<TString>* references = nullptr);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

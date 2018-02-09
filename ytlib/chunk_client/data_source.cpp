@@ -1,5 +1,9 @@
 #include "data_source.h"
 
+#include <yt/ytlib/chunk_client/data_source.pb.h>
+
+#include <yt/ytlib/table_client/schema_dictionary.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
@@ -24,14 +28,19 @@ TDataSource::TDataSource(
     , Timestamp_(timestamp)
 { }
 
-void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource)
+void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource, TSchemaDictionary* dictionary)
 {
     using NYT::ToProto;
 
     protoDataSource->set_type(static_cast<int>(dataSource.GetType()));
 
     if (dataSource.Schema()) {
-        ToProto(protoDataSource->mutable_table_schema(), *dataSource.Schema());
+        if (dictionary) {
+            int id = dictionary->GetIdOrRegisterTable(*dataSource.Schema());
+            protoDataSource->set_table_schema_id(id);
+        } else {
+            ToProto(protoDataSource->mutable_table_schema(), *dataSource.Schema());
+        }
     }
 
     if (dataSource.Columns()) {
@@ -48,26 +57,37 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     }
 }
 
-void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSource)
+void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSource, const TSchemaDictionary* dictionary)
 {
     using NYT::FromProto;
 
-    dataSource->Type_ = EDataSourceType(protoDataSource.type());
+    dataSource->SetType(EDataSourceType(protoDataSource.type()));
 
-    if (protoDataSource.has_table_schema()) {
-        dataSource->Schema_ = FromProto<TTableSchema>(protoDataSource.table_schema());
+    if (dictionary) {
+        if (protoDataSource.has_table_schema_id()) {
+            int id = protoDataSource.table_schema_id();
+            dataSource->Schema() = dictionary->GetTable(id);
+        }
+
+        YCHECK(!protoDataSource.has_table_schema());
+    } else {
+        if (protoDataSource.has_table_schema()) {
+            dataSource->Schema() = FromProto<TTableSchema>(protoDataSource.table_schema());
+        }
+
+        YCHECK(!protoDataSource.has_table_schema_id());
     }
 
     if (protoDataSource.has_column_filter()) {
-        dataSource->Columns_ = FromProto<std::vector<TString>>(protoDataSource.columns());
+        dataSource->Columns() = FromProto<std::vector<TString>>(protoDataSource.columns());
     }
 
     if (protoDataSource.has_path()) {
-        dataSource->Path_ = protoDataSource.path();
+        dataSource->SetPath(protoDataSource.path());
     }
 
     if (protoDataSource.has_timestamp()) {
-        dataSource->Timestamp_ = protoDataSource.timestamp();
+        dataSource->SetTimestamp(protoDataSource.timestamp());
     }
 }
 
@@ -96,21 +116,32 @@ TDataSource MakeFileDataSource(const TNullable<TString>& path)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(
-    NProto::TDataSourceDirectory* protoDataSourceDirectory,
+    NProto::TDataSourceDirectoryExt* protoDataSourceDirectory,
     const TDataSourceDirectoryPtr& dataSourceDirectory)
 {
     using NYT::ToProto;
-    ToProto(protoDataSourceDirectory->mutable_data_sources(), dataSourceDirectory->DataSources());
+    TSchemaDictionary dictionary;
+    for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+        auto* protoDataSource = protoDataSourceDirectory->add_data_sources();
+        ToProto(protoDataSource, dataSource, &dictionary);
+    }
+    ToProto(protoDataSourceDirectory->mutable_schema_dictionary(), dictionary);
 }
 
 void FromProto(
     TDataSourceDirectoryPtr* dataSourceDirectory,
-    const NProto::TDataSourceDirectory& protoDataSourceDirectory)
+    const NProto::TDataSourceDirectoryExt& protoDataSourceDirectory)
 {
     using NYT::FromProto;
     *dataSourceDirectory = New<TDataSourceDirectory>();
     auto& dataSources = (*dataSourceDirectory)->DataSources();
-    FromProto(&dataSources, protoDataSourceDirectory.data_sources());
+    TSchemaDictionary dictionary;
+    FromProto(&dictionary, protoDataSourceDirectory.schema_dictionary());
+    for (const auto& protoDataSource : protoDataSourceDirectory.data_sources()) {
+        TDataSource dataSource;
+        FromProto(&dataSource, protoDataSource, & dictionary);
+        dataSources.emplace_back(std::move(dataSource));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

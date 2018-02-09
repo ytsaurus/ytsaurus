@@ -96,6 +96,8 @@ protected:
 
     THashSet<IStorePtr> LockedStores_;
 
+    const NProfiling::TTagId StoreFlushTag_;
+
     NLogging::TLogger Logger;
 
     virtual IDynamicStore* GetActiveStore() const = 0;

@@ -39,7 +39,7 @@ public:
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NApi::INativeClientPtr client,
-        const NObjectClient::TTransactionId& transactionId);    
+        const NObjectClient::TTransactionId& transactionId);
 
     size_t GetCurrentSize() const;
     TString GetCurrentData() const;

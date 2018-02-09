@@ -29,12 +29,12 @@ public:
     TMD5Hash GetMD5()
     {
         auto md5Copy = MD5_;
-        return md5Copy.Digest();
+        return md5Copy.GetDigest();
     }
 
     TSHA1Hash GetSHA1()
     {
-        return SHA1_.Digest();
+        return SHA1_.GetDigest();
     }
 
 private:
@@ -88,13 +88,15 @@ TSkynetColumnEvaluator::TSkynetColumnEvaluator(const TTableSchema& schema)
     , Sha1Id_(schema.GetColumnIndexOrThrow("sha1"))
     , Md5Id_(schema.GetColumnIndexOrThrow("md5"))
     , DataSizeId_(schema.GetColumnIndexOrThrow("data_size"))
+    , KeySize_(schema.GetKeyColumnCount())
 {
     ValidateSkynetSchema(schema);
 }
 
 void TSkynetColumnEvaluator::ValidateAndComputeHashes(
     TMutableUnversionedRow fullRow,
-    const TRowBufferPtr& buffer)
+    const TRowBufferPtr& buffer,
+    bool isLastRow)
 {
     TStringBuf filename;
     TStringBuf data;
@@ -105,8 +107,10 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
 
     UnpackFields(fullRow, &filename, &data, &partIndex, &sha1, &md5, &dataSize);
 
+    bool keySwitched = IsKeySwitched(fullRow, isLastRow);
+    
     //! Start new file.
-    if (!LastFilename_ || *LastFilename_ != filename) {
+    if (!LastFilename_ || *LastFilename_ != filename || keySwitched) {
         LastFilename_ = TString(filename);
         LastDataSize_ = SkynetDataSize;
 
@@ -114,7 +118,7 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
     }
 
     if (LastDataSize_ != SkynetDataSize) {
-        THROW_ERROR_EXCEPTION("Data block with size %v found in the middle of the file",
+        THROW_ERROR_EXCEPTION("Data block with size %v found in the middle of the file; all but last file blocks in skynet shared table must be exactly 4Mb in size",
             LastDataSize_)
             << TErrorAttribute("part_index", partIndex)
             << TErrorAttribute("filename", filename)
@@ -146,13 +150,22 @@ void TSkynetColumnEvaluator::UnpackFields(
     TUnversionedValue** md5,
     TUnversionedValue** dataSize)
 {
-    YCHECK(fullRow.GetCount() >= FilenameId_ && fullRow[FilenameId_].Type == EValueType::String);
+    YCHECK(fullRow.GetCount() >= FilenameId_);
+    if (fullRow[FilenameId_].Type != EValueType::String) {
+        THROW_ERROR_EXCEPTION("Missing \"filename\" column");
+    }
     *filename = TStringBuf(fullRow[FilenameId_].Data.String, fullRow[FilenameId_].Length);
 
-    YCHECK(fullRow.GetCount() >= PartIndexId_ && fullRow[PartIndexId_].Type == EValueType::Int64);
+    YCHECK(fullRow.GetCount() >= PartIndexId_);
+    if (fullRow[PartIndexId_].Type == EValueType::Int64) {
+        THROW_ERROR_EXCEPTION("Missing \"part_index\" column");
+    }
     *partIndex = fullRow[PartIndexId_].Data.Int64;
 
-    YCHECK(fullRow.GetCount() >= DataId_ && fullRow[DataId_].Type == EValueType::String);
+    YCHECK(fullRow.GetCount() >= DataId_);
+    if (fullRow[DataId_].Type == EValueType::String) {
+        THROW_ERROR_EXCEPTION("Missing \"data\" column");
+    }
     *data = TStringBuf(fullRow[DataId_].Data.String, fullRow[DataId_].Length);
 
     YCHECK(fullRow.GetCount() >= Sha1Id_);
@@ -163,6 +176,22 @@ void TSkynetColumnEvaluator::UnpackFields(
 
     YCHECK(fullRow.GetCount() >= DataSizeId_);
     *dataSize = &fullRow[DataSizeId_];
+}
+
+bool TSkynetColumnEvaluator::IsKeySwitched(TUnversionedRow fullRow, bool isLastRow)
+{
+    if (KeySize_ == 0) {
+        return false;
+    }
+
+    bool keyChanged = LastKey_ && CompareRows(fullRow, LastKey_, KeySize_) != 0;
+    if (isLastRow) {
+        LastKeyHolder_ = GetKeyPrefix(fullRow, KeySize_);
+        LastKey_ = LastKeyHolder_;
+    } else {
+        LastKey_ = fullRow;
+    }
+    return keyChanged;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

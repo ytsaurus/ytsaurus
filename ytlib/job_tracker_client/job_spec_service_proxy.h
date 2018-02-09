@@ -15,7 +15,8 @@ class TJobSpecServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TJobSpecServiceProxy, RPC_PROXY_DESC(JobSpecService));
+    DEFINE_RPC_PROXY(TJobSpecServiceProxy, JobSpecService,
+        .SetProtocolVersion(2));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpecs);
 };

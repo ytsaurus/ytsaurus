@@ -1,8 +1,7 @@
 #include "job_helpers.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
-
-#include <yt/server/scheduler/job.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -143,20 +142,19 @@ static void BuildInputSliceLimit(
     const TInputDataSlicePtr& slice,
     const TInputSliceLimit& limit,
     TNullable<i64> rowIndex,
-    NYson::IYsonConsumer* consumer)
+    TFluentAny fluent)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .DoIf((limit.RowIndex.operator bool() || rowIndex) && slice->IsTrivial(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("row_index").Value(
-                        limit.RowIndex.Get(rowIndex.Get(0)) + slice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex());
-            })
-            .DoIf(limit.Key.operator bool(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("key").Value(limit.Key);
-            })
-        .EndMap();
+    fluent.BeginMap()
+        .DoIf((limit.RowIndex.operator bool() || rowIndex) && slice->IsTrivial(), [&] (TFluentMap fluent) {
+            fluent
+                .Item("row_index").Value(
+                    limit.RowIndex.Get(rowIndex.Get(0)) + slice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex());
+        })
+        .DoIf(limit.Key.operator bool(), [&] (TFluentMap fluent) {
+            fluent
+                .Item("key").Value(limit.Key);
+        })
+    .EndMap();
 }
 
 TYsonString BuildInputPaths(
@@ -220,7 +218,7 @@ TYsonString BuildInputPaths(
                     fluent
                         .Item()
                         .BeginAttributes()
-                            .DoIf(isForeignTable[tableIndex], [&] (TFluentAttributes fluent) {
+                            .DoIf(isForeignTable[tableIndex], [&] (TFluentMap fluent) {
                                 fluent
                                     .Item("foreign").Value(true);
                             })
@@ -229,18 +227,16 @@ TYsonString BuildInputPaths(
                                 fluent
                                     .Item()
                                     .BeginMap()
-                                        .Item("lower_limit")
-                                            .Do(BIND(
-                                                &BuildInputSliceLimit,
-                                                range.first,
-                                                range.first->LowerLimit(),
-                                                TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], 0)))
-                                        .Item("upper_limit")
-                                            .Do(BIND(
-                                                &BuildInputSliceLimit,
-                                                range.second,
-                                                range.second->UpperLimit(),
-                                                TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], range.second->GetRowCount())))
+                                        .Item("lower_limit").Do(BIND(
+                                            &BuildInputSliceLimit,
+                                            range.first,
+                                            range.first->LowerLimit(),
+                                            TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], 0)))
+                                        .Item("upper_limit").Do(BIND(
+                                            &BuildInputSliceLimit,
+                                            range.second,
+                                            range.second->UpperLimit(),
+                                            TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], range.second->GetRowCount())))
                                     .EndMap();
                             })
                         .EndAttributes()
@@ -251,12 +247,12 @@ TYsonString BuildInputPaths(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
+void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResult& scheduleJobResult)
 {
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        Failed[reason] += scheduleJobResult->Failed[reason];
+        Failed[reason] += scheduleJobResult.Failed[reason];
     }
-    Duration += scheduleJobResult->Duration;
+    Duration += scheduleJobResult.Duration;
     ++Count;
 }
 

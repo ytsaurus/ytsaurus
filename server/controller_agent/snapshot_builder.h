@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
+#include "operation_controller.h"
 
 #include <yt/server/cell_scheduler/public.h>
 
@@ -23,13 +23,11 @@ namespace NControllerAgent {
 struct TSnapshotJob
     : public TIntrinsicRefCounted
 {
-    NScheduler::TOperationPtr Operation;
-    NControllerAgent::IOperationControllerPtr Controller;
-    NPipes::TAsyncReaderPtr Reader;
+    TOperationId OperationId;
+    IOperationControllerSnapshotBuilderHostPtr Controller;
+    NConcurrency::IAsyncInputStreamPtr Reader;
     std::unique_ptr<TFile> OutputFile;
-    //! The length of recent completed jobs prefix that may be safely removed after saving this snapshot.
-    //! (i.e. their progress won't be lost if we restore from this snapshot).
-    int NumberOfJobsToRelease = 0;
+    TSnapshotCookie Cookie;
     bool Suspended = false;
 };
 
@@ -42,20 +40,27 @@ class TSnapshotBuilder
 {
 public:
     TSnapshotBuilder(
-        TSchedulerConfigPtr config,
-        NScheduler::TSchedulerPtr scheduler,
-        NApi::IClientPtr client);
+        TControllerAgentConfigPtr config,
+        TOperationIdToOperationMap operations,
+        NApi::IClientPtr client,
+        IInvokerPtr ioInvoker);
 
     TFuture<void> Run();
 
 private:
-    const TSchedulerConfigPtr Config_;
-    const NScheduler::TSchedulerPtr Scheduler_;
+    const TControllerAgentConfigPtr Config_;
+    const TOperationIdToOperationMap Operations_;
     const NApi::IClientPtr Client_;
+    const IInvokerPtr IOInvoker_;
+    const IInvokerPtr ControlInvoker_;
 
     std::vector<TSnapshotJobPtr> Jobs_;
 
     NProfiling::TProfiler Profiler;
+
+    //! This method is called after controller is suspended.
+    //! It is used to set flag Suspended in corresponding TSnapshotJob.
+    void OnControllerSuspended(const TSnapshotJobPtr& job);
 
     virtual TDuration GetTimeout() const override;
     virtual void RunParent() override;

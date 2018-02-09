@@ -135,12 +135,12 @@ public:
         try {
             auto chunkRegistry = Bootstrap_->GetChunkRegistry();
             auto chunk = chunkRegistry->FindChunk(chunkId);
+            auto type = TypeFromId(DecodeChunkId(chunkId).Id);
             if (!chunk) {
                 std::vector<TBlock> blocks;
                 // During block peering, data nodes exchange individual blocks.
                 // Thus the cache may contain a block not bound to any chunk in the registry.
                 // We must look for these blocks.
-                auto type = TypeFromId(DecodeChunkId(chunkId).Id);
                 if (options.BlockCache &&
                     options.FetchFromCache &&
                     (type == EObjectType::Chunk || type == EObjectType::ErasureChunk))
@@ -156,8 +156,12 @@ public:
 
             auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
             auto asyncBlocks = chunk->ReadBlockSet(blockIndexes, options);
+
             // Hold the read guard.
-            return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
+            auto asyncResult = asyncBlocks
+                .Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
+
+            return asyncResult;
         } catch (const std::exception& ex) {
             return MakeFuture<std::vector<TBlock>>(TError(ex));
         }
@@ -166,7 +170,6 @@ public:
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-
 
     virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {

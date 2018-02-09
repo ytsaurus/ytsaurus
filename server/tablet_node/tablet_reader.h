@@ -21,7 +21,8 @@ namespace NTabletNode {
     const TColumnFilter& columnFilter,
     const TSharedRange<NTableClient::TRowRange>& bounds,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor);
+    const TWorkloadDescriptor& workloadDescriptor,
+    const NChunkClient::TReadSessionId& sessionId);
 
 NTableClient::ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
@@ -29,7 +30,8 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor);
+    const TWorkloadDescriptor& workloadDescriptor,
+    const NChunkClient::TReadSessionId& sessionId);
 
 /*!
  *  Can handle both sorted and ordered tables.
@@ -41,7 +43,8 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor);
+    const TWorkloadDescriptor& workloadDescriptor,
+    const NChunkClient::TReadSessionId& sessionId);
 
 //! Creates a lookup reader that merges data from the relevant stores and
 //! returns a single version of each value.
@@ -53,7 +56,8 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor);
+    const TWorkloadDescriptor& workloadDescriptor,
+    const NChunkClient::TReadSessionId& sessionId);
 
 //! Creates a range reader that merges data from all given #stores and
 //! returns all versions of each value.
@@ -67,7 +71,9 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    const TWorkloadDescriptor& workloadDescriptor);
+    const TWorkloadDescriptor& workloadDescriptor,
+    const NChunkClient::TReadSessionId& sessionId,
+    int minConcurrency);
 
 ////////////////////////////////////////////////////////////////////////////////
 

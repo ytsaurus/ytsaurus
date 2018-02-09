@@ -22,7 +22,8 @@ public:
     TAutoMergeChunkPoolAdapter(
         NChunkPools::IChunkPoolInput* underlyingInput,
         TAutoMergeTask* task,
-        i64 chunkSizeThreshold);
+        i64 chunkSizeThreshold,
+        i64 maxDataWeightPerJob);
 
     virtual NChunkPools::IChunkPoolInput::TCookie AddWithKey(
         NChunkPools::TChunkStripePtr stripe,
@@ -36,6 +37,7 @@ public:
     virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe);
 
     void Persist(const TPersistenceContext& context);
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0xfb888bac);
 
@@ -43,6 +45,7 @@ private:
 
     TAutoMergeTask* Task_;
     i64 ChunkSizeThreshold_;
+    i64 MaxDataWeightPerJob_ = std::numeric_limits<i64>::max();
     std::vector<int> CookieChunkCount_;
 };
 
@@ -64,13 +67,13 @@ public:
         i64 chunkSizeThreshold,
         i64 desiredChunkSize,
         i64 dataWeightPerJob,
+        i64 maxDataWeightPerJob,
         TEdgeDescriptor edgeDescriptor);
 
-    virtual TString GetId() const override;
+    virtual TString GetTitle() const override;
+    virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
 
     virtual TTaskGroupPtr GetGroup() const override;
-
-    virtual TDuration GetLocalityTimeout() const override;
 
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
@@ -82,12 +85,14 @@ public:
 
     virtual int GetPendingJobCount() const override;
 
-    virtual bool CanScheduleJob(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override;
+    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
+        ISchedulingContext* context,
+        const TJobResources& jobLimits) override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
-    virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override;
-    virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary) override;
-    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary) override;
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override;
+    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
 
     void RegisterTeleportChunk(NChunkClient::TInputChunkPtr chunk);
 
@@ -111,6 +116,7 @@ private:
     int TableIndex_;
     int CurrentChunkCount_ = 0;
 
+    // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
     bool CanScheduleJob_ = true;
 
     void UpdateSelf();

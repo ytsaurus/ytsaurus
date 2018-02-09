@@ -19,7 +19,7 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/throttling_channel.h>
 
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -400,7 +400,10 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         }
 
         TRequestHeader subrequestHeader;
-        YCHECK(ParseRequestHeader(subrequestMessage, &subrequestHeader));
+        if (!ParseRequestHeader(subrequestMessage, &subrequestHeader)) {
+            THROW_ERROR_EXCEPTION("Malformed subrequest message: failed to parse header");
+        }
+
         const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
 
         TKey key(

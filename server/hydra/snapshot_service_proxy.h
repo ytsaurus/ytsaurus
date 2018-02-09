@@ -15,10 +15,11 @@ class TSnapshotServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TSnapshotServiceProxy, RPC_PROXY_DESC(SnapshotService));
+    DEFINE_RPC_PROXY(TSnapshotServiceProxy, SnapshotService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, ReadSnapshot);
-    DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot);
+    DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

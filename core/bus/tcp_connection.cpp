@@ -6,8 +6,8 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/string.h>
-#include <yt/core/misc/socket.h>
 
+#include <yt/core/net/socket.h>
 #include <yt/core/net/dialer.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -55,7 +55,7 @@ struct TTcpConnectionWriteBufferTag { };
 TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
     EConnectionType connectionType,
-    TNullable<ETcpInterfaceType> interfaceType,
+    const TString& networkName,
     const TConnectionId& id,
     int socket,
     const TString& endpointDescription,
@@ -78,7 +78,7 @@ TTcpConnection::TTcpConnection(
             Id_,
             EndpointDescription_))
     , LoggingId_(Format("ConnectionId: %v", Id_))
-    , InterfaceType_(interfaceType)
+    , NetworkName_(networkName)
     , GenerateChecksums_(Config_->GenerateChecksums)
     , Socket_(socket)
     , Decoder_(Logger, Config_->VerifyChecksums)
@@ -135,10 +135,9 @@ void TTcpConnection::Start()
 
         case EConnectionType::Server: {
             TWriterGuard guard(ControlSpinLock_);
-            YCHECK(InterfaceType_);
             YCHECK(Socket_ != INVALID_SOCKET);
             State_ = EState::Opening;
-            SetupInterfaceType(*InterfaceType_);
+            SetupNetwork(NetworkName_);
             Open();
             DoArmPoller();
             break;
@@ -233,9 +232,9 @@ void TTcpConnection::ResolveAddress()
             return;
         }
 
+        NetworkName_ = LocalNetworkName;
         OnAddressResolved(
-            TNetworkAddress::CreateUnixDomainAddress(*UnixDomainName_),
-            ETcpInterfaceType::Local);
+            TNetworkAddress::CreateUnixDomainAddress(*UnixDomainName_));
     } else {
         TStringBuf hostName;
         try {
@@ -263,35 +262,32 @@ void TTcpConnection::OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& r
     LOG_DEBUG("Connection network address resolved (Address: %v)",
         address);
 
-    auto interfaceType = ETcpInterfaceType::Remote;
-    if (!InterfaceType_ && IsLocalBusTransportEnabled() && TAddressResolver::Get()->IsLocalAddress(address)) {
+    if (IsLocalBusTransportEnabled() && TAddressResolver::Get()->IsLocalAddress(address)) {
         address = GetLocalBusAddress(Port_);
-        interfaceType = ETcpInterfaceType::Local;
+        NetworkName_ = LocalNetworkName;
     }
 
-    OnAddressResolved(address, interfaceType);
+    OnAddressResolved(address);
 }
 
 void TTcpConnection::OnAddressResolved(
-    const TNetworkAddress& address,
-    ETcpInterfaceType interfaceType)
+    const TNetworkAddress& address)
 {
     State_ = EState::Opening;
-    SetupInterfaceType(interfaceType);
+    SetupNetwork(NetworkName_);
     ConnectSocket(address);
 }
 
-void TTcpConnection::SetupInterfaceType(ETcpInterfaceType interfaceType)
+void TTcpConnection::SetupNetwork(const TString& networkName)
 {
-    YCHECK(!InterfaceType_ || *InterfaceType_ == interfaceType);
     YCHECK(!Counters_);
 
-    LOG_DEBUG("Using %Qlv interface", interfaceType);
+    LOG_DEBUG("Using %Qv network", networkName);
 
-    Counters_ = TTcpDispatcher::TImpl::Get()->GetCounters(interfaceType);
+    Counters_ = TTcpDispatcher::TImpl::Get()->GetCounters(networkName);
 
     // Suppress checksum generation for local traffic.
-    if (interfaceType == ETcpInterfaceType::Local) {
+    if (networkName == LocalNetworkName) {
         GenerateChecksums_ = false;
     }
 }
@@ -364,12 +360,12 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
     DialerSession_->Dial();
 }
 
-void TTcpConnection::OnDialerFinished(SOCKET socket, TError error)
+void TTcpConnection::OnDialerFinished(SOCKET socket, const TError& error)
 {
     if (socket != INVALID_SOCKET) {
         OnSocketConnected(socket);
     } else {
-        Abort(std::move(error));
+        Abort(error);
     }
     DialerSession_.Reset();
 }
@@ -382,6 +378,11 @@ const TString& TTcpConnection::GetEndpointDescription() const
 const IAttributeDictionary& TTcpConnection::GetEndpointAttributes() const
 {
     return *EndpointAttributes_;
+}
+
+TTcpDispatcherStatistics TTcpConnection::GetStatistics() const
+{
+    return Counters_->ToStatistics();
 }
 
 TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& options)
@@ -400,6 +401,22 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     ArmPollerForWrite();
 
     return queuedMessage.Promise;
+}
+
+void TTcpConnection::SetTosLevel(TTosLevel tosLevel)
+{
+    if (TosLevel_.load() == tosLevel) {
+        return;
+    }
+
+    {
+        NConcurrency::TWriterGuard guard(ControlSpinLock_);
+        if (Socket_ != INVALID_SOCKET) {
+            InitSocketTosLevel(tosLevel);
+        }
+    }
+
+    TosLevel_.store(tosLevel);
 }
 
 void TTcpConnection::Terminate(const TError& error)
@@ -497,7 +514,7 @@ void TTcpConnection::OnShutdown()
     Terminated_.Fire(CloseError_);
 }
 
-void TTcpConnection::OnSocketConnected(int socket)
+void TTcpConnection::OnSocketConnected(SOCKET socket)
 {
     Y_ASSERT(State_ == EState::Opening);
 
@@ -517,7 +534,13 @@ void TTcpConnection::OnSocketConnected(int socket)
     UpdateConnectionCount(true);
 
     {
-        NConcurrency::TReaderGuard guard(ControlSpinLock_);
+        NConcurrency::TWriterGuard guard(ControlSpinLock_);
+
+        auto tosLevel = TosLevel_.load();
+        if (tosLevel != DefaultTosLevel) {
+            InitSocketTosLevel(tosLevel);
+        }
+
         DoArmPoller();
     }
 }
@@ -616,7 +639,9 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     LOG_TRACE("Socket read (BytesRead: %v)", *bytesRead);
 
     if (Config_->EnableQuickAck) {
-        SetSocketEnableQuickAck(Socket_);
+        if (!TrySetSocketEnableQuickAck(Socket_)) {
+            LOG_TRACE("Failed to set socket quick ack option");
+        }
     }
 
     return true;
@@ -1145,7 +1170,7 @@ void TTcpConnection::RearmPoller()
 
 int TTcpConnection::GetSocketError() const
 {
-    return ::NYT::GetSocketError(Socket_);
+    return NNet::GetSocketError(Socket_);
 }
 
 bool TTcpConnection::IsSocketError(ssize_t result)
@@ -1154,6 +1179,16 @@ bool TTcpConnection::IsSocketError(ssize_t result)
         result != EWOULDBLOCK &&
         result != EAGAIN &&
         result != EINPROGRESS;
+}
+
+void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
+{
+    if (TrySetSocketTosLevel(Socket_, tosLevel)) {
+        LOG_DEBUG("Socket TOS level set (TosLevel: %x)",
+            tosLevel);
+    } else {
+        LOG_DEBUG("Failed to set socket TOS level");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

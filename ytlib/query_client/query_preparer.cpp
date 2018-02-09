@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <yt/core/ytree/yson_serializable.h>
+#include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/finally.h>
@@ -1101,7 +1102,8 @@ struct TTypedExpressionBuilder
                     // try InferName(found, expand aliases = true)
 
                     if (usedAliases.count(columnName)) {
-                        THROW_ERROR_EXCEPTION("Recursive usage of alias %Qv", columnName);
+                        THROW_ERROR_EXCEPTION("Recursive usage of alias %Qv",
+                            columnName);
                     }
 
                     usedAliases.insert(columnName);
@@ -1413,7 +1415,8 @@ struct TTypedExpressionBuilder
                 argTypes.push_back(argType);
                 if (auto reference = typedArgument->As<TReferenceExpression>()) {
                     if (!columnNames.insert(reference->ColumnName).second) {
-                        THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv", reference->ColumnName)
+                        THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv",
+                            reference->ColumnName)
                             << TErrorAttribute("source", inExpr->GetSource(Source));
                     }
                 }
@@ -1445,7 +1448,7 @@ struct TTypedExpressionBuilder
                 if (auto reference = typedArgument->As<TReferenceExpression>()) {
                     if (!columnNames.insert(reference->ColumnName).second) {
                         THROW_ERROR_EXCEPTION("TRANSFORM operator has multiple references to column %Qv",
-                        reference->ColumnName)
+                            reference->ColumnName)
                             << TErrorAttribute("source", source);
                     }
                 }
@@ -1495,7 +1498,7 @@ struct TTypedExpressionBuilder
                 auto untypedArgument = DoBuildUntypedExpression(defaultExpr->front().Get(), schema, usedAliases);
 
                 if (!Unify(&resultTypes, untypedArgument.FeasibleTypes)) {
-                    THROW_ERROR_EXCEPTION("Type mismatch in default expression: expected %Qv, got %Qv",
+                    THROW_ERROR_EXCEPTION("Type mismatch in default expression: expected %Qlv, got %Qlv",
                         resultTypes,
                         untypedArgument.FeasibleTypes)
                         << TErrorAttribute("source", source);
@@ -1673,8 +1676,7 @@ protected:
         const TString& /*subexprName*/,
         const TTypedExpressionBuilder& /*builder*/)
     {
-        THROW_ERROR_EXCEPTION(
-            "Misuse of aggregate function %Qv",
+        THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv",
             name);
     }
 
@@ -2213,7 +2215,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             }
 
             if (selfColumn->Type != foreignColumn->Type) {
-                THROW_ERROR_EXCEPTION("Column %Qv type mismatch",
+                THROW_ERROR_EXCEPTION("Column %Qv type mismatch in join",
                     NAst::InferColumnName(referenceExpr->Reference))
                     << TErrorAttribute("self_type", selfColumn->Type)
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
@@ -2539,14 +2541,21 @@ TConstExpressionPtr PrepareExpression(
     const TConstTypeInferrerMapPtr& functions,
     THashSet<TString>* references)
 {
-    auto astHead = NAst::TAstHead::MakeExpression();
-    ParseQueryString(
-        &astHead,
-        source,
-        NAst::TParser::token::StrayWillParseExpression);
+    return PrepareExpression(
+        *ParseSource(source, EParseMode::Expression),
+        tableSchema,
+        functions,
+        references);
+}
 
-    auto& expr = astHead.Ast.As<NAst::TExpressionPtr>();
-    const auto& aliasMap = astHead.AliasMap;
+TConstExpressionPtr PrepareExpression(
+    const TParsedSource& parsedSource,
+    const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions,
+    THashSet<TString>* references)
+{
+    auto expr = parsedSource.AstHead.Ast.As<NAst::TExpressionPtr>();
+    const auto& aliasMap = parsedSource.AstHead.AliasMap;
 
     std::vector<TColumnDescriptor> mapping;
     auto schemaProxy = New<TScanSchemaProxy>(
@@ -2555,7 +2564,7 @@ TConstExpressionPtr PrepareExpression(
         &mapping);
 
     TTypedExpressionBuilder builder{
-        source,
+        parsedSource.Source,
         functions,
         aliasMap,
         0};

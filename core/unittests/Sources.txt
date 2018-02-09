@@ -13,6 +13,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checksum_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/count_down_latch_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/coroutines_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/crypto_ut.cpp
@@ -34,6 +35,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/http_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lexer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lfalloc_helpers_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging_ut.cpp
@@ -51,15 +54,13 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/preprocessor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/protobuf_yson_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/protobuf_yson_ut.proto
   ${CMAKE_CURRENT_LIST_DIR}/ring_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ref_counted_tracker_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ref_counted_tracker_ut.proto
   ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skiff_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skip_list_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_string_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_vector_ut.cpp
@@ -69,6 +70,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/timer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/topological_ordering_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
@@ -79,5 +81,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/weak_ptr_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp  
+  ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/proto/protobuf_yson_ut.proto
+  ${CMAKE_CURRENT_LIST_DIR}/proto/ref_counted_tracker_ut.proto
+  ${CMAKE_CURRENT_LIST_DIR}/proto/rpc_ut.proto
 )

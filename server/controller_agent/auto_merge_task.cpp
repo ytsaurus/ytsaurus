@@ -5,7 +5,7 @@
 #include "job_info.h"
 #include "task_host.h"
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -20,10 +20,12 @@ using namespace NJobTrackerClient::NProto;
 TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
     IChunkPoolInput* underlyingInput,
     TAutoMergeTask* task,
-    i64 chunkSizeThreshold)
+    i64 chunkSizeThreshold,
+    i64 maxDataWeightPerJob)
     : TChunkPoolInputAdapterBase(underlyingInput)
     , Task_(task)
     , ChunkSizeThreshold_(chunkSizeThreshold)
+    , MaxDataWeightPerJob_(maxDataWeightPerJob)
 { }
 
 IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
@@ -71,6 +73,12 @@ void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
 
     Persist(context, Task_);
     Persist(context, ChunkSizeThreshold_);
+
+    // COMPAT(max42)
+    if (context.GetVersion() >= 201999) {
+        Persist(context, MaxDataWeightPerJob_);
+    }
+
     Persist(context, CookieChunkCount_);
 }
 
@@ -78,9 +86,11 @@ void TAutoMergeChunkPoolAdapter::ProcessStripe(const TChunkStripePtr& stripe, bo
 {
     // We perform an in-place filtration of all large chunks.
     int firstUnusedIndex = 0;
-    for (auto& slice : stripe->DataSlices) {
+    for (const auto& slice : stripe->DataSlices) {
         const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
-        if (chunk->IsLargeCompleteChunk(ChunkSizeThreshold_)) {
+        if (chunk->IsLargeCompleteChunk(ChunkSizeThreshold_) ||
+            chunk->GetDataWeight() >= 0.5 * MaxDataWeightPerJob_)
+        {
             if (teleportLargeChunks) {
                 Task_->RegisterTeleportChunk(chunk);
             } else {
@@ -109,6 +119,7 @@ TAutoMergeTask::TAutoMergeTask(
     i64 chunkSizeThreshold,
     i64 desiredChunkSize,
     i64 dataWeightPerJob,
+    i64 maxDataWeightPerJob,
     TEdgeDescriptor edgeDescriptor)
     : TTask(taskHost, {edgeDescriptor})
     , TableIndex_(tableIndex)
@@ -128,24 +139,28 @@ TAutoMergeTask::TAutoMergeTask(
         autoMergeJobSizeConstraints,
         nullptr /* jobSizeAdjusterConfig */,
         EUnorderedChunkPoolMode::AutoMerge /* autoMergeMode */);
-    ChunkPool_->GetJobCounter()->SetParent(TaskHost_->DataFlowGraph().JobCounter(EJobType::UnorderedMerge));
+    TaskHost_->GetDataFlowGraph()->RegisterTask(GetVertexDescriptor(), ChunkPool_->GetJobCounter(), GetJobType());
 
-    ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(ChunkPool_.get(), this, chunkSizeThreshold);
+    ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(
+        ChunkPool_.get(),
+        this,
+        chunkSizeThreshold,
+        maxDataWeightPerJob);
 }
 
-TString TAutoMergeTask::GetId() const
+TString TAutoMergeTask::GetTitle() const
 {
-    return Format("AutoMergeTask(%v)", TableIndex_);
+    return Format("AutoMerge(%v)", TableIndex_);
+}
+
+TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptor() const
+{
+    return "AutoMerge";
 }
 
 TTaskGroupPtr TAutoMergeTask::GetGroup() const
 {
     return TaskHost_->GetAutoMergeTaskGroup();
-}
-
-TDuration TAutoMergeTask::GetLocalityTimeout() const
-{
-    return TDuration();
 }
 
 TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const
@@ -170,9 +185,9 @@ EJobType TAutoMergeTask::GetJobType() const
     return EJobType::UnorderedMerge;
 }
 
-bool TAutoMergeTask::CanScheduleJob(ISchedulingContext* /* context */, const TJobResources& /* jobLimits */)
+TNullable<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */, const TJobResources& /* jobLimits */)
 {
-    return CanScheduleJob_;
+    return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
 }
 
 int TAutoMergeTask::GetPendingJobCount() const
@@ -227,18 +242,13 @@ void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& job
 {
     TTask::OnJobCompleted(joblet, jobSummary);
 
-    for (const auto& stripe : joblet->InputStripeList->Stripes) {
-        std::vector<NChunkClient::TChunkId> chunkIds;
-        for (const auto& dataSlice : stripe->DataSlices) {
-            chunkIds.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
-        }
-        TaskHost_->UnstageChunkTreesNonRecursively(std::move(chunkIds));
-    }
+    // Deciding what to do with these chunks is up to controller.
+    // It may do nothing with these chunks, release them immediately
+    // or release after next snapshot built but it should eventually
+    // discount them in auto merge director.
+    TaskHost_->ReleaseIntermediateStripeList(joblet->InputStripeList);
 
     RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
-
-    TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(
-        joblet->InputStripeList->TotalChunkCount /* unregisteredIntermediateChunkCount*/);
 }
 
 void TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
@@ -272,7 +282,6 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
     Persist(context, ChunkPoolInput_);
     Persist(context, TableIndex_);
     Persist(context, CurrentChunkCount_);
-    Persist(context, CanScheduleJob_);
 }
 
 bool TAutoMergeTask::SupportsInputPathYson() const

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/block_id.pb.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -27,6 +29,9 @@ TString ToString(const TBlockId& id);
 
 bool operator == (const TBlockId& lhs, const TBlockId& rhs);
 bool operator != (const TBlockId& lhs, const TBlockId& rhs);
+
+void ToProto(NProto::TBlockId* protoBlockId, const TBlockId& blockId);
+void FromProto(TBlockId* blockId, const NProto::TBlockId& protoBlockId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,10 +1,11 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, wait
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
 from collections import defaultdict
+import datetime
 
 
 ##################################################################
@@ -22,9 +23,6 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
         },
         "map_reduce_operation_options" : {
           "min_uncompressed_block_size" : 1,
-          "spec_template" : {
-            "use_legacy_controller" : False,
-          }
         },
         "enable_partition_map_job_size_adjustment" : True
       }
@@ -362,6 +360,122 @@ print "x={0}\ty={1}".format(x, y)
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @unix_only
+    def test_lost_jobs(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y" : 2}, {"x": 2, "y" : 3}] * 5)
+
+        events = EventsOnFs()
+
+        reducer_cmd = " ; ".join([
+            "cat",
+            events.notify_event_cmd("reducer_started"),
+            events.wait_event_cmd("continue_reducer")])
+
+        op = map_reduce(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             reduce_by="x",
+             sort_by="x",
+             reducer_command=reducer_cmd,
+             spec={
+                 "partition_count": 2,
+                 "sort_locality_timeout" : 0,
+                 "sort_assignment_timeout" : 0,
+                 "enable_partitioned_data_balancing" : False,
+                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
+                 "resource_limits" : { "user_slots" : 1}},
+             dont_track=True)
+
+        # We wait for the first reducer to start (second is pending due to resource_limits).
+        events.wait_event("reducer_started", timeout=datetime.timedelta(1000))
+
+        chunks = get("//sys/chunks")
+        banned_nodes = []
+        for c in chunks:
+            replicas = get("//sys/chunks/{0}/@stored_replicas".format(c))
+            if len(replicas) == 1:
+                # Intermediate chunk is stored in single replica.
+                # Ban node with intermediate chunk.
+                set("//sys/nodes/{0}/@banned".format(replicas[0]), True)
+                banned_nodes.append(replicas[0])
+
+        # First reducer will probably compelete successfully, but the second one
+        # must fail due to unavailable intermediate chunk.
+        # This will lead to a lost map job.
+        events.notify_event("continue_reducer")
+        op.track()
+
+        assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 1
+
+        for n in banned_nodes:
+            set("//sys/nodes/{0}/@banned".format(n), False)
+
+    @unix_only
+    def test_unavailable_intermediate_chunks(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y" : 2}, {"x": 2, "y" : 3}] * 5)
+
+        events = EventsOnFs()
+
+        reducer_cmd = " ; ".join([
+            "cat",
+            events.notify_event_cmd("reducer_started"),
+            events.wait_event_cmd("continue_reducer")])
+
+        op = map_reduce(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             reduce_by="x",
+             sort_by="x",
+             reducer_command=reducer_cmd,
+             spec={
+                 "enable_intermediate_output_recalculation" : False,
+                 "sort_assignment_timeout" : 0,
+                 "sort_locality_timeout" : 0,
+                 "enable_partitioned_data_balancing" : False,
+                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
+                 "partition_count": 2,
+                 "resource_limits" : { "user_slots" : 1}},
+             dont_track=True)
+
+        # We wait for the first reducer to start (second is pending due to resource_limits).
+        events.wait_event("reducer_started", timeout=datetime.timedelta(1000))
+
+        chunks = get("//sys/chunks")
+        banned_nodes = []
+        for c in chunks:
+            replicas = get("//sys/chunks/{0}/@stored_replicas".format(c))
+            if len(replicas) == 1:
+                # Intermediate chunk is stored in single replica.
+                # Ban node with intermediate chunk..
+                set("//sys/nodes/{0}/@banned".format(replicas[0]), True)
+                banned_nodes.append(replicas[0])
+
+        # First reducer will probably compelete successfully, but the second one
+        # must fail due to unavailable intermediate chunk.
+        # This will lead to a lost map job.
+        events.notify_event("continue_reducer")
+
+        def get_unavailable_chunk_count():
+            return get("//sys/operations/{0}/@progress/estimated_input_statistics/unavailable_chunk_count".format(op.id))
+
+        # Wait till scheduler discovers that chunk is unavailable.
+        wait(lambda: get_unavailable_chunk_count() > 0)
+
+        # Make chunk available again.
+        for n in banned_nodes:
+            set("//sys/nodes/{0}/@banned".format(n), False)
+
+        wait(lambda: get_unavailable_chunk_count() == 0)
+
+        op.track()
+
+        assert get("//sys/operations/{0}/@progress/partition_reduce_jobs/aborted".format(op.id)) > 0
+        assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 0
+
+    @unix_only
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -510,6 +624,7 @@ print "x={0}\ty={1}".format(x, y)
                 assert job["job_type"] == "partition_reduce"
                 assert "input_paths" not in job
 
+    @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_reduce_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data
@@ -594,6 +709,29 @@ print "x={0}\ty={1}".format(x, y)
         update(rows1)
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
+
+    @pytest.mark.parametrize("sorted", [False, True])
+    def test_map_output_table(self, sorted):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out_map", attributes={
+            "schema": [
+                {"name": "bypass_key", "type": "int64", "sort_order": "ascending" if sorted else None}
+            ]
+        })
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out_map", "//tmp/t_out"],
+            mapper_command="echo \"{bypass_key=$YT_JOB_INDEX}\" 1>&4; echo '{shuffle_key=23}'",
+            reducer_command="cat",
+            reduce_by=["shuffle_key"],
+            sort_by=["shuffle_key"],
+            spec={"mapper_output_table_count" : 1, "max_failed_job_count": 1, "data_size_per_map_job": 1})
+        assert read_table("//tmp/t_out") == [{"shuffle_key": 23}] * 10
+        assert len(read_table("//tmp/t_out_map")) == 10
 
 ##################################################################
 

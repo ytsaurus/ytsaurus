@@ -10,6 +10,7 @@
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/actions/callback.h>
 
@@ -34,6 +35,9 @@ DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
 
 constexpr int TypicalMailboxCount = 16;
 using TMailboxList = SmallVector<TMailbox*, TypicalMailboxCount>;
+
+using TRefCountedEncapsulatedMessage = TRefCountedProto<NHiveClient::NProto::TEncapsulatedMessage>;
+using TRefCountedEncapsulatedMessagePtr = TIntrusivePtr<TRefCountedEncapsulatedMessage>;
 
 template <class TTransaction>
 using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const TString&, bool persistent)>;

@@ -12,8 +12,10 @@ import pytest
 class TestSkynet(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
+    NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
+        "use_new_http_server": True,
         "data_node": {
             "enable_experimental_skynet_http_api": True
         }
@@ -42,6 +44,7 @@ class TestSkynet(YTEnvSetup):
         assert 1 == len(chunk_specs)
         assert chunk_specs[0]["chunk_id"] == chunk
         assert chunk_specs[0]["row_index"] == 0
+        assert chunk_specs[0]["row_count"] == 1
 
     def test_locate_multiple_parts(self):
         create("table", "//tmp/table")
@@ -59,9 +62,9 @@ class TestSkynet(YTEnvSetup):
         for spec in chunk_specs:
             spec.pop("replicas")
 
-        assert chunk_specs[0] == {'chunk_id': chunks[0], 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 0}
-        assert chunk_specs[1] == {'chunk_id': chunks[1], 'row_index': 2, 'range_index': 0}
-        assert chunk_specs[2] == {'chunk_id': chunks[2], 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 4, 'range_index': 0}
+        assert chunk_specs[0] == {'chunk_id': chunks[0], 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 0, 'row_count': 1}
+        assert chunk_specs[1] == {'chunk_id': chunks[1], 'row_index': 2, 'range_index': 0, 'row_count': 2}
+        assert chunk_specs[2] == {'chunk_id': chunks[2], 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 4, 'range_index': 0, 'row_count': 1}
 
     def test_multiple_ranges(self):
         create("table", "//tmp/table")
@@ -76,8 +79,8 @@ class TestSkynet(YTEnvSetup):
             spec.pop("replicas")
 
         assert len(chunk_specs) == 2
-        assert chunk_specs[0] == {'chunk_id': chunk, 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 0, 'range_index': 0}
-        assert chunk_specs[1] == {'chunk_id': chunk, 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 1}
+        assert chunk_specs[0] == {'chunk_id': chunk, 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 0, 'range_index': 0, 'row_count': 1}
+        assert chunk_specs[1] == {'chunk_id': chunk, 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 1, 'row_count': 1}
 
     def test_node_locations(self):
         create("table", "//tmp/table", attributes={
@@ -112,7 +115,7 @@ class TestSkynet(YTEnvSetup):
         else:
             raise KeyError(node_id)
 
-        url = "http://{}/read_skynet_part/?{}".format(
+        url = "http://{}/read_skynet_part?{}".format(
             http_address,
             "&".join("{}={}".format(k, v) for k, v in kwargs.items()))
         return urllib2.urlopen(url).read()
@@ -139,6 +142,15 @@ class TestSkynet(YTEnvSetup):
             self.get_skynet_part(node_id, info["nodes"], chunk_id=chunk_id,
                 lower_row_index=0, upper_row_index=2, start_part_index=0)
 
+    def test_write_null_fields(self):
+        create("table", "//tmp/table", attributes={
+            "enable_skynet_sharing": True,
+            "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
+        })
+
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{}])
+        
     def test_download_single_part_by_http(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
@@ -162,11 +174,12 @@ class TestSkynet(YTEnvSetup):
             assert False, "Node not found: {}, {}".format(chunk["replicas"], str(info["nodes"]))
 
         assert "abc" == self.get_skynet_part(node_id, info["nodes"], chunk_id=chunk_id,
-                                             lower_row_index=0, upper_row_index=2, start_part_index=0)
+                                             lower_row_index=0, upper_row_index=1, start_part_index=0)
 
     def test_http_edge_cases(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
+            "optimize_for": "scan",
             "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
         })
 
@@ -207,6 +220,20 @@ class TestSkynet(YTEnvSetup):
                                                   upper_row_index=upper_row_index,
                                                   start_part_index=part_index)
 
+    def test_operation_output(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"sky_share_id": 0, "filename": "test.txt", "part_index": 0, "data": "foobar"})
+
+        create("table", "//tmp/table", attributes={
+            "enable_skynet_sharing": True,
+            "schema": TestSkynet.SKYNET_TABLE_SCHEMA,
+        })
+
+        map(in_="//tmp/input", out="//tmp/table", command="cat")
+        row = read_table("//tmp/table")[0]
+        assert 6 == row["data_size"]
+        assert "sha1" in row
+        assert "md5" in row
 
     def test_skynet_hashes(self):
         create("table", "//tmp/table", attributes={

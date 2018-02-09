@@ -30,6 +30,14 @@ bool ShrinkHashTable(T* collection);
 template <class TSource, class TTarget>
 void MergeFrom(TTarget* target, const TSource& source);
 
+template <class... Ts>
+auto MakeArray(
+    const Ts&... values)
+-> std::array<std::tuple_element_t<0, std::tuple<Ts...>>, sizeof...(Ts)>;
+
+template <class T>
+std::array<T, 0> MakeArray();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

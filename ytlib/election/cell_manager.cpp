@@ -6,7 +6,7 @@
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/tcp_client.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -26,9 +26,10 @@ TCellManager::TCellManager(
     IChannelFactoryPtr channelFactory,
     TPeerId selfId)
     : Config_(config)
-    , ChannelFactory_(channelFactory)
+    , ChannelFactory_(std::move(channelFactory))
     , SelfId_(selfId)
-    , Logger(ElectionLogger)
+    , Logger(NLogging::TLogger(ElectionLogger)
+        .AddTag("CellId: %v", Config_->CellId))
 {
     TotalPeerCount_ = config->Peers.size();
     VotingPeerCount_ = 0;
@@ -46,8 +47,6 @@ TCellManager::TCellManager(
         PeerChannels_[id] = CreatePeerChannel(id);
     }
 
-    Logger.AddTag("CellId: %v", Config_->CellId);
-
     LOG_INFO("Cell initialized (SelfId: %v, Peers: %v)",
         SelfId_,
         Config_->Peers);
@@ -60,20 +59,13 @@ void TCellManager::BuildTags()
     for (TPeerId id = 0; id < GetTotalPeerCount(); ++id) {
         const auto& config = GetPeerConfig(id);
         if (config.Address) {
-            NProfiling::TTagIdList tags;
-            tags.push_back(profilingManager->RegisterTag("address", *config.Address));
-            PeerTags_.push_back(tags);
+            PeerTags_.push_back(profilingManager->RegisterTag("address", *config.Address));
         }
     }
 
-    AllPeersTags_.clear();
-    AllPeersTags_.push_back(profilingManager->RegisterTag("address", "all"));
-    
-    PeerQuorumTags_.clear();
-    PeerQuorumTags_.push_back(profilingManager->RegisterTag("address", "quorum"));
-
-    CellIdTags_.clear();
-    CellIdTags_.push_back(profilingManager->RegisterTag("cell_id", Config_->CellId));
+    AllPeersTag_ = profilingManager->RegisterTag("address", "all");
+    PeerQuorumTag_ = profilingManager->RegisterTag("address", "quorum");
+    CellIdTag_ = profilingManager->RegisterTag("cell_id", Config_->CellId);
 }
 
 const TCellId& TCellManager::GetCellId() const
@@ -116,24 +108,24 @@ IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
     return PeerChannels_[id];
 }
 
-const NProfiling::TTagIdList& TCellManager::GetPeerTags(TPeerId id) const
+NProfiling::TTagId TCellManager::GetPeerTag(TPeerId id) const
 {
     return PeerTags_[id];
 }
 
-const NProfiling::TTagIdList& TCellManager::GetAllPeersTags() const
+NProfiling::TTagId TCellManager::GetAllPeersTag() const
 {
-    return AllPeersTags_;
+    return AllPeersTag_;
 }
 
-const NProfiling::TTagIdList& TCellManager::GetPeerQuorumTags() const
+NProfiling::TTagId TCellManager::GetPeerQuorumTag() const
 {
-    return PeerQuorumTags_;
+    return PeerQuorumTag_;
 }
 
-const NProfiling::TTagIdList& TCellManager::GetCellIdTags() const
+NProfiling::TTagId TCellManager::GetCellIdTag() const
 {
-    return CellIdTags_;
+    return CellIdTag_;
 }
 
 void TCellManager::Reconfigure(TCellConfigPtr newConfig)
@@ -158,8 +150,8 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
             newSelfPeer.Address);
     }
 
-    auto oldConfig = Config_;
-    Config_ = newConfig;
+    auto oldConfig = std::move(Config_);
+    Config_ = std::move(newConfig);
 
     BuildTags();
 

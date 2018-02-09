@@ -26,6 +26,7 @@ class TBlockIndexesExt;
 class TBlockMetaExt;
 class TBlockMeta;
 class TSimpleVersionedBlockMeta;
+class TSchemaDictionary;
 
 } // namespace NProto
 
@@ -124,6 +125,12 @@ DEFINE_ENUM(EControlAttribute,
     (RowIndex)
 );
 
+DEFINE_ENUM(EUnavailableChunkStrategy,
+    ((ThrowError)   (0))
+    ((Restore)      (1))
+    ((Skip)         (2))
+);
+
 struct TColumnIdMapping
 {
     int ChunkSchemaIndex;
@@ -168,6 +175,7 @@ using TKeyComparer = std::function<int(TKey, TKey)>;
 
 class TColumnSchema;
 class TTableSchema;
+class TSchemaDictionary;
 
 struct IBlockWriter;
 

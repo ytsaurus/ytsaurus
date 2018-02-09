@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/misc/public.h>
-
 #include <yt/server/scheduler/public.h>
 
 #include <yt/server/controller_agent/public.h>
@@ -12,7 +10,7 @@
 
 #include <yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -22,21 +20,14 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/http/public.h>
+
 #include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NCellScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EControlQueue,
-    (Default)
-    (UserRequest)
-    (MasterConnector)
-    (Orchid)
-    (PeriodicActivity)
-    (Operation)
-);
 
 class TBootstrap
 {
@@ -46,11 +37,12 @@ public:
 
     const TCellSchedulerConfigPtr& GetConfig() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
+    const NRpc::IChannelPtr GetLocalRpcChannel() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
-    const IInvokerPtr& GetControllerAgentInvoker() const;
     const NScheduler::TSchedulerPtr& GetScheduler() const;
+    const NScheduler::TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
@@ -68,13 +60,14 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NConcurrency::TFairShareActionQueuePtr ControlQueue_;
-    NConcurrency::TActionQueuePtr ControllerAgentQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
-    std::unique_ptr<NXHttp::TServer> HttpServer_;
+    NRpc::IChannelPtr LocalRpcChannel_;
+    NHttp::IServerPtr HttpServer_;
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;
     NScheduler::TSchedulerPtr Scheduler_;
+    NScheduler::TControllerAgentTrackerPtr ControllerAgentTracker_;
     NControllerAgent::TControllerAgentPtr ControllerAgent_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;

@@ -8,6 +8,7 @@
 #include "config.h"
 #include "location.h"
 #include "session_manager.h"
+#include "network_statistics.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -68,6 +69,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
@@ -92,11 +94,13 @@ TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
     const TAddressMap& rpcAddresses,
     const TAddressMap& skynetHttpAddresses,
+    const TAddressMap& monitoringHttpAddresses,
     const std::vector<TString>& nodeTags,
     TBootstrap* bootstrap)
     : Config_(config)
     , RpcAddresses_(rpcAddresses)
     , SkynetHttpAddresses_(skynetHttpAddresses)
+    , MonitoringHttpAddresses_(monitoringHttpAddresses)
     , NodeTags_(nodeTags)
     , Bootstrap_(bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
@@ -118,7 +122,7 @@ void TMasterConnector::Start()
         MasterCellTags_.push_back(cellTag);
         YCHECK(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
     };
-    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     initializeCell(connection->GetPrimaryMasterCellTag());
     for (auto cellTag : connection->GetSecondaryMasterCellTags()) {
         initializeCell(cellTag);
@@ -269,7 +273,9 @@ void TMasterConnector::RegisterAtMaster()
         InitMedia();
         StartLeaseTransaction();
         RegisterAtPrimaryMaster();
-        SyncDirectories();
+        if (Config_->SyncDirectoriesOnConnect) {
+            SyncDirectories();
+        }
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Error registering at primary master");
         ResetAndScheduleRegisterAtMaster();
@@ -400,6 +406,10 @@ void TMasterConnector::RegisterAtPrimaryMaster()
     skynetHttpAddresses->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
     ToProto(skynetHttpAddresses->mutable_addresses(), SkynetHttpAddresses_);
 
+    auto* monitoringHttpAddresses = nodeAddresses->add_entries();
+    monitoringHttpAddresses->set_address_type(static_cast<int>(EAddressType::MonitoringHttp));
+    ToProto(monitoringHttpAddresses->mutable_addresses(), MonitoringHttpAddresses_);
+
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
     ToProto(req->mutable_tags(), NodeTags_);
 
@@ -426,13 +436,12 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     TNodeStatistics result;
     ComputeTotalStatistics(&result);
     ComputeLocationSpecificStatistics(&result);
+    Bootstrap_->GetNetworkStatistics()->UpdateStatistics(&result);
     return result;
 }
 
 void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
 {
-    auto chunkStore = Bootstrap_->GetChunkStore();
-
     i64 totalAvailableSpace = 0;
     i64 totalLowWatermarkSpace = 0;
     i64 totalUsedSpace = 0;
@@ -440,7 +449,8 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     int totalSessionCount = 0;
     bool full = true;
 
-    for (auto location : chunkStore->Locations()) {
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    for (const auto& location : chunkStore->Locations()) {
         if (location->IsEnabled()) {
             totalAvailableSpace += location->GetAvailableSpace();
             totalLowWatermarkSpace += location->GetLowWatermarkSpace();
@@ -461,7 +471,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
         full = false;
     }
 
-    auto chunkCache = Bootstrap_->GetChunkCache();
+    const auto& chunkCache = Bootstrap_->GetChunkCache();
     int totalCachedChunkCount = chunkCache->GetChunkCount();
 
     result->set_total_available_space(totalAvailableSpace);
@@ -471,7 +481,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     result->set_total_cached_chunk_count(totalCachedChunkCount);
     result->set_full(full);
 
-    auto sessionManager = Bootstrap_->GetSessionManager();
+    const auto& sessionManager = Bootstrap_->GetSessionManager();
     result->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
     result->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
     result->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
@@ -519,6 +529,8 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_session_count(location->GetSessionCount());
         locationStatistics->set_enabled(location->IsEnabled());
         locationStatistics->set_full(location->IsFull());
+        locationStatistics->set_throttling_reads(location->IsReadThrottling());
+        locationStatistics->set_throttling_writes(location->IsWriteThrottling());
 
         auto& mediumStatistics = mediaStatistics[mediumIndex];
         if (location->IsEnabled() && !location->IsFull()) {
@@ -560,7 +572,7 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
 
 bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
 {
-    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     if (cellTag != connection->GetPrimaryMasterCellTag()) {
         return true;
     }
@@ -745,6 +757,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
             protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
 
+            TEnumIndexedVector<TError, ETabletBackgroundActivity> errors;
+            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                errors[key] = tabletSnapshot->RuntimeData->Errors[key].Load();
+            }
+            ToProto(protoTabletInfo->mutable_errors(), std::vector<TError>(errors.begin(), errors.end()));
+
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;
                 const auto& replicaSnapshot = pair.second;
@@ -757,16 +775,24 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
             auto performanceCounters = tabletSnapshot->PerformanceCounters;
             protoPerformanceCounters->set_dynamic_row_read_count(performanceCounters->DynamicRowReadCount);
+            protoPerformanceCounters->set_dynamic_row_read_data_weight_count(performanceCounters->DynamicRowReadDataWeightCount);
             protoPerformanceCounters->set_dynamic_row_lookup_count(performanceCounters->DynamicRowLookupCount);
+            protoPerformanceCounters->set_dynamic_row_lookup_data_weight_count(performanceCounters->DynamicRowLookupDataWeightCount);
             protoPerformanceCounters->set_dynamic_row_write_count(performanceCounters->DynamicRowWriteCount);
             protoPerformanceCounters->set_dynamic_row_write_data_weight_count(performanceCounters->DynamicRowWriteDataWeightCount);
             protoPerformanceCounters->set_dynamic_row_delete_count(performanceCounters->DynamicRowDeleteCount);
             protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
+            protoPerformanceCounters->set_static_chunk_row_read_data_weight_count(performanceCounters->StaticChunkRowReadDataWeightCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_true_negative_count(performanceCounters->StaticChunkRowLookupTrueNegativeCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_false_positive_count(performanceCounters->StaticChunkRowLookupFalsePositiveCount);
+            protoPerformanceCounters->set_static_chunk_row_lookup_data_weight_count(performanceCounters->StaticChunkRowLookupDataWeightCount);
             protoPerformanceCounters->set_unmerged_row_read_count(performanceCounters->UnmergedRowReadCount);
             protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
+            protoPerformanceCounters->set_compaction_data_weight_count(performanceCounters->CompactionDataWeightCount);
+            protoPerformanceCounters->set_partitioning_data_weight_count(performanceCounters->PartitioningDataWeightCount);
+            protoPerformanceCounters->set_lookup_error_count(performanceCounters->LookupErrorCount);
+            protoPerformanceCounters->set_write_error_count(performanceCounters->WriteErrorCount);
         }
     }
 
@@ -827,6 +853,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
         UpdateDataCenter(dc);
+
+        auto tags = FromProto<std::vector<TString>>(rsp->tags());
+        UpdateTags(std::move(tags));
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
@@ -1021,9 +1050,9 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
 IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
 {
     auto cellId = Bootstrap_->GetCellId(cellTag);
-    auto client = Bootstrap_->GetMasterClient();
-    auto connection = client->GetNativeConnection();
-    auto cellDirectory = connection->GetCellDirectory();
+    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& connection = client->GetNativeConnection();
+    const auto& cellDirectory = connection->GetCellDirectory();
     return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }
 
@@ -1033,7 +1062,8 @@ void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         rack,
-        LocalDescriptor_.GetDataCenter());
+        LocalDescriptor_.GetDataCenter(),
+        LocalDescriptor_.GetTags());
 }
 
 void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
@@ -1042,7 +1072,18 @@ void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         LocalDescriptor_.GetRack(),
-        dc);
+        dc,
+        LocalDescriptor_.GetTags());
+}
+
+void TMasterConnector::UpdateTags(std::vector<TString> tags)
+{
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    LocalDescriptor_ = TNodeDescriptor(
+        RpcAddresses_,
+        LocalDescriptor_.GetRack(),
+        LocalDescriptor_.GetDataCenter(),
+        std::move(tags));
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)

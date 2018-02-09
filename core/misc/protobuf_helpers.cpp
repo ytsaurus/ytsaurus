@@ -21,24 +21,46 @@ struct TSerializedMessageTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef SerializeToProto(
+namespace {
+
+void SerializeProtoToRefImpl(
     const google::protobuf::MessageLite& message,
-    bool partial)
+    bool partial,
+    const TMutableRef& ref)
 {
 #ifdef YT_VALIDATE_REQUIRED_PROTO_FIELDS
     if (!partial && !message.IsInitialized()) {
         LOG_FATAL("Missing required fields: %v", message.InitializationErrorString());
     }
 #endif
+    auto* begin = reinterpret_cast<google::protobuf::uint8*>(ref.begin());
+    auto* end = reinterpret_cast<google::protobuf::uint8*>(ref.end());
+    YCHECK(message.SerializeWithCachedSizesToArray(begin) == end);
+}
+
+} // namespace
+
+TSharedRef SerializeProtoToRef(
+    const google::protobuf::MessageLite& message,
+    bool partial)
+{
     auto size = message.ByteSize();
     auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(size, false);
-    auto* begin = reinterpret_cast<google::protobuf::uint8*>(data.Begin());
-    auto* end = message.SerializeWithCachedSizesToArray(begin);
-    YCHECK(end - begin == data.Size());
+    SerializeProtoToRefImpl(message, partial, data);
     return data;
 }
 
-bool TryDeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
+TString SerializeProtoToString(
+    const google::protobuf::MessageLite& message,
+    bool partial)
+{
+    auto size = message.ByteSize();
+    auto data = TString::Uninitialized(size);
+    SerializeProtoToRefImpl(message, partial, TMutableRef(data.begin(), size));
+    return data;
+}
+
+bool TryDeserializeProto(google::protobuf::MessageLite* message, const TRef& data)
 {
     // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
     // to find out more about protobuf message size limits.
@@ -55,14 +77,14 @@ bool TryDeserializeFromProto(google::protobuf::MessageLite* message, const TRef&
     return message->ParsePartialFromCodedStream(&codedInputStream);
 }
 
-void DeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
+void DeserializeProto(google::protobuf::MessageLite* message, const TRef& data)
 {
-    YCHECK(TryDeserializeFromProto(message, data));
+    YCHECK(TryDeserializeProto(message, data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef SerializeToProtoWithEnvelope(
+TSharedRef SerializeProtoToRefWithEnvelope(
     const google::protobuf::MessageLite& message,
     NCompression::ECodec codecId,
     bool partial)
@@ -72,34 +94,66 @@ TSharedRef SerializeToProtoWithEnvelope(
         envelope.set_codec(static_cast<int>(codecId));
     }
 
-    auto serializedMessage = SerializeToProto(message, partial);
+    auto serializedMessage = SerializeProtoToRef(message, partial);
 
     auto codec = NCompression::GetCodec(codecId);
     auto compressedMessage = codec->Compress(serializedMessage);
 
     TEnvelopeFixedHeader fixedHeader;
-    fixedHeader.HeaderSize = envelope.ByteSize();
-    fixedHeader.MessageSize = compressedMessage.Size();
+    fixedHeader.EnvelopeSize = static_cast<ui32>(envelope.ByteSize());
+    fixedHeader.MessageSize = static_cast<ui32>(compressedMessage.Size());
 
     size_t totalSize =
         sizeof (TEnvelopeFixedHeader) +
-        fixedHeader.HeaderSize +
+        fixedHeader.EnvelopeSize +
         fixedHeader.MessageSize;
 
     auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(totalSize, false);
 
     char* targetFixedHeader = data.Begin();
     char* targetHeader = targetFixedHeader + sizeof (TEnvelopeFixedHeader);
-    char* targetMessage = targetHeader + fixedHeader.HeaderSize;
+    char* targetMessage = targetHeader + fixedHeader.EnvelopeSize;
 
     memcpy(targetFixedHeader, &fixedHeader, sizeof (fixedHeader));
-    YCHECK(envelope.SerializeToArray(targetHeader, fixedHeader.HeaderSize));
+    YCHECK(envelope.SerializeToArray(targetHeader, fixedHeader.EnvelopeSize));
     memcpy(targetMessage, compressedMessage.Begin(), fixedHeader.MessageSize);
 
     return data;
 }
 
-bool TryDeserializeFromProtoWithEnvelope(
+TString SerializeProtoToStringWithEnvelope(
+    const google::protobuf::MessageLite& message,
+    NCompression::ECodec codecId,
+    bool partial)
+{
+    if (codecId != NCompression::ECodec::None) {
+        // TODO(babenko): see YT-7865 for a related issue
+        return ToString(SerializeProtoToRefWithEnvelope(message, codecId, partial));
+    }
+
+    NProto::TSerializedMessageEnvelope envelope;
+
+    TEnvelopeFixedHeader fixedHeader;
+    fixedHeader.EnvelopeSize = static_cast<ui32>(envelope.ByteSize());
+    fixedHeader.MessageSize = static_cast<ui32>(message.ByteSize());
+
+    auto totalSize =
+        sizeof (fixedHeader) +
+        fixedHeader.EnvelopeSize +
+        fixedHeader.MessageSize;
+
+    auto data = TString::Uninitialized(totalSize);
+    char* ptr = data.begin();
+    ::memcpy(ptr, &fixedHeader, sizeof (fixedHeader));
+    ptr += sizeof (fixedHeader);
+    ptr = reinterpret_cast<char*>(envelope.SerializeWithCachedSizesToArray(reinterpret_cast<ui8*>(ptr)));
+    ptr = reinterpret_cast<char*>(message.SerializeWithCachedSizesToArray(reinterpret_cast<ui8*>(ptr)));
+    Y_ASSERT(ptr == data.end());
+
+    return data;
+}
+
+bool TryDeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data)
 {
@@ -109,34 +163,61 @@ bool TryDeserializeFromProtoWithEnvelope(
 
     const auto* fixedHeader = reinterpret_cast<const TEnvelopeFixedHeader*>(data.Begin());
     const char* sourceHeader = data.Begin() + sizeof (TEnvelopeFixedHeader);
-    const char* sourceMessage = sourceHeader + fixedHeader->HeaderSize;
+    const char* sourceMessage = sourceHeader + fixedHeader->EnvelopeSize;
 
     NProto::TSerializedMessageEnvelope envelope;
-    if (!envelope.ParseFromArray(sourceHeader, fixedHeader->HeaderSize)) {
+    if (!envelope.ParseFromArray(sourceHeader, fixedHeader->EnvelopeSize)) {
         return false;
     }
 
+    auto codecId = NCompression::ECodec(envelope.codec());
     auto compressedMessage = TSharedRef(sourceMessage, fixedHeader->MessageSize, nullptr);
 
-    auto codecId = NCompression::ECodec(envelope.codec());
     auto* codec = NCompression::GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 
-    return TryDeserializeFromProto(message, serializedMessage);
+    return TryDeserializeProto(message, serializedMessage);
 }
 
-void DeserializeFromProtoWithEnvelope(
+void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data)
 {
-    YCHECK(TryDeserializeFromProtoWithEnvelope(message, data));
+    YCHECK(TryDeserializeProtoWithEnvelope(message, data));
+}
+
+TSharedRef PopEnvelope(const TSharedRef& data)
+{
+    TEnvelopeFixedHeader header;
+    if (data.Size() < sizeof(header)) {
+        THROW_ERROR_EXCEPTION("Fixed header is missing");
+    }
+
+    memcpy(&header, data.Begin(), sizeof(header));
+    if (header.EnvelopeSize != 0) {
+        THROW_ERROR_EXCEPTION("Envelope is not empty");
+    }
+
+    return data.Slice(sizeof(TEnvelopeFixedHeader), data.Size());
+}
+
+TSharedRef PushEnvelope(const TSharedRef& data)
+{
+    TEnvelopeFixedHeader header;
+    header.EnvelopeSize = 0;
+    header.MessageSize = data.Size();
+
+    auto headerRef = TSharedMutableRef::Allocate(sizeof(header));
+    memcpy(headerRef.Begin(), &header, sizeof(header));
+
+    return MergeRefsToRef<TDefaultSharedBlobTag>(std::vector<TSharedRef>{headerRef, data});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)
 {
-    auto data = SerializeToProtoWithEnvelope(message);
+    auto data = SerializeProtoToRefWithEnvelope(message);
     TSizeSerializer::Save(context, data.Size());
     TRangeSerializer::Save(context, data);
 }
@@ -163,7 +244,7 @@ void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobu
         TRangeSerializer::Load(context, data);
     }
 
-    DeserializeFromProtoWithEnvelope(&message, data);
+    DeserializeProtoWithEnvelope(&message, data);
 
     SERIALIZATION_DUMP_WRITE(context, "proto[%v] %v", size, DumpProto(message));
 }

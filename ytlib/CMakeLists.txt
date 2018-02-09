@@ -13,7 +13,6 @@ add_library(yt-library-client ${YT_SRCS_RESOLVED})
 
 target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-re2
-  deps-arcadia-contrib-libs-yajl
   deps-arcadia-library-http
   yt-core
   yt-core-codegen

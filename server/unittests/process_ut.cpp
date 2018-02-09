@@ -9,12 +9,16 @@
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/pipes/async_reader.h>
+#include <yt/core/net/connection.h>
 
 #include <yt/server/misc/process.h>
 
 #include <yt/server/containers/porto_executor.h>
 #include <yt/server/containers/instance.h>
+
+#include <util/system/platform.h>
+
+#ifdef _linux_
 
 namespace NYT {
 namespace {
@@ -22,8 +26,6 @@ namespace {
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef _linux_
 
 static TString GetUniqueName()
 {
@@ -272,9 +274,9 @@ TEST(TPortoProcessTest, PollDuration)
     EXPECT_TRUE(p->IsFinished());
     portoInstance->Destroy();
 }
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT
+
+#endif

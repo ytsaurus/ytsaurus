@@ -2,10 +2,9 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 from yt.yson import to_yson_type
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, wait
 
 import json
-from time import sleep
 
 ##################################################################
 
@@ -42,14 +41,11 @@ class TestChunkServer(YTEnvSetup):
 
         assert get("//tmp/t/@replication_factor") == 3
 
-        sleep(2) # wait for background replication
-
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        nodes = get("#%s/@stored_replicas" % chunk_id)
-        assert len(nodes) == 3
+        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
 
     def _test_decommission(self, path, replica_count):
         def id_to_hash(id):
@@ -58,24 +54,19 @@ class TestChunkServer(YTEnvSetup):
         def node_has_chunk(node, id):
             return id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]
 
-        sleep(2) # wait for background replication
-
         chunk_ids = get(path + "/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        nodes = get("#%s/@stored_replicas" % chunk_id)
-        assert len(nodes) == replica_count
+        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
 
-        node_to_decommission = nodes[0]
+        node_to_decommission = get("#%s/@stored_replicas/0" % chunk_id)
         assert node_has_chunk(node_to_decommission, chunk_id)
 
         self.set_node_decommissioned(node_to_decommission, True)
 
-        sleep(2) # wait for background replication
-
-        assert not node_has_chunk(node_to_decommission, chunk_id)
-        assert len(get("#%s/@stored_replicas" % chunk_id)) == replica_count
+        wait(lambda: not node_has_chunk(node_to_decommission, chunk_id) and
+                     len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
 
     def test_decommission_regular(self):
         create("table", "//tmp/t")
@@ -105,23 +96,19 @@ class TestChunkServer(YTEnvSetup):
         nodes = ls("//sys/nodes")
         assert len(nodes) == 20
 
-        self._check_replicator(True)
+        assert get("//sys/@chunk_replicator_enabled")
 
         for i in xrange(18):
             set("//sys/nodes/%s/@banned" % nodes[i], True)
 
-        sleep(2.0)
-
-        self._check_replicator(False)
+        wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
     def test_disable_replicator_when_explicitly_requested_so(self):
-        self._check_replicator(True)
+        assert get("//sys/@chunk_replicator_enabled")
 
         set("//sys/@config/enable_chunk_replicator", False)
 
-        sleep(2.0)
-
-        self._check_replicator(False)
+        wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
     def test_hide_chunk_attrs(self):
         create("table", "//tmp/t")

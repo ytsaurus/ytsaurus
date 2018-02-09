@@ -5,6 +5,8 @@
 
 #include <util/generic/ptr.h>
 
+#include <memory>
+
 namespace NYT {
 namespace NCompression {
 
@@ -14,7 +16,8 @@ class TBrotliCompress
     : public IOutputStream
 {
 public:
-    TBrotliCompress(IOutputStream* slave, int level);
+    TBrotliCompress(IOutputStream* underlying, int level);
+    ~TBrotliCompress() override;
 
 protected:
     virtual void DoWrite(const void* buffer, size_t length);
@@ -23,21 +26,22 @@ protected:
 
 private:
     class TImpl;
-    THolder<TImpl> Impl_;
+    std::unique_ptr<TImpl> Impl_;
 };
 
 class TBrotliDecompress
     : public IInputStream
 {
 public:
-    explicit TBrotliDecompress(IInputStream* slave, size_t buflen = 8 * 1024);
+    explicit TBrotliDecompress(IInputStream* underlying, size_t buflen = 8 * 1024, bool trusted = false);
+    ~TBrotliDecompress() override;
 
 private:
     virtual size_t DoRead(void* buffer, size_t length);
 
 private:
     class TImpl;
-    THolder<TImpl> Impl_;
+    std::unique_ptr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

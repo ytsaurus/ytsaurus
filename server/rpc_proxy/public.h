@@ -8,7 +8,7 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(IProxyCoordinator)
+DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
 
 DECLARE_REFCOUNTED_CLASS(TApiServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryServiceConfig)

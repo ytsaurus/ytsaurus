@@ -3,6 +3,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
 
@@ -25,7 +26,8 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
-using NScheduler::TCompletedJobSummary;
+
+using NControllerAgent::TCompletedJobSummary;
 
 using namespace ::testing;
 
@@ -47,6 +49,7 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.SortedJobOptions.MaxDataWeightPerJob = Inf64;
+        Options_.SortedJobOptions.UseNewEndpointKeys = true;
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataWeight_ = Inf64;
@@ -64,8 +67,6 @@ protected:
             0 /* maxDataWeightPerJob_ */,
             InputSliceDataWeight_,
             Inf64 /* inputSliceRowCount */);
-
-        Options_.SortedJobOptions.UseNewEndpointKeys = true;
     }
 
     struct TMockChunkSliceFetcherBuilder
@@ -2378,6 +2379,60 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase3)
     auto teleportChunks = ChunkPool_->GetTeleportChunks();
 
     CheckEverything(stripeLists, teleportChunks);
+}
+
+TEST_F(TSortedChunkPoolTest, TestTrickyCase4)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false},
+        {false, false, false},
+        {false, false, false}
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 3;
+    Options_.SortedJobOptions.UseNewEndpointKeys = true;
+    DataSizePerJob_ = 10_KB;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    auto chunkA1 = CreateChunk(BuildRow({133, 1, 1}), BuildRow({133, 3, 3}), 0, 8_KB);
+    auto chunkA2 = CreateChunk(BuildRow({133, 3, 3}), BuildRow({133, 3, 3}), 0, 8_KB);
+    auto chunkA3 = CreateChunk(BuildRow({133, 5, 5}), BuildRow({133, 9, 9}), 0, 8_KB);
+    auto chunkB = CreateChunk(
+        BuildRow({0, 0, 0}),
+        BuildRow({200, 200, 200}),
+        1,
+        1_KB,
+        BuildRow({133}), BuildRow({133, 1000 /* equivalent to <max> */}));
+
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA1);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA3);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA1);
+    AddChunk(chunkA2);
+    AddChunk(chunkA3);
+    AddChunk(chunkB);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    auto teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    CheckEverything(stripeLists, teleportChunks);
+
+    EXPECT_TRUE(teleportChunks.empty());
+    ASSERT_EQ(stripeLists.size(), 2);
+
+    // We assert that chunkB should become split up into two slices that go to each of the jobs.
+    for (const auto& stripeList : stripeLists) {
+        EXPECT_EQ(stripeList->Stripes.size(), 2);
+    }
 }
 
 TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)

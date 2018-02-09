@@ -34,8 +34,6 @@ using namespace NProfiling;
 
 static const auto& Logger = DataNodeLogger;
 
-static TSimpleCounter DiskBlobReadByteCounter("/blob_block_read_bytes");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlobChunkBase::TBlobChunkBase(
@@ -218,23 +216,35 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
     session->Entries.resize(totalBlockCount);
     session->Blocks.resize(totalBlockCount);
 
-    auto pendingIOGuard = Location_->IncreasePendingIOSize(
-        EIODirection::Read,
-        workloadDescriptor,
-        pendingDataSize);
+    const auto& outThrottler = Location_->GetOutThrottler(workloadDescriptor);
+    TFuture<void> throttleFuture = VoidFuture;
+    if (!outThrottler->TryAcquire(pendingDataSize)) {
+        LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
+            pendingDataSize, 
+            workloadDescriptor);
+        throttleFuture = outThrottler->Throttle(pendingDataSize);
+    }
 
     // Actually serve the request: delegate to the appropriate thread.
     auto priority = workloadDescriptor.GetPriority();
     auto invoker = CreateFixedPriorityInvoker(Location_->GetDataReadInvoker(), priority);
     return
-        BIND(
-            &TBlobChunkBase::DoReadBlockSet,
-            MakeStrong(this),
-            session,
-            workloadDescriptor,
-            Passed(std::move(pendingIOGuard)))
-        .AsyncVia(std::move(invoker))
-        .Run();
+        throttleFuture.Apply(BIND([=, this_ = MakeStrong(this)] {
+            auto pendingIOGuard = Location_->IncreasePendingIOSize(
+                EIODirection::Read,
+                workloadDescriptor,
+                pendingDataSize);
+            // Note that outer Apply checks that the return value is of type
+            // TError and returns the TFuture<void> instead of TFuture<TError> here.
+            return BIND(
+                &TBlobChunkBase::DoReadBlockSet,
+                this_,
+                session,
+                workloadDescriptor,
+                Passed(std::move(pendingIOGuard)))
+                .AsyncVia(std::move(invoker))
+                .Run();
+        }));
 }
 
 void TBlobChunkBase::DoReadBlockSet(
@@ -327,7 +337,8 @@ void TBlobChunkBase::DoReadBlockSet(
         locationProfiler.Enqueue("/blob_block_read_size", bytesRead, EMetricType::Gauge);
         locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds(), EMetricType::Gauge);
         locationProfiler.Enqueue("/blob_block_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()), EMetricType::Gauge);
-        DataNodeProfiler.Increment(DiskBlobReadByteCounter, bytesRead);
+
+        Location_->IncreaseCompletedIOSize(EIODirection::Read, workloadDescriptor, bytesRead);
 
         currentIndex = endIndex;
     }

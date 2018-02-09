@@ -75,6 +75,9 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.read_table;
     delete descriptors.read_blob_table;
 
+    delete descriptors.get_file_from_cache;
+    delete descriptors.put_file_to_cache;
+
     delete descriptors.write_file;
     delete descriptors.write_journal;
     delete descriptors.write_table;
@@ -102,6 +105,7 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.abandon_job;
     delete descriptors.poll_job_shell;
     delete descriptors.abort_job;
+    delete descriptors.get_job;
     delete descriptors.get_job_stderr;
     delete descriptors.get_job_input;
     delete descriptors.list_jobs;

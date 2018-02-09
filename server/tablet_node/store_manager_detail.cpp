@@ -59,6 +59,7 @@ TStoreManagerBase::TStoreManagerBase(
     , HydraManager_(std::move(hydraManager))
     , InMemoryManager_(std::move(inMemoryManager))
     , Client_(std::move(client))
+    , StoreFlushTag_(NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush"))
     , Logger(TabletNodeLogger)
 {
     Logger.AddTag("TabletId: %v, CellId: %v",
@@ -207,7 +208,7 @@ bool TStoreManagerBase::IsStoreFlushable(IStorePtr store) const
         return false;
     }
 
-    if (dynamicStore->GetLastFlushAttemptTimestamp() + Config_->ErrorBackoffTime > Now()) {
+    if (dynamicStore->GetLastFlushAttemptTimestamp() + Config_->FlushBackoffTime > Now()) {
         return false;
     }
 

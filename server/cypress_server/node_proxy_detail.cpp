@@ -261,13 +261,10 @@ std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCyp
         options);
 }
 
-INodeResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
+TYPath TNontemplateCypressNodeProxyBase::GetPath() const
 {
-    if (!CachedResolver) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        CachedResolver = cypressManager->CreateResolver(Transaction);
-    }
-    return CachedResolver;
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    return cypressManager->GetNodePath(this);
 }
 
 TTransaction* TNontemplateCypressNodeProxyBase::GetTransaction() const
@@ -286,7 +283,7 @@ ICompositeNodePtr TNontemplateCypressNodeProxyBase::GetParent() const
     return parent ? GetProxy(parent)->AsComposite() : nullptr;
 }
 
-void TNontemplateCypressNodeProxyBase::SetParent(ICompositeNodePtr parent)
+void TNontemplateCypressNodeProxyBase::SetParent(const ICompositeNodePtr& parent)
 {
     auto* impl = LockThisImpl();
     impl->SetParent(parent ? ICypressNodeProxy::FromNode(parent.Get())->GetTrunkNode() : nullptr);
@@ -580,8 +577,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     }
 
     if (hasKey && key == "key") {
+        static const TString NullKey("?");
         BuildYsonFluently(consumer)
-            .Value(GetParent()->AsMap()->GetChildKey(this));
+            .Value(GetParent()->AsMap()->FindChildKey(this).Get(NullKey));
         return true;
     }
 
@@ -1022,7 +1020,7 @@ bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
 void TNontemplateCypressNodeProxyBase::SetChildNode(
     INodeFactory* /*factory*/,
     const TYPath& /*path*/,
-    INodePtr /*child*/,
+    const INodePtr& /*child*/,
     bool /*recursive*/)
 {
     Y_UNREACHABLE();
@@ -1085,7 +1083,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         Transaction,
         lockRequest,
         waitable);
-    
+
     auto lockId = lock->GetId();
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), lock->GetTrunkNode()->GetId());
@@ -1244,14 +1242,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         }
     }
 
-    auto sourceProxy = ICypressNodeProxy::FromNode(GetResolver()->ResolvePath(sourcePath));
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, Transaction);
 
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = removeSource
         ? LockImpl(trunkSourceImpl, ELockMode::Exclusive, true)
         : GetImpl(trunkSourceImpl);
 
-    if (IsParentOf(sourceImpl, GetThisImpl())) {
+    if (IsAncestorOf(trunkSourceImpl, TrunkNode)) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
@@ -1374,6 +1373,17 @@ TMapNodeProxy::TMapNodeProxy(
         trunkNode)
 { }
 
+void TMapNodeProxy::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    const TCtxSetPtr& context)
+{
+    context->SetRequestInfo();
+    ValidateSetCommand();
+    TMapNodeMixin::SetRecursive(path, request, response, context);
+}
+
 void TMapNodeProxy::Clear()
 {
     // Take shared lock for the node itself.
@@ -1466,7 +1476,7 @@ INodePtr TMapNodeProxy::FindChild(const TString& key) const
     return childTrunkNode ? GetProxy(childTrunkNode) : nullptr;
 }
 
-bool TMapNodeProxy::AddChild(INodePtr child, const TString& key)
+bool TMapNodeProxy::AddChild(const INodePtr& child, const TString& key)
 {
     Y_ASSERT(!key.empty());
 
@@ -1509,9 +1519,14 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
     return true;
 }
 
-void TMapNodeProxy::RemoveChild(INodePtr child)
+void TMapNodeProxy::RemoveChild(const INodePtr& child)
 {
-    auto key = GetChildKey(child);
+    auto maybeKey = FindChildKey(child);
+    if (!maybeKey) {
+        THROW_ERROR_EXCEPTION("Node is not a child");
+    }
+    const auto& key = *maybeKey;
+
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
@@ -1521,13 +1536,17 @@ void TMapNodeProxy::RemoveChild(INodePtr child)
     SetModified();
 }
 
-void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
+void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
 {
     if (oldChild == newChild) {
         return;
     }
 
-    auto key = GetChildKey(oldChild);
+    auto maybeKey = FindChildKey(oldChild);
+    if (!maybeKey) {
+        THROW_ERROR_EXCEPTION("Node is not a child");
+    }
+    const auto& key = *maybeKey;
 
     auto* oldTrunkChildImpl = ICypressNodeProxy::FromNode(oldChild.Get())->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl, ELockMode::Exclusive, true);
@@ -1552,7 +1571,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     SetModified();
 }
 
-TString TMapNodeProxy::GetChildKey(IConstNodePtr child)
+TNullable<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
 {
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
@@ -1567,7 +1586,7 @@ TString TMapNodeProxy::GetChildKey(IConstNodePtr child)
         }
     }
 
-    return "?";
+    return Null;
 }
 
 bool TMapNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
@@ -1579,7 +1598,7 @@ bool TMapNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
 void TMapNodeProxy::SetChildNode(
     INodeFactory* factory,
     const TYPath& path,
-    INodePtr child,
+    const INodePtr& child,
     bool recursive)
 {
     TMapNodeMixin::SetChild(
@@ -1716,6 +1735,28 @@ TListNodeProxy::TListNodeProxy(
         trunkNode)
 { }
 
+void TListNodeProxy::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    const TCtxSetPtr& context)
+{
+    context->SetRequestInfo();
+
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    auto token = tokenizer.GetToken();
+
+    if (!token.StartsWith(ListBeginToken) &&
+        !token.StartsWith(ListEndToken) &&
+        !token.StartsWith(ListBeforeToken) &&
+        !token.StartsWith(ListAfterToken))
+    {
+        ValidateSetCommand();
+    }
+    TListNodeMixin::SetRecursive(path, request, response, context);
+}
+
 void TListNodeProxy::Clear()
 {
     auto* impl = LockThisImpl();
@@ -1762,7 +1803,7 @@ INodePtr TListNodeProxy::FindChild(int index) const
     return index >= 0 && index < indexToChild.size() ? GetProxy(indexToChild[index]) : nullptr;
 }
 
-void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
+void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
 {
     auto* impl = LockThisImpl();
     auto& list = impl->IndexToChild();
@@ -1815,13 +1856,13 @@ bool TListNodeProxy::RemoveChild(int index)
     return true;
 }
 
-void TListNodeProxy::RemoveChild(INodePtr child)
+void TListNodeProxy::RemoveChild(const INodePtr& child)
 {
-    int index = GetChildIndex(child);
+    int index = GetChildIndexOrThrow(child);
     YCHECK(RemoveChild(index));
 }
 
-void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
+void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
 {
     if (oldChild == newChild)
         return;
@@ -1850,22 +1891,20 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     SetModified();
 }
 
-int TListNodeProxy::GetChildIndex(IConstNodePtr child)
+TNullable<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child)
 {
     const auto* impl = GetThisImpl();
 
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto it = impl->ChildToIndex().find(trunkChildImpl);
-    YCHECK(it != impl->ChildToIndex().end());
-
-    return it->second;
+    return it == impl->ChildToIndex().end() ? Null : MakeNullable(it->second);
 }
 
 void TListNodeProxy::SetChildNode(
     INodeFactory* factory,
     const TYPath& path,
-    INodePtr child,
+    const INodePtr& child,
     bool recursive)
 {
     TListNodeMixin::SetChild(
@@ -1916,7 +1955,7 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Ampersand:
-            return TBase::Resolve(tokenizer.GetSuffix(), context);
+            return TBase::Resolve(TYPath(tokenizer.GetSuffix()), context);
 
         case NYPath::ETokenType::EndOfStream: {
             // NB: Always handle mutating Cypress verbs locally.
@@ -1966,8 +2005,7 @@ bool TLinkNodeProxy::IsBroken() const
     try {
         const auto* impl = GetThisImpl();
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* resolver = objectManager->GetObjectResolver();
-        resolver->ResolvePath(impl->GetTargetPath(), Transaction);
+        objectManager->ResolvePathToObject(impl->GetTargetPath(), Transaction);
         return false;
     } catch (const std::exception&) {
         return true;
@@ -2013,7 +2051,7 @@ IYPathService::TResolveResult TDocumentNodeProxy::ResolveRecursive(
 namespace {
 
 template <class TServerRequest, class TServerResponse, class TContext>
-void DelegateInvocation(
+bool DelegateInvocation(
     IYPathServicePtr service,
     TServerRequest* serverRequest,
     TServerResponse* serverResponse,
@@ -2034,8 +2072,10 @@ void DelegateInvocation(
         const auto& clientResponse = clientResponseOrError.Value();
         serverResponse->MergeFrom(*clientResponse);
         context->Reply();
+        return true;
     } else {
         context->Reply(clientResponseOrError);
+        return false;
     }
 }
 
@@ -2068,8 +2108,7 @@ void TDocumentNodeProxy::SetSelf(
     const TCtxSetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    auto* impl = LockThisImpl();
-    impl->SetValue(ConvertToNode(TYsonString(request->value())));
+    SetImplValue(TYsonString(request->value()));
     context->Reply();
 }
 
@@ -2081,7 +2120,9 @@ void TDocumentNodeProxy::SetRecursive(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
-    DelegateInvocation(impl->GetValue(), request, response, context);
+    if (DelegateInvocation(impl->GetValue(), request, response, context)) {
+        SetModified();
+    }
 }
 
 void TDocumentNodeProxy::ListSelf(
@@ -2113,7 +2154,9 @@ void TDocumentNodeProxy::RemoveRecursive(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
-    DelegateInvocation(impl->GetValue(), request, response, context);
+    if (DelegateInvocation(impl->GetValue(), request, response, context)) {
+        SetModified();
+    }
 }
 
 void TDocumentNodeProxy::ExistsRecursive(
@@ -2152,12 +2195,18 @@ bool TDocumentNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* 
 bool TDocumentNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
 {
     if (key == "value") {
-        auto* impl = LockThisImpl();
-        impl->SetValue(ConvertToNode(value));
+        SetImplValue(value);
         return true;
     }
 
     return TBase::SetBuiltinAttribute(key, value);
+}
+
+void TDocumentNodeProxy::SetImplValue(const TYsonString& value)
+{
+    auto* impl = LockThisImpl();
+    impl->SetValue(ConvertToNode(value));
+    SetModified();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

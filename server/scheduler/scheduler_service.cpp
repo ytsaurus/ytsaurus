@@ -107,7 +107,10 @@ private:
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
 
-        auto error = TError("Operation aborted by user request");
+        const auto& user = context->GetUser();
+
+        auto error = TError("Operation aborted by user request")
+            << TErrorAttribute("user", user);
         if (request->has_abort_message()) {
             error = error << TError(request->abort_message());
         }
@@ -116,7 +119,7 @@ private:
         auto asyncResult = scheduler->AbortOperation(
             operation,
             error,
-            context->GetUser());
+            user);
 
         context->ReplyFrom(asyncResult);
     }
@@ -185,8 +188,6 @@ private:
         context->ReplyFrom(asyncResult);
     }
 };
-
-DEFINE_REFCOUNTED_TYPE(TSchedulerService)
 
 IServicePtr CreateSchedulerService(TBootstrap* bootstrap)
 {

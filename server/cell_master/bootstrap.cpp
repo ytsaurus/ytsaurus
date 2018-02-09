@@ -32,8 +32,6 @@
 #include <yt/server/journal_server/journal_node.h>
 #include <yt/server/journal_server/journal_manager.h>
 
-#include <yt/server/misc/build_attributes.h>
-
 #include <yt/server/node_tracker_server/cypress_integration.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
 #include <yt/server/node_tracker_server/node_tracker_service.h>
@@ -63,6 +61,8 @@
 
 #include <yt/server/admin_server/admin_service.h>
 
+#include <yt/ytlib/program/build_attributes.h>
+
 #include <yt/ytlib/election/cell_manager.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -82,6 +82,10 @@
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/net/local_address.h>
+
+#include <yt/core/http/server.h>
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
@@ -107,6 +111,7 @@ namespace NCellMaster {
 using namespace NAdmin;
 using namespace NBus;
 using namespace NRpc;
+using namespace NNet;
 using namespace NYTree;
 using namespace NElection;
 using namespace NHydra;
@@ -136,14 +141,16 @@ using NTransactionServer::TTransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
+static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TCellMasterConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
-{ }
+{
+    WarnForUnrecognizedOptions(Logger, Config_);
+}
 
 TBootstrap::~TBootstrap() = default;
 
@@ -214,7 +221,7 @@ const IServerPtr& TBootstrap::GetRpcServer() const
     return RpcServer_;
 }
 
-const IChannelPtr TBootstrap::GetLocalRpcChannel() const
+const IChannelPtr& TBootstrap::GetLocalRpcChannel() const
 {
     return LocalRpcChannel_;
 }
@@ -434,10 +441,9 @@ void TBootstrap::DoInitialize()
         YCHECK(CellDirectory_->ReconfigureCell(cellConfig));
     }
 
-    HttpServer_ = std::make_unique<NXHttp::TServer>(
-        Config_->MonitoringPort,
-        Config_->BusServer->BindRetryCount,
-        Config_->BusServer->BindRetryBackoff);
+    Config_->MonitoringServer->Port = Config_->MonitoringPort;
+    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
+    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
 
     if (Config_->CoreDumper) {
         CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
@@ -581,9 +587,7 @@ void TBootstrap::DoInitialize()
         "/config",
         ConfigNode_);
 
-    HttpServer_->Register(
-        "/orchid",
-        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+    OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker()));
 
     SetBuildAttributes(orchidRoot, "master");
 
@@ -647,6 +651,8 @@ void TBootstrap::DoRun()
     MonitoringManager_->Start();
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_->AddHandler("/orchid/", OrchidHttpHandler_);
     HttpServer_->Start();
 
     LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);

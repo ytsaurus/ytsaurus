@@ -54,12 +54,6 @@ private:
 
     TCachedVersionedChunkMeta();
 
-    TCachedVersionedChunkMetaPtr DoLoad(
-        NChunkClient::IChunkReaderPtr chunkReader,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TTableSchema& schema,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker);
-
     void Init(
         const NChunkClient::TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,

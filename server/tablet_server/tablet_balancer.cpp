@@ -49,7 +49,7 @@ class TTabletBalancer::TImpl
 {
 public:
     TImpl(
-        TTabletBalancerConfigPtr config,
+        TTabletBalancerMasterConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
@@ -57,27 +57,26 @@ public:
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
             BIND(&TImpl::Balance, MakeWeak(this)),
             Config_->BalancePeriod))
-        , EnabledCheckExecutor_(New<TPeriodicExecutor>(
+        , ConfigCheckExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
-            BIND(&TImpl::OnCheckEnabled, MakeWeak(this)),
-            Config_->EnabledCheckPeriod))
+            BIND(&TImpl::OnCheckConfig, MakeWeak(this)),
+            Config_->ConfigCheckPeriod))
         , Profiler("/tablet_server/tablet_balancer")
         , MemoryMoveCounter_("/in_memory_moves")
         , MergeCounter_("/tablet_merges")
-        , SplitCounter_("/tablet_splits")
         , QueueSizeCounter_("/queue_size")
     { }
 
     void Start()
     {
         BalanceExecutor_->Start();
-        EnabledCheckExecutor_->Start();
+        ConfigCheckExecutor_->Start();
         Started_ = true;
     }
 
     void Stop()
     {
-        EnabledCheckExecutor_->Stop();
+        ConfigCheckExecutor_->Stop();
         BalanceExecutor_->Stop();
         Started_ = false;
     }
@@ -89,10 +88,6 @@ public:
         }
 
         if (!Started_) {
-            return;
-        }
-
-        if (!Config_->EnableTabletSizeBalancer) {
             return;
         }
 
@@ -108,7 +103,9 @@ public:
             TabletIdQueue_.push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             Profiler.Increment(QueueSizeCounter_);
-            LOG_DEBUG("Tablet is put into balancer queue (TabletId: %v)", tablet->GetId());
+            LOG_DEBUG("Tablet is put into balancer queue (TableId: %v, TabletId: %v)",
+                tablet->GetTable()->GetId(),
+                tablet->GetId());
         }
     }
 
@@ -120,10 +117,10 @@ private:
         i64 DesiredTabletSize;
     };
 
-    const TTabletBalancerConfigPtr Config_;
+    const TTabletBalancerMasterConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;
     const NConcurrency::TPeriodicExecutorPtr BalanceExecutor_;
-    const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr ConfigCheckExecutor_;
 
     bool Enabled_ = false;
     bool Started_ = false;
@@ -134,11 +131,9 @@ private:
     const NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter MemoryMoveCounter_;
     NProfiling::TSimpleCounter MergeCounter_;
-    NProfiling::TSimpleCounter SplitCounter_;
     NProfiling::TSimpleCounter QueueSizeCounter_;
 
     int MergeCount_ = 0;
-    int SplitCount_ = 0;
 
     bool BalanceCells_ = false;
 
@@ -152,7 +147,7 @@ private:
             tablet->GetTable()->IsSorted() &&
             IsObjectAlive(tablet->GetCell()) &&
             IsObjectAlive(tablet->GetCell()->GetCellBundle()) &&
-            tablet->GetCell()->GetCellBundle()->GetEnableTabletBalancer() &&
+            tablet->GetCell()->GetCellBundle()->TabletBalancerConfig()->EnableTabletSizeBalancer &&
             tablet->Replicas().empty() &&
             IsTabletUntouched(tablet);
     }
@@ -210,7 +205,9 @@ private:
 
     void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
-        if (!bundle->GetEnableTabletBalancer()) {
+        const auto& config = bundle->TabletBalancerConfig();
+
+        if (!config->EnableInMemoryBalancer) {
             return;
         }
 
@@ -264,7 +261,7 @@ private:
 
                 auto top = queue.top();
 
-                if (static_cast<double>(cellSize - top.first) / cellSize < Config_->CellBalanceFactor) {
+                if (static_cast<double>(cellSize - top.first) / cellSize < config->CellBalanceFactor) {
                     break;
                 }
 
@@ -276,8 +273,9 @@ private:
                 }
 
                 if (tabletSize < cellSize - top.first) {
-                    LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v, "
+                    LOG_DEBUG("Tablet balancer would like to move tablet (TableId: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, "
                         "TabletSize: %v, SrcCellSize: %v, DstCellSize: %v, CellBundle: %v)",
+                        tablet->GetTable()->GetId(),
                         tablet->GetId(),
                         cell->GetId(),
                         top.second->GetId(),
@@ -316,10 +314,6 @@ private:
 
     void ReassignInMemoryTablets()
     {
-        if (!Config_->EnableInMemoryBalancer) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletCellBundles()) {
             ReassignInMemoryTablets(pair.second);
@@ -336,9 +330,7 @@ private:
 
         Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
         Profiler.Update(MergeCounter_, MergeCount_);
-        Profiler.Update(SplitCounter_, SplitCount_);
         MergeCount_ = 0;
-        SplitCount_ = 0;
     }
 
     void DoBalanceTablets()
@@ -424,7 +416,10 @@ private:
             newTabletCount = 1;
         }
 
-        if (newTabletCount == endIndex - startIndex + 1) {
+        if (newTabletCount == endIndex - startIndex + 1 && newTabletCount == 1) {
+            LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v)",
+                table->GetId(),
+                tablet->GetId());
             return;
         }
 
@@ -434,7 +429,8 @@ private:
             TouchedTablets_.insert(table->Tablets()[index]);
         }
 
-        LOG_DEBUG("Tablet balancer would like to reshard tablets (TabletIds: %v, NewTabletCount: %v)",
+        LOG_DEBUG("Tablet balancer would like to reshard tablets (TableId: %v, TabletIds: %v, NewTabletCount: %v)",
+            table->GetId(),
             tabletIds,
             newTabletCount);
 
@@ -449,59 +445,32 @@ private:
         ++MergeCount_;
     }
 
-    void SplitTablet(TTablet* tablet, std::pair<i64, i64> bounds)
-    {
-        i64 desiredSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? Config_->DesiredTabletSize
-            : Config_->DesiredInMemoryTabletSize;
-
-        int newTabletCount = DivCeil(GetTabletSize(tablet), desiredSize);
-
-        if (newTabletCount < 2) {
-            return;
-        }
-
-        LOG_DEBUG("Tablet balancer would like to reshard tablet (TabletId: %v, NewTabletCount: %v)",
-            tablet->GetId(),
-            newTabletCount);
-
-        TouchedTablets_.insert(tablet);
-
-        TReqCreateTabletAction request;
-        request.set_kind(static_cast<int>(ETabletActionKind::Reshard));
-        ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
-        request.set_tablet_count(newTabletCount);
-
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
-        ++SplitCount_;
-    }
-
     TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)
     {
         i64 minTabletSize;
         i64 maxTabletSize;
         i64 desiredTabletSize = 0;
 
+        const auto& config = tablet->GetCell()->GetCellBundle()->TabletBalancerConfig();
         auto* table = tablet->GetTable();
         const auto& desiredTabletCount = table->GetDesiredTabletCount();
         auto statistics = table->ComputeTotalStatistics();
         i64 tableSize = tablet->GetInMemoryMode() == EInMemoryMode::Compressed
             ? statistics.compressed_data_size()
             : statistics.uncompressed_data_size();
-        i64 cellCount = tablet->GetCell()->GetCellBundle()->TabletCells().size();
+        i64 cellCount = tablet->GetCell()->GetCellBundle()->TabletCells().size() *
+            config->TabletToCellRatio;
 
         if (!desiredTabletCount) {
             minTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-                ? Config_->MinTabletSize
-                : Config_->MinInMemoryTabletSize;
+                ? config->MinTabletSize
+                : config->MinInMemoryTabletSize;
             maxTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-                ? Config_->MaxTabletSize
-                : Config_->MaxInMemoryTabletSize;
+                ? config->MaxTabletSize
+                : config->MaxInMemoryTabletSize;
             desiredTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-                ? Config_->DesiredTabletSize
-                : Config_->DesiredInMemoryTabletSize;
+                ? config->DesiredTabletSize
+                : config->DesiredInMemoryTabletSize;
 
             auto tableMinTabletSize = table->GetMinTabletSize();
             auto tableMaxTabletSize = table->GetMaxTabletSize();
@@ -515,7 +484,7 @@ private:
                 maxTabletSize = *tableMaxTabletSize;
                 desiredTabletSize = *tableDesiredTabletSize;
             }
-        } else if (*desiredTabletCount < cellCount) {
+        } else {
             cellCount = *desiredTabletCount;
         }
 
@@ -534,7 +503,7 @@ private:
     }
 
 
-    void OnCheckEnabled()
+    void OnCheckConfig()
     {
         if (!Bootstrap_->IsPrimaryMaster()) {
             return;
@@ -547,6 +516,14 @@ private:
 
         const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
         if (!worldInitializer->IsInitialized()) {
+            return;
+        }
+
+        if (!Config_->EnableTabletBalancer) {
+            if (Enabled_) {
+                LOG_INFO("Tablet balancer is disabled, see master config");
+            }
+            Enabled_ = false;
             return;
         }
 
@@ -568,7 +545,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletBalancer::TTabletBalancer(
-    TTabletBalancerConfigPtr config,
+    TTabletBalancerMasterConfigPtr config,
     NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }

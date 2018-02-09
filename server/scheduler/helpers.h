@@ -12,30 +12,16 @@
 
 #include <yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IJobHost
-    : public TIntrinsicRefCounted
-{
-    virtual TFuture<void> InterruptJob(EInterruptReason reason) = 0;
-
-    virtual TFuture<void> AbortJob(const TError& error) = 0;
-
-    virtual TFuture<void> FailJob() = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IJobHost)
-
-////////////////////////////////////////////////////////////////////////////////
-
-void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
-void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
-void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer);
+void BuildFullOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
+void BuildMutableOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
+void BuildExecNodeAttributes(TExecNodePtr node, NYTree::TFluentMap fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +31,10 @@ EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
 
 TString MakeOperationCodicilString(const TOperationId& operationId);
 TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationRuntimeParamsPtr BuildOperationRuntimeParams(const TOperationSpecBasePtr& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

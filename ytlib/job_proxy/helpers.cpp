@@ -8,7 +8,7 @@
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/query.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_writer.h>
@@ -56,10 +56,10 @@ void RunQuery(
 
     auto functionGenerators = New<TFunctionProfilerMap>();
     auto aggregateGenerators = New<TAggregateProfilerMap>();
-    MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
-    MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
+    MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
+    MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
     if (udfDirectory) {
-        FetchJobImplementations(
+        FetchFunctionImplementationsFromFiles(
             functionGenerators,
             aggregateGenerators,
             externalCGInfo,
@@ -70,21 +70,24 @@ void RunQuery(
     auto reader = CreateSchemafulReaderAdapter(readerFactory, query->GetReadSchema());
 
     LOG_INFO("Reading, evaluating query and writing");
-    evaluator->Run(query, reader, writer, functionGenerators, aggregateGenerators, TQueryBaseOptions());
+    evaluator->Run(
+        query,
+        reader,
+        writer,
+        nullptr,
+        functionGenerators,
+        aggregateGenerators,
+        TQueryBaseOptions());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSpec& inputTableSpec)
 {
-    if (inputTableSpec.chunk_specs_size() > 0) {
-        return FromProto<std::vector<TDataSliceDescriptor>>(
-            inputTableSpec.chunk_specs(),
-            inputTableSpec.chunk_spec_count_per_data_slice());
-    } else {
-        // COMPAT(psushin).
-        return FromProto<std::vector<TDataSliceDescriptor>>(inputTableSpec.data_slice_descriptors());
-    }
+
+    return FromProto<std::vector<TDataSliceDescriptor>>(
+        inputTableSpec.chunk_specs(),
+        inputTableSpec.chunk_spec_count_per_data_slice());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

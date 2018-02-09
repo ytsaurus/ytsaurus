@@ -11,10 +11,14 @@
 
 #include <yt/ytlib/table_client/helpers.h>
 
+#include <yt/ytlib/scheduler/config.h>
+
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
 namespace NControllerAgent {
+
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +62,7 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 //! Fits for operations with user code.
 IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
-    const NScheduler::TSimpleOperationOptionsPtr& options,
+    const NControllerAgent::TSimpleOperationOptionsPtr& options,
     int outputTableCount,
     double dataWeightRatio,
     i64 primaryInputDataWeight,
@@ -68,19 +72,19 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
 //! Fits for system operations like merge or erase.
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
-    const NScheduler::TSimpleOperationOptionsPtr& options,
+    const NControllerAgent::TSimpleOperationOptionsPtr& options,
     i64 inputDataWeight,
     double dataWeightRatio,
     double compressionRatio);
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NScheduler::TSortOperationOptionsBasePtr& options,
+    const NControllerAgent::TSortOperationOptionsBasePtr& options,
     i64 inputDataWeight);
 
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NScheduler::TSortOperationOptionsBasePtr& options,
+    const NControllerAgent::TSortOperationOptionsBasePtr& options,
     i64 inputDataSize,
     i64 inputDataWeight,
     i64 inputRowCount,
@@ -88,7 +92,7 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NScheduler::TSortOperationOptionsBasePtr& options,
+    const NControllerAgent::TSortOperationOptionsBasePtr& options,
     int outputTableCount);
 
 IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
@@ -123,17 +127,35 @@ struct TLockedUserObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUserFile
+    : public TLockedUserObject
+{
+    std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
+    TString FileName;
+    std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
+    i64 ChunkCount = -1;
+    bool Executable = false;
+    NYson::TYsonString Format;
+    NTableClient::TTableSchema Schema;
+    bool IsDynamic = false;
+    bool IsLayer = false;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
     const TEdgeDescriptor& outputTable,
     const NTableClient::TRowBufferPtr& rowBuffer);
 
+void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector<TUserFile>& files);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

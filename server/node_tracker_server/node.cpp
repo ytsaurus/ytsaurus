@@ -17,7 +17,8 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/boolean_formula.h>
 #include <yt/core/misc/collection_helpers.h>
 
@@ -26,6 +27,7 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
+using namespace NNet;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
@@ -78,19 +80,7 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 TNode::TNode(const TObjectId& objectId)
     : TObjectBase(objectId)
-    , IOWeights_{}
-    , FillFactorIterators_{}
-    , LoadFactorIterators_{}
-    , VisitMarks_{}
 {
-    Banned_ = false;
-    Decommissioned_ = false;
-    DisableWriteSessions_ = false;
-    Rack_ = nullptr;
-    DisableSchedulerJobs_ = false;
-    LeaseTransaction_ = nullptr;
-    LocalStatePtr_ = nullptr;
-    AggregatedState_ = ENodeState::Offline;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     std::transform(
         Replicas_.begin(),
@@ -124,6 +114,7 @@ void TNode::SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statisti
 {
     Statistics_.Swap(&statistics);
     ComputeFillFactors();
+    ComputeSessionCount();
 }
 
 void TNode::ComputeFillFactors()
@@ -145,6 +136,18 @@ void TNode::ComputeFillFactors()
     }
 }
 
+void TNode::ComputeSessionCount()
+{
+    SessionCount_.fill(Null);
+
+    for (const auto& location : Statistics_.locations()) {
+        auto mediumIndex = location.medium_index();
+        if (location.enabled() && !location.full()) {
+            SessionCount_[mediumIndex] = SessionCount_[mediumIndex].Get(0) + location.session_count();
+        }
+    }
+}
+
 TNodeId TNode::GetId() const
 {
     return NodeIdFromObjectId(Id_);
@@ -163,7 +166,7 @@ void TNode::SetNodeAddresses(const TNodeAddressMap& nodeAddresses)
 
 const TAddressMap& TNode::GetAddressesOrThrow(EAddressType addressType) const
 {
-    return NNodeTrackerClient::GetAddresses(NodeAddresses_, addressType);
+    return NNodeTrackerClient::GetAddressesOrThrow(NodeAddresses_, addressType);
 }
 
 const TString& TNode::GetDefaultAddress() const
@@ -187,7 +190,8 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
     return TNodeDescriptor(
         GetAddressesOrThrow(addressType),
         Rack_ ? MakeNullable(Rack_->GetName()) : Null,
-        (Rack_ && Rack_->GetDataCenter()) ? MakeNullable(Rack_->GetDataCenter()->GetName()) : Null);
+        (Rack_ && Rack_->GetDataCenter()) ? MakeNullable(Rack_->GetDataCenter()->GetName()) : Null,
+        std::vector<TString>(Tags_.begin(), Tags_.end()));
 }
 
 
@@ -482,37 +486,52 @@ void TNode::RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes)
 
 void TNode::ClearSessionHints()
 {
-    HintedUserSessionCount_ = 0;
-    HintedReplicationSessionCount_ = 0;
-    HintedRepairSessionCount_ = 0;
+    HintedUserSessionCount_ .fill(0);
+    HintedReplicationSessionCount_.fill(0);
+    HintedRepairSessionCount_.fill(0);
+
+    TotalHintedUserSessionCount_ = 0;
+    TotalHintedReplicationSessionCount_ = 0;
+    TotalHintedRepairSessionCount_ = 0;
 }
 
-void TNode::AddSessionHint(ESessionType sessionType)
+void TNode::AddSessionHint(int mediumIndex, ESessionType sessionType)
 {
     switch (sessionType) {
         case ESessionType::User:
-            ++HintedUserSessionCount_;
+            ++HintedUserSessionCount_[mediumIndex];
+            ++TotalHintedUserSessionCount_;
             break;
         case ESessionType::Replication:
-            ++HintedReplicationSessionCount_;
+            ++HintedReplicationSessionCount_[mediumIndex];
+            ++TotalHintedReplicationSessionCount_;
             break;
         case ESessionType::Repair:
-            ++HintedRepairSessionCount_;
+            ++HintedRepairSessionCount_[mediumIndex];
+            ++TotalHintedRepairSessionCount_;
             break;
         default:
             Y_UNREACHABLE();
     }
 }
 
+int TNode::GetHintedSessionCount(int mediumIndex) const
+{
+    return SessionCount_[mediumIndex].Get(0) +
+        HintedUserSessionCount_[mediumIndex] +
+        HintedReplicationSessionCount_[mediumIndex] +
+        HintedRepairSessionCount_[mediumIndex];
+}
+
 int TNode::GetSessionCount(ESessionType sessionType) const
 {
     switch (sessionType) {
         case ESessionType::User:
-            return Statistics_.total_user_session_count() + HintedUserSessionCount_;
+            return Statistics_.total_user_session_count() + TotalHintedUserSessionCount_;
         case ESessionType::Replication:
-            return Statistics_.total_replication_session_count() + HintedReplicationSessionCount_;
+            return Statistics_.total_replication_session_count() + TotalHintedReplicationSessionCount_;
         case ESessionType::Repair:
-            return Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
+            return Statistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
         default:
             Y_UNREACHABLE();
     }
@@ -521,9 +540,9 @@ int TNode::GetSessionCount(ESessionType sessionType) const
 int TNode::GetTotalSessionCount() const
 {
     return
-        Statistics_.total_user_session_count() + HintedUserSessionCount_ +
-        Statistics_.total_replication_session_count() + HintedReplicationSessionCount_ +
-        Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
+        Statistics_.total_user_session_count() + TotalHintedUserSessionCount_ +
+        Statistics_.total_replication_session_count() + TotalHintedReplicationSessionCount_ +
+        Statistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
 }
 
 TNode::TTabletSlot* TNode::FindTabletSlot(const TTabletCell* cell)
@@ -580,6 +599,7 @@ void TNode::ShrinkHashTables()
 
 void TNode::Reset()
 {
+    LastGossipState_ = ENodeState::Unknown;
     ClearSessionHints();
     Jobs_.clear();
     ChunkRemovalQueue_.clear();
@@ -641,7 +661,10 @@ TNullable<double> TNode::GetFillFactor(int mediumIndex) const
 TNullable<double> TNode::GetLoadFactor(int mediumIndex) const
 {
     // NB: Avoid division by zero.
-    return static_cast<double>(GetTotalSessionCount()) / std::max(IOWeights_[mediumIndex], 0.000000001);
+    return SessionCount_[mediumIndex]
+        ? MakeNullable(static_cast<double>(GetHintedSessionCount(mediumIndex)) /
+            std::max(IOWeights_[mediumIndex], 0.000000001))
+        : Null;
 }
 
 TNode::TFillFactorIterator TNode::GetFillFactorIterator(int mediumIndex)

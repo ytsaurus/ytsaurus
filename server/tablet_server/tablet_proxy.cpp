@@ -49,6 +49,8 @@ private:
 
         descriptors->push_back("state");
         descriptors->push_back("statistics");
+        descriptors->push_back(TAttributeDescriptor("table_path")
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("trimmed_row_count")
             .SetPresent(!table->IsPhysicallySorted()));
         descriptors->push_back(TAttributeDescriptor("flushed_row_count")
@@ -73,6 +75,8 @@ private:
             .SetPresent(tablet->GetAction()));
         descriptors->push_back("retained_timestamp");
         descriptors->push_back("unflushed_timestamp");
+        descriptors->push_back(TAttributeDescriptor("errors")
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
@@ -83,6 +87,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         if (key == "state") {
             BuildYsonFluently(consumer)
@@ -95,6 +100,14 @@ private:
                 .Value(New<TSerializableTabletStatistics>(
                     tabletManager->GetTabletStatistics(tablet),
                     chunkManager));
+            return true;
+        }
+
+        if (key == "table_path" && IsObjectAlive(tablet->GetTable())) {
+            BuildYsonFluently(consumer)
+                .Value(cypressManager->GetNodePath(
+                    tablet->GetTable()->GetTrunkNode(),
+                    nullptr));
             return true;
         }
 
@@ -193,6 +206,12 @@ private:
         if (key == "unflushed_timestamp") {
             BuildYsonFluently(consumer)
                 .Value(static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp()));
+            return true;
+        }
+
+        if (key == "errors") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetErrors());
             return true;
         }
 

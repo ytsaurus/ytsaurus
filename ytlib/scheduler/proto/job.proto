@@ -1,0 +1,369 @@
+package NYT.NScheduler.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/protobuf_helpers.proto";
+import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/ytlib/chunk_client/data_source.proto";
+import "yt/ytlib/core_dump/core_info.proto";
+import "yt/ytlib/job_tracker_client/job.proto";
+import "yt/ytlib/node_tracker_client/node_directory.proto";
+import "yt/ytlib/query_client/functions_cache.proto";
+import "yt/ytlib/query_client/query.proto";
+import "yt/ytlib/scheduler/proto/output_result.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TFileDescriptor
+{
+    optional string file_name = 3;
+    optional bool executable = 6;
+    optional bytes format = 7;
+    required NChunkClient.NProto.TDataSource data_source = 8;
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 9;
+}
+
+message TTableBlobSpec
+{
+    required TTableOutputSpec output_table_spec = 1;
+    required bytes blob_table_writer_config = 2;
+}
+
+// Specification for starting user code during a job.
+message TUserJobSpec
+{
+    // Additional files (tables) to be placed into the sandbox.
+    repeated TFileDescriptor files = 1;
+    repeated TFileDescriptor layers = 34;
+
+    // The user command to be executed.
+    required string shell_command = 2;
+
+    // Input format description (in YSON).
+    required string input_format = 3;
+
+    // Output format description (in YSON).
+    required string output_format = 4;
+
+    // Environment strings (K=V format) for starting user process.
+    repeated string environment = 5;
+
+    // Hard memory limit for user process, in bytes.
+    required int64 memory_limit = 7;
+
+    // Memory size reserved at job launch, in bytes.
+    required int64 memory_reserve = 9;
+
+    // Transaction for creating stderr chunks and input contexts.
+    required NYT.NProto.TGuid debug_output_transaction_id = 8;
+
+    optional bool use_yamr_descriptors = 10 [default = false];
+
+    required int64 max_stderr_size = 11;
+    optional bool upload_stderr_if_completed = 33 [default = true];
+
+    optional bool check_input_fully_consumed = 16 [default = false];
+
+    required int64 custom_statistics_count_limit = 18;
+
+    optional bool include_memory_mapped_files = 21 [default = true];
+
+    optional int64 tmpfs_size = 22;
+    optional string tmpfs_path = 23;
+
+    optional bool copy_files = 24 [default = false];
+
+    optional string file_account = 25;
+
+    // Time after which job will be failed, in milliseconds.
+    optional int64 job_time_limit = 26;
+
+    optional int32 iops_threshold = 27 [default = 1000];
+    optional int32 iops_throttler_limit = 28;
+
+    optional TTableBlobSpec stderr_table_spec = 29;
+
+    optional TTableBlobSpec core_table_spec = 30;
+
+    optional int64 disk_space_limit = 31;
+    optional int64 inode_limit = 32;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TQuerySpec
+{
+    required NYT.NQueryClient.NProto.TQuery query = 1;
+    repeated NYT.NQueryClient.NProto.TExternalFunctionImpl external_functions = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes a part of input table(s) to be processed by a job.
+message TTableInputSpec
+{
+    // Table slice descriptors comprising the input.
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 2;
+    repeated int32 chunk_spec_count_per_data_slice = 3;
+}
+
+// Defines how to store output from a job into a table.
+message TTableOutputSpec
+{
+    // The chunk list where output chunks must be placed.
+    required NYT.NProto.TGuid chunk_list_id = 2;
+
+    // YSON-serialized writer options obtained from table attributes.
+    required string table_writer_options = 6;
+
+    // YSON-serialized writer config obtained from table attributes.
+    optional string table_writer_config = 9;
+
+    // Timestamp for rows.
+    optional int64 timestamp = 10 [default = 0];
+
+    required NTableClient.NProto.TTableSchemaExt table_schema = 8;
+}
+
+// Describes a job submitted by a scheduler.
+message TSchedulerJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
+    }
+
+    optional NYT.NProto.TExtensionSet extensions = 18;
+
+    // Configuration for IO during job execution.
+    optional bytes io_config = 1;
+
+    // The transaction used for writing output chunks.
+    optional NYT.NProto.TGuid output_transaction_id = 2;
+
+    // Job input.
+    optional string table_reader_options = 19;
+    repeated TTableInputSpec input_table_specs = 3;
+    repeated TTableInputSpec foreign_input_table_specs = 15;
+
+    // Job output.
+    repeated TTableOutputSpec output_table_specs = 4;
+
+    // Maps node ids to descriptors for input chunks.
+    // These nodes may either belong to the local cluster (for most types of jobs)
+    // or to a remote one (for remote copy jobs).
+    // For remote copy jobs, this directory is provided by the scheduler.
+    // For other types of jobs, this directory is provided by Exec Agent at the cluster node.
+    optional NNodeTrackerClient.NProto.TNodeDirectory input_node_directory = 5;
+
+    // Total input uncompressed data size estimate.
+    optional int64 input_data_weight = 6 [default = 0];
+
+    // Total input row count estimate.
+    optional int64 input_row_count = 7 [default = 0];
+
+    required int64 lfalloc_buffer_size = 8;
+
+    // True if data_size and row_count are approximate (e.g. restarted sort jobs).
+    optional bool is_approximate = 9 [default = false];
+
+    optional int64 job_proxy_memory_overcommit_limit = 16;
+
+    // Deprecated = 11
+
+    optional TUserJobSpec user_job_spec = 12;
+
+    optional TQuerySpec input_query_spec = 13;
+
+    optional int64 job_proxy_ref_counted_tracker_log_period = 17 [default = 5];
+
+    optional bool abort_job_if_account_limit_exceeded = 20;
+}
+
+message TSchedulerJobResultExt
+{
+    extend NJobTrackerClient.NProto.TJobResult
+    {
+        optional TSchedulerJobResultExt scheduler_job_result_ext = 100;
+    }
+
+    // List of output chunks produced by the job.
+    // NB: Only filled when necessary.
+    repeated NYT.NChunkClient.NProto.TChunkSpec output_chunk_specs = 3;
+
+    optional NYT.NProto.TGuid stderr_chunk_id = 4;
+
+    // List of input chunks the job was unable to read.
+    repeated NYT.NProto.TGuid failed_chunk_ids = 5;
+
+    // deprecated = 6;
+    // deprecated = 7;
+
+    optional NYT.NProto.TGuid fail_context_chunk_id = 8;
+
+    // Used for reordering chunks from operations that produce sorted output.
+    repeated TOutputResult output_boundary_keys = 9;
+
+    optional TOutputResult stderr_table_boundary_keys = 10;
+
+    repeated NYT.NCoreDump.NProto.TCoreInfo core_infos = 11;
+    optional TOutputResult core_table_boundary_keys = 12;
+
+    // NB: these fields are used only if job is interrupted.
+    repeated NYT.NChunkClient.NProto.TChunkSpec unread_chunk_specs = 14;
+    repeated int32 chunk_spec_count_per_unread_data_slice = 15;
+    repeated NYT.NChunkClient.NProto.TChunkSpec read_chunk_specs = 16;
+    repeated int32 chunk_spec_count_per_read_data_slice = 17;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Map jobs.
+/*
+ * Conceptually map is the simplest operation.
+ * Input consists of a number of tables (or parts thereof).
+ * These tables are merged together into a sequence of rows,
+ * sequence is split into fragments and these fragments
+ * are fed to jobs. Each job runs a given shell command.
+ * The outputs of jobs are collected thus forming a number
+ * of output tables.
+ *
+ * The input spec must contain TUserJobSpec.
+ * The result must contain TSchedulerJobResultExt.
+ */
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Merge jobs.
+/*
+ * A merge job takes a number of chunks sequences (each containing sorted data)
+ * and merges them. The result is split into chunks again.
+ *
+ * The input spec should contain TMergeJobSpecExt.
+ *
+ */
+
+message TMergeJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TMergeJobSpecExt merge_job_spec_ext = 102;
+    }
+
+    // For EJobType::SortedMerge, contains columns used for comparison.
+    repeated string key_columns = 1;
+
+    optional int32 partition_tag = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Partition jobs.
+/*
+ * A partition jobs read the input and scatters the rows into buckets depending
+ * on their keys. When a bucket becomes full, it is written as a block.
+ * Output blocks are marked with |partition_tag| to enable subsequently
+ * started sort jobs to fetch appropriate portions of data.
+ *
+ * The input spec should contain TPartitionJobSpecExt.
+ * The result must contain TSchedulerJobResultExt.
+ *
+ */
+
+message TPartitionJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TPartitionJobSpecExt partition_job_spec_ext = 103;
+    }
+
+    // Number of partitions.
+    required int32 partition_count = 1;
+
+    // Deprecated = 2.
+    // Deprecated = 3.
+    // Deprecated = 4.
+    // Deprecated = 5.
+
+    // Sort key columns (may be wider than reduce key).
+    required NTableClient.NProto.TKeyColumnsExt sort_key_columns = 6;
+
+    // Size of key prefix used for bucket decision.
+    optional int32 reduce_key_column_count = 7;
+
+    // If empty then THashPartitioner is used.
+    // Otherwise TOrderedPartitioner is used.
+    optional bytes wire_partition_keys = 8;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Sort jobs.
+/*
+ * A sort job reads the input chunks, sorts the rows, and then flushes
+ * the rows into a sequence of output chunks.
+ *
+ * The input spec should contain TSortJobSpecExt.
+ *
+ */
+message TSortJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TSortJobSpecExt sort_job_spec_ext = 104;
+    }
+
+    repeated string key_columns = 5;
+
+    // Optional, because simple sort jobs don't require partition tag.
+    optional int32 partition_tag = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Reduce jobs.
+/*
+ * "Everything is either a sort or a merge. Reduce is the latter." (c) Pavel Sushin
+ *
+ * The input spec should contain TReduceJobSpecExt.
+ *
+ */
+
+message TReduceJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TReduceJobSpecExt reduce_job_spec_ext = 105;
+    }
+
+    // Sort by key columns.
+    repeated string key_columns = 1;
+
+    // Reduce by prefix length of key columns.
+    required int32 reduce_key_column_count = 2;
+
+    optional int32 partition_tag = 3;
+
+    // Join by prefix length of secondary key columns.
+    optional int32 join_key_column_count = 4 [default = 0];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Remote copy jobs.
+
+message TRemoteCopyJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TRemoteCopyJobSpecExt remote_copy_job_spec_ext = 106;
+    }
+
+    required string connection_config = 1;
+
+    required int32 concurrency = 2;
+
+    required int64 block_buffer_size = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -9,15 +9,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
 template <class TIterator, class TComparer>
-void SiftDown(TIterator begin, TIterator end, TIterator current, const TComparer& comparer)
+void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer)
 {
     size_t size = std::distance(begin, end);
     size_t offset = std::distance(begin, current);
 
-    auto value = begin[offset];
+    auto value = std::move(begin[offset]);
     while (true) {
         size_t left = 2 * offset + 1;
 
@@ -34,71 +32,94 @@ void SiftDown(TIterator begin, TIterator end, TIterator current, const TComparer
             min = comparer(begin[left], begin[right]) ? left : right;
         }
 
-        auto minValue = begin[min];
+        auto&& minValue = begin[min];
         if (comparer(value, minValue)) {
             break;
         }
 
-        begin[offset] = minValue;
+        begin[offset] = std::move(minValue);
         offset = min;
     }
-    begin[offset] = value;
+    begin[offset] = std::move(value);
 }
 
 template <class TIterator, class TComparer>
-void SiftUp(TIterator begin, TIterator end, TIterator current, const TComparer& comparer)
+void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer)
 {
-    auto value = *current;
+    auto value = std::move(*current);
     while (current != begin) {
         size_t dist = std::distance(begin, current);
         auto parent = begin + (dist - 1) / 2;
-        auto parentValue = *parent;
-        if (comparer(parentValue, value))
+        auto&& parentValue = *parent;
+        if (comparer(parentValue, value)) {
             break;
+        }
 
-        *current = parentValue;
+        *current = std::move(parentValue);
         current = parent;
     }
-    *current = value;
+    *current = std::move(value);
 }
 
-} // namespace NDetail
-
 template <class TIterator, class TComparer>
-void MakeHeap(TIterator begin, TIterator end, const TComparer& comparer)
+void MakeHeap(TIterator begin, TIterator end, TComparer comparer)
 {
     size_t size = std::distance(begin, end);
     if (size > 1) {
         for (size_t current = size / 2; current > 0; ) {
             --current;
-            NYT::NDetail::SiftDown(begin, end, begin + current, comparer);
+            SiftDown(begin, end, begin + current, comparer);
         }
     }
 }
 
-template <class TIterator, class TComparer>
-void AdjustHeapFront(TIterator begin, TIterator end, const TComparer& comparer)
+template <class TIterator>
+void MakeHeap(TIterator begin, TIterator end)
 {
-    if (end - begin > 1) {
-        NYT::NDetail::SiftDown(begin, end, begin, comparer);
-    }
+    MakeHeap(std::move(begin), std::move(end), std::less<>());
 }
 
 template <class TIterator, class TComparer>
-void AdjustHeapBack(TIterator begin, TIterator end, const TComparer& comparer)
+void AdjustHeapFront(TIterator begin, TIterator end, TComparer comparer)
 {
     if (end - begin > 1) {
-        NYT::NDetail::SiftUp(begin, end, end - 1, comparer);
+        SiftDown(begin, end, begin, comparer);
     }
 }
 
+template <class TIterator>
+void AdjustHeapFront(TIterator begin, TIterator end)
+{
+    AdjustHeapFront(std::move(begin), std::move(end), std::less<>());
+}
+
 template <class TIterator, class TComparer>
-void ExtractHeap(TIterator begin, TIterator end, const TComparer& comparer)
+void AdjustHeapBack(TIterator begin, TIterator end, TComparer comparer)
+{
+    if (end - begin > 1) {
+        SiftUp(begin, end, end - 1, comparer);
+    }
+}
+
+template <class TIterator>
+void AdjustHeapBack(TIterator begin, TIterator end)
+{
+    AdjustHeapBack(std::move(begin), std::move(end), std::less<>());
+}
+
+template <class TIterator, class TComparer>
+void ExtractHeap(TIterator begin, TIterator end, TComparer comparer)
 {
     Y_ASSERT(begin != end);
     auto newEnd = end - 1;
     std::swap(*begin, *newEnd);
-    NYT::NDetail::SiftDown(begin, newEnd, begin, comparer);
+    SiftDown(begin, newEnd, begin, comparer);
+}
+
+template <class TIterator>
+void ExtractHeap(TIterator begin, TIterator end)
+{
+    ExtractHeap(std::move(begin), std::move(end), std::less<>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

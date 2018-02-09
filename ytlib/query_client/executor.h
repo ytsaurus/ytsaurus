@@ -15,7 +15,7 @@ namespace NQueryClient {
 NQueryClient::IExecutorPtr CreateQueryExecutor(
     NApi::INativeConnectionPtr connection,
     NNodeTrackerClient::INodeChannelFactoryPtr nodeChannelFactory,
-    const TFunctionImplCachePtr& functionImplCache);
+    TFunctionImplCachePtr functionImplCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

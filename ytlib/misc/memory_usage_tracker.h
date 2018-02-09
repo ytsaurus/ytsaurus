@@ -32,6 +32,9 @@ public:
     i64 GetFree(ECategory category) const;
     bool IsExceeded(ECategory category) const;
 
+    void SetTotalLimit(i64 newLimit);
+    void SetCategoryLimit(ECategory category, i64 newLimit);
+
     // Always succeeds, can lead to an overcommit.
     void Acquire(ECategory category, i64 size);
     TError TryAcquire(ECategory category, i64 size);
@@ -40,7 +43,7 @@ public:
 private:
     TSpinLock SpinLock_;
 
-    const i64 TotalLimit_;
+    i64 TotalLimit_;
 
     NProfiling::TAggregateCounter TotalUsedCounter_;
     NProfiling::TAggregateCounter TotalFreeCounter_;

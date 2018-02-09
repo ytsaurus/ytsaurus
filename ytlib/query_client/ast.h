@@ -128,17 +128,24 @@ struct TReferenceExpression
 {
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
-        const TStringBuf& columnName)
+        const TString& columnName)
         : TExpression(sourceLocation)
-        , Reference(TString(columnName))
+        , Reference(columnName)
     { }
 
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
-        const TStringBuf& columnName,
-        const TStringBuf& tableName)
+        const TString& columnName,
+        const TString& tableName)
         : TExpression(sourceLocation)
-        , Reference(TString(columnName), TString(tableName))
+        , Reference(columnName, tableName)
+    { }
+
+    TReferenceExpression(
+        const TSourceLocation& sourceLocation,
+        const TReference& reference)
+        : TExpression(sourceLocation)
+        , Reference(reference)
     { }
 
     TReference Reference;
@@ -385,6 +392,7 @@ TString FormatLiteralValue(const TLiteralValue& value);
 TString FormatReference(const TReference& ref);
 TString FormatExpression(const TExpression& expr);
 TString FormatExpression(const TExpressionList& exprs);
+TString FormatJoin(const TJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
 TString InferColumnName(const TReference& ref);

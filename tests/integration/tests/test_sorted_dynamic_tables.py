@@ -101,17 +101,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             "timestamp_provider" : {
                 "update_period": 100
             }
-        },
-        "tablet_node" : {
-            "tablet_manager": {
-                "error_backoff_time" : 0,
-            },
-        },
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "timestamp_provider": {
-            "update_period": 500
         }
     }
 
@@ -172,7 +161,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         def get_all_counters(count_name):
             return (
                 tablet_profiling.get_counter("lookup/" + count_name),
-                select_profiling.get_counter("select/" + count_name),
+                tablet_profiling.get_counter("select/" + count_name),
                 tablet_profiling.get_counter("write/" + count_name),
                 tablet_profiling.get_counter("commit/" + count_name))
 
@@ -207,8 +196,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(2)
 
-        assert get_all_counters("row_count") == (1, 2, 1, 1)
-        assert get_all_counters("data_weight") == (10, 10*2+8, 10, 10)
+        assert get_all_counters("row_count") == (1, 1, 1, 1)
+        assert get_all_counters("data_weight") == (10, 10, 10, 10)
         assert tablet_profiling.get_counter("lookup/cpu_time") > 0
         assert select_profiling.get_counter("select/cpu_time") > 0
 
@@ -1036,7 +1025,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_read_from_chunks(self, optimize_for):
+    def test_lookup_from_chunks(self, optimize_for):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
 
@@ -1065,12 +1054,53 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
         assert_items_equal(actual, rows)
 
-        sleep(1)
         for tablet in xrange(10):
-            path = "//tmp/t/@tablets/%s/performance_counters" % tablet
-            assert get(path + "/static_chunk_row_lookup_count") == 200
-            #assert get(path + "/static_chunk_row_lookup_false_positive_count") < 4
-            #assert get(path + "/static_chunk_row_lookup_true_negative_count") > 90
+            path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
+            wait(lambda: get(path) > 0)
+            assert get(path) == 200
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("in_memory_mode", ["none", "compressed"])
+    def test_data_weight_performance_counters(self, optimize_for, in_memory_mode):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for, in_memory_mode=in_memory_mode)
+        self.sync_mount_table("//tmp/t")
+
+        path = "//tmp/t/@tablets/0/performance_counters"
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "hello"}])
+
+        wait(lambda: get(path + "/dynamic_row_write_data_weight_count") > 0)
+
+        select_rows("* from [//tmp/t]")
+
+        # Dynamic read must change, lookup must not change
+        wait(lambda: get(path + "/dynamic_row_read_data_weight_count") > 0)
+        assert get(path + "/dynamic_row_lookup_data_weight_count") == 0
+
+        lookup_rows("//tmp/t", [{"key": 0}])
+
+        # Dynamic read lookup change, read must not change
+        wait(lambda: get(path + "/dynamic_row_lookup_data_weight_count") > 0)
+        assert get(path + "/dynamic_row_read_data_weight_count") == get(path + "/dynamic_row_lookup_data_weight_count")
+
+        # Static read/lookup must not change
+        assert get(path + "/static_chunk_row_read_data_weight_count") == 0
+        assert get(path + "/static_chunk_row_lookup_data_weight_count") == 0
+
+        self.sync_flush_table("//tmp/t")
+
+        select_rows("* from [//tmp/t]")
+
+        # Static read must change, lookup must not change
+        wait(lambda: get(path + "/static_chunk_row_read_data_weight_count") > 0)
+        assert get(path + "/static_chunk_row_lookup_data_weight_count") == 0
+
+        lookup_rows("//tmp/t", [{"key": 0}])
+
+        # Static lookup must change, read must not change
+        wait(lambda: get(path + "/static_chunk_row_lookup_data_weight_count") > 0)
+        assert get(path + "/static_chunk_row_read_data_weight_count") == get(path + "/static_chunk_row_lookup_data_weight_count")
 
     def test_store_rotation(self):
         self.sync_create_cells(1)
@@ -1859,8 +1889,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_set_pivot_keys_upon_construction_fail(self):
         with pytest.raises(YtError):
-            self._create_simple_table("//tmp/t", tablet_count=10)
-        with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", pivot_keys=[])
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", pivot_keys=[[10], [20]])
@@ -2043,7 +2071,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
                 "tablet_static_memory": 20000
             },
             "tablet_manager": {
-                "error_backoff_time": 1000*5,
+                "preload_backoff_time": 5000
             },
         },
     }
@@ -2102,7 +2130,9 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         tablet_cell_attributes = {
             "changelog_replication_factor": 1,
             "changelog_read_quorum": 1,
-            "changelog_write_quorum": 1
+            "changelog_write_quorum": 1,
+            "changelog_account": "sys",
+            "snapshot_account": "sys"
         }
 
         set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
@@ -2146,9 +2176,10 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         "max_rows_per_write_request": 2,
 
         "table_mount_cache": {
-            "success_expiration_time": 60000,
-            "success_probation_time": 60000,
-            "failure_expiration_time": 1000,
+            "expire_after_successful_update_time": 60000,
+            "refresh_time": 60000,
+            "expire_after_failed_update_time": 1000,
+            "expire_after_access_time": 300000
         }
     }
 

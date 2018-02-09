@@ -17,10 +17,12 @@ namespace NTableClient {
 struct TChunkReaderPerformanceCounters
     : public virtual TIntrinsicRefCounted
 {
+    std::atomic<i64> StaticChunkRowReadCount = {0};
+    std::atomic<i64> StaticChunkRowReadDataWeightCount = {0};
     std::atomic<i64> StaticChunkRowLookupCount = {0};
     std::atomic<i64> StaticChunkRowLookupTrueNegativeCount = {0};
     std::atomic<i64> StaticChunkRowLookupFalsePositiveCount = {0};
-    std::atomic<i64> StaticChunkRowReadCount = {0};
+    std::atomic<i64> StaticChunkRowLookupDataWeightCount = {0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
@@ -42,6 +44,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const NChunkClient::TReadSessionId& sessionId,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -51,6 +54,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const NChunkClient::TReadSessionId& sessionId,
     TOwningKey lowerLimit,
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
@@ -66,6 +70,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const NChunkClient::TReadSessionId& sessionId,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,

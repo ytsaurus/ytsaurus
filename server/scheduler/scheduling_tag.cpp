@@ -56,6 +56,21 @@ const TSchedulingTagFilter EmptySchedulingTagFilter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consumer)
+{
+    Serialize(filter.GetBooleanFormula(), consumer);
+}
+
+void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node)
+{
+    TBooleanFormula formula;
+    Deserialize(formula, node);
+
+    filter.Reload(formula);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 

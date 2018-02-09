@@ -57,6 +57,9 @@ public:
 
     virtual NRpc::IServerPtr GetRpcServer() const override;
 
+    virtual TString GetPreparationPath() const override;
+    virtual TString GetSlotPath() const override;
+
 private:
     const TJobProxyConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;
@@ -125,7 +128,6 @@ private:
 
     NJobTrackerClient::TStatistics GetStatistics() const;
 
-    std::unique_ptr<IUserJobIO> CreateUserJobIO();
     IJobPtr CreateBuiltinJob();
 
     void UpdateResourceUsage(i64 memoryReserve);

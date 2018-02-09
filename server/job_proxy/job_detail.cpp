@@ -85,11 +85,6 @@ TYsonString TJob::PollJobShell(const TYsonString& /*parameters*/)
         "Job shell is not supported for built-in jobs");
 }
 
-void TJob::Interrupt()
-{
-    THROW_ERROR_EXCEPTION("Interrupting is not supported for built-in jobs");
-}
-
 void TJob::Fail()
 {
     THROW_ERROR_EXCEPTION("Failing is not supported for built-in jobs");
@@ -119,6 +114,7 @@ TJobResult TSimpleJobBase::Run()
                 SandboxDirectoryNames[ESandboxKind::Udf]);
         } else {
             CreateReader();
+            Initialized_ = true;
 
             CreateWriter();
             WaitFor(Writer_->Open())
@@ -128,7 +124,11 @@ TJobResult TSimpleJobBase::Run()
 
             LOG_INFO("Reading and writing");
 
-            PipeReaderToWriter(Reader_, Writer_, PipeBufferRowCount, true);
+            TPipeReaderToWriterOptions options;
+            options.BufferRowCount = Host_->GetJobSpecHelper()->GetJobIOConfig()->BufferRowCount;
+            options.PipeDelay = Host_->GetJobSpecHelper()->GetJobIOConfig()->Testing->PipeDelay;
+            options.ValidateValues = true;
+            PipeReaderToWriter(Reader_, Writer_, std::move(options));
         }
 
         PROFILE_TIMING_CHECKPOINT("reading_writing");
@@ -172,6 +172,11 @@ double TSimpleJobBase::GetProgress() const
     }
 }
 
+ui64 TSimpleJobBase::GetStderrSize() const
+{
+    return 0;
+}
+
 std::vector<TChunkId> TSimpleJobBase::GetFailedChunkIds() const
 {
     return Reader_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
@@ -206,7 +211,35 @@ TTableWriterConfigPtr TSimpleJobBase::GetWriterConfig(const TTableOutputSpec& ou
 
 TInterruptDescriptor TSimpleJobBase::GetInterruptDescriptor() const
 {
-    return {};
+    if (Interrupted_) {
+        YCHECK(Reader_);
+        return Reader_->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
+    } else {
+        return {};
+    }
+}
+
+void TSimpleJobBase::Interrupt()
+{
+    if (!Host_->GetJobSpecHelper()->IsReaderInterruptionSupported()) {
+        THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
+            << TErrorAttribute("job_type", Host_->GetJobSpecHelper()->GetJobType());
+    }
+
+    if (!Initialized_) {
+        THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt uninitialized reader");
+    }
+
+    if (!Interrupted_) {
+        YCHECK(Reader_);
+        Interrupted_ = true;
+
+        if (Reader_->GetDataStatistics().row_count() > 0) {
+            Reader_->Interrupt();
+        } else {
+            THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt reader that didn't start reading");
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

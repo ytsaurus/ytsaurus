@@ -19,9 +19,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             "operations_update_period" : 10,
             "running_jobs_update_period" : 10,
             "join_reduce_operation_options" : {
-                "spec_template" : {
-                    "use_legacy_controller" : False
-                },
                 "job_splitter" : {
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
@@ -707,8 +704,6 @@ echo {v = 2} >&7
 
         create("table", "//tmp/out")
         op = join_reduce(
-            wait_for_jobs=True,
-            dont_track=True,
             in_=["<foreign=true>//tmp/in2", "//tmp/in1"],
             out="<row_count_limit=5>//tmp/out",
             command="cat",
@@ -721,10 +716,6 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1
             })
 
-        for i in xrange(3):
-            op.resume_job(op.jobs[0])
-
-        op.track()
         assert len(read_table("//tmp/out")) == 6
 
     @unix_only
@@ -783,7 +774,6 @@ echo {v = 2} >&7
                 },
                 "max_failed_job_count": 1,
                 "job_count": 10,
-                "use_legacy_controller": False,
                 "nightly_options" : {
                     "use_new_endpoint_keys": True
                 },
@@ -933,15 +923,13 @@ echo {v = 2} >&7
 
         create("table", "//tmp/output")
 
+        events = EventsOnFs()
         op = join_reduce(
             dont_track=True,
-            wait_for_jobs=True,
             label="interrupt_job",
             in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
             out="<sorted_by=[key]>//tmp/output",
-            precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
-            command="true",
-            postcommand="cat",
+            command="""read; echo "${{REPLY/(???)/(job)}}"; echo "$REPLY"; {breakpoint_cmd} ; cat """.format(breakpoint_cmd=events.breakpoint_cmd()),
             join_by=["key"],
             spec={
                 "reducer": {
@@ -954,8 +942,9 @@ echo {v = 2} >&7
                 "enable_job_splitting": False,
             })
 
-        interrupt_job(op.jobs[0])
-        op.resume_jobs()
+        jobs = events.wait_breakpoint()
+        interrupt_job(jobs[0])
+        events.release_breakpoint()
         op.track()
 
         result = read_table("//tmp/output", verbose=False)

@@ -7,7 +7,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <atomic>
 
@@ -96,12 +96,12 @@ protected:
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        const NLogging::TLogger& logger,
+        NLogging::TLogger logger,
         NLogging::ELogLevel logLevel);
 
     TServiceContextBase(
         TSharedRefArray requestMessage,
-        const NLogging::TLogger& logger,
+        NLogging::TLogger logger,
         NLogging::ELogLevel logLevel);
 
     virtual void DoReply() = 0;
@@ -109,30 +109,12 @@ protected:
     virtual void LogRequest() = 0;
     virtual void LogResponse() = 0;
 
-    template <class... TArgs>
-    static void AppendInfo(TStringBuilder* builder, const char* format, const TArgs&... args)
-    {
-        if (builder->GetLength() > 0) {
-            builder->AppendString(STRINGBUF(", "));
-        }
-        builder->AppendFormat(format, args...);
-    }
-
-    static void AppendInfo(TStringBuilder* builder, const TStringBuf& str)
-    {
-        if (builder->GetLength() > 0) {
-            builder->AppendString(STRINGBUF(", "));
-        }
-        builder->AppendString(str);
-    }
-
 private:
     mutable TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 
 
     void Initialize();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,6 +129,8 @@ public:
     virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual NRpc::TRequestId GetRequestId() const override;
+    virtual NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
     virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
@@ -226,6 +210,9 @@ protected:
 
     virtual void DoStart();
     virtual TFuture<void> DoStop(bool graceful);
+
+    virtual void DoRegisterService(const IServicePtr& service);
+    virtual void DoUnregisterService(const IServicePtr& service);
 
     std::vector<IServicePtr> DoFindServices(const TString& serviceName);
 

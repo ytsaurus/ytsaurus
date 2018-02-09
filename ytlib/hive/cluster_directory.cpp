@@ -70,7 +70,9 @@ void TClusterDirectory::RemoveCluster(const TString& name)
     if (it == NameToCluster_.end()) {
         return;
     }
-    auto cellTag = GetCellTag(it->second);
+    const auto& cluster = it->second;
+    auto cellTag = GetCellTag(cluster);
+    cluster.Connection->Terminate();
     NameToCluster_.erase(it);
     YCHECK(CellTagToCluster_.erase(cellTag) == 1);
     LOG_DEBUG("Remote cluster unregistered (Name: %v)",

@@ -20,6 +20,11 @@ TDriverResponseHolder::TDriverResponseHolder()
 
 TDriverResponseHolder::~TDriverResponseHolder()
 {
+    // TODO(ignat): fix possible race here.
+    if (!Py_IsInitialized()) {
+        return;
+    }
+
     TGilGuard guard;
     // Releasing Python objects under GIL.
     InputStream_.reset(nullptr);
@@ -84,9 +89,15 @@ Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
 {
     {
         TReleaseAcquireGilGuard guard;
-        Response_.Get();
+        auto result = WaitForSettingFuture(Response_);
+        if (!result) {
+            Response_.Cancel();
+        }
     }
 
+    if (PyErr_Occurred()) {
+        throw Py::Exception();
+    }
     return Py::None();
 }
 

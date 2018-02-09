@@ -24,6 +24,7 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/core/erasure/codec.h>
@@ -116,6 +117,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablet_statistics")
         .SetPresent(isDynamic)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("tablet_errors")
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("tablet_error_count")
+        .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
         .SetWritable(true)
         .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
@@ -128,6 +134,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor("optimize_for")
         .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor("optimize_for_statistics")
+        .SetExternal(table->IsExternal())
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));
@@ -160,6 +169,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletCount())));
+    descriptors->push_back(TAttributeDescriptor("flush_lag_time")
+        .SetPresent(isDynamic && isSorted));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
@@ -279,6 +290,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
                         .DoIf(cell, [&] (TFluentMap fluent) {
                             fluent.Item("cell_id").Value(cell->GetId());
                         })
+                        .Item("error_count").Value(tablet->GetErrorCount())
                     .EndMap();
             });
         return true;
@@ -314,6 +326,23 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
             .Value(New<TSerializableTabletStatistics>(
                 tabletStatistics,
                 chunkManager));
+        return true;
+    }
+
+    if (key == "tablet_errors" && isDynamic) {
+        std::vector<TError> errors;
+        for (const auto& tablet : trunkTable->Tablets()) {
+            const auto& tabletErrors = tablet->GetErrors();
+            errors.insert(errors.end(), tabletErrors.begin(), tabletErrors.end());
+        }
+        BuildYsonFluently(consumer)
+            .Value(errors);
+        return true;
+    }
+
+    if (key == "tablet_error_count" && isDynamic) {
+        BuildYsonFluently(consumer)
+            .Value(trunkTable->GetTabletErrorCount());
         return true;
     }
 
@@ -379,7 +408,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
 
     if (key == "max_tablet_size" && static_cast<bool>(trunkTable->GetMaxTabletSize())) {
         BuildYsonFluently(consumer)
-            .Value(*trunkTable->GetDesiredTabletSize());
+            .Value(*trunkTable->GetMaxTabletSize());
         return true;
     }
 
@@ -392,6 +421,25 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
     if (key == "desired_tablet_count" && static_cast<bool>(trunkTable->GetDesiredTabletCount())) {
         BuildYsonFluently(consumer)
             .Value(*trunkTable->GetDesiredTabletCount());
+        return true;
+    }
+
+    if (key == "flush_lag_time" && isSorted && isDynamic) {
+        auto unflushedTimestamp = table->GetCurrentUnflushedTimestamp(
+            timestampProvider->GetLatestTimestamp());
+        auto lastCommitTimestamp = trunkTable->GetLastCommitTimestamp();
+
+        // NB: Proper order is not guaranteed.
+        auto duration = TDuration::Zero();
+        if (unflushedTimestamp <= lastCommitTimestamp) {
+            duration = NTransactionClient::TimestampDiffToDuration(
+                unflushedTimestamp,
+                lastCommitTimestamp)
+                .second;
+        }
+
+        BuildYsonFluently(consumer)
+            .Value(duration);
         return true;
     }
 
@@ -410,6 +458,24 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const TString& ke
                 Bootstrap_,
                 chunkList,
                 [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
+        }
+        if (key == "optimize_for_statistics") {
+            auto optimizeForExtractor = [] (const TChunk* chunk) {
+                switch (static_cast<ETableChunkFormat>(chunk->ChunkMeta().version())) {
+                    case ETableChunkFormat::Old:
+                    case ETableChunkFormat::VersionedSimple:
+                    case ETableChunkFormat::Schemaful:
+                    case ETableChunkFormat::SchemalessHorizontal:
+                        return NTableClient::EOptimizeFor::Lookup;
+                    case ETableChunkFormat::VersionedColumnar:
+                    case ETableChunkFormat::UnversionedColumnar:
+                        return NTableClient::EOptimizeFor::Scan;
+                    default:
+                        Y_UNREACHABLE();
+                }
+            };
+
+            return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
         }
     }
 
@@ -603,88 +669,6 @@ void TTableNodeProxy::ValidateFetchParameters(
         }
     }
 }
-
-void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
-{
-    auto* table = LockThisImpl();
-
-    if (table->IsReplicated()) {
-        THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
-    }
-
-    if (options.Dynamic) {
-        ValidateNoTransaction();
-
-        if (*options.Dynamic && table->IsExternal()) {
-            THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
-        }
-    }
-
-    if (options.Schema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
-        THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
-            ETabletState::Unmounted);
-    }
-
-    auto dynamic = options.Dynamic.Get(table->IsDynamic());
-    auto schema = options.Schema.Get(table->TableSchema());
-
-    if (options.UpstreamReplicaId) {
-        ValidateNoTransaction();
-
-        if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
-        }
-        if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
-        }
-        if (!schema.IsSorted()) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
-        }
-        if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
-        }
-    }
-
-    // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
-        schema = schema.ToUniqueKeys();
-    }
-
-    ValidateTableSchemaUpdate(
-        table->TableSchema(),
-        schema,
-        dynamic,
-        table->IsEmpty());
-
-    auto oldSchema = table->TableSchema();
-    auto oldSchemaMode = table->GetSchemaMode();
-
-    if (options.Schema) {
-        table->TableSchema() = std::move(schema);
-        table->SetSchemaMode(ETableSchemaMode::Strong);
-    }
-
-    try {
-        if (options.Dynamic) {
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            if (*options.Dynamic) {
-                tabletManager->MakeTableDynamic(table);
-            } else {
-                tabletManager->MakeTableStatic(table);
-            }
-        }
-    } catch (const std::exception&) {
-        table->TableSchema() = std::move(oldSchema);
-        table->SetSchemaMode(oldSchemaMode);
-        throw;
-    }
-
-    if (options.UpstreamReplicaId) {
-        table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
-    }
-}
-
 
 bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
 {
@@ -949,7 +933,13 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 {
     DeclareMutating();
 
-    TAlterTableOptions options;
+    struct TAlterTableOptions
+    {
+        TNullable<NTableClient::TTableSchema> Schema;
+        TNullable<bool> Dynamic;
+        TNullable<NTabletClient::TTableReplicaId> UpstreamReplicaId;
+    } options;
+
     if (request->has_schema()) {
         options.Schema = FromProto<TTableSchema>(request->schema());
     }
@@ -965,7 +955,84 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.Dynamic,
         options.UpstreamReplicaId);
 
-    AlterTable(options);
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+    auto* table = LockThisImpl();
+
+    if (table->IsReplicated()) {
+        THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+    }
+
+    if (options.Dynamic) {
+        ValidateNoTransaction();
+
+        if (*options.Dynamic && table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
+        }
+    }
+    if (options.Schema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
+            ETabletState::Unmounted);
+    }
+
+    auto dynamic = options.Dynamic.Get(table->IsDynamic());
+    auto schema = options.Schema.Get(table->TableSchema());
+
+    if (options.UpstreamReplicaId) {
+        ValidateNoTransaction();
+
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
+        }
+        if (!schema.IsSorted()) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
+        }
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
+        }
+    }
+
+    // NB: Sorted dynamic tables contain unique keys, set this for user.
+    if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
+        schema = schema.ToUniqueKeys();
+    }
+
+    ValidateTableSchemaUpdate(
+        table->TableSchema(),
+        schema,
+        dynamic,
+        table->IsEmpty() && !table->IsDynamic());
+
+    auto oldSchema = table->TableSchema();
+    auto oldSchemaMode = table->GetSchemaMode();
+
+    if (options.Schema) {
+        table->TableSchema() = std::move(schema);
+        table->SetSchemaMode(ETableSchemaMode::Strong);
+    }
+
+    try {
+        if (options.Dynamic) {
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            if (*options.Dynamic) {
+                tabletManager->MakeTableDynamic(table);
+            } else {
+                tabletManager->MakeTableStatic(table);
+            }
+        }
+    } catch (const std::exception&) {
+        table->TableSchema() = std::move(oldSchema);
+        table->SetSchemaMode(oldSchemaMode);
+        throw;
+    }
+
+    if (options.UpstreamReplicaId) {
+        table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
+    }
 
     context->Reply();
 }
@@ -995,6 +1062,7 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
 bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     const auto* table = GetThisImpl<TReplicatedTableNode>();
+    const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
 
     if (key == "replicas") {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1008,7 +1076,8 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonCon
                         .Item("replica_path").Value(replica->GetReplicaPath())
                         .Item("state").Value(replica->GetState())
                         .Item("mode").Value(replica->GetMode())
-                        .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime())
+                        .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime(
+                            timestampProvider->GetLatestTimestamp()))
                         .Item("errors").Value(replica->GetErrors())
                     .EndMap();
             });

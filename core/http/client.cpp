@@ -43,6 +43,7 @@ public:
             auto address = GetAddress(urlRef);
             std::tie(request, response) = OpenHttp(address);
 
+            request->SetHost(urlRef.Host, urlRef.PortStr);
             if (headers) {
                 request->SetHeaders(headers);
             }
@@ -72,6 +73,7 @@ public:
             auto address = GetAddress(urlRef);
             std::tie(request, response) = OpenHttp(address);
 
+            request->SetHost(urlRef.Host, urlRef.PortStr);
             if (headers) {
                 request->SetHeaders(headers);
             }
@@ -120,6 +122,7 @@ private:
         auto conn = WaitFor(Dialer_->Dial(address)).ValueOrThrow();
         auto input = New<THttpInput>(
             conn,
+            address,
             Invoker_,
             EMessageType::Response,
             Config_->ReadBufferSize);

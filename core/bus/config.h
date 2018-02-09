@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/net/config.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -55,6 +56,10 @@ public:
     TNullable<TString> UnixDomainName;
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
+    //! "Default" network is considered when checking if the network is under heavy load.
+    TNullable<TString> DefaultNetwork;
+
+    THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 
     TTcpBusServerConfig()
     {
@@ -66,6 +71,16 @@ public:
             .Default(8192);
         RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
             .Default(50000);
+        RegisterParameter("networks", Networks)
+            .Default({});
+        RegisterParameter("default_network", DefaultNetwork)
+            .Default();
+
+        RegisterPreprocessor([&] {
+            if (DefaultNetwork && !Networks.has(*DefaultNetwork)) {
+                THROW_ERROR_EXCEPTION("Default network is not present in network list");
+            }
+        });
     }
 
     static TTcpBusServerConfigPtr CreateTcp(int port);
@@ -90,7 +105,7 @@ public:
         RegisterParameter("unix_domain_name", UnixDomainName)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (!Address && !UnixDomainName) {
                 THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_name\" cannot be both missing");
             }

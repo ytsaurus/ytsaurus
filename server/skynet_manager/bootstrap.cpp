@@ -12,18 +12,27 @@
 #include <yt/core/concurrency/poller.h>
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/logging/log.h>
+
 namespace NYT {
 namespace NSkynetManager {
 
 using namespace NConcurrency;
 using namespace NNet;
 using namespace NHttp;
+using namespace NLogging;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     : Config(std::move(config))
 {
+    WarnForUnrecognizedOptions(Logger, Config);
+
     Poller = CreateThreadPoolPoller(Config->IOPoolSize, "Poller");
 
     SkynetApiActionQueue = New<TActionQueue>("SkynetApi");
@@ -40,10 +49,17 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     Manager = New<TSkynetManager>(this);
 }
 
-void TBootstrap::Run()
+void TBootstrap::Start()
 {
-    WaitFor(HttpServer->Start())
-        .ThrowOnError();
+    HttpServer->Start();
+}
+
+void TBootstrap::Stop()
+{
+    HttpServer->Stop();
+    SkynetApiActionQueue->Shutdown();
+    Poller->Shutdown();
+    SkynetApi.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

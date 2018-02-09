@@ -13,20 +13,21 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB. All methods are reentrant.
-class IProxyCoordinator
-    : public TRefCounted
+/*!
+ *  Thread affinity: any
+ */
+struct IProxyCoordinator
+    : public virtual TRefCounted
 {
-public:
     //! Sets banned state.
     /*!
-     * Returns true on changed banned state.
+     *  Returns true on changed banned state.
      */
     virtual bool SetBannedState(bool banned) = 0;
 
     //! Gets banned state.
     /*!
-     * Lightweight call.
+     *  Lightweight call.
      */
     virtual bool GetBannedState() const = 0;
 
@@ -35,13 +36,13 @@ public:
 
     //! Sets available state.
     /*!
-     * Returns true on changed available state.
+     *  Returns true on changed available state.
      */
     virtual bool SetAvailableState(bool available) = 0;
 
     //! Gets available state.
     /*!
-     * Lightweight call.
+     *  Lightweight call.
      */
     virtual bool GetAvailableState() const = 0;
 

@@ -261,21 +261,28 @@ class TPersistentQueuePollerConfig
 {
 public:
     //! Try to keep at most this many prefetched rows in memory. This limit is approximate.
-    int MaxPrefetchRowCount;
+    i64 MaxPrefetchRowCount;
 
     //! Try to keep at most this much prefetched data in memory. This limit is approximate.
     i64 MaxPrefetchDataWeight;
 
     //! The limit for the number of rows to be requested in a single background fetch request.
-    int MaxRowsPerFetch;
+    i64 MaxRowsPerFetch;
 
     //! The limit for the number of rows to be returned by #TPersistentQueuePoller::Poll call.
-    int MaxRowsPerPoll;
+    i64 MaxRowsPerPoll;
+
+    //! When trimming data table, keep the number of consumed but untrimmed rows about this level.
+    i64 UntrimmedDataRowsLow;
+
+    //! When more than this many of consumed but untrimmed rows appear in data table, trim the front ones
+    //! in accordance to #UntrimmedDataRowsLow.
+    i64 UntrimmedDataRowsHigh;
 
     //! How often the data table is to be polled.
     TDuration DataPollPeriod;
 
-    //! How often the satte table is to be trimmed.
+    //! How often the state table is to be trimmed.
     TDuration StateTrimPeriod;
 
     //! For how long to backoff when a state conflict is detected.
@@ -295,12 +302,22 @@ public:
         RegisterParameter("max_rows_per_poll", MaxRowsPerPoll)
             .GreaterThan(0)
             .Default(1);
+        RegisterParameter("untrimmed_data_rows_low", UntrimmedDataRowsLow)
+            .Default(0);
+        RegisterParameter("untrimmed_data_rows_high", UntrimmedDataRowsHigh)
+            .Default(std::numeric_limits<i64>::max());
         RegisterParameter("data_poll_period", DataPollPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("state_trim_period", StateTrimPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("backoff_time", BackoffTime)
             .Default(TDuration::Seconds(5));
+
+        RegisterPostprocessor([&] {
+            if (UntrimmedDataRowsLow > UntrimmedDataRowsHigh) {
+                THROW_ERROR_EXCEPTION("\"untrimmed_data_rows_low\" must not exceed \"untrimmed_data_rows_high\"");
+            }
+        });
     }
 };
 

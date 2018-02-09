@@ -37,11 +37,12 @@
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NConcurrency;
-using namespace NYTree;
-using namespace NYPath;
-using namespace NFileClient;
 using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NFileClient;
+using namespace NYPath;
+using namespace NYTree;
 
 using NObjectClient::TObjectServiceProxy;
 using NYT::FromProto;
@@ -141,7 +142,7 @@ TString GetUdfDescriptorPath(const TYPath& registryPath, const TString& function
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     const std::vector<TString>& functionNames,
     const TString& udfRegistryPath,
-    INativeClientPtr client)
+    const INativeClientPtr& client)
 {
     using NObjectClient::TObjectYPathProxy;
     using NApi::EMasterChannelKind;
@@ -256,19 +257,19 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 }
 
 void AppendUdfDescriptors(
-    const TTypeInferrerMapPtr& typers,
+    const TTypeInferrerMapPtr& typeInferrers,
     const TExternalCGInfoPtr& cgInfo,
-    const std::vector<TString>& names,
-    const std::vector<TExternalFunctionSpec>& external)
+    const std::vector<TString>& functionNames,
+    const std::vector<TExternalFunctionSpec>& externalFunctionSpecs)
 {
-    YCHECK(names.size() == external.size());
+    YCHECK(functionNames.size() == externalFunctionSpecs.size());
 
-    LOG_DEBUG("Appending UDF descriptors (Count: %v)", external.size());
+    LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
 
-    for (size_t index = 0; index < external.size(); ++index) {
-        const auto& item = external[index];
+    for (size_t index = 0; index < externalFunctionSpecs.size(); ++index) {
+        const auto& item = externalFunctionSpecs[index];
         const auto& descriptor = item.Descriptor;
-        const auto& name = names[index];
+        const auto& name = functionNames[index];
 
         LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
             name,
@@ -325,7 +326,7 @@ void AppendUdfDescriptors(
                     functionDescriptor->GetArgumentsTypes(),
                     functionDescriptor->ResultType.Type);
 
-            typers->emplace(name, typer);
+            typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
         }
 
@@ -344,7 +345,7 @@ void AppendUdfDescriptors(
                 aggregateDescriptor->ResultType.Type,
                 aggregateDescriptor->StateType.Type);
 
-            typers->emplace(name, typer);
+            typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
         }
     }
@@ -500,11 +501,18 @@ public:
         , Client_(client)
     { }
 
-    TSharedRef DoFetch(const TFunctionImplKey& key, TNodeDirectoryPtr nodeDirectory)
+    TSharedRef DoFetch(
+        const TFunctionImplKey& key,
+        TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId)
     {
         auto client = Client_.Lock();
         YCHECK(client);
         auto chunks = key.ChunkSpecs;
+
+        LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
+            key,
+            sessionId);
 
         auto reader = NFileClient::CreateFileMultiChunkReader(
             New<NApi::TFileReaderConfig>(),
@@ -513,9 +521,8 @@ public:
             NNodeTrackerClient::TNodeDescriptor(),
             client->GetNativeConnection()->GetBlockCache(),
             std::move(nodeDirectory),
+            sessionId,
             std::move(chunks));
-
-        LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v)", key);
 
         std::vector<TSharedRef> blocks;
         while (true) {
@@ -546,18 +553,30 @@ public:
 
     TFuture<TFunctionImplCacheEntryPtr> FetchImplementation(
         const TFunctionImplKey& key,
-        TNodeDirectoryPtr nodeDirectory)
+        TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId)
     {
         auto cookie = BeginInsert(key);
-        if (cookie.IsActive()) {
-            try {
-                auto file = DoFetch(key, std::move(nodeDirectory));
-                cookie.EndInsert(New<TFunctionImplCacheEntry>(key, file));
-            } catch (const std::exception& ex) {
-                cookie.Cancel(TError(ex).Wrap("Failed to download function implementation"));
-            }
+        if (!cookie.IsActive()) {
+            return cookie.GetValue();
         }
-        return cookie.GetValue();
+
+        return BIND([MOVE(cookie), this, this_ = MakeStrong(this)] (
+                const TFunctionImplKey& key,
+                TNodeDirectoryPtr nodeDirectory,
+                const TReadSessionId& sessionId) mutable
+            {
+                try {
+                    auto file = DoFetch(key, std::move(nodeDirectory), sessionId);
+                    cookie.EndInsert(New<TFunctionImplCacheEntry>(key, file));
+                } catch (const std::exception& ex) {
+                    cookie.Cancel(TError(ex).Wrap("Failed to download function implementation"));
+                }
+
+                return cookie.GetValue();
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run(key, nodeDirectory, sessionId);
     }
 
 private:
@@ -623,27 +642,26 @@ void AppendFunctionImplementation(
 
 } // namespace
 
-void FetchImplementations(
+void FetchFunctionImplementationsFromCypress(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    TFunctionImplCachePtr cache)
+    const TFunctionImplCachePtr& cache,
+    const TReadSessionId& sessionId)
 {
     std::vector<TFuture<TFunctionImplCacheEntryPtr>> asyncResults;
 
     for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
-        LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
+        LOG_DEBUG("Fetching UDF implementation (Name: %v, ReadSessionId: %v)",
+            name,
+            sessionId);
 
         TFunctionImplKey key;
         key.ChunkSpecs = function.ChunkSpecs;
 
-        auto cacheEntry = BIND(&TFunctionImplCache::FetchImplementation, cache)
-            .AsyncVia(GetCurrentInvoker())
-            .Run(key, externalCGInfo->NodeDirectory);
-
-        asyncResults.push_back(cacheEntry);
+        asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, sessionId));
     }
 
     auto results = WaitFor(Combine(asyncResults))
@@ -651,24 +669,28 @@ void FetchImplementations(
 
     for (size_t index = 0; index < externalCGInfo->Functions.size(); ++index) {
         const auto& function = externalCGInfo->Functions[index];
-        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, results[index]->File);
+        AppendFunctionImplementation(
+            functionProfilers,
+            aggregateProfilers,
+            function,
+            results[index]->File);
     }
 }
 
-void FetchJobImplementations(
+void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    TString implementationPath)
+    const TString& rootPath)
 {
      for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
         LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
-        auto path = implementationPath + "/" + function.Name;
-            TUnbufferedFileInput file(path);
-        auto impl =  TSharedRef::FromString(file.ReadAll());
+        auto path = rootPath + "/" + function.Name;
+        auto file = TUnbufferedFileInput(path);
+        auto impl = TSharedRef::FromString(file.ReadAll());
 
         AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, impl);
     }
@@ -707,27 +729,24 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
 
     auto valueNode = mapNode->GetChild("value");
     switch (tag) {
-        case ETypeCategory::TypeArgument:
-            {
-                TTypeArgument type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
-        case ETypeCategory::UnionType:
-            {
-                TUnionType type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
-        case ETypeCategory::ConcreteType:
-            {
-                EValueType type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
+        case ETypeCategory::TypeArgument: {
+            TTypeArgument type;
+            Deserialize(type, valueNode);
+            value.Type = type;
+            break;
+        }
+        case ETypeCategory::UnionType: {
+            TUnionType type;
+            Deserialize(type, valueNode);
+            value.Type = type;
+            break;
+        }
+        case ETypeCategory::ConcreteType: {
+            EValueType type;
+            Deserialize(type, valueNode);
+            value.Type = type;
+            break;
+        }
         default:
             Y_UNREACHABLE();
     }

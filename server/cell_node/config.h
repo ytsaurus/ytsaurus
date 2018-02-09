@@ -114,6 +114,8 @@ public:
     //! Limits for the node process and all jobs controlled by it.
     TResourceLimitsConfigPtr ResourceLimits;
 
+    int SkynetHttpPort;
+
     TCellNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -140,7 +142,10 @@ public:
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
 
-        RegisterValidator([&] () {
+        RegisterParameter("skynet_http_port", SkynetHttpPort)
+            .Default(10080);
+
+        RegisterPostprocessor([&] () {
             NNodeTrackerClient::ValidateNodeTags(Tags);
         });
     }

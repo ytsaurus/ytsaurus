@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/scheduler/job_prober_service.pb.h>
+#include <yt/ytlib/scheduler/proto/job_prober_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
@@ -15,7 +15,7 @@ class TJobProberServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TJobProberServiceProxy, RPC_PROXY_DESC(JobProberService)
+    DEFINE_RPC_PROXY(TJobProberServiceProxy, JobProberService,
         .SetProtocolVersion(0));
 
     DEFINE_RPC_PROXY_METHOD(NProto, DumpInputContext);

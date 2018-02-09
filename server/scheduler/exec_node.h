@@ -6,8 +6,10 @@
 #include <yt/server/node_tracker_server/node.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/scheduler/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>
@@ -69,10 +71,6 @@ public:
     //! is complete.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
-    //! List of all jobs that should be added to jobs_to_remove
-    //! in the next hearbeat response for this node.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TJobId>, JobIdsToRemove)
-
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
@@ -88,9 +86,6 @@ public:
      *  Thread affinity: any
      */
     TExecNodeDescriptor BuildExecDescriptor() const;
-
-    //! Returns the node's IO weight, as reported by node to master.
-    double GetIOWeight() const;
 
     //! Set the node's IO weight.
     void SetIOWeights(const THashMap<TString, double>& mediumToWeight);
@@ -110,11 +105,16 @@ public:
      */
     const TJobResources& GetResourceUsage() const;
 
+    const NNodeTrackerClient::NProto::TDiskResources& GetDiskInfo() const;
+
     //! Sets the node's resource usage.
     void SetResourceUsage(const TJobResources& value);
 
+    void SetDiskInfo(const NNodeTrackerClient::NProto::TDiskResources& value);
+
 private:
     TJobResources ResourceUsage_;
+    NNodeTrackerClient::NProto::TDiskResources DiskInfo_;
 
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     TJobResources ResourceLimits_;
@@ -148,16 +148,22 @@ struct TExecNodeDescriptor
     void Persist(const TStreamPersistenceContext& context);
 };
 
+namespace NProto {
+
+void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor);
+void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NProto::TExecNodeDescriptor& protoDescriptor);
+
+} // namespace NProto
+
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable ref-counted list of TExecNodeDescriptor-s.
-struct TExecNodeDescriptorList
+//! An immutable ref-counted map of TExecNodeDescriptor-s.
+struct TRefCountedExecNodeDescriptorMap
     : public TIntrinsicRefCounted
-{
-    std::vector<TExecNodeDescriptor> Descriptors;
-};
+    , public TExecNodeDescriptorMap
+{ };
 
-DEFINE_REFCOUNTED_TYPE(TExecNodeDescriptorList)
+DEFINE_REFCOUNTED_TYPE(TRefCountedExecNodeDescriptorMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 

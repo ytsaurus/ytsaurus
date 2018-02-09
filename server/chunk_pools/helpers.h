@@ -19,6 +19,8 @@ void AddStripeToList(
     const TChunkStripeListPtr& list,
     NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId);
 
+std::vector<NChunkClient::TChunkId> GetStripeListChunkIds(const TChunkStripeListPtr& stripeList);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStripeListPtr ApplyChunkMappingToStripe(

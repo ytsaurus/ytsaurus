@@ -63,6 +63,9 @@ private:
 class TStreamReader
 {
 public:
+    TStreamReader()
+    { }
+
     explicit TStreamReader(IInputStream* stream);
 
     const char* Begin() const;
@@ -73,22 +76,21 @@ public:
     void Advance(size_t bytes);
 
     bool IsFinished() const;
-    TSharedRef ExtractPrefix();
+    TSharedRef ExtractPrefix(const char* endPtr);
 
 private:
     IInputStream* Stream_;
 
-    std::deque<TSharedMutableRef> Blobs_;
+    std::deque<TSharedRef> Blobs_;
 
-    TSharedMutableRef NextBlob_;
+    TSharedRef NextBlob_;
     i64 NextBlobSize_ = 0;
 
-    char* BeginPtr_ = nullptr;
-    char* CurrentPtr_ = nullptr;
-    char* EndPtr_ = nullptr;
+    const char* BeginPtr_ = nullptr;
+    const char* CurrentPtr_ = nullptr;
+    const char* EndPtr_ = nullptr;
 
-    char* PrefixStart_ = nullptr;
-    i64 ReadByteCount_ = 0;
+    const char* PrefixStart_ = nullptr;
 
     bool Finished_ = false;
     static const size_t BlockSize_ = 1024 * 1024;

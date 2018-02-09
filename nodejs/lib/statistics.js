@@ -1,3 +1,5 @@
+var _ = require("underscore");
+
 var UI64 = require("cuint").UINT64;
 var TDigest = require("tdigest").TDigest;
 
@@ -122,6 +124,89 @@ YtStatistics.prototype.dump = function()
     }
     return result.join("\n");
 };
+
+YtStatistics.prototype.dumpSolomon = function()
+{
+    var sensors = [];
+
+    var keys = Object.keys(this.gauges);
+    keys.sort();
+
+    function parseLabels(key) {
+        var labels = {};
+
+        var previousString = "";
+        var currentString = "";
+
+        var spanOffset = -1;
+        var spanLength = 0;
+
+        var stateNone = 0;
+        var stateSensor = 1;
+        var stateKey = 2;
+        var stateValue = 3;
+        var state = stateSensor;
+
+        for (var i = 0, n = key.length; i < n + 1; ++i) {
+            if (i < n && key[i] !== ' ' && key[i] !== '=') {
+                if (spanOffset === -1) {
+                    spanOffset = i;
+                }
+                ++spanLength;
+            } else {
+                currentString = key.substr(spanOffset, spanLength);
+
+                spanOffset = -1;
+                spanLength = 0;
+
+                switch (state) {
+                    case stateSensor:
+                        labels["sensor"] = currentString;
+                        state = stateKey;
+                        break;
+                    case stateKey:
+                        previousString = currentString;
+                        state = stateValue;
+                        break;
+                    case stateValue:
+                        labels[previousString] = currentString;
+                        state = stateKey;
+                        break;
+                }
+            }
+        }
+
+        return labels;
+    }
+
+    for (var i = 0, n = keys.length; i < n; ++i) {
+        var labels = parseLabels(keys[i]);
+        var gauge = this.gauges[keys[i]];
+        if (typeof(gauge.counter) !== "undefined") {
+            sensors.push({"labels": labels, "value": gauge.counter.toString(10), "mode": "deriv"});
+        }
+        if (typeof(gauge.digest) !== "undefined") {
+            var quantiles = gauge.digest.percentile([0.5, 0.9, 0.95, 0.99, 1.0]);
+            var suffixes = [".q50", ".q90", ".q95", ".q99", ".max"];
+            var suffixesNumber = suffixes.length;
+
+            sensors.push({"labels": _.clone(labels), "value": quantiles[0]});
+            sensors.push({"labels": _.clone(labels), "value": quantiles[1]});
+            sensors.push({"labels": _.clone(labels), "value": quantiles[2]});
+            sensors.push({"labels": _.clone(labels), "value": quantiles[3]});
+            sensors.push({"labels": _.clone(labels), "value": quantiles[4]});
+
+            for (var m = sensors.length, k = m - suffixesNumber, l = 0; k < m; ++k, ++l) {
+                sensors[k]["labels"]["sensor"] += suffixes[l];
+            }
+        }
+        if (typeof(gauge.value) !== "undefined") {
+            sensors.push({"labels": labels, "value": gauge.value});
+        }
+    }
+
+    return JSON.stringify({"sensors": sensors});
+}
 
 YtStatistics.prototype.mergeTo = function(other)
 {

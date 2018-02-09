@@ -56,11 +56,15 @@ struct IJob
     virtual double GetProgress() const = 0;
     virtual void SetProgress(double value) = 0;
 
+    virtual ui64 GetStderrSize() const = 0;
+    virtual void SetStderrSize(ui64 value) = 0;
+
     virtual NYson::TYsonString GetStatistics() const = 0;
     virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;
 
     virtual void OnJobPrepared() = 0;
 
+    virtual TInstant GetStartTime() const = 0;
     virtual TNullable<TDuration> GetPrepareDuration() const = 0;
     virtual TNullable<TDuration> GetDownloadDuration() const = 0;
     virtual TNullable<TDuration> GetExecDuration() const = 0;

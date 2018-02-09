@@ -88,6 +88,9 @@ struct TFileStatistics
 //! Returns the file statistics.
 TFileStatistics GetFileStatistics(const TString& path);
 
+//! Recursively calculates size of all regular files inside the directory.
+i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles = true);
+
 //! Sets the access and modification times to now.
 void Touch(const TString& path);
 
@@ -153,4 +156,15 @@ TError AttachFindOutput(TError error, const TString& path);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGetDirectorySizeAsRootTool
+{
+    i64 operator()(const TString& path) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 } // namespace NYT

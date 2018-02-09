@@ -52,13 +52,10 @@ TReadTableCommand::TReadTableCommand()
         .Default(false);
     RegisterParameter("start_row_index_only", StartRowIndexOnly)
         .Default(false);
-}
 
-void TReadTableCommand::OnLoaded()
-{
-    TCommandBase::OnLoaded();
-
-    Path = Path.Normalize();
+    RegisterPostprocessor([&] {
+        Path = Path.Normalize();
+    });
 }
 
 void TReadTableCommand::DoExecute(ICommandContextPtr context)
@@ -114,10 +111,12 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
             dataStatistics.compressed_data_size());
     });
 
+    TPipeReaderToWriterOptions options;
+    options.BufferRowCount = context->GetConfig()->ReadBufferRowCount;
     PipeReaderToWriter(
         reader,
         writer,
-        context->GetConfig()->ReadBufferRowCount);
+        std::move(options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,13 +135,10 @@ TReadBlobTableCommand::TReadBlobTableCommand()
         .Default(0);
     RegisterParameter("offset", Offset)
         .Default(0);
-}
 
-void TReadBlobTableCommand::OnLoaded()
-{
-    TCommandBase::OnLoaded();
-
-    Path = Path.Normalize();
+    RegisterPostprocessor([&] {
+        Path = Path.Normalize();
+    });
 }
 
 void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
@@ -159,10 +155,6 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableReader,
         TableReader);
-
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
 
     Options.Config = config;
 
@@ -199,13 +191,10 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
 TLocateSkynetShareCommand::TLocateSkynetShareCommand()
 {
     RegisterParameter("path", Path);
-}
 
-void TLocateSkynetShareCommand::OnLoaded()
-{
-    TCommandBase::OnLoaded();
-
-    Path = Path.Normalize();
+    RegisterPostprocessor([&] {
+        Path = Path.Normalize();
+    });
 }
 
 void TLocateSkynetShareCommand::DoExecute(ICommandContextPtr context)
@@ -237,13 +226,9 @@ TWriteTableCommand::TWriteTableCommand()
     RegisterParameter("path", Path);
     RegisterParameter("table_writer", TableWriter)
         .Default(nullptr);
-}
-
-void TWriteTableCommand::OnLoaded()
-{
-    TCommandBase::OnLoaded();
-
-    Path = Path.Normalize();
+    RegisterPostprocessor([&] {
+        Path = Path.Normalize();
+    });
 }
 
 void TWriteTableCommand::DoExecute(ICommandContextPtr context)
@@ -253,10 +238,6 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
-
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
 
     Options.Config = config;
 
@@ -277,7 +258,8 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
     PipeInputToOutput(context->Request().InputStream, &output, config->BlockSize);
 
-    valueConsumer.Flush();
+    WaitFor(valueConsumer.Flush())
+        .ThrowOnError();
 
     WaitFor(writer->Close())
         .ThrowOnError();
@@ -362,7 +344,7 @@ TReshardTableCommand::TReshardTableCommand()
         .Default()
         .GreaterThan(0);
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (PivotKeys && TabletCount) {
             THROW_ERROR_EXCEPTION("Cannot specify both \"pivot_keys\" and \"tablet_count\"");
         }
@@ -436,6 +418,10 @@ TSelectRowsCommand::TSelectRowsCommand()
     RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
         .Optional();
     RegisterParameter("use_multijoin", Options.UseMultijoin)
+        .Optional();
+    RegisterParameter("allow_full_scan", Options.AllowFullScan)
+        .Optional();
+    RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)
         .Optional();
 }
 

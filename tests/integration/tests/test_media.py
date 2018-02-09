@@ -8,6 +8,8 @@ import __builtin__
 
 from time import sleep
 
+from yt.environment.helpers import assert_items_equal
+
 ################################################################################
 
 class TestMedia(YTEnvSetup):
@@ -67,6 +69,11 @@ class TestMedia(YTEnvSetup):
 
         return chunk_count
 
+    def _assert_account_and_table_usage_equal(self, tbl):
+        multicell_sleep()
+        account_usage = get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium")
+        table_usage = get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl))
+        assert account_usage == table_usage
 
     def test_default_store_medium_name(self):
         assert get("//sys/media/default/@name") == "default"
@@ -123,6 +130,7 @@ class TestMedia(YTEnvSetup):
         tbl_media = get("//tmp/t1/@media")
         assert tbl_media["default"]["replication_factor"] == replication_factor
         assert not tbl_media["default"]["data_parts_only"]
+        self._assert_account_and_table_usage_equal("t1")
 
     def test_assign_additional_medium(self):
         create("table", "//tmp/t2")
@@ -146,6 +154,7 @@ class TestMedia(YTEnvSetup):
 
         assert self._count_chunks_on_medium("t2", "default") == 3
         assert self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7
+        self._assert_account_and_table_usage_equal("t2")
 
     def test_move_between_media(self):
         create("table", "//tmp/t3")
@@ -171,6 +180,7 @@ class TestMedia(YTEnvSetup):
         sleep(TestMedia.REPLICATOR_REACTION_TIME)
 
         self._assert_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
+        self._assert_account_and_table_usage_equal("t3")
 
     def test_move_between_media_shortcut(self):
         create("table", "//tmp/t4")
@@ -190,6 +200,7 @@ class TestMedia(YTEnvSetup):
         sleep(TestMedia.REPLICATOR_REACTION_TIME)
 
         self._assert_all_chunks_on_medium("t4", TestMedia.NON_DEFAULT_MEDIUM)
+        self._assert_account_and_table_usage_equal("t4")
 
     def test_assign_empty_medium_fails(self):
         create("table", "//tmp/t5")
@@ -207,6 +218,7 @@ class TestMedia(YTEnvSetup):
         set("//tmp/t6/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
         write_table("<append=true>//tmp/t6", {"a" : "b"}, table_writer={"medium_name": TestMedia.NON_DEFAULT_MEDIUM})
         self._assert_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
+        self._assert_account_and_table_usage_equal("t6")
 
     def test_chunks_inherit_properties(self):
         create("table", "//tmp/t7")

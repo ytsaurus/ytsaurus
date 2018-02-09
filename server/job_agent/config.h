@@ -18,7 +18,8 @@ public:
     int UserSlots;
     double Cpu;
     int Network;
-    i64 Memory;
+    i64 UserMemory;
+    i64 SystemMemory;
     int ReplicationSlots;
     i64 ReplicationDataSize;
     int RemovalSlots;
@@ -39,7 +40,11 @@ public:
         RegisterParameter("network", Network)
             .GreaterThanOrEqual(0)
             .Default(100);
-        RegisterParameter("memory", Memory)
+        RegisterParameter("user_memory", UserMemory)
+            .Alias("memory")
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<i64>::max());
+        RegisterParameter("system_memory", SystemMemory)
             .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<i64>::max());
         RegisterParameter("replication_slots", ReplicationSlots)
@@ -77,6 +82,11 @@ public:
     TDuration GetJobSpecsTimeout;
     TDuration StoredJobsSendPeriod;
 
+    TDuration CpuOverdraftTimeout;
+    TDuration MemoryOverdraftTimeout;
+
+    TDuration ResourceAdjustmentPeriod;
+
     TJobControllerConfig()
     {
         RegisterParameter("resource_limits", ResourceLimits)
@@ -94,7 +104,16 @@ public:
         RegisterParameter("stored_jobs_send_period", StoredJobsSendPeriod)
             .Default(TDuration::Minutes(10));
 
-        RegisterInitializer([&] () {
+        RegisterParameter("memory_overdraft_timeout", MemoryOverdraftTimeout)
+            .Default(TDuration::Minutes(5));
+
+        RegisterParameter("cpu_overdraft_timeout", CpuOverdraftTimeout)
+            .Default(TDuration::Minutes(10));
+
+        RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
+            .Default(TDuration::Seconds(5));
+
+        RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
             // approximate incoming bandwidth of 1Gbit/sec of the scheduler.
             StatisticsThrottler->Limit = 100_KB;
@@ -117,6 +136,7 @@ public:
     int MaxInProgressJobDataSize;
     int MaxInProgressJobSpecDataSize;
     int MaxItemsInBatch;
+    TString User;
 
     TStatisticsReporterConfig()
     {
@@ -134,6 +154,8 @@ public:
             .Default(250_MB);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(1000);
+        RegisterParameter("user", User)
+            .Default(NRpc::RootUserName);
     }
 };
 

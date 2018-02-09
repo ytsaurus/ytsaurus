@@ -960,41 +960,54 @@ TEST_P(TExpressionTest, ConstantFolding)
 TEST_F(TExpressionTest, FunctionNullArgument)
 {
     auto schema = GetSampleTableSchema();
-
-    auto expr = PrepareExpression("int64(null)", schema);
-
-    EXPECT_EQ(expr->Type, EValueType::Int64);
-
-    TUnversionedValue result;
-    TCGVariables variables;
-
-    auto callback = Profile(expr, schema, nullptr, &variables)();
+    auto buffer = New<TRowBuffer>();
 
     TUnversionedOwningRow row;
-    auto buffer = New<TRowBuffer>();
-    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
 
-    EXPECT_EQ(result, MakeNull());
+    {
+        auto expr = PrepareExpression("int64(null)", schema);
+
+        EXPECT_EQ(expr->Type, EValueType::Int64);
+
+        TUnversionedValue result;
+        TCGVariables variables;
+
+        auto callback = Profile(expr, schema, nullptr, &variables)();
+
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+
+        EXPECT_EQ(result, MakeNull());
+    }
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression("if(null, null, null)", schema); },
         HasSubstr("Type inference failed"));
 
-    expr = PrepareExpression("if(null, 1, 2)", schema);
-    EXPECT_EQ(expr->Type, EValueType::Int64);
+    {
+        auto expr = PrepareExpression("if(null, 1, 2)", schema);
+        EXPECT_EQ(expr->Type, EValueType::Int64);
 
-    callback = Profile(expr, schema, nullptr, &variables)();
-    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+        TUnversionedValue result;
+        TCGVariables variables;
 
-    EXPECT_EQ(result, MakeNull());
+        auto callback = Profile(expr, schema, nullptr, &variables)();
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
 
-    expr = PrepareExpression("if(false, 1, null)", schema);
-    EXPECT_EQ(expr->Type, EValueType::Int64);
+        EXPECT_EQ(result, MakeNull());
+    }
 
-    callback = Profile(expr, schema, nullptr, &variables)();
-    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+    {
+        auto expr = PrepareExpression("if(false, 1, null)", schema);
+        EXPECT_EQ(expr->Type, EValueType::Int64);
 
-    EXPECT_EQ(result, MakeNull());
+        TUnversionedValue result;
+        TCGVariables variables;
+
+        auto callback = Profile(expr, schema, nullptr, &variables)();
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+
+        EXPECT_EQ(result, MakeNull());
+    }
 }
 
 TEST_P(TExpressionTest, Evaluate)
@@ -1022,7 +1035,7 @@ TEST_P(TExpressionTest, Evaluate)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1053,7 +1066,7 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1084,7 +1097,7 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1193,12 +1206,12 @@ TEST_P(TTernaryLogicTest, Evaluate)
 
     TCGVariables variables1;
     auto compiledExpr1 = Profile(expr1, TTableSchema(), nullptr, &variables1)();
-    compiledExpr1(variables1.GetOpaqueData(), &result, row, buffer.Get());
+    compiledExpr1(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.Begin(), buffer.Get());
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 
     TCGVariables variables2;
     auto compiledExpr2 = Profile(expr2, TTableSchema(), nullptr, &variables2)();
-    compiledExpr2(variables2.GetOpaqueData(), &result, row, buffer.Get());
+    compiledExpr2(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.Begin(), buffer.Get());
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 }
 
@@ -1300,7 +1313,7 @@ TEST_P(TCompareWithNullTest, Simple)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
@@ -1348,9 +1361,11 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto value2 = std::get<3>(param);
     auto expected = std::get<4>(param);
 
-    auto registry = BuiltinAggregateCG;
+    auto registry = BuiltinAggregateProfilers;
     auto aggregate = registry->GetAggregate(aggregateName);
-    auto callbacks = CodegenAggregate(aggregate->Profile(type, type, type, aggregateName));
+    auto callbacks = CodegenAggregate(
+        aggregate->Profile(type, type, type, aggregateName),
+        type, type);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1433,7 +1448,7 @@ void EvaluateExpression(
 
     auto row = YsonToSchemafulRow(rowString, schema, true);
 
-    callback(variables.GetOpaqueData(), result, row, buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.Begin(), buffer.Get());
 }
 
 class TEvaluateExpressionTest

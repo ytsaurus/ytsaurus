@@ -18,7 +18,7 @@
 #include <yt/core/yson/forwarding_consumer.h>
 
 #include <yt/core/ytree/node.h>
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {
@@ -391,7 +391,7 @@ private:
     {
         ItemKey_ = key;
         TreeBuilder_->BeginTree();
-        Forward(TreeBuilder_, BIND(&TNodeSetter::OnForwardingFinished, this));
+        Forward(TreeBuilder_, std::bind(&TNodeSetter::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -435,12 +435,9 @@ private:
     virtual void OnMyListItem() override
     {
         TreeBuilder_->BeginTree();
-        Forward(TreeBuilder_, BIND(&TNodeSetter::OnForwardingFinished, this));
-    }
-
-    void OnForwardingFinished()
-    {
-        List_->AddChild(TreeBuilder_->EndTree());
+        Forward(TreeBuilder_, [this] {
+            List_->AddChild(TreeBuilder_->EndTree());
+        });
     }
 
     virtual void OnMyEndList() override
@@ -492,18 +489,16 @@ void SetNodeFromProducer(
 
 NRpc::IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger = NLogging::TLogger(),
+    NLogging::TLogger logger = NLogging::TLogger(),
     NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
-    const TString& requestInfo = TString(),
-    const TString& responseInfo = TString());
+    TString loggingInfo = TString());
 
 NRpc::IServiceContextPtr CreateYPathContext(
     std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger = NLogging::TLogger(),
+    NLogging::TLogger logger = NLogging::TLogger(),
     NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
-    const TString& requestInfo = TString(),
-    const TString& responseInfo = TString());
+    TString loggingInfo = TString());
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 

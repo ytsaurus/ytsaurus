@@ -12,7 +12,8 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -24,6 +25,7 @@ namespace NRpc {
 using namespace NBus;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NProfiling;
 using namespace NRpc::NProto;
 using namespace NConcurrency;
@@ -46,6 +48,7 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
 TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds)
     : RequestCounter("/request_count", tagIds)
     , CanceledRequestCounter("/canceled_request_count", tagIds)
+    , FailedRequestCounter("/failed_request_count", tagIds)
     , TimedOutRequestCounter("/timed_out_request_count", tagIds)
     , ExecutionTimeCounter("/request_time/execution", tagIds)
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
@@ -105,6 +108,16 @@ public:
         }
 
         Finalize();
+    }
+
+    virtual TTcpDispatcherStatistics GetBusStatistics() const override
+    {
+        return ReplyBus_->GetStatistics();
+    }
+
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    {
+        return ReplyBus_->GetEndpointAttributes();
     }
 
     const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
@@ -346,6 +359,9 @@ private:
 
         Profiler.Update(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(ExecutionTime_));
         Profiler.Update(PerformanceCounters_->TotalTimeCounter, DurationToValue(TotalTime_));
+        if (!Error_.IsOK()) {
+            Profiler.Increment(PerformanceCounters_->FailedRequestCounter);
+        }
 
         Finalize();
     }
@@ -370,70 +386,74 @@ private:
     virtual void LogRequest() override
     {
         TStringBuilder builder;
+        builder.AppendFormat("%v <- ",
+            GetMethod());
+
+        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 
         if (RequestId_) {
-            AppendInfo(&builder, "RequestId: %v", GetRequestId());
+            delimitedBuilder->AppendFormat("RequestId: %v", GetRequestId());
         }
 
         if (RealmId_) {
-            AppendInfo(&builder, "RealmId: %v", GetRealmId());
+            delimitedBuilder->AppendFormat("RealmId: %v", GetRealmId());
         }
 
         if (User_ != RootUserName) {
-            AppendInfo(&builder, "User: %v", User_);
+            delimitedBuilder->AppendFormat("User: %v", User_);
         }
 
         auto mutationId = GetMutationId();
         if (mutationId) {
-            AppendInfo(&builder, "MutationId: %v", mutationId);
+            delimitedBuilder->AppendFormat("MutationId: %v", mutationId);
         }
 
-        AppendInfo(&builder, "Retry: %v", IsRetry());
+        delimitedBuilder->AppendFormat("Retry: %v", IsRetry());
 
         if (RequestHeader_->has_timeout()) {
-            AppendInfo(&builder, "Timeout: %v", FromProto<TDuration>(RequestHeader_->timeout()));
+            delimitedBuilder->AppendFormat("Timeout: %v", FromProto<TDuration>(RequestHeader_->timeout()));
         }
 
-        AppendInfo(&builder, "BodySize: %v, AttachmentsSize: %v/%v",
+        delimitedBuilder->AppendFormat("BodySize: %v, AttachmentsSize: %v/%v",
             GetMessageBodySize(RequestMessage_),
             GetTotalMesageAttachmentSize(RequestMessage_),
             GetMessageAttachmentCount(RequestMessage_));
 
-        if (!RequestInfo_.empty()) {
-            AppendInfo(&builder, "%v", RequestInfo_);
+        if (RequestInfo_) {
+            delimitedBuilder->AppendFormat("%v", RequestInfo_);
         }
 
-        LOG_EVENT(Logger, LogLevel_, "%v <- %v",
-            GetMethod(),
-            builder.Flush());
+        LOG_EVENT(Logger, LogLevel_, builder.Flush());
     }
 
     virtual void LogResponse() override
     {
         TStringBuilder builder;
+        builder.AppendFormat("%v -> ",
+            GetMethod());
+
+        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 
         if (RequestId_) {
-            AppendInfo(&builder, "RequestId: %v", RequestId_);
+            delimitedBuilder->AppendFormat("RequestId: %v", RequestId_);
         }
 
         auto responseMessage = GetResponseMessage();
-        AppendInfo(&builder, "Error: %v, BodySize: %v, AttachmentsSize: %v/%v",
+        delimitedBuilder->AppendFormat("Error: %v, BodySize: %v, AttachmentsSize: %v/%v",
             Error_,
             GetMessageBodySize(responseMessage),
             GetTotalMesageAttachmentSize(responseMessage),
             GetMessageAttachmentCount(responseMessage));
 
-        if (!ResponseInfo_.empty()) {
-            AppendInfo(&builder, "%v", ResponseInfo_);
+        if (ResponseInfo_) {
+            delimitedBuilder->AppendString(ResponseInfo_);
         }
 
-        AppendInfo(&builder, "ExecutionTime: %v, TotalTime: %v",
+        delimitedBuilder->AppendFormat("ExecutionTime: %v, TotalTime: %v",
             ExecutionTime_,
             TotalTime_);
 
-        LOG_EVENT(Logger, LogLevel_, "%v -> %v",
-            GetMethod(),
-            builder.Flush());
+        LOG_EVENT(Logger, LogLevel_, builder.Flush());
     }
 };
 
@@ -446,7 +466,7 @@ TServiceBase::TServiceBase(
     const TRealmId& realmId)
     : Logger(logger)
     , DefaultInvoker_(std::move(defaultInvoker))
-    , ServiceId_(descriptor.ServiceName, realmId)
+    , ServiceId_(descriptor.GetFullServiceName(), realmId)
     , ProtocolVersion_(descriptor.ProtocolVersion)
 {
     YCHECK(DefaultInvoker_);
@@ -542,7 +562,7 @@ void TServiceBase::HandleRequest(
     TRACE_ANNOTATION(
         traceContext,
         "server_host",
-        GetLocalHostName());
+        NNet::GetLocalHostName());
 
     TRACE_ANNOTATION(
         traceContext,

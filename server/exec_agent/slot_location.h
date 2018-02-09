@@ -7,7 +7,10 @@
 
 #include <yt/server/misc/disk_location.h>
 
+#include <yt/server/job_agent/job.h>
+
 #include <yt/core/misc/public.h>
+#include <yt/core/misc/fs.h>
 
 #include <yt/core/logging/log.h>
 
@@ -26,9 +29,12 @@ public:
         const TSlotLocationConfigPtr& config,
         const NCellNode::TBootstrap* bootstrap,
         const TString& id,
-        bool detachedTmpfsUmount);
+        const IJobDirectoryManagerPtr& jobDirectoryManager,
+        bool enableTmpfs);
 
-    TFuture<void> CreateSandboxDirectories(int slotIndex);
+    //! Make ./sandbox, ./home/, ./udf and other directories.
+    TFuture<void> CreateSandboxDirectories(
+        int slotIndex);
 
     TFuture<void> MakeSandboxCopy(
         int slotIndex,
@@ -44,45 +50,55 @@ public:
         const TString& linkName,
         bool executable);
 
-    TFuture<TString> MakeSandboxTmpfs(
+    TFuture<TNullable<TString>> MakeSandboxTmpfs(
         int slotIndex,
         ESandboxKind kind,
         i64 size,
-        int userId,
-        const TString& path,
-        bool enable,
-        IMounterPtr mounter);
+        const TString& path);
 
-    TFuture<void> SetQuota(
+    // Set quota, permissions, etc. Must be called when all files are prepared.
+    TFuture<void> FinalizeSanboxPreparation(
         int slotIndex,
         TNullable<i64> diskSpaceLimit,
         TNullable<i64> inodeLimit,
         int userId);
 
+    //! Finishes sandbox preparation.
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
-    TFuture<void> CleanSandboxes(int slotIndex, IMounterPtr mounter);
+    TFuture<void> CleanSandboxes(int slotIndex);
 
     TString GetSlotPath(int slotIndex) const;
 
     void IncreaseSessionCount();
     void DecreaseSessionCount();
 
+    NNodeTrackerClient::NProto::TDiskResourcesInfo GetDiskInfo() const;
+
+    void Disable(const TError& error);
+
 private:
     const TSlotLocationConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
 
+    const IJobDirectoryManagerPtr JobDirectoryManager_;
+
     NConcurrency::TActionQueuePtr LocationQueue_;
 
-    const bool DetachedTmpfsUmount_;
+    const bool EnableTmpfs_;
+    const bool HasRootPermissions_;
 
-    bool HasRootPermissions_;
+    std::set<TString> TmpfsPaths_;
 
-    THashSet<TString> TmpfsPaths_;
+    NConcurrency::TReaderWriterSpinLock SlotsLock_;
+    THashMap<int, TNullable<i64>> OccupiedSlotToDiskLimit_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
-    void Disable(const TError& error);
+    NNodeTrackerClient::NProto::TDiskResourcesInfo DiskInfo_;
+    NConcurrency::TReaderWriterSpinLock DiskInfoLock_;
+    NConcurrency::TPeriodicExecutorPtr DiskInfoUpdateExecutor_;
+
     void ValidateEnabled() const;
 
     static void ValidateNotExists(const TString& path);
@@ -92,6 +108,8 @@ private:
     void EnsureNotInUse(const TString& path) const;
 
     void ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const;
+
+    void UpdateDiskInfo();
 
     TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
     TString GetConfigPath(int slotIndex) const;

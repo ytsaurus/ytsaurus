@@ -4,8 +4,6 @@
 #include "chunk_pool.h"
 #include "input_stream.h"
 
-#include <yt/ytlib/chunk_pools/public.h>
-
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
@@ -32,7 +30,7 @@ struct TSortedJobOptions
     //! is exceeded, an exception is thrown.
     i64 MaxDataWeightPerJob = std::numeric_limits<i64>::max();
 
-    //! Experimental workaround for YTADMINREQ-5836.
+    //! Experimental workaround for YT-8156.
     bool UseNewEndpointKeys = false;
 
     void Persist(const TPersistenceContext& context);
@@ -40,12 +38,12 @@ struct TSortedJobOptions
 
 struct TSortedChunkPoolOptions
 {
-    EStripeListExtractionOrder ExtractionOrder = EStripeListExtractionOrder::DataSizeDescending;
     TSortedJobOptions SortedJobOptions;
     i64 MinTeleportChunkSize = 0;
     bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NScheduler::TOperationId OperationId;
+    TString Task;
 
     void Persist(const TPersistenceContext& context);
 };

@@ -9,6 +9,8 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateSkynetSchema(const TTableSchema& schema);
+
 class TSkynetHashState;
 
 class TSkynetColumnEvaluator
@@ -21,7 +23,8 @@ public:
     //! Fills "sha1", "md5" and "data_size" fields.
     void ValidateAndComputeHashes(
         TMutableUnversionedRow fullRow,
-        const TRowBufferPtr& buffer);
+        const TRowBufferPtr& buffer,
+        bool isLastRow);
 
 private:
     const int FilenameId_;
@@ -32,8 +35,13 @@ private:
     const int Md5Id_;
     const int DataSizeId_;
 
+    const int KeySize_;
+
     TNullable<TString> LastFilename_;
     i64 LastDataSize_ = 0;
+
+    TUnversionedRow LastKey_;
+    TOwningKey LastKeyHolder_;
 
     std::unique_ptr<TSkynetHashState> HashState_;
 
@@ -45,6 +53,8 @@ private:
         TUnversionedValue** Sha1,
         TUnversionedValue** Md5,
         TUnversionedValue** DataSize);
+
+    bool IsKeySwitched(TUnversionedRow fullRow, bool isLastRow);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSkynetColumnEvaluator)

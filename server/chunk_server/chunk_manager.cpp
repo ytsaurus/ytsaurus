@@ -30,6 +30,7 @@
 #include <yt/server/node_tracker_server/config.h>
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
+#include <yt/server/node_tracker_server/rack.h>
 
 #include <yt/server/object_server/object_manager.h>
 #include <yt/server/object_server/type_handler_detail.h>
@@ -413,6 +414,13 @@ public:
 
         auto* profileManager = TProfileManager::Get();
         Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
+
+        for (auto jobType = EJobType::ReplicatorFirst;
+             jobType != EJobType::ReplicatorLast;
+             jobType = static_cast<EJobType>(static_cast<TEnumTraits<EJobType>::TUnderlying>(jobType) + 1))
+        {
+            JobTypeToTag_[jobType] = profileManager->RegisterTag("job_type", jobType);
+        }
     }
 
     void Initialize()
@@ -434,10 +442,14 @@ public:
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeDisposed, MakeWeak(this)));
-        nodeTracker->SubscribeNodeLocationChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRackChanged(BIND(&TImpl::OnNodeRackChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDataCenterChanged(BIND(&TImpl::OnNodeDataCenterChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterCreated(BIND(&TImpl::OnDataCenterCreated, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterRenamed, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterDestroyed, MakeWeak(this)));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
@@ -445,7 +457,6 @@ public:
             ProfilingPeriod);
         ProfilingExecutor_->Start();
     }
-
 
     std::unique_ptr<TMutation> CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
     {
@@ -1097,6 +1108,7 @@ private:
 
     bool NeedToRecomputeStatistics_ = false;
     bool NeedResetDataWeight_ = false;
+    bool NeedInitializeMediumConfig_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1130,6 +1142,10 @@ private:
     TMediumId DefaultCacheMediumId_;
     TMedium* DefaultCacheMedium_ = nullptr;
 
+    TEnumIndexedVector<TTagId, EJobType, EJobType::ReplicatorFirst, EJobType::ReplicatorLast> JobTypeToTag_;
+    THashMap<const TDataCenter*, TTagId> SourceDataCenterToTag_;
+    THashMap<const TDataCenter*, TTagId> DestinationDataCenterToTag_;
+
     TChunk* DoCreateChunk(EObjectType chunkType)
     {
         auto id = Bootstrap_->GetObjectManager()->GenerateId(chunkType, NullObjectId);
@@ -1162,12 +1178,18 @@ private:
             ChunkSealer_->OnChunkDestroyed(chunk);
         }
 
+        auto job = chunk->GetJob();
+
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
         auto unregisterReplica = [&] (TNodePtrWithIndexes nodeWithIndexes, bool cached) {
             auto* node = nodeWithIndexes.GetPtr();
             TChunkPtrWithIndexes chunkWithIndexes(
                 chunk,
+                nodeWithIndexes.GetReplicaIndex(),
+                nodeWithIndexes.GetMediumIndex());
+            TChunkIdWithIndexes chunkIdWithIndexes(
+                chunk->GetId(),
                 nodeWithIndexes.GetReplicaIndex(),
                 nodeWithIndexes.GetMediumIndex());
             if (!node->RemoveReplica(chunkWithIndexes)) {
@@ -1180,6 +1202,13 @@ private:
                 return;
             }
             if (node->GetLocalState() != ENodeState::Online) {
+                return;
+            }
+            if (job &&
+                job->GetNode() == node &&
+                job->GetType() == EJobType::RemoveChunk &&
+                job->GetChunkIdWithIndexes() == chunkIdWithIndexes)
+            {
                 return;
             }
             ChunkReplicator_->ScheduleReplicaRemoval(node, chunkWithIndexes);
@@ -1280,6 +1309,25 @@ private:
         }
     }
 
+    void OnNodeRackChanged(TNode* node, TRack* oldRack)
+    {
+        auto* newDataCenter = node->GetDataCenter();
+        auto* oldDataCenter = oldRack ? oldRack->GetDataCenter() : nullptr;
+        if (newDataCenter != oldDataCenter) {
+            ChunkReplicator_->HandleNodeDataCenterChange(node, oldDataCenter);
+        }
+
+        OnNodeChanged(node);
+    }
+
+    void OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)
+    {
+        YCHECK(node->GetDataCenter() != oldDataCenter);
+        ChunkReplicator_->HandleNodeDataCenterChange(node, oldDataCenter);
+
+        OnNodeChanged(node);
+    }
+
     void OnFullHeartbeat(
         TNode* node,
         NNodeTrackerServer::NProto::TReqFullHeartbeat* request)
@@ -1344,6 +1392,83 @@ private:
         }
     }
 
+    void RegisterTagForDataCenter(const TDataCenter* dataCenter, THashMap<const TDataCenter*, TTagId>* dataCenterToTag)
+    {
+        auto dataCenterName = dataCenter ? dataCenter->GetName() : TString();
+        auto tagId = TProfileManager::Get()->RegisterTag("source_data_center", dataCenterName);
+        YCHECK(dataCenterToTag->emplace(dataCenter, tagId).second);
+    }
+
+    void RegisterTagsForDataCenter(const TDataCenter* dataCenter)
+    {
+        RegisterTagForDataCenter(dataCenter, &SourceDataCenterToTag_);
+        RegisterTagForDataCenter(dataCenter, &DestinationDataCenterToTag_);
+    }
+
+    void UnregisterTagsForDataCenter(const TDataCenter* dataCenter)
+    {
+        // NB: just cleaning maps here, profile manager doesn't support unregistering tags.
+        SourceDataCenterToTag_.erase(dataCenter);
+        DestinationDataCenterToTag_.erase(dataCenter);
+    }
+
+    bool EnsureDataCenterTagsInitialized()
+    {
+        YCHECK(SourceDataCenterToTag_.empty() == DestinationDataCenterToTag_.empty());
+
+        if (!SourceDataCenterToTag_.empty()) {
+            return false;
+        }
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        for (const auto& pair : nodeTracker->DataCenters()) {
+            RegisterTagsForDataCenter(pair.second);
+        }
+        RegisterTagsForDataCenter(nullptr);
+
+        return true;
+    }
+
+    void OnDataCenterCreated(TDataCenter* dataCenter)
+    {
+        if (!EnsureDataCenterTagsInitialized()) {
+            RegisterTagsForDataCenter(dataCenter);
+        }
+    }
+
+    void OnDataCenterRenamed(TDataCenter* dataCenter)
+    {
+        if (!EnsureDataCenterTagsInitialized()) {
+            UnregisterTagsForDataCenter(dataCenter);
+            RegisterTagsForDataCenter(dataCenter);
+        }
+    }
+
+    void OnDataCenterDestroyed(TDataCenter* dataCenter)
+    {
+        if (!EnsureDataCenterTagsInitialized()) {
+            UnregisterTagsForDataCenter(dataCenter);
+        }
+    }
+
+    TTagId GetDataCenterTag(const TDataCenter* dataCenter, THashMap<const TDataCenter*, TTagId>& dataCenterToTag)
+    {
+        auto it = dataCenterToTag.find(dataCenter);
+        YCHECK(it != dataCenterToTag.end());
+        return it->second;
+    }
+
+    TTagId GetSourceDataCenterTag(const TDataCenter* dataCenter)
+    {
+        EnsureDataCenterTagsInitialized();
+        return GetDataCenterTag(dataCenter, SourceDataCenterToTag_);
+    }
+
+    TTagId GetDestinationDataCenterTag(const TDataCenter* dataCenter)
+    {
+        EnsureDataCenterTagsInitialized();
+        return GetDataCenterTag(dataCenter, DestinationDataCenterToTag_);
+    }
 
     void HydraUpdateChunkProperties(NProto::TReqUpdateChunkProperties* request)
     {
@@ -1789,6 +1914,8 @@ private:
         }
         //COMPAT(savrus)
         NeedResetDataWeight_ = context.GetVersion() < 612;
+        //COMPAT(savrus)
+        NeedInitializeMediumConfig_ = context.GetVersion() < 629;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -1797,6 +1924,7 @@ private:
 
         NeedToRecomputeStatistics_ = false;
         NeedResetDataWeight_ = false;
+        NeedInitializeMediumConfig_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1857,6 +1985,14 @@ private:
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
             NeedToRecomputeStatistics_ = false;
+        }
+
+        if (NeedInitializeMediumConfig_) {
+            for (const auto& pair : MediumMap_) {
+                auto* medium = pair.second;
+                InitializeMediumConfig(medium);
+            }
+            NeedInitializeMediumConfig_ = false;
         }
 
         LOG_INFO("Finished initializing chunks");
@@ -2423,6 +2559,35 @@ private:
         Profiler.Enqueue("/precarious_vital_chunk_count", PrecariousVitalChunks().size(), EMetricType::Gauge);
         Profiler.Enqueue("/quorum_missing_chunk_count", QuorumMissingChunks().size(), EMetricType::Gauge);
         Profiler.Enqueue("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size(), EMetricType::Gauge);
+
+        const auto& jobCounters = ChunkReplicator_->JobCounters();
+        for (auto jobType = EJobType::ReplicatorFirst;
+             jobType != EJobType::ReplicatorLast;
+             jobType = static_cast<EJobType>(static_cast<TEnumTraits<EJobType>::TUnderlying>(jobType) + 1))
+        {
+            Profiler.Enqueue("/job_count", jobCounters[jobType], EMetricType::Gauge, {JobTypeToTag_[jobType]});
+        }
+
+        for (const auto& srcPair : ChunkReplicator_->InterDCEdgeConsumption()) {
+            const auto* src = srcPair.first;
+            for (const auto& dstPair : srcPair.second) {
+                const auto* dst = dstPair.first;
+                const auto consumption = dstPair.second;
+
+                TTagIdList tags = {GetSourceDataCenterTag(src), GetDestinationDataCenterTag(dst)};
+                Profiler.Enqueue("/inter_dc_edge_consumption", consumption, EMetricType::Gauge, tags);
+            }
+        }
+        for (const auto& srcPair : ChunkReplicator_->InterDCEdgeCapacities()) {
+            const auto* src = srcPair.first;
+            for (const auto& dstPair : srcPair.second) {
+                const auto* dst = dstPair.first;
+                const auto capacity = dstPair.second;
+
+                TTagIdList tags = {GetSourceDataCenterTag(src), GetDestinationDataCenterTag(dst)};
+                Profiler.Enqueue("/inter_dc_edge_capacity", capacity, EMetricType::Gauge, tags);
+            }
+        }
     }
 
 
@@ -2460,6 +2625,7 @@ private:
 
         auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
         RegisterMedium(medium);
+        InitializeMediumConfig(medium);
 
         // Make the fake reference.
         YCHECK(medium->RefObject() == 1);
@@ -2491,6 +2657,14 @@ private:
         IndexToMediumMap_[mediumIndex] = nullptr;
     }
 
+    void InitializeMediumConfig(TMedium* medium)
+    {
+        medium->Config()->MaxReplicasPerRack = Config_->MaxReplicasPerRack;
+        medium->Config()->MaxRegularReplicasPerRack = Config_->MaxRegularReplicasPerRack;
+        medium->Config()->MaxJournalReplicasPerRack = Config_->MaxJournalReplicasPerRack;
+        medium->Config()->MaxErasureReplicasPerRack = Config_->MaxErasureReplicasPerRack;
+    }
+
     static void ValidateMediumName(const TString& name)
     {
         if (name.empty()) {
@@ -2504,6 +2678,7 @@ private:
             THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
         }
     }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)

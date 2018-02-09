@@ -20,7 +20,7 @@ class TChunkListPool
 {
 public:
     TChunkListPool(
-        TSchedulerConfigPtr config,
+        TControllerAgentConfigPtr config,
         NApi::INativeClientPtr clientPtr,
         IInvokerPtr controlInvoker,
         const TOperationId& operationId,
@@ -29,19 +29,16 @@ public:
     bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);
     NChunkClient::TChunkListId Extract(NObjectClient::TCellTag cellTag);
 
-    void Release(const std::vector<NChunkClient::TChunkListId>& ids);
     void Reinstall(const NChunkClient::TChunkListId& id);
 
 private:
-    const TSchedulerConfigPtr Config_;
+    const TControllerAgentConfigPtr Config_;
     const NApi::INativeClientPtr Client_;
     const IInvokerPtr ControllerInvoker_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;
 
-    NConcurrency::TPeriodicExecutorPtr ChunkListReleaseExecutor_;
-
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     struct TCellData
     {
@@ -52,16 +49,9 @@ private:
 
     THashMap<NObjectClient::TCellTag, TCellData> CellMap_;
 
-    THashMap<NObjectClient::TCellTag, std::vector<NChunkClient::TChunkListId>> ChunksToRelease_;
-    TInstant LastReleaseTime_;
-
     void AllocateMore(NObjectClient::TCellTag cellTag);
 
     void OnChunkListsCreated(
-        NObjectClient::TCellTag cellTag,
-        const NChunkClient::TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
-
-    void OnChunkListsReleased(
         NObjectClient::TCellTag cellTag,
         const NChunkClient::TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 };

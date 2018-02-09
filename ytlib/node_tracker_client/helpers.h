@@ -20,7 +20,8 @@ namespace NNodeTrackerClient {
 #define ITERATE_NODE_RESOURCES(XX) \
     XX(user_slots,            UserSlots) \
     XX(cpu,                   Cpu) \
-    XX(memory,                Memory) \
+    XX(user_memory,           UserMemory) \
+    XX(system_memory,         SystemMemory) \
     XX(network,               Network) \
     XX(replication_slots,     ReplicationSlots) \
     XX(replication_data_size, ReplicationDataSize) \
@@ -37,7 +38,9 @@ namespace NNodeTrackerClient {
     XX(removal_slots,         RemovalSlots) \
     XX(repair_slots,          RepairSlots) \
     XX(repair_data_size,      RepairDataSize) \
-    XX(seal_slots,            SealSlots)
+    XX(seal_slots,            SealSlots) \
+    XX(user_memory,           UserMemory) \
+    XX(system_memory,         SystemMemory)
 
 // NB: Types must be numbered from 0 to N - 1.
 DEFINE_ENUM(EResourceType,
@@ -53,8 +56,15 @@ DEFINE_ENUM(EResourceType,
     (SealSlots)
 );
 
-TString FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);
+TString FormatResourceUsage(
+    const NProto::TNodeResources& usage,
+    const NProto::TNodeResources& limits);
+TString FormatResourceUsage(
+    const NProto::TNodeResources& usage,
+    const NProto::TNodeResources& limits,
+    const NProto::TDiskResources& diskInfo);
 TString FormatResources(const NProto::TNodeResources& resources);
+TString ToString(const NProto::TDiskResources& diskInfo);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);
 

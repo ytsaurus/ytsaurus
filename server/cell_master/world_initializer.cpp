@@ -100,8 +100,7 @@ public:
     bool HasProvisionLock()
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        auto sysNode = resolver->ResolvePath("//sys");
+        auto sysNode = cypressManager->ResolvePathToNodeProxy("//sys");
         return sysNode->Attributes().Get<bool>("provision_lock", false);
     }
 
@@ -206,7 +205,7 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/pools",
+                "//sys/pool_trees",
                 transactionId,
                 EObjectType::MapNode,
                 BuildYsonStringFluently()

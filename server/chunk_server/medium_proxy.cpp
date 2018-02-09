@@ -1,6 +1,7 @@
-#include "medium_proxy.h"
 #include "chunk_manager.h"
+#include "config.h"
 #include "medium.h"
+#include "medium_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 
@@ -48,6 +49,9 @@ private:
         descriptors->push_back(TAttributeDescriptor("priority")
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("config")
+            .SetWritable(true)
+            .SetReplicated(true));
     }
 
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
@@ -84,6 +88,12 @@ private:
             return true;
         }
 
+        if (key == "config") {
+            BuildYsonFluently(consumer)
+                .Value(medium->Config());
+            return true;
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
@@ -101,6 +111,11 @@ private:
         if (key == "priority") {
             auto newPriority = ConvertTo<int>(value);
             chunkManager->SetMediumPriority(medium, newPriority);
+            return true;
+        }
+
+        if (key == "config") {
+            medium->Config() = ConvertTo<TMediumConfigPtr>(value);
             return true;
         }
 

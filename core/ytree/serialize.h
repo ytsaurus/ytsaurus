@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "ephemeral_node_factory.h"
 
 #include <yt/core/yson/producer.h>
 

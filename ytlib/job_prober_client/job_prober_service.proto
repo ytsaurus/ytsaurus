@@ -1,6 +1,8 @@
 package NYT.NJobProberClient.NProto;
 
-import "yt/core/misc/guid.proto";
+import "yt/ytlib/job_tracker_client/job.proto";
+
+import "yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +24,16 @@ message TReqGetStderr
 message TRspGetStderr
 {
     required string stderr_data = 1;
+}
+
+message TReqGetSpec
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetSpec
+{
+    required NYT.NJobTrackerClient.NProto.TJobSpec spec = 1;
 }
 
 message TReqStrace

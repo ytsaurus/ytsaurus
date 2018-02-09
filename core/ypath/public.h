@@ -11,7 +11,7 @@ enum class ETokenType;
 class TTokenizer;
 class TRichYPath;
 
-typedef TString TYPath;
+using TYPath = TString;
 
 ////////////////////////////////////////////////////////////////////////////////
 

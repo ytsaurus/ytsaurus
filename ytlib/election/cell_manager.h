@@ -38,10 +38,10 @@ public:
     const TCellPeerConfig& GetPeerConfig(TPeerId id) const;
     NRpc::IChannelPtr GetPeerChannel(TPeerId id) const;
 
-    const NProfiling::TTagIdList& GetPeerTags(TPeerId id) const;
-    const NProfiling::TTagIdList& GetAllPeersTags() const;
-    const NProfiling::TTagIdList& GetPeerQuorumTags() const;
-    const NProfiling::TTagIdList& GetCellIdTags() const;
+    NProfiling::TTagId GetPeerTag(TPeerId id) const;
+    NProfiling::TTagId GetAllPeersTag() const;
+    NProfiling::TTagId GetPeerQuorumTag() const;
+    NProfiling::TTagId GetCellIdTag() const;
 
     void Reconfigure(TCellConfigPtr newConfig);
 
@@ -49,8 +49,10 @@ public:
 
 private:
     TCellConfigPtr Config_;
-    NRpc::IChannelFactoryPtr ChannelFactory_;
-    TPeerId SelfId_;
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
+    const TPeerId SelfId_;
+
+    const NLogging::TLogger Logger;
 
     int VotingPeerCount_;
     int QuorumPeerCount_;
@@ -58,18 +60,13 @@ private:
 
     std::vector<NRpc::IChannelPtr> PeerChannels_;
 
-    std::vector<NProfiling::TTagIdList> PeerTags_;
-    NProfiling::TTagIdList AllPeersTags_;
-    NProfiling::TTagIdList PeerQuorumTags_;
-    NProfiling::TTagIdList CellIdTags_;
-
-    NLogging::TLogger Logger;
-         
+    std::vector<NProfiling::TTagId> PeerTags_;
+    NProfiling::TTagId AllPeersTag_;
+    NProfiling::TTagId PeerQuorumTag_;
+    NProfiling::TTagId CellIdTag_;
 
     void BuildTags();
-
     NRpc::IChannelPtr CreatePeerChannel(TPeerId id);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellManager)

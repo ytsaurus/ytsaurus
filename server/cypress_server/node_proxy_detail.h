@@ -37,14 +37,14 @@ public:
         NSecurityServer::TAccount* account,
         const TNodeFactoryOptions& options) const override;
 
-    virtual NYTree::INodeResolverPtr GetResolver() const override;
+    virtual NYPath::TYPath GetPath() const override;
 
     virtual NTransactionServer::TTransaction* GetTransaction() const override;
 
     virtual TCypressNodeBase* GetTrunkNode() const override;
 
     virtual NYTree::ICompositeNodePtr GetParent() const override;
-    virtual void SetParent(NYTree::ICompositeNodePtr parent) override;
+    virtual void SetParent(const NYTree::ICompositeNodePtr& parent) override;
 
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
@@ -75,7 +75,6 @@ protected:
     TCypressNodeBase* const TrunkNode;
 
     mutable TCypressNodeBase* CachedNode = nullptr;
-    mutable NYTree::INodeResolverPtr CachedResolver;
 
     bool AccessTrackingSuppressed = false;
     bool ModificationTrackingSuppressed = false;
@@ -188,7 +187,7 @@ protected:
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr child,
+        const NYTree::INodePtr& child,
         bool recursive);
 
     NSecurityServer::TClusterResources GetResourceUsage() const;
@@ -270,6 +269,13 @@ protected:
     {
         return TNontemplateCypressNodeProxyBase::LockThisImpl<TActualImpl>(request, recursive);
     }
+
+    void ValidateSetCommand() const
+    {
+        if (TBase::Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand) {
+            THROW_ERROR_EXCEPTION("Command \"set\" is forbidden in Cypress, use \"create\" instead");
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -317,11 +323,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(key) \
+    YTREE_NODE_TYPE_OVERRIDES_BASE(key) \
+    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override \
+    { \
+        Y_UNUSED(response); \
+        context->SetRequestInfo(); \
+        ValidateSetCommand(); \
+        DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
+        context->Reply(); \
+    }
+
 #define BEGIN_DEFINE_SCALAR_TYPE(key, type) \
     class T##key##NodeProxy \
         : public TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node> \
     { \
-        YTREE_NODE_TYPE_OVERRIDES(key) \
+        YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(key) \
     \
     public: \
         T##key##NodeProxy( \
@@ -388,7 +405,7 @@ class TMapNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
-    YTREE_NODE_TYPE_OVERRIDES(Map)
+    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Map)
 
 public:
     TMapNodeProxy(
@@ -402,11 +419,11 @@ public:
     virtual std::vector< std::pair<TString, NYTree::INodePtr> > GetChildren() const override;
     virtual std::vector<TString> GetKeys() const override;
     virtual NYTree::INodePtr FindChild(const TString& key) const override;
-    virtual bool AddChild(NYTree::INodePtr child, const TString& key) override;
+    virtual bool AddChild(const NYTree::INodePtr& child, const TString& key) override;
     virtual bool RemoveChild(const TString& key) override;
-    virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild) override;
-    virtual void RemoveChild(NYTree::INodePtr child) override;
-    virtual TString GetChildKey(NYTree::IConstNodePtr child) override;
+    virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
+    virtual void RemoveChild(const NYTree::INodePtr& child) override;
+    virtual TNullable<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
@@ -416,7 +433,7 @@ private:
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr child,
+        const NYTree::INodePtr& child,
         bool recursive) override;
 
     virtual int GetMaxChildCount() const override;
@@ -431,6 +448,12 @@ private:
         TRspList* response,
         const TCtxListPtr& context) override;
 
+    virtual void SetRecursive(
+        const NYTree::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        const TCtxSetPtr& context) override;
+
     void DoRemoveChild(
         TMapNode* impl,
         const TString& key,
@@ -444,7 +467,7 @@ class TListNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
-    YTREE_NODE_TYPE_OVERRIDES(List)
+    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(List)
 
 public:
     TListNodeProxy(
@@ -457,11 +480,11 @@ public:
     virtual int GetChildCount() const override;
     virtual std::vector<NYTree::INodePtr> GetChildren() const override;
     virtual NYTree::INodePtr FindChild(int index) const override;
-    virtual void AddChild(NYTree::INodePtr child, int beforeIndex = -1) override;
+    virtual void AddChild(const NYTree::INodePtr& child, int beforeIndex = -1) override;
     virtual bool RemoveChild(int index) override;
-    virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild) override;
-    virtual void RemoveChild(NYTree::INodePtr child) override;
-    virtual int GetChildIndex(NYTree::IConstNodePtr child) override;
+    virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
+    virtual void RemoveChild(const NYTree::INodePtr& child) override;
+    virtual TNullable<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
@@ -469,7 +492,7 @@ private:
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr child,
+        const NYTree::INodePtr& child,
         bool recursive) override;
 
     virtual int GetMaxChildCount() const override;
@@ -478,6 +501,11 @@ private:
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
 
+    virtual void SetRecursive(
+        const NYTree::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        const TCtxSetPtr& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,7 +513,7 @@ private:
 class TLinkNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode>
 {
-    YTREE_NODE_TYPE_OVERRIDES(Entity)
+    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Entity)
 
 public:
     TLinkNodeProxy(
@@ -547,6 +575,7 @@ private:
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
 
+    void SetImplValue(const NYson::TYsonString& value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

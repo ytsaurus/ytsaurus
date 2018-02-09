@@ -57,6 +57,7 @@ public:
         TDataNodeConfigPtr config,
         const NNodeTrackerClient::TAddressMap& rpcAddresses,
         const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
+        const NNodeTrackerClient::TAddressMap& monitoringHttpAddresses,
         const std::vector<TString>& nodeTags,
         NCellNode::TBootstrap* bootstrap);
 
@@ -108,6 +109,7 @@ private:
     const TDataNodeConfigPtr Config_;
     const NNodeTrackerClient::TAddressMap RpcAddresses_;
     const NNodeTrackerClient::TAddressMap SkynetHttpAddresses_;
+    const NNodeTrackerClient::TAddressMap MonitoringHttpAddresses_;
 
     const std::vector<TString> NodeTags_;
     const NCellNode::TBootstrap* Bootstrap_;
@@ -272,6 +274,9 @@ private:
 
     //! Updates the data center of the local node.
     void UpdateDataCenter(const TNullable<TString>& dc);
+
+    //! Updates the tags of the local node.
+    void UpdateTags(std::vector<TString> tags);
 
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
     TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);

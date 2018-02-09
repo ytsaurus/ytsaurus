@@ -36,7 +36,6 @@ namespace NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NTableClient::NProto;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
@@ -152,7 +151,6 @@ public:
         }
 
         Finished_ = !DoRead(rows);
-        RowCount_ += rows->size();
 
         return true;
     }
@@ -161,6 +159,7 @@ public:
     {
         TDataStatistics dataStatistics;
         dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
     }
 
@@ -181,7 +180,8 @@ protected:
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
 
-    ui64 RowCount_ = 0;
+    i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
 
     //! Returns |false| on EOF.
     virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;
@@ -396,14 +396,20 @@ private:
 
     virtual bool DoRead(std::vector<TVersionedRow>* rows) override
     {
-        int count = 0;
+        i64 rowCount = 0;
+        i64 dataWeight = 0;
 
         while (KeyIndex_ < Keys_.Size() && rows->size() < rows->capacity()) {
-            ++count;
             rows->push_back(Lookup(Keys_[KeyIndex_++]));
+
+            ++rowCount;
+            dataWeight += GetDataWeight(rows->back());
         }
 
-        this->ChunkState_->PerformanceCounters->StaticChunkRowLookupCount += count;
+        this->RowCount_ += rowCount;
+        this->DataWeight_ += dataWeight;
+        this->ChunkState_->PerformanceCounters->StaticChunkRowLookupCount += rowCount;
+        this->ChunkState_->PerformanceCounters->StaticChunkRowLookupDataWeightCount += dataWeight;
 
         return KeyIndex_ < Keys_.Size();
     }
@@ -467,6 +473,7 @@ private:
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& chunkState,
+    const TReadSessionId& sessionId,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -513,6 +520,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 std::move(underlyingReader),
                 chunkState,
+                sessionId,
                 keys,
                 columnFilter,
                 timestamp,
@@ -596,6 +604,9 @@ private:
             }
         }
 
+        i64 rowCount = 0;
+        i64 dataWeight = 0;
+
         while (rows->size() < rows->capacity()) {
             if (UpperBoundCheckNeeded_ && BlockReader_->GetKey() >= UpperBound_) {
                 NeedLimitUpdate_ = true;
@@ -605,6 +616,9 @@ private:
             auto row = this->CaptureRow(BlockReader_.get());
             if (row) {
                 rows->push_back(row);
+
+                ++rowCount;
+                dataWeight += GetDataWeight(row);
             }
 
             if (!BlockReader_->NextRow()) {
@@ -618,7 +632,10 @@ private:
             }
         }
 
-        this->ChunkState_->PerformanceCounters->StaticChunkRowReadCount += rows->size();
+        this->RowCount_ += rowCount;
+        this->DataWeight_ += dataWeight;
+        this->ChunkState_->PerformanceCounters->StaticChunkRowReadCount += rowCount;
+        this->ChunkState_->PerformanceCounters->StaticChunkRowReadDataWeightCount += dataWeight;
 
         return true;
     }
@@ -637,6 +654,7 @@ private:
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& chunkState,
+    const TReadSessionId& sessionId,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -683,6 +701,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 std::move(underlyingReader),
                 chunkState,
+                sessionId,
                 std::move(ranges),
                 columnFilter,
                 timestamp,

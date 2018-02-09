@@ -10,6 +10,7 @@ TBufferedStream::TBufferedStream(size_t capacity)
     : Data_(TSharedMutableRef::Allocate(capacity, false))
     , Begin_(Data_.Begin())
     , Capacity_(capacity)
+    , AllowRead_(NewPromise<void>())
     , AllowWrite_(NewPromise<void>())
 { }
 
@@ -31,17 +32,16 @@ size_t TBufferedStream::WaitDataToRead(size_t size)
             }
             if (!Finished_) {
                 wait = true;
-                AllowRead_.store(false);
+                AllowRead_ = NewPromise<void>();
             }
         }
     }
 
     if (wait) {
         // Busy wait.
-        while (true) {
-            if (AllowRead_.load()) {
-                break;
-            }
+        auto result = WaitForSettingFuture(AllowRead_.ToFuture());
+        if (!result) {
+            return 0;
         }
     }
 
@@ -83,7 +83,7 @@ void TBufferedStream::Finish()
 
     Finished_ = true;
 
-    AllowRead_.store(true);
+    AllowRead_.TrySet(TError());
 }
 
 TFuture<void> TBufferedStream::Close()
@@ -114,7 +114,7 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
     }
 
     if (Size_ >= SizeToRead_) {
-        AllowRead_.store(true);
+        AllowRead_.TrySet(TError());
     }
 
     if (Capacity_ <= Size_ * 2) {
@@ -159,6 +159,10 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
     {
         TReleaseAcquireGilGuard guard;
         size = Stream_->WaitDataToRead(size);
+    }
+
+    if (PyErr_Occurred()) {
+        throw Py::Exception();
     }
 
 #if PY_MAJOR_VERSION >= 3

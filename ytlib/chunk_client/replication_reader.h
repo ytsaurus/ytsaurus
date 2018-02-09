@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_replica.h"
 #include "client_block_cache.h"
+#include "chunk_reader_allowing_repair.h"
 
 #include <yt/ytlib/api/public.h>
 
@@ -19,7 +20,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkReaderPtr CreateReplicationReader(
+IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::INativeClientPtr client,

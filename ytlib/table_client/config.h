@@ -90,6 +90,7 @@ public:
     bool ValidateColumnCount;
     bool EvaluateComputedColumns;
     bool EnableSkynetSharing;
+    bool ReturnBoundaryKeys;
 
     EOptimizeFor OptimizeFor;
 
@@ -115,8 +116,10 @@ public:
             .Default(true);
         RegisterParameter("enable_skynet_sharing", EnableSkynetSharing)
             .Default(false);
+        RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
+            .Default(true);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {
                 THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
             }
@@ -239,14 +242,14 @@ class TTableReaderConfig
 {
 public:
     bool SuppressAccessTracking;
-    bool IgnoreUnavailableChunks;
+    EUnavailableChunkStrategy UnavailableChunkStrategy;
 
     TTableReaderConfig()
     {
         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
             .Default(false);
-        RegisterParameter("ignore_unavailable_chunks", IgnoreUnavailableChunks)
-            .Default(false);
+        RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
+            .Default(EUnavailableChunkStrategy::Restore);
     }
 };
 
@@ -277,7 +280,7 @@ public:
         RegisterParameter("dynamic_table", DynamicTable)
             .Default(false);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (EnableRangeIndex && !EnableRowIndex) {
                 THROW_ERROR_EXCEPTION("\"enable_range_index\" must be set when \"enable_row_index\" is set");
             }
@@ -348,13 +351,15 @@ public:
             .Default(true);
         RegisterParameter("enable_integral_to_double_conversion", EnableIntegralToDoubleConversion)
             .Default(false);
-    }
 
-    virtual void OnLoaded() override
-    {
-        if (EnableTypeConversion) {
-            EnableStringToAllConversion = EnableAllToStringConversion = EnableIntegralTypeConversion = EnableIntegralToDoubleConversion = true;
-        }
+        RegisterPostprocessor([&] {
+            if (EnableTypeConversion) {
+                EnableStringToAllConversion = true;
+                EnableAllToStringConversion = true;
+                EnableIntegralTypeConversion = true;
+                EnableIntegralToDoubleConversion = true;
+            }
+        });
     }
 };
 

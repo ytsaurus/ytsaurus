@@ -11,8 +11,8 @@
 
 #include <yt/core/compression/public.h>
 
-#include <yt/core/misc/guid.pb.h>
-#include <yt/core/misc/protobuf_helpers.pb.h>
+#include <yt/core/misc/proto/guid.pb.h>
+#include <yt/core/misc/proto/protobuf_helpers.pb.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>
@@ -28,6 +28,11 @@ inline void FromProto(TDuration* original, ::google::protobuf::int64 serialized)
 
 inline void ToProto(::google::protobuf::int64* serialized, TInstant original);
 inline void FromProto(TInstant* original, ::google::protobuf::int64 serialized);
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline void ToProto(::google::protobuf::uint64* serialized, TInstant original);
+inline void FromProto(TInstant* original, ::google::protobuf::uint64 serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,7 +115,7 @@ TOriginal FromProto(const TSerialized& serialized, TArgs&&... args);
 
 struct TEnvelopeFixedHeader
 {
-    ui32 HeaderSize;
+    ui32 EnvelopeSize;
     ui32 MessageSize;
 };
 
@@ -119,60 +124,58 @@ struct TEnvelopeFixedHeader
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Serializes a protobuf message.
-//! Returns |true| iff everything went well.
-bool TrySerializeToProto(
+//! Fails on error.
+TSharedRef SerializeProtoToRef(
     const google::protobuf::MessageLite& message,
-    TSharedMutableRef* data,
     bool partial = true);
 
-//! Serializes a protobuf message.
-//! Fails on error.
-TSharedRef SerializeToProto(
+//! \see SerializeProtoToString
+TString SerializeProtoToString(
     const google::protobuf::MessageLite& message,
     bool partial = true);
 
 //! Deserializes a chunk of memory into a protobuf message.
 //! Returns |true| iff everything went well.
-bool TryDeserializeFromProto(
+bool TryDeserializeProto(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
 //! Deserializes a chunk of memory into a protobuf message.
 //! Fails on error.
-void DeserializeFromProto(
+void DeserializeProto(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
 //! Serializes a given protobuf message and wraps it with envelope.
 //! Optionally compresses the serialized message.
-//! Returns |true| iff everything went well.
-bool TrySerializeToProtoWithEnvelope(
-    const google::protobuf::MessageLite& message,
-    TSharedMutableRef* data,
-    NCompression::ECodec codecId = NCompression::ECodec::None,
-    bool partial = true);
-
-//! Serializes a given protobuf message and wraps it with envelope.
-//! Optionally compresses the serialized message.
 //! Fails on error.
-TSharedRef SerializeToProtoWithEnvelope(
+TSharedRef SerializeProtoToRefWithEnvelope(
     const google::protobuf::MessageLite& message,
     NCompression::ECodec codecId = NCompression::ECodec::None,
     bool partial = true);
 
-//! Unwraps a chunk of memory obtained from #TrySerializeToProtoWithEnvelope
+//! \see SerializeProtoToRefWithEnvelope
+TString SerializeProtoToStringWithEnvelope(
+    const google::protobuf::MessageLite& message,
+    NCompression::ECodec codecId = NCompression::ECodec::None,
+    bool partial = true);
+
+//! Unwraps a chunk of memory obtained from #TrySerializeProtoToRefWithEnvelope
 //! and deserializes it into a protobuf message.
 //! Returns |true| iff everything went well.
-bool TryDeserializeFromProtoWithEnvelope(
+bool TryDeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
-//! Unwraps a chunk of memory obtained from #TrySerializeToProtoWithEnvelope
+//! Unwraps a chunk of memory obtained from #TrySerializeProtoToRefWithEnvelope
 //! and deserializes it into a protobuf message.
 //! Fails on error.
-void DeserializeFromProtoWithEnvelope(
+void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data);
+
+TSharedRef PushEnvelope(const TSharedRef& data);
+TSharedRef PopEnvelope(const TSharedRef& data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,9 +279,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Protobuf messages are currently not movable.
+//! This simple adapter helps workarounding the issue and could be useful
+//! in, e.g., lambda capture.
+template <class T>
+class TMovableProto
+{
+public:
+    TMovableProto() = default;
+    TMovableProto(TMovableProto<T>&& other);
+    TMovableProto(T&& other);
+    TMovableProto(const TMovableProto<T>& other) = delete;
+
+    TMovableProto<T>& operator = (TMovableProto<T>&& other);
+    TMovableProto<T>& operator = (T&& other);
+    TMovableProto<T>& operator = (const TMovableProto<T>& other) = delete;
+
+    operator T&();
+    operator const T&() const;
+
+    T& Unwrap();
+    const T& Unwrap() const;
+
+private:
+    T Underlying_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define PROTOBUF_HELPERS_INL_H_
 #include "protobuf_helpers-inl.h"
 #undef PROTOBUF_HELPERS_INL_H_
-

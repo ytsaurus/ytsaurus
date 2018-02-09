@@ -169,6 +169,12 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Write)
 );
 
+DEFINE_ENUM(EDynamicTableProfilingMode,
+    (Disabled)
+    (Path)
+    (Tag)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsInUnmountWorkflow(ETabletState state);
@@ -271,6 +277,8 @@ constexpr i64 HardRevisionsPerDynamicStoreLimit = 1ULL << 26;
 constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
 
 constexpr int EdenIndex = -1;
+
+extern const TString UnknownProfilingTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -40,7 +40,8 @@ protected:
             timestamp,
             timestamp == AllCommittedTimestamp,
             TColumnFilter(),
-            TWorkloadDescriptor());
+            TWorkloadDescriptor(),
+            NChunkClient::TReadSessionId());
 
         lookupReader->Open()
             .Get()

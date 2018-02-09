@@ -20,9 +20,6 @@ public:
     bool EnableInMemoryBalancer;
     bool EnableTabletSizeBalancer;
 
-    TDuration BalancePeriod;
-    TDuration EnabledCheckPeriod;
-
     double CellBalanceFactor;
 
     i64 MinTabletSize;
@@ -33,19 +30,15 @@ public:
     i64 MaxInMemoryTabletSize;
     i64 DesiredInMemoryTabletSize;
 
+    double TabletToCellRatio;
+
     TTabletBalancerConfig()
     {
         RegisterParameter("enable_in_memory_balancer", EnableInMemoryBalancer)
-            .Default(false);
+            .Default(true);
 
         RegisterParameter("enable_tablet_size_balancer", EnableTabletSizeBalancer)
-            .Default(false);
-
-        RegisterParameter("balance_period", BalancePeriod)
-            .Default(TDuration::Minutes(5));
-
-        RegisterParameter("enabled_check_period", EnabledCheckPeriod)
-            .Default(TDuration::Seconds(1));
+            .Default(true);
 
         RegisterParameter("cell_balance_factor", CellBalanceFactor)
             .Default(0.05);
@@ -68,7 +61,11 @@ public:
         RegisterParameter("desired_in_memory_tablet_size", DesiredInMemoryTabletSize)
             .Default(1_GB);
 
-        RegisterValidator([&] () {
+        RegisterParameter("tablet_to_cell_ratio", TabletToCellRatio)
+            .GreaterThan(0)
+            .Default(5.0);
+
+        RegisterPostprocessor([&] () {
             if (MinTabletSize > DesiredTabletSize) {
                 THROW_ERROR_EXCEPTION("\"min_tablet_size\" must be less than or equal to \"desired_tablet_size\"");
             }
@@ -86,6 +83,29 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletBalancerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletBalancerMasterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableTabletBalancer;
+    TDuration ConfigCheckPeriod;
+    TDuration BalancePeriod;
+
+    TTabletBalancerMasterConfig()
+    {
+        RegisterParameter("enable_tablet_balancer", EnableTabletBalancer)
+            .Default(true);
+        RegisterParameter("config_check_period", ConfigCheckPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("balance_period", BalancePeriod)
+            .Default(TDuration::Minutes(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,7 +151,7 @@ public:
     NTabletNode::TTabletChunkWriterConfigPtr ChunkWriter;
 
     //! Tablet balancer (balancer) config.
-    TTabletBalancerConfigPtr TabletBalancer;
+    TTabletBalancerMasterConfigPtr TabletBalancer;
 
     TTabletManagerConfig()
     {
@@ -166,7 +186,7 @@ public:
         RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             // Override default workload descriptors.
             ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
         });

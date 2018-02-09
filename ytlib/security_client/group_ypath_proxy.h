@@ -12,7 +12,7 @@ namespace NSecurityClient {
 struct TGroupYPathProxy
     : public NYTree::TYPathProxy
 {
-    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(Group));
+    DEFINE_YPATH_PROXY(Group);
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, AddMember);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, RemoveMember);

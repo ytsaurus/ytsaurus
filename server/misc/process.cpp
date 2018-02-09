@@ -1,3 +1,5 @@
+#ifdef __linux__
+
 #include "process.h"
 
 #include <yt/server/containers/instance.h>
@@ -7,6 +9,7 @@
 namespace NYT {
 
 using namespace NPipes;
+using namespace NNet;
 using namespace NConcurrency;
 using namespace NContainers;
 
@@ -27,13 +30,11 @@ TPortoProcess::TPortoProcess(
     , ContainerInstance_(containerInstance)
 {
     AddArgument(NFS::GetFileName(path));
-#ifdef _linux_
     if (copyEnv) {
         for (char** envIt = environ; *envIt; ++envIt) {
             Env_.push_back(Capture(*envIt));
         }
     }
-#endif
 }
 
 void TPortoProcess::Kill(int signal)
@@ -43,7 +44,6 @@ void TPortoProcess::Kill(int signal)
 
 void TPortoProcess::DoSpawn()
 {
-#ifdef _linux_
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
     YCHECK(Args_.size());
     if (!WorkingDirectory_.empty()) {
@@ -79,13 +79,14 @@ void TPortoProcess::DoSpawn()
 
     YCHECK(execFuture);
     execFuture.Apply(BIND([=, this_ = MakeStrong(this)](int exitCode) {
-        LOG_DEBUG("Process inside porto exited (ExitCode: %v)", exitCode);
+        LOG_DEBUG("Process inside porto exited (ExitCode: %v, ExternalPid: %v, Container: %v)",
+            exitCode,
+            ProcessId_,
+            ContainerInstance_->GetName());
+
         Finished_ = true;
         FinishedPromise_.Set(StatusToError(exitCode));
     }));
-#else
-    THROW_ERROR_EXCEPTION("Unsupported platform");
-#endif
 }
 
 static TString CreateStdIONamedPipePath()
@@ -94,7 +95,7 @@ static TString CreateStdIONamedPipePath()
     return NFS::GetRealPath(NFS::CombinePaths("/tmp", name));
 }
 
-TAsyncWriterPtr TPortoProcess::GetStdInWriter()
+IConnectionWriterPtr TPortoProcess::GetStdInWriter()
 {
     auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
     ContainerInstance_->SetStdIn(pipe->GetPath());
@@ -102,7 +103,7 @@ TAsyncWriterPtr TPortoProcess::GetStdInWriter()
     return pipe->CreateAsyncWriter();
 }
 
-TAsyncReaderPtr TPortoProcess::GetStdOutReader()
+IConnectionReaderPtr TPortoProcess::GetStdOutReader()
 {
     auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
     ContainerInstance_->SetStdOut(pipe->GetPath());
@@ -110,7 +111,7 @@ TAsyncReaderPtr TPortoProcess::GetStdOutReader()
     return pipe->CreateAsyncReader();
 }
 
-TAsyncReaderPtr TPortoProcess::GetStdErrReader()
+IConnectionReaderPtr TPortoProcess::GetStdErrReader()
 {
     auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
     ContainerInstance_->SetStdErr(pipe->GetPath());
@@ -121,3 +122,5 @@ TAsyncReaderPtr TPortoProcess::GetStdErrReader()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#endif

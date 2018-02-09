@@ -111,11 +111,17 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future);
+#ifndef FAKEID
+#define WF_WARN_UNUSED_RESULT Y_WARN_UNUSED_RESULT
+#else
+#define WF_WARN_UNUSED_RESULT
+#endif
 
 template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker);
+TErrorOr<T> WaitFor(TFuture<T> future) WF_WARN_UNUSED_RESULT;
+
+template <class T>
+TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker) WF_WARN_UNUSED_RESULT;
 
 ////////////////////////////////////////////////////////////////////////////////
 

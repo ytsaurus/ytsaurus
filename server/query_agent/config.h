@@ -20,7 +20,6 @@ public:
     int MaxSubsplitsPerTablet;
     int MaxSubqueries;
     int MaxQueryRetries;
-    int MaxBottomReaderConcurrency;
     size_t DesiredUncompressedResponseBlockSize;
 
     TSlruCacheConfigPtr FunctionImplCache;
@@ -42,9 +41,6 @@ public:
         RegisterParameter("max_query_retries", MaxQueryRetries)
             .GreaterThanOrEqual(1)
             .Default(10);
-        RegisterParameter("max_bottom_reader_concurrency", MaxBottomReaderConcurrency)
-            .GreaterThanOrEqual(1)
-            .Default(5);
         RegisterParameter("desired_uncompressed_response_block_size", DesiredUncompressedResponseBlockSize)
             .GreaterThan(0)
             .Default(16_MB);
@@ -52,7 +48,7 @@ public:
         RegisterParameter("function_impl_cache", FunctionImplCache)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             FunctionImplCache->Capacity = 100;
         });
     }

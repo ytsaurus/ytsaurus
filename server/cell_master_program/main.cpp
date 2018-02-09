@@ -1,11 +1,10 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
 
-#include <yt/server/program/program.h>
-#include <yt/server/program/program_config_mixin.h>
-#include <yt/server/program/program_pdeathsig_mixin.h>
-
-#include <yt/server/misc/configure_singletons.h>
+#include <yt/ytlib/program/program.h>
+#include <yt/ytlib/program/program_config_mixin.h>
+#include <yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/ytlib/program/configure_singletons.h>
 
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
@@ -15,7 +14,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterProgram
-    : public TYTProgram
+    : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<NCellMaster::TCellMasterConfig>
 {
@@ -64,7 +63,7 @@ protected:
             config->Logging = NLogging::TLogConfig::CreateQuiet();
         }
 
-        ConfigureServerSingletons(config);
+        ConfigureSingletons(config);
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems

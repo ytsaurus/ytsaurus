@@ -3,7 +3,8 @@
 #include "public.h"
 
 #include <yt/core/misc/ref.h>
-#include <yt/core/misc/address.h>
+
+#include <yt/core/net/address.h>
 
 namespace NYT {
 namespace NNet {

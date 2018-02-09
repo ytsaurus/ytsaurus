@@ -4,6 +4,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
@@ -46,7 +47,8 @@ public:
 
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(SchedulerJobSpecExt_.data_source_directory());
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
         auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
             SchedulerJobSpecExt_.table_reader_options()));
 
@@ -70,6 +72,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
+                TReadSessionId(),
                 columnFilter,
                 TKeyColumns());
             return Reader_;

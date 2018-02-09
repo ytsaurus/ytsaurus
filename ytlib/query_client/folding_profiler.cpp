@@ -336,23 +336,23 @@ public:
         , FunctionProfilers_(functionProfilers)
         , ComparerManager_(MakeComparerManager())
     {
-        YCHECK(variables);
+        YCHECK(Variables_);
     }
 
     size_t Profile(
-        TConstExpressionPtr expr,
+        const TConstExpressionPtr& expr,
         const TTableSchema& schema,
         TExpressionFragments* fragments,
         bool isIsolated = false);
 
 protected:
-    TCGVariables* Variables_;
-    TConstFunctionProfilerMapPtr FunctionProfilers_;
-    TComparerManagerPtr ComparerManager_;
+    TCGVariables* const Variables_;
+    const TConstFunctionProfilerMapPtr FunctionProfilers_;
+    const TComparerManagerPtr ComparerManager_;
 };
 
 size_t TExpressionProfiler::Profile(
-    TConstExpressionPtr expr,
+    const TConstExpressionPtr& expr,
     const TTableSchema& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
@@ -369,15 +369,17 @@ size_t TExpressionProfiler::Profile(
         if (emplaced.second || isIsolated) {
             Fold(savedId);
 
-            int index = Variables_->AddOpaque<TOwningValue>(literalExpr->Value);
+            int index = Variables_->AddLiteralValue(literalExpr->Value);
             Fold(index);
-            Fold(TValue(literalExpr->Value).Type == EValueType::Null);
+
+            bool nullable = TValue(literalExpr->Value).Type == EValueType::Null;
+            Fold(nullable);
 
             fragments->DebugInfos.emplace_back(expr, std::vector<size_t>());
             fragments->Items.emplace_back(
-                MakeCodegenLiteralExpr(index, literalExpr->Type),
+                MakeCodegenLiteralExpr(index, nullable, literalExpr->Type),
                 expr->Type,
-                TValue(literalExpr->Value).Type == EValueType::Null,
+                nullable,
                 true);
         }
         return emplaced.first->second;
@@ -510,9 +512,10 @@ size_t TExpressionProfiler::Profile(
             }
 
             int index = Variables_->AddOpaque<TSharedRange<TRow>>(inExpr->Values);
+            int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
-                MakeCodegenInExpr(argIds, index, ComparerManager_),
+                MakeCodegenInExpr(argIds, index, hashtableIndex, ComparerManager_),
                 expr->Type,
                 false);
         }
@@ -557,9 +560,11 @@ size_t TExpressionProfiler::Profile(
             }
 
             int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
+            int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
+
             fragments->DebugInfos.emplace_back(expr, argIds, defaultExprId);
             fragments->Items.emplace_back(
-                MakeCodegenTransformExpr(argIds, defaultExprId, index, transformExpr->Type, ComparerManager_),
+                MakeCodegenTransformExpr(argIds, defaultExprId, index, hashtableIndex, transformExpr->Type, ComparerManager_),
                 expr->Type,
                 nullable);
         }
@@ -586,7 +591,7 @@ public:
 
     void Profile(
         TCodegenSource* codegenSource,
-        TConstBaseQueryPtr query,
+        const TConstBaseQueryPtr& query,
         size_t* slotCount,
         size_t finalSlot,
         size_t intermediateSlot,
@@ -596,22 +601,28 @@ public:
 
     void Profile(
         TCodegenSource* codegenSource,
-        TConstQueryPtr query,
+        const TConstQueryPtr& query,
         size_t* slotCount,
         TJoinSubqueryProfiler joinProfiler,
         bool useMultijoin);
 
-    void Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr query, size_t* slotCount);
+    void Profile(
+        TCodegenSource* codegenSource,
+        const TConstFrontQueryPtr& query,
+        size_t* slotCount);
 
 protected:
-    size_t Profile(const TNamedItem& namedExpression, const TTableSchema& schema, TExpressionFragments* fragments);
+    const TConstAggregateProfilerMapPtr AggregateProfilers_;
 
-    TConstAggregateProfilerMapPtr AggregateProfilers_;
+    size_t Profile(
+        const TNamedItem& namedExpression,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments);
 };
 
 void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
-    TConstBaseQueryPtr query,
+    const TConstBaseQueryPtr& query,
     size_t* slotCount,
     size_t finalSlot,
     size_t intermediateSlot,
@@ -635,19 +646,21 @@ void TQueryProfiler::Profile(
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
 
+        std::vector<EValueType> keyTypes;
+        std::vector<EValueType> stateTypes;
+
         std::vector<size_t> groupExprIds;
         std::vector<size_t> aggregateExprIds;
         std::vector<TCodegenAggregate> codegenAggregates;
 
-        std::vector<EValueType> keyTypes;
+        TExpressionFragments expressionFragments;
 
         TExpressionFragments groupFragments;
         for (const auto& groupItem : groupClause->GroupItems) {
-            groupExprIds.push_back(Profile(groupItem, schema, &groupFragments));
+            groupExprIds.push_back(Profile(groupItem, schema, &expressionFragments));
             keyTypes.push_back(groupItem.Expression->Type);
         }
 
-        TExpressionFragments aggregateFragments;
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
             Fold(aggregateItem.AggregateFunction.c_str());
@@ -656,7 +669,7 @@ void TQueryProfiler::Profile(
             const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
 
             if (!isMerge) {
-                aggregateExprIds.push_back(Profile(aggregateItem, schema, &aggregateFragments));
+                aggregateExprIds.push_back(Profile(aggregateItem, schema, &expressionFragments));
             }
             codegenAggregates.push_back(aggregate->Profile(
                 aggregateItem.Expression->Type,
@@ -664,47 +677,24 @@ void TQueryProfiler::Profile(
                 aggregateItem.ResultType,
                 aggregateItem.Name,
                 Id_));
+            stateTypes.push_back(aggregateItem.StateType);
         }
 
-        size_t keySize = keyTypes.size();
-
-        auto initialize = MakeCodegenAggregateInitialize(
-            codegenAggregates,
-            keySize);
-
-        auto aggregateFragmentInfos = aggregateFragments.ToFragmentInfos("aggregateExpression");
-        aggregateFragments.DumpArgs(aggregateExprIds);
-
-        auto aggregate = MakeCodegenEvaluateAggregateArgs(
-            keySize,
-            aggregateFragmentInfos,
-            aggregateExprIds);
-
-        auto update = MakeCodegenAggregateUpdate(
-            codegenAggregates,
-            keySize,
-            isMerge);
-
-        auto finalize = MakeCodegenAggregateFinalize(
-            codegenAggregates,
-            keySize);
-
-        auto groupFragmentsInfos = groupFragments.ToFragmentInfos("groupExpression");
-        groupFragments.DumpArgs(groupExprIds);
+        auto fragmentInfos = expressionFragments.ToFragmentInfos("groupExpression");
+        expressionFragments.DumpArgs(aggregateExprIds);
+        expressionFragments.DumpArgs(groupExprIds);
 
         intermediateSlot = MakeCodegenGroupOp(
             codegenSource,
             slotCount,
             intermediateSlot,
-            initialize,
-            MakeCodegenEvaluateGroups(
-                groupFragmentsInfos,
-                groupExprIds),
-            aggregate,
-            update,
+            fragmentInfos,
+            groupExprIds,
+            aggregateExprIds,
+            codegenAggregates,
             keyTypes,
+            stateTypes,
             isMerge,
-            keySize + codegenAggregates.size(),
             groupClause->TotalsMode != ETotalsMode::None,
             ComparerManager_);
 
@@ -729,7 +719,9 @@ void TQueryProfiler::Profile(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                finalize);
+                keyTypes.size(),
+                codegenAggregates,
+                stateTypes);
 
             if (groupClause->TotalsMode == ETotalsMode::BeforeHaving && !isIntermediate) {
                 size_t totalsSlotNew;
@@ -782,16 +774,13 @@ void TQueryProfiler::Profile(
                 codegenSource,
                 slotCount,
                 totalsSlot,
-                initialize,
-                MakeCodegenEvaluateGroups( // Codegen nulls here
-                    New<TCodegenFragmentInfos>(),
-                    std::vector<size_t>(),
-                    keyTypes),
-                aggregate,
-                update,
+                New<TCodegenFragmentInfos>(),
+                std::vector<size_t>(),
+                std::vector<size_t>(),
+                codegenAggregates,
                 keyTypes,
+                stateTypes,
                 true,
-                keySize + codegenAggregates.size(),
                 false,
                 ComparerManager_);
 
@@ -800,7 +789,9 @@ void TQueryProfiler::Profile(
                     codegenSource,
                     slotCount,
                     totalsSlot,
-                    finalize);
+                    keyTypes.size(),
+                    codegenAggregates,
+                    stateTypes);
 
                 if (groupClause->TotalsMode == ETotalsMode::BeforeHaving && query->HavingClause && !IsTrue(query->HavingClause)) {
                     Fold(static_cast<int>(EFoldingObjectType::HavingOp));
@@ -813,8 +804,7 @@ void TQueryProfiler::Profile(
                 }
             }
         }
-        MakeCodegenFragmentBodies(codegenSource, groupFragmentsInfos);
-        MakeCodegenFragmentBodies(codegenSource, aggregateFragmentInfos);
+        MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
         if (havingFragmentsInfos) {
             MakeCodegenFragmentBodies(codegenSource, havingFragmentsInfos);
         }
@@ -858,7 +848,8 @@ void TQueryProfiler::Profile(
             orderExprIds,
             std::move(orderColumnTypes),
             schemaTypes,
-            std::move(isDesc));
+            std::move(isDesc),
+            ComparerManager_);
         MakeCodegenFragmentBodies(codegenSource, orderFragmentsInfos);
     }
 
@@ -882,33 +873,37 @@ void TQueryProfiler::Profile(
         schema = projectClause->GetTableSchema();
     }
 
+    size_t resultRowSize = schema.GetColumnCount();
+
     if (!isFinal) {
         finalSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 finalSlot,
-                GetTypesFromSchema(schema),
+                resultRowSize,
                 EStreamTag::Final);
 
         totalsSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 totalsSlot,
-                GetTypesFromSchema(schema),
+                resultRowSize,
                 EStreamTag::Totals);
 
         intermediateSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                GetTypesFromSchema(schema),
+                resultRowSize,
                 EStreamTag::Intermediate);
+
+        ++resultRowSize;
     }
 
     size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, finalSlot, totalsSlot);
     resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
 
-    MakeCodegenWriteOp(codegenSource, resultSlot);
+    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
 }
 
 struct TExtraColumnsChecker
@@ -973,7 +968,7 @@ std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinCl
 
 void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
-    TConstQueryPtr query,
+    const TConstQueryPtr& query,
     size_t* slotCount,
     TJoinSubqueryProfiler joinProfiler,
     bool useMultijoin)
@@ -1060,6 +1055,9 @@ void TQueryProfiler::Profile(
                     joinClause->ForeignKeyPrefix,
                     lookupKeyTypes};
 
+                Fold(joinClause->CommonKeyPrefix);
+                Fold(joinClause->ForeignKeyPrefix);
+
                 parameters.push_back(codegenParameters);
 
                 TSingleJoinParameters singeJoinParameters;
@@ -1131,6 +1129,9 @@ void TQueryProfiler::Profile(
                     selfTableColumns[index].Name()))
                 {
                     primaryColumns.emplace_back(index, selfTableColumns[index].GetPhysicalType());
+
+                    Fold(index);
+                    Fold(static_cast<int>(selfTableColumns[index].GetPhysicalType()));
                 }
             }
 
@@ -1138,6 +1139,8 @@ void TQueryProfiler::Profile(
             joinParameters.BatchSize = joinBatchSize;
 
             int index = Variables_->AddOpaque<TMultiJoinParameters>(joinParameters);
+
+            Fold(index);
 
             auto fragmentInfos = equationFragments.ToFragmentInfos("selfEquation");
             for (const auto& codegenParameters: parameters) {
@@ -1160,7 +1163,6 @@ void TQueryProfiler::Profile(
             TSchemaProfiler::Profile(schema);
         }
     } else {
-
         for (const auto& joinClause : query->JoinClauses) {
             Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
@@ -1277,6 +1279,7 @@ void TQueryProfiler::Profile(
                 joinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
                 joinParameters.BatchSize = joinBatchSize;
                 joinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
+                joinParameters.PrimaryRowSize = schema.GetColumnCount();
             }
 
             int index = Variables_->AddOpaque<TJoinParameters>(joinParameters);
@@ -1329,7 +1332,10 @@ void TQueryProfiler::Profile(
     Profile(codegenSource, query, slotCount, dummySlot, currentSlot, dummySlot, schema, false);
 }
 
-void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr query, size_t* slotCount)
+void TQueryProfiler::Profile(
+    TCodegenSource* codegenSource,
+    const TConstFrontQueryPtr& query,
+    size_t* slotCount)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
@@ -1379,7 +1385,7 @@ void Profile(
 }
 
 TCGExpressionCallbackGenerator Profile(
-    TConstExpressionPtr expr,
+    const TConstExpressionPtr& expr,
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
@@ -1398,7 +1404,7 @@ TCGExpressionCallbackGenerator Profile(
 }
 
 TCGQueryCallbackGenerator Profile(
-    TConstBaseQueryPtr query,
+    const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler,

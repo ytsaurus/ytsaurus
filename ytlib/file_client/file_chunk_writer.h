@@ -13,6 +13,8 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/core/crypto/crypto.h>
+
 #include <yt/core/rpc/public.h>
 
 namespace NYT {

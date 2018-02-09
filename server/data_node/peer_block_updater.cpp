@@ -22,7 +22,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
+static const auto& Logger = P2PLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,11 +47,16 @@ void TPeerBlockUpdater::Stop()
     PeriodicExecutor_->Stop();
 }
 
+TDuration TPeerBlockUpdater::GetPeerUpdateExpirationTime() const
+{
+    return Config_->PeerUpdateExpirationTime;
+}
+
 void TPeerBlockUpdater::Update()
 {
     LOG_INFO("Updating peer blocks");
 
-    auto expirationTime = Config_->PeerUpdateExpirationTime.ToDeadLine();
+    auto expirationTime = GetPeerUpdateExpirationTime().ToDeadLine();
     auto localDescriptor = Bootstrap_
         ->GetMasterConnector()
         ->GetLocalDescriptor();
@@ -66,7 +71,7 @@ void TPeerBlockUpdater::Update()
     auto blocks = Bootstrap_->GetChunkBlockManager()->GetAllBlocks();
     for (const auto& block : blocks) {
         if (block->Source()) {
-            const auto& sourceAddress = block->Source()->GetAddress(Bootstrap_->GetLocalNetworks());
+            const auto& sourceAddress = block->Source()->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
             TProxy::TReqUpdatePeerPtr request;
             auto it = requests.find(sourceAddress);
             if (it != requests.end()) {
@@ -75,7 +80,7 @@ void TPeerBlockUpdater::Update()
                 auto channel = channelFactory->CreateChannel(sourceAddress);
                 TProxy proxy(channel);
                 request = proxy.UpdatePeer();
-                request->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
+                request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
                 ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());
                 requests.insert(std::make_pair(sourceAddress, request));

@@ -24,12 +24,12 @@ public:
         Free = &FreeWrap;
     }
 
-    static void* MallocWrap(const ISzAlloc* , size_t len)
+    static void* MallocWrap(const ISzAlloc*, size_t len)
     {
         return malloc(len);
     }
 
-    static void FreeWrap(const ISzAlloc* , void* ptr)
+    static void FreeWrap(const ISzAlloc*, void* ptr)
     {
         free(ptr);
     }

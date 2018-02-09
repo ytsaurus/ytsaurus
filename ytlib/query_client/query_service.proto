@@ -4,7 +4,7 @@ import "yt/ytlib/node_tracker_client/node_directory.proto";
 import "yt/ytlib/query_client/query_statistics.proto";
 import "yt/ytlib/query_client/query.proto";
 import "yt/ytlib/query_client/functions_cache.proto";
-import "yt/core/misc/guid.proto";
+import "yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +62,8 @@ message TTabletInfo
     required NYT.NProto.TGuid tablet_id = 1;
     repeated TReplicaInfo replicas = 2;
     required int64 total_row_count = 3;
+    // COMPAT(babenko): make it required in 19.3
+    optional int64 trimmed_row_count = 4;
 }
 
 message TRspGetTabletInfo

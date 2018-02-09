@@ -10,7 +10,7 @@
 
 #include <yt/core/misc/ref.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
@@ -39,6 +39,14 @@ struct IServiceContext
      *  #NullRequestId is a possible value.
      */
     virtual TRequestId GetRequestId() const = 0;
+
+    //! Return statistics from underlying bus.
+    /*!
+     *  For implementations not using bus, returns all zeroes.
+     */
+    virtual NBus::TTcpDispatcherStatistics GetBusStatistics() const = 0;
+
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
     //! Returns the instant when the current retry of request was issued by the client, if known.
     virtual TNullable<TInstant> GetStartTime() const = 0;

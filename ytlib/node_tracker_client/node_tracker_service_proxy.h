@@ -15,7 +15,7 @@ class TNodeTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TNodeTrackerServiceProxy, RPC_PROXY_DESC(NodeTrackerService)
+    DEFINE_RPC_PROXY(TNodeTrackerServiceProxy, NodeTrackerService,
         .SetProtocolVersion(14));
 
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);

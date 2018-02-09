@@ -8,6 +8,7 @@
 
 #include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
@@ -20,9 +21,10 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/nonblocking_batch.h>
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/profiling/profiler.h>
-#include <yt/core/concurrency/async_semaphore.h>
+
 #include <yt/core/utilex/random.h>
 
 namespace NYT {
@@ -53,12 +55,13 @@ namespace {
 
 static const TProfiler JobProfiler("/statistics_reporter/jobs");
 static const TProfiler JobSpecProfiler("/statistics_reporter/job_specs");
+static const TLogger ReporterLogger("JobReporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsSpecEntry(const TJobStatistics& stat)
 {
-    return stat.Spec().HasValue();
+    return stat.Spec().HasValue() || stat.Type().HasValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,18 +105,43 @@ private:
 
 using TBatch = std::vector<TJobStatistics>;
 
+class TSharedData
+    : public TRefCounted
+{
+public:
+    void SetOperationArchiveVersion(int version)
+    {
+        Version_.store(version, std::memory_order_relaxed);
+    }
+
+    int GetOperationArchiveVersion() const
+    {
+        return Version_.load(std::memory_order_relaxed);
+    }
+
+private:
+    std::atomic<int> Version_ = {-1};
+};
+
+DECLARE_REFCOUNTED_TYPE(TSharedData)
+DEFINE_REFCOUNTED_TYPE(TSharedData)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THandlerBase
     : public TRefCounted
 {
 public:
     THandlerBase(
+        TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
         const TString& reporterName,
         INativeClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler,
         ui64 maxInProgressDataSize)
-        : Config_(config)
+        : Data_(std::move(data))
+        , Config_(config)
         , Client_(std::move(client))
         , Profiler_(profiler)
         , Limiter_(maxInProgressDataSize)
@@ -149,8 +177,15 @@ public:
         }
     }
 
+    const TSharedDataPtr& GetSharedData()
+    {
+        return Data_;
+    }
+
+protected:
+    TLogger Logger = ReporterLogger;
+
 private:
-    TLogger Logger = JobTrackerServerLogger;
     TSimpleCounter EnqueuedCounter_ = {"/enqueued"};
     TSimpleCounter DequeuedCounter_ = {"/dequeued"};
     TSimpleCounter DroppedCounter_ = {"/dropped"};
@@ -158,6 +193,7 @@ private:
     TSimpleCounter CommittedCounter_ = {"/committed"};
     TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
+    const TSharedDataPtr Data_;
     const TStatisticsReporterConfigPtr Config_;
     const INativeClientPtr Client_;
     const TProfiler& Profiler_;
@@ -210,7 +246,7 @@ private:
                     delay.Seconds(),
                     GetPendingCount());
             }
-            WaitFor(TDelayedExecutor::MakeDelayed(RandomDuration(delay)));
+            TDelayedExecutor::WaitForDuration(RandomDuration(delay));
             delay *= 2;
             if (delay > Config_->MaxRepeatDelay) {
                 delay = Config_->MaxRepeatDelay;
@@ -220,9 +256,15 @@ private:
 
     void TryHandleBatch(const TBatch& batch)
     {
-        LOG_DEBUG("Job statistics transaction starting (Items: %v, PendingItems: %v)",
-            batch.size(), GetPendingCount());
-        auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet);
+        LOG_DEBUG("Job statistics transaction starting (Items: %v, PendingItems: %v, ArchiveVersion: %v)",
+            batch.size(),
+            GetPendingCount(),
+            Data_->GetOperationArchiveVersion());
+        TTransactionStartOptions transactionOptions;
+        transactionOptions.Atomicity = Data_->GetOperationArchiveVersion() >= 16
+            ? EAtomicity::None
+            : EAtomicity::Full;
+        auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet, transactionOptions);
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
         LOG_DEBUG("Job statistics transaction started (TransactionId: %v, Items: %v)",
@@ -292,17 +334,20 @@ class TJobHandler
 {
 public:
     TJobHandler(
+        const TString& localAddress,
+        TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        TBootstrap* bootstrap,
+        INativeClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
+            std::move(data),
             config,
             "jobs",
-            bootstrap->GetMasterClient(),
+            std::move(client),
             invoker,
             JobProfiler,
             config->MaxInProgressJobDataSize)
-        , DefaultLocalAddress_(bootstrap->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress())
+        , DefaultLocalAddress_(localAddress)
     { }
 
 private:
@@ -325,7 +370,11 @@ private:
                 builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Ids.Type));
             }
             if (statistics.State()) {
-                builder.AddValue(MakeUnversionedStringValue(*statistics.State(), Table_.Ids.State));
+                builder.AddValue(MakeUnversionedStringValue(
+                    *statistics.State(),
+                    GetSharedData()->GetOperationArchiveVersion() >= 16
+                        ? Table_.Ids.TransientState
+                        : Table_.Ids.State));
             }
             if (statistics.StartTime()) {
                 builder.AddValue(MakeUnversionedInt64Value(*statistics.StartTime(), Table_.Ids.StartTime));
@@ -356,18 +405,23 @@ private:
     }
 };
 
+DECLARE_REFCOUNTED_TYPE(TJobHandler)
+DEFINE_REFCOUNTED_TYPE(TJobHandler)
+
 class TJobSpecHandler
     : public THandlerBase
 {
 public:
     TJobSpecHandler(
+        TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        TBootstrap* bootstrap,
+        INativeClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
+            std::move(data),
             config,
             "job_specs",
-            bootstrap->GetMasterClient(),
+            std::move(client),
             invoker,
             JobSpecProfiler,
             config->MaxInProgressJobSpecDataSize)
@@ -392,6 +446,11 @@ private:
             if (statistics.SpecVersion()) {
                 builder.AddValue(MakeUnversionedInt64Value(*statistics.SpecVersion(), Table_.Ids.SpecVersion));
             }
+            if (GetSharedData()->GetOperationArchiveVersion() >= 16) {
+                if (statistics.Type()) {
+                    builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Ids.Type));
+                }
+            }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
         }
@@ -405,45 +464,7 @@ private:
     }
 };
 
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobTableDescriptor::TJobTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Ids(NameTable)
-{ }
-
-TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
-    : OperationIdHi(n->RegisterName("operation_id_hi"))
-    , OperationIdLo(n->RegisterName("operation_id_lo"))
-    , JobIdHi(n->RegisterName("job_id_hi"))
-    , JobIdLo(n->RegisterName("job_id_lo"))
-    , Type(n->RegisterName("type"))
-    , State(n->RegisterName("state"))
-    , StartTime(n->RegisterName("start_time"))
-    , FinishTime(n->RegisterName("finish_time"))
-    , Address(n->RegisterName("address"))
-    , Error(n->RegisterName("error"))
-    , Spec(n->RegisterName("spec"))
-    , SpecVersion(n->RegisterName("spec_version"))
-    , Statistics(n->RegisterName("statistics"))
-    , Events(n->RegisterName("events"))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobSpecTableDescriptor::TJobSpecTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Ids(NameTable)
-{ }
-
-TJobSpecTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
-    : JobIdHi(n->RegisterName("job_id_hi"))
-    , JobIdLo(n->RegisterName("job_id_lo"))
-    , Spec(n->RegisterName("spec"))
-    , SpecVersion(n->RegisterName("spec_version"))
-{ }
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -454,8 +475,21 @@ public:
     TImpl(
         TStatisticsReporterConfigPtr reporterConfig,
         TBootstrap* bootstrap)
-        : JobHandler_(New<TJobHandler>(reporterConfig, bootstrap, Reporter_->GetInvoker()))
-        , JobSpecHandler_(New<TJobSpecHandler>(reporterConfig, bootstrap, Reporter_->GetInvoker()))
+        : Client_(
+            bootstrap->GetMasterConnection()->CreateNativeClient(TClientOptions(reporterConfig->User)))
+        , JobHandler_(
+            New<TJobHandler>(
+                bootstrap->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress(),
+                Data_,
+                reporterConfig,
+                Client_,
+                Reporter_->GetInvoker()))
+        , JobSpecHandler_(
+            New<TJobSpecHandler>(
+                Data_,
+                reporterConfig,
+                Client_,
+                Reporter_->GetInvoker()))
     { }
 
     void ReportStatistics(TJobStatistics&& statistics)
@@ -463,7 +497,9 @@ public:
         if (IsSpecEntry(statistics)) {
             JobSpecHandler_->Enqueue(statistics.ExtractSpec());
         }
-        JobHandler_->Enqueue(std::move(statistics));
+        if (!statistics.IsEmpty()) {
+            JobHandler_->Enqueue(std::move(statistics));
+        }
     }
 
     void SetEnabled(bool enable)
@@ -476,9 +512,16 @@ public:
         JobSpecHandler_->SetEnabled(enable);
     }
 
+    void SetOperationArchiveVersion(int version)
+    {
+        Data_->SetOperationArchiveVersion(version);
+    }
+
 private:
+    const INativeClientPtr Client_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
-    const THandlerBasePtr JobHandler_;
+    const TSharedDataPtr Data_ = New<TSharedData>();
+    const TJobHandlerPtr JobHandler_;
     const THandlerBasePtr JobSpecHandler_;
 };
 
@@ -511,6 +554,13 @@ void TStatisticsReporter::SetSpecEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetSpecEnabled(enable);
+    }
+}
+
+void TStatisticsReporter::SetOperationArchiveVersion(int version)
+{
+    if (Impl_) {
+        Impl_->SetOperationArchiveVersion(version);
     }
 }
 

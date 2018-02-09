@@ -66,10 +66,6 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TableClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSchemalessChunkReaderBase
     : public virtual ISchemalessChunkReader
 {
@@ -80,6 +76,7 @@ public:
         TChunkReaderOptionsPtr options,
         const TChunkId& chunkId,
         TNameTablePtr nameTable,
+        const TReadSessionId& sessionId,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns)
         : ChunkState_(chunkState)
@@ -94,6 +91,10 @@ public:
             .AddTag("ChunkReaderId: %v", TGuid::Create())
             .AddTag("ChunkId: %v", chunkId))
     {
+        if (sessionId) {
+            Logger.AddTag("ReadSessionId: %v", sessionId);
+        }
+
         if (Config_->SamplingRate) {
             RowSampler_ = CreateChunkRowSampler(
                 chunkId,
@@ -223,7 +224,9 @@ protected:
             chunk.set_data_weight_override(dataWeight);
         }
 
-        if (RowCount_ > unreadRows.Size()) {
+        // Sometimes scheduler sends us empty slices (when both, row index and key limits are present).
+        // Such slices should be considered as read, though actual read row count is equal to zero.
+        if (RowCount_ > unreadRows.Size() || rowIndex >= upperRowIndex) {
             readDescriptors.emplace_back(chunkSpec);
             auto& chunk = readDescriptors[0].ChunkSpecs[0];
             chunk.mutable_upper_limit()->set_row_index(rowIndex);
@@ -252,6 +255,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
+        const TReadSessionId& sessionId,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         TNullable<int> partitionTag);
@@ -296,19 +300,22 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     TNullable<int> partitionTag)
     : TChunkReaderBase(
         config,
         underlyingReader,
-        chunkState->BlockCache)
+        chunkState->BlockCache,
+        sessionId)
     , TSchemalessChunkReaderBase(
         chunkState,
         config,
         options,
         underlyingReader->GetChunkId(),
         nameTable,
+        sessionId,
         columnFilter,
         keyColumns)
     , PartitionTag_(std::move(partitionTag))
@@ -437,6 +444,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
+        const TReadSessionId& sessionId,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange,
@@ -470,6 +478,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
@@ -480,6 +489,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(options),
         std::move(underlyingReader),
         std::move(nameTable),
+        sessionId,
         keyColumns,
         columnFilter,
         std::move(partitionTag))
@@ -669,7 +679,10 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
             }
 
             rows->push_back(row);
-            dataWeight += GetDataWeight(rows->back());
+
+            auto rowWeight = GetDataWeight(rows->back());
+            dataWeight += rowWeight;
+            DataWeight_ += rowWeight;
             ++RowCount_;
         }
         ++RowIndex_;
@@ -679,7 +692,6 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
         }
     }
 
-    DataWeight_ += dataWeight;
     return true;
 }
 
@@ -712,6 +724,7 @@ public:
         TChunkReaderOptionsPtr options,
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
+        const TReadSessionId& sessionId,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
@@ -730,8 +743,6 @@ private:
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
 
-    bool DoRead(std::vector<TUnversionedRow>* rows);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessLookupChunkReader)
@@ -744,6 +755,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
@@ -755,6 +767,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         std::move(options),
         std::move(underlyingReader),
         std::move(nameTable),
+        sessionId,
         keyColumns,
         columnFilter,
         std::move(partitionTag))
@@ -815,75 +828,80 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 
 bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* rows)
 {
-    bool result = DoRead(rows);
-    if (PerformanceCounters_) {
-        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
-    }
-    return result;
-}
-
-bool THorizontalSchemalessLookupChunkReader::DoRead(std::vector<TUnversionedRow>* rows)
-{
     YCHECK(rows->capacity() > 0);
 
     MemoryPool_.Clear();
     rows->clear();
 
-    if (!BeginRead()) {
-        // Not ready yet.
-        return true;
-    }
+    i64 dataWeight = 0;
 
-    if (!BlockReader_) {
-        // Nothing to read from chunk.
-        if (RowCount_ == Keys_.Size()) {
-            return false;
-        }
-
-        while (rows->size() < rows->capacity() && RowCount_ < Keys_.Size()) {
-            rows->push_back(TUnversionedRow());
-            ++RowCount_;
-        }
-        return true;
-    }
-
-    if (BlockEnded_) {
-        BlockReader_.reset();
-        OnBlockEnded();
-        return true;
-    }
-
-    while (rows->size() < rows->capacity()) {
-        if (RowCount_ == Keys_.Size()) {
-            BlockEnded_ = true;
+    auto doRead = [&] {
+        if (!BeginRead()) {
+            // Not ready yet.
             return true;
         }
 
-        if (!KeyFilterTest_[RowCount_]) {
-            rows->push_back(TUnversionedRow());
-        } else {
-            const auto& key = Keys_[RowCount_];
-            if (!BlockReader_->SkipToKey(key)) {
+        if (!BlockReader_) {
+            // Nothing to read from chunk.
+            if (RowCount_ == Keys_.Size()) {
+                return false;
+            }
+
+            while (rows->size() < rows->capacity() && RowCount_ < Keys_.Size()) {
+                rows->push_back(TUnversionedRow());
+                ++RowCount_;
+            }
+            return true;
+        }
+
+        if (BlockEnded_) {
+            BlockReader_.reset();
+            OnBlockEnded();
+            return true;
+        }
+
+        while (rows->size() < rows->capacity()) {
+            if (RowCount_ == Keys_.Size()) {
                 BlockEnded_ = true;
                 return true;
             }
 
-            if (key == BlockReader_->GetKey()) {
-                auto row = BlockReader_->GetRow(&MemoryPool_);
-                rows->push_back(row);
-                DataWeight_ += GetDataWeight(row);
-
-                int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-                const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
-                RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
-            } else {
+            if (!KeyFilterTest_[RowCount_]) {
                 rows->push_back(TUnversionedRow());
+            } else {
+                const auto& key = Keys_[RowCount_];
+                if (!BlockReader_->SkipToKey(key)) {
+                    BlockEnded_ = true;
+                    return true;
+                }
+
+                if (key == BlockReader_->GetKey()) {
+                    auto row = BlockReader_->GetRow(&MemoryPool_);
+                    rows->push_back(row);
+                    dataWeight += GetDataWeight(row);
+
+                    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+                    const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+                    RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
+                } else {
+                    rows->push_back(TUnversionedRow());
+                }
             }
+
+            ++RowCount_;
         }
-        ++RowCount_;
+
+        return true;
+    };
+
+    bool result = doRead();
+
+    if (PerformanceCounters_) {
+        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
     }
 
-    return true;
+    return result;
 }
 
 void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
@@ -919,6 +937,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
+        const TReadSessionId& sessionId,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange)
@@ -928,12 +947,14 @@ public:
             options,
             underlyingReader->GetChunkId(),
             nameTable,
+            sessionId,
             columnFilter,
             keyColumns)
         , TColumnarRangeChunkReaderBase(
             config,
             underlyingReader,
-            chunkState->BlockCache)
+            chunkState->BlockCache,
+            sessionId)
     {
         LOG_DEBUG("Reading range %v", readRange);
 
@@ -1044,6 +1065,7 @@ public:
 
         if (RowSampler_) {
             i64 insertIndex = 0;
+            // ToDo(psushin): fix data weight statistics row sampler is used.
 
             std::vector<TUnversionedRow>& rowsRef = *rows;
             for (i64 rowIndex = 0; rowIndex < rows->size(); ++rowIndex) {
@@ -1364,6 +1386,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
+        const TReadSessionId& sessionId,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
@@ -1374,12 +1397,14 @@ public:
             options,
             underlyingReader->GetChunkId(),
             nameTable,
+            sessionId,
             columnFilter,
             keyColumns)
         , TColumnarLookupChunkReaderBase(
             config,
             underlyingReader,
-            chunkState->BlockCache)
+            chunkState->BlockCache,
+            sessionId)
         , PerformanceCounters_(std::move(performanceCounters))
     {
         Keys_ = keys;
@@ -1443,11 +1468,14 @@ public:
             }
         }
 
+        i64 rowCount = rows->size();
+
         if (PerformanceCounters_) {
-            PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+            PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
+            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
         }
 
-        RowCount_ += rows->size();
+        RowCount_ += rowCount;
         DataWeight_ += dataWeight;
 
         return true;
@@ -1644,6 +1672,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
@@ -1666,6 +1695,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 options,
                 underlyingReader,
                 nameTable,
+                sessionId,
                 keyColumns,
                 columnFilter,
                 readRange,
@@ -1678,6 +1708,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 options,
                 underlyingReader,
                 nameTable,
+                sessionId,
                 keyColumns,
                 columnFilter,
                 readRange);
@@ -1695,6 +1726,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
@@ -1718,6 +1750,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 std::move(options),
                 std::move(underlyingReader),
                 std::move(nameTable),
+                sessionId,
                 keyColumns,
                 columnFilter,
                 keys,
@@ -1731,6 +1764,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 std::move(options),
                 std::move(underlyingReader),
                 std::move(nameTable),
+                sessionId,
                 keyColumns,
                 columnFilter,
                 keys,
@@ -1767,6 +1801,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
@@ -1811,6 +1846,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         options,
                         remoteReader,
                         nameTable,
+                        sessionId,
                         keyColumns,
                         columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         range,
@@ -1835,6 +1871,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         dataSourceDirectory,
                         dataSliceDescriptor,
                         nameTable,
+                        sessionId,
                         columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         throttler);
                 };
@@ -1869,6 +1906,7 @@ public:
         const TDataSourceDirectoryPtr& dataSourceDirectory,
         const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
         TNameTablePtr nameTable,
+        const TReadSessionId& sessionId,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
         TNullable<int> partitionTag,
@@ -1922,6 +1960,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
@@ -1939,6 +1978,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             dataSourceDirectory,
             dataSliceDescriptors,
             nameTable,
+            sessionId,
             columnFilter,
             keyColumns,
             partitionTag,
@@ -2067,6 +2107,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
@@ -2082,6 +2123,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         dataSourceDirectory,
         dataSliceDescriptors,
         nameTable,
+        sessionId,
         columnFilter,
         keyColumns,
         partitionTag,
@@ -2103,6 +2145,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
@@ -2118,6 +2161,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         dataSourceDirectory,
         dataSliceDescriptors,
         nameTable,
+        sessionId,
         columnFilter,
         keyColumns,
         partitionTag,
@@ -2143,6 +2187,7 @@ public:
         const TDataSourceDirectoryPtr& dataSourceDirectory,
         const TDataSliceDescriptor& dataSliceDescriptor,
         TNameTablePtr nameTable,
+        const TReadSessionId& sessionId,
         TColumnFilter columnFilter,
         IThroughputThrottlerPtr throttler);
 
@@ -2436,9 +2481,15 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     TColumnFilter columnFilter,
     IThroughputThrottlerPtr throttler)
 {
+    auto Logger = TableClientLogger;
+    if (sessionId) {
+        Logger.AddTag("ReadSessionId: %v", sessionId);
+    }
+
     const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
     const auto& chunkSpecs = dataSliceDescriptor.ChunkSpecs;
 
@@ -2517,11 +2568,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         localDescriptor,
         blockCache,
         nodeDirectory,
+        sessionId,
         chunkSpecs,
         versionedReadSchema,
         performanceCounters,
         timestamp,
-        throttler
+        throttler,
+        Logger
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -2579,6 +2632,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             config,
             std::move(remoteReader),
             std::move(chunkState),
+            sessionId,
             lowerLimit.GetKey(),
             upperLimit.GetKey(),
             TColumnFilter(),
@@ -2633,6 +2687,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
+    const TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
     IThroughputThrottlerPtr throttler)
 {
@@ -2646,6 +2701,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         dataSourceDirectory,
         dataSliceDescriptor,
         nameTable,
+        sessionId,
         columnFilter,
         throttler);
 }

@@ -16,7 +16,6 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMutation
-    : public TIntrinsicRefCounted
 {
 public:
     explicit TMutation(IHydraManagerPtr hydraManager);

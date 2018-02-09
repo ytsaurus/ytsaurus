@@ -21,7 +21,6 @@
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/erasure_reader.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/job.pb.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -82,6 +81,7 @@ public:
         : JobId_(jobId)
         , JobSpec_(jobSpec)
         , Config_(config)
+        , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
         , ResourceLimits_(resourceLimits)
     {
@@ -181,6 +181,16 @@ public:
         Progress_ = value;
     }
 
+    virtual ui64 GetStderrSize() const override
+    {
+        return JobStderrSize_;
+    }
+
+    virtual void SetStderrSize(ui64 value) override
+    {
+        JobStderrSize_ = value;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         return TYsonString();
@@ -189,6 +199,11 @@ public:
     virtual void SetStatistics(const TYsonString& /*statistics*/) override
     {
         Y_UNREACHABLE();
+    }
+
+    virtual TInstant GetStartTime() const override
+    {
+        return StartTime_;
     }
 
     virtual TNullable<TDuration> GetPrepareDuration() const override
@@ -270,6 +285,7 @@ protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;
     const TDataNodeConfigPtr Config_;
+    const TInstant StartTime_;
     TBootstrap* const Bootstrap_;
 
     TNodeResources ResourceLimits_;
@@ -280,6 +296,7 @@ protected:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     double Progress_ = 0.0;
+    ui64 JobStderrSize_ = 0;
 
     TFuture<void> JobFuture_;
 
@@ -322,7 +339,7 @@ protected:
 
     IChunkPtr GetLocalChunkOrThrow(const TChunkId& chunkId, int mediumIndex)
     {
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
         return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
     }
 
@@ -377,7 +394,7 @@ private:
             mediumIndex);
 
         auto chunk = GetLocalChunkOrThrow(chunkId, mediumIndex);
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
         WaitFor(chunkStore->RemoveChunk(chunk))
             .ThrowOnError();
 
@@ -781,7 +798,7 @@ private:
 
         LOG_INFO("Finished sealing journal chunk");
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(chunk);
     }
 };

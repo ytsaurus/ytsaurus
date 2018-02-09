@@ -68,12 +68,13 @@ TEST_F(TAstFormatTest, LiteralValue)
     EXPECT_EQ("18446744073709551615u", FormatLiteralValue(TLiteralValue(TVariantTypeTag<ui64>(), std::numeric_limits<ui64>::max())));
     EXPECT_EQ("3.140000", FormatLiteralValue(TLiteralValue(TVariantTypeTag<double>(), 3.14)));
     EXPECT_EQ("\"\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "")));
-    EXPECT_EQ("\"\\\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "\\")));
+    EXPECT_EQ("\"\\\\\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "\\")));
     EXPECT_EQ("\"hello\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "hello")));
 }
 
 TEST_F(TAstFormatTest, Expression)
 {
+    TestExpression("\"dochelper.Физ\\\\. Лицо\"");
     TestExpression("a");
     TestExpression("a + b");
     TestExpression("a - b");
@@ -89,6 +90,7 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("a <= b");
     TestExpression("a >= b");
     TestExpression("a = b");
+    TestExpression("(a, b) > (1, 2)");
     TestExpression("a != b");
     TestExpression("a in (1)");
     TestExpression("a in (1, 2)");

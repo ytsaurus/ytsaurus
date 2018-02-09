@@ -79,14 +79,14 @@ class TSessionCounterGuard
 {
 public:
     explicit TSessionCounterGuard(TLocationPtr location)
-        : Location_(location)
+        : Location_(std::move(location))
     {
-        Location_->UpdateSessionCount(+1);
+        Location_->UpdateSessionCount(ESessionType::User, +1);
     }
 
     ~TSessionCounterGuard()
     {
-        Location_->UpdateSessionCount(-1);
+        Location_->UpdateSessionCount(ESessionType::User, -1);
     }
 
 private:
@@ -348,7 +348,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto Logger = DataNodeLogger;
-        Logger.AddTag("Key: %v", key);
+        auto sessionId = TReadSessionId::Create();
+        Logger.AddTag("Key: %v, ReadSessionId: %v", key, sessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -389,6 +390,7 @@ public:
                 location,
                 chunkId,
                 nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
+                sessionId,
                 Passed(std::move(cookie))));
 
         } else {
@@ -577,13 +579,14 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId,
         TInsertCookie cookie)
     {
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
-        Logger.AddTag("ChunkId: %v", chunkId);
+        Logger.AddTag("ChunkId: %v, ReadSessionId: %v", chunkId, sessionId);
 
         try {
             TSessionCounterGuard sessionCounterGuard(location);
@@ -619,7 +622,6 @@ private:
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = blocksExt.blocks_size();
             std::vector<TBlockFetcher::TBlockInfo> blocks;
-            TAsyncSemaphorePtr asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
                 blocks.push_back(TBlockFetcher::TBlockInfo(
@@ -628,13 +630,16 @@ private:
                     index /* priority */));
             }
 
+            auto asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
+
             auto blockFetcher = New<TBlockFetcher>(
                 Config_->ArtifactCacheReader,
                 std::move(blocks),
                 asyncSemaphore,
                 chunkReader,
                 GetNullBlockCache(),
-                NCompression::ECodec::None);
+                NCompression::ECodec::None,
+                sessionId);
 
             for (int index = 0; index < blockCount; ++index) {
                 LOG_DEBUG("Downloading block (BlockIndex: %v)",
@@ -683,6 +688,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId,
         TInsertCookie cookie)
     {
         std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
@@ -697,6 +703,7 @@ private:
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
+            sessionId,
             chunkSpecs,
             Bootstrap_->GetArtifactCacheInThrottler());
 
@@ -736,6 +743,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId,
         TInsertCookie cookie)
     {
         static const TString CachedSourcePath = "<cached_data_source>";
@@ -792,6 +800,7 @@ private:
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
+            sessionId,
             TColumnFilter(),
             TKeyColumns(),
             Null,
@@ -810,12 +819,13 @@ private:
                     false, /* enableContextSaving */
                     New<TControlAttributesConfig>(),
                     0);
+                TPipeReaderToWriterOptions options;
+                options.BufferRowCount = TableArtifactBufferRowCount;
+                options.Throttler = location->GetInThrottler();
                 PipeReaderToWriter(
                     reader,
                     writer,
-                    TableArtifactBufferRowCount,
-                    false,
-                    location->GetInThrottler());
+                    std::move(options));
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
@@ -845,7 +855,7 @@ private:
         auto tempDataFileName = dataFileName + NFS::TempFileSuffix;
         auto tempMetaFileName = metaFileName + NFS::TempFileSuffix;
 
-        auto metaBlob = SerializeToProto(key);
+        auto metaBlob = SerializeProtoToRef(key);
         TArtifactMetaHeader metaHeader;
 
         std::unique_ptr<TFile> tempDataFile;
@@ -933,7 +943,7 @@ private:
 
             metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
             TArtifactKey key;
-            if (!TryDeserializeFromProto(&key, metaBlob)) {
+            if (!TryDeserializeProto(&key, metaBlob)) {
                 LOG_WARNING("Failed to parse artifact meta file %v",
                     metaFileName);
                 return Null;

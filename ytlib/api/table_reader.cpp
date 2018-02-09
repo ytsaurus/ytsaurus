@@ -4,6 +4,7 @@
 #include "native_connection.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -105,10 +106,11 @@ private:
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
     const TColumnFilter ColumnFilter_;
-
-    const TTransactionId TransactionId_;
     const bool Unordered_;
     const IThroughputThrottlerPtr Throttler_;
+
+    const TTransactionId TransactionId_;
+    const TReadSessionId ReadSessionId_;
 
     TFuture<void> ReadyEvent_;
 
@@ -117,7 +119,7 @@ private:
     NLogging::TLogger Logger = ApiLogger;
 
     void DoOpen();
-    void RemoveUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const;
+    void CheckUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,25 +134,27 @@ TSchemalessTableReader::TSchemalessTableReader(
     const TColumnFilter& columnFilter,
     bool unordered,
     IThroughputThrottlerPtr throttler)
-    : Config_(CloneYsonSerializable(config))
-    , Options_(options)
-    , Client_(client)
-    , Transaction_(transaction)
+    : Config_(CloneYsonSerializable(std::move(config)))
+    , Options_(std::move(options))
+    , Client_(std::move(client))
+    , Transaction_(std::move(transaction))
     , RichPath_(richPath)
     , NameTable_(std::move(nameTable))
     , ColumnFilter_(columnFilter)
-    , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
     , Unordered_(unordered)
     , Throttler_(std::move(throttler))
+    , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
+    , ReadSessionId_(TReadSessionId::Create())
 {
     YCHECK(Config_);
     YCHECK(Client_);
 
     Config_->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
 
-    Logger.AddTag("Path: %v, TransactionId: %v",
+    Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
         RichPath_.GetPath(),
-        TransactionId_);
+        TransactionId_,
+        ReadSessionId_);
 
     ReadyEvent_ = BIND(&TSchemalessTableReader::DoOpen, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -251,7 +255,7 @@ void TSchemalessTableReader::DoOpen()
             Logger,
             &chunkSpecs);
 
-        RemoveUnavailableChunks(&chunkSpecs);
+        CheckUnavailableChunks(&chunkSpecs);
     }
 
     auto options = New<NTableClient::TTableReaderOptions>();
@@ -280,7 +284,9 @@ void TSchemalessTableReader::DoOpen()
             dataSourceDirectory,
             dataSliceDescriptor,
             NameTable_,
-            ColumnFilter_);
+            ReadSessionId_,
+            ColumnFilter_,
+            Throttler_);
     } else {
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             path,
@@ -306,6 +312,7 @@ void TSchemalessTableReader::DoOpen()
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             NameTable_,
+            ReadSessionId_,
             ColumnFilter_,
             schema.GetKeyColumns(),
             Null,
@@ -412,21 +419,41 @@ void TSchemalessTableReader::Interrupt()
     Y_UNREACHABLE();
 }
 
-void TSchemalessTableReader::RemoveUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const
+void TSchemalessTableReader::CheckUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const
 {
     std::vector<TChunkSpec> availableChunkSpecs;
 
     for (auto& chunkSpec : *chunkSpecs) {
-        if (IsUnavailable(chunkSpec)) {
-            if (!Config_->IgnoreUnavailableChunks) {
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::ChunkUnavailable,
-                    "Chunk %v is unavailable",
-                    NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
-            }
-        } else {
+        if (!IsUnavailable(chunkSpec)) {
             availableChunkSpecs.push_back(std::move(chunkSpec));
+            continue;
         }
+
+        auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto throwUnavailable = [&] () {
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable, "Chunk %v is unavailable", chunkId);
+        };
+
+        switch (Config_->UnavailableChunkStrategy) {
+            case EUnavailableChunkStrategy::ThrowError:
+                throwUnavailable();
+                break;
+
+            case EUnavailableChunkStrategy::Restore:
+                if (IsErasureChunkId(chunkId)) {
+                    availableChunkSpecs.push_back(std::move(chunkSpec));
+                } else {
+                    throwUnavailable();
+                }
+                break;
+
+            case EUnavailableChunkStrategy::Skip:
+                // Just skip this chunk.
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        };
     }
 
     *chunkSpecs = std::move(availableChunkSpecs);

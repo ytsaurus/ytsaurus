@@ -18,7 +18,7 @@ using namespace NYPath;
 
 namespace {
 
-TString GetNodePathHelper(IConstNodePtr node)
+TString GetNodePath(IConstNodePtr node)
 {
     auto path = node->GetPath();
     return path.empty() ? "Node" : Format("Node %v", path);
@@ -31,7 +31,7 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
         "%v has invalid type: expected %Qlv, actual %Qlv",
-        GetNodePathHelper(node),
+        GetNodePath(node),
         expectedType,
         actualType);
 }
@@ -41,7 +41,16 @@ void ThrowNoSuchChildKey(IConstNodePtr node, const TString& key)
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
         "%v has no child with key %Qv",
-        GetNodePathHelper(node),
+        GetNodePath(node),
+        ToYPathLiteral(key));
+}
+
+void ThrowNoSuchChildKeySuggestRecursive(IConstNodePtr node, const TString& key)
+{
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::ResolveError,
+        "%v has no child with key %Qv; consider using \"recursive\" option to force its creation",
+        GetNodePath(node),
         ToYPathLiteral(key));
 }
 
@@ -50,7 +59,7 @@ void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
         "%v has no child with index %v",
-        GetNodePathHelper(node),
+        GetNodePath(node),
         index);
 }
 
@@ -93,7 +102,7 @@ void ThrowMethodNotSupported(const TString& method, const TNullable<TString>& re
 void ThrowCannotHaveChildren(IConstNodePtr node)
 {
     THROW_ERROR_EXCEPTION("%v cannot have children",
-        GetNodePathHelper(node));
+        GetNodePath(node));
 }
 
 void ThrowAlreadyExists(IConstNodePtr node)
@@ -101,7 +110,7 @@ void ThrowAlreadyExists(IConstNodePtr node)
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::AlreadyExists,
         "%v already exists",
-        GetNodePathHelper(node));
+        GetNodePath(node));
 }
 
 void ThrowCannotRemoveRoot()

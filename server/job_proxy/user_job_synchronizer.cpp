@@ -11,12 +11,12 @@ using namespace NConcurrency;
 
 void TUserJobSynchronizer::NotifyJobSatellitePrepared(const TErrorOr<i64>& rssOrError)
 {
-    JobSatellitePreparedPromise_.Set(rssOrError);
+    JobSatellitePreparedPromise_.TrySet(rssOrError);
 }
 
 void TUserJobSynchronizer::NotifyExecutorPrepared()
 {
-   ExecutorPreparedPromise_.Set(TError());
+   ExecutorPreparedPromise_.TrySet(TError());
 }
 
 void TUserJobSynchronizer::NotifyUserJobFinished(const TError& error)
@@ -40,7 +40,7 @@ i64 TUserJobSynchronizer::GetJobSatelliteRssUsage() const
 TError TUserJobSynchronizer::GetUserProcessStatus() const
 {
     if (!UserJobFinishedPromise_.IsSet()) {
-        THROW_ERROR_EXCEPTION("Satellite did not finish succefully");
+        THROW_ERROR_EXCEPTION("Satellite did not finish successfully");
     }
     return UserJobFinishedPromise_.Get();
 }

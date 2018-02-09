@@ -147,6 +147,11 @@ struct TFakeConnection
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
+    virtual TFuture<void> Abort() override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
     virtual TFuture<void> CloseRead() override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
@@ -165,6 +170,31 @@ struct TFakeConnection
     virtual const TNetworkAddress& RemoteAddress() const override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual int GetHandle() const override
+    {
+        THROW_ERROR_EXCEPTION("Not implemented");
+    }
+
+    virtual TConnectionStatistics GetReadStatistics() const override
+    {
+        return {};
+    }
+
+    virtual TConnectionStatistics GetWriteStatistics() const override
+    {
+        return {};
+    }
+
+    virtual i64 GetReadByteCount() const override
+    {
+        return 0;
+    }
+
+    virtual i64 GetWriteByteCount() const override
+    {
+        return 0;
     }
 };
 
@@ -245,6 +275,18 @@ TEST(THttpOutputTest, Full)
             "\r\n",
             [] (THttpOutput* out) {
                 out->WriteHeaders(EStatusCode::Ok);
+                FinishBody(out);
+            }
+        },
+        TTestCase{
+            EMessageType::Response,
+            "HTTP/1.1 400 Bad Request\r\n"
+            "Content-Length: 0\r\n"
+            "X-YT-Response-Code: 500\r\n"
+            "\r\n",
+            [] (THttpOutput* out) {
+                out->WriteHeaders(EStatusCode::BadRequest);
+                out->GetTrailers()->Add("X-YT-Response-Code", "500");
                 FinishBody(out);
             }
         },
@@ -396,7 +438,7 @@ TEST(THttpInputTest, Simple)
         auto fake = New<TFakeConnection>();
         fake->Input = std::get<1>(testCase);
 
-        auto input = New<THttpInput>(fake, GetSyncInvoker(), std::get<0>(testCase), 1024);
+        auto input = New<THttpInput>(fake, TNetworkAddress(), GetSyncInvoker(), std::get<0>(testCase), 1024);
 
         try {
             std::get<2>(testCase)(input.Get());
@@ -444,7 +486,7 @@ class TOKHttpHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         WaitFor(rsp->Close()).ThrowOnError();
@@ -454,12 +496,12 @@ public:
 TEST_F(THttpServerTest, SimpleRequest)
 {
     Server->AddHandler("/ok", New<TOKHttpHandler>());
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/ok")).ValueOrThrow();
     ASSERT_EQ(EStatusCode::Ok, rsp->GetStatusCode());
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -467,7 +509,7 @@ class TEchoHttpHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         while (true) {
@@ -501,7 +543,7 @@ TString ReadAll(const IAsyncZeroCopyInputStreamPtr& in)
 TEST_F(THttpServerTest, TransferSmallBody)
 {
     Server->AddHandler("/echo", New<TEchoHttpHandler>());
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto reqBody = TSharedMutableRef::Allocate(1024);
     std::fill(reqBody.Begin(), reqBody.End(), 0xab);
@@ -512,7 +554,7 @@ TEST_F(THttpServerTest, TransferSmallBody)
     auto rspBody = ReadAll(rsp);
     ASSERT_EQ(TString(reqBody.Begin(), reqBody.Size()), rspBody);
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -520,7 +562,7 @@ class TTestStatusCodeHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(Code);
         WaitFor(rsp->Close()).ThrowOnError();
@@ -533,7 +575,7 @@ TEST_F(THttpServerTest, StatusCode)
 {
     auto handler = New<TTestStatusCodeHandler>();
     Server->AddHandler("/code", handler);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     handler->Code = EStatusCode::NotFound;
     ASSERT_EQ(EStatusCode::NotFound,
@@ -547,7 +589,7 @@ TEST_F(THttpServerTest, StatusCode)
             .ValueOrThrow()
             ->GetStatusCode());
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -555,7 +597,7 @@ class TTestHeadersHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         for (const auto& header : ExpectedHeaders) {
             EXPECT_EQ(header.second, req->GetHeaders()->Get(header.first));
@@ -585,7 +627,7 @@ TEST_F(THttpServerTest, HeadersTest)
     };
 
     Server->AddHandler("/headers", handler);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto headers = New<THeaders>();
     headers->Add("X-Yt-Test", "foo; bar; zog");
@@ -595,7 +637,7 @@ TEST_F(THttpServerTest, HeadersTest)
     EXPECT_EQ("nocache", rsp->GetHeaders()->Get("Cache-Control"));
     EXPECT_EQ("test/plain; charset=utf-8", rsp->GetHeaders()->Get("Content-Type"));
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -603,7 +645,7 @@ class TTestTrailersHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         WaitFor(rsp->Write(TSharedRef::FromString("test"))).ThrowOnError();
 
@@ -617,13 +659,13 @@ TEST_F(THttpServerTest, TrailersTest)
     auto handler = New<TTestTrailersHandler>();
 
     Server->AddHandler("/trailers", handler);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/trailers")).ValueOrThrow();
     auto body = ReadAll(rsp);
     EXPECT_EQ("foo; bar", rsp->GetTrailers()->Get("X-Yt-Test"));
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -631,7 +673,7 @@ class THangingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     { }
 };
 
@@ -639,7 +681,7 @@ class TImpatientHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         WaitFor(rsp->Write(TSharedRef::FromString("body"))).ThrowOnError();
         WaitFor(rsp->Close()).ThrowOnError();
@@ -650,7 +692,7 @@ class TForgetfulHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
     }
@@ -665,7 +707,7 @@ TEST_F(THttpServerTest, WierdHandlers)
     Server->AddHandler("/hanging", hanging);
     Server->AddHandler("/impatient", impatient);
     Server->AddHandler("/forgetful", forgetful);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     EXPECT_THROW(
         WaitFor(Client->Get(TestUrl + "/hanging"))
@@ -683,7 +725,7 @@ TEST_F(THttpServerTest, WierdHandlers)
             ->GetStatusCode(),
         TErrorException);
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -691,7 +733,7 @@ class TThrowingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         THROW_ERROR_EXCEPTION("Your request is bad");
     }
@@ -702,7 +744,7 @@ class TThrowingInTheMiddleHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         WaitFor(rsp->Write(TSharedRef::FromString(""))).ThrowOnError();
@@ -718,7 +760,7 @@ TEST_F(THttpServerTest, ThrowingHandler)
 
     Server->AddHandler("/throwing", throwing);
     Server->AddHandler("/throwing_in_the_middle", throwingInTheMiddle);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     ASSERT_EQ(EStatusCode::InternalServerError,
         WaitFor(Client->Get(TestUrl + "/throwing"))
@@ -728,7 +770,7 @@ TEST_F(THttpServerTest, ThrowingHandler)
         ReadAll(WaitFor(Client->Get(TestUrl + "/throwing_in_the_middle")).ValueOrThrow()),
         TErrorException);
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -736,7 +778,7 @@ class TConsumingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         while (WaitFor(req->Read()).ValueOrThrow().Size() != 0)
         { }
@@ -749,14 +791,14 @@ public:
 TEST_F(THttpServerTest, RequestStreaming)
 {
     Server->AddHandler("/consuming", New<TConsumingHandler>());
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto body = TSharedMutableRef::Allocate(128 * 1024 * 1024);
     ASSERT_EQ(EStatusCode::Ok,
         WaitFor(Client->Post(TestUrl + "/consuming", body))
             .ValueOrThrow()->GetStatusCode());
-    
-    acceptor.Cancel();
+
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -764,7 +806,7 @@ class TStreamingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->WriteHeaders(EStatusCode::Ok);
         auto data = TSharedRef::FromString(TString(1024, 'f'));
@@ -779,12 +821,12 @@ public:
 TEST_F(THttpServerTest, ResponseStreaming)
 {
     Server->AddHandler("/streaming", New<TStreamingHandler>());
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/streaming")).ValueOrThrow();
     ASSERT_EQ(16 * 1024 * 1024, ReadAll(rsp).Size());
 
-    acceptor.Cancel();
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 }
 
@@ -792,7 +834,7 @@ class TValidateErrorHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         ASSERT_THROW(ReadAll(req), TErrorException);
         Ok = true;
@@ -805,15 +847,15 @@ TEST_F(THttpServerTest, RequestHangUp)
 {
     auto validating = New<TValidateErrorHandler>();
     Server->AddHandler("/validating", validating);
-    auto acceptor = Server->Start();
+    Server->Start();
 
     auto dialer = CreateDialer(New<TDialerConfig>(), Poller, HttpLogger);
     auto conn = WaitFor(dialer->Dial(TNetworkAddress::CreateIPv6Loopback(TestPort)))
         .ValueOrThrow();
     WaitFor(conn->Write(TSharedRef::FromString("POST /validating HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n")));
     WaitFor(conn->Close());
-    
-    acceptor.Cancel();
+
+    Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 
     EXPECT_TRUE(validating->Ok);

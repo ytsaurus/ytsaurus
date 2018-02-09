@@ -8,9 +8,12 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
+
+#include <util/digest/numeric.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {
@@ -18,6 +21,7 @@ namespace NNodeTrackerClient {
 using namespace NChunkClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NNet;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -47,11 +51,13 @@ TNodeDescriptor::TNodeDescriptor(const TNullable<TString>& defaultAddress)
 TNodeDescriptor::TNodeDescriptor(
     TAddressMap addresses,
     TNullable<TString> rack,
-    TNullable<TString> dc)
+    TNullable<TString> dc,
+    const std::vector<TString>& tags)
     : Addresses_(std::move(addresses))
     , DefaultAddress_(NNodeTrackerClient::GetDefaultAddress(Addresses_))
     , Rack_(std::move(rack))
     , DataCenter_(std::move(dc))
+    , Tags_(tags)
 { }
 
 bool TNodeDescriptor::IsNull() const
@@ -69,9 +75,9 @@ const TString& TNodeDescriptor::GetDefaultAddress() const
     return DefaultAddress_;
 }
 
-const TString& TNodeDescriptor::GetAddress(const TNetworkPreferenceList& networks) const
+const TString& TNodeDescriptor::GetAddressOrThrow(const TNetworkPreferenceList& networks) const
 {
-    return NNodeTrackerClient::GetAddress(Addresses(), networks);
+    return NNodeTrackerClient::GetAddressOrThrow(Addresses(), networks);
 }
 
 TNullable<TString> TNodeDescriptor::FindAddress(const TNetworkPreferenceList& networks) const
@@ -87,6 +93,11 @@ const TNullable<TString>& TNodeDescriptor::GetRack() const
 const TNullable<TString>& TNodeDescriptor::GetDataCenter() const
 {
     return DataCenter_;
+}
+
+const std::vector<TString>& TNodeDescriptor::GetTags() const
+{
+    return Tags_;
 }
 
 void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
@@ -229,6 +240,8 @@ void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const
     } else {
         protoDescriptor->clear_data_center();
     }
+
+    ToProto(protoDescriptor->mutable_tags(), descriptor.GetTags());
 }
 
 void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor)
@@ -238,7 +251,8 @@ void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrack
     *descriptor = NNodeTrackerClient::TNodeDescriptor(
         FromProto<NNodeTrackerClient::TAddressMap>(protoDescriptor.addresses()),
         protoDescriptor.has_rack() ? MakeNullable(protoDescriptor.rack()) : Null,
-        protoDescriptor.has_data_center() ? MakeNullable(protoDescriptor.data_center()) : Null);
+        protoDescriptor.has_data_center() ? MakeNullable(protoDescriptor.data_center()) : Null,
+        FromProto<std::vector<TString>>(protoDescriptor.tags()));
 }
 
 } // namespace NProto
@@ -249,7 +263,8 @@ bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
         lhs.GetDefaultAddress() == rhs.GetDefaultAddress() && // shortcut
         lhs.Addresses() == rhs.Addresses() &&
         lhs.GetRack() == rhs.GetRack() &&
-        lhs.GetDataCenter() == rhs.GetDataCenter();
+        lhs.GetDataCenter() == rhs.GetDataCenter() &&
+        lhs.GetTags() == rhs.GetTags();
 }
 
 bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
@@ -284,6 +299,12 @@ bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs
     const auto& lhsMaybeDataCenter = lhs.GetDataCenter();
     auto lhsDataCenter = lhsMaybeDataCenter ? TStringBuf(*lhsMaybeDataCenter) : TStringBuf();
     if (lhsDataCenter != rhs.data_center()) {
+        return false;
+    }
+
+    const auto& lhsTags = lhs.GetTags();
+    auto rhsTags = FromProto<std::vector<TString>>(rhs.tags());
+    if (lhsTags != rhsTags) {
         return false;
     }
 
@@ -414,6 +435,19 @@ std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const TChunkReplicaL
     return result;
 }
 
+std::vector<TNodeDescriptor> TNodeDirectory::GetAllDescriptors() const
+{
+    NConcurrency::TReaderGuard guard(SpinLock_);
+
+    std::vector<TNodeDescriptor> result;
+    result.reserve(AddressToDescriptor_.size());
+    for (const auto& pair : AddressToDescriptor_) {
+        const auto* descriptor = pair.second;
+        result.emplace_back(*descriptor);
+    }
+    return result;
+}
+
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(const TString& address)
 {
     NConcurrency::TReaderGuard guard(SpinLock_);
@@ -475,7 +509,7 @@ TNullable<TString> FindAddress(const TAddressMap& addresses, const TNetworkPrefe
     return it == addresses.cend() ? Null : MakeNullable(it->second);
 }
 
-const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
 {
     const auto it = SelectAddress(addresses, networks);
     if (it != addresses.cend()) {
@@ -488,7 +522,7 @@ const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreference
         << TErrorAttribute("local_networks", networks);
 }
 
-const TAddressMap& GetAddresses(const TNodeAddressMap& nodeAddresses, EAddressType type)
+const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAddressType type)
 {
     auto it = nodeAddresses.find(type);
     if (it != nodeAddresses.cend()) {
@@ -504,3 +538,24 @@ const TAddressMap& GetAddresses(const TNodeAddressMap& nodeAddresses, EAddressTy
 } // namespace NNodeTrackerClient
 } // namespace NYT
 
+////////////////////////////////////////////////////////////////////////////////
+
+size_t hash<NYT::NNodeTrackerClient::TNodeDescriptor>::operator()(
+    const NYT::NNodeTrackerClient::TNodeDescriptor& nodeDescriptor) const
+{
+    size_t result = 0;
+    THash<TString> stringHasher;
+    result = CombineHashes(result, stringHasher(nodeDescriptor.GetDefaultAddress()));
+    result = CombineHashes(result, stringHasher(nodeDescriptor.GetRack().Get("")));
+    result = CombineHashes(result, stringHasher(nodeDescriptor.GetDataCenter().Get("")));
+    for (const auto& pair : nodeDescriptor.Addresses()) {
+        result = CombineHashes(result, stringHasher(pair.first));
+        result = CombineHashes(result, stringHasher(pair.second));
+    }
+    for (const auto& tag : nodeDescriptor.GetTags()) {
+        result = CombineHashes(result, stringHasher(tag));
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////

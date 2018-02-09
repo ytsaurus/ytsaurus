@@ -15,6 +15,7 @@
 
 #include <yt/core/rpc/bus_channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 namespace NYT {
 namespace NOrchid {
@@ -60,7 +61,9 @@ public:
 
         auto manifest = LoadManifest();
 
-        auto channel = ChannelFactory_->CreateChannel(manifest->RemoteAddresses);
+        auto channel = CreateRetryingChannel(
+            manifest,
+            ChannelFactory_->CreateChannel(manifest->RemoteAddresses));
 
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
@@ -80,7 +83,7 @@ public:
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto outerRequest = proxy.Execute();
-        outerRequest->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+        outerRequest->SetMultiplexingBand(EMultiplexingBand::Heavy);
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
         LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",

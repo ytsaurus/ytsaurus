@@ -24,6 +24,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/concurrency/config.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -98,11 +100,16 @@ public:
     int MaxTimestampsPerReplicationCommit;
     int MaxRowsPerReplicationCommit;
     i64 MaxDataWeightPerReplicationCommit;
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationThrottler;
     bool EnableReplicationLogging;
 
     bool EnableProfiling;
+    EDynamicTableProfilingMode ProfilingMode;
+    TString ProfilingTag;
 
     bool EnableCompactionAndPartitioning;
+
+    bool MergeRowsOnFlush;
 
     TTableMountConfig()
     {
@@ -217,16 +224,25 @@ public:
             .Default(90000);
         RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
             .Default(128_MB);
+        RegisterParameter("replication_throttler", ReplicationThrottler)
+            .DefaultNew();
         RegisterParameter("enable_replication_logging", EnableReplicationLogging)
             .Default(false);
 
         RegisterParameter("enable_profiling", EnableProfiling)
             .Default(false);
+        RegisterParameter("profiling_mode", ProfilingMode)
+            .Default(EDynamicTableProfilingMode::Path);
+        RegisterParameter("profiling_tag", ProfilingTag)
+            .Optional();
 
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
             .Default(true);
 
-        RegisterValidator([&] () {
+        RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
+            .Default(false);
+
+        RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
                 THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
             }
@@ -305,7 +321,9 @@ public:
     i64 PoolChunkSize;
     double MaxPoolSmallBlockRatio;
 
-    TDuration ErrorBackoffTime;
+    TDuration PreloadBackoffTime;
+    TDuration CompactionBackoffTime;
+    TDuration FlushBackoffTime;
 
     TDuration MaxBlockedRowWaitTime;
 
@@ -333,7 +351,11 @@ public:
         RegisterParameter("max_blocked_row_wait_time", MaxBlockedRowWaitTime)
             .Default(TDuration::Seconds(5));
 
-        RegisterParameter("error_backoff_time", ErrorBackoffTime)
+        RegisterParameter("preload_backoff_time", PreloadBackoffTime)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("compaction_backoff_time", CompactionBackoffTime)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("flush_backoff_time", FlushBackoffTime)
             .Default(TDuration::Minutes(1));
 
         RegisterParameter("changelog_codec", ChangelogCodec)
@@ -440,6 +462,13 @@ class TPartitionBalancerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
+    NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
+
+    //! Scraps unavailable chunks.
+    NChunkClient::TChunkScraperConfigPtr ChunkScraper;
+
+    //! Fetches samples from remote chunks.
     NChunkClient::TFetcherConfigPtr SamplesFetcher;
 
     //! Minimum number of samples needed for partitioning.
@@ -454,8 +483,13 @@ public:
     //! Minimum interval between resampling.
     TDuration ResamplingPeriod;
 
+
     TPartitionBalancerConfig()
     {
+        RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
+            .DefaultNew();
+        RegisterParameter("chunk_scraper", ChunkScraper)
+            .DefaultNew();
         RegisterParameter("samples_fetcher", SamplesFetcher)
             .DefaultNew();
         RegisterParameter("min_partitioning_sample_count", MinPartitioningSampleCount)

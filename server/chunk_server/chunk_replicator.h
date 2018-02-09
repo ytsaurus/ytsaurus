@@ -8,7 +8,7 @@
 
 #include <yt/server/misc/max_min_balancer.h>
 
-#include <yt/server/node_tracker_server/rack.h>
+#include <yt/server/node_tracker_server/data_center.h>
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 
@@ -69,6 +69,15 @@ public:
     // Rack-wise unsafely placed chunks.
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
 
+    // src DC -> dst DC -> data size
+    using TInterDCEdgeDataSize = THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>>;
+    DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeConsumption);
+    DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeCapacities);
+
+    using TJobCounters = TEnumIndexedVector<int, EJobType, EJobType::ReplicatorFirst, EJobType::ReplicatorLast>;
+    // Number of jobs running - per job type. For profiling.
+    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobCounters);
+
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(
         TNode* node,
@@ -101,6 +110,8 @@ public:
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove);
+
+    void HandleNodeDataCenterChange(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
 
     bool IsEnabled();
 
@@ -172,10 +183,7 @@ private:
     TNullable<bool> Enabled_;
 
     NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime = {};
-    // src DC -> dst DC -> data size
-    THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeConsumption;
-    THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeCapacities;
-    // Cached from the above fields.
+    // Cached from InterDCEdgeConsumption and InterDCEdgeCapacities.
     THashMap<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges;
 
     void ProcessExistingJobs(
@@ -271,13 +279,18 @@ private:
 
     void UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
 
+    void UpdateJobCountGauge(EJobType jobType, int delta);
+
     void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
     void RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
 
     void InitInterDCEdges();
     void UpdateInterDCEdgeCapacities();
     void UpdateUnsaturatedInterDCEdges();
-    void UpdateInterDCEdgeConsumption(const TJobPtr& job, int sizeMultiplier);
+    void UpdateInterDCEdgeConsumption(
+        const TJobPtr& job,
+        const NNodeTrackerServer::TDataCenter* srcDataCenter,
+        int sizeMultiplier);
     bool HasUnsaturatedInterDCEdgeStartingFrom(const NNodeTrackerServer::TDataCenter* srcDataCenter);
 
     void OnCheckEnabled();
