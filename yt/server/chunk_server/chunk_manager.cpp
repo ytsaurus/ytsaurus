@@ -1272,6 +1272,10 @@ private:
             unregisterReplica(replica, true);
         }
 
+        chunk->UnrefUsedRequisitions(
+            GetChunkRequisitionRegistry(),
+            Bootstrap_->GetObjectManager());
+
         UnregisterChunk(chunk);
 
         ++ChunksDestroyed_;
