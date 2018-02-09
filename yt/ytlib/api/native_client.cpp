@@ -2042,7 +2042,7 @@ private:
             auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
             auto& subrequest = cellIdToSubrequest[tabletInfo->CellId];
             if (!subrequest.Request) {
-                auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
+                auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
                 TQueryServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(options.Timeout);
                 subrequest.Request = proxy.GetTabletInfo();
