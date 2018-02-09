@@ -2,7 +2,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.List;
 
-import ru.yandex.yt.rpcproxy.TColumnFilter;
+import ru.yandex.yt.rpcproxy.TAttributeKeys;
 
 public class ColumnFilter {
     private Boolean all;
@@ -25,7 +25,7 @@ public class ColumnFilter {
         return this;
     }
 
-    public TColumnFilter.Builder writeTo(TColumnFilter.Builder builder) {
+    public TAttributeKeys.Builder writeTo(TAttributeKeys.Builder builder) {
         if (all != null) {
             builder.setAll(all);
         }

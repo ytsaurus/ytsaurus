@@ -39,7 +39,7 @@ public class CypressExample {
             ExamplesUtil.runExample(client -> {
                 try {
                     ApiServiceTransactionOptions transactionOptions =
-                            new ApiServiceTransactionOptions(ETransactionType.MASTER)
+                            new ApiServiceTransactionOptions(ETransactionType.TT_MASTER)
                                     .setSticky(true);
 
                     String node = "//tmp/test-node-cypress-example";

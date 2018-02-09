@@ -33,7 +33,7 @@ public class ModifyRowsExample {
                 .build();
         ExamplesUtil.runExample(client -> {
             ApiServiceTransactionOptions transactionOptions =
-                    new ApiServiceTransactionOptions(ETransactionType.MASTER)
+                    new ApiServiceTransactionOptions(ETransactionType.TT_MASTER)
                             .setSticky(true);
             try (ApiServiceTransaction transaction = client.startTransaction(transactionOptions).join()) {
                 logger.info("Transaction started: {} (timestamp={}, ping={}, sticky={})",

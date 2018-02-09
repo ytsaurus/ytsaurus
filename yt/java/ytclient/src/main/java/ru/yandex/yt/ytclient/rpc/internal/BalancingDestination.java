@@ -93,7 +93,7 @@ public class BalancingDestination {
             RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
                 service.startTransaction();
             builder.body().setTimeout(ApiServiceUtil.durationToYtMicros(timeout.multipliedBy(2)));
-            builder.body().setType(ETransactionType.TABLET);
+            builder.body().setType(ETransactionType.TT_TABLET);
             builder.body().setSticky(true);
             return RpcUtil.apply(builder.invoke(), response -> {
                 YtGuid id = YtGuid.fromProto(response.body().getId());

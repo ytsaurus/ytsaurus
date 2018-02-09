@@ -25,7 +25,7 @@ public class ModifyRowsExample2 {
                 .build();
         ExamplesUtil.runExample(client -> {
             ApiServiceTransactionOptions transactionOptions =
-                    new ApiServiceTransactionOptions(ETransactionType.TABLET)
+                    new ApiServiceTransactionOptions(ETransactionType.TT_TABLET)
                             .setSticky(true);
             try (ApiServiceTransaction transaction = client.startTransaction(transactionOptions).join()) {
                 logger.info("Transaction started: {} (timestamp={}, ping={}, sticky={})",

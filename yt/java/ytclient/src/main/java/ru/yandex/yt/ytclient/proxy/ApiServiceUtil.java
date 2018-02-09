@@ -76,7 +76,7 @@ public class ApiServiceUtil {
             throw new IllegalStateException("Cannot deserialize wire format" + descriptor.getWireFormatVersion() + ": "
                     + WireProtocol.WIRE_FORMAT_VERSION + " is required");
         }
-        if (descriptor.getRowsetKind() != ERowsetKind.UNVERSIONED) {
+        if (descriptor.getRowsetKind() != ERowsetKind.RK_UNVERSIONED) {
             throw new IllegalStateException(
                     "Cannot deserialize " + descriptor.getRowsetKind() + ": UNVERSIONED is required");
         }
@@ -91,9 +91,9 @@ public class ApiServiceUtil {
             throw new IllegalStateException("Cannot deserialize wire format" + descriptor.getWireFormatVersion() + ": "
                     + WireProtocol.WIRE_FORMAT_VERSION + " is required");
         }
-        if (descriptor.getRowsetKind() != ERowsetKind.VERSIONED) {
+        if (descriptor.getRowsetKind() != ERowsetKind.RK_VERSIONED) {
             throw new IllegalStateException(
-                    "Cannot deserialize " + descriptor.getRowsetKind() + ": UNVERSIONED is required");
+                    "Cannot deserialize " + descriptor.getRowsetKind() + ": VERSIONED is required");
         }
         TableSchema schema = deserializeRowsetSchema(descriptor);
         List<WireColumnSchema> schemaData = WireProtocolReader.makeSchemaData(schema);
@@ -105,7 +105,7 @@ public class ApiServiceUtil {
     public static TRowsetDescriptor makeRowsetDescriptor(TableSchema schema) {
         TRowsetDescriptor.Builder builder = TRowsetDescriptor.newBuilder();
         builder.setWireFormatVersion(WireProtocol.WIRE_FORMAT_VERSION);
-        builder.setRowsetKind(ERowsetKind.UNVERSIONED);
+        builder.setRowsetKind(ERowsetKind.RK_UNVERSIONED);
         for (ColumnSchema column : schema.getColumns()) {
             builder.addColumnsBuilder()
                     .setName(column.getName())

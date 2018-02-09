@@ -7,7 +7,7 @@ import com.google.protobuf.ByteString;
 import ru.yandex.yt.TError;
 import ru.yandex.yt.ytclient.ytree.YTreeNode;
 import ru.yandex.yt.ytree.TAttribute;
-import ru.yandex.yt.ytree.TAttributes;
+import ru.yandex.yt.ytree.TAttributeDictionary;
 
 public class RpcError extends RuntimeException {
     private final TError error;
@@ -31,7 +31,7 @@ public class RpcError extends RuntimeException {
         if (message.length() > 0) {
             sb.append(": ").append(message);
         }
-        TAttributes attributes = error.getAttributes();
+        TAttributeDictionary attributes = error.getAttributes();
         if (attributes.getAttributesCount() > 0) {
             sb.append(" {");
             for (int index = 0; index < attributes.getAttributesCount(); index++) {

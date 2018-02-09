@@ -21,7 +21,7 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes> {
 
     public TReqConcatenateNodes.Builder writeTo(TReqConcatenateNodes.Builder builder) {
         for (int i = 0; i < from.length; ++i) {
-            builder.addSrcPath(from[i]);
+            builder.addSrcPaths(from[i]);
         }
 
         builder.setDstPath(to)

@@ -1,32 +1,34 @@
 #include <library/unittest/registar.h>
 
 #include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/proxy_connection.h>
 
-#include <yt/ytlib/rpc_proxy/rpc_proxy_connection.h>
+#include <yt/ytlib/rpc_proxy/connection.h>
 #include <yt/ytlib/rpc_proxy/config.h>
 
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 using namespace NYT;
 using namespace NYT::NApi;
 using namespace NYT::NLogging;
 using namespace NYT::NRpcProxy;
+using namespace NYT::NNet;
 
 IClientPtr CreateTestRpcClient()
 {
     auto proxyAddress = getenv("YT_RPC_PROXY");
     if (!proxyAddress) {
-        THROW_ERROR_EXCEPTION("YT_RPX_PROXY environment variable is not set");
+        THROW_ERROR_EXCEPTION("YT_RPC_PROXY environment variable is not set");
     }
 
-    auto connectionConfig = New<TRpcProxyConnectionConfig>();
+    auto connectionConfig = New<NRpcProxy::TConnectionConfig>();
     connectionConfig->SetDefaults();
     connectionConfig->Addresses.push_back(proxyAddress);
 
     TClientOptions clientOptions;
-    auto connection = CreateRpcProxyConnection(connectionConfig);
+    auto connection = NRpcProxy::CreateConnection(connectionConfig);
     return connection->CreateClient(clientOptions);
 }
 
