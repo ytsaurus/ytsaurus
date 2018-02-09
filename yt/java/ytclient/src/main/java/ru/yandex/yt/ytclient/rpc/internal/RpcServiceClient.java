@@ -50,13 +50,7 @@ public class RpcServiceClient implements InvocationHandler {
     }
 
     @SuppressWarnings("unchecked")
-    private RpcClientRequestBuilder<?, ?> createOneWayBuilder(RpcServiceMethodDescriptor methodDescriptor) {
-        return new RequestOneWayBuilder(client, createHeader(methodDescriptor),
-                (MessageLite.Builder) methodDescriptor.getRequestBodyCreator().get());
-    }
-
-    @SuppressWarnings("unchecked")
-    private RpcClientRequestBuilder<?, ?> createNormalBuilder(RpcServiceMethodDescriptor methodDescriptor) {
+    private RpcClientRequestBuilder<?, ?> createBuilder(RpcServiceMethodDescriptor methodDescriptor) {
         return new RequestWithResponseBuilder(client, createHeader(methodDescriptor),
                 (MessageLite.Builder) methodDescriptor.getRequestBodyCreator().get(),
                 methodDescriptor.getResponseBodyParser());
@@ -84,11 +78,7 @@ public class RpcServiceClient implements InvocationHandler {
             throw new IllegalStateException("Unimplemented method: " + method);
         }
         RpcClientRequestBuilder<?, ?> builder;
-        if (methodDescriptor.isOneWay()) {
-            builder = createOneWayBuilder(methodDescriptor);
-        } else {
-            builder = createNormalBuilder(methodDescriptor);
-        }
+        builder = createBuilder(methodDescriptor);
         builder.setTimeout(defaultTimeout);
         builder.setRequestAck(defaultRequestAck);
         return builder;
