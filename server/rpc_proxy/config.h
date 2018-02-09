@@ -30,17 +30,20 @@ class TDiscoveryServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TDuration UpdatePeriod;
+    TDuration LivenessUpdatePeriod;
+    TDuration ProxyUpdatePeriod;
     TDuration AvailabilityPeriod;
     TDuration BackoffPeriod;
 
     TDiscoveryServiceConfig()
     {
-        RegisterParameter("update_period", UpdatePeriod)
+        RegisterParameter("liveness_update_period", LivenessUpdatePeriod)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("proxy_update_period", ProxyUpdatePeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("availability_period", AvailabilityPeriod)
             .Default(TDuration::Seconds(15))
-            .GreaterThan(UpdatePeriod);
+            .GreaterThan(LivenessUpdatePeriod);
         RegisterParameter("backoff_period", BackoffPeriod)
             .Default(TDuration::Seconds(60))
             .GreaterThan(AvailabilityPeriod);

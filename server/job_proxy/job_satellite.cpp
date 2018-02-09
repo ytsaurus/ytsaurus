@@ -89,9 +89,6 @@ class TFreezerPidsHolder
 public:
     explicit TFreezerPidsHolder(const TString& name)
         : Freezer_(name)
-    { }
-
-    void Create()
     {
         Freezer_.Create();
     }
@@ -103,6 +100,25 @@ public:
 
 private:
     NCGroup::TFreezer Freezer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimplePidsHolder
+    : public IPidsHolder
+{
+public:
+    explicit TSimplePidsHolder(int uid)
+        : Uid_(uid)
+    { }
+
+    virtual std::vector<int> GetPids() override
+    {
+        return GetPidsByUid(Uid_);
+    }
+
+private:
+    const int Uid_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,12 +160,14 @@ public:
     TFuture<void> AsyncGracefulShutdown(const TError& error);
 
 private:
-    std::unique_ptr<IPidsHolder> PidsHolder_;
-    bool UseCGroup_;
+    const EJobEnvironmentType EnvironmentType_;
     const pid_t RootPid_;
     const int Uid_;
     const std::vector<TString> Environment_;
     const NConcurrency::TActionQueuePtr AuxQueue_;
+
+    std::unique_ptr<IPidsHolder> PidsHolder_;
+
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
     IShellManagerPtr ShellManager_;
 
@@ -171,7 +189,7 @@ TJobProbeTools::TJobProbeTools(
     int uid,
     const std::vector<TString>& env,
     EJobEnvironmentType environmentType)
-    : UseCGroup_(environmentType == EJobEnvironmentType::Cgroups)
+    : EnvironmentType_(environmentType)
     , RootPid_(rootPid)
     , Uid_(uid)
     , Environment_(env)
@@ -198,12 +216,21 @@ TJobProbeToolsPtr TJobProbeTools::Create(
 
 void TJobProbeTools::Init(const TJobId& jobId)
 {
-    if (UseCGroup_) {
-        auto freezerPidsHolder = new TFreezerPidsHolder(GetCGroupUserJobPrefix() + ToString(jobId));
-        freezerPidsHolder->Create();
-        PidsHolder_.reset(freezerPidsHolder);
-    } else {
-        PidsHolder_.reset(new TContainerPidsHolder());
+    switch (EnvironmentType_) {
+        case EJobEnvironmentType::Cgroups:
+            PidsHolder_.reset(new TFreezerPidsHolder(GetCGroupUserJobPrefix() + ToString(jobId)));
+            break;
+
+        case EJobEnvironmentType::Porto:
+            PidsHolder_.reset(new TContainerPidsHolder());
+            break;
+
+        case EJobEnvironmentType::Simple:
+            PidsHolder_.reset(new TSimplePidsHolder(Uid_));
+            break;
+
+        default:
+            Y_UNREACHABLE();
     }
 
     auto currentWorkDir = NFs::CurrentWorkingDirectory();
@@ -221,7 +248,7 @@ void TJobProbeTools::Init(const TJobId& jobId)
     ShellManager_ = CreateShellManager(
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
-        UseCGroup_ ? TNullable<TString>(GetCGroupUserJobBase()) : TNullable<TString>(),
+        EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>(GetCGroupUserJobBase()) : TNullable<TString>(),
         Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
         std::move(shellEnvironment));
 }
@@ -406,7 +433,8 @@ void TJobSatelliteWorker::Fail()
 void TJobSatelliteWorker::GracefulShutdown(const TError &error)
 {
     if (JobProbe_) {
-        WaitFor(JobProbe_->AsyncGracefulShutdown(error));
+        WaitFor(JobProbe_->AsyncGracefulShutdown(error))
+            .ThrowOnError();
     }
 }
 
@@ -477,7 +505,7 @@ void TJobSatellite::Run()
     StopCalback_ = BIND(&TJobSatelliteWorker::GracefulShutdown,
         MakeWeak(jobSatelliteService));
 
-    JobProxyControl_->NotifyJobSatellitePrepared(GetProcessRss(-1));
+    JobProxyControl_->NotifyJobSatellitePrepared(GetProcessMemoryUsage(-1).Rss);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

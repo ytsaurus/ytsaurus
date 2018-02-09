@@ -25,6 +25,8 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/crypto/crypto.h>
+
 #include <yt/core/logging/log.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -81,6 +83,10 @@ public:
         try {
             ValidateAborted();
 
+            if (Options_.ComputeMD5 && MD5Hasher_) {
+                MD5Hasher_->Append(data);
+            }
+
             if (Writer_->Write(data)) {
                 return VoidFuture;
             }
@@ -106,6 +112,8 @@ private:
 
     ITransactionPtr Transaction_;
     ITransactionPtr UploadTransaction_;
+
+    TNullable<TMD5Hasher> MD5Hasher_;
 
     IFileMultiChunkWriterPtr Writer_;
 
@@ -211,8 +219,10 @@ private:
 
             {
                 auto req = TFileYPathProxy::BeginUpload(objectIdPath);
-                req->set_update_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
-                req->set_lock_mode(static_cast<int>(Options_.Append ? ELockMode::Shared : ELockMode::Exclusive));
+                auto updateMode = Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite;
+                req->set_update_mode(static_cast<int>(updateMode));
+                auto lockMode = (Options_.Append && !Options_.ComputeMD5) ? ELockMode::Shared : ELockMode::Exclusive;
+                req->set_lock_mode(static_cast<int>(lockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", Path_));
                 req->set_upload_transaction_timeout(ToProto<i64>(Config_->UploadTransactionTimeout));
                 GenerateMutationId(req);
@@ -263,6 +273,20 @@ private:
             const auto& rsp = rspOrError.Value();
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
 
+            if (Options_.ComputeMD5) {
+                if (Options_.Append) {
+                    FromProto(&MD5Hasher_, rsp->md5_hasher());
+                    if (!MD5Hasher_) {
+                        THROW_ERROR_EXCEPTION(
+                            "Non-empty file %v has no computed MD5 hash thus "
+                            "cannot append data and update the hash simultaneously",
+                            Path_);
+                    }
+                } else {
+                    MD5Hasher_ = TMD5Hasher();
+                }
+            }
+
             LOG_INFO("File upload parameters received (ChunkListId: %v)",
                 chunkListId);
         }
@@ -292,13 +316,11 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to close file writer");
         }
 
-        UploadTransaction_->Ping();
-        UploadTransaction_->Detach();
-
         auto objectIdPath = FromObjectId(ObjectId_);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
+
 
         auto batchReq = proxy.ExecuteBatch();
 
@@ -310,9 +332,13 @@ private:
             }
         }
 
+        UploadTransaction_->Ping();
+        UploadTransaction_->Detach();
+
         {
             auto req = TFileYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = Writer_->GetDataStatistics();
+            ToProto(req->mutable_md5_hasher(), MD5Hasher_);
 
             if (Options_.CompressionCodec) {
                 req->set_compression_codec(static_cast<int>(*Options_.CompressionCodec));

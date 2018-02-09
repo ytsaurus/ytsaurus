@@ -194,7 +194,12 @@ public:
                     *token = TToken(value);
                 } else if (state == EReadStartCase::Percent) {
                     TBase::Advance(1);
-                    *token = TToken(TBase::template ReadBoolean<true>());
+                    char ch = TBase::template GetChar<true>();
+                    if (ch == 't' || ch == 'f') {
+                        *token = TToken(TBase::template ReadBoolean<true>());
+                    } else {
+                        *token = TToken(TBase::template ReadNanOrInf<true>());
+                    }
                 } else { // None
                     Y_ASSERT(state == EReadStartCase::None);
                     THROW_ERROR_EXCEPTION("Unexpected %Qv",

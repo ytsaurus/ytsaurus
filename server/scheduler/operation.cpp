@@ -1,4 +1,5 @@
 #include "operation.h"
+#include "operation_controller.h"
 #include "exec_node.h"
 #include "helpers.h"
 #include "job.h"
@@ -7,6 +8,8 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/config.h>
+
+#include <yt/core/actions/cancelable_context.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -20,41 +23,80 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("time").Value(event.Time)
+            .Item("state").Value(event.State)
+        .EndMap();
+}
+
+void Deserialize(TOperationEvent& event, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    event.Time = ConvertTo<TInstant>(mapNode->GetChild("time"));
+    event.State = ConvertTo<EOperationState>(mapNode->GetChild("state"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
     const TMutationId& mutationId,
-    TTransactionId userTransactionId,
+    const TTransactionId& userTransactionId,
     IMapNodePtr spec,
+    IMapNodePtr secureVault,
+    TOperationRuntimeParamsPtr runtimeParams,
     const TString& authenticatedUser,
     const std::vector<TString>& owners,
     TInstant startTime,
     IInvokerPtr controlInvoker,
+    EOperationCypressStorageMode storageMode,
     EOperationState state,
     bool suspended,
     const std::vector<TOperationEvent>& events,
-    int slotIndex)
-    : Id_(id)
-    , Type_(type)
+    const TNullable<TOperationRevivalDescriptor>& revivalDescriptor)
+    : Type_(type)
     , MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
-    , Activated_(false)
-    , Prepared_(false)
     , UserTransactionId_(userTransactionId)
-    , Spec_(spec)
-    , AuthenticatedUser_(authenticatedUser)
+    , RuntimeParams_(std::move(runtimeParams))
+    , RuntimeData_(New<TOperationRuntimeData>())
+    , SecureVault_(std::move(secureVault))
     , Owners_(owners)
-    , StartTime_(startTime)
     , Events_(events)
-    , SlotIndex_(slotIndex)
+    , RevivalDescriptor_(revivalDescriptor)
+    , StorageMode_(storageMode)
+    , Id_(id)
+    , StartTime_(startTime)
+    , AuthenticatedUser_(authenticatedUser)
+    , Spec_(spec)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
+{ }
+
+const TOperationId& TOperation::GetId() const
 {
-    auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
-    SecureVault_ = std::move(parsedSpec->SecureVault);
-    Spec_->RemoveChild("secure_vault");
+    return Id_;
+}
+
+TInstant TOperation::GetStartTime() const
+{
+    return StartTime_;
+}
+
+TString TOperation::GetAuthenticatedUser() const
+{
+    return AuthenticatedUser_;
+}
+
+NYTree::IMapNodePtr TOperation::GetSpec() const
+{
+    return Spec_;
 }
 
 TFuture<TOperationPtr> TOperation::GetStarted()
@@ -97,7 +139,7 @@ bool TOperation::IsSchedulable() const
 
 IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
 {
-    return Controller_;
+    return LocalController_;
 }
 
 void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
@@ -105,35 +147,39 @@ void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDur
     ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
 }
 
-void TOperation::UpdateControllerTimeStatistics(const TStatistics& statistics)
-{
-    ControllerTimeStatistics_.Update(statistics);
-}
-
-bool TOperation::HasControllerProgress() const
-{
-    return (State_ == EOperationState::Running || IsFinishedState()) &&
-        Controller_ &&
-        Controller_->HasProgress();
-}
-
-bool TOperation::HasControllerJobSplitterInfo() const
-{
-    return State_ == EOperationState::Running &&
-        Controller_ &&
-        Controller_->HasJobSplitterInfo();
-}
-
 TCodicilGuard TOperation::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);
 }
 
-void TOperation::SetState(EOperationState state)
+void TOperation::SetStateAndEnqueueEvent(EOperationState state)
 {
     State_ = state;
     Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
     ShouldFlush_ = true;
+}
+
+void TOperation::SetSlotIndex(const TString& treeId, int value)
+{
+    TreeIdToSlotIndex_.emplace(treeId, value);
+}
+
+TNullable<int> TOperation::FindSlotIndex(const TString& treeId) const
+{
+    auto it = TreeIdToSlotIndex_.find(treeId);
+    return it != TreeIdToSlotIndex_.end() ? MakeNullable(it->second) : Null;
+}
+
+int TOperation::GetSlotIndex(const TString& treeId) const
+{
+    auto slotIndex = FindSlotIndex(treeId);
+    YCHECK(slotIndex);
+    return *slotIndex;
+}
+
+const THashMap<TString, int>& TOperation::GetSlotIndices() const
+{
+    return TreeIdToSlotIndex_;
 }
 
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()
@@ -146,20 +192,40 @@ void TOperation::Cancel()
     CancelableContext_->Cancel();
 }
 
-void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
+////////////////////////////////////////////////////////////////////////////////
+
+int TOperationRuntimeData::GetPendingJobCount() const
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("time").Value(event.Time)
-            .Item("state").Value(event.State)
-        .EndMap();
+    return PendingJobCount_.load();
 }
 
-void Deserialize(TOperationEvent& event, INodePtr node)
+void TOperationRuntimeData::SetPendingJobCount(int value)
 {
-    auto mapNode = node->AsMap();
-    event.Time = ConvertTo<TInstant>(mapNode->GetChild("time"));
-    event.State = ConvertTo<EOperationState>(mapNode->GetChild("state"));
+    PendingJobCount_.store(value);
+}
+
+NScheduler::TJobResources TOperationRuntimeData::GetNeededResources()
+{
+    NConcurrency::TReaderGuard guard(NeededResourcesLock_);
+    return NeededResources_;
+}
+
+void TOperationRuntimeData::SetNeededResources(const NScheduler::TJobResources& value)
+{
+    NConcurrency::TWriterGuard guard(NeededResourcesLock_);
+    NeededResources_ = value;
+}
+
+TJobResourcesWithQuotaList TOperationRuntimeData::GetMinNeededJobResources() const
+{
+    NConcurrency::TReaderGuard guard(MinNeededResourcesJobLock_);
+    return MinNeededJobResources_;
+}
+
+void TOperationRuntimeData::SetMinNeededJobResources(const TJobResourcesWithQuotaList& value)
+{
+    NConcurrency::TWriterGuard guard(MinNeededResourcesJobLock_);
+    MinNeededJobResources_ = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

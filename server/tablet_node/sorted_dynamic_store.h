@@ -126,7 +126,8 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor) override;
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& sessionId) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -134,7 +135,8 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor) override;
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& sessionId) override;
 
     virtual TError CheckRowLocks(
         TUnversionedRow row,

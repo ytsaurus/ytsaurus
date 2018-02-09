@@ -32,23 +32,6 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Similar to NYTree::INodeResolver but works for arbitrary objects rather than nodes.
-struct IObjectResolver
-{
-    virtual ~IObjectResolver() = default;
-
-    //! Resolves a given path in the context of a given transaction.
-    //! Throws if resolution fails.
-    virtual IObjectProxyPtr ResolvePath(
-        const NYPath::TYPath& path,
-        NTransactionServer::TTransaction* transaction) = 0;
-
-    //! Returns a path corresponding to a given object.
-    virtual NYPath::TYPath GetPath(IObjectProxyPtr proxy) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Provides high-level management and tracking of objects.
 /*!
  *  \note
@@ -184,7 +167,11 @@ public:
         EObjectType type,
         NYTree::IAttributeDictionary* attributes);
 
-    IObjectResolver* GetObjectResolver();
+    //! Handles all kinds of paths, both to versioned and unversioned objects.
+    //! Pretty slow.
+    TObjectBase* ResolvePathToObject(
+        const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction);
 
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
@@ -245,8 +232,6 @@ private:
     THashMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
 
     TRootServicePtr RootService_;
-
-    std::unique_ptr<TObjectResolver> ObjectResolver_;
 
     TObjectId MasterObjectId_;
     std::unique_ptr<TMasterObject> MasterObject_;

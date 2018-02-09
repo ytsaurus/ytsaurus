@@ -150,7 +150,8 @@ private:
 
         auto timestampOrError = WaitFor(GenerateTimestamps(1));
         if (timestampOrError.IsOK()) {
-            LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)", timestampOrError.Value());
+            LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)",
+                timestampOrError.Value());
         } else {
             LOG_WARNING(timestampOrError, "Error updating latest timestamp");
             return;

@@ -172,12 +172,16 @@ void TChunkStripeList::Persist(const TPersistenceContext& context)
     Persist(context, TotalRowCount);
     Persist(context, TotalChunkCount);
     Persist(context, LocalChunkCount);
-
-    // COMPAT(psushin).
-    if (!context.IsLoad() || context.GetVersion() >= 200840) {
-        Persist(context, IsSplittable);
-    }
+    Persist(context, IsSplittable);
 }
+
+TChunkStripeList* TChunkStripeList::SetSplittable(bool splittable)
+{
+    IsSplittable = splittable;
+    return this;
+}
+
+const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>()->SetSplittable(true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

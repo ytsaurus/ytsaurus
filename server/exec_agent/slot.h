@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/server/data_node/artifact.h>
+#include <yt/server/data_node/public.h>
+
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
@@ -52,13 +55,14 @@ struct ISlot
         const TString& destinationName,
         bool isExecutable) = 0;
 
-    virtual TFuture<TString> PrepareTmpfs(
+    virtual TFuture<TNullable<TString>> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        TString path,
-        bool enable) = 0;
+        TString path) = 0;
 
-    virtual TFuture<void> SetQuota(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) = 0;
+    virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(const std::vector<NDataNode::TArtifactKey>& layers) = 0;
+
+    virtual TFuture<void> FinalizePreparation(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) = 0;
 
     virtual NJobProberClient::IJobProbePtr GetJobProberClient() = 0;
 

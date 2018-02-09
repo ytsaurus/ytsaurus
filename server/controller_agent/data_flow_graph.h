@@ -1,12 +1,17 @@
 #pragma once
 
 #include "private.h"
-#include "serialize.h"
 #include "progress_counter.h"
 
 #include <yt/server/chunk_pools/public.h>
 
 #include <yt/ytlib/table_client/helpers.h>
+
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/core/misc/topological_ordering.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -17,6 +22,7 @@ struct TEdgeDescriptor
 {
     TEdgeDescriptor() = default;
 
+    // Keep fields below in sync with operator =.
     NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
     bool RequiresRecoveryInfo = false;
     NTableClient::TTableWriterOptionsPtr TableWriterOptions;
@@ -25,9 +31,12 @@ struct TEdgeDescriptor
     TNullable<NTransactionClient::TTimestamp> Timestamp;
     // Cell tag to allocate chunk lists.
     NObjectClient::TCellTag CellTag;
-    bool ImmediatelyUnstageChunkLists;
+    bool ImmediatelyUnstageChunkLists = false;
+    bool IsFinalOutput = false;
 
     void Persist(const TPersistenceContext& context);
+
+    TEdgeDescriptor& operator =(const TEdgeDescriptor& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,21 +44,39 @@ struct TEdgeDescriptor
 class TDataFlowGraph
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(TProgressCounterPtr, TotalJobCounter, New<TProgressCounter>(0));
+    using TVertexDescriptor = TString;
 
-public:
+    static TVertexDescriptor SourceDescriptor;
+    static TVertexDescriptor SinkDescriptor;
+
     TDataFlowGraph() = default;
 
-    void BuildYson(NYson::IYsonConsumer* consumer) const;
-
-    const TProgressCounterPtr& JobCounter(EJobType jobType);
+    void BuildYson(NYTree::TFluentMap fluent) const;
 
     void Persist(const TPersistenceContext& context);
 
-    std::vector<EJobType> GetTopologicalOrder() const;
+    const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
+
+    void RegisterFlow(
+        const TVertexDescriptor& from,
+        const TVertexDescriptor& to,
+        const NChunkClient::NProto::TDataStatistics& statistics);
+
+    void RegisterTask(
+        const TVertexDescriptor& vertex,
+        const TProgressCounterPtr& taskCounter,
+        EJobType jobType);
 
 private:
-    THashMap<EJobType, TProgressCounterPtr> JobCounters_;
+    THashMap<TVertexDescriptor, TProgressCounterPtr> JobCounters_;
+    TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
+
+    THashMap<TVertexDescriptor, EJobType> JobTypes_;
+
+    using TFlowMap = THashMap<TVertexDescriptor, THashMap<TVertexDescriptor, NChunkClient::NProto::TDataStatistics>>;
+    TFlowMap Flow_;
+
+    TIncrementalTopologicalOrdering<TVertexDescriptor> TopologicalOrdering_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

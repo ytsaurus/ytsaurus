@@ -5,6 +5,7 @@ namespace NTabletNode {
 namespace {
 
 using namespace NApi;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1107,7 +1108,8 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
         AsyncLastCommittedTimestamp,
         false,
         TColumnFilter(),
-        TWorkloadDescriptor());
+        TWorkloadDescriptor(),
+        TReadSessionId());
 
     EXPECT_TRUE(reader->Open().Get().IsOK());
 

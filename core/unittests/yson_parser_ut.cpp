@@ -4,6 +4,8 @@
 #include <yt/core/yson/null_consumer.h>
 #include <yt/core/yson/parser.h>
 
+#include <yt/core/ytree/convert.h>
+
 #include <yt/core/misc/error.h>
 
 #include <util/stream/mem.h>
@@ -74,6 +76,55 @@ TEST_F(TYsonParserTest, Double)
     EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(3.1415926)));
 
     Run(" 31415926e-7  ");
+}
+
+TEST_F(TYsonParserTest, Nan)
+{
+    TString nanString = "   %nan    ";
+    auto node = NYTree::ConvertToNode(TYsonString(nanString));
+    EXPECT_TRUE(std::isnan(node->AsDouble()->GetValue()));
+
+    TString minusNanString = "   %-nan   ";
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonString(minusNanString)), std::exception);
+
+    TString plusNanString = "   %+nan   ";
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonString(plusNanString)), std::exception);
+
+    TString percentLessNanString = "   nan   ";
+    node = NYTree::ConvertToNode(TYsonString(percentLessNanString));
+    EXPECT_EQ(node->GetType(), NYTree::ENodeType::String);
+
+    TString badNanString = "   %+nany   ";
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonString(badNanString)), std::exception);
+
+    TString percentLessBadNanString = "   +nan   ";
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonString(percentLessBadNanString)), std::exception);
+}
+
+TEST_F(TYsonParserTest, Infinity)
+{
+    InSequence dummy;
+    {
+        EXPECT_CALL(Mock, OnDoubleScalar(std::numeric_limits<double>::infinity()));
+        Run(" %inf  ");
+    }
+    {
+        EXPECT_CALL(Mock, OnDoubleScalar(std::numeric_limits<double>::infinity()));
+        Run(" %+inf  ");
+    }
+    {
+        EXPECT_CALL(Mock, OnDoubleScalar(-std::numeric_limits<double>::infinity()));
+        Run(" %-inf  ");
+    }
+    {
+        EXPECT_CALL(Mock, OnStringScalar("inf"));
+        Run("   inf  ");
+    }
+    {
+        EXPECT_THROW(Run("  +inf  "), std::exception);
+    }
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonString("%infinity")), std::exception);
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonString("%+infinity")), std::exception);
 }
 
 TEST_F(TYsonParserTest, StringStartingWithLetter)

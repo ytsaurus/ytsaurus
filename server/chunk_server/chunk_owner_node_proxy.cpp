@@ -18,6 +18,8 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
+#include <yt/ytlib/file_client/file_chunk_writer.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -782,6 +784,9 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
     node->Properties() = properties;
     node->SetPrimaryMediumIndex(mediumIndex);
 
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->UpdateAccountNodeUsage(node);
+
     if (!node->IsExternal()) {
         chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
     }
@@ -1048,6 +1053,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         ToProto(response->mutable_last_key(), lastKey);
     }
 
+    TNullable<TMD5Hasher> md5Hasher;
+    node->GetUploadParams(&md5Hasher);
+    ToProto(response->mutable_md5_hasher(), md5Hasher);
+
     context->SetResponseInfo("UploadChunkListId: %v, HasLastKey: %v",
         uploadChunkListId,
         response->has_last_key());
@@ -1067,8 +1076,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
     bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();
 
-    context->SetRequestInfo("Schema: %v, ChunkPropertiesUpdateNeeded: %v",
-        schema,
+    context->SetRequestInfo("ChunkPropertiesUpdateNeeded: %v",
         chunkPropertiesUpdateNeeded);
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
@@ -1091,7 +1099,16 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         PostToMaster(context, node->GetExternalCellTag());
     }
 
-    node->EndUpload(statistics, schema, schemaMode, optimizeFor);
+    if (request->has_md5_hasher()) {
+        YCHECK(node->GetType() == EObjectType::File);
+    }
+
+    TNullable<TMD5Hasher> md5Hasher;
+    if (request->has_md5_hasher()) {
+        FromProto(&md5Hasher, request->md5_hasher());
+    }
+
+    node->EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
 
     node->SetChunkPropertiesUpdateNeeded(chunkPropertiesUpdateNeeded);
 

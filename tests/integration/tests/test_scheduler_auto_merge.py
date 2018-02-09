@@ -19,6 +19,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
             "chunk_unstage_period": 10,
+            "snapshot_period": 3000,
+            "job_revival_abort_timeout": 2000,
         },
     }
 
@@ -32,8 +34,9 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create_account("acc")
         set("//sys/accounts/acc/@resource_limits/chunk_count", chunk_count)
 
-    def _track_and_report_peak_chunk_count(self, op):
+    def _track_and_report_peak_chunk_count(self, op, with_revive=False):
         peak_chunk_count = 0
+        i = 0
         while True:
             state = op.get_state()
             if state == "completed":
@@ -43,11 +46,17 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
             peak_chunk_count = max(peak_chunk_count, current_chunk_count)
             sleep(0.5)
+            if with_revive:
+                i += 1
+                if i == 20:
+                    self.Env.kill_schedulers()
+                    self.Env.start_schedulers()
+                    i = 0
         print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
 
     # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
     # This is why we use the pytest timeout decorator.
-    @pytest.mark.timeout(240)
+    @pytest.mark.timeout(480)
     def test_auto_merge_does_not_stuck(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -85,7 +94,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                    (row_count - 1) // min(chunk_count_per_merge_job, max_intermediate_chunk_count) + 1
             assert get("//tmp/t_out/@row_count") == row_count
 
-    @pytest.mark.timeout(240)
+    @pytest.mark.timeout(480)
     def test_account_chunk_limit(self):
         self._create_account(50)
 
@@ -146,9 +155,11 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert get("//tmp/t_out1/@row_count") == row_count // 2
         assert get("//tmp/t_out2/@row_count") == row_count // 2
 
-    @pytest.mark.timeout(240)
-    def test_only_auto_merge_output_table(self):
-        self._create_account(40)
+    @pytest.mark.timeout(480)
+    @pytest.mark.parametrize("with_revive", [True, False])
+    def test_only_auto_merge_output_table(self, with_revive):
+        chunk_limit = 1000 if with_revive else 40
+        self._create_account(chunk_limit)
 
         create("table", "//tmp/t_in", attributes={"account": "acc"})
         create("table", "//tmp/t_out1", attributes={"account": "acc"})
@@ -174,7 +185,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "data_size_per_job": 1
             })
 
-        self._track_and_report_peak_chunk_count(op)
+        self._track_and_report_peak_chunk_count(op, with_revive=with_revive)
 
         assert get("//tmp/t_out1/@row_count") == row_count // 10
         assert get("//tmp/t_out2/@row_count") == row_count * 9 // 10
@@ -233,7 +244,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert content[:1] == init_content
         assert get("//tmp/t_out/@schema") == schema_out
 
-    @pytest.mark.timeout(30)
+    @pytest.mark.timeout(60)
     def test_teleport_large_chunks(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -265,7 +276,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         row_counts = sorted(row_counts)
         assert row_counts == [1, 1, 1, 1, 1, 5]
 
-    @pytest.mark.timeout(30)
+    @pytest.mark.timeout(60)
     def test_erasure_output(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -293,7 +304,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         for chunk_id in chunk_ids:
             assert get("#{0}/@erasure_codec".format(chunk_id)) == "lrc_12_2_2"
 
-    @pytest.mark.timeout(30)
+    @pytest.mark.timeout(60)
     def test_replicated_and_compressed_output(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -322,3 +333,78 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         for chunk_id in chunk_ids:
             assert get("#{0}/@media/default/replication_factor".format(chunk_id)) == 5
             assert get("#{0}/@compression_codec".format(chunk_id)) == "zstd_17"
+
+    @pytest.mark.timeout(60)
+    def test_row_count_limit_disables_auto_merge(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["<row_count_limit=5>//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 4,
+                    "max_intermediate_chunk_count" : 100
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out/@chunk_count") >= 5
+
+    @pytest.mark.timeout(60)
+    def test_sorted_output_disables_auto_merge(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        schema_out = make_schema([
+            {
+                "name": "a",
+                "type": "string",
+                "sort_order": "ascending",
+            },
+        ], unique_keys=False, strict=True)
+        create("table", "//tmp/t_out_with_schema", attributes={"schema": schema_out})
+
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["<sorted_by=[a]>//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 4,
+                    "max_intermediate_chunk_count" : 100
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out/@chunk_count") >= 5
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out_with_schema"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 4,
+                    "max_intermediate_chunk_count" : 100
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out_with_schema/@chunk_count") >= 5

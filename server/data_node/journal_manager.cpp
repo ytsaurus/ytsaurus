@@ -841,10 +841,9 @@ public:
         : Config_(config)
         , Location_(location)
         , Bootstrap_(bootstrap)
+        , Logger(NLogging::TLogger(DataNodeLogger)
+            .AddTag("LocationId: %v", Location_->GetId()))
     {
-        Logger = DataNodeLogger;
-        Logger.AddTag("LocationId: %v", Location_->GetId());
-
         MultiplexedChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Config_->MultiplexedChangelog,
             "MFlush:" + Location_->GetId(),
@@ -889,11 +888,17 @@ public:
 
     TFuture<IChangelogPtr> CreateChangelog(
         const TChunkId& chunkId,
-        bool enableMultiplexing)
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         auto creator = Location_->DisableOnError(
-            BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId, enableMultiplexing))
-                .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
+            BIND(
+                &TImpl::DoCreateChangelog,
+                MakeStrong(this),
+                chunkId,
+                enableMultiplexing,
+                workloadDescriptor))
+            .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
             return MultiplexedWriter_->WriteCreateRecord(chunkId)
@@ -908,10 +913,14 @@ public:
     }
 
     TFuture<void> RemoveChangelog(
-        TJournalChunkPtr chunk,
+        const TJournalChunkPtr& chunk,
         bool enableMultiplexing)
     {
-        auto remover = Location_->DisableOnError(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk))
+        auto remover = Location_->DisableOnError(
+            BIND(
+                &TImpl::DoRemoveChangelog,
+                MakeStrong(this),
+                chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
@@ -947,7 +956,7 @@ public:
             .Run();
     }
 
-    TFuture<void> SealChangelog(TJournalChunkPtr chunk)
+    TFuture<void> SealChangelog(const TJournalChunkPtr& chunk)
     {
         return Location_->DisableOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
@@ -959,15 +968,25 @@ private:
     TStoreLocation* const Location_;
     NCellNode::TBootstrap* const Bootstrap_;
 
+    const NLogging::TLogger Logger;
+
     TFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
     TFileChangelogDispatcherPtr SplitChangelogDispatcher_;
 
     TIntrusivePtr<TMultiplexedWriter> MultiplexedWriter_;
 
-    NLogging::TLogger Logger;
 
+    TFileChangelogConfigPtr GetSplitChangelogConfig(bool enableMultiplexing)
+    {
+        return enableMultiplexing
+            ? Config_->HighLatencySplitChangelog
+            : Config_->LowLatencySplitChangelog;
+    }
 
-    IChangelogPtr DoCreateChangelog(const TChunkId& chunkId, bool enableMultiplexing)
+    IChangelogPtr DoCreateChangelog(
+        const TChunkId& chunkId,
+        bool enableMultiplexing,
+        const TWorkloadDescriptor& /*workloadDescriptor*/)
     {
         IChangelogPtr changelog;
 
@@ -980,7 +999,7 @@ private:
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
                 TChangelogMeta(),
-                enableMultiplexing ? Config_->HighLatencySplitChangelog : Config_->LowLatencySplitChangelog);
+                GetSplitChangelogConfig(enableMultiplexing));
         }
 
         LOG_DEBUG("Finished creating journal chunk (ChunkId: %v)",
@@ -1010,7 +1029,7 @@ private:
         return changelog;
     }
 
-    void DoRemoveChangelog(TJournalChunkPtr chunk)
+    void DoRemoveChangelog(const TJournalChunkPtr& chunk)
     {
         const auto& Profiler = Location_->GetProfiler();
         PROFILE_TIMING("/journal_chunk_remove_time") {
@@ -1023,7 +1042,7 @@ private:
         return NFS::Exists(GetSealedFlagFileName(chunkId));
     }
 
-    void DoSealChangelog(TJournalChunkPtr chunk)
+    void DoSealChangelog(const TJournalChunkPtr& chunk)
     {
         TFile file(GetSealedFlagFileName(chunk->GetId()), CreateNew);
     }
@@ -1060,7 +1079,7 @@ private:
 
         virtual IChangelogPtr CreateSplitChangelog(const TChunkId& chunkId) override
         {
-            auto chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             if (chunkStore->FindChunk(chunkId)) {
                 return nullptr;
             }
@@ -1071,9 +1090,13 @@ private:
                 TChunkDescriptor(chunkId));
             chunkStore->RegisterNewChunk(chunk);
 
-            auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
-            auto changelog = dispatcher->CreateChangelog(chunk->GetStoreLocation(), chunkId, false)
-                .Get()
+            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            auto asyncChangelog = dispatcher->CreateChangelog(
+                chunk->GetStoreLocation(),
+                chunkId,
+                false,
+                TWorkloadDescriptor(EWorkloadCategory::SystemRepair));
+            auto changelog = WaitFor(asyncChangelog)
                 .ValueOrThrow();
 
             chunk->AttachChangelog(changelog);
@@ -1083,7 +1106,7 @@ private:
 
         virtual IChangelogPtr OpenSplitChangelog(const TChunkId& chunkId) override
         {
-            auto chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 return nullptr;
@@ -1091,7 +1114,7 @@ private:
 
             auto journalChunk = chunk->AsJournalChunk();
 
-            auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
             auto changelog = dispatcher->OpenChangelog(journalChunk->GetStoreLocation(), chunkId)
                 .Get()
                 .ValueOrThrow();
@@ -1103,7 +1126,7 @@ private:
 
         virtual void FlushSplitChangelog(const TChunkId& chunkId) override
         {
-            auto chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk)
                 return;
@@ -1120,7 +1143,7 @@ private:
 
         virtual bool RemoveSplitChangelog(const TChunkId& chunkId) override
         {
-            auto chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 return false;
@@ -1129,7 +1152,7 @@ private:
             auto journalChunk = chunk->AsJournalChunk();
             chunkStore->UnregisterChunk(chunk);
 
-            auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
             dispatcher->RemoveChangelog(journalChunk, false)
                 .Get()
                 .ThrowOnError();
@@ -1146,9 +1169,7 @@ private:
 
     private:
         TImpl* const Impl_;
-
     };
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1175,13 +1196,14 @@ TFuture<IChangelogPtr> TJournalManager::OpenChangelog(
 
 TFuture<IChangelogPtr> TJournalManager::CreateChangelog(
     const TChunkId& chunkId,
-    bool enableMultiplexing)
+    bool enableMultiplexing,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
-    return Impl_->CreateChangelog(chunkId, enableMultiplexing);
+    return Impl_->CreateChangelog(chunkId, enableMultiplexing, workloadDescriptor);
 }
 
 TFuture<void> TJournalManager::RemoveChangelog(
-    TJournalChunkPtr chunk,
+    const TJournalChunkPtr& chunk,
     bool enableMultiplexing)
 {
     return Impl_->RemoveChangelog(chunk, enableMultiplexing);
@@ -1205,7 +1227,7 @@ TFuture<bool> TJournalManager::IsChangelogSealed(const TChunkId& chunkId)
     return Impl_->IsChangelogSealed(chunkId);
 }
 
-TFuture<void> TJournalManager::SealChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalManager::SealChangelog(const TJournalChunkPtr& chunk)
 {
     return Impl_->SealChangelog(chunk);
 }

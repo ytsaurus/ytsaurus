@@ -12,8 +12,6 @@
 
 #include <yt/server/journal_server/public.h>
 
-#include <yt/server/misc/public.h>
-
 #include <yt/server/node_tracker_server/public.h>
 
 #include <yt/server/object_server/public.h>
@@ -30,7 +28,6 @@
 
 #include <yt/ytlib/election/public.h>
 
-#include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/public.h>
 
 #include <yt/ytlib/hive/public.h>
@@ -38,6 +35,8 @@
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/rpc/public.h>
+
+#include <yt/core/http/public.h>
 
 #include <yt/core/misc/public.h>
 
@@ -70,7 +69,7 @@ public:
     const TConfigManagerPtr& GetConfigManager() const;
     const TMulticellManagerPtr& GetMulticellManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
-    const NRpc::IChannelPtr GetLocalRpcChannel() const;
+    const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
@@ -115,7 +114,8 @@ private:
     NRpc::IChannelPtr LocalRpcChannel_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
-    std::unique_ptr<NXHttp::TServer> HttpServer_;
+    NHttp::IServerPtr HttpServer_;
+    NHttp::IHttpHandlerPtr OrchidHttpHandler_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;

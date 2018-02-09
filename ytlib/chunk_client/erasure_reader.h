@@ -20,22 +20,6 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(ignat): Remove this reader, it is not used anymore.
-IChunkReaderPtr CreateNonRepairingErasureReader(
-    NErasure::ICodec* codec,
-    const std::vector<IChunkReaderPtr>& dataBlocksReaders);
-
-std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
-    TReplicationReaderConfigPtr config,
-    TRemoteReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TChunkId& chunkId,
-    const TChunkReplicaList& seedReplicas,
-    const NErasure::ICodec* codec,
-    IBlockCachePtr blockCache = GetNullBlockCache(),
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
-
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,

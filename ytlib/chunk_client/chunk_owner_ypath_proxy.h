@@ -22,7 +22,7 @@ DEFINE_ENUM(EUpdateMode,
 struct TChunkOwnerYPathProxy
     : public NCypressClient::TCypressYPathProxy
 {
-    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(ChunkOwner));
+    DEFINE_YPATH_PROXY(ChunkOwner);
 
     DEFINE_YPATH_PROXY_METHOD(NProto, Fetch);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, BeginUpload);

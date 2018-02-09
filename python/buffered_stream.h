@@ -55,7 +55,7 @@ private:
     bool Full_ = false;
 
     // Marks that buffer contains enough bytes to be read by waiting read command.
-    std::atomic<bool> AllowRead_;
+    TPromise<void> AllowRead_;
 
     // Marks that stream ready to receive more bytes.
     TPromise<void> AllowWrite_;

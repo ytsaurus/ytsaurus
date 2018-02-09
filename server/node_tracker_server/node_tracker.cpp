@@ -37,7 +37,8 @@
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/id_generator.h>
 
 #include <yt/core/ypath/token.h>
@@ -54,6 +55,7 @@ namespace NYT {
 namespace NNodeTrackerServer {
 
 using namespace NConcurrency;
+using namespace NNet;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NNodeTrackerClient;
@@ -327,10 +329,13 @@ public:
     DEFINE_SIGNAL(void(TNode* node), NodeDisposed);
     DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
     DEFINE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
-    DEFINE_SIGNAL(void(TNode* node), NodeLocationChanged);
+    DEFINE_SIGNAL(void(TNode* node, TRack*), NodeRackChanged);
+    DEFINE_SIGNAL(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
     DEFINE_SIGNAL(void(TNode* node, TReqFullHeartbeat* request), FullHeartbeat);
     DEFINE_SIGNAL(void(TNode* node, TReqIncrementalHeartbeat* request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
-
+    DEFINE_SIGNAL(void(TDataCenter*), DataCenterCreated);
+    DEFINE_SIGNAL(void(TDataCenter*), DataCenterRenamed);
+    DEFINE_SIGNAL(void(TDataCenter*), DataCenterDestroyed);
 
     void DestroyNode(TNode* node)
     {
@@ -488,12 +493,13 @@ public:
     void SetNodeRack(TNode* node, TRack* rack)
     {
         if (node->GetRack() != rack) {
+            auto* oldRack = node->GetRack();
             node->SetRack(rack);
             LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
                 rack ? MakeNullable(rack->GetName()) : Null);
-            NodeLocationChanged_.Fire(node);
+            NodeRackChanged_.Fire(node, oldRack);
         }
     }
 
@@ -591,10 +597,11 @@ public:
         return rack;
     }
 
-    void SetRackDataCenter(TRack* rack, TDataCenter* dc)
+    void SetRackDataCenter(TRack* rack, TDataCenter* dataCenter)
     {
-        if (rack->GetDataCenter() != dc) {
-            rack->SetDataCenter(dc);
+        if (rack->GetDataCenter() != dataCenter) {
+            auto* oldDataCenter = rack->GetDataCenter();
+            rack->SetDataCenter(dataCenter);
 
             // Node's tags take into account not only its rack, but also its
             // rack's DC.
@@ -605,10 +612,10 @@ public:
 
             LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
                 MakeNullable(rack->GetName()),
-                dc ? MakeNullable(dc->GetName()) : Null);
+                dataCenter ? MakeNullable(dataCenter->GetName()) : Null);
 
             for (auto* node : nodes) {
-                NodeLocationChanged_.Fire(node);
+                NodeDataCenterChanged_.Fire(node, oldDataCenter);
             }
         }
     }
@@ -644,6 +651,8 @@ public:
         // Make the fake reference.
         YCHECK(dc->RefObject() == 1);
 
+        DataCenterCreated_.Fire(dc);
+
         return dc;
     }
 
@@ -656,6 +665,8 @@ public:
 
         // Remove DC from maps.
         YCHECK(NameToDataCenterMap_.erase(dc->GetName()) == 1);
+
+        DataCenterDestroyed_.Fire(dc);
     }
 
     void RenameDataCenter(TDataCenter* dc, const TString& newName)
@@ -683,6 +694,8 @@ public:
                 node->RebuildTags();
             }
         }
+
+        DataCenterRenamed_.Fire(dc);
     }
 
     TDataCenter* FindDataCenterByName(const TString& name)
@@ -780,7 +793,8 @@ private:
     THashMap<TString, TRack*> NameToRackMap_;
     THashMap<TString, TDataCenter*> NameToDataCenterMap_;
 
-    TPeriodicExecutorPtr NodeStatesGossipExecutor_;
+    TPeriodicExecutorPtr IncrementalNodeStatesGossipExecutor_;
+    TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
 
     int PendingRegisterNodeMutationCount_ = 0;
 
@@ -827,9 +841,7 @@ private:
     IMapNodePtr GetNodeMap()
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        auto node = resolver->ResolvePath("//sys/nodes");
-        return node->AsMap();
+        return cypressManager->ResolvePathToNodeProxy("//sys/nodes")->AsMap();
     }
 
 
@@ -843,7 +855,7 @@ private:
         }
 
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
-        const auto& addresses = GetAddresses(nodeAddresses, EAddressType::InternalRpc);
+        const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
         auto& statistics = *request->mutable_statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
@@ -1193,11 +1205,17 @@ private:
 
         // NB: Node states gossip is one way: secondary-to-primary.
         if (Bootstrap_->IsSecondaryMaster()) {
-            NodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
+            IncrementalNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
-                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this)),
-                Config_->NodeStatesGossipPeriod);
-            NodeStatesGossipExecutor_->Start();
+                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), true),
+                Config_->IncrementalNodeStatesGossipPeriod);
+            IncrementalNodeStatesGossipExecutor_->Start();
+
+            FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false),
+                Config_->FullNodeStatesGossipPeriod);
+            FullNodeStatesGossipExecutor_->Start();
         }
 
         PendingRegisterNodeMutationCount_ = 0;
@@ -1214,9 +1232,14 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        if (NodeStatesGossipExecutor_) {
-            NodeStatesGossipExecutor_->Stop();
-            NodeStatesGossipExecutor_.Reset();
+        if (IncrementalNodeStatesGossipExecutor_) {
+            IncrementalNodeStatesGossipExecutor_->Stop();
+            IncrementalNodeStatesGossipExecutor_.Reset();
+        }
+
+        if (FullNodeStatesGossipExecutor_) {
+            FullNodeStatesGossipExecutor_->Stop();
+            FullNodeStatesGossipExecutor_.Reset();
         }
     }
 
@@ -1402,27 +1425,38 @@ private:
     }
 
 
-    void OnNodeStatesGossip()
+    void OnNodeStatesGossip(bool incremental)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
             return;
         }
 
-        LOG_INFO("Sending node states gossip message");
-
         TReqSetNodeStates request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            if (!IsObjectAlive(node))
+            if (!IsObjectAlive(node)) {
                 continue;
+            }
+
+            auto state = node->GetLocalState();
+            if (incremental && state == node->GetLastGossipState()) {
+                continue;
+            }
 
             auto* entry = request.add_entries();
             entry->set_node_id(node->GetId());
-            entry->set_state(static_cast<int>(node->GetLocalState()));
+            entry->set_state(static_cast<int>(state));
+            node->SetLastGossipState(state);
         }
 
+        if (request.entries_size() == 0) {
+            return;
+        }
+
+        LOG_INFO("Sending node states gossip message (Incremental: %v)",
+            incremental);
         multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
     }
 
@@ -1433,7 +1467,7 @@ private:
         const TAsyncSemaphorePtr& semaphore)
     {
         auto handler = BIND([mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
-            WaitFor(mutation->CommitAndReply(context));
+            Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
         });
 
         auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
@@ -1453,7 +1487,7 @@ private:
             this);
 
         auto handler = BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
-            WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger));
+            Y_UNUSED(WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger)));
         });
 
         auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
@@ -1802,9 +1836,13 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeLocationChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TRack*), NodeRackChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TDataCenter*), NodeDataCenterChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqFullHeartbeat*), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqIncrementalHeartbeat*, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterCreated, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterRenamed, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterDestroyed, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

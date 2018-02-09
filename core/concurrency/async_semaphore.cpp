@@ -142,6 +142,40 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TProfiledAsyncSemaphore::TProfiledAsyncSemaphore(
+    i64 totalSlots,
+    const NProfiling::TProfiler& profiler,
+    const NYPath::TYPath& path,
+    const NProfiling::TTagIdList& tagIds)
+    : TAsyncSemaphore(totalSlots)
+    , Profiler(profiler)
+    , Path_(path)
+    , TagIds_(tagIds)
+{ }
+
+void TProfiledAsyncSemaphore::Release(i64 slots /* = 1 */)
+{
+    TAsyncSemaphore::Release(slots);
+    Profiler.Enqueue(Path_, GetUsed(), NProfiling::EMetricType::Gauge, TagIds_);
+}
+
+void TProfiledAsyncSemaphore::Acquire(i64 slots /* = 1 */)
+{
+    TAsyncSemaphore::Acquire(slots);
+    Profiler.Enqueue(Path_, GetUsed(), NProfiling::EMetricType::Gauge, TagIds_);
+}
+
+bool TProfiledAsyncSemaphore::TryAcquire(i64 slots /* = 1 */)
+{
+    if (TAsyncSemaphore::TryAcquire(slots)) {
+        Profiler.Enqueue(Path_, GetUsed(), NProfiling::EMetricType::Gauge, TagIds_);
+        return true;
+    }
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAsyncSemaphoreGuard::TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other)
 {
     MoveFrom(std::move(other));

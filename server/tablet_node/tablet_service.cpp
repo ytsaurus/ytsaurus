@@ -151,25 +151,30 @@ private:
         const auto& tabletManager = Slot_->GetTabletManager();
 
         TFuture<void> commitResult;
-        while (!reader.IsFinished()) {
-            // Due to possible row blocking, serving the request may involve a number of write attempts.
-            // Each attempt causes a mutation to be enqueued to Hydra.
-            // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
-            // actually relevant.
-            // Note that we're passing signature to every such call but only the last one actually uses it.
-            tabletManager->Write(
-                tabletSnapshot,
-                transactionId,
-                transactionStartTimestamp,
-                transactionTimeout,
-                signature,
-                rowCount,
-                dataWeight,
-                user,
-                versioned,
-                syncReplicaIds,
-                &reader,
-                &commitResult);
+        try {
+            while (!reader.IsFinished()) {
+                // Due to possible row blocking, serving the request may involve a number of write attempts.
+                // Each attempt causes a mutation to be enqueued to Hydra.
+                // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
+                // actually relevant.
+                // Note that we're passing signature to every such call but only the last one actually uses it.
+                tabletManager->Write(
+                    tabletSnapshot,
+                    transactionId,
+                    transactionStartTimestamp,
+                    transactionTimeout,
+                    signature,
+                    rowCount,
+                    dataWeight,
+                    user,
+                    versioned,
+                    syncReplicaIds,
+                    &reader,
+                    &commitResult);
+            }
+        } catch (const TErrorException&) {
+            ++tabletSnapshot->PerformanceCounters->WriteErrorCount;
+            throw;
         }
 
         if (atomicity == EAtomicity::None && durability == EDurability::Sync) {

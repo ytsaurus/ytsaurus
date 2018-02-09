@@ -46,11 +46,6 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
     };
 }
 
-double TExecNode::GetIOWeight() const
-{
-    return IOWeight_;
-}
-
 void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
 {
     TWriterGuard guard(SpinLock_);
@@ -77,12 +72,25 @@ const TJobResources& TExecNode::GetResourceUsage() const
     return ResourceUsage_;
 }
 
+
+const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskInfo() const
+{
+    return DiskInfo_;
+}
+
+
 void TExecNode::SetResourceUsage(const TJobResources& value)
 {
     // NB: No locking is needed since ResourceUsage_ is not used
     // in BuildExecDescriptor.
     ResourceUsage_ = value;
 }
+
+void TExecNode::SetDiskInfo(const NNodeTrackerClient::NProto::TDiskResources& value)
+{
+    DiskInfo_ = value;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,6 +122,32 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     Persist(context, ResourceLimits);
     Persist(context, Tags);
 }
+
+namespace NProto {
+
+void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
+{
+    protoDescriptor->set_node_id(descriptor.Id);
+    protoDescriptor->set_address(descriptor.Address);
+    protoDescriptor->set_io_weight(descriptor.IOWeight);
+    ToProto(protoDescriptor->mutable_resource_limits(), descriptor.ResourceLimits);
+    for (const auto& tag : descriptor.Tags) {
+        protoDescriptor->add_tags(tag);
+    }
+}
+
+void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NProto::TExecNodeDescriptor& protoDescriptor)
+{
+    descriptor->Id = protoDescriptor.node_id();
+    descriptor->Address = protoDescriptor.address();
+    descriptor->IOWeight = protoDescriptor.io_weight();
+    FromProto(&descriptor->ResourceLimits, protoDescriptor.resource_limits());
+    for (const auto& tag : protoDescriptor.tags()) {
+        descriptor->Tags.insert(tag);
+    }
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

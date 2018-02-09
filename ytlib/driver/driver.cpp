@@ -132,6 +132,9 @@ public:
         REGISTER(TWriteFileCommand,            "write_file",              Binary,     Null,       true,  true );
         REGISTER(TReadFileCommand,             "read_file",               Null,       Binary,     false, true );
 
+        REGISTER(TGetFileFromCacheCommand,     "get_file_from_cache",     Null,       Structured, false, false );
+        REGISTER(TPutFileToCacheCommand,       "put_file_to_cache",       Null,       Structured, true,  false);
+
         REGISTER(TWriteTableCommand,           "write_table",             Tabular,    Null,       true,  true );
         REGISTER(TReadTableCommand,            "read_table",              Null,       Tabular,    false, true );
         REGISTER(TReadBlobTableCommand,        "read_blob_table",         Null,       Binary,     false, true );
@@ -164,6 +167,7 @@ public:
         REGISTER(TJoinReduceCommand,           "join_reduce",             Null,       Structured, true,  false);
         REGISTER(TMapReduceCommand,            "map_reduce",              Null,       Structured, true,  false);
         REGISTER(TRemoteCopyCommand,           "remote_copy",             Null,       Structured, true,  false);
+        REGISTER(TStartOperationCommand,       "start_op",                Null,       Structured, true,  false);
         REGISTER(TAbortOperationCommand,       "abort_op",                Null,       Null,       true,  false);
         REGISTER(TSuspendOperationCommand,     "suspend_op",              Null,       Null,       true,  false);
         REGISTER(TResumeOperationCommand,      "resume_op",               Null,       Null,       true,  false);
@@ -181,8 +185,9 @@ public:
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
         REGISTER(TGetJobInputCommand,          "get_job_input",           Null,       Binary,     false, true);
         REGISTER(TGetJobStderrCommand,         "get_job_stderr",          Null,       Binary,     false, true);
-        REGISTER(TListOperationsCommand,       "list_operations",         Null,       Structured, false, true);
-        REGISTER(TListJobsCommand,             "list_jobs",               Null,       Structured, false, true);
+        REGISTER(TListOperationsCommand,       "list_operations",         Null,       Structured, false, false);
+        REGISTER(TListJobsCommand,             "list_jobs",               Null,       Structured, false, false);
+        REGISTER(TGetJobCommand,               "get_job",                 Null,       Structured, false, false);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
         REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
         REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);

@@ -23,21 +23,28 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 PoolChunkSize = 32 * 1024;
-static const i64 BufferLimit = 32 * PoolChunkSize;
+static const i64 BufferLimit = 16 * PoolChunkSize;
+static const i64 MaxTopCollectorLimit = 2 * 1024 * 1024;
 
 struct TTopCollectorBufferTag
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer)
+TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer, size_t rowSize)
     : Comparer_(comparer)
+    , RowSize_(rowSize)
 {
+    if (limit > MaxTopCollectorLimit) {
+        THROW_ERROR_EXCEPTION("Maximum ORDER BY limit exceeded")
+            << TErrorAttribute("limit", limit)
+            << TErrorAttribute("max_limit", MaxTopCollectorLimit);
+    }
+
     Rows_.reserve(limit);
 }
 
-std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
+std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
 {
     if (EmptyBufferIds_.empty()) {
         if (GarbageMemorySize_ > TotalMemorySize_ / 2) {
@@ -48,7 +55,7 @@ std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
                 buffersToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize);
+            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
@@ -59,7 +66,7 @@ std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
                     auto& row = Rows_[rowId].first;
 
                     auto savedSize = buffer->GetSize();
-                    row = buffer->Capture(row);
+                    row = buffer->Capture(row, RowSize_).Begin();
                     AllocatedMemorySize_ += buffer->GetSize() - savedSize;
                 }
 
@@ -75,7 +82,7 @@ std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
         } else {
             // Allocate buffer and add to emptyBufferIds.
             EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize));
+            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize, MaxSmallBlockRatio));
         }
     }
 
@@ -87,7 +94,7 @@ std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
     auto savedSize = buffer->GetSize();
     auto savedCapacity = buffer->GetCapacity();
 
-    auto capturedRow = buffer->Capture(row);
+    auto capturedRow = buffer->Capture(row, RowSize_).Begin();
 
     AllocatedMemorySize_ += buffer->GetSize() - savedSize;
     TotalMemorySize_ += buffer->GetCapacity() - savedCapacity;
@@ -99,10 +106,10 @@ std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
     return std::make_pair(capturedRow, bufferId);
 }
 
-void TTopCollector::AccountGarbage(TRow row)
+void TTopCollector::AccountGarbage(const TValue* row)
 {
-    GarbageMemorySize_ += GetUnversionedRowByteSize(row.GetCount());
-    for (int index = 0; index < row.GetCount(); ++index) {
+    GarbageMemorySize_ += GetUnversionedRowByteSize(RowSize_);
+    for (int index = 0; index < RowSize_; ++index) {
         const auto& value = row[index];
 
         if (IsStringLikeType(EValueType(value.Type))) {
@@ -111,13 +118,13 @@ void TTopCollector::AccountGarbage(TRow row)
     }
 }
 
-void TTopCollector::AddRow(TRow row)
+void TTopCollector::AddRow(const TValue* row)
 {
     if (Rows_.size() < Rows_.capacity()) {
         auto capturedRow = Capture(row);
         Rows_.emplace_back(capturedRow);
         std::push_heap(Rows_.begin(), Rows_.end(), Comparer_);
-    } else if (!Comparer_(Rows_.front().first, row)) {
+    } else if (!Rows_.empty() && !Comparer_(Rows_.front().first, row)) {
         auto capturedRow = Capture(row);
         std::pop_heap(Rows_.begin(), Rows_.end(), Comparer_);
         AccountGarbage(Rows_.back().first);
@@ -126,17 +133,14 @@ void TTopCollector::AddRow(TRow row)
     }
 }
 
-std::vector<TMutableRow> TTopCollector::GetRows(int rowSize) const
+std::vector<const TValue*> TTopCollector::GetRows() const
 {
-    std::vector<TMutableRow> result;
+    std::vector<const TValue*> result;
     result.reserve(Rows_.size());
     for (const auto& pair : Rows_) {
         result.push_back(pair.first);
     }
     std::sort(result.begin(), result.end(), Comparer_);
-    for (auto& row : result) {
-        row.SetCount(rowSize);
-    }
     return result;
 }
 
@@ -147,17 +151,19 @@ TJoinClosure::TJoinClosure(
     TComparerFunction* lookupEqComparer,
     TComparerFunction* prefixEqComparer,
     int keySize,
+    int primaryRowSize,
     size_t batchSize)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
     , Lookup(
         InitialGroupOpHashtableCapacity,
         lookupHasher,
         lookupEqComparer)
     , PrefixEqComparer(prefixEqComparer)
     , KeySize(keySize)
+    , PrimaryRowSize(primaryRowSize)
     , BatchSize(batchSize)
 {
-    Lookup.set_empty_key(TRow());
+    Lookup.set_empty_key(nullptr);
 }
 
 TMultiJoinClosure::TItem::TItem(
@@ -165,7 +171,7 @@ TMultiJoinClosure::TItem::TItem(
     TComparerFunction* prefixEqComparer,
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
     , KeySize(keySize)
     , PrefixEqComparer(prefixEqComparer)
     , Lookup(
@@ -173,7 +179,7 @@ TMultiJoinClosure::TItem::TItem(
         lookupHasher,
         lookupEqComparer)
 {
-    Lookup.set_empty_key(TRow());
+    Lookup.set_empty_key(nullptr);
 }
 
 TGroupByClosure::TGroupByClosure(
@@ -181,7 +187,7 @@ TGroupByClosure::TGroupByClosure(
     TComparerFunction* groupComparer,
     int keySize,
     bool checkNulls)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
     , Lookup(
         InitialGroupOpHashtableCapacity,
         groupHasher,
@@ -189,7 +195,7 @@ TGroupByClosure::TGroupByClosure(
     , KeySize(keySize)
     , CheckNulls(checkNulls)
 {
-    Lookup.set_empty_key(TRow());
+    Lookup.set_empty_key(nullptr);
 }
 
 TWriteOpClosure::TWriteOpClosure()
@@ -253,6 +259,42 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
     }
 
     return std::make_pair(newQuery, dataSource);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void* const* TCGVariables::GetOpaqueData() const
+{
+    return OpaquePointers_.data();
+}
+
+void TCGVariables::Clear()
+{
+    OpaquePointers_.clear();
+    OpaqueValues_.clear();
+    OwningLiteralValues_.clear();
+    LiteralValues_.reset();
+}
+
+int TCGVariables::AddLiteralValue(TOwningValue value)
+{
+    Y_ASSERT(!LiteralValues_);
+    int index = static_cast<int>(OwningLiteralValues_.size());
+    OwningLiteralValues_.emplace_back(std::move(value));
+    return index;
+}
+
+TValue* TCGVariables::GetLiteralValues() const
+{
+    if (!LiteralValues_) {
+        LiteralValues_ = std::make_unique<TValue[]>(OwningLiteralValues_.size());
+        size_t index = 0;
+        for (const auto& value : OwningLiteralValues_) {
+            LiteralValues_[index++] = TValue(value);
+        }
+        return LiteralValues_.get();
+    }
+    return LiteralValues_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

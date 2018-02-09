@@ -4,8 +4,9 @@ namespace NYT {
 namespace NTabletNode {
 namespace {
 
-using namespace NTransactionClient;
+using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +42,8 @@ protected:
             lowerRowIndex,
             upperRowIndex,
             columnFilter,
-            TWorkloadDescriptor());
+            TWorkloadDescriptor(),
+            TReadSessionId());
 
         std::vector<TUnversionedOwningRow> allRows;
         std::vector<TUnversionedRow> someRows;

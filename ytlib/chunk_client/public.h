@@ -38,6 +38,9 @@ class TRspExecuteBatch;
 
 class TMediumDirectory;
 
+class TDataSource;
+class TDataSourceDirectoryExt;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,6 +57,8 @@ using TChunkTreeId = NObjectClient::TObjectId;
 extern const TChunkTreeId NullChunkTreeId;
 
 using TMediumId = NObjectClient::TObjectId;
+
+using TReadSessionId = NObjectClient::TObjectId;
 
 struct TSessionId;
 
@@ -76,6 +81,7 @@ const int TypicalReplicaCount = 24;
 constexpr int MaxMediumCount = 7;
 constexpr int DefaultStoreMediumIndex = 0;
 constexpr int DefaultCacheMediumIndex = 1;
+extern const TString DefaultStoreAccountName;
 extern const TString DefaultStoreMediumName;
 extern const TString DefaultCacheMediumName;
 constexpr int MaxMediumPriority = 10;
@@ -192,6 +198,8 @@ DECLARE_REFCOUNTED_CLASS(TSequentialBlockFetcher)
 DECLARE_REFCOUNTED_STRUCT(IChunkReader)
 DECLARE_REFCOUNTED_STRUCT(IChunkWriter)
 
+DECLARE_REFCOUNTED_STRUCT(IChunkReaderAllowingRepair)
+
 DECLARE_REFCOUNTED_STRUCT(IReaderBase)
 DECLARE_REFCOUNTED_STRUCT(IReaderFactory)
 
@@ -199,6 +207,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkWriterBase)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IBlockCache)
+
+DECLARE_REFCOUNTED_STRUCT(IIOEngine)
 
 DECLARE_REFCOUNTED_CLASS(TFileReader)
 DECLARE_REFCOUNTED_CLASS(TFileWriter)

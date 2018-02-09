@@ -3,6 +3,8 @@
 #include "config.h"
 #include "message.h"
 
+#include <yt/core/bus/bus.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
@@ -20,11 +22,11 @@ using NYT::FromProto;
 TServiceContextBase::TServiceContextBase(
     std::unique_ptr<TRequestHeader> header,
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger,
+    NLogging::TLogger logger,
     NLogging::ELogLevel logLevel)
     : RequestHeader_(std::move(header))
     , RequestMessage_(std::move(requestMessage))
-    , Logger(logger)
+    , Logger(std::move(logger))
     , LogLevel_(logLevel)
 {
     Initialize();
@@ -32,11 +34,11 @@ TServiceContextBase::TServiceContextBase(
 
 TServiceContextBase::TServiceContextBase(
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger,
+    NLogging::TLogger logger,
     NLogging::ELogLevel logLevel)
     : RequestHeader_(new TRequestHeader())
     , RequestMessage_(std::move(requestMessage))
-    , Logger(logger)
+    , Logger(std::move(logger))
     , LogLevel_(logLevel)
 {
     YCHECK(ParseRequestHeader(RequestMessage_, RequestHeader_.get()));
@@ -135,6 +137,10 @@ TSharedRefArray TServiceContextBase::GetResponseMessage() const
         NProto::TResponseHeader header;
         ToProto(header.mutable_request_id(), RequestId_);
         ToProto(header.mutable_error(), Error_);
+
+        if (RequestHeader_->has_response_format()) {
+            header.set_response_format(RequestHeader_->response_format());
+        }
 
         ResponseMessage_ = Error_.IsOK()
             ? CreateResponseMessage(
@@ -310,6 +316,16 @@ const NProto::TRequestHeader& TServiceContextWrapper::GetRequestHeader() const
     return UnderlyingContext_->GetRequestHeader();
 }
 
+TTcpDispatcherStatistics TServiceContextWrapper::GetBusStatistics() const
+{
+    return UnderlyingContext_->GetBusStatistics();
+}
+
+const NYTree::IAttributeDictionary& TServiceContextWrapper::GetEndpointAttributes() const
+{
+    return UnderlyingContext_->GetEndpointAttributes();
+}
+
 TSharedRefArray TServiceContextWrapper::GetRequestMessage() const
 {
     return UnderlyingContext_->GetRequestMessage();
@@ -481,6 +497,7 @@ void TServerBase::RegisterService(IServicePtr service)
                 service->Configure(it->second);
             }
         }
+        DoRegisterService(service);
     }
 
     LOG_INFO("RPC service registered (ServiceName: %v, RealmId: %v)",
@@ -501,6 +518,7 @@ bool TServerBase::UnregisterService(IServicePtr service)
             return false;
         }
         ServiceMap_.erase(it);
+        DoUnregisterService(service);
     }
 
     LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
@@ -588,6 +606,12 @@ TFuture<void> TServerBase::DoStop(bool graceful)
         LOG_INFO("RPC server stopped");
     }));
 }
+
+void TServerBase::DoRegisterService(const IServicePtr& service)
+{ }
+
+void TServerBase::DoUnregisterService(const IServicePtr& service)
+{ }
 
 std::vector<IServicePtr> TServerBase::DoFindServices(const TString& serviceName)
 {

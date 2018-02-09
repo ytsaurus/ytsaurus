@@ -5,7 +5,7 @@
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>
 #include <yt/ytlib/table_client/schemaful_writer_adapter.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT {
 

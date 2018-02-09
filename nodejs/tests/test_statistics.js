@@ -38,6 +38,31 @@ describe("YtStatistics", function() {
         expect(profiler.dump()).to.eql("zzz.q50 1.005\nzzz.q90 1.01\nzzz.q95 1.01\nzzz.q99 1.01\nzzz.max 1.01");
     });
 
+    it("should produce Solomon-compatible dump", function() {
+        var profiler = new YtStatistics();
+        var i;
+        for (i = 0; i < 5; ++i) {
+            profiler.upd("zzz", {}, 0.99);
+        }
+        for (i = 0; i < 15; ++i) {
+            profiler.upd("zzz", {}, 1.01);
+        }
+
+        profiler.inc("foo", {}, 1);
+        profiler.set("bar", {a: "7"}, 1);
+
+        expect(profiler.dump()).to.eql("bar a=7 1\nfoo 1\nzzz.q50 1.005\nzzz.q90 1.01\nzzz.q95 1.01\nzzz.q99 1.01\nzzz.max 1.01");
+        expect(JSON.parse(profiler.dumpSolomon())).to.eql(
+            {"sensors":[
+                {"labels":{"sensor":"bar","a":"7"},"value":1},
+                {"labels":{"sensor":"foo"},"value":"1","mode":"deriv"},
+                {"labels":{"sensor":"zzz.q50"},"value":1.005},
+                {"labels":{"sensor":"zzz.q90"},"value":1.01},
+                {"labels":{"sensor":"zzz.q95"},"value":1.01},
+                {"labels":{"sensor":"zzz.q99"},"value":1.01},
+                {"labels":{"sensor":"zzz.max"},"value":1.01}]});
+    });
+
     it("should properly save last gauge value", function() {
         var profiler = new YtStatistics();
         profiler.set("foo", {}, 1);

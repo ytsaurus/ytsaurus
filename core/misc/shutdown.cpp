@@ -15,6 +15,8 @@ static std::vector<std::pair<double, void(*)()>>* ShutdownCallbacks()
     return &shutdownCallbacks;
 }
 
+static bool ShutdownStarted = false;
+
 void RegisterShutdownCallback(double priority, void(*callback)())
 {
     auto item = std::make_pair(priority, callback);
@@ -26,12 +28,19 @@ void RegisterShutdownCallback(double priority, void(*callback)())
 
 void Shutdown()
 {
+    ShutdownStarted = true;
+
     auto& list = *ShutdownCallbacks();
     std::sort(list.begin(), list.end());
 
     for (auto it = list.rbegin(); it != list.rend(); ++it) {
         it->second();
     }
+}
+
+bool IsShutdownStarted()
+{
+    return ShutdownStarted;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

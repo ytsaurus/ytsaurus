@@ -27,13 +27,13 @@ class TTabletCellBundle
     , public TRefTracked<TTabletCellBundle>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DECLARE_BYVAL_RW_PROPERTY(TString, Name);
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
     DEFINE_BYREF_RW_PROPERTY(TBooleanFormula, NodeTagFilter);
-    DEFINE_BYVAL_RW_PROPERTY(bool, EnableTabletBalancer, true);
+    DEFINE_BYREF_RW_PROPERTY(TTabletBalancerConfigPtr, TabletBalancerConfig);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletCell*>, TabletCells);
 
@@ -42,10 +42,13 @@ public:
 public:
     explicit TTabletCellBundle(const TTabletCellBundleId& id);
 
-    void FillProfilingTag();
-
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+private:
+    TString Name_;
+
+    void FillProfilingTag();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

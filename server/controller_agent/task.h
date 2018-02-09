@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/table_client/helpers.h>
 
+#include <yt/core/misc/digest.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -27,6 +29,7 @@ class TTask
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+    DEFINE_BYVAL_RW_PROPERTY(TDataFlowGraph::TVertexDescriptor, InputVertex, TDataFlowGraph::TVertexDescriptor());
 
 public:
     //! For persistence only.
@@ -34,9 +37,17 @@ public:
     TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors);
     explicit TTask(ITaskHostPtr taskHost);
 
+    //! This method is called on task object creation (both at clean creation and at revival).
+    //! It may be used when calling virtual method is needed, but not allowed.
     void Initialize();
 
-    virtual TString GetId() const = 0;
+    //! Title of a data flow graph vertex that appears in a web interface and coincides with the job type
+    //! for builtin tasks. For example, "SortedReduce" or "PartitionMap".
+    virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const;
+    //! Human-readable title of a particular task that appears in logging. For builtin tasks it coincides
+    //! with the vertex descriptor and a partition index in brackets (if applicable).
+    virtual TString GetTitle() const;
+
     virtual TTaskGroupPtr GetGroup() const = 0;
 
     virtual int GetPendingJobCount() const;
@@ -54,41 +65,39 @@ public:
 
     bool IsCoreTableEnabled() const;
 
-    virtual TDuration GetLocalityTimeout() const = 0;
+    virtual TDuration GetLocalityTimeout() const;
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
     virtual bool HasInputLocality() const;
 
-    TJobResources GetMinNeededResources() const;
-
-    virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
+    NScheduler::TJobResourcesWithQuota GetMinNeededResources() const;
 
     void ResetCachedMinNeededResources();
 
     void AddInput(NChunkPools::TChunkStripePtr stripe);
     void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
-    void FinishInput();
+
+    // NB: This works well until there is no more than one input data flow vertex for any task.
+    void FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex);
+    virtual void FinishInput();
 
     void CheckCompleted();
 
     virtual bool ValidateChunkCount(int chunkCount);
 
     void ScheduleJob(
-        NScheduler::ISchedulingContext* context,
+        ISchedulingContext* context,
         const TJobResources& jobLimits,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        const TString& treeId,
+        TScheduleJobResult* scheduleJobResult);
 
-    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary);
-    virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary);
-    virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary);
+    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 
     // First checks against a given node, then against all nodes if needed.
     void CheckResourceDemandSanity(
         const TJobResources& nodeResourceLimits,
-        const TJobResources& neededResources);
-
-    // Checks against all available nodes.
-    void CheckResourceDemandSanity(
         const TJobResources& neededResources);
 
     void DoCheckResourceDemandSanity(const TJobResources& neededResources);
@@ -105,20 +114,26 @@ public:
 
     TNullable<i64> GetMaximumUsedTmpfsSize() const;
 
-    virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
-    virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
-
     virtual void Persist(const TPersistenceContext& context) override;
 
     virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
-
-    virtual EJobType GetJobType() const = 0;
 
     ITaskHost* GetTaskHost();
     void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
     void AddPendingHint();
 
+    IDigest* GetUserJobMemoryDigest() const;
+    IDigest* GetJobProxyMemoryDigest() const;
+
     virtual void SetupCallbacks();
+
+
+    virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
+
+    virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
+    virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
+
+    virtual EJobType GetJobType() const = 0;
 
     //! This method shows if the jobs of this task have an "input_paths" attribute
     //! in Cypress. This depends on if this task gets it input directly from the
@@ -131,20 +146,20 @@ protected:
     //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
     ITaskHost* TaskHost_;
 
-    virtual bool CanScheduleJob(
-        NScheduler::ISchedulingContext* context,
+    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
+        ISchedulingContext* context,
         const TJobResources& jobLimits);
-
-    virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
 
     virtual void OnTaskCompleted();
 
     virtual void PrepareJoblet(TJobletPtr joblet);
-    virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
     virtual void OnJobStarted(TJobletPtr joblet);
 
-    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
+    //! True if task supports lost jobs.
+    virtual bool CanLoseJobs() const;
+
+    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot = false);
 
     std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
@@ -200,6 +215,13 @@ protected:
         TJobletPtr joblet,
         const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey());
 
+    //! A convenience method for calling task->Finish() and
+    //! task->SetInputVertex(this->GetJobType());
+    void FinishTaskInput(const TTaskPtr& task);
+
+    virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
+    virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
+
 protected:
     //! Outgoing edges in data flow graph.
     std::vector<TEdgeDescriptor> EdgeDescriptors_;
@@ -222,7 +244,10 @@ private:
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
-    TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
+    mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
+    mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;
+
+    NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 

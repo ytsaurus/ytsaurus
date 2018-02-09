@@ -469,12 +469,6 @@ public:
         EObjectType type,
         const TCreateObjectOptions& options),
         (type, options))
-    DELEGATE_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options),
-        (path, nameTable, keys, options))
 
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (
@@ -834,25 +828,19 @@ private:
             EWireProtocolCommand command,
             TUnversionedRow row)
         {
-            DoSubmitRow(
-                &UnversionedSubmittedRows_,
-                TUnversionedSubmittedRow{
-                    command,
-                    row,
-                    static_cast<int>(UnversionedSubmittedRows_.size())
-                });
+            UnversionedSubmittedRows_.push_back({
+                command,
+                row,
+                static_cast<int>(UnversionedSubmittedRows_.size())});
         }
 
         void SubmitRow(
             EWireProtocolCommand command,
             TVersionedRow row)
         {
-            DoSubmitRow(
-                &VersionedSubmittedRows_,
-                TVersionedSubmittedRow{
-                    command,
-                    row
-                });
+            VersionedSubmittedRows_.push_back({
+                command,
+                row});
         }
 
         int Prepare()
@@ -916,6 +904,7 @@ private:
             size_t DataWeight = 0;
         };
 
+        int TotalBatchedRowCount_ = 0;
         std::vector<std::unique_ptr<TBatch>> Batches_;
 
         struct TVersionedSubmittedRow
@@ -938,16 +927,6 @@ private:
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
         TPromise<void> InvokePromise_ = NewPromise<void>();
-
-        template <class TRow>
-        void DoSubmitRow(std::vector<TRow>* rows, const TRow& row)
-        {
-            if (rows->size() >= Config_->MaxRowsPerTransaction) {
-                THROW_ERROR_EXCEPTION("Transaction affects too many rows")
-                    << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
-            }
-            rows->push_back(row);
-        }
 
         void PrepareSortedBatches()
         {
@@ -1031,6 +1010,11 @@ private:
         template <typename TRow>
         void WriteRow(const TRow& submittedRow)
         {
+            if (++TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction) {
+                THROW_ERROR_EXCEPTION("Transaction affects too many rows")
+                    << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
+            }
+
             auto* batch = EnsureBatch();
             auto& writer = batch->Writer;
             writer.WriteCommand(submittedRow.Command);
@@ -1070,7 +1054,7 @@ private:
             proxy.SetDefaultRequestAck(false);
 
             auto req = proxy.Write();
-            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             ToProto(req->mutable_transaction_id(), transaction->GetId());
             if (transaction->GetAtomicity() == EAtomicity::Full) {
                 req->set_transaction_start_timestamp(transaction->GetStartTimestamp());
@@ -1209,7 +1193,7 @@ private:
         TTransactionSignature CurrentSignature_ = InitialTransactionSignature;
         int RequestsRemaining_ = 0;
 
-        NLogging::TLogger Logger;
+        const NLogging::TLogger Logger;
 
 
         TFuture<void> SendTabletActions(const TNativeTransactionPtr& owner, const IChannelPtr& channel)
@@ -1375,7 +1359,7 @@ private:
 
         // Tables with local sync replicas pose a problem since modifications in such tables
         // induce more modifications that need to be taken care of.
-        // Here we iterate over requests and sessions until to more new items are added.
+        // Here we iterate over requests and sessions until no more new items are added.
         while (!PendingRequests_.empty() || !PendingSessions_.empty()) {
             decltype(PendingRequests_) pendingRequests;
             std::swap(PendingRequests_, pendingRequests);
@@ -1467,6 +1451,15 @@ private:
 
             WaitFor(Combine(asyncRequestResults))
                 .ThrowOnError();
+
+            auto commitResult = WaitFor(Transaction_->Commit(AdjustCommitOptions(options)))
+                .ValueOrThrow();
+
+            for (const auto& transaction : GetForeignTransactions()) {
+                transaction->Detach();
+            }
+
+            return commitResult;
         } catch (const std::exception& ex) {
             // Fire and forget.
             Transaction_->Abort();
@@ -1475,11 +1468,6 @@ private:
             }
             throw;
         }
-
-        auto commitResult = WaitFor(Transaction_->Commit(AdjustCommitOptions(options)))
-            .ValueOrThrow();
-
-        return commitResult;
     }
 
     TTransactionFlushResult DoFlush()

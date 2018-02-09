@@ -1,7 +1,7 @@
 package NYT.NTabletClient.NProto;
 
-import "yt/core/misc/guid.proto";
-import "yt/core/misc/error.proto";
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
 import "yt/ytlib/hive/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,16 +36,24 @@ message TTabletStatistics
 message TTabletPerformanceCounters
 {
     required int64 dynamic_row_read_count = 1;
+    optional int64 dynamic_row_read_data_weight_count = 14 [default = 0];
     required int64 dynamic_row_lookup_count = 2;
+    optional int64 dynamic_row_lookup_data_weight_count = 15 [default = 0];
     required int64 dynamic_row_write_count = 3;
     optional int64 dynamic_row_write_data_weight_count = 11 [default = 0];
     required int64 dynamic_row_delete_count = 4;
     required int64 static_chunk_row_read_count = 5;
+    optional int64 static_chunk_row_read_data_weight_count = 16 [default = 0];
     required int64 static_chunk_row_lookup_count = 6;
     required int64 static_chunk_row_lookup_true_negative_count = 9;
     required int64 static_chunk_row_lookup_false_positive_count = 10;
+    optional int64 static_chunk_row_lookup_data_weight_count = 17 [default = 0];
     required int64 unmerged_row_read_count = 7;
     required int64 merged_row_read_count = 8;
+    optional int64 compaction_data_weight_count = 12 [default = 0];
+    optional int64 partitioning_data_weight_count = 13 [default = 0];
+    required int64 write_error_count = 18 [default = 0];
+    required int64 lookup_error_count = 19 [default = 0];
 }
 
 message TTableReplicaInfo
@@ -61,6 +69,7 @@ message TTabletInfo
     required TTabletStatistics statistics = 2;
     repeated TTableReplicaInfo replicas = 3;
     required TTabletPerformanceCounters performance_counters = 4;
+    repeated NYT.NProto.TError errors = 5;
 }
 
 message TCreateTabletSlotInfo

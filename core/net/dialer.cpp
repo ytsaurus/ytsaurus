@@ -5,7 +5,7 @@
 #include <yt/core/concurrency/poller.h>
 
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/socket.h>
+#include <yt/core/net/socket.h>
 
 #include <util/random/random.h>
 
@@ -135,7 +135,7 @@ public:
         , OnFinished_(std::move(onFinished))
         , Id_(TGuid::Create())
         , Logger(NLogging::TLogger(logger)
-            .AddTag("TAsyncDialerSession: %v", Id_))
+            .AddTag("AsyncDialerSession: %v", Id_))
         , Timeout_(Config_->MinRto * GetRandomVariation())
     { }
 
@@ -167,7 +167,7 @@ private:
     public:
         TPollable(TAsyncDialerSession* owner, const TGuid& id, int socket)
             : Owner_(MakeWeak(owner))
-            , LoggingId_(Format("TAsyncDialerSession:%v:%v", id, socket))
+            , LoggingId_(Format("AsyncDialerSession{%v:%v}", id, socket))
         { }
 
         virtual const TString& GetLoggingId() const override
@@ -242,22 +242,25 @@ private:
 
             if (Config_->EnableNoDelay && family != AF_UNIX) {
                 if (Config_->EnableNoDelay) {
-                    SetSocketNoDelay(Socket_);
+                    if (!TrySetSocketNoDelay(Socket_)) {
+                        LOG_DEBUG("Failed to set socket no delay option");
+                    }
                 }
 
-                SetSocketPriority(Socket_, Config_->Priority);
-                SetSocketKeepAlive(Socket_);
+                if (!TrySetSocketKeepAlive(Socket_)) {
+                    LOG_DEBUG("Failed to set socket keep alive option");
+                }
             }
 
-            if (::NYT::ConnectSocket(Socket_, Address_) == 0) {
+            if (ConnectSocket(Socket_, Address_) == 0) {
                 Finished_ = true;
                 return;
             }
 
             if (Config_->EnableAggressiveReconnect) {
                TimeoutCookie_ = NConcurrency::TDelayedExecutor::Submit(
-                        BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
-                        Timeout_);
+                    BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
+                    Timeout_);
             }
 
             RegisterPollable();

@@ -46,6 +46,17 @@ void AddStripeToList(
     }
 }
 
+std::vector<TChunkId> GetStripeListChunkIds(const TChunkStripeListPtr& stripeList)
+{
+    std::vector<TChunkId> chunkIds;
+    for (const auto& stripe : stripeList->Stripes) {
+        for (const auto& dataSlice : stripe->DataSlices) {
+            chunkIds.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
+        }
+    }
+    return chunkIds;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStripeListPtr ApplyChunkMappingToStripe(
@@ -53,6 +64,7 @@ TChunkStripeListPtr ApplyChunkMappingToStripe(
     const THashMap<TInputChunkPtr, TInputChunkPtr>& inputChunkMapping)
 {
     auto mappedStripeList = New<TChunkStripeList>(stripeList->Stripes.size());
+    mappedStripeList->IsSplittable = stripeList->IsSplittable;
     for (int stripeIndex = 0; stripeIndex < stripeList->Stripes.size(); ++stripeIndex) {
         const auto& stripe = stripeList->Stripes[stripeIndex];
         YCHECK(stripe);

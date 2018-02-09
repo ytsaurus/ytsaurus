@@ -180,6 +180,7 @@ install(
   TARGETS
     ytserver-master ytserver-scheduler ytserver-node ytserver-proxy
     ytserver-job-proxy ytserver-exec ytserver-core-forwarder ytserver-tools
+    ytserver-skynet-manager
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
   COMPONENT all_binaries

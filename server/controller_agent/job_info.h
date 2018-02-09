@@ -1,9 +1,10 @@
 #pragma once
 
 #include "task.h"
-#include "public.h"
 #include "serialize.h"
+#include "controller_agent.h"
 
+#include <yt/server/scheduler/job_metrics.h>
 #include <yt/server/scheduler/exec_node.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
@@ -28,6 +29,7 @@ struct TJobInfoBase
     TInstant LastActivityTime;
     TBriefJobStatisticsPtr BriefStatistics;
     double Progress = 0.0;
+    i64 StderrSize = 0;
     NYson::TYsonString StatisticsYson;
 
     virtual void Persist(const TPersistenceContext& context);
@@ -53,13 +55,18 @@ class TJoblet
 public:
     //! Default constructor is for serialization only.
     TJoblet();
-    TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTask* task, int jobIndex);
+    TJoblet(TTask* task, int jobIndex, const TString& treeId);
 
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
     int JobIndex;
-    i64 StartRowIndex;
+    i64 StartRowIndex = -1;
     bool Restarted = false;
+    bool Revived = false;
+
+    // It is necessary to store tree id here since it is required to
+    // create job metrics updater after revive.
+    TString TreeId;
 
     TFuture<TSharedRef> JobSpecProtoFuture;
 
@@ -81,10 +88,11 @@ public:
     NChunkClient::TChunkListId StderrTableChunkListId;
     NChunkClient::TChunkListId CoreTableChunkListId;
 
+    NScheduler::TJobMetrics JobMetrics;
+
     virtual void Persist(const TPersistenceContext& context) override;
-    void SendJobMetrics(const NScheduler::TJobSummary& jobSummary, bool flush);
-private:
-    std::unique_ptr<TJobMetricsUpdater> JobMetricsUpdater_;
+
+    NScheduler::TJobMetrics UpdateJobMetrics(const TJobSummary& jobSummary);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)
@@ -98,10 +106,10 @@ struct TFinishedJobInfo
 
     TFinishedJobInfo(
         const TJobletPtr& joblet,
-        NScheduler::TJobSummary summary,
+        TJobSummary summary,
         NYson::TYsonString inputPaths);
 
-    NScheduler::TJobSummary Summary;
+    TJobSummary Summary;
     NYson::TYsonString InputPaths;
 
     virtual void Persist(const TPersistenceContext& context) override;
@@ -114,23 +122,11 @@ DEFINE_REFCOUNTED_TYPE(TFinishedJobInfo)
 struct TCompletedJob
     : public TIntrinsicRefCounted
 {
-    //! For persistence only.
-    TCompletedJob() = default;
+    bool Suspended = false;
 
-    TCompletedJob(
-        const TJobId& jobId,
-        EJobType jobType,
-        TTaskPtr sourceTask,
-        NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-        i64 dataSize,
-        NChunkPools::IChunkPoolInput* destinationPool,
-        NChunkPools::IChunkPoolInput::TCookie inputCookie,
-        const NScheduler::TJobNodeDescriptor& nodeDescriptor);
-
-    bool Lost = false;
+    std::set<NChunkClient::TChunkId> UnavailableChunks;
 
     TJobId JobId;
-    EJobType JobType;
 
     TTaskPtr SourceTask;
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
@@ -138,6 +134,7 @@ struct TCompletedJob
 
     NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
     NChunkPools::IChunkPoolInput::TCookie InputCookie;
+    NChunkPools::TChunkStripePtr InputStripe;
 
     NScheduler::TJobNodeDescriptor NodeDescriptor;
 

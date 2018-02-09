@@ -468,57 +468,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TYPathResolver
-    : public INodeResolver
-{
-public:
-    TYPathResolver(
-        TBootstrap* bootstrap,
-        TTransaction* transaction)
-        : Bootstrap_(bootstrap)
-        , Transaction_(transaction)
-    { }
-
-    virtual INodePtr ResolvePath(const TYPath& path) override
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* resolver = objectManager->GetObjectResolver();
-        auto objectProxy = resolver->ResolvePath(path, Transaction_);
-        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(objectProxy.Get());
-        if (!nodeProxy) {
-            THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
-                path,
-                TypeFromId(objectProxy->GetId()));
-        }
-        return nodeProxy;
-    }
-
-    virtual TYPath GetPath(INodePtr node) override
-    {
-        auto* nodeProxy = ICypressNodeProxy::FromNode(node.Get());
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        if (!cypressManager->IsAlive(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction())) {
-            return FromObjectId(nodeProxy->GetId());
-        }
-
-        INodePtr root;
-        auto path = GetNodeYPath(node, &root);
-
-        auto* rootProxy = ICypressNodeProxy::FromNode(root.Get());
-        return rootProxy->GetId() == cypressManager->GetRootNode()->GetId()
-            ? "/" + path
-            : "?" + path;
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-    TTransaction* const Transaction_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCypressManager::TImpl
     : public NCellMaster::TMasterAutomatonPart
 {
@@ -733,12 +682,93 @@ public:
         return node;
     }
 
-    INodeResolverPtr CreateResolver(TTransaction* transaction)
+    TYPath GetNodePath(TCypressNodeBase* trunkNode, TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        auto fallbackToId = [&] {
+            return FromObjectId(trunkNode->GetId());
+        };
 
-        return New<TYPathResolver>(Bootstrap_, transaction);
+        using TToken = TVariant<TStringBuf, int>;
+        SmallVector<TToken, 32> tokens;
+
+        auto* currentNode = GetVersionedNode(trunkNode, transaction);
+        while (true) {
+            auto* currentTrunkNode = currentNode->GetTrunkNode();
+            auto* currentParentTrunkNode = currentNode->GetParent();
+            if (!currentParentTrunkNode) {
+                break;
+            }
+            auto* currentParentNode = GetVersionedNode(currentParentTrunkNode, transaction);
+            switch (currentParentTrunkNode->GetNodeType()) {
+                case ENodeType::Map: {
+                    auto key = FindMapNodeChildKey(currentParentNode->As<TMapNode>(), currentTrunkNode);
+                    if (!key.data()) {
+                        return fallbackToId();
+                    }
+                    tokens.emplace_back(key);
+                    break;
+                }
+                case ENodeType::List: {
+                    auto index = FindListNodeChildIndex(currentParentNode->As<TListNode>(), currentTrunkNode);
+                    if (index < 0) {
+                        return fallbackToId();
+                    }
+                    tokens.emplace_back(index);
+                    break;
+                }
+                default:
+                    Y_UNREACHABLE();
+            }
+            currentNode = currentParentNode;
+        }
+
+        if (currentNode->GetTrunkNode() != RootNode_) {
+            return fallbackToId();
+        }
+
+        TStringBuilder builder;
+        builder.AppendChar('/');
+        for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
+            auto token = *it;
+            builder.AppendChar('/');
+            switch (token.Tag()) {
+                case TToken::TagOf<TStringBuf>():
+                    builder.AppendString(token.As<TStringBuf>());
+                    break;
+                case TToken::TagOf<int>():
+                    builder.AppendFormat("%v", token.As<int>());
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
+
+        return builder.Flush();
     }
+
+    TYPath GetNodePath(const ICypressNodeProxy* nodeProxy)
+    {
+        return GetNodePath(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction());
+    }
+
+    TCypressNodeBase* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->ResolvePathToObject(path, transaction);
+        if (!IsVersionedType(object->GetType())) {
+            THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
+                path,
+                object->GetType());
+        }
+        return object->As<TCypressNodeBase>();
+    }
+
+    ICypressNodeProxyPtr ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction)
+    {
+        auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
+        return GetNodeProxy(trunkNode, transaction);
+    }
+
 
     TCypressNodeBase* FindNode(
         TCypressNodeBase* trunkNode,
@@ -983,86 +1013,6 @@ public:
         }
     }
 
-    bool IsAlive(TCypressNodeBase* trunkNode, TTransaction* transaction)
-    {
-        auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
-            // Compute child key or index.
-            auto parentOriginators = GetNodeOriginators(transaction, parentTrunkNode);
-            TNullable<TString> key;
-            for (const auto* parentNode : parentOriginators) {
-                switch (parentNode->GetNodeType()) {
-                    case ENodeType::Map: {
-                        const auto* parentMapNode = parentNode->As<TMapNode>();
-                        auto it = parentMapNode->ChildToKey().find(childTrunkNode);
-                        if (it != parentMapNode->ChildToKey().end()) {
-                            key = it->second;
-                        }
-                        break;
-                    }
-
-                    case ENodeType::List: {
-                        const auto* parentListNode = parentNode->As<TListNode>();
-                        auto it = parentListNode->ChildToIndex().find(childTrunkNode);
-                        return it != parentListNode->ChildToIndex().end();
-                    }
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-
-                if (key) {
-                    break;
-                }
-            }
-
-            if (!key) {
-                return false;
-            }
-
-            // Look for thombstones.
-            for (const auto* parentNode : parentOriginators) {
-                switch (parentNode->GetNodeType()) {
-                    case ENodeType::Map: {
-                        const auto* parentMapNode = parentNode->As<TMapNode>();
-                        auto it = parentMapNode->KeyToChild().find(*key);
-                        if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
-                            return false;
-                        }
-                        break;
-                    }
-
-                    case ENodeType::List:
-                        // Do nothing.
-                        break;
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-            }
-
-            return true;
-        };
-
-
-        auto* currentNode = trunkNode;
-        while (true) {
-            if (!IsObjectAlive(currentNode)) {
-                return false;
-            }
-            if (currentNode == RootNode_) {
-                return true;
-            }
-            auto* parentNode = currentNode->GetParent();
-            if (!parentNode) {
-                return false;
-            }
-            if (!hasChild(parentNode, currentNode)) {
-                return false;
-            }
-            currentNode = parentNode;
-        }
-    }
-
 
     TCypressNodeList GetNodeOriginators(
         TTransaction* transaction,
@@ -1206,6 +1156,46 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
+        LOG_INFO("Started initializing locks");
+        for (const auto& pair : LockMap_) {
+            auto* lock = pair.second;
+            if (!IsObjectAlive(lock)) {
+                continue;
+            }
+
+            // Reconstruct iterators.
+            auto* transaction = lock->GetTransaction();
+            auto* lockingState = lock->GetTrunkNode()->MutableLockingState();
+            switch (lock->Request().Mode) {
+                case ELockMode::Snapshot:
+                    lock->SetTransactionToSnapshotLocksIterator(lockingState->TransactionToSnapshotLocks.emplace(
+                        transaction,
+                        lock));
+                    break;
+
+                case ELockMode::Shared:
+                    lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
+                        std::make_pair(transaction, lock->Request().Key),
+                        lock));
+                    if (lock->Request().Key.Kind != ELockKeyKind::None) {
+                        lock->SetKeyToSharedLocksIterator(lockingState->KeyToSharedLocks.emplace(
+                            lock->Request().Key,
+                            lock));
+                    }
+                    break;
+
+                case ELockMode::Exclusive:
+                    lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
+                        transaction,
+                        lock));
+                    break;
+
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
+        LOG_INFO("Finished initializing locks");
+
         LOG_INFO("Started initializing nodes");
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
@@ -1230,28 +1220,18 @@ private:
                 node->SetOriginator(originator);
             }
 
-            // Reconstruct lock iterators.
+            // Reconstruct iterators.
             if (node->HasLockingState()) {
                 auto* lockingState = node->MutableLockingState();
+
                 for (auto it = lockingState->AcquiredLocks.begin(); it != lockingState->AcquiredLocks.end(); ++it) {
                     auto* lock = *it;
                     lock->SetLockListIterator(it);
                 }
+
                 for (auto it = lockingState->PendingLocks.begin(); it != lockingState->PendingLocks.end(); ++it) {
                     auto* lock = *it;
                     lock->SetLockListIterator(it);
-                }
-                for (auto it = lockingState->ExclusiveLocks.begin(); it != lockingState->ExclusiveLocks.end(); ++it) {
-                    auto* lock = *it;
-                    lock->SetExclusiveLocksIterator(it);
-                }
-                for (auto it = lockingState->SharedLocks.begin(); it != lockingState->SharedLocks.end(); ++it) {
-                    auto* lock = it->second;
-                    lock->SetSharedLocksIterator(it);
-                }
-                for (auto it = lockingState->SnapshotLocks.begin(); it != lockingState->SnapshotLocks.end(); ++it) {
-                    auto* lock = it->second;
-                    lock->SetSnapshotLocksIterator(it);
                 }
             }
 
@@ -1287,10 +1267,8 @@ private:
         }
 
         if (ClearSysAttributes_) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto* resolver = objectManager->GetObjectResolver();
-            auto sysNodeProxy = resolver->ResolvePath("//sys", nullptr);
-            auto* sysNode = sysNodeProxy->GetObject();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto* sysNode = cypressManager->ResolvePathToTrunkNode("//sys");
             auto& attributes = sysNode->GetMutableAttributes()->Attributes();
             auto processAttribute = [&] (const TString& attributeName)
             {
@@ -1506,12 +1484,13 @@ private:
         YCHECK(transaction || request.Mode != ELockMode::Snapshot);
 
         const auto& lockingState = trunkNode->LockingState();
-        const auto& snapshotLocks = lockingState.SnapshotLocks;
-        const auto& sharedLocks = lockingState.SharedLocks;
-        const auto& exclusiveLocks = lockingState.ExclusiveLocks;
+        const auto& transactionToSnapshotLocks = lockingState.TransactionToSnapshotLocks;
+        const auto& transactionAndkeyToSharedLocks = lockingState.TransactionAndKeyToSharedLocks;
+        const auto& keyToSharedLocks = lockingState.KeyToSharedLocks;
+        const auto& transactionToExclusiveLocks = lockingState.TransactionToExclusiveLocks;
 
         // Handle snapshot locks.
-        if (transaction && snapshotLocks.find(transaction) != snapshotLocks.end()) {
+        if (transaction && transactionToSnapshotLocks.find(transaction) != transactionToSnapshotLocks.end()) {
             if (request.Mode == ELockMode::Snapshot) {
                 // Already taken by this transaction.
                 return TError();
@@ -1536,7 +1515,7 @@ private:
         if (transaction) {
             auto* currentTransaction = transaction->GetParent();
             while (currentTransaction) {
-                if (snapshotLocks.find(currentTransaction) != snapshotLocks.end()) {
+                if (transactionToSnapshotLocks.find(currentTransaction) != transactionToSnapshotLocks.end()) {
                     return TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by parent transaction %v",
@@ -1588,7 +1567,8 @@ private:
             }
         };
 
-        for (auto* existingLock : exclusiveLocks) {
+        for (const auto& pair : transactionToExclusiveLocks) {
+            const auto* existingLock = pair.second;
             auto error = checkExistingLock(existingLock);
             if (!error.IsOK()) {
                 return error;
@@ -1597,7 +1577,7 @@ private:
 
         switch (request.Mode) {
             case ELockMode::Exclusive:
-                for (const auto& pair : sharedLocks) {
+                for (const auto& pair : transactionAndkeyToSharedLocks) {
                     auto error = checkExistingLock(pair.second);
                     if (!error.IsOK()) {
                         return error;
@@ -1607,7 +1587,7 @@ private:
 
             case ELockMode::Shared:
                 if (request.Key.Kind != ELockKeyKind::None) {
-                    auto range = sharedLocks.equal_range(request.Key);
+                    auto range = keyToSharedLocks.equal_range(request.Key);
                     for (auto it = range.first; it != range.second; ++it) {
                         auto error = checkExistingLock(it->second);
                         if (!error.IsOK()) {
@@ -1631,37 +1611,32 @@ private:
         const TLock* lockToIgnore = nullptr)
     {
         Y_ASSERT(trunkNode->IsTrunk());
-        YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
+        Y_ASSERT(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
 
         if (!transaction) {
             return true;
         }
 
         const auto& lockingState = trunkNode->LockingState();
-        const auto& sharedLocks = lockingState.SharedLocks;
-        const auto& exclusiveLocks = lockingState.ExclusiveLocks;
-
-        auto checkExistingLock = [&] (const TLock* existingLock) {
-            auto* existingTransaction = existingLock->GetTransaction();
-            return
-                transaction == existingTransaction &&
-                existingLock->Request() == request &&
-                existingLock != lockToIgnore;
-        };
-
         switch (request.Mode) {
-            case ELockMode::Exclusive:
-                for (auto* existingLock : exclusiveLocks) {
-                    if (checkExistingLock(existingLock)) {
+            case ELockMode::Exclusive: {
+                auto range = lockingState.TransactionToExclusiveLocks.equal_range(transaction);
+                for (auto it = range.first; it != range.second; ++it) {
+                    auto* existingLock = it->second;
+                    if (existingLock != lockToIgnore &&
+                        existingLock->Request().Key == request.Key)
+                    {
                         return true;
                     }
                 }
                 break;
+            }
 
             case ELockMode::Shared: {
-                auto range = sharedLocks.equal_range(request.Key);
+                auto range = lockingState.TransactionAndKeyToSharedLocks.equal_range(std::make_pair(transaction, request.Key));
                 for (auto it = range.first; it != range.second; ++it) {
-                    if (checkExistingLock(it->second)) {
+                    const auto* existingLock = it->second;
+                    if (existingLock != lockToIgnore) {
                         return true;
                     }
                 }
@@ -1673,18 +1648,6 @@ private:
         }
 
         return false;
-    }
-
-    static bool IsRedundantLockRequest(
-        const TLockRequest& newRequest,
-        const TLockRequest& existingRequest)
-    {
-        Y_ASSERT(newRequest.Mode != ELockMode::Snapshot);
-        Y_ASSERT(existingRequest.Mode != ELockMode::Snapshot);
-
-        return
-            existingRequest.Mode > newRequest.Mode ||
-            existingRequest.Mode == newRequest.Mode && existingRequest.Key == newRequest.Key;
     }
 
     static bool IsParentTransaction(
@@ -1728,22 +1691,29 @@ private:
         lock->SetLockListIterator(--lockingState->AcquiredLocks.end());
 
         switch (request.Mode) {
-            case ELockMode::Exclusive: {
-                auto pair = lockingState->ExclusiveLocks.insert(lock);
-                YCHECK(pair.second);
-                lock->SetExclusiveLocksIterator(pair.first);
+            case ELockMode::Exclusive:
+                lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
+                    transaction,
+                    lock));
                 break;
-            }
-            case ELockMode::Shared: {
-                auto it = lockingState->SharedLocks.emplace(request.Key, lock);
-                lock->SetSharedLocksIterator(it);
+
+            case ELockMode::Shared:
+                lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
+                    std::make_pair(transaction, request.Key),
+                    lock));
+                if (request.Key.Kind != ELockKeyKind::None) {
+                    lock->SetKeyToSharedLocksIterator(lockingState->KeyToSharedLocks.emplace(
+                        request.Key,
+                        lock));
+                }
                 break;
-            }
-            case ELockMode::Snapshot: {
-                auto it = lockingState->SnapshotLocks.emplace(transaction, lock);
-                lock->SetSnapshotLocksIterator(it);
+
+            case ELockMode::Snapshot:
+                lock->SetTransactionToSnapshotLocksIterator(lockingState->TransactionToSnapshotLocks.emplace(
+                    transaction,
+                    lock));
                 break;
-            }
+
             default:
                 Y_UNREACHABLE();
         }
@@ -1852,6 +1822,27 @@ private:
                 (!lock->GetImplicit() || !IsLockRedundant(trunkNode, parentTransaction, lock->Request(), lock)))
             {
                 lock->SetTransaction(parentTransaction);
+                if (trunkNode) {
+                    auto* lockingState = trunkNode->MutableLockingState();
+                    switch (lock->Request().Mode) {
+                        case ELockMode::Exclusive:
+                            lockingState->TransactionToExclusiveLocks.erase(lock->GetTransactionToExclusiveLocksIterator());
+                            lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
+                                parentTransaction,
+                                lock));
+                            break;
+
+                        case ELockMode::Shared:
+                            lockingState->TransactionAndKeyToSharedLocks.erase(lock->GetTransactionAndKeyToSharedLocksIterator());
+                            lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
+                                std::make_pair(parentTransaction, lock->Request().Key),
+                                lock));
+                            break;
+
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                }
                 YCHECK(parentTransaction->Locks().insert(lock).second);
                 // NB: Node could be locked more than once.
                 parentTransaction->LockedNodes().insert(trunkNode);
@@ -1868,15 +1859,18 @@ private:
                             const auto& request = lock->Request();
                             switch (request.Mode) {
                                 case ELockMode::Exclusive:
-                                    lockingState->ExclusiveLocks.erase(lock->GetExclusiveLocksIterator());
+                                    lockingState->TransactionToExclusiveLocks.erase(lock->GetTransactionToExclusiveLocksIterator());
                                     break;
 
                                 case ELockMode::Shared:
-                                    lockingState->SharedLocks.erase(lock->GetSharedLocksIterator());
+                                    lockingState->TransactionAndKeyToSharedLocks.erase(lock->GetTransactionAndKeyToSharedLocksIterator());
+                                    if (lock->Request().Key.Kind != ELockKeyKind::None) {
+                                        lockingState->KeyToSharedLocks.erase(lock->GetKeyToSharedLocksIterator());
+                                    }
                                     break;
 
                                 case ELockMode::Snapshot:
-                                    lockingState->SnapshotLocks.erase(lock->GetSnapshotLocksIterator());
+                                    lockingState->TransactionToSnapshotLocks.erase(lock->GetTransactionToSnapshotLocksIterator());
                                     break;
 
                                 default:
@@ -1898,7 +1892,7 @@ private:
                 }
                 lock->SetTransaction(nullptr);
                 objectManager->UnrefObject(lock);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Lock destroyed (LockId: %v, TransactionId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Lock released (LockId: %v, TransactionId: %v)",
                     lock->GetId(),
                     transaction->GetId());
             }
@@ -2039,12 +2033,10 @@ private:
         const auto& handler = GetHandler(branchedNode);
 
         auto* trunkNode = branchedNode->GetTrunkNode();
-        auto branchedId = branchedNode->GetVersionedId();
-        auto* parentTransaction = transaction->GetParent();
-        auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
-
+        auto branchedNodeId = branchedNode->GetVersionedId();
+        
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
-            auto* originatingNode = NodeMap_.Get(originatingId);
+            auto* originatingNode = branchedNode->GetOriginator();
 
             // Merge changes back.
             handler->Merge(originatingNode, branchedNode);
@@ -2054,7 +2046,7 @@ private:
             // (We don't have any mutation context at hand to provide a synchronized timestamp.)
             // Later on, Cypress is initialized and filled with nodes.
             // At this point we set the root's creation time.
-            if (trunkNode == RootNode_ && !parentTransaction) {
+            if (trunkNode == RootNode_ && !transaction->GetParent()) {
                 originatingNode->SetCreationTime(originatingNode->GetModificationTime());
             }
 
@@ -2064,16 +2056,16 @@ private:
             // Destroy the branched copy.
             handler->Destroy(branchedNode);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedId);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
 
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
         // Remove the branched copy.
-        NodeMap_.Remove(branchedId);
+        NodeMap_.Remove(branchedNodeId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedId);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
     void MergeNodes(TTransaction* transaction)
@@ -2094,16 +2086,13 @@ private:
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
-
+        
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
             // Cleanup the branched node.
-            auto branchedId = branchedNode->GetVersionedId();
-            auto* parentTransaction = transaction->GetParent();
-            auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
-            auto* originatingNode = NodeMap_.Get(originatingId);
+            auto* originatingNode = branchedNode->GetOriginator();
             handler->Unbranch(originatingNode, branchedNode);
         }
 
@@ -2120,17 +2109,6 @@ private:
             RemoveBranchedNode(transaction, branchedNode);
         }
         transaction->BranchedNodes().clear();
-    }
-
-
-    TYPath GetNodePath(
-        TCypressNodeBase* trunkNode,
-        TTransaction* transaction)
-    {
-        Y_ASSERT(trunkNode->IsTrunk());
-
-        auto proxy = GetNodeProxy(trunkNode, transaction);
-        return proxy->GetResolver()->GetPath(proxy);
     }
 
 
@@ -2466,9 +2444,24 @@ TCypressNodeBase* TCypressManager::GetNodeOrThrow(const TVersionedNodeId& id)
     return Impl_->GetNodeOrThrow(id);
 }
 
-INodeResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
+TYPath TCypressManager::GetNodePath(TCypressNodeBase* trunkNode, TTransaction* transaction)
 {
-    return Impl_->CreateResolver(transaction);
+    return Impl_->GetNodePath(trunkNode, transaction);
+}
+
+TYPath TCypressManager::GetNodePath(const ICypressNodeProxy* nodeProxy)
+{
+    return Impl_->GetNodePath(nodeProxy);
+}
+
+TCypressNodeBase* TCypressManager::ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
+{
+    return Impl_->ResolvePathToTrunkNode(path, transaction);
+}
+
+ICypressNodeProxyPtr TCypressManager::ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction)
+{
+    return Impl_->ResolvePathToNodeProxy(path, transaction);
 }
 
 TCypressNodeBase* TCypressManager::FindNode(
@@ -2550,13 +2543,6 @@ void TCypressManager::AbortSubtreeTransactions(INodePtr node)
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 {
     return Impl_->IsOrphaned(trunkNode);
-}
-
-bool TCypressManager::IsAlive(
-    TCypressNodeBase* trunkNode,
-    TTransaction* transaction)
-{
-    return Impl_->IsAlive(trunkNode, transaction);
 }
 
 TCypressNodeList TCypressManager::GetNodeOriginators(

@@ -13,6 +13,9 @@ message TLocationStatistics
     required int32 session_count = 4;
     required bool enabled = 5;
     required bool full = 6;
+
+    optional bool throttling_reads = 9 [default = false];
+    optional bool throttling_writes = 10 [default = false];
 }
 
 // Provides detailed information on memory consumption.
@@ -37,6 +40,12 @@ message TMediumStatistics
     required double io_weight = 3;
 }
 
+message TNetworkStatistics
+{
+    required string network = 1;
+    required bool throttling_reads = 2 [default = false];
+}
+
 // Describes the current state of the whole node.
 message TNodeStatistics
 {
@@ -54,6 +63,7 @@ message TNodeStatistics
     required int32 used_tablet_slots = 12;
     required TMemoryStatistics memory = 15;
     repeated TMediumStatistics media = 17;
+    repeated TNetworkStatistics network = 18;
 }
 
 // Measures limits and utilization of various resources.
@@ -61,7 +71,7 @@ message TNodeResources
 {
     optional int32 user_slots = 1;
     optional double cpu = 2;
-    optional int64 memory = 3;
+    optional int64 user_memory = 3;
     optional int32 network = 4;
     optional int32 replication_slots = 5;
     optional int32 removal_slots = 6;
@@ -69,6 +79,18 @@ message TNodeResources
     optional int32 seal_slots = 8;
     optional int64 replication_data_size = 9;
     optional int64 repair_data_size = 10;
+    optional int64 system_memory = 11;
+}
+
+message TDiskResourcesInfo
+{
+    required int64 usage = 1;
+    required int64 limit = 2;
+}
+
+message TDiskResources
+{
+    repeated TDiskResourcesInfo disk_reports = 1;
 }
 
 // Limits overrides pushed from master to node.
@@ -83,6 +105,8 @@ message TNodeResourceLimitsOverrides
     optional int32 repair_slots = 6;
     optional int64 repair_data_size = 7;
     optional int32 seal_slots = 8;
+    optional int64 user_memory = 9;
+    optional int64 system_memory = 10;
 }
 
 // A collection of network name to address mappings.
@@ -113,6 +137,7 @@ message TNodeDescriptor
     required TAddressMap addresses = 1;
     optional string rack = 2;
     optional string data_center = 3;
+    repeated string tags = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

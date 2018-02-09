@@ -22,8 +22,11 @@ public:
 
     ~TYsonParser();
 
+    void Read(const char* begin, const char* end, bool finish = false);
     void Read(const TStringBuf& data);
     void Finish();
+
+    const char* GetCurrentPositionInBlock();
 
 private:
     class TImpl;
@@ -56,14 +59,6 @@ private:
 
 void ParseYsonStringBuffer(
     const TStringBuf& buffer,
-    EYsonType type,
-    IYsonConsumer* consumer,
-    bool enableLinePositionInfo = false,
-    i64 memoryLimit = std::numeric_limits<i64>::max(),
-    bool enableContext = true);
-
-void ParseYsonSharedRefArray(
-    const TSharedRefArray& refArray,
     EYsonType type,
     IYsonConsumer* consumer,
     bool enableLinePositionInfo = false,

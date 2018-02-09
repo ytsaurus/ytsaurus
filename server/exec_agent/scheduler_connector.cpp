@@ -82,7 +82,7 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    auto client = Bootstrap_->GetMasterClient();
+    const auto& client = Bootstrap_->GetMasterClient();
 
     TJobTrackerServiceProxy proxy(client->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
@@ -95,7 +95,7 @@ void TSchedulerConnector::SendHeartbeat()
         req.Get());
 
     LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
-        FormatResourceUsage(req->resource_usage(), req->resource_limits()));
+        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_info()));
 
     auto timeBetweenSentHeartbeats = TInstant::Now() - LastSentHeartbeatTime_;
     Profiler.Update(
@@ -131,16 +131,18 @@ void TSchedulerConnector::SendHeartbeat()
             timeBetweenFullyProcessedHeartbeats.MilliSeconds());
         LastFullyProcessedHeartbeatTime_ = now;
     }
+    const auto& reporter = Bootstrap_->GetStatisticsReporter();
     if (rsp->has_enable_job_reporter()) {
-        auto reporter = Bootstrap_->GetStatisticsReporter();
         reporter->SetEnabled(rsp->enable_job_reporter());
     }
     if (rsp->has_enable_job_spec_reporter()) {
-        auto reporter = Bootstrap_->GetStatisticsReporter();
         reporter->SetSpecEnabled(rsp->enable_job_spec_reporter());
     }
+    if (rsp->has_operation_archive_version()) {
+        reporter->SetOperationArchiveVersion(rsp->operation_archive_version());
+    }
 
-    jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob, client->GetSchedulerChannel());
+    jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

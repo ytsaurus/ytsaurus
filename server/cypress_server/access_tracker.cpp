@@ -133,7 +133,7 @@ void TAccessTracker::OnFlush()
 
     Reset();
 
-    WaitFor(asyncResult);
+    Y_UNUSED(WaitFor(asyncResult));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

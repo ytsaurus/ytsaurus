@@ -182,6 +182,11 @@ public:
         return (CopiedChunkCount_ + currentProgress) / TotalChunkCount_;
     }
 
+    virtual ui64 GetStderrSize() const override
+    {
+        return 0;
+    }
+
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return FailedChunkId_
@@ -192,6 +197,12 @@ public:
     virtual TInterruptDescriptor GetInterruptDescriptor() const override
     {
         return { };
+    }
+
+    virtual void Interrupt() override
+    {
+        THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
+            << TErrorAttribute("job_type", EJobType::RemoteCopy);
     }
 
     virtual TStatistics GetStatistics() const override

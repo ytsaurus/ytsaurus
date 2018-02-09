@@ -5,9 +5,10 @@
 #include <yt/core/actions/public.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/ref.h>
 
 #include <yt/core/rpc/public.h>
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/core/tracing/trace_context.h>
 

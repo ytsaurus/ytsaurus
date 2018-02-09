@@ -24,10 +24,6 @@ class TOperationControllerBase;
 
 DECLARE_REFCOUNTED_CLASS(TChunkListPool)
 
-DECLARE_REFCOUNTED_CLASS(TMasterConnector)
-
-class TJobMetricsUpdater;
-
 DECLARE_REFCOUNTED_STRUCT(TFinishedJobInfo)
 DECLARE_REFCOUNTED_STRUCT(TJobInfo)
 DECLARE_REFCOUNTED_CLASS(TJoblet)

@@ -1,6 +1,6 @@
 package NYT.NQueryClient.NProto;
 
-import "yt/core/misc/guid.proto";
+import "yt/core/misc/proto/guid.proto";
 import "yt/ytlib/misc/workload.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
 
@@ -195,6 +195,8 @@ message TQueryOptions
     required bool enable_code_cache = 4;
     optional NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
     optional bool use_multijoin = 6 [default = false];
+    optional bool allow_full_scan = 7 [default = true];
+    optional NYT.NProto.TGuid read_session_id = 8;
 }
 
 message TDataRanges

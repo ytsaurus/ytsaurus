@@ -15,11 +15,31 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EDeliveryTrackingLevel,
-    (None)
-    (ErrorOnly)
-    (Full)
-);
+struct TTcpDispatcherStatistics
+{
+    i64 InBytes = 0;
+    i64 InPackets = 0;
+
+    i64 OutBytes = 0;
+    i64 OutPackets = 0;
+
+    i64 PendingOutPackets = 0;
+    i64 PendingOutBytes = 0;
+
+    int ClientConnections = 0;
+    int ServerConnections = 0;
+
+    i64 StalledReads = 0;
+    i64 StalledWrites = 0;
+
+    i64 ReadErrors = 0;
+    i64 WriteErrors = 0;
+
+    i64 EncoderErrors = 0;
+    i64 DecoderErrors = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TSendOptions
 {
@@ -48,6 +68,8 @@ struct IBus
     //! Typically used for constructing errors.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
+    virtual TTcpDispatcherStatistics GetStatistics() const = 0;
+
     //! Asynchronously sends a message via the bus.
     /*!
      *  \param message A message to send.
@@ -57,6 +79,12 @@ struct IBus
      *  \note Thread affinity: any
      */
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) = 0;
+
+    //! For socket buses, updates the TOS level.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void SetTosLevel(TTosLevel tosLevel) = 0;
 
     //! Terminates the bus.
     /*!

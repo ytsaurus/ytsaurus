@@ -60,6 +60,18 @@ inline void FromProto(TInstant* original, ::google::protobuf::int64 serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline void ToProto(::google::protobuf::uint64* serialized, TInstant original)
+{
+    *serialized = original.MicroSeconds();
+}
+
+inline void FromProto(TInstant* original, ::google::protobuf::uint64 serialized)
+{
+    *original = TInstant::MicroSeconds(serialized);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
     T* serialized,
@@ -104,7 +116,7 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
     for (const auto& extension : extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
-            DeserializeFromProto(&result, TRef::FromString(data));
+            DeserializeProto(&result, TRef::FromString(data));
             found = true;
             break;
         }
@@ -134,7 +146,7 @@ TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
         if (extension.tag() == tag) {
             const auto& data = extension.data();
             result.Assign(T());
-            DeserializeFromProto(&result.Get(), TRef::FromString(data));
+            DeserializeProto(&result.Get(), TRef::FromString(data));
             break;
         }
     }
@@ -361,6 +373,60 @@ template <class TProto>
 i64 TRefCountedProto<TProto>::GetSize() const
 {
     return sizeof(this) + ExtraSpace_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TMovableProto<T>::TMovableProto(TMovableProto<T>&& other)
+{
+    Underlying_.Swap(&other.Underlying_);
+}
+
+template <class T>
+TMovableProto<T>::TMovableProto(T&& other)
+{
+    Underlying_.Swap(&other);
+}
+
+template <class T>
+TMovableProto<T>& TMovableProto<T>::operator=(TMovableProto<T>&& other)
+{
+    if (this != &other) {
+        Underlying_.Swap(other.Underlying_);
+    }
+    return *this;
+}
+
+template <class T>
+TMovableProto<T>& TMovableProto<T>::operator=(T&& other)
+{
+    Underlying_.Swap(&other);
+    return *this;
+}
+
+template <class T>
+T& TMovableProto<T>::Unwrap()
+{
+    return Underlying_;
+}
+
+template <class T>
+const T& TMovableProto<T>::Unwrap() const
+{
+    return Underlying_;
+}
+
+template <class T>
+TMovableProto<T>::operator T&()
+{
+    return Unwrap();
+}
+
+template <class T>
+TMovableProto<T>::operator const T&() const
+{
+    return Unwrap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

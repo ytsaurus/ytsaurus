@@ -4,6 +4,7 @@
 #endif
 
 #include "convert.h"
+#include "serialize.h"
 #include "tree_visitor.h"
 
 #include <yt/core/yson/consumer.h>
@@ -36,7 +37,8 @@ void LoadFromNode(
     T& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy /*mergeStrategy*/)
+    EMergeStrategy /*mergeStrategy*/,
+    bool /*keepUnrecognizedRecursively*/)
 {
     try {
         Deserialize(parameter, node);
@@ -52,7 +54,8 @@ inline void LoadFromNode(
     NYTree::INodePtr& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& /*path*/,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool /*keepUnrecognizedRecursively*/)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -65,7 +68,7 @@ inline void LoadFromNode(
             if (!parameter) {
                 parameter = node;
             } else {
-                parameter = UpdateNode(parameter, node);
+                parameter = PatchNode(parameter, node);
             }
             break;
         }
@@ -81,10 +84,15 @@ void LoadFromNode(
     TIntrusivePtr<T>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
 {
     if (!parameter || mergeStrategy == EMergeStrategy::Overwrite) {
         parameter = New<T>();
+    }
+
+    if (keepUnrecognizedRecursively) {
+        parameter->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
     }
 
     switch (mergeStrategy) {
@@ -106,7 +114,8 @@ void LoadFromNode(
     TNullable<T>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -115,7 +124,7 @@ void LoadFromNode(
                 parameter = Null;
             } else {
                 T value;
-                LoadFromNode(value, node, path, EMergeStrategy::Overwrite);
+                LoadFromNode(value, node, path, EMergeStrategy::Overwrite, keepUnrecognizedRecursively);
                 parameter = value;
             }
             break;
@@ -132,7 +141,8 @@ void LoadFromNode(
     std::vector<T...>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -145,7 +155,8 @@ void LoadFromNode(
                     parameter[i],
                     listNode->GetChild(i),
                     path + "/" + NYPath::ToYPathLiteral(i),
-                    EMergeStrategy::Overwrite);
+                    EMergeStrategy::Overwrite,
+                    keepUnrecognizedRecursively);
             }
             break;
         }
@@ -161,7 +172,8 @@ void LoadFromNode(
     Map<T...>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -175,7 +187,8 @@ void LoadFromNode(
                     value,
                     pair.second,
                     path + "/" + NYPath::ToYPathLiteral(key),
-                    EMergeStrategy::Overwrite);
+                    EMergeStrategy::Overwrite,
+                    keepUnrecognizedRecursively);
                 parameter.emplace(FromString<typename Map<T...>::key_type>(key), std::move(value));
             }
             break;
@@ -189,7 +202,8 @@ void LoadFromNode(
                     value,
                     pair.second,
                     path + "/" + NYPath::ToYPathLiteral(key),
-                    EMergeStrategy::Combine);
+                    EMergeStrategy::Combine,
+                    keepUnrecognizedRecursively);
                 parameter[FromString<typename Map<T...>::key_type>(key)] = std::move(value);
             }
             break;
@@ -199,6 +213,36 @@ void LoadFromNode(
             Y_UNIMPLEMENTED();
     }
 }
+
+// For all classes except descendants of TYsonSerializableLite and their intrusive pointers
+// we do not attempt to extract unrecognzied members. C++ prohibits function template specialization
+// so we have to deal with static struct members.
+template <class T, class = void>
+struct TGetUnrecognizedRecursively
+{
+    static IMapNodePtr Do(const T& /*parameter*/)
+    {
+        return nullptr;
+    }
+};
+
+template <class T>
+struct TGetUnrecognizedRecursively<T, std::enable_if_t<std::is_base_of<TYsonSerializableLite, T>::value>>
+{
+    static IMapNodePtr Do(const T& parameter)
+    {
+        return parameter.GetUnrecognizedRecursively();
+    }
+};
+
+template <class T>
+struct TGetUnrecognizedRecursively<T, std::enable_if_t<std::is_base_of<TYsonSerializableLite, typename T::TUnderlying>::value>>
+{
+    static IMapNodePtr Do(const T& parameter)
+    {
+        return parameter ? parameter->GetUnrecognizedRecursively() : nullptr;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,34 +330,11 @@ inline void InvokeForComposites(const Map<T...>* parameter, const F& func)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// all
-inline bool HasValue(const void* /* parameter */)
-{
-    return true;
-}
-
-// TIntrusivePtr
-template <class T>
-inline bool HasValue(TIntrusivePtr<T>* parameter)
-{
-    return (bool) (*parameter);
-}
-
-// TNullable
-template <class T>
-inline bool HasValue(TNullable<T>* parameter)
-{
-    return parameter->HasValue();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NDetail
 
 template <class T>
 TYsonSerializableLite::TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
-    , Description(nullptr)
     , MergeStrategy(EMergeStrategy::Default)
 { }
 
@@ -321,7 +342,7 @@ template <class T>
 void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (node) {
-        NDetail::LoadFromNode(Parameter, node, path, MergeStrategy);
+        NDetail::LoadFromNode(Parameter, node, path, MergeStrategy, KeepUnrecognizedRecursively);
     } else if (!DefaultValue) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             path);
@@ -329,13 +350,13 @@ void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYP
 }
 
 template <class T>
-void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) const
+void TYsonSerializableLite::TParameter<T>::Postprocess(const NYPath::TYPath& path) const
 {
-    for (const auto& validator : Validators) {
+    for (const auto& postprocessor : Postprocessors) {
         try {
-            validator(Parameter);
+            postprocessor(Parameter);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Validation failed at %v",
+            THROW_ERROR_EXCEPTION("Postprocess failed at %v",
                 path.empty() ? "root" : path)
                 << ex;
         }
@@ -346,7 +367,7 @@ void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) 
         path,
         [] (TIntrusivePtr<TYsonSerializable> obj, const NYPath::TYPath& subpath) {
             if (obj) {
-                obj->Validate(subpath);
+                obj->Postprocess(subpath);
             }
         });
 }
@@ -394,13 +415,6 @@ const std::vector<TString>& TYsonSerializableLite::TParameter<T>::GetAliases() c
 }
 
 template <class T>
-TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Describe(const char* description)
-{
-    Description = description;
-    return *this;
-}
-
-template <class T>
 TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Optional()
 {
     DefaultValue = Parameter;
@@ -422,9 +436,9 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Defa
 }
 
 template <class T>
-TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::CheckThat(TValidator validator)
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::CheckThat(TPostprocessor postprocessor)
 {
-    Validators.push_back(std::move(validator));
+    Postprocessors.push_back(std::move(postprocessor));
     return *this;
 }
 
@@ -435,10 +449,22 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Merg
     return *this;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Standard validators
+template <class T>
+IMapNodePtr TYsonSerializableLite::TParameter<T>::GetUnrecognizedRecursively() const
+{
+    return NDetail::TGetUnrecognizedRecursively<T>::Do(Parameter);
+}
 
-#define DEFINE_VALIDATOR(method, condition, error) \
+template <class T>
+void TYsonSerializableLite::TParameter<T>::SetKeepUnrecognizedRecursively()
+{
+    KeepUnrecognizedRecursively = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Standard postprocessors
+
+#define DEFINE_POSTPROCESSOR(method, condition, error) \
     template <class T> \
     TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::method \
     { \
@@ -454,43 +480,43 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Merg
         }); \
     }
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     GreaterThan(TValueType expected),
     actual > expected,
     TError("Expected > %v, found %v", expected, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     GreaterThanOrEqual(TValueType expected),
     actual >= expected,
     TError("Expected >= %v, found %v", expected, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     LessThan(TValueType expected),
     actual < expected,
     TError("Expected < %v, found %v", expected, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     LessThanOrEqual(TValueType expected),
     actual <= expected,
     TError("Expected <= %v, found %v", expected, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     InRange(TValueType lowerBound, TValueType upperBound),
     lowerBound <= actual && actual <= upperBound,
     TError("Expected in range [%v,%v], found %v", lowerBound, upperBound, actual)
 )
 
-DEFINE_VALIDATOR(
+DEFINE_POSTPROCESSOR(
     NonEmpty(),
     actual.size() > 0,
     TError("Value must not be empty")
 )
 
-#undef DEFINE_VALIDATOR
+#undef DEFINE_POSTPROCESSOR
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -500,6 +526,9 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
     T& value)
 {
     auto parameter = New<TParameter<T>>(value);
+    if (UnrecognizedStrategy == EUnrecognizedStrategy::KeepRecursive) {
+        parameter->SetKeepUnrecognizedRecursively();
+    }
     YCHECK(Parameters.insert(std::make_pair(parameterName, parameter)).second);
     return *parameter;
 }
@@ -525,7 +554,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     using NYTree::ConvertTo;
 
     if (patch) {
-        return ConvertTo<TIntrusivePtr<T>>(UpdateNode(ConvertTo<INodePtr>(obj), patch));
+        return ConvertTo<TIntrusivePtr<T>>(PatchNode(ConvertTo<INodePtr>(obj), patch));
     } else {
         return CloneYsonSerializable(obj);
     }

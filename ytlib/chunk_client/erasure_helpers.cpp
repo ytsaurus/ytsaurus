@@ -12,6 +12,8 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/checksum.h>
 
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NChunkClient {
 namespace NErasureHelpers {
@@ -83,7 +85,7 @@ std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges_)
                 start = range.Begin;
                 end = range.End;
             } else {
-                end = range.End;
+                end = std::max(end, range.End);
             }
         } else {
             opened = true;
@@ -597,7 +599,9 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErasureChunkReaderBase::TErasureChunkReaderBase(NErasure::ICodec* codec, const std::vector<IChunkReaderPtr>& readers)
+TErasureChunkReaderBase::TErasureChunkReaderBase(
+    NErasure::ICodec* codec,
+    const std::vector<IChunkReaderAllowingRepairPtr>& readers)
     : Codec_(codec)
     , Readers_(readers)
 { }
@@ -614,7 +618,9 @@ TFuture<TChunkMeta> TErasureChunkReaderBase::GetMeta(
             YCHECK(it == extensionTags->end());
         }
     }
-    return Readers_.front()->GetMeta(workloadDescriptor, partitionTag, extensionTags);
+
+    auto& reader = Readers_[RandomNumber(Readers_.size())];
+    return reader->GetMeta(workloadDescriptor, partitionTag, extensionTags);
 }
 
 TChunkId TErasureChunkReaderBase::GetChunkId() const

@@ -112,6 +112,36 @@ TString ToStringViaBuilder(const T& value, const TStringBuf& spec = STRINGBUF("v
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Appends a certain delimiter starting from the second call.
+class TDelimitedStringBuilderWrapper
+    : private TNonCopyable
+{
+public:
+    TDelimitedStringBuilderWrapper(
+        TStringBuilder* builder,
+        const TStringBuf& delimiter = STRINGBUF(", "))
+        : Builder_(builder)
+        , Delimiter_(delimiter)
+    { }
+
+    TStringBuilder* operator->()
+    {
+        if (!FirstCall_) {
+            Builder_->AppendString(Delimiter_);
+        }
+        FirstCall_ = false;
+        return Builder_;
+    }
+
+private:
+    TStringBuilder* const Builder_;
+    const TStringBuf Delimiter_;
+
+    bool FirstCall_ = true;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Formatters enable customizable way to turn an object into a string.
 //! This default implementation uses |FormatValue|.
 struct TDefaultFormatter

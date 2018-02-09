@@ -323,6 +323,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         New<TChunkReaderOptions>(),
         MemoryReader_,
         readNameTable,
+        TReadSessionId(),
         TKeyColumns(),
         columnFilter,
         std::get<3>(GetParam()));
@@ -558,6 +559,7 @@ protected:
             options,
             MemoryReader_,
             WriteNameTable_,
+            TReadSessionId(),
             keyColumns,
             TColumnFilter(),
             keys);

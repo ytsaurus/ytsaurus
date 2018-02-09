@@ -33,7 +33,7 @@ extern const TOperationId NullOperationId;
 // is used as a key of TEnumIndexedVector.
 DEFINE_ENUM(EJobType,
     // Scheduler jobs
-    ((SchedulerFirst)    (  0)) // sentinel
+    ((SchedulerFirst)    (  0)) // Sentinel.
     ((Map)               (  1))
     ((PartitionMap)      (  2))
     ((SortedMerge)       (  3))
@@ -49,13 +49,17 @@ DEFINE_ENUM(EJobType,
     ((IntermediateSort)  ( 13))
     ((OrderedMap)        ( 14))
     ((JoinReduce)        ( 15))
-    ((SchedulerLast)     ( 99)) // sentinel
+    ((Vanilla)           ( 16))
+    ((SchedulerUnknown)  ( 98)) // Used by node to report aborted jobs for which spec request has failed
+    ((SchedulerLast)     ( 99)) // Sentinel.
 
     // Master jobs
+    ((ReplicatorFirst)   (100)) // Sentinel.
     ((ReplicateChunk)    (100))
     ((RemoveChunk)       (101))
     ((RepairChunk)       (102))
     ((SealChunk)         (103))
+    ((ReplicatorLast)    (103)) // Sentinel.
 );
 
 // NB: Please keep the range of values small as this type
@@ -74,11 +78,14 @@ DEFINE_ENUM(EJobState,
 );
 
 DEFINE_ENUM(EJobPhase,
+    ((Missing)                      (100))
+
     ((Created)                      (  0))
     ((PreparingNodeDirectory)       (  5))
     ((DownloadingArtifacts)         ( 10))
     ((PreparingSandboxDirectories)  ( 15))
     ((PreparingArtifacts)           ( 20))
+    ((PreparingRootVolume)          ( 25))
     ((PreparingProxy)               ( 30))
     ((Running)                      ( 40))
     ((FinalizingProxy)              ( 50))

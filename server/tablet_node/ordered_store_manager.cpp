@@ -206,11 +206,13 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
+        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
+        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
 
         auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode, inMemoryConfigRevision);
 
         auto chunkWriter = CreateConfirmingWriter(
-            tabletSnapshot->WriterConfig,
+            writerConfig,
             writerOptions,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),
@@ -264,15 +266,16 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         ProfileDiskPressure(
             tabletSnapshot,
             tableWriter->GetDataStatistics(),
-            tabletSnapshot->RuntimeData->StoreFlushDiskPressureCounter);
+            StoreFlushTag_);
 
         auto dataStatistics = tableWriter->GetDataStatistics();
         auto diskSpace = CalculateDiskSpaceUsage(
             tabletSnapshot->WriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
-        LOG_DEBUG("Flushed ordered store (StoreId: %v, DiskSpace: %v)",
+        LOG_DEBUG("Flushed ordered store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
             store->GetId(),
+            chunkWriter->GetChunkId(),
             diskSpace);
 
         TAddStoreDescriptor descriptor;

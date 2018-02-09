@@ -31,7 +31,7 @@ TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, TNull
     auto workerInvoker = TDispatcher::Get()->GetHeavyInvoker();
     auto keysUpdateCallback = BIND(&TServiceCombiner::UpdateKeys, MakeWeak(this));
     if (!keysUpdatePeriod) {
-        WaitFor(keysUpdateCallback.AsyncVia(workerInvoker).Run());
+        Y_UNUSED(WaitFor(keysUpdateCallback.AsyncVia(workerInvoker).Run()));
     } else {
         UpdateKeysExecutor_ = New<TPeriodicExecutor>(workerInvoker, keysUpdateCallback, *keysUpdatePeriod);
         UpdateKeysExecutor_->Start();

@@ -1,7 +1,7 @@
 #include <yt/server/core_dump/core_processor_service_proxy.h>
 #include <yt/server/core_dump/core_processor_service.pb.h>
 
-#include <yt/server/program/program.h>
+#include <yt/ytlib/program/program.h>
 
 #include <yt/core/misc/fs.h>
 
@@ -27,7 +27,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoreForwarderProgram
-    : public TYTProgram
+    : public TProgram
 {
 public:
     TCoreForwarderProgram()

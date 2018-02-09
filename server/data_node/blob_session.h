@@ -75,7 +75,7 @@ private:
 
     virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
 
-    virtual void DoCancel() override;
+    virtual void DoCancel(const TError& error) override;
 
     virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
@@ -108,6 +108,8 @@ private:
 
     void SetFailed(const TError& error, bool fatal = true);
 
+    void OnSlotCanceled(int blockIndex);
+    void OnFinishCanceled();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobSession)

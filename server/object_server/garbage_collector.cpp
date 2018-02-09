@@ -232,7 +232,7 @@ void TGarbageCollector::OnSweep()
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
         ->CommitAndLog(Logger);
-    WaitFor(asyncResult);
+    Y_UNUSED(WaitFor(asyncResult));
 }
 
 int TGarbageCollector::GetZombieCount() const

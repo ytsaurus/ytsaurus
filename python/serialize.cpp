@@ -152,7 +152,7 @@ void SerializeLazyMapFragment(
         if (value.Value) {
             Serialize(value.Value.Get(), consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
         } else {
-            consumer->OnRaw(value.Data, NYson::EYsonType::Node);
+            consumer->OnRaw(TStringBuf(value.Data.Begin(), value.Data.Size()), NYson::EYsonType::Node);
         }
         context->Pop();
     }
@@ -490,110 +490,6 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encod
     } else {
         THROW_ERROR_EXCEPTION("Unsupported node type %s", ~ToString(type));
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TListFragmentLexer::TImpl
-{
-public:
-    explicit TImpl(IInputStream* stream)
-        : Lexer_(NYT::NPython::TStreamReader(stream))
-    { }
-
-    TSharedRef NextItem()
-    {
-        int balance = 0;
-        bool finished = false;
-        TToken token;
-
-        bool hasRow = false;
-        while (!finished) {
-            Lexer_.GetToken(&token);
-            auto type = token.GetType();
-
-            switch (type) {
-                case ETokenType::EndOfStream:
-                    finished = true;
-                    break;
-                case ETokenType::LeftBracket:
-                case ETokenType::LeftBrace:
-                case ETokenType::LeftAngle:
-                    balance += 1;
-                    break;
-                case ETokenType::RightBracket:
-                case ETokenType::RightBrace:
-                case ETokenType::RightAngle:
-                    balance -= 1;
-                    if (balance == 0) {
-                        hasRow = true;
-                    }
-                    break;
-                case ETokenType::Semicolon:
-                    if (balance == 0) {
-                        return Lexer_.ExtractPrefix();
-                    }
-                    break;
-                case ETokenType::String:
-                case ETokenType::Int64:
-                case ETokenType::Uint64:
-                case ETokenType::Double:
-                case ETokenType::Boolean:
-                case ETokenType::Hash:
-                case ETokenType::Equals:
-                    if (balance == 0) {
-                        hasRow = true;
-                    }
-                    break;
-                default:
-                    THROW_ERROR_EXCEPTION("Unexpected token %Qv in YSON list fragment", token);
-            }
-        }
-
-        if (balance != 0) {
-            THROW_ERROR_EXCEPTION("YSON list fragment is incomplete");
-        }
-        if (hasRow) {
-            auto prefix = Lexer_.ExtractPrefix();
-            YCHECK(*(prefix.End() - 1) != NYson::NDetail::ItemSeparatorSymbol);
-            auto result = TSharedMutableRef::Allocate(prefix.Size() + 1, false);
-            std::copy(prefix.Begin(), prefix.End(), result.Begin());
-            *(result.End() - 1) = ';';
-            return result;
-        }
-
-        return TSharedRef();
-    }
-
-private:
-    NYson::NDetail::TLexer<NYT::NPython::TStreamReader, true> Lexer_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TListFragmentLexer::TListFragmentLexer()
-{ }
-
-TListFragmentLexer::~TListFragmentLexer()
-{ }
-
-TListFragmentLexer::TListFragmentLexer(TListFragmentLexer&& lexer)
-    : Impl_(std::move(lexer.Impl_))
-{ }
-
-TListFragmentLexer& TListFragmentLexer::operator=(TListFragmentLexer&& lexer)
-{
-    Impl_ = std::move(lexer.Impl_);
-    return *this;
-}
-
-TListFragmentLexer::TListFragmentLexer(IInputStream* stream)
-    : Impl_(new TImpl(stream))
-{ }
-
-TSharedRef TListFragmentLexer::NextItem()
-{
-    return Impl_->NextItem();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

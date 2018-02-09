@@ -6,7 +6,9 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler_thread.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+#include <yt/core/net/local_address.h>
+
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
@@ -22,6 +24,7 @@ namespace NTracing {
 
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 

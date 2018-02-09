@@ -13,6 +13,8 @@ namespace NDataNode {
 
 extern const NLogging::TLogger DataNodeLogger;
 extern const NProfiling::TProfiler DataNodeProfiler;
+extern const NLogging::TLogger P2PLogger;
+extern const NProfiling::TProfiler P2PProfiler;
 
 extern const TString CellIdFileName;
 extern const TString MultiplexedDirectory;

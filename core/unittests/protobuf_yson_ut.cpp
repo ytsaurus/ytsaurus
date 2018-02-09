@@ -1,13 +1,15 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/unittests/protobuf_yson_ut.pb.h>
+#include <yt/core/unittests/proto/protobuf_yson_ut.pb.h>
 
 #include <yt/core/yson/protobuf_interop.h>
 #include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -98,6 +100,21 @@ TEST(TYsonToProtobufYsonTest, Success)
             .EndList()
             .Item("float_field").Value(3.14)
             .Item("double_field").Value(3.14)
+            .Item("attributes").BeginMap()
+                .Item("k1").Value(1)
+                .Item("k2").Value("test")
+                .Item("k3").BeginList()
+                    .Item().Value(1)
+                    .Item().Value(2)
+                    .Item().Value(3)
+                .EndList()
+            .EndMap()
+            .Item("yson_field").BeginMap()
+                .Item("a").Value(1)
+                .Item("b").BeginList()
+                    .Item().Value("foobar")
+                .EndList()
+            .EndMap()
         .EndMap();
 
 
@@ -136,6 +153,23 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(2, message.repeated_nested_message().size());
     EXPECT_EQ(456, message.repeated_nested_message().Get(0).int32_field());
     EXPECT_EQ(654, message.repeated_nested_message().Get(1).int32_field());
+
+    EXPECT_EQ(3, message.attributes().attributes_size());
+    EXPECT_EQ("k1", message.attributes().attributes(0).key());
+    EXPECT_EQ(ConvertToYsonString(1).GetData(), message.attributes().attributes(0).value());
+    EXPECT_EQ("k2", message.attributes().attributes(1).key());
+    EXPECT_EQ(ConvertToYsonString("test").GetData(), message.attributes().attributes(1).value());
+    EXPECT_EQ("k3", message.attributes().attributes(2).key());
+    EXPECT_EQ(ConvertToYsonString(std::vector<int>{1, 2, 3}).GetData(), message.attributes().attributes(2).value());
+
+    auto node = BuildYsonNodeFluently().BeginMap()
+            .Item("a").Value(1)
+            .Item("b").BeginList()
+                .Item().Value("foobar")
+            .EndList()
+        .EndMap();
+    
+    EXPECT_EQ(ConvertToYsonString(node).GetData(), message.yson_field());
 }
 
 TEST(TYsonToProtobufTest, TypeConversions)
@@ -457,8 +491,28 @@ TEST(TProtobufToYsonTest, Success)
         auto* proto = message.add_repeated_nested_message();
         proto->set_int32_field(654);
     }
+    {
+        auto* proto = message.mutable_attributes();
+        {
+            auto* entry = proto->add_attributes();
+            entry->set_key("k1");
+            entry->set_value(ConvertToYsonString(1).GetData());
+        }
+        {
+            auto* entry = proto->add_attributes();
+            entry->set_key("k2");
+            entry->set_value(ConvertToYsonString("test").GetData());
+        }
+        {
+            auto* entry = proto->add_attributes();
+            entry->set_key("k3");
+            entry->set_value(ConvertToYsonString(std::vector<int>{1, 2, 3}).GetData());
+        }
+    }
 
-    auto serialized = SerializeToProto(message);
+    message.set_yson_field("{a=1;b=[\"foobar\";];}");
+
+    auto serialized = SerializeProtoToRef(message);
 
     ArrayInputStream inputStream(serialized.Begin(), serialized.Size());
     TString yson;
@@ -506,6 +560,21 @@ TEST(TProtobufToYsonTest, Success)
                     .Item("int32_field").Value(654)
                 .EndMap()
             .EndList()
+            .Item("attributes").BeginMap()
+                .Item("k1").Value(1)
+                .Item("k2").Value("test")
+                .Item("k3").BeginList()
+                    .Item().Value(1)
+                    .Item().Value(2)
+                    .Item().Value(3)
+                .EndList()
+            .EndMap()
+            .Item("yson_field").BeginMap()
+                .Item("a").Value(1)
+                .Item("b").BeginList()
+                    .Item().Value("foobar")
+                .EndList()
+            .EndMap()
         .EndMap();
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
 }
@@ -610,6 +679,50 @@ TEST(TProtobufToYsonTest, Failure)
         codedStream.WriteVarint64(0);
         TEST_EPILOGUE(TMessage)
     }, "/int32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE()
+        codedStream.WriteTag(WireFormatLite::MakeTag(19 /*attributes*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(2);
+        codedStream.WriteTag(WireFormatLite::MakeTag(1 /*attribute*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(0);
+        TEST_EPILOGUE(TMessage)
+    }, "/attributes");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE()
+        codedStream.WriteTag(WireFormatLite::MakeTag(19 /*attributes*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(4);
+        codedStream.WriteTag(WireFormatLite::MakeTag(1 /*attribute*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(2);
+        codedStream.WriteTag(WireFormatLite::MakeTag(1 /*key*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(0);
+        TEST_EPILOGUE(TMessage)
+    }, "/attributes");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE()
+        codedStream.WriteTag(WireFormatLite::MakeTag(19 /*attributes*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(4);
+        codedStream.WriteTag(WireFormatLite::MakeTag(1 /*attribute*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(2);
+        codedStream.WriteTag(WireFormatLite::MakeTag(2 /*value*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(0);
+        TEST_EPILOGUE(TMessage)
+    }, "/attributes");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE()
+        codedStream.WriteTag(WireFormatLite::MakeTag(19 /*attributes*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(6);
+        codedStream.WriteTag(WireFormatLite::MakeTag(1 /*attribute*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(4);
+        codedStream.WriteTag(WireFormatLite::MakeTag(1 /*key*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(0);
+        codedStream.WriteTag(WireFormatLite::MakeTag(1 /*key*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(0);
+        TEST_EPILOGUE(TMessage)
+    }, "/attributes");
 }
 
 #undef TEST_PROLOGUE

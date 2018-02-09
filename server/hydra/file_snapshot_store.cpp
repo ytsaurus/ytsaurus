@@ -135,7 +135,7 @@ private:
 
                 auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, false);
                 ReadPadded(input, serializedMeta);
-                DeserializeFromProto(&Meta_, serializedMeta);
+                DeserializeProto(&Meta_, serializedMeta);
 
                 if (IsRaw_) {
                     File_->Seek(Offset_, sSet);
@@ -216,7 +216,7 @@ public:
         , Meta_(meta)
         , IsRaw_(raw)
     {
-        SerializedMeta_ = SerializeToProto(Meta_);
+        SerializedMeta_ = SerializeProtoToRef(Meta_);
         Logger.AddTag("Path: %v", FileName_);
     }
 

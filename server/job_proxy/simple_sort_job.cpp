@@ -4,6 +4,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
@@ -47,7 +48,8 @@ public:
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(SchedulerJobSpecExt_.data_source_directory());
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
         auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
             SchedulerJobSpecExt_.table_reader_options()));
 
@@ -62,7 +64,8 @@ public:
             Host_->GetInputNodeDirectory(),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
-            nameTable);
+            nameTable,
+            TReadSessionId());
 
         Reader_ = CreateSchemalessSortingReader(reader, nameTable, keyColumns);
 

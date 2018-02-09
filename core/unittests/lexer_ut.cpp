@@ -91,6 +91,9 @@ TEST_F(TStatelessLexerTest, StringValues)
 
     TestToken(TString("\x01\x00", 2), ETokenType::String, "");
     TestToken("\x01\x08\x01\x02\x03\x04", ETokenType::String, "\x01\x02\x03\x04");
+
+    TestToken("nanka", ETokenType::String, "nanka");
+    TestToken("infka", ETokenType::String, "infka");
 }
 
 TEST_F(TStatelessLexerTest, Int64Values)
@@ -126,6 +129,12 @@ TEST_F(TStatelessLexerTest, DoubleValues)
     TestDouble("0.31415926e+1", x);
     TestDouble("31415926e-7", x);
     TestDouble(TString('\x03') + TString((const char*) &x, sizeof(x)), x);
+
+    TestDouble("%inf", std::numeric_limits<double>::infinity());
+    TestDouble("%+inf", std::numeric_limits<double>::infinity());
+    TestDouble("%-inf", -std::numeric_limits<double>::infinity());
+
+    EXPECT_TRUE(std::isnan(GetToken("%nan").GetDoubleValue()));
 }
 
 TEST_F(TStatelessLexerTest, SpecialValues)
@@ -152,6 +161,9 @@ TEST_F(TStatelessLexerTest, IncorrectChars)
 
     TestIncorrectInput("1a"); // Alpha after numeric
     TestIncorrectInput("1.1e-1a"); // Alpha after numeric
+
+    TestIncorrectInput("-nan"); // nan literal without % (plus would be OK for lexer)
+    TestIncorrectInput("-inf"); // inf literal without %
 
     // Unknown symbols
     TestIncorrectInput(".");

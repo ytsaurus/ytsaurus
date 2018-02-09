@@ -1,7 +1,5 @@
 #include "config.h"
 
-#include <yt/ytlib/chunk_pools/public.h>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -21,14 +19,17 @@ TJobIOConfig::TJobIOConfig()
         .DefaultNew();
 
     RegisterParameter("buffer_row_count", BufferRowCount)
-        .Default((i64) 10000)
+        .Default(10 * 1000)
         .GreaterThan(0);
 
     RegisterParameter("pipe_io_pool_size", PipeIOPoolSize)
         .Default(1)
         .GreaterThan(0);
 
-    RegisterInitializer([&] () {
+    RegisterParameter("testing_options", Testing)
+        .DefaultNew();
+
+    RegisterPreprocessor([&] () {
         ErrorFileWriter->UploadReplicationFactor = 1;
     });
 }
@@ -39,12 +40,20 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(Null);
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
+    RegisterParameter("delay_inside_revive", DelayInsideRevive)
+        .Default(Null);
+    RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
+        .Default(Null);
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
         .Default(Null);
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default(Null);
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
+    RegisterParameter("fail_get_job_spec", FailGetJobSpec)
+        .Default(false);
+    RegisterParameter("cypress_storage_mode", CypressStorageMode)
+        .Default(EOperationCypressStorageMode::Compatible);
 }
 
 TAutoMergeConfig::TAutoMergeConfig()
@@ -63,7 +72,7 @@ TAutoMergeConfig::TAutoMergeConfig()
     RegisterParameter("mode", Mode)
         .Default(EAutoMergeMode::Disabled);
 
-    RegisterValidator([&] {
+    RegisterPostprocessor([&] {
         if (Mode == EAutoMergeMode::Manual) {
             if (!MaxIntermediateChunkCount || !ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION(
@@ -84,18 +93,19 @@ TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
     RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
         .Alias("scheduling_tag")
         .Default();
-}
 
-void TSupportsSchedulingTagsConfig::OnLoaded()
-{
-    if (SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
-        THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
-            MaxSchedulingTagRuleCount);
-    }
+    RegisterPostprocessor([&] {
+        if (SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
+            THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
+                 MaxSchedulingTagRuleCount);
+        }
+    });
 }
 
 TOperationSpecBase::TOperationSpecBase()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("intermediate_data_account", IntermediateDataAccount)
         .Default("intermediate");
     RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
@@ -171,10 +181,26 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("nightly_options", NightlyOptions)
         .Default();
 
+    RegisterParameter("min_locality_input_data_weight", MinLocalityInputDataWeight)
+        .GreaterThanOrEqual(0)
+        .Default(1_GB);
+
     RegisterParameter("auto_merge", AutoMerge)
         .DefaultNew();
 
-    RegisterValidator([&] () {
+    RegisterParameter("started_by", StartedBy)
+        .Default();
+
+    RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
+        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+
+    RegisterParameter("fail_on_job_restart", FailOnJobRestart)
+        .Default(false);
+
+    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+        .Default(true);
+
+    RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
         {
@@ -182,24 +208,24 @@ TOperationSpecBase::TOperationSpecBase()
         }
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (SecureVault) {
             for (const auto& name : SecureVault->GetKeys()) {
                 ValidateEnvironmentVariableName(name);
             }
         }
     });
-
-    // XXX(ignat): it seems that GetOptions is not used for this config.
-    // Should we delete this line?
-    SetKeepOptions(true);
 }
 
 TUserJobSpec::TUserJobSpec()
 {
     RegisterParameter("command", Command)
         .NonEmpty();
+    RegisterParameter("task_title", TaskTitle)
+        .Default();
     RegisterParameter("file_paths", FilePaths)
+        .Default();
+    RegisterParameter("layer_paths", LayerPaths)
         .Default();
     RegisterParameter("format", Format)
         .Default();
@@ -257,8 +283,10 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThanOrEqual(0);
     RegisterParameter("copy_files", CopyFiles)
         .Default(false);
+    RegisterParameter("deterministic", Deterministic)
+        .Default(false);
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (TmpfsSize && *TmpfsSize > MemoryLimit) {
             THROW_ERROR_EXCEPTION("Size of tmpfs must be less than or equal to memory limit")
                 << TErrorAttribute("tmpfs_size", *TmpfsSize)
@@ -273,7 +301,7 @@ TUserJobSpec::TUserJobSpec()
         UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         for (const auto& pair : Environment) {
             ValidateEnvironmentVariableName(pair.first);
         }
@@ -289,6 +317,14 @@ void TUserJobSpec::InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPt
     jobIOConfig->ControlAttributes->EnableTableIndex = *EnableInputTableIndex;
 }
 
+TVanillaTaskSpec::TVanillaTaskSpec()
+{
+    RegisterParameter("job_count", JobCount)
+        .GreaterThanOrEqual(1);
+    RegisterParameter("job_io", JobIO)
+        .DefaultNew();
+}
+
 TInputlyQueryableSpec::TInputlyQueryableSpec()
 {
     RegisterParameter("input_query", InputQuery)
@@ -296,7 +332,7 @@ TInputlyQueryableSpec::TInputlyQueryableSpec()
     RegisterParameter("input_schema", InputSchema)
         .Default();
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (InputSchema && !InputQuery) {
             THROW_ERROR_EXCEPTION("Found \"input_schema\" without \"input_query\" in operation spec");
         }
@@ -315,25 +351,15 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
     RegisterParameter("core_table_writer_config", CoreTableWriterConfig)
         .DefaultNew();
 
-    RegisterParameter("enable_job_splitting", EnableJobSplitting)
-        .Default(true);
-}
+    RegisterPostprocessor([&] {
+        if (StderrTablePath) {
+            *StderrTablePath = StderrTablePath->Normalize();
+        }
 
-void TOperationWithUserJobSpec::OnLoaded()
-{
-    if (StderrTablePath) {
-        *StderrTablePath = StderrTablePath->Normalize();
-    }
-
-    if (CoreTablePath) {
-        *CoreTablePath = CoreTablePath->Normalize();
-    }
-}
-
-TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
-{
-    RegisterParameter("use_legacy_controller", UseLegacyController)
-        .Default(false);
+        if (CoreTablePath) {
+            *CoreTablePath = CoreTablePath->Normalize();
+        }
+    });
 }
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
@@ -352,11 +378,6 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
         .Default(TDuration::Seconds(5));
     RegisterParameter("job_io", JobIO)
         .DefaultNew();
-    RegisterParameter("stripe_list_extraction_order", StripeListExtractionOrder)
-        .Default(NChunkPools::EStripeListExtractionOrder::DataSizeDescending);
-
-    RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
 }
 
 TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
@@ -364,16 +385,13 @@ TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
     RegisterParameter("input_table_paths", InputTablePaths)
         .NonEmpty();
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         JobIO->TableReader->MaxBufferSize = 256_MB;
     });
-}
 
-void TUnorderedOperationSpecBase::OnLoaded()
-{
-    TSimpleOperationSpecBase::OnLoaded();
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+    RegisterPostprocessor([&] {
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+    });
 }
 
 TMapOperationSpec::TMapOperationSpec()
@@ -384,15 +402,13 @@ TMapOperationSpec::TMapOperationSpec()
         .NonEmpty();
     RegisterParameter("ordered", Ordered)
         .Default(false);
-}
 
-void TMapOperationSpec::OnLoaded()
-{
-    TUnorderedOperationSpecBase::OnLoaded();
+    RegisterPostprocessor([&] {
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
-    OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-    Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+        Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+        Mapper->TaskTitle = "Mapper";
+    });
 }
 
 TUnorderedMergeOperationSpec::TUnorderedMergeOperationSpec()
@@ -404,13 +420,10 @@ TUnorderedMergeOperationSpec::TUnorderedMergeOperationSpec()
         .Default(false);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-}
 
-void TUnorderedMergeOperationSpec::OnLoaded()
-{
-    TUnorderedOperationSpecBase::OnLoaded();
-
-    OutputTablePath = OutputTablePath.Normalize();
+    RegisterPostprocessor([&] {
+        OutputTablePath = OutputTablePath.Normalize();
+    });
 }
 
 TMergeOperationSpec::TMergeOperationSpec()
@@ -428,14 +441,11 @@ TMergeOperationSpec::TMergeOperationSpec()
         .Default();
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-}
 
-void TMergeOperationSpec::OnLoaded()
-{
-    TSimpleOperationSpecBase::OnLoaded();
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-    OutputTablePath = OutputTablePath.Normalize();
+    RegisterPostprocessor([&] {
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePath = OutputTablePath.Normalize();
+    });
 }
 
 TEraseOperationSpec::TEraseOperationSpec()
@@ -445,13 +455,10 @@ TEraseOperationSpec::TEraseOperationSpec()
         .Default(false);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-}
 
-void TEraseOperationSpec::OnLoaded()
-{
-    TSimpleOperationSpecBase::OnLoaded();
-
-    TablePath = TablePath.Normalize();
+    RegisterPostprocessor([&] {
+        TablePath = TablePath.Normalize();
+    });
 }
 
 TReduceOperationSpecBase::TReduceOperationSpecBase()
@@ -465,21 +472,17 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
     RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
         .Default(false);
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (!JoinBy.empty()) {
             NTableClient::ValidateKeyColumns(JoinBy);
         }
+
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+        Reducer->TaskTitle = "Reducer";
     });
-}
-
-void TReduceOperationSpecBase::OnLoaded()
-{
-    TSimpleOperationSpecBase::OnLoaded();
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-    OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-    Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
 }
 
 TReduceOperationSpec::TReduceOperationSpec()
@@ -493,7 +496,7 @@ TReduceOperationSpec::TReduceOperationSpec()
     RegisterParameter("pivot_keys", PivotKeys)
         .Default();
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (!ReduceBy.empty()) {
             NTableClient::ValidateKeyColumns(ReduceBy);
         }
@@ -508,21 +511,19 @@ TJoinReduceOperationSpec::TJoinReduceOperationSpec()
 {
     RegisterParameter("join_by", JoinBy)
         .NonEmpty();
-}
 
-void TJoinReduceOperationSpec::OnLoaded()
-{
-    TReduceOperationSpecBase::OnLoaded();
-    bool hasPrimary = false;
-    for (const auto& path: InputTablePaths) {
-        hasPrimary |= path.GetPrimary();
-    }
-    if (hasPrimary) {
-        for (auto& path: InputTablePaths) {
-            path.Attributes().Set("foreign", !path.GetPrimary());
-            path.Attributes().Remove("primary");
+    RegisterPostprocessor([&] {
+        bool hasPrimary = false;
+        for (const auto& path: InputTablePaths) {
+            hasPrimary |= path.GetPrimary();
         }
-    }
+        if (hasPrimary) {
+            for (auto& path: InputTablePaths) {
+                path.Attributes().Set("foreign", !path.GetPrimary());
+                path.Attributes().Remove("primary");
+            }
+        }
+    });
 }
 
 TSortOperationSpecBase::TSortOperationSpecBase()
@@ -558,22 +559,14 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(true);
     RegisterParameter("partitioned_data_balancing_tolerance", PartitionedDataBalancingTolerance)
         .Default(3.0);
+    RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
+        .Default(true);
 
-    RegisterParameter("sort_job_proxy_memory_digest", SortJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
-    RegisterParameter("partition_job_proxy_memory_digest", PartitionJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
-
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
+
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
     });
-}
-
-void TSortOperationSpecBase::OnLoaded()
-{
-    TOperationSpecBase::OnLoaded();
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
 }
 
 TSortOperationSpec::TSortOperationSpec()
@@ -606,8 +599,11 @@ TSortOperationSpec::TSortOperationSpec()
     RegisterParameter("merge_locality_timeout", MergeLocalityTimeout)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("merge_job_proxy_memory_digest", MergeJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+    // For sorted_merge and sorted_reduce jobs.
+    TLogDigestConfigPtr SortedMergeJobProxyMemoryDigest;
+    // For final_sort and partition_reduce jobs.
+    TLogDigestConfigPtr FinalSortJobProxyMemoryDigest;
+
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
@@ -615,7 +611,7 @@ TSortOperationSpec::TSortOperationSpec()
         .Alias("data_size_per_sorted_merge_job")
         .Default(Null);
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         PartitionJobIO->TableReader->MaxBufferSize = 1_GB;
         PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
@@ -628,13 +624,10 @@ TSortOperationSpec::TSortOperationSpec()
 
         MapSelectivityFactor = 1.0;
     });
-}
 
-void TSortOperationSpec::OnLoaded()
-{
-    TSortOperationSpecBase::OnLoaded();
-
-    OutputTablePath = OutputTablePath.Normalize();
+    RegisterPostprocessor([&] {
+        OutputTablePath = OutputTablePath.Normalize();
+    });
 }
 
 TMapReduceOperationSpec::TMapReduceOperationSpec()
@@ -658,6 +651,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("reduce_job_io", MergeJobIO)
         .DefaultNew();
 
+    RegisterParameter("mapper_output_table_count", MapperOutputTableCount)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+
     // Provide custom names for shared settings.
     RegisterParameter("map_job_count", PartitionJobCount)
         .Default()
@@ -674,13 +671,6 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         .Default(1.0)
         .GreaterThan(0);
 
-    RegisterParameter("sorted_reduce_job_proxy_memory_digest", SortedReduceJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
-    RegisterParameter("partition_reduce_job_proxy_memory_digest", PartitionReduceJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
-    RegisterParameter("reduce_combiner_job_proxy_memory_digest", ReduceCombinerJobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
-
     RegisterParameter("data_weight_per_reduce_job", DataWeightPerSortedJob)
         .Alias("data_size_per_reduce_job")
         .Default(Null);
@@ -693,7 +683,7 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     //   SimpleMergeLocalityTimeout
     //   MapSelectivityFactor
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         PartitionJobIO->TableReader->MaxBufferSize = 256_MB;
         PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
@@ -705,7 +695,7 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         MergeJobIO->TableReader->RetryCount = 3;
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
             THROW_ERROR_EXCEPTION(
                 "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",
@@ -732,25 +722,32 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         if (!ReduceBy.empty()) {
             NTableClient::ValidateKeyColumns(ReduceBy);
         }
+
+        if (MapperOutputTableCount >= OutputTablePaths.size()) {
+            THROW_ERROR_EXCEPTION(
+                "There should be at least one non-mapper output table; maybe you need Map operation instead?")
+                << TErrorAttribute("mapper_output_table_count", MapperOutputTableCount)
+                << TErrorAttribute("output_table_count", OutputTablePaths.size());
+        }
+
+        if (ReduceBy.empty()) {
+            ReduceBy = SortBy;
+        }
+
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        if (Mapper) {
+            Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
+            Mapper->TaskTitle = "Mapper";
+        }
+        if (ReduceCombiner) {
+            ReduceCombiner->TaskTitle = "Reduce combiner";
+        }
+        Reducer->TaskTitle = "Reducer";
+        // NB(psushin): don't init input table index for reduce jobs,
+        // they cannot have table index.
     });
-}
-
-void TMapReduceOperationSpec::OnLoaded()
-{
-    TSortOperationSpecBase::OnLoaded();
-
-    if (ReduceBy.empty()) {
-        ReduceBy = SortBy;
-    }
-
-    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-    OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-    if (Mapper) {
-        Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
-    }
-    // NB(psushin): don't init input table index for reduce jobs,
-    // they cannot have table index.
 }
 
 TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
@@ -776,18 +773,33 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
         .Default(64_MB);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
+
+    RegisterPostprocessor([&] {
+        InputTablePaths = NYPath::Normalize(InputTablePaths);
+        OutputTablePath = OutputTablePath.Normalize();
+
+        if (!ClusterName && !ClusterConnection) {
+            THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
+        }
+    });
 }
 
-void TRemoteCopyOperationSpec::OnLoaded()
+TVanillaOperationSpec::TVanillaOperationSpec()
 {
-    TOperationSpecBase::OnLoaded();
+    RegisterParameter("tasks", Tasks)
+        .NonEmpty();
 
-    InputTablePaths = NYPath::Normalize(InputTablePaths);
-    OutputTablePath = OutputTablePath.Normalize();
+    RegisterPostprocessor([&] {
+        for (auto& pair : Tasks) {
+            const auto& taskName = pair.first;
+            auto& taskSpec = pair.second;
+            if (taskName.empty()) {
+                THROW_ERROR_EXCEPTION("Empty task names are not allowed");
+            }
 
-    if (!ClusterName && !ClusterConnection) {
-        THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
-    }
+            taskSpec->TaskTitle = taskName;
+        }
+    });
 }
 
 TResourceLimitsConfig::TResourceLimitsConfig()
@@ -809,17 +821,17 @@ TResourceLimitsConfig::TResourceLimitsConfig()
 TSchedulableConfig::TSchedulableConfig()
 {
     RegisterParameter("weight", Weight)
-        .Default(1.0)
+        .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
     RegisterParameter("max_share_ratio", MaxShareRatio)
-        .Default(1.0)
+        .Default()
         .InRange(0.0, 1.0);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 
     RegisterParameter("min_share_ratio", MinShareRatio)
-        .Default(0.0)
+        .Default()
         .InRange(0.0, 1.0);
     RegisterParameter("min_share_resources", MinShareResources)
         .DefaultNew();
@@ -842,6 +854,12 @@ TSchedulableConfig::TSchedulableConfig()
 
     RegisterParameter("allow_aggressive_starvation_preemption", AllowAggressiveStarvationPreemption)
         .Default(true);
+}
+
+TExtendedSchedulableConfig::TExtendedSchedulableConfig()
+{
+    RegisterParameter("pool", Pool)
+        .Default();
 }
 
 TPoolConfig::TPoolConfig()
@@ -883,17 +901,27 @@ void TPoolConfig::Validate()
 TStrategyOperationSpec::TStrategyOperationSpec()
 {
     RegisterParameter("pool", Pool)
-        .Default()
-        .NonEmpty();
+        .Default();
+    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
+        .Alias("fair_share_options_per_pool_tree")
+        .Default();
+    RegisterParameter("pool_trees", PoolTrees)
+        .Default();
 }
 
-TOperationRuntimeParams::TOperationRuntimeParams()
+TOperationStrategyRuntimeParams::TOperationStrategyRuntimeParams()
 {
     RegisterParameter("weight", Weight)
         .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
+}
+
+TOperationRuntimeParams::TOperationRuntimeParams()
+{
+    RegisterParameter("owners", Owners)
+        .Default();
 }
 
 TSchedulerConnectionConfig::TSchedulerConnectionConfig()
@@ -921,6 +949,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

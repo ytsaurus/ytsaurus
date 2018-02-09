@@ -146,8 +146,8 @@ public:
                 config->Period);
             PeriodicExecutor_->Start();
         } else {
-            ThroughputPerPeriod_ = -1;
-            Available_ = -1;
+            ThroughputPerPeriod_ = 0;
+            Available_ = 0;
         }
 
         ProcessRequests(std::move(guard));
@@ -167,14 +167,14 @@ private:
 
     NProfiling::TAggregateCounter ValueCounter_;
 
-    std::atomic<i64> Available_ = {-1};
+    std::atomic<i64> Available_ = {0};
     std::atomic<bool> HasLimit_ = {true};
     std::atomic<i64> QueueTotalCount_ = {0};
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
     TNullable<i64> Limit_;
-    i64 ThroughputPerPeriod_ = -1;
+    i64 ThroughputPerPeriod_ = 0;
     TPeriodicExecutorPtr PeriodicExecutor_;
 
     struct TRequest
@@ -244,17 +244,37 @@ IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
         profiler);
 }
 
+IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottler(
+    TThroughputThrottlerConfigPtr config,
+    const TString& name,
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
+{
+    logger.AddTag("Throttler: %v", name);
+    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" +
+        CamelCaseToUnderscoreCase(name));
+
+    return CreateReconfigurableThroughputThrottler(config, logger, profiler);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnlimitedThroughtputThrottler
     : public IThroughputThrottler
 {
 public:
+    explicit TUnlimitedThroughtputThrottler(
+        const NProfiling::TProfiler& profiler = NProfiling::TProfiler())
+        : Profiler(profiler)
+        , ValueCounter_("/value")
+    { }
+
     virtual TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
+        Profiler.Increment(ValueCounter_, count);
         return VoidFuture;
     }
 
@@ -263,6 +283,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
+        Profiler.Increment(ValueCounter_, count);
         return true;
     }
 
@@ -270,6 +291,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
+
+        Profiler.Increment(ValueCounter_, count);
     }
 
     virtual bool IsOverdraft() const override
@@ -283,12 +306,26 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         return 0;
     }
+
+private:
+    const NProfiling::TProfiler Profiler;
+    NProfiling::TAggregateCounter ValueCounter_;
 };
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()
 {
     return RefCountedSingleton<TUnlimitedThroughtputThrottler>();
 }
+
+IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
+    const TString& name,
+    NProfiling::TProfiler profiler)
+{
+    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" +
+        CamelCaseToUnderscoreCase(name));
+
+    return New<TUnlimitedThroughtputThrottler>(profiler);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

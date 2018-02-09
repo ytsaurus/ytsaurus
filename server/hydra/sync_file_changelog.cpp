@@ -266,7 +266,7 @@ public:
                 ReadPadded(*DataFile_, serializedMeta);
             });
 
-            DeserializeFromProto(&Meta_, serializedMeta);
+            DeserializeProto(&Meta_, serializedMeta);
             SerializedMeta_ = serializedMeta;
 
             TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
@@ -330,7 +330,7 @@ public:
 
         try {
             Meta_ = meta;
-            SerializedMeta_ = SerializeToProto(Meta_);
+            SerializedMeta_ = SerializeProtoToRef(Meta_);
             RecordCount_ = 0;
 
             CreateDataFile();
@@ -380,14 +380,6 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
         return Open_;
-    }
-
-    TInstant GetLastFlushed()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        std::lock_guard<std::mutex> guard(Mutex_);
-        return LastFlushed_;
     }
 
 
@@ -945,7 +937,7 @@ private:
 TSyncFileChangelog::TSyncFileChangelog(
     const TString& fileName,
     TFileChangelogConfigPtr config)
-    : Impl_(new TImpl(
+    : Impl_(std::make_unique<TImpl>(
         fileName,
         config))
 { }
@@ -1007,11 +999,6 @@ void TSyncFileChangelog::Append(
 void TSyncFileChangelog::Flush()
 {
     Impl_->Flush();
-}
-
-TInstant TSyncFileChangelog::GetLastFlushed()
-{
-    return Impl_->GetLastFlushed();
 }
 
 std::vector<TSharedRef> TSyncFileChangelog::Read(

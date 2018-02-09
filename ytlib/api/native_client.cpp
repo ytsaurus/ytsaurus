@@ -26,6 +26,9 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/file_client/file_chunk_writer.h>
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -49,9 +52,10 @@
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/ast.h>
+#include <yt/ytlib/query_client/query_service.pb.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
@@ -84,6 +88,8 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/crypto/crypto.h>
+
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -106,6 +112,7 @@ using namespace NYson;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NCypressClient;
+using namespace NFileClient;
 using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NTableClient;
@@ -126,6 +133,7 @@ using NTableClient::TColumnSchema;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
 using NNodeTrackerClient::TNetworkPreferenceList;
+using NNodeTrackerClient::TNodeDescriptor;
 
 using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplicaCount>;
 
@@ -218,6 +226,20 @@ TUnversionedOwningRow CreateJobKey(const TJobId& jobId, const TNameTablePtr& nam
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+constexpr int FileCacheHashDigitCount = 2;
+
+NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cachePath)
+{
+    auto lastDigits = md5.substr(md5.size() - FileCacheHashDigitCount);
+    return cachePath + "/" + lastDigits + "/" + md5;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TError TCheckPermissionResult::ToError(const TString& user, EPermission permission) const
 {
     switch (Action) {
@@ -261,7 +283,7 @@ class TJobInputReader
     : public NConcurrency::IAsyncZeroCopyInputStream
 {
 public:
-    TJobInputReader(NJobProxy::TUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
+    TJobInputReader(NJobProxy::IUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
         : Invoker_(std::move(invoker))
         , UserJobReadController_(std::move(userJobReadController))
         , AsyncStreamPipe_(New<TAsyncStreamPipe>())
@@ -287,7 +309,7 @@ public:
 
 private:
     const IInvokerPtr Invoker_;
-    const NJobProxy::TUserJobReadControllerPtr UserJobReadController_;
+    const NJobProxy::IUserJobReadControllerPtr UserJobReadController_;
     const NConcurrency::TAsyncStreamPipePtr AsyncStreamPipe_;
 
     TFuture<void> TransferResultFuture_;
@@ -365,6 +387,9 @@ struct TWriteRowsBufferTag
 struct TDeleteRowsBufferTag
 { };
 
+struct TGetInSyncReplicasTag
+{ };
+
 class TNativeClient
     : public INativeClient
 {
@@ -438,6 +463,16 @@ public:
     virtual const INativeConnectionPtr& GetNativeConnection() override
     {
         return Connection_;
+    }
+
+    virtual IFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
+    }
+
+    virtual TFunctionImplCachePtr GetFunctionImplCache() override
+    {
+        return FunctionImplCache_;
     }
 
     virtual const TClientOptions& GetOptions() override
@@ -572,6 +607,11 @@ public:
         const TSharedRange<NTableClient::TKey>& keys,
         const TGetInSyncReplicasOptions& options),
         (path, nameTable, keys, options))
+    IMPLEMENT_METHOD(std::vector<TTabletInfo>, GetTabletInfos, (
+        const NYPath::TYPath& path,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletsInfoOptions& options),
+        (path, tabletIndexes, options))
     IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
         const TMountTableOptions& options),
@@ -727,6 +767,17 @@ public:
         return NApi::CreateTableWriter(this, path, options);
     }
 
+    IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
+        const TString& md5,
+        const TGetFileFromCacheOptions& options),
+        (md5, options))
+
+    IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options),
+        (path, expectedMD5, options))
+
     IMPLEMENT_METHOD(void, AddMember, (
         const TString& group,
         const TString& member,
@@ -786,10 +837,15 @@ public:
     IMPLEMENT_METHOD(TListOperationsResult, ListOperations, (
         const TListOperationsOptions& options),
         (options))
-    IMPLEMENT_METHOD(std::vector<TJob>, ListJobs, (
+    IMPLEMENT_METHOD(TListJobsResult, ListJobs, (
         const TOperationId& operationId,
         const TListJobsOptions& options),
         (operationId, options))
+    IMPLEMENT_METHOD(TYsonString, GetJob, (
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobOptions& options),
+        (operationId, jobId, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
         const TStraceJobOptions& options),
@@ -1029,7 +1085,7 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, EPeerKind::Leader);
-        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddress(Connection_->GetNetworks()));
+        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
     }
 
 
@@ -1151,7 +1207,7 @@ private:
             const auto& batch = Batches_[InvokeBatchIndex_];
 
             auto req = InvokeProxy_->Read();
-            req->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
+            req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
             req->set_mount_revision(batch->TabletInfo->MountRevision);
             req->set_timestamp(Options_.Timestamp);
@@ -1786,6 +1842,16 @@ private:
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
 
+        for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
+            if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
+                const auto& ast = parsedQuery->AstHead.Ast.As<NAst::TQuery>();
+
+                THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
+                    "the query is inefficient, consider rewriting it")
+                    << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
+            }
+        }
+
         TQueryOptions queryOptions;
         queryOptions.Timestamp = options.Timestamp;
         queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
@@ -1796,6 +1862,8 @@ private:
         queryOptions.InputRowLimit = inputRowLimit;
         queryOptions.OutputRowLimit = outputRowLimit;
         queryOptions.UseMultijoin = options.UseMultijoin;
+        queryOptions.AllowFullScan = options.AllowFullScan;
+        queryOptions.ReadSessionId = TReadSessionId::Create();
 
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -1850,7 +1918,7 @@ private:
     std::vector<TTableReplicaId> DoGetInSyncReplicas(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<TKey>& keys,
         const TGetInSyncReplicasOptions& options)
     {
         ValidateSyncTimestamp(options.Timestamp);
@@ -1863,6 +1931,14 @@ private:
         tableInfo->ValidateSorted();
         tableInfo->ValidateReplicated();
 
+        const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+        auto idMapping = BuildColumnIdMapping(schema, nameTable);
+
+        auto rowBuffer = New<TRowBuffer>(TGetInSyncReplicasTag());
+
+        auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+        auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
+
         std::vector<TTableReplicaId> replicas;
 
         if (keys.Empty()) {
@@ -1873,7 +1949,13 @@ private:
             THashMap<TCellId, std::vector<TTabletId>> cellToTabletIds;
             THashSet<TTabletId> tabletIds;
             for (auto key : keys) {
-                auto tabletInfo = tableInfo->GetTabletForRow(key);
+                ValidateClientKey(key, schema, idMapping, nameTable);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping);
+
+                if (evaluator) {
+                    evaluator->EvaluateKeys(capturedKey, rowBuffer);
+                }
+                auto tabletInfo = tableInfo->GetTabletForRow(capturedKey);
                 if (tabletIds.count(tabletInfo->TabletId) == 0) {
                     tabletIds.insert(tabletInfo->TabletId);
                     ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
@@ -1923,6 +2005,65 @@ private:
             options.Timestamp);
 
         return replicas;
+    }
+
+    std::vector<TTabletInfo> DoGetTabletInfos(
+        const TYPath& path,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletsInfoOptions& options)
+    {
+        const auto& tableMountCache = Connection_->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
+
+        tableInfo->ValidateDynamic();
+
+        struct TSubrequest
+        {
+            TQueryServiceProxy::TReqGetTabletInfoPtr Request;
+            std::vector<size_t> ResultIndexes;
+        };
+
+        THashMap<TCellId, TSubrequest> cellIdToSubrequest;
+
+        for (size_t resultIndex = 0; resultIndex < tabletIndexes.size(); ++resultIndex) {
+            auto tabletIndex = tabletIndexes[resultIndex];
+            auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+            auto& subrequest = cellIdToSubrequest[tabletInfo->CellId];
+            if (!subrequest.Request) {
+                auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
+                TQueryServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(options.Timeout);
+                subrequest.Request = proxy.GetTabletInfo();
+            }
+            ToProto(subrequest.Request->add_tablet_ids(), tabletInfo->TabletId);
+            subrequest.ResultIndexes.push_back(resultIndex);
+        }
+
+        std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncRspsOrErrors;
+        std::vector<const TSubrequest*> subrequests;
+        for (const auto& pair : cellIdToSubrequest) {
+            const auto& subrequest = pair.second;
+            subrequests.push_back(&subrequest);
+            asyncRspsOrErrors.push_back(subrequest.Request->Invoke());
+        }
+
+        auto rspsOrErrors = WaitFor(Combine(asyncRspsOrErrors))
+            .ValueOrThrow();
+
+        std::vector<TTabletInfo> results(tabletIndexes.size());
+        for (size_t subrequestIndex = 0; subrequestIndex < rspsOrErrors.size(); ++subrequestIndex) {
+            const auto& subrequest = *subrequests[subrequestIndex];
+            const auto& rsp = rspsOrErrors[subrequestIndex];
+            YCHECK(rsp->tablets_size() == subrequest.ResultIndexes.size());
+            for (size_t resultIndexIndex = 0; resultIndexIndex < subrequest.ResultIndexes.size(); ++resultIndexIndex) {
+                auto& result = results[subrequest.ResultIndexes[resultIndexIndex]];
+                const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
+                result.TotalRowCount = tabletInfo.total_row_count();
+                result.TrimmedRowCount = tabletInfo.trimmed_row_count();
+            }
+        }
+        return results;
     }
 
     void DoMountTable(
@@ -2108,13 +2249,7 @@ private:
         tableInfo->ValidateDynamic();
         tableInfo->ValidateOrdered();
 
-        if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
-            THROW_ERROR_EXCEPTION("Invalid tablet index: expected in range [0,%v], got %v",
-                tableInfo->Tablets.size(),
-                tabletIndex);
-        }
-
-        const auto& tabletInfo = tableInfo->Tablets[tabletIndex];
+        auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
 
         auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
@@ -2197,6 +2332,7 @@ private:
         writer.OnRaw(value.GetData(), EYsonType::Node);
         writer.Flush();
         req->set_value(stream.Str());
+        req->set_recursive(options.Recursive);
 
         batchReq->AddRequest(req);
 
@@ -2763,6 +2899,201 @@ private:
         return FromProto<TObjectId>(rsp->object_id());
     }
 
+    TGetFileFromCacheResult DoGetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options)
+    {
+        TGetFileFromCacheResult result;
+        auto destination = GetFilePathInCache(md5, options.CachePath);
+
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto req = TYPathProxy::Get(destination + "/@");
+
+        std::vector<TString> attributeKeys{
+            "md5"
+        };
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+        SetTransactionId(req, options, true);
+
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        if (!rspOrError.IsOK()) {
+            LOG_DEBUG(
+                rspOrError,
+                "File is missing "
+                "(Destination: %v, MD5: %v)",
+                destination,
+                md5);
+
+            return result;
+        }
+
+        auto rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        auto originalMD5 = attributes->Get<TString>("md5", "");
+        if (md5 != originalMD5) {
+            LOG_DEBUG(
+                "File has incorrect md5 hash "
+                "(Destination: %v, expectedMD5: %v, originalMD5: %v)",
+                destination,
+                md5,
+                originalMD5);
+
+            return result;
+        }
+
+        result.Path = destination;
+        return result;
+    }
+
+
+    TPutFileToCacheResult DoPutFileToCache(
+        const NYPath::TYPath &path,
+        const TString &expectedMD5,
+        const TPutFileToCacheOptions &options)
+    {
+        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
+        auto Logger = logger;
+
+        TPutFileToCacheResult result;
+
+        // Start transaction.
+        ITransactionPtr transaction;
+        {
+            auto transactionStartOptions = TTransactionStartOptions();
+            transactionStartOptions.ParentId = GetTransactionId(options, true);
+            transactionStartOptions.Sticky = true;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Format("Putting file %v to cache", path));
+            transactionStartOptions.Attributes = std::move(attributes);
+
+            auto asyncTransaction = StartTransaction(ETransactionType::Master, transactionStartOptions);
+            transaction = WaitFor(asyncTransaction)
+                .ValueOrThrow();
+
+            auto transactionAttachOptions = TTransactionAttachOptions();
+            transactionAttachOptions.AutoAbort = true;
+            transactionAttachOptions.PingAncestors = options.PingAncestors;
+            transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
+
+            LOG_DEBUG(
+                "Transaction started (TransactionId: %v)",
+                transaction->GetId());
+        }
+
+        Logger.AddTag("TransactionId: %v", transaction->GetId());
+
+        // Acquire lock.
+        NYPath::TYPath objectIdPath;
+        {
+            TLockNodeOptions lockNodeOptions;
+            lockNodeOptions.TransactionId = transaction->GetId();
+            auto lockResult = DoLockNode(path, ELockMode::Exclusive, lockNodeOptions);
+            objectIdPath = FromObjectId(lockResult.NodeId);
+
+            LOG_DEBUG(
+                "Lock for node acquired (LockId: %v)",
+                lockResult.LockId);
+        }
+
+        // Check permissions.
+        {
+            auto checkPermissionOptions = TCheckPermissionOptions();
+            checkPermissionOptions.TransactionId = transaction->GetId();
+
+            auto readPermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Read, checkPermissionOptions);
+            readPermissionResult.ToError(Options_.User, EPermission::Read)
+                .ThrowOnError();
+
+            auto removePermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Remove, checkPermissionOptions);
+            removePermissionResult.ToError(Options_.User, EPermission::Remove)
+                .ThrowOnError();
+
+            auto usePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Use, checkPermissionOptions);
+            usePermissionResult.ToError(Options_.User, EPermission::Use)
+                .ThrowOnError();
+        }
+
+        // Check that MD5 hash is equal to the original MD5 hash of the file.
+        {
+            auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+            auto req = TYPathProxy::Get(objectIdPath + "/@");
+
+            std::vector<TString> attributeKeys{
+                "md5"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            NCypressClient::SetTransactionId(req, transaction->GetId());
+
+            auto rspOrError = WaitFor(proxy->Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                "Error requesting md5 hash of file %v",
+                path);
+
+            auto rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            auto md5 = attributes->Get<TString>("md5");
+            if (expectedMD5 != md5) {
+                THROW_ERROR_EXCEPTION(
+                    "MD5 mismatch; expected %v, got %v",
+                    expectedMD5,
+                    md5);
+            }
+
+            LOG_DEBUG(
+                "MD5 hash checked (MD5: %v)",
+                expectedMD5);
+        }
+
+        auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
+        auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+
+        // Move file.
+        {
+            auto moveOptions = TMoveNodeOptions();
+            moveOptions.TransactionId = transaction->GetId();
+            moveOptions.Recursive = true;
+            moveOptions.Force = true;
+            moveOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            moveOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+
+            WaitFor(fileCacheClient->MoveNode(objectIdPath, destination, moveOptions))
+                .ValueOrThrow();
+
+            LOG_DEBUG(
+                "File has been moved to cache (Destination: %v)",
+                destination);
+        }
+
+        // Set /@touched attribute.
+        {
+            auto setNodeOptions = TSetNodeOptions();
+            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            setNodeOptions.TransactionId = transaction->GetId();
+
+            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
+            auto rspOrError = WaitFor(asyncResult);
+
+            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
+            }
+
+            LOG_DEBUG(
+                "Attribute /@touched set (Destination: %v)",
+                destination);
+        }
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        result.Path = destination;
+        return result;
+    }
 
     void DoAddMember(
         const TString& group,
@@ -2889,20 +3220,29 @@ private:
             .ThrowOnError();
     }
 
+    bool IsArchiveExists()
+    {
+        // NB: we suppose that archive should exist and work correctly if this map node is presented.
+        return WaitFor(NodeExists("//sys/operations_archive", TNodeExistsOptions()))
+            .ValueOrThrow();
+    }
+
     int DoGetOperationsArchiveVersion()
     {
         auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
         auto versionNodeOrError = WaitFor(asyncVersionResult);
-        int version = 0;
 
-        if (versionNodeOrError.IsOK()) {
-            try {
-                version = ConvertTo<int>(versionNodeOrError.Value());
-            } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to parse operations archive version");
-            }
-        } else {
-            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
+        if (!versionNodeOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to get operations archive version")
+                << versionNodeOrError;
+        }
+
+        int version = 0;
+        try {
+            version = ConvertTo<int>(versionNodeOrError.Value());
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to parse operations archive version")
+                << ex;
         }
 
         return version;
@@ -2929,24 +3269,52 @@ private:
         keys.push_back(key);
 
         TLookupRowsOptions lookupOptions;
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({
-            ids.IdHi,
-            ids.IdLo,
-            ids.State,
-            ids.AuthenticatedUser,
-            ids.OperationType,
-            ids.Progress,
-            ids.Spec,
-            ids.BriefProgress,
-            ids.BriefSpec,
-            ids.StartTime,
-            ids.FinishTime,
-            ids.Result,
-            ids.Events
-        });
+
+        THashSet<TString> fields;
+        bool hasId = false;
+        if (options.Attributes) {
+            for (const auto& field : *options.Attributes) {
+                if (field == "id") {
+                    hasId = true;
+                    fields.insert("id_lo");
+                    fields.insert("id_hi");
+                } else {
+                    fields.insert(field);
+                }
+            }
+        } else {
+            hasId = true;
+            fields = {
+                "id_lo",
+                "id_hi",
+                "state",
+                "authenticated_user",
+                "operation_type",
+                "progress",
+                "spec",
+                "brief_progress",
+                "brief_spec",
+                "start_time",
+                "finish_time",
+                "result",
+                "events"
+            };
+        }
+
+        std::vector<int> columnIndexes;
+        THashMap<TString, int> fieldToIndex;
+
+        int index = 0;
+        for (const auto& field : fields) {
+            columnIndexes.push_back(nameTable->GetIdOrThrow(field));
+            fieldToIndex[field] = index++;
+        }
+
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
         lookupOptions.KeepMissingRows = true;
-        if (deadline)
+        if (deadline) {
             lookupOptions.Timeout = *deadline - Now();
+        }
 
         auto rowset = WaitFor(LookupRows(
             "//sys/operations_archive/ordered_by_id",
@@ -2959,37 +3327,43 @@ private:
         YCHECK(!rows.Empty());
 
         if (rows[0]) {
-#define SET_ITEM_STRING_VALUE(itemKey, index) \
-            SET_ITEM_VALUE(itemKey, index, TString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_YSON_STRING_VALUE(itemKey, index) \
-            SET_ITEM_VALUE(itemKey, index, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_INSTANT_VALUE(itemKey, index) \
-            SET_ITEM_VALUE(itemKey, index, TInstant(rows[0][index].Data.Int64))
-#define SET_ITEM_VALUE(itemKey, index, operation) \
-            .DoIf(rows[0][index].Type != EValueType::Null, [&] (TFluentMap fluent) { \
-                fluent.Item(#itemKey).Value(operation); \
+#define SET_ITEM_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_YSON_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_INSTANT_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TInstant(rows[0][index].Data.Int64))
+#define SET_ITEM_VALUE(itemKey, operation) \
+            .DoIf(fields.find(itemKey) != fields.end() && rows[0][GET_INDEX(itemKey)].Type != EValueType::Null, [&] (TFluentMap fluent) { \
+                auto index = GET_INDEX(itemKey); \
+                fluent.Item(itemKey).Value(operation); \
             })
+#define GET_INDEX(itemKey) fieldToIndex.find(itemKey)->second
 
             auto ysonResult = BuildYsonStringFluently()
                 .BeginMap()
-                    .Item("id").Value(TGuid(rows[0][0].Data.Uint64, rows[0][1].Data.Uint64))
-                    SET_ITEM_STRING_VALUE("state", 2)
-                    SET_ITEM_STRING_VALUE("authenticated_user", 3)
-                    SET_ITEM_STRING_VALUE("operation_type", 4)
-                    SET_ITEM_YSON_STRING_VALUE("progress", 5)
-                    SET_ITEM_YSON_STRING_VALUE("spec", 6)
-                    SET_ITEM_YSON_STRING_VALUE("brief_progress", 7)
-                    SET_ITEM_YSON_STRING_VALUE("brief_spec", 8)
-                    SET_ITEM_INSTANT_VALUE("start_time", 9)
-                    SET_ITEM_INSTANT_VALUE("finish_time", 10)
-                    SET_ITEM_YSON_STRING_VALUE("result", 11)
-                    SET_ITEM_YSON_STRING_VALUE("events", 12)
+                    .DoIf(hasId, [&] (TFluentMap fluent) {
+                        fluent.Item("id").Value(TGuid(
+                            rows[0][GET_INDEX("id_hi")].Data.Uint64,
+                            rows[0][GET_INDEX("id_lo")].Data.Uint64));
+                    })
+                    SET_ITEM_STRING_VALUE("state")
+                    SET_ITEM_STRING_VALUE("authenticated_user")
+                    SET_ITEM_STRING_VALUE("operation_type")
+                    SET_ITEM_YSON_STRING_VALUE("progress")
+                    SET_ITEM_YSON_STRING_VALUE("spec")
+                    SET_ITEM_YSON_STRING_VALUE("brief_progress")
+                    SET_ITEM_YSON_STRING_VALUE("brief_spec")
+                    SET_ITEM_INSTANT_VALUE("start_time")
+                    SET_ITEM_INSTANT_VALUE("finish_time")
+                    SET_ITEM_YSON_STRING_VALUE("result")
+                    SET_ITEM_YSON_STRING_VALUE("events")
                 .EndMap();
-
 #undef SET_ITEM_STRING_VALUE
 #undef SET_ITEM_YSON_STRING_VALUE
 #undef SET_ITEM_INSTANT_VALUE
 #undef SET_ITEM_VALUE
+#undef GET_INDEX
             return ysonResult;
         }
 
@@ -3006,26 +3380,38 @@ private:
         }
 
         TGetNodeOptions optionsToCypress;
-        optionsToCypress.Attributes = {
-            "authenticated_user",
-            "brief_progress",
-            "brief_spec",
-            "finish_time",
-            "operation_type",
-            "start_time",
-            "state",
-            "suspended",
-            "title",
-            "weight"
-        };
+        if (options.Attributes) {
+            optionsToCypress.Attributes = options.Attributes;
+        } else {
+            optionsToCypress.Attributes = {
+                "authenticated_user",
+                "brief_progress",
+                "brief_spec",
+                "finish_time",
+                "operation_type",
+                "progress",
+                "result",
+                "start_time",
+                "state",
+                "suspended",
+                "title",
+                "weight",
+            };
+        }
         if (deadline) {
             optionsToCypress.Timeout = *deadline - Now();
         }
 
-        auto asyncAttrResult = GetNode(GetOperationAttributesPath(operationId), optionsToCypress);
-        auto attrNodeOrError = WaitFor(asyncAttrResult);
 
-        if (attrNodeOrError.GetCode() == NYT::EErrorCode::OK) {
+        auto attrNodeOrError = WaitFor(GetNode(GetNewOperationPath(operationId) + "/@", optionsToCypress));
+        auto attrOldNodeOtError = WaitFor(GetNode(GetOperationPath(operationId) + "/@", optionsToCypress));
+        if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            attrNodeOrError = attrOldNodeOtError;
+        } else if (attrNodeOrError.IsOK() && attrOldNodeOtError.IsOK()) {
+            attrNodeOrError.Value() = ConvertToYsonString(PatchNode(ConvertToNode(attrNodeOrError.Value()), ConvertToNode(attrOldNodeOtError.Value())));
+        }
+
+        if (attrNodeOrError.IsOK()) {
             auto attrNodeValue = attrNodeOrError.Value();
 
             TGetNodeOptions optionsToScheduler;
@@ -3033,23 +3419,35 @@ private:
                 optionsToScheduler.Timeout = *deadline - Now();
             }
 
-            auto asyncSchedulerProgressValue = GetNode(GetOperationsProgressFromScheduler(operationId), optionsToScheduler);
-            auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
-
-            if (schedulerProgressValueOrError.GetCode() == NYT::EErrorCode::OK) {
-                auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
-                auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
-                attrNode->AddChild(schedulerProgressNode, "progress");
-
-                attrNodeValue = ConvertToYsonString(attrNode);
-            } else if (schedulerProgressValueOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
-                LOG_DEBUG("No such operation %v in the scheduler", operationId);
+            bool shouldRequestProgress = false;
+            if (options.Attributes) {
+                const auto& attributes = *options.Attributes;
+                shouldRequestProgress = std::find(attributes.begin(), attributes.end(), "progress") != attributes.end();
             } else {
-                THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId);
+                shouldRequestProgress = true;
+            }
+
+            if (shouldRequestProgress) {
+                auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), optionsToScheduler);
+                auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
+
+                if (schedulerProgressValueOrError.IsOK()) {
+                    auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
+                    auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
+                    attrNode->RemoveChild("progress");
+                    YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
+
+                    attrNodeValue = ConvertToYsonString(attrNode);
+                } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    LOG_DEBUG("No such operation %v in the scheduler", operationId);
+                } else {
+                    THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId)
+                        << schedulerProgressValueOrError;
+                }
             }
 
             return attrNodeValue;
-        } else if (attrNodeOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+        } else if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError) && IsArchiveExists()) {
             LOG_DEBUG("No such operation %v in Cypress", operationId);
 
             int version = DoGetOperationsArchiveVersion();
@@ -3059,7 +3457,7 @@ private:
             }
 
             try {
-                auto result = DoGetOperationFromArchive(operationId, TGetOperationOptions());
+                auto result = DoGetOperationFromArchive(operationId, options);
                 if (result)
                     return result;
             } catch (const TErrorException& exception) {
@@ -3089,9 +3487,54 @@ private:
             .ThrowOnError();
     }
 
-    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
-        const TJobId& jobId,
-        const TGetJobInputOptions& /*options*/)
+    void ValidateJobSpecVersion(const TJobId& jobId, const NYT::NJobTrackerClient::NProto::TJobSpec& jobSpec)
+    {
+        if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
+            THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("found_version", jobSpec.version())
+                << TErrorAttribute("supported_version", GetJobSpecVersion());
+        }
+    }
+
+    TNodeDescriptor GetJobNodeDescriptor(const TJobId& jobId)
+    {
+        TNodeDescriptor jobNodeDescriptor;
+        auto req = JobProberProxy_->GetJobNode();
+        ToProto(req->mutable_job_id(), jobId);
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+        FromProto(&jobNodeDescriptor, rsp->node_descriptor());
+        return jobNodeDescriptor;
+    }
+
+    TNullable<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(const TJobId& jobId)
+    {
+        try {
+            TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
+
+            auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
+            NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+
+            auto req = jobProberServiceProxy.GetSpec();
+            ToProto(req->mutable_job_id(), jobId);
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
+
+            ValidateJobSpecVersion(jobId, rsp->spec());
+            return rsp->spec();
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob);
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job spec from job node")
+                    << TErrorAttribute("job_id", jobId)
+                    << exception;
+            }
+        }
+        return Null;
+    }
+
+    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(const TJobId& jobId)
     {
         int version = DoGetOperationsArchiveVersion();
 
@@ -3144,12 +3587,20 @@ private:
             THROW_ERROR_EXCEPTION("Cannot parse job spec")
                 << TErrorAttribute("job_id", jobId);
         }
+        ValidateJobSpecVersion(jobId, jobSpec);
 
-        if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
-            THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("found_version", jobSpec.version())
-                << TErrorAttribute("supported_version", GetJobSpecVersion());
+        return jobSpec;
+    }
+
+    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
+        const TJobId& jobId,
+        const TGetJobInputOptions& /*options*/)
+    {
+        NJobTrackerClient::NProto::TJobSpec jobSpec;
+        if (auto jobSpecFromProxy = GetJobSpecFromJobNode(jobId)) {
+            jobSpec.Swap(jobSpecFromProxy.GetPtr());
+        } else {
+            jobSpec = GetJobSpecFromArchive(jobId);
         }
 
         auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -3158,32 +3609,14 @@ private:
         auto locateChunks = BIND([=] {
             std::vector<TChunkSpec*> chunkSpecList;
             for (auto& tableSpec : *schedulerJobSpecExt->mutable_input_table_specs()) {
-                if (tableSpec.chunk_specs_size() == 0) {
-                    // COMPAT(psushin): don't forget to promote job spec version after removing this compat.
-                    for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
-                        for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
-                            chunkSpecList.push_back(&chunkSpec);
-                        }
-                    }
-                } else {
-                    for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
-                        chunkSpecList.push_back(&chunkSpec);
-                    }
+                for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
+                    chunkSpecList.push_back(&chunkSpec);
                 }
             }
 
             for (auto& tableSpec : *schedulerJobSpecExt->mutable_foreign_input_table_specs()) {
-                if (tableSpec.chunk_specs_size() == 0) {
-                    // COMPAT(psushin): don't forget to promote job spec version after removing this compat.
-                    for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
-                        for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
-                            chunkSpecList.push_back(&chunkSpec);
-                        }
-                    }
-                } else {
-                    for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
-                        chunkSpecList.push_back(&chunkSpec);
-                    }
+                for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
+                    chunkSpecList.push_back(&chunkSpec);
                 }
             }
 
@@ -3207,15 +3640,15 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
-        auto userJobReader = CreateUserJobReadController(
+        auto userJobReadController = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
             GetConnection()->GetInvoker(),
-            NNodeTrackerClient::TNodeDescriptor(),
+            TNodeDescriptor(),
             BIND([] { }),
             Null);
 
-        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetInvoker());
+        auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
         jobInputReader->Open();
         return jobInputReader;
     }
@@ -3225,20 +3658,13 @@ private:
         const TJobId& jobId)
     {
         try {
-            NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
-            {
-                auto req = JobProberProxy_->GetJobNode();
-                ToProto(req->mutable_job_id(), jobId);
-                auto rsp = WaitFor(req->Invoke())
-                    .ValueOrThrow();
-                FromProto(&jobNodeDescriptor, rsp->node_descriptor());
-            }
+            TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
 
             auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
             NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
 
             auto req = jobProberServiceProxy.GetStderr();
-            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             ToProto(req->mutable_job_id(), jobId);
             auto rsp = WaitFor(req->Invoke())
                 .ValueOrThrow();
@@ -3261,13 +3687,20 @@ private:
         const TOperationId& operationId,
         const TJobId& jobId)
     {
+        auto createFileReader = [&] (const NYPath::TYPath& path) {
+            return WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path));
+        };
+
         try {
-            auto path = NScheduler::GetStderrPath(operationId, jobId);
+            auto fileReaderOrError = createFileReader(NScheduler::GetNewStderrPath(operationId, jobId));
+            // COMPAT
+            if (fileReaderOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                fileReaderOrError = createFileReader(NScheduler::GetStderrPath(operationId, jobId));
+            }
+
+            auto fileReader = fileReaderOrError.ValueOrThrow();
 
             std::vector<TSharedRef> blocks;
-            auto fileReader = WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path))
-                .ValueOrThrow();
-
             while (true) {
                 auto block = WaitFor(fileReader->Read())
                     .ValueOrThrow();
@@ -3496,6 +3929,10 @@ private:
         for (const auto& item : items->GetChildren()) {
             const auto& attributes = item->Attributes();
 
+            if (item->AsString()->GetValue().Size() == 2) {
+                continue;
+            }
+
             TOperation operation;
             operation.OperationId = TGuid::FromString(item->AsString()->GetValue());
             operation.OperationType = ParseEnum<NScheduler::EOperationType>(attributes.Get<TString>("operation_type"));
@@ -3508,20 +3945,25 @@ private:
             operation.BriefSpec = attributes.GetYson("brief_spec");
 
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-            operation.Pool = briefSpecMapNode->GetChild("pool")->AsString()->GetValue();
+            auto poolNode = briefSpecMapNode->FindChild("pool");
+            if (poolNode) {
+                operation.Pool = poolNode->AsString()->GetValue();
+            }
 
             operation.BriefProgress = attributes.GetYson("brief_progress");
             operation.Suspended = attributes.Get<bool>("suspended");
-            operation.Weight = attributes.Get<double>("weight");
+            operation.Weight = attributes.Find<double>("weight");
             cypressOperations.push_back(operation);
         }
 
         auto filterAndCount =
-            [&] (const TString& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
-                poolCounts[pool] += count;
+            [&] (const TNullable<TString>& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
+                if (pool) {
+                    poolCounts[*pool] += count;
 
-                if (options.Pool && *options.Pool != pool) {
-                    return false;
+                    if (options.Pool && *options.Pool != *pool) {
+                        return false;
+                    }
                 }
 
                 userCounts[user] += count;
@@ -3604,7 +4046,7 @@ private:
 
         std::vector<TOperation> archiveData;
 
-        if (options.IncludeArchive) {
+        if (options.IncludeArchive && IsArchiveExists()) {
             int version = DoGetOperationsArchiveVersion();
 
             if (options.Pool && version < 15) {
@@ -3874,13 +4316,480 @@ private:
         }
 
         return result;
-   }
+    }
 
-    std::vector<TJob> DoListJobs(
+    class TQueryBuilder
+    {
+    public:
+        void SetSource(const TString& source)
+        {
+            Source_ = source;
+        }
+
+        int AddSelectExpression(const TString& expression)
+        {
+            SelectExpressions_.push_back(expression);
+            return SelectExpressions_.size() - 1;
+        }
+
+        int AddWhereExpression(const TString& expression)
+        {
+            WhereExpressions_.push_back(expression);
+            return WhereExpressions_.size() - 1;
+        }
+
+        void SetOrderByExpression(const TString& expression)
+        {
+            OrderByExpression_ = expression;
+        }
+
+        void SetOrderByDirection(const TString& direction)
+        {
+            OrderByDirection_ = direction;
+        }
+
+        void SetLimit(int limit)
+        {
+            Limit_ = limit;
+        }
+
+        TString Build()
+        {
+            std::vector<TString> clauses;
+            clauses.reserve(8);
+            clauses.push_back(JoinSeq(", ", SelectExpressions_));
+            clauses.push_back(Format("FROM [%v]", Source_));
+            if (!WhereExpressions_.empty()) {
+                clauses.push_back("WHERE");
+                clauses.push_back(JoinSeq(" AND ", WhereExpressions_));
+            }
+            if (!OrderByExpression_.empty()) {
+                clauses.push_back("ORDER BY");
+                clauses.push_back(OrderByExpression_);
+                if (!OrderByDirection_.empty()) {
+                    clauses.push_back(OrderByDirection_);
+                }
+            }
+            if (Limit_ >= 0) {
+                clauses.push_back(Format("LIMIT %v", Limit_));
+            }
+            return JoinSeq(" ", clauses);
+        }
+
+    private:
+        TString Source_;
+        std::vector<TString> SelectExpressions_;
+        std::vector<TString> WhereExpressions_;
+        TString OrderByExpression_;
+        TString OrderByDirection_;
+        int Limit_ = -1;
+    };
+
+    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromArchive(
+        const TOperationId& operationId,
+        TNullable<TInstant> deadline,
+        const TListJobsOptions& options)
+    {
+        std::vector<TJob> jobs;
+
+        int archiveVersion = DoGetOperationsArchiveVersion();
+
+        TQueryBuilder builder;
+
+        builder.SetSource(GetOperationsArchiveJobsPath());
+        builder.SetLimit(options.Offset + options.Limit);
+
+        auto jobIdHiIndex = builder.AddSelectExpression("job_id_hi");
+        auto jobIdLoIndex = builder.AddSelectExpression("job_id_lo");
+        auto typeIndex = builder.AddSelectExpression("type AS job_type");
+        auto stateIndex = archiveVersion >= 16
+            ? builder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state")
+            : builder.AddSelectExpression("state AS job_state");
+        auto startTimeIndex = builder.AddSelectExpression("start_time");
+        auto finishTimeIndex = builder.AddSelectExpression("finish_time");
+        auto addressIndex = builder.AddSelectExpression("address");
+        auto errorIndex = builder.AddSelectExpression("error");
+        auto statisticsIndex = builder.AddSelectExpression("statistics");
+        auto stderrSizeIndex = builder.AddSelectExpression("stderr_size");
+
+        auto operationIdExpression = Format(
+            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+            operationId.Parts64[0],
+            operationId.Parts64[1]);
+        builder.AddWhereExpression(operationIdExpression);
+
+        if (options.Type) {
+            builder.AddWhereExpression(Format("job_type = %Qv", FormatEnum(*options.Type)));
+        }
+
+        if (options.State) {
+            builder.AddWhereExpression(Format("job_state = %Qv", FormatEnum(*options.State)));
+        }
+
+        if (options.Address) {
+            builder.AddWhereExpression(Format("address = %Qv", *options.Address));
+        }
+
+        if (options.HasStderr) {
+            if (*options.HasStderr) {
+                builder.AddWhereExpression("(stderr_size != 0 AND NOT is_null(stderr_size))");
+            } else {
+                builder.AddWhereExpression("(stderr_size = 0 OR is_null(stderr_size))");
+            }
+        }
+
+        if (options.SortField != EJobSortField::None) {
+            switch (options.SortField) {
+                case EJobSortField::Type:
+                    builder.SetOrderByExpression("job_type");
+                    break;
+                case EJobSortField::State:
+                    builder.SetOrderByExpression("job_state");
+                    break;
+                case EJobSortField::StartTime:
+                    builder.SetOrderByExpression("start_time");
+                    break;
+                case EJobSortField::FinishTime:
+                    builder.SetOrderByExpression("finish_time");
+                    break;
+                case EJobSortField::Address:
+                    builder.SetOrderByExpression("address");
+                    break;
+                case EJobSortField::Duration:
+                    builder.SetOrderByExpression(Format(
+                        "if(is_null(finish_time), %v, finish_time) - start_time",
+                        TInstant::Now().MicroSeconds()));
+                    break;
+                default:
+                    break;
+            }
+            switch (options.SortOrder) {
+                case EJobSortDirection::Ascending:
+                    builder.SetOrderByDirection("ASC");
+                    break;
+                case EJobSortDirection::Descending:
+                    builder.SetOrderByDirection("DESC");
+                    break;
+            }
+        }
+
+        auto itemsQuery = builder.Build();
+        auto countQuery = Format(
+            "SUM(1) AS count FROM [%v] WHERE %v GROUP BY 1",
+            GetOperationsArchiveJobsPath(),
+            operationIdExpression);
+
+        TSelectRowsOptions selectRowsOptions;
+        selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
+        if (deadline) {
+            selectRowsOptions.Timeout = *deadline - Now();
+        }
+
+        auto itemsFuture = SelectRows(itemsQuery, selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
+            std::vector<TJob> jobs;
+
+            auto rows = result.Rowset->GetRows();
+
+            auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name, const TGuid& jobId) {
+                if (value.Type == EValueType::Null) {
+                    THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name)
+                        << TErrorAttribute("operation_id", operationId)
+                        << TErrorAttribute("job_id", jobId);
+                }
+            };
+
+            for (auto row : rows) {
+                checkIsNotNull(row[jobIdHiIndex], "job_id_hi", TGuid());
+                checkIsNotNull(row[jobIdLoIndex], "job_id_lo", TGuid());
+
+                TGuid id(row[jobIdHiIndex].Data.Uint64, row[jobIdLoIndex].Data.Uint64);
+
+                jobs.emplace_back();
+                auto& job = jobs.back();
+
+                job.Id = id;
+
+                checkIsNotNull(row[typeIndex], "type", id);
+                job.Type = ParseEnum<EJobType>(TString(row[typeIndex].Data.String, row[typeIndex].Length));
+
+                checkIsNotNull(row[stateIndex], "state", id);
+                job.State = ParseEnum<EJobState>(TString(row[stateIndex].Data.String, row[stateIndex].Length));
+
+                if (row[startTimeIndex].Type != EValueType::Null) {
+                    job.StartTime = TInstant(row[startTimeIndex].Data.Int64);
+                }
+
+                if (row[finishTimeIndex].Type != EValueType::Null) {
+                    job.FinishTime = TInstant(row[finishTimeIndex].Data.Int64);
+                }
+
+                if (row[addressIndex].Type != EValueType::Null) {
+                    job.Address = TString(row[addressIndex].Data.String, row[addressIndex].Length);
+                }
+
+                if (row[stderrSizeIndex].Type != EValueType::Null) {
+                    job.StderrSize = row[stderrSizeIndex].Data.Int64;
+                }
+
+                if (row[errorIndex].Type != EValueType::Null) {
+                    job.Error = TYsonString(TString(row[errorIndex].Data.String, row[errorIndex].Length));
+                }
+
+                if (row[statisticsIndex].Type != EValueType::Null) {
+                    auto briefStatisticsYson = TYsonString(TString(row[statisticsIndex].Data.String, row[statisticsIndex].Length));
+                    auto briefStatistics = ConvertToNode(briefStatisticsYson);
+
+                    // See BuildBriefStatistics.
+                    auto rowCount = GetNodeByYPath(briefStatistics, "/data/input/row_count/sum");
+                    auto uncompressedDataSize = GetNodeByYPath(briefStatistics, "/data/input/uncompressed_data_size/sum");
+                    auto compressedDataSize = GetNodeByYPath(briefStatistics, "/data/input/compressed_data_size/sum");
+                    auto dataWeight = GetNodeByYPath(briefStatistics, "/data/input/data_weight/sum");
+                    auto inputPipeIdleTime = FindNodeByYPath(briefStatistics, "/user_job/pipes/input/idle_time/sum");
+                    auto jobProxyCpuUsage = FindNodeByYPath(briefStatistics, "/job_proxy/cpu/user/sum");
+
+                    job.BriefStatistics = BuildYsonStringFluently()
+                        .BeginAttributes()
+                        .EndAttributes()
+                        .BeginMap()
+                            .Item("processed_input_row_count").Value(rowCount->AsInt64()->GetValue())
+                            .Item("processed_input_uncompressed_data_size").Value(uncompressedDataSize->AsInt64()->GetValue())
+                            .Item("processed_input_compressed_data_size").Value(compressedDataSize->AsInt64()->GetValue())
+                            .Item("processed_input_data_weight").Value(dataWeight->AsInt64()->GetValue())
+                            .DoIf(static_cast<bool>(inputPipeIdleTime), [&] (TFluentMap fluent) {
+                                fluent.Item("input_pipe_idle_time").Value(inputPipeIdleTime->AsInt64()->GetValue());
+                            })
+                            .DoIf(static_cast<bool>(jobProxyCpuUsage), [&] (TFluentMap fluent) {
+                                fluent.Item("job_proxy_cpu_usage").Value(jobProxyCpuUsage->AsInt64()->GetValue());
+                            })
+                        .EndMap();
+                }
+            }
+
+            return jobs;
+        }));
+
+        auto countFuture = SelectRows(countQuery, selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
+            auto rows = result.Rowset->GetRows();
+            if (rows.Size() == 0) {
+                return 0;
+            }
+            YCHECK(rows.Size() == 1);
+            YCHECK(rows[0][0].Type == EValueType::Int64);
+            return static_cast<int>(rows[0][0].Data.Int64);
+        }));
+
+        return
+            CombineAll(std::vector<TFuture<void>>{itemsFuture.As<void>(), countFuture.As<void>()})
+            .Apply(BIND([itemsFuture, countFuture] (const std::vector<TError>&) {
+                const auto& items = itemsFuture.Get();
+                const auto& count = countFuture.Get();
+                if (!items.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to get jobs from the operation archive") << items;
+                }
+                if (!count.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to get job count from the operation archive") << count;
+                }
+                return std::make_pair(items.Value(), count.Value());
+            }));
+    }
+
+    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromCypress(
+        const TOperationId& operationId,
+        TNullable<TInstant> deadline,
+        const TListJobsOptions& options)
+    {
+        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+        auto attributeFilter = std::vector<TString>{
+            "job_type",
+            "state",
+            "start_time",
+            "finish_time",
+            "address",
+            "error",
+            "brief_statistics",
+            "input_paths",
+            "core_infos",
+            "uncompressed_data_size"
+        };
+
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto getReq = TYPathProxy::Get(GetJobsPath(operationId));
+            ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
+            batchReq->AddRequest(getReq, "get_jobs");
+        }
+
+        {
+            auto getReqNew = TYPathProxy::Get(GetNewJobsPath(operationId));
+            ToProto(getReqNew->mutable_attributes()->mutable_keys(), attributeFilter);
+            batchReq->AddRequest(getReqNew, "get_jobs_new");
+        }
+
+        if (deadline) {
+            proxy.SetDefaultTimeout(*deadline - Now());
+        }
+
+        auto batchRequestFuture = batchReq->Invoke();
+
+        return batchRequestFuture.Apply(BIND([operationId, options] (
+            const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
+        {
+            const auto& batchRsp = batchRspOrError.ValueOrThrow();
+
+            auto getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs_new");
+            if (!getReqRsp.IsOK()) {
+                if (getReqRsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
+                } else {
+                    THROW_ERROR getReqRsp;
+                }
+            }
+
+            const auto& rsp = getReqRsp.ValueOrThrow();
+
+            std::pair<std::vector<TJob>, int> result;
+            auto& jobs = result.first;
+
+            auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
+            result.second = items->GetChildren().size();
+
+            for (const auto& item : items->GetChildren()) {
+                const auto& attributes = item.second->Attributes();
+                auto children = item.second->AsMap();
+
+                auto id = TGuid::FromString(item.first);
+
+                auto type = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<TString>("job_type"));
+                if (options.Type && type != *options.Type) {
+                    continue;
+                }
+
+                auto state = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<TString>("state"));
+                if (options.State && state != *options.State) {
+                    continue;
+                }
+
+                auto address = attributes.Get<TString>("address");
+                if (options.Address && address != *options.Address) {
+                    continue;
+                }
+
+                i64 stderrSize = -1;
+                if (auto stderrNode = children->FindChild("stderr")) {
+                    stderrSize = stderrNode->Attributes().Get<i64>("uncompressed_data_size");
+                }
+
+                if (options.HasStderr) {
+                    if (*options.HasStderr && stderrSize <= 0) {
+                        continue;
+                    }
+                    if (!(*options.HasStderr) && stderrSize > 0) {
+                        continue;
+                    }
+                }
+
+                jobs.emplace_back();
+                auto& job = jobs.back();
+
+                job.Id = id;
+                job.Type = type;
+                job.State = state;
+                job.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
+                job.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
+                job.Address = address;
+                if (stderrSize >= 0) {
+                    job.StderrSize = stderrSize;
+                }
+                job.Error = attributes.FindYson("error");
+                job.BriefStatistics = attributes.FindYson("brief_statistics");
+                job.InputPaths = attributes.FindYson("input_paths");
+                job.CoreInfos = attributes.FindYson("core_infos");
+            }
+
+            return result;
+        }));
+    }
+
+    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromScheduler(
+        const TOperationId& operationId,
+        TNullable<TInstant> deadline,
+        const TListJobsOptions& options)
+    {
+        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+        auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
+        auto getReq = TYPathProxy::Get(path);
+
+        if (deadline) {
+            proxy.SetDefaultTimeout(*deadline - Now());
+        }
+
+        return proxy.Execute(getReq).Apply(BIND([operationId, options] (const TYPathProxy::TRspGetPtr& rsp) {
+            std::pair<std::vector<TJob>, int> result;
+            auto& jobs = result.first;
+
+            auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
+            result.second = items->GetChildren().size();
+
+            for (const auto& item : items->GetChildren()) {
+                auto values = item.second->AsMap();
+
+                auto id = TGuid::FromString(item.first);
+
+                auto type = ParseEnum<NJobTrackerClient::EJobType>(
+                    values->GetChild("job_type")->AsString()->GetValue());
+                if (options.Type && type != *options.Type) {
+                    continue;
+                }
+
+                auto state = ParseEnum<NJobTrackerClient::EJobState>(
+                    values->GetChild("state")->AsString()->GetValue());
+                if (options.State && state != *options.State) {
+                    continue;
+                }
+
+                auto address = values->GetChild("address")->AsString()->GetValue();
+                if (options.Address && address != *options.Address) {
+                    continue;
+                }
+
+                auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
+                if (options.HasStderr) {
+                    if (*options.HasStderr && stderrSize <= 0) {
+                        continue;
+                    }
+                    if (!(*options.HasStderr) && stderrSize > 0) {
+                        continue;
+                    }
+                }
+
+                jobs.emplace_back();
+                auto& job = jobs.back();
+
+                job.Id = id;
+                job.Type = type;
+                job.State = state;
+                job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
+                job.Address = address;
+                job.Progress = values->GetChild("progress")->AsDouble()->GetValue();
+                if (stderrSize > 0) {
+                    job.StderrSize = stderrSize;
+                }
+                job.BriefStatistics = ConvertToYsonString(values->GetChild("brief_statistics"));
+            }
+
+            return result;
+        }));
+    }
+
+
+    TListJobsResult DoListJobs(
         const TOperationId& operationId,
         const TListJobsOptions& options)
     {
-        std::vector<TJob> resultJobs;
+        TListJobsResult result;
 
         TNullable<TInstant> deadline;
         if (options.Timeout) {
@@ -3893,34 +4802,37 @@ private:
             if (source.name) { \
                 target->name = source.name; \
             }
-            MERGE_FIELD(JobState);
+            MERGE_FIELD(Type);
+            MERGE_FIELD(State);
             MERGE_FIELD(StartTime);
             MERGE_NULLABLE_FIELD(FinishTime);
             MERGE_FIELD(Address);
-            MERGE_NULLABLE_FIELD(Error);
-            MERGE_NULLABLE_FIELD(Statistics);
-            MERGE_NULLABLE_FIELD(StderrSize);
             MERGE_NULLABLE_FIELD(Progress);
+            MERGE_NULLABLE_FIELD(StderrSize);
+            MERGE_NULLABLE_FIELD(Error);
+            MERGE_NULLABLE_FIELD(BriefStatistics);
+            MERGE_NULLABLE_FIELD(InputPaths);
             MERGE_NULLABLE_FIELD(CoreInfos);
 #undef MERGE_FIELD
 #undef MERGE_NULLABLE_FIELD
         };
 
         auto mergeJobs = [&] (const std::vector<TJob>& source1, const std::vector<TJob>& source2) {
+            std::vector<TJob> result;
+
             auto it1 = source1.begin();
             auto end1 = source1.end();
 
             auto it2 = source2.begin();
             auto end2 = source2.end();
 
-            std::vector<TJob> result;
             while (it1 != end1 && it2 != end2) {
-                if (it1->JobId == it2->JobId) {
+                if (it1->Id == it2->Id) {
                     result.push_back(*it1);
                     mergeJob(&result.back(), *it2);
                     ++it1;
                     ++it2;
-                } else if (it1->JobId < it2->JobId) {
+                } else if (it1->Id < it2->Id) {
                     result.push_back(*it1);
                     ++it1;
                 } else {
@@ -3935,318 +4847,273 @@ private:
             return result;
         };
 
-        auto sortJobs = [] (std::vector<TJob>* jobs) {
-            std::sort(jobs->begin(), jobs->end(), [] (const TJob& lhs, const TJob& rhs) {
-                return lhs.JobId < rhs.JobId;
-            });
+        auto updateResultJobs = [&] (const std::vector<TJob>& delta) {
+            auto sortedDelta = delta;
+            std::sort(
+                sortedDelta.begin(),
+                sortedDelta.end(),
+                [] (const TJob& lhs, const TJob& rhs) {
+                    return lhs.Id < rhs.Id;
+                });
+            result.Jobs = mergeJobs(result.Jobs, sortedDelta);
         };
 
-        if (options.IncludeArchive) {
-            TString conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
-                operationId.Parts64[0], operationId.Parts64[1]);
+        TFuture<std::pair<std::vector<TJob>, int>> archiveJobsFuture, cypressJobsFuture, schedulerJobsFuture;
 
-            if (options.JobType) {
-                conditions = Format("%v and type = %Qv", conditions, FormatEnum(*options.JobType));
-            }
+        bool isArchiveExists = IsArchiveExists();
 
-            if (options.JobState) {
-                conditions = Format("%v and state = %Qv", conditions, FormatEnum(*options.JobState));
-            }
-
-            if (options.Address) {
-                conditions = Format("%v and address = %Qv", conditions, *options.Address);
-            }
-
-            if (options.HasStderr) {
-                if (*options.HasStderr) {
-                    conditions = Format("%v and stderr_size != 0 and not is_null(stderr_size)", conditions);
-                } else {
-                    conditions = Format("%v and (stderr_size = 0 or is_null(stderr_size))", conditions);
-                }
-            }
-
-            auto selectFields = JoinSeq(",", {
-                "operation_id_hi",
-                "operation_id_lo",
-                "job_id_hi",
-                "job_id_lo",
-                "type",
-                "state",
-                "start_time",
-                "finish_time",
-                "address",
-                "error",
-                "statistics",
-                "stderr_size"});
-
-            TString orderBy;
-            if (options.SortField != EJobSortField::None) {
-                switch (options.SortField) {
-                    case EJobSortField::JobType:
-                        orderBy = "type";
-                        break;
-                    case EJobSortField::JobState:
-                        orderBy = "state";
-                        break;
-                    case EJobSortField::StartTime:
-                        orderBy = "start_time";
-                        break;
-                    case EJobSortField::FinishTime:
-                        orderBy = "finish_time";
-                        break;
-                    case EJobSortField::Address:
-                        orderBy = "address";
-                        break;
-                    default:
-                        Y_UNREACHABLE();
-                }
-
-                orderBy = Format("order by %v %v", orderBy, options.SortOrder == EJobSortDirection::Descending ? "desc" : "asc");
-            }
-
-            auto query = Format("%v from [%v] where %v %v limit %v",
-                selectFields,
-                GetOperationsArchiveJobsPath(),
-                conditions,
-                orderBy,
-                options.Offset + options.Limit);
-
-            TSelectRowsOptions selectRowsOptions;
-            selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
-
-            if (deadline) {
-                selectRowsOptions.Timeout = *deadline - Now();
-            }
-
-            auto result = WaitFor(SelectRows(query, selectRowsOptions))
-                .ValueOrThrow();
-
-            const auto& rows = result.Rowset->GetRows();
-
-            auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name) {
-                if (value.Type == EValueType::Null) {
-                    THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name)
-                        << TErrorAttribute("operation_id", operationId);
-                }
-            };
-
-            for (auto row : rows) {
-                checkIsNotNull(row[2], "job_id_hi");
-                checkIsNotNull(row[3], "job_id_lo");
-
-                TGuid jobId(row[2].Data.Uint64, row[3].Data.Uint64);
-
-                TJob job;
-                job.JobId = jobId;
-                checkIsNotNull(row[4], "type");
-                job.JobType = ParseEnum<EJobType>(TString(row[4].Data.String, row[4].Length));
-                checkIsNotNull(row[5], "state");
-                job.JobState = ParseEnum<EJobState>(TString(row[5].Data.String, row[5].Length));
-                checkIsNotNull(row[6], "start_time");
-                job.StartTime = TInstant(row[6].Data.Int64);
-
-                if (row[7].Type != EValueType::Null) {
-                    job.FinishTime = TInstant(row[7].Data.Int64);
-                }
-
-                if (row[8].Type != EValueType::Null) {
-                    job.Address = TString(row[8].Data.String, row[8].Length);
-                }
-
-                if (row[9].Type != EValueType::Null) {
-                    job.Error = TYsonString(TString(row[9].Data.String, row[9].Length));
-                }
-
-                if (row[10].Type != EValueType::Null) {
-                    job.Statistics = TYsonString(TString(row[10].Data.String, row[10].Length));
-                }
-
-                if (row[11].Type != EValueType::Null) {
-                    job.StderrSize = row[11].Data.Int64;
-                }
-
-                resultJobs.push_back(job);
-            }
-            sortJobs(&resultJobs);
+        // Issue the requests in parallel.
+        if (options.IncludeArchive && isArchiveExists) {
+            archiveJobsFuture = DoListJobsFromArchive(operationId, deadline, options);
         }
 
         if (options.IncludeCypress) {
-            TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-
-            auto getReq = TYPathProxy::Get(GetJobsPath(operationId));
-            auto attributeFilter = std::vector<TString>{
-                "job_type",
-                "state",
-                "start_time",
-                "finish_time",
-                "address",
-                "error",
-                "statistics",
-                "size",
-                "uncompressed_data_size"
-            };
-
-            ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
-
-            if (deadline) {
-                proxy.SetDefaultTimeout(*deadline - Now());
-            }
-
-            auto getRsp = WaitFor(proxy.Execute(getReq))
-                .ValueOrThrow();
-
-            auto items = ConvertToNode(NYson::TYsonString(getRsp->value()))->AsMap();
-
-            std::vector<TJob> cypressJobs;
-            for (const auto& item : items->GetChildren()) {
-                const auto& attributes = item.second->Attributes();
-                auto values = item.second->AsMap();
-
-                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<TString>("job_type"));
-                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<TString>("state"));
-                auto address = attributes.Get<TString>("address");
-                i64 stderrSize = -1;
-
-                if (auto stderr = values->FindChild("stderr")) {
-                    stderrSize = stderr->Attributes().Get<i64>("uncompressed_data_size");
-                }
-
-                if (options.JobType && jobType != *options.JobType) {
-                    continue;
-                }
-
-                if (options.JobState && jobState != *options.JobState) {
-                    continue;
-                }
-
-                if (options.Address && address != *options.Address) {
-                    continue;
-                }
-
-                if (options.HasStderr) {
-                    if (*options.HasStderr && stderrSize <= 0) {
-                        continue;
-                    }
-                    if (!(*options.HasStderr) && stderrSize > 0) {
-                        continue;
-                    }
-                }
-
-                TGuid jobId = TGuid::FromString(item.first);
-
-                TJob job;
-                job.JobId = jobId;
-                job.JobType = jobType;
-                job.JobState = jobState;
-                job.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
-                job.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
-                job.Address = address;
-                job.Error = attributes.FindYson("error");
-                job.Statistics = attributes.FindYson("statistics");
-                job.Progress = attributes.Find<double>("progress");
-                job.CoreInfos = attributes.Find<TString>("core_infos");
-                if (stderrSize > 0) {
-                    job.StderrSize = stderrSize;
-                }
-                cypressJobs.push_back(job);
-            }
-            sortJobs(&cypressJobs);
-            resultJobs = mergeJobs(resultJobs, cypressJobs);
+            cypressJobsFuture = DoListJobsFromCypress(operationId, deadline, options);
         }
 
-        if (options.IncludeRuntime) {
-            TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        if (options.IncludeScheduler) {
+            schedulerJobsFuture = DoListJobsFromScheduler(operationId, deadline, options);
+        }
 
-            auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
-            auto getReq = TYPathProxy::Get(path);
-
-            if (deadline) {
-                proxy.SetDefaultTimeout(*deadline - Now());
-            }
-
-            auto getRsp = WaitFor(proxy.Execute(getReq))
+        if (options.IncludeArchive && isArchiveExists) {
+            auto archiveJobs = WaitFor(archiveJobsFuture)
                 .ValueOrThrow();
+            result.ArchiveJobCount = archiveJobs.second;
+            updateResultJobs(archiveJobs.first);
+        }
 
-            auto items = ConvertToNode(NYson::TYsonString(getRsp->value()))->AsMap();
-
-            std::vector<TJob> runtimeJobs;
-            for (const auto& item : items->GetChildren()) {
-                auto values = item.second->AsMap();
-                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
-                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(values->GetChild("state")->AsString()->GetValue());
-                auto address = values->GetChild("address")->AsString()->GetValue();
-
-                if (options.JobType && jobType != *options.JobType) {
-                    continue;
-                }
-
-                if (options.JobState && jobState != *options.JobState) {
-                    continue;
-                }
-
-                if (options.Address && address != *options.Address) {
-                    continue;
-                }
-
-                if (options.HasStderr && !(*options.HasStderr)) {
-                    continue;
-                }
-
-                TGuid jobId = TGuid::FromString(item.first);
-
-                TJob job;
-                job.JobId = jobId;
-                job.JobType = jobType;
-                job.JobState = jobState;
-                job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
-                job.Address = address;
-
-                if (auto error = values->FindChild("error")) {
-                    job.Error = TYsonString(error->AsString()->GetValue());
-                }
-
-                if (auto progress = values->FindChild("progress")) {
-                    job.Progress = progress->AsDouble()->GetValue();
-                }
-
-                runtimeJobs.push_back(job);
+        if (options.IncludeCypress) {
+            auto cypressJobsOrError = WaitFor(cypressJobsFuture);
+            if (cypressJobsOrError.IsOK()) {
+                const auto& pair = cypressJobsOrError.Value();
+                result.CypressJobCount = pair.second;
+                updateResultJobs(pair.first);
+            } else if (cypressJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                // No such operation in Cypress.
+                result.CypressJobCount = 0;
+            } else {
+                cypressJobsOrError.ThrowOnError();
             }
-            sortJobs(&runtimeJobs);
-            resultJobs = mergeJobs(resultJobs, runtimeJobs);
+        }
+
+        if (options.IncludeScheduler) {
+            auto schedulerJobsOrError = WaitFor(schedulerJobsFuture);
+            if (schedulerJobsOrError.IsOK()) {
+                const auto& pair = schedulerJobsOrError.Value();
+                result.SchedulerJobCount = pair.second;
+                updateResultJobs(pair.first);
+            } else if (schedulerJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                // No such operation in the scheduler.
+                result.SchedulerJobCount = 0;
+            } else {
+                schedulerJobsOrError.ThrowOnError();
+            }
         }
 
         std::function<bool(const TJob&, const TJob&)> comparer;
         switch (options.SortField) {
-#define XX(name, sortOrder) \
-            case EJobSortField::name: \
-                comparer = [&] (const TJob& lhs, const TJob& rhs) { \
-                    return sortOrder == EJobSortDirection::Descending \
-                        ? LessNullable(rhs.name, lhs.name) \
-                        : LessNullable(lhs.name, rhs.name); \
-                }; \
+#define XX(field) \
+            case EJobSortField::field: \
+                switch (options.SortOrder) { \
+                    case EJobSortDirection::Ascending: \
+                        comparer = [] (const TJob& lhs, const TJob& rhs) { \
+                            return LessNullable(lhs.field, rhs.field); \
+                        }; \
+                        break; \
+                    case EJobSortDirection::Descending: \
+                        comparer = [&] (const TJob& lhs, const TJob& rhs) { \
+                            return LessNullable(rhs.field, lhs.field); \
+                        }; \
+                        break; \
+                } \
                 break;
 
-            XX(JobType, options.SortOrder);
-            XX(JobState, options.SortOrder);
-            XX(StartTime, options.SortOrder);
-            XX(FinishTime, options.SortOrder);
-            XX(Address, options.SortOrder);
+            XX(Type);
+            XX(State);
+            XX(StartTime);
+            XX(FinishTime);
+            XX(Address);
+            XX(Progress);
 #undef XX
+
+            case EJobSortField::None:
+                switch (options.SortOrder) {
+                    case EJobSortDirection::Ascending:
+                        comparer = [] (const TJob& lhs, const TJob& rhs) {
+                            return lhs.Id < rhs.Id;
+                        };
+                        break;
+                    case EJobSortDirection::Descending:
+                        comparer = [] (const TJob& lhs, const TJob& rhs) {
+                            return !(lhs.Id < rhs.Id || lhs.Id == rhs.Id);
+                        };
+                        break;
+                }
+                break;
+
+            case EJobSortField::Duration:
+                switch (options.SortOrder) {
+                    case EJobSortDirection::Ascending:
+                        comparer = [now = TInstant::Now()] (const TJob& lhs, const TJob& rhs) {
+                            auto lhsDuration = (lhs.FinishTime ? *lhs.FinishTime : now) - lhs.StartTime;
+                            auto rhsDuration = (rhs.FinishTime ? *rhs.FinishTime : now) - rhs.StartTime;
+                            return lhsDuration < rhsDuration;
+                        };
+                        break;
+                    case EJobSortDirection::Descending:
+                        comparer = [now = TInstant::Now()] (const TJob& lhs, const TJob& rhs) {
+                            auto lhsDuration = (lhs.FinishTime ? *lhs.FinishTime : now) - lhs.StartTime;
+                            auto rhsDuration = (rhs.FinishTime ? *rhs.FinishTime : now) - rhs.StartTime;
+                            return lhsDuration > rhsDuration;
+                        };
+                        break;
+                }
+                break;
 
             default:
                 Y_UNREACHABLE();
         }
 
-        std::sort(resultJobs.begin(), resultJobs.end(), comparer);
+        std::sort(result.Jobs.begin(), result.Jobs.end(), comparer);
 
-        auto startIt = resultJobs.begin() + std::min(options.Offset,
-            std::distance(resultJobs.begin(), resultJobs.end()));
+        auto beginIt = result.Jobs.begin() + std::min(options.Offset,
+            std::distance(result.Jobs.begin(), result.Jobs.end()));
 
-        auto endIt = startIt + std::min(options.Limit,
-            std::distance(startIt, resultJobs.end()));
+        auto endIt = beginIt + std::min(options.Limit,
+            std::distance(beginIt, result.Jobs.end()));
 
-        return std::vector<TJob>(startIt, endIt);
+        result.Jobs = std::vector<TJob>(beginIt, endIt);
+
+        return result;
     }
+
+    TYsonString DoGetJob(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobOptions& options)
+    {
+        TNullable<TInstant> deadline;
+        if (options.Timeout) {
+            deadline = options.Timeout->ToDeadLine();
+        }
+
+        int archiveVersion = DoGetOperationsArchiveVersion();
+
+        TJobTableDescriptor table;
+        auto rowBuffer = New<TRowBuffer>();
+
+        std::vector<TUnversionedRow> keys;
+        auto key = rowBuffer->AllocateUnversioned(4);
+        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], table.Ids.OperationIdHi);
+        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], table.Ids.OperationIdLo);
+        key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], table.Ids.JobIdHi);
+        key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], table.Ids.JobIdLo);
+        keys.push_back(key);
+
+        TLookupRowsOptions lookupOptions;
+
+        THashSet<TString> fields = {
+            "operation_id_hi",
+            "operation_id_lo",
+            "job_id_hi",
+            "job_id_lo",
+            "type",
+            "state",
+            "start_time",
+            "finish_time",
+            "address",
+            "error",
+            "statistics",
+            "events"
+        };
+
+        if (archiveVersion >= 16) {
+            fields.insert("transient_state");
+        }
+
+        std::vector<int> columnIndexes;
+        THashMap<TString, int> fieldToIndex;
+
+        int index = 0;
+        for (const auto& field : fields) {
+            columnIndexes.push_back(table.NameTable->GetIdOrThrow(field));
+            fieldToIndex[field] = index++;
+        }
+
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
+        lookupOptions.KeepMissingRows = true;
+        if (deadline) {
+            lookupOptions.Timeout = *deadline - Now();
+        }
+
+        auto rowset = WaitFor(LookupRows(
+            GetOperationsArchiveJobsPath(),
+            table.NameTable,
+            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+            lookupOptions))
+            .ValueOrThrow();
+
+        auto rows = rowset->GetRows();
+        YCHECK(!rows.Empty());
+
+        if (rows[0]) {
+#define SET_ITEM_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_YSON_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_INSTANT_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TInstant(rows[0][index].Data.Int64))
+#define SET_ITEM_VALUE(itemKey, operation) \
+            .DoIf(fields.find(itemKey) != fields.end() && rows[0][GET_INDEX(itemKey)].Type != EValueType::Null, [&] (TFluentMap fluent) { \
+                auto index = GET_INDEX(itemKey); \
+                fluent.Item(itemKey).Value(operation); \
+            })
+#define GET_INDEX(itemKey) fieldToIndex.find(itemKey)->second
+
+            auto resultOperationId = TGuid(
+                rows[0][GET_INDEX("operation_id_hi")].Data.Uint64,
+                rows[0][GET_INDEX("operation_id_lo")].Data.Uint64);
+            auto resultJobId = TGuid(
+                rows[0][GET_INDEX("job_id_hi")].Data.Uint64,
+                rows[0][GET_INDEX("job_id_lo")].Data.Uint64);
+            auto resultState = TString();
+            if (resultState.empty()) {
+                auto index = GET_INDEX("state");
+                if (rows[0][index].Type != EValueType::Null) {
+                    resultState = TString(rows[0][index].Data.String, rows[0][index].Length);
+                }
+            }
+            if (resultState.empty() && archiveVersion >= 16) {
+                auto index = GET_INDEX("transient_state");
+                if (rows[0][index].Type != EValueType::Null) {
+                    resultState = TString(rows[0][index].Data.String, rows[0][index].Length);
+                }
+            }
+            auto ysonResult = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("operation_id").Value(resultOperationId)
+                    .Item("job_id").Value(resultJobId)
+                    .DoIf(!resultState.empty(), [&] (TFluentMap fluent) {
+                        fluent.Item("state").Value(resultState);
+                    })
+                    SET_ITEM_INSTANT_VALUE("start_time")
+                    SET_ITEM_INSTANT_VALUE("finish_time")
+                    SET_ITEM_STRING_VALUE("address")
+                    SET_ITEM_YSON_STRING_VALUE("error")
+                    SET_ITEM_YSON_STRING_VALUE("statistics")
+                    SET_ITEM_YSON_STRING_VALUE("events")
+                .EndMap();
+#undef SET_ITEM_STRING_VALUE
+#undef SET_ITEM_YSON_STRING_VALUE
+#undef SET_ITEM_INSTANT_VALUE
+#undef SET_ITEM_VALUE
+#undef GET_INDEX
+            return ysonResult;
+        }
+
+        THROW_ERROR_EXCEPTION("No such job %v", jobId);
+    }
+
 
     TYsonString DoStraceJob(
         const TJobId& jobId,

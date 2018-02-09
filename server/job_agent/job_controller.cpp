@@ -2,7 +2,10 @@
 #include "private.h"
 #include "config.h"
 
+#include <limits>
+
 #include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
 #include <yt/server/data_node/master_connector.h>
 #include <yt/server/data_node/chunk_cache.h>
@@ -10,15 +13,20 @@
 #include <yt/server/exec_agent/slot_manager.h>
 
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+#include <yt/ytlib/job_tracker_client/job.pb.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
+
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -57,6 +65,8 @@ public:
         TJobControllerConfigPtr config,
         TBootstrap* bootstrap);
 
+    void Initialize();
+
     void RegisterFactory(
         EJobType type,
         TJobFactory factory);
@@ -67,6 +77,7 @@ public:
 
     TNodeResources GetResourceLimits() const;
     TNodeResources GetResourceUsage(bool includeWaiting = false) const;
+    TDiskResources GetDiskInfo() const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
 
     void SetDisableSchedulerJobs(bool value);
@@ -78,8 +89,7 @@ public:
 
     void ProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response,
-        EObjectType jobObjectType,
-        NRpc::IChannelPtr jobSpecsProxyChannel);
+        EObjectType jobObjectType);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -90,6 +100,8 @@ private:
     THashMap<EJobType, TJobFactory> Factories_;
     THashMap<TJobId, IJobPtr> Jobs_;
 
+    THashSet<TJobId> SpecFetchFailedJobIds_;
+
     bool StartScheduled_ = false;
 
     bool DisableSchedulerJobs_ = false;
@@ -98,14 +110,20 @@ private:
 
     TNodeResourceLimitsOverrides ResourceLimitsOverrides_;
 
+    TNullable<TInstant> UserMemoryOverdraftInstant_;
+    TNullable<TInstant> CpuOverdraftInstant_;
+
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
     TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
 
     bool IncludeStoredJobsInNextSchedulerHeartbeat_ = false;
     TInstant LastStoredJobsSendTime_;
+
+    std::unique_ptr<TMemoryUsageTracker<EMemoryCategory>> ExternalMemoryUsageTracker_;
 
     //! Starts a new job.
     IJobPtr CreateJob(
@@ -161,6 +179,14 @@ private:
 
     void OnProfiling();
 
+    void AdjustResources();
+
+    TMemoryUsageTracker<EMemoryCategory>* GetUserMemoryUsageTracker();
+    TMemoryUsageTracker<EMemoryCategory>* GetSystemMemoryUsageTracker();
+
+    const TMemoryUsageTracker<EMemoryCategory>* GetUserMemoryUsageTracker() const;
+    const TMemoryUsageTracker<EMemoryCategory>* GetSystemMemoryUsageTracker() const;
+
     TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> GetJobsByOrigin() const;
 };
 
@@ -177,16 +203,38 @@ TJobController::TImpl::TImpl(
 {
     YCHECK(config);
     YCHECK(bootstrap);
+}
 
+void TJobController::TImpl::Initialize()
+{
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
         JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", FormatEnum(origin));
     }
+
+    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
+        LOG_INFO("Using external user job memory");
+        ExternalMemoryUsageTracker_ = std::make_unique<TNodeMemoryTracker>(
+            0,
+            std::vector<std::pair<EMemoryCategory, i64>>{},
+            Logger,
+            TProfiler("/exec_agent/external_memory_usage"));
+    }
+
+    GetUserMemoryUsageTracker()->SetCategoryLimit(
+        EMemoryCategory::UserJobs,
+        Config_->ResourceLimits->UserMemory);
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
         BIND(&TImpl::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
     ProfilingExecutor_->Start();
+
+    ResourceAdjustmentExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetControlInvoker(),
+        BIND(&TImpl::AdjustResources, MakeWeak(this)),
+        Config_->ResourceAdjustmentPeriod);
+    ResourceAdjustmentExecutor_->Start();
 }
 
 void TJobController::TImpl::RegisterFactory(EJobType type, TJobFactory factory)
@@ -233,7 +281,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
 {
     TNodeResources result;
 
-    // If chunk cache is disabled, we disable all sheduler jobs.
+    // If chunk cache is disabled, we disable all scheduler jobs.
     result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() && !DisableSchedulerJobs_
         ? Bootstrap_->GetExecSlotManager()->GetSlotCount()
         : 0);
@@ -245,12 +293,22 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 
-    const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    result.set_memory(std::min(
-        tracker->GetLimit(EMemoryCategory::Jobs),
+    const auto* userTracker = GetUserMemoryUsageTracker();
+    result.set_user_memory(std::min(
+        userTracker->GetLimit(EMemoryCategory::UserJobs),
         // NB: The sum of per-category limits can be greater than the total memory limit.
         // Therefore we need bound memory limit by actually available memory.
-        tracker->GetUsed(EMemoryCategory::Jobs) + tracker->GetTotalFree()));
+        userTracker->GetUsed(EMemoryCategory::UserJobs) + userTracker->GetTotalFree()));
+
+    const auto* systemTracker = GetSystemMemoryUsageTracker();
+    result.set_system_memory(std::min(
+        systemTracker->GetLimit(EMemoryCategory::SystemJobs),
+        systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree()));
+
+    auto maybeCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
+    if (maybeCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
+        result.set_cpu(*maybeCpuLimit);
+    }
 
     return result;
 }
@@ -267,9 +325,94 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
     return result;
 }
 
+void TJobController::TImpl::AdjustResources()
+{
+    auto maybeMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
+    if (maybeMemoryLimit) {
+        auto* tracker = GetUserMemoryUsageTracker();
+        tracker->SetTotalLimit(*maybeMemoryLimit);
+    }
+
+    auto usage = GetResourceUsage(false);
+    auto limits = GetResourceLimits();
+
+    bool preemptMemoryOverdraft = false;
+    bool preemptCpuOverdraft = false;
+    if (usage.user_memory() > limits.user_memory()) {
+        if (UserMemoryOverdraftInstant_) {
+            preemptMemoryOverdraft = *UserMemoryOverdraftInstant_ + Config_->MemoryOverdraftTimeout <
+                TInstant::Now();
+        } else {
+            UserMemoryOverdraftInstant_ = TInstant::Now();
+        }
+    } else {
+        UserMemoryOverdraftInstant_ = Null;
+    }
+
+    if (usage.cpu() > limits.cpu()) {
+        if (CpuOverdraftInstant_) {
+            preemptCpuOverdraft = *CpuOverdraftInstant_+ Config_->CpuOverdraftTimeout <
+                TInstant::Now();
+        } else {
+            CpuOverdraftInstant_ = TInstant::Now();
+        }
+    } else {
+        CpuOverdraftInstant_ = Null;
+    }
+
+    LOG_DEBUG("Resource adjustment parameters (PreemptMemoryOverdraft: %v, PreemptCpuOverdraft: %v, "
+        "MemoryOverdraftInstant: %v, CpuOverdraftInstant: %v)",
+        preemptMemoryOverdraft,
+        preemptCpuOverdraft,
+        UserMemoryOverdraftInstant_,
+        CpuOverdraftInstant_);
+
+    if (preemptCpuOverdraft || preemptMemoryOverdraft) {
+        std::vector<IJobPtr> schedulerJobs;
+        for (const auto& pair : Jobs_) {
+            if (TypeFromId(pair.first) == EObjectType::SchedulerJob && pair.second->GetState() == EJobState::Running) {
+                schedulerJobs.push_back(pair.second);
+            }
+        }
+
+        std::sort(schedulerJobs.begin(), schedulerJobs.end(), [] (const IJobPtr& lhs, const IJobPtr& rhs) {
+            return lhs->GetStartTime() < rhs->GetStartTime();
+        });
+
+        while ((preemptCpuOverdraft && usage.cpu() > limits.cpu()) ||
+            (preemptMemoryOverdraft && usage.user_memory() > limits.user_memory()))
+        {
+            if (schedulerJobs.empty()) {
+                break;
+            }
+
+            usage -= schedulerJobs.back()->GetResourceUsage();
+            schedulerJobs.back()->Abort(TError(
+                NExecAgent::EErrorCode::ResourceOverdraft,
+                "Resource usage overdraft adjustment"));
+            schedulerJobs.pop_back();
+        }
+
+        UserMemoryOverdraftInstant_ = Null;
+        CpuOverdraftInstant_ = Null;
+    }
+}
+
+TDiskResources TJobController::TImpl::GetDiskInfo() const
+{
+    return Bootstrap_->GetExecSlotManager()->GetDiskInfo();
+}
+
 void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
 {
     ResourceLimitsOverrides_ = resourceLimits;
+    if (ResourceLimitsOverrides_.has_user_memory()) {
+        GetUserMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
+    }
+
+    if (ResourceLimitsOverrides_.has_system_memory()) {
+        GetSystemMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::SystemJobs, ResourceLimitsOverrides_.system_memory());
+    }
 }
 
 void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
@@ -279,15 +422,20 @@ void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
 
 void TJobController::TImpl::StartWaitingJobs()
 {
-    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-
     bool resourcesUpdated = false;
 
     {
         auto usedResources = GetResourceUsage();
-        auto memoryToRelease = tracker->GetUsed(EMemoryCategory::Jobs) - usedResources.memory();
+
+        auto memoryToRelease = GetUserMemoryUsageTracker()->GetUsed(EMemoryCategory::UserJobs) - usedResources.user_memory();
         if (memoryToRelease > 0) {
-            tracker->Release(EMemoryCategory::Jobs, memoryToRelease);
+            GetUserMemoryUsageTracker()->Release(EMemoryCategory::UserJobs, memoryToRelease);
+            resourcesUpdated = true;
+        }
+
+        memoryToRelease = GetSystemMemoryUsageTracker()->GetUsed(EMemoryCategory::SystemJobs) - usedResources.system_memory();
+        if (memoryToRelease > 0) {
+            GetSystemMemoryUsageTracker()->Release(EMemoryCategory::SystemJobs, memoryToRelease);
             resourcesUpdated = true;
         }
     }
@@ -307,8 +455,8 @@ void TJobController::TImpl::StartWaitingJobs()
             continue;
         }
 
-        if (jobResources.memory() > 0) {
-            auto error = tracker->TryAcquire(EMemoryCategory::Jobs, jobResources.memory());
+        if (jobResources.user_memory() > 0) {
+            auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
                     job->GetId());
@@ -316,7 +464,14 @@ void TJobController::TImpl::StartWaitingJobs()
             }
         }
 
-        LOG_INFO("Starting job (JobId: %v)", job->GetId());
+        if (jobResources.system_memory() > 0) {
+            auto error = GetSystemMemoryUsageTracker()->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
+            if (!error.IsOK()) {
+                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
+                    job->GetId());
+                continue;
+            }
+        }
 
         job->SubscribeResourcesUpdated(
             BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
@@ -459,9 +614,8 @@ bool TJobController::TImpl::CheckResourceUsageDelta(const TNodeResources& delta)
     ITERATE_NODE_RESOURCES(XX)
     #undef XX
 
-    if (delta.memory() > 0) {
-        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        auto error = tracker->TryAcquire(EMemoryCategory::Jobs, delta.memory());
+    if (delta.user_memory() > 0) {
+        auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, delta.user_memory());
         if (!error.IsOK()) {
             return false;
         }
@@ -492,6 +646,8 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     ToProto(request->mutable_node_descriptor(), masterConnector->GetLocalDescriptor());
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
+
+    *request->mutable_disk_info() = GetDiskInfo();
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.
@@ -572,16 +728,35 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
         LOG_DEBUG("Job statistics prepared (RunningJobsStatisticsSize: %v, CompletedJobsStatisticsSize: %v)",
             runningJobsStatisticsSize,
             completedJobsStatisticsSize);
+
+        // TODO(ignat): make it in more general way (non-scheduler specific).
+        for (const auto& jobId : SpecFetchFailedJobIds_) {
+            auto* jobStatus = request->add_jobs();
+            ToProto(jobStatus->mutable_job_id(), jobId);
+            jobStatus->set_job_type(static_cast<int>(EJobType::SchedulerUnknown));
+            jobStatus->set_state(static_cast<int>(EJobState::Aborted));
+            jobStatus->set_phase(static_cast<int>(EJobPhase::Missing));
+            jobStatus->set_progress(0.0);
+
+            TJobResult jobResult;
+            auto error = TError("Failed to get job spec")
+                << TErrorAttribute("abort_reason", NScheduler::EAbortReason::GetSpecFailed);
+            ToProto(jobResult.mutable_error(), error);
+            *jobStatus->mutable_result() = jobResult;
+        }
     }
 }
 
 void TJobController::TImpl::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
-    EObjectType jobObjectType,
-    NRpc::IChannelPtr jobSpecsProxyChannel)
+    EObjectType jobObjectType)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
+        if (SpecFetchFailedJobIds_.erase(jobId) == 1) {
+            continue;
+        }
+
         auto job = FindJob(jobId);
         if (job) {
             RemoveJob(job);
@@ -643,74 +818,124 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
     std::vector<TJobSpec> specs(response->jobs_to_start_size());
 
-    if (specs.empty()) {
+    auto startJob = [&] (const NJobTrackerClient::NProto::TJobStartInfo& startInfo, const TSharedRef& attachment) {
+        TJobSpec spec;
+        DeserializeProtoWithEnvelope(&spec, attachment);
+
+        auto jobId = FromProto<TJobId>(startInfo.job_id());
+        auto operationId = FromProto<TJobId>(startInfo.operation_id());
+        const auto& resourceLimits = startInfo.resource_limits();
+
+        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+    };
+
+    THashMap<TString, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
+    size_t attachmentIndex = 0;
+    for (const auto& startInfo : response->jobs_to_start()) {
+        auto operationId = FromProto<TJobId>(startInfo.operation_id());
+        auto jobId = FromProto<TJobId>(startInfo.job_id());
+        if (attachmentIndex < response->Attachments().size()) {
+            // Start the job right away.
+            LOG_DEBUG("Job spec is passed via attachments (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+            const auto& attachment = response->Attachments()[attachmentIndex];
+            startJob(startInfo, attachment);
+        } else {
+            auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
+            auto maybeAddress = FindAddress(addresses, Bootstrap_->GetLocalNetworks());
+            if (maybeAddress) {
+                const auto& address = *maybeAddress;
+                LOG_DEBUG("Job spec will fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
+                    operationId,
+                    jobId,
+                    address);
+                groupedStartInfos[address].push_back(startInfo);
+            } else {
+                YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                LOG_DEBUG("Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
+                    operationId,
+                    jobId,
+                    GetValues(addresses));
+            }
+        }
+        ++attachmentIndex;
+    }
+
+    if (groupedStartInfos.empty()) {
         return;
     }
 
-    bool hasSpecsInAttachments = !response->Attachments().empty();
+    auto getSpecServiceChannel = [&] (const auto& address) {
+        const auto& client = Bootstrap_->GetMasterClient();
+        const auto& channelFactory = client->GetNativeConnection()->GetChannelFactory();
+        // COMPAT(babenko)
+        return address
+            ? channelFactory->CreateChannel(address)
+            : Bootstrap_->GetMasterClient()->GetSchedulerChannel();
+    };
 
-    if (hasSpecsInAttachments) {
-        int attachmentIndex = 0;
-        for (const auto& info : response->jobs_to_start()) {
-            TJobSpec spec;
-            const auto& attachment = response->Attachments()[attachmentIndex++];
-            DeserializeFromProtoWithEnvelope(&spec, attachment);
+    std::vector<TFuture<void>> asyncResults;
+    for (const auto& pair : groupedStartInfos) {
+        const auto& address = pair.first;
+        const auto& startInfos = pair.second;
 
-            auto jobId = FromProto<TJobId>(info.job_id());
-            auto operationId = FromProto<TJobId>(info.operation_id());
-            const auto& resourceLimits = info.resource_limits();
-
-            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
-        }
-    } else {
-        YCHECK(jobSpecsProxyChannel);
-        TJobSpecServiceProxy jobSpecServiceProxy(jobSpecsProxyChannel);
+        auto channel = getSpecServiceChannel(address);
+        TJobSpecServiceProxy jobSpecServiceProxy(channel);
         jobSpecServiceProxy.SetDefaultTimeout(Config_->GetJobSpecsTimeout);
-
         auto jobSpecRequest = jobSpecServiceProxy.GetJobSpecs();
-        for (const auto& info : response->jobs_to_start()) {
+
+        for (const auto& startInfo : startInfos) {
             auto* subrequest = jobSpecRequest->add_requests();
-            *subrequest->mutable_operation_id() = info.operation_id();
-            *subrequest->mutable_job_id() = info.job_id();
-
-            auto jobId = FromProto<TJobId>(info.job_id());
-            auto operationId = FromProto<TJobId>(info.operation_id());
-            LOG_DEBUG("Getting job spec (OperationId: %v, JobId: %v)",
-                operationId,
-                jobId);
+            *subrequest->mutable_operation_id() = startInfo.operation_id();
+            *subrequest->mutable_job_id() = startInfo.job_id();
         }
 
-        auto jobSpecResponseOrError = WaitFor(jobSpecRequest->Invoke());
-        if (!jobSpecResponseOrError.IsOK()) {
-            LOG_DEBUG(jobSpecResponseOrError, "Failed to get job specs from scheduler");
-            return;
-        }
+        LOG_DEBUG("Getting job specs (SpecServiceAddress: %v, Count: %v)",
+            address,
+            startInfos.size());
 
-        const auto& jobSpecResponse = jobSpecResponseOrError.Value();
-        for (int index = 0; index < response->jobs_to_start_size(); ++index) {
-            const auto& info = response->jobs_to_start(index);
-            auto jobId = FromProto<TJobId>(info.job_id());
-            auto operationId = FromProto<TJobId>(info.operation_id());
-            const auto& resourceLimits = info.resource_limits();
-
-            const auto& subresponse = jobSpecResponse->mutable_responses(index);
-            if (subresponse->has_error()) {
-                auto error = FromProto<TError>(jobSpecResponse->responses(index).error());
-                if (!error.IsOK()) {
-                    LOG_DEBUG(error, "Failed to get job spec from scheduler (OperationId: %v, JobId: %v)",
-                        operationId,
-                        jobId);
-                    continue;
+        auto asyncResult = jobSpecRequest->Invoke().Apply(
+            BIND([=, this_ = MakeStrong(this)] (const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
+                        address);
+                    for (const auto& startInfo : startInfos) {
+                        auto jobId = FromProto<TJobId>(startInfo.job_id());
+                        YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                    }
+                    return;
                 }
-            }
 
-            TJobSpec spec;
-            const auto& attachment = jobSpecResponse->Attachments()[index];
-            DeserializeFromProtoWithEnvelope(&spec, attachment);
+                LOG_DEBUG("Job specs received (SpecServiceAddress: %v)",
+                    address);
 
-            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
-        }
+                const auto& rsp = rspOrError.Value();
+                YCHECK(rsp->responses_size() == startInfos.size());
+                for (size_t  index = 0; index < startInfos.size(); ++index) {
+                    const auto& startInfo = startInfos[index];
+                    auto operationId = FromProto<TJobId>(startInfo.operation_id());
+                    auto jobId = FromProto<TJobId>(startInfo.job_id());
+
+                    const auto& subresponse = rsp->mutable_responses(index);
+                    auto error = FromProto<TError>(subresponse->error());
+                    if (!error.IsOK()) {
+                        YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                        LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
+                            operationId,
+                            jobId);
+                        continue;
+                    }
+
+                    const auto& attachment = rsp->Attachments()[index];
+                    startJob(startInfo, attachment);
+                }
+            })
+            .AsyncVia(Bootstrap_->GetControlInvoker()));
+        asyncResults.push_back(asyncResult);
     }
+
+    Y_UNUSED(WaitFor(CombineAll(asyncResults)));
 }
 
 TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> TJobController::TImpl::GetJobsByOrigin() const
@@ -753,6 +978,17 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                 .BeginMap()
                                     .Item("job_state").Value(job->GetState())
                                     .Item("job_phase").Value(job->GetPhase())
+                                    .Item("job_type").Value(job->GetType())
+                                    .Item("start_time").Value(job->GetStartTime())
+                                    .Item("duration").Value(TInstant::Now() - job->GetStartTime())
+                                    .DoIf(static_cast<bool>(job->GetStatistics()), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("statistics").Value(job->GetStatistics());
+                                    })
+                                    .DoIf(static_cast<bool>(job->GetOperationId()), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("operation_id").Value(job->GetOperationId());
+                                    })
                                 .EndMap();
                         });
                 })
@@ -775,6 +1011,34 @@ void TJobController::TImpl::OnProfiling()
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
 }
 
+TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetUserMemoryUsageTracker()
+{
+    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
+        return ExternalMemoryUsageTracker_.get();
+    } else {
+        return Bootstrap_->GetMemoryUsageTracker();
+    }
+}
+
+TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetSystemMemoryUsageTracker()
+{
+    return Bootstrap_->GetMemoryUsageTracker();
+}
+
+const TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetUserMemoryUsageTracker() const
+{
+    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
+        return ExternalMemoryUsageTracker_.get();
+    } else {
+        return Bootstrap_->GetMemoryUsageTracker();
+    }
+}
+
+const TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetSystemMemoryUsageTracker() const
+{
+    return Bootstrap_->GetMemoryUsageTracker();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobController::TJobController(
@@ -784,6 +1048,12 @@ TJobController::TJobController(
         config,
         bootstrap))
 { }
+
+void TJobController::Initialize()
+{
+    Impl_->Initialize();
+}
+
 
 void TJobController::RegisterFactory(
     EJobType type,
@@ -837,10 +1107,9 @@ void TJobController::PrepareHeartbeatRequest(
 
 void TJobController::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
-    EObjectType jobObjectType,
-    IChannelPtr jobSpecsProxyChannel)
+    EObjectType jobObjectType)
 {
-    Impl_->ProcessHeartbeatResponse(response, jobObjectType, jobSpecsProxyChannel);
+    Impl_->ProcessHeartbeatResponse(response, jobObjectType);
 }
 
 IYPathServicePtr TJobController::GetOrchidService()

@@ -15,6 +15,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -42,11 +44,10 @@ protected:
     NProfiling::TSimpleCounter FlushCounter_;
 
     const NLogging::TLogger Logger;
-
+    const NProfiling::TProfiler Profiler;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

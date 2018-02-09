@@ -52,78 +52,6 @@ public:
 DEFINE_REFCOUNTED_TYPE(TYsonFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EJsonFormat,
-    (Text)
-    (Pretty)
-);
-
-DEFINE_ENUM(EJsonAttributesMode,
-    (Always)
-    (Never)
-    (OnDemand)
-);
-
-class TJsonFormatConfig
-    : public NTableClient::TTypeConversionConfig
-{
-public:
-    EJsonFormat Format;
-    EJsonAttributesMode AttributesMode;
-    bool Plain;
-    bool EncodeUtf8;
-    i64 MemoryLimit;
-
-    TNullable<int> StringLengthLimit;
-
-    bool BooleanAsString;
-
-    bool Stringify;
-    bool AnnotateWithTypes;
-
-    bool SupportInfinity;
-
-    // Size of buffer used read out input stream in parser.
-    // NB: in case of parsing long string yajl holds in memory whole string prefix and copy it on every parse call.
-    // Therefore parsing long strings works faster with larger buffer.
-    int BufferSize;
-
-    //! Only works for tabular data.
-    bool SkipNullValues;
-
-    TJsonFormatConfig()
-    {
-        RegisterParameter("format", Format)
-            .Default(EJsonFormat::Text);
-        RegisterParameter("attributes_mode", AttributesMode)
-            .Default(EJsonAttributesMode::OnDemand);
-        RegisterParameter("plain", Plain)
-            .Default(false);
-        RegisterParameter("encode_utf8", EncodeUtf8)
-            .Default(true);
-        RegisterParameter("string_length_limit", StringLengthLimit)
-            .Default();
-        RegisterParameter("boolean_as_string", BooleanAsString)
-            .Default(false);
-        RegisterParameter("stringify", Stringify)
-            .Default(false);
-        RegisterParameter("annotate_with_types", AnnotateWithTypes)
-            .Default(false);
-        RegisterParameter("support_infinity", SupportInfinity)
-            .Default(false);
-        RegisterParameter("buffer_size", BufferSize)
-            .Default(16 * 1024 * 1024);
-        RegisterParameter("skip_null_values", SkipNullValues)
-            .Default(false);
-
-        // NB: yajl can consume two times more memory than row size.
-        MemoryLimit = 2 * NTableClient::MaxRowWeightLimit;
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TJsonFormatConfig)
-
-////////////////////////////////////////////////////////////////////////////////
 // Readers for Yamr and Dsv share lots of methods and functionality                          //
 // and dependency diagram has the following shape:                                           //
 //                                                                                           //
@@ -292,7 +220,7 @@ public:
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             THashSet<TString> names;
 
             for (const auto& name : KeyColumnNames) {
@@ -368,7 +296,7 @@ public:
         RegisterParameter("enable_column_names_header", EnableColumnNamesHeader)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (Columns) {
                 THashSet<TString> names;
                 for (const auto& name : *Columns) {
@@ -482,7 +410,7 @@ public:
         RegisterParameter("enumerations", Enumerations)
             .Default();
 
-        RegisterValidator([&] {
+        RegisterPostprocessor([&] {
             Validate();
         });
     }
@@ -497,7 +425,7 @@ DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig)
 
 class TSchemalessWebJsonFormatConfig
     : public NYTree::TYsonSerializable
-{ 
+{
 public:
     int RowLimit;
     int ColumnLimit;
@@ -520,6 +448,23 @@ public:
 DEFINE_REFCOUNTED_TYPE(TSchemalessWebJsonFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TSkiffFormatConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NYTree::IMapNodePtr SkiffSchemaRegistry;
+    NYTree::IListNodePtr TableSkiffSchemas;
+
+    TSkiffFormatConfig()
+    {
+        RegisterParameter("skiff_schema_registry", SkiffSchemaRegistry)
+            .Default();
+        RegisterParameter("table_skiff_schemas", TableSkiffSchemas);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSkiffFormatConfig)
 
 } // namespace NFormats
 } // namespace NYT

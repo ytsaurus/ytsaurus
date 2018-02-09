@@ -26,6 +26,7 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NChunkClient;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +54,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TRowRange>& bounds,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
     YCHECK(bounds.Size() > 0);
@@ -99,24 +101,25 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         takePartition((*it)->Stores);
     }
 
-    LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, "
-        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v, BoundCount: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        timestamp,
-        lowerBound,
-        upperBound,
-        workloadDescriptor,
-        MakeFormattableRange(stores, TStoreIdFormatter()),
-        MakeFormattableRange(stores, TStoreRangeFormatter()),
-        bounds.Size());
-
     if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
             << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
             << TErrorAttribute("fan_in", stores.size())
             << TErrorAttribute("fan_in_limit", tabletSnapshot->Config->MaxReadFanIn);
     }
+
+    LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, "
+        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v, BoundCount: %v)",
+        tabletSnapshot->TabletId,
+        tabletSnapshot->CellId,
+        timestamp,
+        lowerBound,
+        upperBound,
+        workloadDescriptor,
+        sessionId,
+        MakeFormattableRange(stores, TStoreIdFormatter()),
+        MakeFormattableRange(stores, TStoreRangeFormatter()),
+        bounds.Size());
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
@@ -143,7 +146,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
                 timestamp,
                 false,
                 columnFilter,
-                workloadDescriptor);
+                workloadDescriptor,
+                sessionId);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,
@@ -160,7 +164,8 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp /*timestamp*/,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId)
 {
     // Deduce tablet index and row range from lower and upper bound.
     YCHECK(lowerBound.GetCount() >= 1);
@@ -223,7 +228,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         upperRowIndex = totalRowCount;
     }
 
-    std::vector<std::function<ISchemafulReaderPtr()>> readers;
+    std::vector<IOrderedStorePtr> stores;
     if (lowerRowIndex < upperRowIndex && !tabletSnapshot->OrderedStores.empty()) {
         auto lowerIt = std::upper_bound(
             tabletSnapshot->OrderedStores.begin(),
@@ -238,17 +243,33 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
             if (store->GetStartingRowIndex() >= upperRowIndex) {
                 break;
             }
-            readers.emplace_back([=] () {
-                return store->CreateReader(
-                    tabletSnapshot,
-                    tabletIndex,
-                    lowerRowIndex,
-                    upperRowIndex,
-                    columnFilter,
-                    workloadDescriptor);
-            });
+            stores.push_back(store);
             ++it;
         }
+    }
+
+    LOG_DEBUG("Creating schemaful ordered tablet reader (TabletId: %v, CellId: %v, "
+        "LowerRowIndex: %v, UpperRowIndex: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v)",
+        tabletSnapshot->TabletId,
+        tabletSnapshot->CellId,
+        lowerRowIndex,
+        upperRowIndex,
+        workloadDescriptor,
+        sessionId,
+        MakeFormattableRange(stores, TStoreIdFormatter()));
+
+    std::vector<std::function<ISchemafulReaderPtr()>> readers;
+    for (const auto& store : stores) {
+        readers.emplace_back([=] () {
+            return store->CreateReader(
+                tabletSnapshot,
+                tabletIndex,
+                lowerRowIndex,
+                upperRowIndex,
+                columnFilter,
+                workloadDescriptor,
+                sessionId);
+        });
     }
 
     return CreateSchemafulConcatenatingReader(readers);
@@ -260,7 +281,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId)
 {
     if (tabletSnapshot->PhysicalSchema.IsSorted()) {
         return CreateSchemafulSortedTabletReader(
@@ -268,7 +290,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             columnFilter,
             MakeSingletonRowRange(lowerBound, upperBound),
             timestamp,
-            workloadDescriptor);
+            workloadDescriptor,
+            sessionId);
     } else {
         return CreateSchemafulOrderedTabletReader(
             std::move(tabletSnapshot),
@@ -276,7 +299,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             std::move(lowerBound),
             std::move(upperBound),
             timestamp,
-            workloadDescriptor);
+            workloadDescriptor,
+            sessionId);
     }
 }
 
@@ -291,6 +315,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId,
     TRowBufferPtr rowBuffer)
 {
     auto minKey = *keys.Begin();
@@ -310,11 +335,12 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     takeStores(paritionSnapshot->Stores);
 
     LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, WorkloadDescriptor: %v, "
-        "StoreIds: %v, StoreRanges: %v)",
+        " ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
         workloadDescriptor,
+        sessionId,
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
@@ -335,7 +361,8 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
                     timestamp,
                     false,
                     columnFilter,
-                    workloadDescriptor);
+                    workloadDescriptor,
+                    sessionId);
             } else {
                 return nullptr;
             }
@@ -349,7 +376,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
@@ -397,6 +425,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
                 partitionedKeys[index],
                 timestamp,
                 workloadDescriptor,
+                sessionId,
                 rowBuffer);
             ++index;
             return reader;
@@ -417,7 +446,9 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId,
+    int minConcurrency)
 {
     if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
@@ -426,7 +457,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
-        "CurrentTimestamp: %llx, MajorTimestamp: %llx, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
+        "CurrentTimestamp: %llx, MajorTimestamp: %llx, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         lowerBound,
@@ -434,6 +465,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         currentTimestamp,
         majorTimestamp,
         workloadDescriptor,
+        sessionId,
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
@@ -459,14 +491,14 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
             Y_ASSERT(index < stores.size());
-
             return stores[index]->CreateReader(
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
                 AllCommittedTimestamp,
                 true,
                 TColumnFilter(),
-                workloadDescriptor);
+                workloadDescriptor,
+                sessionId);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,
@@ -475,7 +507,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
             const TUnversionedValue* rhsEnd)
         {
             return keyComparer(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
-        });
+        },
+        minConcurrency);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

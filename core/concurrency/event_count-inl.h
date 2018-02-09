@@ -6,6 +6,8 @@
 
 #include "futex-inl.h"
 
+#include <errno.h>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -62,34 +64,56 @@ inline void TEventCount::CancelWait()
     Y_ASSERT((prev & WaiterMask) != 0);
 }
 
-inline void TEventCount::Wait(TCookie cookie)
+inline bool TEventCount::Wait(TCookie cookie, TNullable<TInstant> deadline)
 {
+    bool result = true;
 #ifdef _linux_
     while ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
-        NDetail::futex(
+        struct timespec timeoutSpec;
+
+        if (deadline) {
+            if (deadline.Get() > TInstant::Now()) {
+                auto timeout = deadline.Get() - TInstant::Now();
+                timeoutSpec.tv_sec = timeout.Seconds();
+                timeout -= TDuration(timeout.Seconds());
+                timeoutSpec.tv_nsec = timeout.MicroSeconds() * 1000;
+            }
+        }
+
+        auto futexResult = NDetail::futex(
             reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture
             FUTEX_WAIT_PRIVATE,
             cookie.Epoch_,
-            nullptr,
+            deadline ? &timeoutSpec : nullptr,
             nullptr,
             0);
+
+        if (futexResult != 0 && errno == ETIMEDOUT) {
+            result = false;
+            break;
+        }
     }
 #else
     TGuard<TMutex> guard(Mutex_);
     if ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
-        ConditionVariable_.WaitI(Mutex_);
+        if (deadline) {
+            result = ConditionVariable_.WaitD(Mutex_, deadline.Get());
+        } else {
+            ConditionVariable_.WaitI(Mutex_);
+        }
     }
 #endif
     ui64 prev = Value_.fetch_add(SubWaiter, std::memory_order_seq_cst);
     Y_ASSERT((prev & WaiterMask) != 0);
+    return result;
 }
 
 template <class TCondition>
-void TEventCount::Await(TCondition condition)
+bool TEventCount::Await(TCondition condition, TNullable<TInstant> deadline)
 {
     if (condition()) {
         // Fast path.
-        return;
+        return true;
     }
 
     // condition() is the only thing that may throw, everything else is
@@ -101,13 +125,17 @@ void TEventCount::Await(TCondition condition)
                 CancelWait();
                 break;
             } else {
-                Wait(cookie);
+                auto result = Wait(cookie, deadline);
+                if (!result) {
+                    return false;
+                }
             }
         }
     } catch (...) {
         CancelWait();
         throw;
     }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,9 +157,12 @@ inline bool TEvent::Test() const
     return Set_.load(std::memory_order_acquire);
 }
 
-inline void TEvent::Wait()
+inline bool TEvent::Wait(TNullable<TInstant> deadline)
 {
-    EventCount_.Await([=] () { return Set_.load(std::memory_order_acquire); });
+    return EventCount_.Await([=] () {
+            return Set_.load(std::memory_order_acquire);
+        },
+        deadline);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

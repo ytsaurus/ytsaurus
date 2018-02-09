@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 namespace NYT {
 namespace NControllerAgent {
@@ -8,23 +8,23 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateOrderedMergeController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation);
 
 IOperationControllerPtr CreateOrderedMapController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation);
 
 IOperationControllerPtr CreateEraseController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation);
 
 IOperationControllerPtr CreateRemoteCopyController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////

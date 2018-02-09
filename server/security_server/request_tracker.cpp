@@ -200,7 +200,7 @@ void TRequestTracker::OnFlush()
 
     Reset();
 
-    WaitFor(asyncResult);
+    Y_UNUSED(WaitFor(asyncResult));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

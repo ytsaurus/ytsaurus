@@ -44,7 +44,7 @@ public:
     void Start();
 
     //! Stops the instance, cancels all subsequent invocations.
-    //! Returns a future that becomes set when all outstanding callback 
+    //! Returns a future that becomes set when all outstanding callback
     //! invocations are finished and no more invocations are expected to happen.
     TFuture<void> Stop();
 
@@ -57,6 +57,10 @@ public:
     //! Changes execution period.
     void SetPeriod(TDuration period);
 
+    //! Returns the future that become set when
+    //! at least one action be fully executed from the moment of method call.
+    TFuture<void> GetExecutedEvent();
+
 private:
     const IInvokerPtr Invoker_;
     const TClosure Callback_;
@@ -68,9 +72,17 @@ private:
     bool Started_ = false;
     bool Busy_ = false;
     bool OutOfBandRequested_ = false;
+    bool ExecutingCallback_ = false;
     TDelayedExecutorCookie Cookie_;
     TPromise<void> IdlePromise_;
+    TPromise<void> ExecutedPromise_;
 
+    void DoStop();
+
+    TError GetStoppedError();
+
+    void InitIdlePromise();
+    void InitExecutedPromise();
 
     void PostDelayedCallback(TDuration delay);
     void PostCallback();

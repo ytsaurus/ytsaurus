@@ -8,7 +8,7 @@
 #include "ypath_detail.h"
 #include "ypath_service.h"
 
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {
@@ -52,6 +52,8 @@ public:
 #undef IMPLEMENT_AS_METHODS
 
     virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
+
+    virtual TYPath GetPath() const override;
 
 protected:
     template <class TNode>
@@ -188,7 +190,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YTREE_NODE_TYPE_OVERRIDES(key) \
+#define YTREE_NODE_TYPE_OVERRIDES_BASE(key) \
 public: \
     virtual ::NYT::NYTree::ENodeType GetType() const override \
     { \
@@ -203,8 +205,10 @@ public: \
     virtual TIntrusivePtr< ::NYT::NYTree::I##key##Node > As##key() override \
     { \
         return this; \
-    } \
-    \
+    }
+
+#define YTREE_NODE_TYPE_OVERRIDES(key) \
+    YTREE_NODE_TYPE_OVERRIDES_BASE(key) \
 protected: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override \
     { \

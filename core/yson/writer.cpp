@@ -4,6 +4,10 @@
 
 #include <yt/core/misc/varint.h>
 
+#include <util/stream/buffer.h>
+
+#include <cmath>
+
 namespace NYT {
 namespace NYson {
 
@@ -105,6 +109,30 @@ void EscapeC(const char* str, size_t len, IOutputStream& output) {
         output.Write(str, len);
     }
 }
+
+size_t FloatToStringWithNanInf(double value, char* buf, size_t size)
+{
+    if (std::isfinite(value)) {
+        return FloatToString(value, buf, size);
+    }
+
+    static const auto nanLiteral = STRINGBUF("%nan");
+    static const auto infLiteral = STRINGBUF("%inf");
+    static const auto negativeInfLiteral = STRINGBUF("%-inf");
+
+    TStringBuf str;
+    if (std::isnan(value)) {
+        str = nanLiteral;
+    } else if (std::isinf(value) && value > 0) {
+        str = infLiteral;
+    } else {
+        str = negativeInfLiteral;
+    }
+    YCHECK(str.Size() + 1 <= size);
+    ::memcpy(buf, str.Data(), str.Size() + 1);
+    return str.Size();
+}
+
 
 } // namespace
 
@@ -223,9 +251,9 @@ void TYsonWriter::OnDoubleScalar(double value)
         Stream_->Write(&value, sizeof(double));
     } else {
         char buf[256];
-        auto str = TStringBuf(buf, FloatToString(value, buf, sizeof(buf)));
+        auto str = TStringBuf(buf, FloatToStringWithNanInf(value, buf, sizeof(buf)));
         Stream_->Write(str);
-        if (str.find('.') == TString::npos && str.find('e') == TString::npos) {
+        if (str.find('.') == TString::npos && str.find('e') == TString::npos && std::isfinite(value)) {
             Stream_->Write(".");
         }
     }

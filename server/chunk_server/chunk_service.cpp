@@ -78,6 +78,7 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
+        SyncWithUpstream();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());

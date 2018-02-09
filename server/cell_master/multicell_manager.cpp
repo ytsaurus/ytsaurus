@@ -93,7 +93,8 @@ public:
         TCellTag cellTag,
         bool reliable)
     {
-        DoPostMessage(BuildHiveMessage(message), TCellTagList{cellTag}, reliable);
+        auto encapsulatedMessage = BuildHiveMessage(message);
+        DoPostMessage(std::move(encapsulatedMessage), TCellTagList{cellTag}, reliable);
     }
 
     void PostToMasters(
@@ -101,9 +102,12 @@ public:
         const TCellTagList& cellTags,
         bool reliable)
     {
-        if (!cellTags.empty()) {
-            DoPostMessage(BuildHiveMessage(message), cellTags, reliable);
+        if (cellTags.empty()) {
+            return;
         }
+
+        auto encapsulatedMessage = BuildHiveMessage(message);
+        DoPostMessage(std::move(encapsulatedMessage), cellTags, reliable);
     }
 
     void PostToSecondaryMasters(
@@ -639,7 +643,8 @@ private:
     }
 
 
-    TEncapsulatedMessage BuildHiveMessage(const TCrossCellMessage& crossCellMessage)
+    TRefCountedEncapsulatedMessagePtr BuildHiveMessage(
+        const TCrossCellMessage& crossCellMessage)
     {
         if (const auto* protoPtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TProtoMessage>()) {
             return NHiveServer::SerializeMessage(*protoPtr->Message);
@@ -671,7 +676,7 @@ private:
     }
 
     void DoPostMessage(
-        const TEncapsulatedMessage& message,
+        TRefCountedEncapsulatedMessagePtr message,
         const TCellTagList& cellTags,
         bool reliable)
     {
@@ -687,7 +692,7 @@ private:
                 YCHECK(!reliable);
             }
         }
-        hiveManager->PostMessage(mailboxes, message, reliable);
+        hiveManager->PostMessage(mailboxes, std::move(message), reliable);
     }
 };
 

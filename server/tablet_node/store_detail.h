@@ -49,7 +49,7 @@ public:
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
 
-    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     virtual bool IsDynamic() const override;
     virtual IDynamicStorePtr AsDynamic() override;
@@ -140,7 +140,7 @@ public:
     virtual TInstant GetLastFlushAttemptTimestamp() const override;
     virtual void UpdateFlushAttemptTimestamp() override;
 
-    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     virtual bool IsDynamic() const override;
     virtual IDynamicStorePtr AsDynamic() override;
@@ -206,7 +206,7 @@ public:
     virtual TCallback<void(TSaveContext&)> AsyncSave() override;
     virtual void AsyncLoad(TLoadContext& context) override;
 
-    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     // IChunkStore implementation.
     virtual void SetBackingStore(IDynamicStorePtr store) override;

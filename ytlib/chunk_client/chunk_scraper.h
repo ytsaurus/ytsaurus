@@ -17,7 +17,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<void(const TChunkId& chunkId, const TChunkReplicaList& replicas)> TChunkLocatedHandler;
+typedef TCallback<void(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)> TChunkLocatedHandler;
 
 //! A chunk scraper for unavailable chunks.
 class TChunkScraper

@@ -43,6 +43,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
+    const NChunkClient::TReadSessionId& sessionId,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TReadRange& readRange,
@@ -54,6 +55,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
+    const NChunkClient::TReadSessionId& sessionId,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
@@ -91,6 +93,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
+    const NChunkClient::TReadSessionId& sessionId,
     const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns &keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
@@ -108,8 +111,9 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
+    const NChunkClient::TReadSessionId& sessionId,
     const TColumnFilter& columnFilter = TColumnFilter(),
-    const TKeyColumns &keyColumns = TKeyColumns(),
+    const TKeyColumns& keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
@@ -125,6 +129,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
+    const NChunkClient::TReadSessionId& sessionId,
     const TColumnFilter& columnFilter,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 

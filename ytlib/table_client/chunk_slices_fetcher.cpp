@@ -93,7 +93,7 @@ TFuture<void> TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vec
 
     auto req = proxy.GetChunkSlices();
     req->SetHeavy(true);
-    req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
+    req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     req->set_slice_data_size(ChunkSliceSize_);
     req->set_slice_by_keys(SliceByKeys_);
     req->set_keys_in_attachment(true);

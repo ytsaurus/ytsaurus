@@ -1,3 +1,4 @@
+#include "config.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell.h"
 
@@ -11,6 +12,9 @@ namespace NTabletServer {
 using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NTabletClient;
+using namespace NChunkClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +22,7 @@ TTabletCellBundle::TTabletCellBundle(const TTabletCellBundleId& id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
+    , TabletBalancerConfig_(New<TTabletBalancerConfig>())
 { }
 
 void TTabletCellBundle::Save(TSaveContext& context) const
@@ -30,7 +35,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, *Options_);
     Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
-    Save(context, EnableTabletBalancer_);
+    Save(context, *TabletBalancerConfig_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -43,7 +48,16 @@ void TTabletCellBundle::Load(TLoadContext& context)
     if (context.GetVersion() >= 400) {
         Load(context, Acd_);
     }
-    Load(context, *Options_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 625) {
+        Load(context, *Options_);
+    } else {
+        auto str = NYT::Load<TYsonString>(context);
+        auto node = ConvertTo<INodePtr>(str);
+        node->AsMap()->AddChild(ConvertTo<INodePtr>(DefaultStoreAccountName), "changelog_account");
+        node->AsMap()->AddChild(ConvertTo<INodePtr>(DefaultStoreAccountName), "snapshot_account");
+        Options_->Load(node);
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
         // COMPAT(savrus)
@@ -59,8 +73,14 @@ void TTabletCellBundle::Load(TLoadContext& context)
     if (context.GetVersion() >= 400) {
         Load(context, TabletCells_);
     }
-    if (context.GetVersion() >= 614) {
-        Load(context, EnableTabletBalancer_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 624) {
+        Load(context, *TabletBalancerConfig_);
+    } else if (context.GetVersion() >= 614) {
+        bool enableTabletBalancer;
+        Load(context, enableTabletBalancer);
+        TabletBalancerConfig_->EnableInMemoryBalancer = enableTabletBalancer;
+        TabletBalancerConfig_->EnableTabletSizeBalancer = enableTabletBalancer;
     }
 
     //COMPAT(savrus)
@@ -77,6 +97,19 @@ void TTabletCellBundle::Load(TLoadContext& context)
             }
         }
     }
+
+    FillProfilingTag();
+}
+
+void TTabletCellBundle::SetName(TString name)
+{
+    Name_ = name;
+    FillProfilingTag();
+}
+
+TString TTabletCellBundle::GetName() const
+{
+    return Name_;
 }
 
 void TTabletCellBundle::FillProfilingTag()

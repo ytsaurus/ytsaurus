@@ -3,10 +3,13 @@
 #include "serialize.h"
 #include "shutdown.h"
 #include "stream.h"
+#include "lazy_list_fragment_parser.h"
 #include "lazy_parser.h"
+#include "lazy_yson_consumer.h"
 #include "yson_lazy_map.h"
 #include "object_builder.h"
 #include "protobuf_descriptor_pool.h"
+#include "list_fragment_parser.h"
 
 #include <yt/core/ytree/convert.h>
 
@@ -151,7 +154,7 @@ public:
     void Init(IInputStream* inputStream, std::unique_ptr<IInputStream> inputStreamOwner)
     {
         InputStreamOwner_ = std::move(inputStreamOwner);
-        Lexer_ = TListFragmentLexer(inputStream);
+        Parser_ = TListFragmentParser(inputStream);
     }
 
     Py::Object iter()
@@ -166,7 +169,7 @@ public:
 
             {
                 TReleaseAcquireGilGuard guard;
-                item = Lexer_.NextItem();
+                item = Parser_.NextItem();
             }
 
             if (!item) {
@@ -195,7 +198,7 @@ public:
 
 private:
     std::unique_ptr<IInputStream> InputStreamOwner_;
-    TListFragmentLexer Lexer_;
+    TListFragmentParser Parser_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,11 +219,8 @@ public:
         bool alwaysCreateAttributes)
     {
         InputStreamOwner_ = std::move(inputStreamOwner);
-        Lexer_ = TListFragmentLexer(inputStream);
-        LoadsParams_ = loadsParams;
-        Encoding_ = encoding;
-        AlwaysCreateAttributes_ = alwaysCreateAttributes;
-        KeyCache_ = TPythonStringCache(true, Encoding_);
+        KeyCache_ = TPythonStringCache(true, encoding);
+        Parser_.reset(new TLazyListFragmentParser(inputStream, encoding, alwaysCreateAttributes, &KeyCache_));
     }
 
     Py::Object iter()
@@ -231,14 +231,12 @@ public:
     PyObject* iternext()
     {
         try {
-            auto item = Lexer_.NextItem();
+            auto item = Parser_->NextItem();
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);
                 return nullptr;
             }
-            auto result = TString(item.Begin(), item.Size() - 1);
-            TOwningStringInput rawStream(result);
-            return ParseLazyDict(&rawStream, NYson::EYsonType::Node, Encoding_, AlwaysCreateAttributes_, &KeyCache_);
+            return item;
         } CATCH("Yson load failed");
     }
 
@@ -258,11 +256,8 @@ public:
 
 private:
     std::unique_ptr<IInputStream> InputStreamOwner_;
-    TListFragmentLexer Lexer_;
-    Py::Tuple LoadsParams_;
+    std::unique_ptr<TLazyListFragmentParser> Parser_;
     TPythonStringCache KeyCache_;
-    TNullable<TString> Encoding_;
-    bool AlwaysCreateAttributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -473,9 +468,8 @@ private:
                 iter->Init(inputStreamPtr, std::move(inputStream), params, encoding, alwaysCreateAttributes);
                 return pythonIter;
             }
-            TPythonStringCache keyCacher(false, encoding);
 
-            return Py::Object(ParseLazyDict(inputStreamPtr, ysonType, encoding, alwaysCreateAttributes, &keyCacher));
+            return ParseLazyYson(inputStreamPtr, encoding, alwaysCreateAttributes, ysonType);
         }
 
         if (ysonType == NYson::EYsonType::ListFragment) {
@@ -494,6 +488,7 @@ private:
                 iter->Init(inputStreamPtr, std::move(inputStream), alwaysCreateAttributes, encoding);
                 return pythonIter;
             }
+
         } else {
             if (raw) {
                 throw CreateYsonError("Raw mode is only supported for list fragments");

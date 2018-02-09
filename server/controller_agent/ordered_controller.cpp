@@ -5,6 +5,7 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "operation.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
@@ -18,6 +19,8 @@
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/ytlib/query_client/query.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -59,12 +62,17 @@ class TOrderedControllerBase
 {
 public:
     TOrderedControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
+        TControllerAgentConfigPtr config,
         TSimpleOperationOptionsPtr options,
-        IOperationHost* host,
+        IOperationControllerHostPtr host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(
+            spec,
+            config,
+            options,
+            host,
+            operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -110,8 +118,11 @@ protected:
         TOrderedTask(TOrderedControllerBase* controller)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateOrderedChunkPool(controller->GetOrderedChunkPoolOptions(), controller->GetInputStreamDirectory()))
-        { }
+        {
+            auto options = controller->GetOrderedChunkPoolOptions();
+            options.Task = GetTitle();
+            ChunkPool_ = CreateOrderedChunkPool(options, controller->GetInputStreamDirectory());
+        }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
@@ -144,11 +155,6 @@ protected:
 
         std::unique_ptr<IChunkPool> ChunkPool_;
 
-        virtual TString GetId() const override
-        {
-            return Format("Ordered");
-        }
-
         virtual TTaskGroupPtr GetGroup() const override
         {
             return Controller_->OrderedTaskGroup_;
@@ -156,7 +162,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller_->Spec_->LocalityTimeout;
+            return Controller_->IsLocalityEnabled()
+                ? Controller_->Spec_->LocalityTimeout
+                : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
@@ -248,11 +256,6 @@ protected:
     virtual TCpuResource GetCpuLimit() const
     {
         return 1;
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const
-    {
-        return 0;
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const
@@ -358,28 +361,10 @@ protected:
         InitJobSpecTemplate();
     }
 
-    // Progress reporting.
-
-    virtual TString GetLoggingProgress() const override
-    {
-        return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-            "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
-            GetUnavailableInputChunkCount());
-    }
-
     //! Initializes #JobIOConfig.
     void InitJobIOConfig()
     {
         JobIOConfig_ = CloneYsonSerializable(Spec_->JobIO);
-        InitFinalOutputConfig(JobIOConfig_);
     }
 
     void InitTeleportableInputTables()
@@ -423,7 +408,7 @@ protected:
 
         ProcessInputs();
 
-        OrderedTask_->FinishInput();
+        FinishTaskInput(OrderedTask_);
 
         for (const auto& teleportChunk : OrderedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
             if (OrderedOutputRequired_) {
@@ -454,6 +439,22 @@ protected:
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         return chunkPoolOptions;
     }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+               ? Options_->JobSplitter
+               : nullptr;
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return !IsExplicitJobCount_ &&
+               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+               2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+               TOperationControllerBase::IsJobInterruptible();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedControllerBase::TOrderedTask);
@@ -465,15 +466,19 @@ class TOrderedMergeController
 {
 public:
     TOrderedMergeController(
-        TSchedulerConfigPtr config,
         TOrderedMergeOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentConfigPtr config,
+        TSimpleOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TOperation* operation)
-        : TOrderedControllerBase(config, spec, config->OrderedMergeOperationOptions, host, operation)
+        : TOrderedControllerBase(
+            spec,
+            config,
+            options,
+            host,
+            operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -545,9 +550,7 @@ private:
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+        SetInputDataSources(schedulerJobSpecExt);
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
     }
 
@@ -601,17 +604,23 @@ private:
     {
         return {EJobType::OrderedMerge};
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
 
 IOperationControllerPtr CreateOrderedMergeController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(operation->GetSpec());
-    return New<TOrderedMergeController>(config, spec, host, operation);
+    return New<TOrderedMergeController>(spec, config, config->OrderedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,17 +630,20 @@ class TOrderedMapController
 {
 public:
     TOrderedMapController(
-        TSchedulerConfigPtr config,
         TMapOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentConfigPtr config,
+        TMapOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TOperation* operation)
-        : TOrderedControllerBase(config, spec, config->MapOperationOptions, host, operation)
+        : TOrderedControllerBase(
+            spec,
+            config,
+            options,
+            host,
+            operation)
         , Spec_(spec)
-        , Options_(config->MapOperationOptions)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
-    }
+        , Options_(options)
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -676,12 +688,12 @@ private:
         return Spec_->Mapper->CpuLimit;
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TOperationControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TOperationControllerBase::BuildBriefSpec(fluent);
+        fluent
             .Item("mapper").BeginMap()
-            .Item("command").Value(TrimCommandForBriefSpec(Spec_->Mapper->Command))
+                .Item("command").Value(TrimCommandForBriefSpec(Spec_->Mapper->Command))
             .EndMap();
     }
 
@@ -689,19 +701,6 @@ private:
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
-    }
-
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
-    {
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet);
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec_->Mapper);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -740,20 +739,18 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
 
         if (Spec_->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec_->Mapper,
-            Files,
+            UserJobFiles_[Spec_->Mapper],
             Spec_->JobNodeAccount);
     }
 
@@ -767,21 +764,6 @@ private:
         if (Spec_->InputQuery) {
             ParseInputQuery(*Spec_->InputQuery, Spec_->InputSchema);
         }
-    }
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
-            ? Options_->JobSplitter
-            : nullptr;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return !IsExplicitJobCount_ &&
-               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-               TOperationControllerBase::IsJobInterruptible();
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
@@ -799,13 +781,9 @@ private:
         return {EJobType::OrderedMap};
     }
 
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec_->Mapper->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
+        return {Spec_->Mapper};
     }
 
     virtual void DoInitialize() override
@@ -814,17 +792,22 @@ private:
 
         ValidateUserFileCount(Spec_->Mapper, "mapper");
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
 
 IOperationControllerPtr CreateOrderedMapController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TOrderedMapController>(config, spec, host, operation);
+    return New<TOrderedMapController>(spec, config, config->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -834,15 +817,19 @@ class TEraseController
 {
 public:
     TEraseController(
-        TSchedulerConfigPtr config,
         TEraseOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentConfigPtr config,
+        TSimpleOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TOperation* operation)
-        : TOrderedControllerBase(config, spec, config->EraseOperationOptions, host, operation)
+        : TOrderedControllerBase(
+            spec,
+            config,
+            options,
+            host,
+            operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -872,10 +859,10 @@ private:
         return true;
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TOrderedControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TOrderedControllerBase::BuildBriefSpec(fluent);
+        fluent
             // In addition to "input_table_paths" and "output_table_paths".
             // Quite messy, only needed for consistency with the regular spec.
             .Item("table_path").Value(Spec_->TablePath);
@@ -984,10 +971,8 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
@@ -1001,17 +986,23 @@ private:
     {
         return EJobType::OrderedMerge;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
 
 IOperationControllerPtr CreateEraseController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
-    return New<TEraseController>(config, spec, host, operation);
+    return New<TEraseController>(spec, config, config->EraseOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1021,18 +1012,22 @@ class TRemoteCopyController
 {
 public:
     TRemoteCopyController(
-        TSchedulerConfigPtr config,
         TRemoteCopyOperationSpecPtr spec,
-        IOperationHost* host,
+        TControllerAgentConfigPtr config,
+        TRemoteCopyOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
         TOperation* operation)
-        : TOrderedControllerBase(config, spec, config->RemoteCopyOperationOptions, host, operation)
+        : TOrderedControllerBase(
+            spec,
+            config,
+            options,
+            host,
+            operation)
         , Spec_(spec)
-        , Options_(config->RemoteCopyOperationOptions)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
-    }
+        , Options_(options)
+    { }
 
-    void Persist(const TPersistenceContext& context)
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TOrderedControllerBase::Persist(context);
         using NYT::Persist;
@@ -1040,6 +1035,11 @@ public:
         Persist(context, Spec_);
         Persist(context, Options_);
         Persist<TAttributeDictionaryRefSerializer>(context, InputTableAttributes_);
+    }
+
+    virtual IJobSplitter* GetJobSplitter() override
+    {
+        return nullptr;
     }
 
 private:
@@ -1065,35 +1065,27 @@ private:
         return false;
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(TFluentMap fluent) const override
     {
-        TOperationControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
+        TOperationControllerBase::BuildBriefSpec(fluent);
+        fluent
             .Item("cluster_name").Value(Spec_->ClusterName)
             .Item("network_name").Value(Spec_->NetworkName);
     }
 
     // Custom bits of preparation pipeline.
-    virtual void InitializeTransactions() override
+    virtual TTransactionId GetInputTransactionParentId() override
     {
-        std::vector<TFuture<void>> startFutures {
-            StartAsyncSchedulerTransaction(),
-            StartInputTransaction(NullTransactionId),
-            StartOutputTransaction(UserTransactionId),
-            StartDebugOutputTransaction(),
-        };
-        WaitFor(Combine(startFutures))
-            .ThrowOnError();
-        AreTransactionsActive = true;
+        return {};
     }
 
-    virtual void InitializeConnections() override
+    virtual void InitializeClients() override
     {
-        auto connection = GetRemoteConnection();
+        TOperationControllerBase::InitializeClients();
 
         TClientOptions options;
         options.User = AuthenticatedUser;
-        AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
+        InputClient = GetRemoteConnection()->CreateNativeClient(options);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -1163,7 +1155,7 @@ private:
 
             const auto& path = Spec_->InputTablePaths[0].GetPath();
 
-            auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");
@@ -1187,7 +1179,7 @@ private:
         if (Spec_->CopyAttributes) {
             const auto& path = Spec_->OutputTablePath.GetPath();
 
-            auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
 
             auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
@@ -1197,7 +1189,7 @@ private:
             for (const auto& key : attributeKeys) {
                 auto req = TYPathProxy::Set(path + "/@" + key);
                 req->set_value(InputTableAttributes_->GetYson(key).GetData());
-                SetTransactionId(req, CompletionTransaction->GetId());
+                SetTransactionId(req, OutputCompletionTransaction->GetId());
                 batchReq->AddRequest(req);
             }
 
@@ -1213,11 +1205,9 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
             TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
         schedulerJobSpecExt->set_table_reader_options("");
-        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        SetInputDataSources(schedulerJobSpecExt);
 
         auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
         if (Spec_->NetworkName) {
@@ -1236,7 +1226,7 @@ private:
             return CreateNativeConnection(*Spec_->ClusterConnection);
         } else if (Spec_->ClusterName) {
             auto connection = Host
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(*Spec_->ClusterName);
@@ -1283,17 +1273,27 @@ private:
     {
         return std::numeric_limits<i64>::max();
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
 
 IOperationControllerPtr CreateRemoteCopyController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
-    return New<TRemoteCopyController>(config, spec, host, operation);
+    return New<TRemoteCopyController>(spec, config, config->RemoteCopyOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,19 +2,19 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/ytlib/hive/hive_service.pb.h>
+
 namespace NYT {
 namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHiveClient::NProto::TEncapsulatedMessage SerializeMessage(const ::google::protobuf::MessageLite& message)
+TRefCountedEncapsulatedMessagePtr SerializeMessage(
+    const ::google::protobuf::MessageLite& protoMessage)
 {
-    NHiveClient::NProto::TEncapsulatedMessage encapsulatedMessage;
-    encapsulatedMessage.set_type(message.GetTypeName());
-
-    auto serializedMessage = SerializeToProtoWithEnvelope(message);
-    encapsulatedMessage.set_data(ToString(serializedMessage));
-
+    auto encapsulatedMessage = New<TRefCountedEncapsulatedMessage>();
+    encapsulatedMessage->set_type(protoMessage.GetTypeName());
+    encapsulatedMessage->set_data(SerializeProtoToStringWithEnvelope(protoMessage));
     return encapsulatedMessage;
 }
 

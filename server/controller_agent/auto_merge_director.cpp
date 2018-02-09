@@ -93,8 +93,7 @@ void TAutoMergeDirector::OnTaskJobStarted(int intermediateChunkCountEstimate)
 void TAutoMergeDirector::OnTaskJobFinished(int intermediateChunkCountEstimate)
 {
     --RunningTaskJobCount_;
-    CurrentIntermediateChunkCount_ -= intermediateChunkCountEstimate;
-    YCHECK(CurrentIntermediateChunkCount_ >= 0);
+    CurrentIntermediateChunkCount_ = std::max(CurrentIntermediateChunkCount_ - intermediateChunkCountEstimate, 0);
     StateChanged_.Fire();
 }
 
@@ -120,8 +119,7 @@ void TAutoMergeDirector::OnMergeJobFinished(int unregisteredOutputChunkCount)
 {
     --RunningMergeJobCount_;
     YCHECK(RunningMergeJobCount_ >= 0);
-    CurrentIntermediateChunkCount_ -= unregisteredOutputChunkCount;
-    YCHECK(CurrentIntermediateChunkCount_ >= 0);
+    CurrentIntermediateChunkCount_ = std::max(CurrentIntermediateChunkCount_ - unregisteredOutputChunkCount, 0);
 
     StateChanged_.Fire();
 }
@@ -144,7 +142,6 @@ void TAutoMergeDirector::Persist(const TPersistenceContext& context)
     Persist(context, MaxIntermediateChunkCount_);
     Persist(context, ChunkCountPerMergeJob_);
     Persist(context, OperationId_);
-    Persist(context, CurrentIntermediateChunkCount_);
     Persist(context, RunningMergeJobCount_);
     Persist(context, ForceScheduleMergeJob_);
     Persist(context, TaskCompleted_);

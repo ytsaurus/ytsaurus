@@ -686,6 +686,15 @@ function YtApplicationOperations$list(parameters)
             return Q.reject(cypress_data.error());
         } else {
             cypress_data = cypress_data.value();
+
+            filtered_cypress_data = [];
+            for (var i = 0; i < cypress_data.length; i++) {
+                var attributes = utils.getYsonAttributes(cypress_data[i]);
+                if ("state" in attributes) {
+                    filtered_cypress_data.push(cypress_data[i]);
+                }
+            }
+            cypress_data = filtered_cypress_data;
         }
 
         if (archive_data.isRejected()) {

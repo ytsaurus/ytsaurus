@@ -29,7 +29,8 @@ public:
     explicit TNodeDescriptor(
         TAddressMap addresses,
         TNullable<TString> rack = Null,
-        TNullable<TString> dc = Null);
+        TNullable<TString> dc = Null,
+        const std::vector<TString>& tags = {});
 
     bool IsNull() const;
 
@@ -37,11 +38,13 @@ public:
 
     const TString& GetDefaultAddress() const;
 
-    const TString& GetAddress(const TNetworkPreferenceList& networks) const;
+    const TString& GetAddressOrThrow(const TNetworkPreferenceList& networks) const;
     TNullable<TString> FindAddress(const TNetworkPreferenceList& networks) const;
 
     const TNullable<TString>& GetRack() const;
     const TNullable<TString>& GetDataCenter() const;
+
+    const std::vector<TString>& GetTags() const;
 
     void Persist(const TStreamPersistenceContext& context);
 
@@ -50,6 +53,7 @@ private:
     TString DefaultAddress_;
     TNullable<TString> Rack_;
     TNullable<TString> DataCenter_;
+    std::vector<TString> Tags_;
 };
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
@@ -65,10 +69,10 @@ TString ToString(const TNodeDescriptor& descriptor);
 const TString& GetDefaultAddress(const TAddressMap& addresses);
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses);
 
-const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
+const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 TNullable<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 
-const TAddressMap& GetAddresses(const TNodeAddressMap& nodeAddresses, EAddressType type);
+const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAddressType type);
 
 //! Please keep the items in this particular order: the further the better.
 DEFINE_ENUM(EAddressLocality,
@@ -91,7 +95,7 @@ void FromProto(NNodeTrackerClient::TNodeAddressMap* nodeAddresses, const NNodeTr
 void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const NNodeTrackerClient::TNodeDescriptor& descriptor);
 void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor);
 
-} // namespace
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +119,7 @@ public:
     const TNodeDescriptor& GetDescriptor(TNodeId id) const;
     const TNodeDescriptor& GetDescriptor(NChunkClient::TChunkReplica replica) const;
     std::vector<TNodeDescriptor> GetDescriptors(const NChunkClient::TChunkReplicaList& replicas) const;
+    std::vector<TNodeDescriptor> GetAllDescriptors() const;
 
     const TNodeDescriptor* FindDescriptor(const TString& address);
     const TNodeDescriptor& GetDescriptor(const TString& address);
@@ -142,3 +147,13 @@ DEFINE_REFCOUNTED_TYPE(TNodeDirectory)
 
 } // namespace NNodeTrackerClient
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct hash<NYT::NNodeTrackerClient::TNodeDescriptor>
+{
+    size_t operator()(const NYT::NNodeTrackerClient::TNodeDescriptor& value) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////

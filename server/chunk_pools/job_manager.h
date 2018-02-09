@@ -5,8 +5,6 @@
 
 #include <yt/server/controller_agent/progress_counter.h>
 
-#include <yt/ytlib/chunk_pools/public.h>
-
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -88,10 +86,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, SuspendedJobCount);
 
 public:
-    //! Used only for persistence.
     TJobManager();
-
-    explicit TJobManager(EStripeListExtractionOrder extractionOrder);
 
     void AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs);
 
@@ -135,14 +130,10 @@ private:
         TJobManager* Owner_;
     };
 
-    //! Order in which cookies are extracted from pool.
-    EStripeListExtractionOrder ExtractionOrder_;
-
     //! бассейн с печеньками^W^W^W
     typedef std::multiset<IChunkPoolOutput::TCookie, TStripeListComparator> TCookiePool;
 
     //! The list of all job cookies that are in state `Pending` (i.e. do not depend on suspended data).
-    //! Cookies are stored according to `ExtractionOrder_`.
     std::unique_ptr<TCookiePool> CookiePool_;
 
     //! A mapping between input cookie and all jobs that are affected by its suspension.

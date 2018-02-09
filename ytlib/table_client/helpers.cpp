@@ -10,12 +10,13 @@
 
 #include <yt/ytlib/formats/parser.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/ypath/rich.h>
 
-#include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/periodic_yielder.h>
+#include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
@@ -73,21 +74,23 @@ void TTableOutput::DoFinish()
 void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
-    int bufferRowCount,
-    bool validateValues,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    TPipeReaderToWriterOptions options)
 {
+    TPeriodicYielder yielder(TDuration::Seconds(1));
+    int bufferRowCount = options.BufferRowCount;
+
     std::vector<TUnversionedRow> rows;
     rows.reserve(bufferRowCount);
 
     while (reader->Read(&rows)) {
+        yielder.TryYield();
         if (rows.empty()) {
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
             continue;
         }
 
-        if (validateValues) {
+        if (options.ValidateValues) {
             for (const auto row : rows) {
                 for (const auto& value : row) {
                     ValidateStaticValue(value);
@@ -95,12 +98,17 @@ void PipeReaderToWriter(
             }
         }
 
-        if (throttler) {
+        if (options.Throttler) {
             i64 dataWeight = 0;
             for (const auto row : rows) {
                 dataWeight += GetDataWeight(row);
             }
-            WaitFor(throttler->Throttle(dataWeight))
+            WaitFor(options.Throttler->Throttle(dataWeight))
+                .ThrowOnError();
+        }
+
+        if (!rows.empty()) {
+            WaitFor(TDelayedExecutor::MakeDelayed(options.PipeDelay))
                 .ThrowOnError();
         }
 
@@ -124,7 +132,11 @@ void PipeInputToOutput(
     struct TWriteBufferTag { };
     TBlob buffer(TWriteBufferTag(), bufferBlockSize);
 
+    TPeriodicYielder yielder(TDuration::Seconds(1));
+
     while (true) {
+        yielder.TryYield();
+
         size_t length = input->Read(buffer.Begin(), buffer.Size());
         if (length == 0)
             break;

@@ -7,6 +7,8 @@
 
 #include <yt/server/tablet_node/config.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -34,11 +36,12 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NTableClient;
-using namespace NTabletClient;
-using namespace NTabletClient::NProto;
 using namespace NProfiling;
+using namespace NTableClient;
+using namespace NTabletClient::NProto;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +80,7 @@ public:
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& sessionId,
         TSharedRange<TUnversionedRow> lookupKeys)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
@@ -84,6 +88,7 @@ public:
         , ColumnFilter_(columnFilter)
         , WorkloadDescriptor_(workloadDescriptor)
         , LookupKeys_(std::move(lookupKeys))
+        , SessionId_(sessionId)
     {
         if (TabletSnapshot_->IsProfilingEnabled()) {
             Tags_ = AddUserTag(user, TabletSnapshot_->ProfilerTags);
@@ -94,10 +99,11 @@ public:
         const std::function<void(TVersionedRow)>& onPartialRow,
         const std::function<std::pair<bool, size_t>()>& onRow)
     {
-        LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v)",
+        LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v, ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
-            LookupKeys_.Size());
+            LookupKeys_.Size(),
+            SessionId_);
 
         TCpuTimer timer;
 
@@ -135,12 +141,13 @@ public:
             TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
         }
 
-        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v)",
+        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v, ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             FoundRowCount_,
             FoundDataWeight_,
-            ValueToDuration(cpuTime));
+            ValueToDuration(cpuTime),
+            SessionId_);
     }
 
 private:
@@ -185,6 +192,7 @@ private:
     const TColumnFilter& ColumnFilter_;
     const TWorkloadDescriptor& WorkloadDescriptor_;
     const TSharedRange<TUnversionedRow> LookupKeys_;
+    const TReadSessionId SessionId_;
 
     static const int TypicalSessionCount = 16;
     using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
@@ -217,7 +225,8 @@ private:
                 Timestamp_,
                 ProduceAllVersions_,
                 ColumnFilter_,
-                WorkloadDescriptor_);
+                WorkloadDescriptor_,
+                SessionId_);
             auto future = reader->Open();
             auto maybeError = future.TryGet();
             if (maybeError) {
@@ -283,6 +292,7 @@ void LookupRows(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
@@ -309,6 +319,7 @@ void LookupRows(
         false,
         columnFilter,
         workloadDescriptor,
+        sessionId,
         std::move(lookupKeys));
 
     session.Run(
@@ -325,6 +336,7 @@ void VersionedLookupRows(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -356,6 +368,7 @@ void VersionedLookupRows(
         true,
         columnFilter,
         workloadDescriptor,
+        sessionId,
         std::move(lookupKeys));
 
     session.Run(

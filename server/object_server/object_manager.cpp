@@ -220,7 +220,7 @@ private:
                 auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
-                return TResolveResultThere{std::move(root), tokenizer.GetSuffix()};
+                return TResolveResultThere{std::move(root), TYPath(tokenizer.GetSuffix())};
             }
 
             case NYPath::ETokenType::Literal: {
@@ -259,7 +259,7 @@ private:
                         ? objectManager->GetProxy(object, transaction)
                         : TNonexistingService::Get();
                 }
-                return TResolveResultThere{std::move(proxy), tokenizer.GetInput()};
+                return TResolveResultThere{std::move(proxy), TYPath(tokenizer.GetInput())};
             }
 
             default:
@@ -282,99 +282,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectManager::TObjectResolver
-    : public IObjectResolver
-{
-public:
-    explicit TObjectResolver(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
-    { }
-
-    virtual IObjectProxyPtr ResolvePath(const TYPath& path, TTransaction* transaction) override
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-
-        NYPath::TTokenizer tokenizer(path);
-        switch (tokenizer.Advance()) {
-            case NYPath::ETokenType::EndOfStream:
-                return objectManager->GetMasterProxy();
-
-            case NYPath::ETokenType::Slash: {
-                auto root = cypressManager->GetNodeProxy(
-                    cypressManager->GetRootNode(),
-                    transaction);
-                return DoResolvePath(root, transaction, tokenizer.GetSuffix());
-            }
-
-            case NYPath::ETokenType::Literal: {
-                const auto& token = tokenizer.GetToken();
-                if (!token.StartsWith(ObjectIdPathPrefix)) {
-                    tokenizer.ThrowUnexpected();
-                }
-
-                TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
-                TObjectId objectId;
-                if (!TObjectId::FromString(objectIdString, &objectId)) {
-                    THROW_ERROR_EXCEPTION(
-                        NYTree::EErrorCode::ResolveError,
-                        "Error parsing object id %Qv",
-                        objectIdString);
-                }
-
-                auto* object = objectManager->GetObjectOrThrow(objectId);
-                auto proxy = objectManager->GetProxy(object, transaction);
-                return DoResolvePath(proxy, transaction, tokenizer.GetSuffix());
-            }
-
-            default:
-                tokenizer.ThrowUnexpected();
-                Y_UNREACHABLE();
-        }
-    }
-
-    virtual TYPath GetPath(IObjectProxyPtr proxy) override
-    {
-        const auto& id = proxy->GetId();
-        if (IsVersionedType(TypeFromId(id))) {
-            auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(proxy.Get());
-            Y_ASSERT(nodeProxy);
-            auto resolver = nodeProxy->GetResolver();
-            return resolver->GetPath(nodeProxy);
-        } else {
-            return FromObjectId(id);
-        }
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-
-
-    IObjectProxyPtr DoResolvePath(
-        IObjectProxyPtr proxy,
-        TTransaction* transaction,
-        const TYPath& path)
-    {
-        // Fast path.
-        if (path.empty()) {
-            return proxy;
-        }
-
-        // Slow path.
-        auto req = TObjectYPathProxy::GetBasicAttributes(path);
-        SetTransactionId(req, GetObjectId(transaction));
-        auto rsp = SyncExecuteVerb(proxy, req);
-        auto objectId = FromProto<TObjectId>(rsp->object_id());
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* object = objectManager->GetObjectOrThrow(objectId);
-        return objectManager->GetProxy(object, transaction);
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TObjectManager::TObjectManager(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
@@ -382,7 +289,6 @@ TObjectManager::TObjectManager(
     , Config_(config)
     , Profiler(ObjectServerProfiler)
     , RootService_(New<TRootService>(Bootstrap_))
-    , ObjectResolver_(new TObjectResolver(Bootstrap_))
     , GarbageCollector_(New<TGarbageCollector>(Config_, Bootstrap_))
 {
     YCHECK(config);
@@ -839,9 +745,6 @@ void TObjectManager::FillAttributes(
     }
 
     auto proxy = GetProxy(object, nullptr);
-    std::vector<ISystemAttributeProvider::TAttributeDescriptor> systemDescriptors;
-    proxy->ListBuiltinAttributes(&systemDescriptors);
-
     std::sort(keys.begin(), keys.end());
     for (const auto& key : keys) {
         auto value = attributes.GetYson(key);
@@ -888,7 +791,7 @@ TFuture<void> TObjectManager::GCCollect()
 TObjectBase* TObjectManager::CreateObject(
     const TObjectId& hintId,
     EObjectType type,
-    IAttributeDictionary* userAttributes)
+    IAttributeDictionary* attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -916,14 +819,20 @@ TObjectBase* TObjectManager::CreateObject(
         securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
-    auto attributes = CreateEphemeralAttributes();
-    if (auto* schemaAttributes = schema->GetAttributes()) {
-        for (const auto& pair : schemaAttributes->Attributes()) {
-            attributes->SetYson(pair.first, pair.second);
+    std::unique_ptr<IAttributeDictionary> attributeHolder;
+    if (auto* attributeSet = schema->GetAttributes()) {
+        attributeHolder = CreateEphemeralAttributes();
+        for (const auto& pair : attributeSet->Attributes()) {
+            attributeHolder->SetYson(pair.first, pair.second);
         }
-    }
-    if (userAttributes) {
-        attributes->MergeFrom(*userAttributes);
+        if (attributes) {
+            auto attributeMap = PatchNode(attributeHolder->ToMap(), attributes->ToMap());
+            attributeHolder = IAttributeDictionary::FromMap(attributeMap->AsMap());
+        }
+        attributes = attributeHolder.get();
+    } else if (!attributes) {
+        attributeHolder = CreateEphemeralAttributes();
+        attributes = attributeHolder.get();
     }
 
     // ITypeHandler::CreateObject may modify the attributes.
@@ -932,7 +841,7 @@ TObjectBase* TObjectManager::CreateObject(
         replicatedAttributes = attributes->Clone();
     }
 
-    auto* object = handler->CreateObject(hintId, attributes.get());
+    auto* object = handler->CreateObject(hintId, attributes);
 
     YCHECK(object->GetObjectRefCounter() == 1);
 
@@ -966,9 +875,68 @@ TObjectBase* TObjectManager::CreateObject(
     return object;
 }
 
-IObjectResolver* TObjectManager::GetObjectResolver()
+TObjectBase* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
 {
-    return ObjectResolver_.get();
+    // Shortcut.
+    if (path.empty()) {
+        return GetMasterObject();
+    }
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+    NYPath::TTokenizer tokenizer(path);
+
+    auto doResolve = [&] (IObjectProxy* proxy) {
+        // Shortcut.
+        auto suffixPath = tokenizer.GetSuffix();
+        if (suffixPath.empty()) {
+            return proxy->GetObject();
+        }
+
+        // Slow path.
+        auto req = TObjectYPathProxy::GetBasicAttributes(TYPath(suffixPath));
+        SetTransactionId(req, GetObjectId(transaction));
+        auto rsp = SyncExecuteVerb(proxy, req);
+        auto objectId = FromProto<TObjectId>(rsp->object_id());
+        return GetObjectOrThrow(objectId);
+    };
+
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::EndOfStream:
+            return GetMasterObject();
+
+        case NYPath::ETokenType::Slash: {
+            auto root = cypressManager->GetNodeProxy(
+                cypressManager->GetRootNode(),
+                transaction);
+            return doResolve(root.Get());
+        }
+
+        case NYPath::ETokenType::Literal: {
+            const auto& token = tokenizer.GetToken();
+            if (!token.StartsWith(ObjectIdPathPrefix)) {
+                tokenizer.ThrowUnexpected();
+            }
+
+            TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
+            TObjectId objectId;
+            if (!TObjectId::FromString(objectIdString, &objectId)) {
+                THROW_ERROR_EXCEPTION(
+                    NYTree::EErrorCode::ResolveError,
+                    "Error parsing object id %Qv",
+                    objectIdString);
+            }
+
+            auto* object = objectManager->GetObjectOrThrow(objectId);
+            auto proxy = objectManager->GetProxy(object, transaction);
+            return doResolve(proxy.Get());
+        }
+
+        default:
+            tokenizer.ThrowUnexpected();
+            Y_UNREACHABLE();
+    }
 }
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
@@ -1007,10 +975,9 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
             ? getPrerequisiteTransaction(transactionId)
             : nullptr;
 
-        auto resolver = cypressManager->CreateResolver(transaction);
-        INodePtr nodeProxy;
+        TCypressNodeBase* trunkNode;
         try {
-            nodeProxy = resolver->ResolvePath(path);
+            trunkNode = cypressManager->ResolvePathToTrunkNode(path, transaction);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
@@ -1019,15 +986,13 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
                 << ex;
         }
 
-        auto* cypressNodeProxy = ICypressNodeProxy::FromNode(nodeProxy.Get());
-        auto* node = cypressNodeProxy->GetTrunkNode();
-        if (node->GetRevision() != revision) {
+        if (trunkNode->GetRevision() != revision) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: node %v revision mismatch: expected %v, found %v",
                 path,
                 revision,
-                node->GetRevision());
+                trunkNode->GetRevision());
         }
     }
 }

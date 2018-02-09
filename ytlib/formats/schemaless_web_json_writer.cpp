@@ -3,16 +3,17 @@
 #include "helpers.h"
 #include "config.h"
 
+#include "schemaless_writer_adapter.h"
+#include "schemaless_web_json_writer.h"
+
 #include <yt/ytlib/table_client/name_table.h>
 
 #include <yt/core/yson/format.h>
 
+#include <yt/core/json/json_writer.h>
+#include <yt/core/json/config.h>
+
 #include <util/string/escape.h>
-
-#include "schemaless_writer_adapter.h"
-#include "schemaless_web_json_writer.h"
-
-#include "json_writer.h"
 
 namespace NYT {
 namespace NFormats {
@@ -20,6 +21,7 @@ namespace NFormats {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NJson;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////

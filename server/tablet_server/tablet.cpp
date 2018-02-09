@@ -237,7 +237,9 @@ void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer*
 {
     #define XX(name, Name) \
         .Item(#name "_count").Value(counters.Name.Count) \
-        .Item(#name "_rate").Value(counters.Name.Rate)
+        .Item(#name "_rate").Value(counters.Name.Rate) \
+        .Item(#name "_10m_rate").Value(counters.Name.Rate10) \
+        .Item(#name "_1h_rate").Value(counters.Name.Rate60)
     BuildYsonFluently(consumer)
         .BeginMap()
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
@@ -296,6 +298,8 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
+    Save(context, Errors_);
+    Save(context, ErrorCount_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -339,6 +343,11 @@ void TTablet::Load(TLoadContext& context)
             Id_,
             Table_->GetId());
     }
+    // COMPAT(iskhakovt)
+    if (context.GetVersion() >= 628) {
+        Load(context, Errors_);
+        Load(context, ErrorCount_);
+    }
 }
 
 void TTablet::CopyFrom(const TTablet& other)
@@ -378,17 +387,17 @@ TTableReplicaInfo* TTablet::GetReplicaInfo(const TTableReplica* replica)
     return replicaInfo;
 }
 
-TDuration TTablet::ComputeReplicationLagTime(const TTableReplicaInfo& replicaInfo) const
+TDuration TTablet::ComputeReplicationLagTime(TTimestamp latestTimestamp, const TTableReplicaInfo& replicaInfo) const
 {
     auto lastWriteTimestamp = NodeStatistics_.last_write_timestamp();
     if (lastWriteTimestamp == NullTimestamp) {
         return TDuration::Zero();
     }
     auto replicationTimestamp = replicaInfo.GetCurrentReplicationTimestamp();
-    if (replicationTimestamp >= lastWriteTimestamp) {
+    if (replicationTimestamp >= lastWriteTimestamp || replicationTimestamp >= latestTimestamp) {
         return TDuration::Zero();
     }
-    return TimestampToInstant(lastWriteTimestamp).second - TimestampToInstant(replicationTimestamp).first;
+    return TimestampToInstant(latestTimestamp).second - TimestampToInstant(replicationTimestamp).first;
 }
 
 bool TTablet::IsActive() const
@@ -463,6 +472,17 @@ void TTablet::SetTable(TTableNode* table)
         ++table->MutableTabletCountByState()[State_];
     }
     Table_ = table;
+}
+
+std::vector<TError> TTablet::GetErrors() const
+{
+    std::vector<TError> errors;
+    for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+        if (!Errors()[key].IsOK()) {
+            errors.push_back(Errors()[key]);
+        }
+    }
+    return errors;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

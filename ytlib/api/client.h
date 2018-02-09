@@ -201,6 +201,16 @@ struct TGetInSyncReplicasOptions
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
 
+struct TGetTabletsInfoOptions
+    : public TTimeoutOptions
+{ };
+
+struct TTabletInfo
+{
+    i64 TotalRowCount = 0;
+    i64 TrimmedRowCount = 0;
+};
+
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -337,7 +347,7 @@ struct TSelectRowsOptions
     //! If null then connection defaults are used.
     TNullable<i64> OutputRowLimit;
     //! Limits range expanding.
-    ui64 RangeExpansionLimit = 1000;
+    ui64 RangeExpansionLimit = 200000;
     //! If |true| then incomplete result would lead to a failure.
     bool FailOnIncompleteResult = true;
     //! If |true| then logging is more verbose.
@@ -350,6 +360,10 @@ struct TSelectRowsOptions
     TUserWorkloadDescriptor WorkloadDescriptor;
     //! Combine independent joins in one.
     bool UseMultijoin = true;
+    //! Allow queries without any condition on key columns.
+    bool AllowFullScan = true;
+    //! Allow queries with join condition which implies foreign query with IN operator.
+    bool AllowJoinWithoutIndex = false;
 };
 
 struct TGetNodeOptions
@@ -370,7 +384,9 @@ struct TSetNodeOptions
     , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
-{ };
+{
+    bool Recursive = false;
+};
 
 struct TRemoveNodeOptions
     : public TTimeoutOptions
@@ -449,7 +465,7 @@ struct TMoveNodeOptions
     bool Recursive = false;
     bool Force = false;
     bool PreserveAccount = false;
-    bool PreserveExpirationTime = true;
+    bool PreserveExpirationTime = false;
 };
 
 struct TLinkNodeOptions
@@ -495,9 +511,28 @@ struct TFileWriterOptions
     , public TPrerequisiteOptions
 {
     bool Append = true;
+    bool ComputeMD5 = false;
     TNullable<NCompression::ECodec> CompressionCodec;
     TNullable<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
+};
+
+struct TGetFileFromCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+{
+    NYPath::TYPath CachePath;
+};
+
+struct TPutFileToCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+    , public TMutatingOptions
+    , public TPrerequisiteOptions
+{
+    NYPath::TYPath CachePath;
 };
 
 struct TJournalReaderOptions
@@ -600,11 +635,13 @@ struct TListOperationsOptions
 
 DEFINE_ENUM(EJobSortField,
     ((None)       (0))
-    ((JobType)    (1))
-    ((JobState)   (2))
+    ((Type)       (1))
+    ((State)      (2))
     ((StartTime)  (3))
     ((FinishTime) (4))
     ((Address)    (5))
+    ((Duration)   (6))
+    ((Progress)   (7))
 );
 
 DEFINE_ENUM(EJobSortDirection,
@@ -615,19 +652,19 @@ DEFINE_ENUM(EJobSortDirection,
 struct TListJobsOptions
     : public TTimeoutOptions
 {
-    TNullable<NJobTrackerClient::EJobType> JobType;
-    TNullable<NJobTrackerClient::EJobState> JobState;
+    TNullable<NJobTrackerClient::EJobType> Type;
+    TNullable<NJobTrackerClient::EJobState> State;
     TNullable<TString> Address;
     TNullable<bool> HasStderr;
 
-    EJobSortField SortField = EJobSortField::StartTime;
+    EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 
     i64 Limit = 1000;
     i64 Offset = 0;
 
-    bool IncludeCypress = false;
-    bool IncludeRuntime = false;
+    bool IncludeCypress = true;
+    bool IncludeScheduler = true;
     bool IncludeArchive = true;
 };
 
@@ -655,7 +692,15 @@ struct TAbortJobOptions
 
 struct TGetOperationOptions
     : public TTimeoutOptions
-{ };
+{
+    TNullable<std::vector<TString>> Attributes;
+};
+
+struct TGetJobOptions
+    : public TTimeoutOptions
+{
+    // TODO(sandello): Support attributes filter.
+};
 
 struct TSelectRowsResult
 {
@@ -684,7 +729,7 @@ struct TOperation
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
     NScheduler::EOperationState OperationState;
-    TString Pool;
+    TNullable<TString> Pool;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;
     NYson::TYsonString BriefSpec;
@@ -694,22 +739,8 @@ struct TOperation
     TNullable<double> Weight;
 };
 
-struct TJob
+struct TListOperationsResult
 {
-    NJobTrackerClient::TJobId JobId;
-    NJobTrackerClient::EJobType JobType;
-    NJobTrackerClient::EJobState JobState;
-    TInstant StartTime;
-    TNullable<TInstant> FinishTime;
-    TString Address;
-    NYson::TYsonString Error;
-    NYson::TYsonString Statistics;
-    TNullable<ui64> StderrSize;
-    TNullable<double> Progress;
-    TNullable<TString> CoreInfos;
-};
-
-struct TListOperationsResult {
     std::vector<TOperation> Operations;
     TNullable<THashMap<TString, i64>> PoolCounts;
     TNullable<THashMap<TString, i64>> UserCounts;
@@ -717,6 +748,40 @@ struct TListOperationsResult {
     TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
     TNullable<i64> FailedJobsCount;
     bool Incomplete = false;
+};
+
+struct TJob
+{
+    NJobTrackerClient::TJobId Id;
+    NJobTrackerClient::EJobType Type;
+    NJobTrackerClient::EJobState State;
+    TInstant StartTime;
+    TNullable<TInstant> FinishTime;
+    TString Address;
+    TNullable<double> Progress;
+    TNullable<ui64> StderrSize;
+    NYson::TYsonString Error;
+    NYson::TYsonString BriefStatistics;
+    NYson::TYsonString InputPaths;
+    NYson::TYsonString CoreInfos;
+};
+
+struct TListJobsResult
+{
+    std::vector<TJob> Jobs;
+    int CypressJobCount = -1;
+    int SchedulerJobCount = -1;
+    int ArchiveJobCount = -1;
+};
+
+struct TGetFileFromCacheResult
+{
+    NYPath::TYPath Path;
+};
+
+struct TPutFileToCacheResult
+{
+    NYPath::TYPath Path;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -764,13 +829,6 @@ struct IClientBase
     virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = TTableWriterOptions()) = 0;
-
-    // TODO(sandello): Non-transactional!
-    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
 
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
@@ -840,7 +898,6 @@ struct IClientBase
     virtual IFileWriterPtr CreateFileWriter(
         const NYPath::TYPath& path,
         const TFileWriterOptions& options = TFileWriterOptions()) = 0;
-
 
     // Journals
     virtual IJournalReaderPtr CreateJournalReader(
@@ -927,9 +984,30 @@ struct IClient
         const NTabletClient::TTableReplicaId& replicaId,
         const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
 
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
+
+    virtual TFuture<std::vector<TTabletInfo>> GetTabletInfos(
+        const NYPath::TYPath& path,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletsInfoOptions& options = TGetTabletsInfoOptions()) = 0;
+
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
+
+    // Files
+    virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) = 0;
+
+    virtual TFuture<TPutFileToCacheResult> PutFileToCache(
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(
@@ -992,9 +1070,14 @@ struct IClient
     virtual TFuture<TListOperationsResult> ListOperations(
         const TListOperationsOptions& options = TListOperationsOptions()) = 0;
 
-    virtual TFuture<std::vector<TJob>> ListJobs(
+    virtual TFuture<TListJobsResult> ListJobs(
         const NJobTrackerClient::TOperationId& operationId,
         const TListJobsOptions& options = TListJobsOptions()) = 0;
+
+    virtual TFuture<NYson::TYsonString> GetJob(
+        const NScheduler::TOperationId& operationId,
+        const NJobTrackerClient::TJobId& jobId,
+        const TGetJobOptions& options = TGetJobOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,

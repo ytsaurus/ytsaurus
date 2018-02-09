@@ -200,14 +200,14 @@ TString ToString(TVersionedRow row)
         if (index > 0) {
             builder.AppendString(STRINGBUF(","));
         }
-        builder.AppendFormat("%v", row.BeginWriteTimestamps()[index]);
+        builder.AppendFormat("%llx", row.BeginWriteTimestamps()[index]);
     }
     builder.AppendChar('|');
     for (int index = 0; index < row.GetDeleteTimestampCount(); ++index) {
         if (index > 0) {
             builder.AppendString(STRINGBUF(","));
         }
-        builder.AppendFormat("%v", row.BeginDeleteTimestamps()[index]);
+        builder.AppendFormat("%llx", row.BeginDeleteTimestamps()[index]);
     }
     builder.AppendChar(']');
     return builder.Flush();

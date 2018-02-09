@@ -11,6 +11,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -27,8 +29,6 @@ public:
         const TSessionOptions& options,
         TStoreLocationPtr location,
         NConcurrency::TLease lease);
-
-    ~TSessionBase();
 
     virtual const TChunkId& GetChunkId() const& override;
     virtual const TSessionId& GetId() const& override;
@@ -68,16 +68,19 @@ protected:
     const TStoreLocationPtr Location_;
     const NConcurrency::TLease Lease_;
 
-    IInvokerPtr WriteInvoker_;
+    const IInvokerPtr WriteInvoker_;
+
+    const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler;
 
     bool Active_ = false;
+    std::atomic<bool> Canceled_ = {false};
 
-    NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler;
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
     virtual TFuture<void> DoStart() = 0;
-    virtual void DoCancel() = 0;
+    virtual void DoCancel(const TError& error) = 0;
     virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
         const TNullable<int>& blockCount) = 0;
@@ -91,10 +94,7 @@ protected:
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
     virtual TFuture<void> DoFlushBlocks(int blockIndex) = 0;
 
-    void ValidateActive();
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
+    void ValidateActive() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

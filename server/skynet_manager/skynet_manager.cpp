@@ -11,8 +11,8 @@
 
 #include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <yt/ytlib/formats/json_writer.h>
-#include <yt/ytlib/formats/config.h>
+#include <yt/core/json/json_writer.h>
+#include <yt/core/json/config.h>
 
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/string.h>
@@ -74,7 +74,8 @@ TClusterConnectionConfigPtr TSkynetManager::GetCluster(const TString& name)
         }
     }
 
-    THROW_ERROR_EXCEPTION("Cluster %Qv not found in config", name);
+    THROW_ERROR_EXCEPTION("Cluster %Qv is not found in configuration",
+        name);
 }
 
 void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
@@ -166,7 +167,7 @@ void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
 
     rsp->WriteHeaders(EStatusCode::Ok);
     auto output = CreateBufferedSyncAdapter(rsp);
-    auto json = NFormats::CreateJsonConsumer(output.get());
+    auto json = NJson::CreateJsonConsumer(output.get());
 
     Serialize(reply, json.get());
 
@@ -334,7 +335,7 @@ TString MakeFileUrl(
     ui64 partIndex)
 {
     return Format(
-        "http://%v/read_skynet_part/?chunk_id=%v&lower_row_index=%v&upper_row_index=%v&start_part_index=%v",
+        "http://%v/read_skynet_part?chunk_id=%v&lower_row_index=%v&upper_row_index=%v&start_part_index=%v",
         node,
         chunkId,
         lowerRowIndex,

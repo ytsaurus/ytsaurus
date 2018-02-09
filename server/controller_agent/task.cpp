@@ -4,16 +4,15 @@
 #include "job_info.h"
 #include "job_splitter.h"
 #include "job_memory.h"
-#include "job_metrics_updater.h"
 #include "helpers.h"
 #include "task_host.h"
+#include "scheduling_context.h"
 
 #include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/scheduling_context.h>
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/schema.h>
 
@@ -26,7 +25,6 @@
 #include <yt/core/misc/digest.h>
 
 #include <yt/core/ytree/convert.h>
-
 
 namespace NYT {
 namespace NControllerAgent {
@@ -67,9 +65,19 @@ TTask::TTask(ITaskHostPtr taskHost)
 void TTask::Initialize()
 {
     Logger.AddTag("OperationId: %v", TaskHost_->GetOperationId());
-    Logger.AddTag("Task: %v", GetId());
+    Logger.AddTag("Task: %v", GetTitle());
 
     SetupCallbacks();
+}
+
+TString TTask::GetTitle() const
+{
+    return ToString(GetJobType());
+}
+
+TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
+{
+    return ToString(GetJobType());
 }
 
 int TTask::GetPendingJobCount() const
@@ -121,7 +129,7 @@ TJobResources TTask::GetTotalNeededResources() const
 {
     i64 count = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
-    return count == 0 ? ZeroJobResources() : GetMinNeededResources() * count;
+    return count == 0 ? ZeroJobResources() : GetMinNeededResources().ToJobResources() * count;
 }
 
 bool TTask::IsStderrTableEnabled() const
@@ -143,6 +151,11 @@ i64 TTask::GetLocality(TNodeId nodeId) const
     return HasInputLocality()
            ? GetChunkPoolOutput()->GetLocality(nodeId)
            : 0;
+}
+
+TDuration TTask::GetLocalityTimeout() const
+{
+    return TDuration::Zero();
 }
 
 bool TTask::HasInputLocality() const
@@ -170,15 +183,25 @@ void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 
 void TTask::FinishInput()
 {
-    LOG_DEBUG("Task input finished");
+    LOG_DEBUG("Task input finished" );
 
-    GetChunkPoolInput()->Finish();
+    // GetChunkPoolInput() may return false on tasks that do not require input, such as for vanilla operation.
+    if (const auto& chunkPoolInput = GetChunkPoolInput()) {
+        chunkPoolInput->Finish();
+    }
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     if (!progressCounter->Parent()) {
-        progressCounter->SetParent(TaskHost_->DataFlowGraph().JobCounter(GetJobType()));
+        TaskHost_->GetDataFlowGraph()->RegisterTask(GetVertexDescriptor(), progressCounter, GetJobType());
     }
     AddPendingHint();
     CheckCompleted();
+}
+
+void TTask::FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex)
+{
+    SetInputVertex(inputVertex);
+
+    FinishInput();
 }
 
 void TTask::CheckCompleted()
@@ -207,15 +230,16 @@ bool TTask::ValidateChunkCount(int /* chunkCount */)
 void TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
+    const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
-    if (!CanScheduleJob(context, jobLimits)) {
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::TaskRefusal);
+    if (auto failReason = GetScheduleFailReason(context, jobLimits)) {
+        scheduleJobResult->RecordFail(*failReason);
         return;
     }
 
     int jobIndex = TaskHost_->NextJobIndex();
-    auto joblet = New<TJoblet>(TaskHost_->CreateJobMetricsUpdater(), this, jobIndex);
+    auto joblet = New<TJoblet>(this, jobIndex, treeId);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;
@@ -238,8 +262,8 @@ void TTask::ScheduleJob(
         return;
     }
 
-    const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
-    if (sliceCount > TaskHost_->SchedulerConfig()->HeavyJobSpecSliceCountThreshold) {
+    const auto& jobSpecSliceThrottler = TaskHost_->GetJobSpecSliceThrottler();
+    if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
                       sliceCount);
@@ -272,17 +296,17 @@ void TTask::ScheduleJob(
     }
 
     auto jobType = GetJobType();
-    joblet->JobId = context->GenerateJobId();
+    joblet->JobId = context->GetJobId();
 
     // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
     bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
 
-    joblet->Account = TaskHost_->Spec()->JobNodeAccount;
+    joblet->Account = TaskHost_->GetSpec()->JobNodeAccount;
     joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
         .AsyncVia(TaskHost_->GetCancelableInvoker())
         .Run();
-    scheduleJobResult->JobStartRequest.Emplace(
+    scheduleJobResult->StartDescriptor.Emplace(
         joblet->JobId,
         jobType,
         neededResources,
@@ -291,12 +315,12 @@ void TTask::ScheduleJob(
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
-    joblet->JobProxyMemoryReserveFactor = TaskHost_->GetJobProxyMemoryDigest(jobType)->GetQuantile(
-        TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
+    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryDigest()->GetQuantile(
+        TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
-        joblet->UserJobMemoryReserveFactor = TaskHost_->GetUserJobMemoryDigest(GetJobType())->GetQuantile(
-            TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
+        joblet->UserJobMemoryReserveFactor = GetUserJobMemoryDigest()->GetQuantile(
+            TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     }
 
     LOG_DEBUG(
@@ -323,15 +347,15 @@ void TTask::ScheduleJob(
         FormatResources(neededResources));
 
     for (const auto& edgeDescriptor : EdgeDescriptors_) {
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractChunkList(edgeDescriptor.CellTag));
+        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(edgeDescriptor.CellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
-        joblet->StderrTableChunkListId = TaskHost_->ExtractChunkList(TaskHost_->StderrTable()->CellTag);
+        joblet->StderrTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->StderrTable()->CellTag);
     }
 
     if (TaskHost_->CoreTable() && IsCoreTableEnabled()) {
-        joblet->CoreTableChunkListId = TaskHost_->ExtractChunkList(TaskHost_->CoreTable()->CellTag);
+        joblet->CoreTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->CoreTable()->CellTag);
     }
 
     // Sync part.
@@ -343,8 +367,8 @@ void TTask::ScheduleJob(
 
     OnJobStarted(joblet);
 
-    if (TaskHost_->JobSplitter()) {
-        TaskHost_->JobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList);
+    if (TaskHost_->GetJobSplitter()) {
+        TaskHost_->GetJobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList);
     }
 }
 
@@ -381,12 +405,6 @@ i64 TTask::GetInputDataSliceCount() const
 void TTask::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-
-    // COMPAT(babenko)
-    if (context.IsLoad() && context.GetVersion() < 200009) {
-        Load<TNullable<TInstant>>(context.LoadContext());
-    }
-
     Persist(context, TaskHost_);
 
     Persist(context, CachedPendingJobCount_);
@@ -406,6 +424,10 @@ void TTask::Persist(const TPersistenceContext& context)
     >(context, LostJobCookieMap);
 
     Persist(context, EdgeDescriptors_);
+    Persist(context, InputVertex_);
+
+    Persist(context, UserJobMemoryDigest_);
+    Persist(context, JobProxyMemoryDigest_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -413,6 +435,11 @@ void TTask::PrepareJoblet(TJobletPtr /* joblet */)
 
 void TTask::OnJobStarted(TJobletPtr joblet)
 { }
+
+bool TTask::CanLoseJobs() const
+{
+    return false;
+}
 
 void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
@@ -425,11 +452,13 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
             YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
-                TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                if (!joblet->Revived) {
+                    TaskHost_->GetOutputChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
-                this->TaskHost_->UnstageChunkTreesNonRecursively({joblet->ChunkListIds[index]});
+                this->TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, false /* unstageRecursively */);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }
@@ -442,12 +471,29 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 inputStatistics.row_count(),
                 outputStatistics.row_count(),
-                GetId());
+                GetTitle());
             YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
+        }
+
+        YCHECK(InputVertex_ != "");
+
+        auto vertex = GetVertexDescriptor();
+        TaskHost_->GetDataFlowGraph()->RegisterFlow(InputVertex_, vertex, inputStatistics);
+        // TODO(max42): rewrite this properly one day.
+        for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
+            if (EdgeDescriptors_[index].IsFinalOutput) {
+                TaskHost_->GetDataFlowGraph()->RegisterFlow(
+                    vertex,
+                    TDataFlowGraph::SinkDescriptor,
+                    outputStatisticsMap[index]);
+            }
         }
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
-        TaskHost_->ChunkListPool()->Release(chunkListIds);
+        // NB: we should release these chunk lists only when information about this job being abandoned
+        // gets to the snapshot; otherwise it may revive in different scheduler and continue writing
+        // to the released chunk list.
+        TaskHost_->ReleaseChunkTrees(chunkListIds, true /* recursive */, true /* waitForSnapshot */);
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
@@ -458,10 +504,10 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
     UpdateMaximumUsedTmpfsSize(statistics);
 }
 
-void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
+void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot)
 {
     TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
-    TaskHost_->ReleaseChunkLists(joblet->ChunkListIds);
+    TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, true /* recursive */, waitForSnapshot);
 
     auto list = HasInputLocality()
         ? GetChunkPoolOutput()->GetStripeList(joblet->OutputCookie)
@@ -491,13 +537,19 @@ void TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 void TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
     if (joblet->StderrTableChunkListId) {
-        TaskHost_->ReleaseChunkLists({joblet->StderrTableChunkListId});
+        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId});
     }
     if (joblet->CoreTableChunkListId) {
-        TaskHost_->ReleaseChunkLists({joblet->CoreTableChunkListId});
+        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId});
     }
 
-    ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}));
+    // NB: when job is aborted due to revival confirmation timeout we can only release its chunk lists
+    // when the information about abortion gets to the snapshot. Otherwise this job may revive in a
+    // different controller with an invalidated chunk list id.
+    ReinstallJob(
+        joblet,
+        BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}),
+        jobSummary.AbortReason == EAbortReason::RevivalConfirmationTimeout /* waitForSnapshot */);
 }
 
 void TTask::OnJobLost(TCompletedJobPtr completedJob)
@@ -512,11 +564,11 @@ void TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed");
 }
 
-bool TTask::CanScheduleJob(
+TNullable<EScheduleJobFailReason> TTask::GetScheduleFailReason(
     ISchedulingContext* /*context*/,
     const TJobResources& /*jobLimits*/)
 {
-    return true;
+    return Null;
 }
 
 void TTask::DoCheckResourceDemandSanity(
@@ -530,7 +582,7 @@ void TTask::DoCheckResourceDemandSanity(
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError("No online node can satisfy the resource demand")
-                << TErrorAttribute("task", GetId())
+                << TErrorAttribute("task", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources));
     }
 }
@@ -559,6 +611,32 @@ void TTask::CheckResourceDemandSanity(
 void TTask::AddPendingHint()
 {
     TaskHost_->AddTaskPendingHint(this);
+}
+
+IDigest* TTask::GetUserJobMemoryDigest() const
+{
+    if (!UserJobMemoryDigest_) {
+        const auto& userJobSpec = GetUserJobSpec();
+        YCHECK(userJobSpec);
+
+        auto config = New<TLogDigestConfig>();
+        config->LowerBound = userJobSpec->UserJobMemoryDigestLowerBound;
+        config->DefaultValue = userJobSpec->UserJobMemoryDigestDefaultValue;
+        config->UpperBound = 1.0;
+        config->RelativePrecision = TaskHost_->GetConfig()->UserJobMemoryDigestPrecision;
+        UserJobMemoryDigest_ = CreateLogDigest(std::move(config));
+    }
+
+    return UserJobMemoryDigest_.get();
+}
+
+IDigest* TTask::GetJobProxyMemoryDigest() const
+{
+    if (!JobProxyMemoryDigest_) {
+        JobProxyMemoryDigest_ = CreateLogDigest(TaskHost_->GetSpec()->JobProxyMemoryDigest);
+    }
+
+    return JobProxyMemoryDigest_.get();
 }
 
 void TTask::AddLocalityHint(TNodeId nodeId)
@@ -626,11 +704,6 @@ void TTask::AddChunksToInputSpec(
             }
         }
     }
-
-    if (inputSpec->chunk_specs_size() > 0) {
-        // Make spec incompatible with older nodes.
-        ToProto(inputSpec->add_data_slice_descriptors(), GetIncompatibleDataSliceDescriptor());
-    }
 }
 
 void TTask::UpdateInputSpecTotals(
@@ -679,11 +752,11 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     result.SetCpu(jobResources.GetCpu());
     result.SetUserSlots(jobResources.GetUserSlots());
     i64 memory = jobResources.GetFootprintMemory();
-    memory += jobResources.GetJobProxyMemory() * TaskHost_->GetJobProxyMemoryDigest(
-        GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
+    memory += jobResources.GetJobProxyMemory() * GetJobProxyMemoryDigest()
+        ->GetQuantile(TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
     if (GetUserJobSpec()) {
-        memory += jobResources.GetUserJobMemory() * TaskHost_->GetUserJobMemoryDigest(
-            GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
+        memory += jobResources.GetUserJobMemory() * GetUserJobMemoryDigest()
+            ->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     } else {
         YCHECK(jobResources.GetUserJobMemory() == 0);
     }
@@ -707,6 +780,11 @@ void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& sta
     }
 }
 
+void TTask::FinishTaskInput(const TTaskPtr& task)
+{
+    task->FinishInput(GetVertexDescriptor() /* inputVertex */);
+}
+
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 {
     NJobTrackerClient::NProto::TJobSpec jobSpec;
@@ -716,11 +794,11 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
     TaskHost_->CustomizeJobSpec(joblet, &jobSpec);
 
     auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    if (TaskHost_->Spec()->JobProxyMemoryOvercommitLimit) {
-        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->Spec()->JobProxyMemoryOvercommitLimit);
+    if (TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit) {
+        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
     }
-    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
-    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->Spec()->SuspendOperationIfAccountLimitExceeded);
+    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
+    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
 
     // Adjust sizes if approximation flag is set.
     if (joblet->InputStripeList->IsApproximate) {
@@ -732,14 +810,14 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             ApproximateSizesBoostFactor));
     }
 
-    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->Spec()->MaxDataWeightPerJob) {
+    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         TaskHost_->OnOperationFailed(TError(
             "Maximum allowed data weight per job violated: %v > %v",
             schedulerJobSpecExt->input_data_weight(),
-            TaskHost_->Spec()->MaxDataWeightPerJob));
+            TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }
 
-    return SerializeToProtoWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
+    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
@@ -758,7 +836,10 @@ void TTask::RegisterOutput(
     const NChunkPools::TChunkStripeKey& key)
 {
     auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    auto outputStripes = BuildOutputChunkStripes(schedulerJobResultExt, chunkListIds, schedulerJobResultExt->output_boundary_keys());
+    auto outputStripes = BuildOutputChunkStripes(
+        schedulerJobResultExt,
+        chunkListIds,
+        schedulerJobResultExt->output_boundary_keys());
     for (int tableIndex = 0; tableIndex < EdgeDescriptors_.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
             RegisterStripe(
@@ -770,7 +851,7 @@ void TTask::RegisterOutput(
     }
 }
 
-TJobResources TTask::GetMinNeededResources() const
+NScheduler::TJobResourcesWithQuota TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources_) {
         YCHECK(GetPendingJobCount() > 0);
@@ -780,7 +861,7 @@ TJobResources TTask::GetMinNeededResources() const
     if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
         LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
     }
-    return result;
+    return NScheduler::TJobResourcesWithQuota(result);
 }
 
 void TTask::RegisterStripe(
@@ -819,15 +900,15 @@ void TTask::RegisterStripe(
         }
 
         // Store recovery info.
-        auto completedJob = New<TCompletedJob>(
-            joblet->JobId,
-            joblet->JobType,
-            this,
-            joblet->OutputCookie,
-            joblet->InputStripeList->TotalDataWeight,
-            destinationPool,
-            inputCookie,
-            joblet->NodeDescriptor);
+        auto completedJob = New<TCompletedJob>();
+        completedJob->JobId = joblet->JobId;
+        completedJob->SourceTask = this;
+        completedJob->OutputCookie = joblet->OutputCookie;
+        completedJob->DataWeight = joblet->InputStripeList->TotalDataWeight;
+        completedJob->DestinationPool = destinationPool;
+        completedJob->InputCookie = inputCookie;
+        completedJob->InputStripe = CanLoseJobs() ? nullptr : stripe;
+        completedJob->NodeDescriptor = joblet->NodeDescriptor;
 
         TaskHost_->RegisterRecoveryInfo(
             completedJob,
@@ -881,19 +962,23 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
     google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
 {
     auto stripes = BuildChunkStripes(schedulerJobResultExt->mutable_output_chunk_specs(), chunkTreeIds.size());
+    // Some edge descriptors do not require boundary keys to be returned,
+    // so they are skipped in `boundaryKeysPerTable`.
+    int boundaryKeysIndex = 0;
     for (int tableIndex = 0; tableIndex < chunkTreeIds.size(); ++tableIndex) {
-        if (!chunkTreeIds[tableIndex]) {
-            continue;
-        }
         stripes[tableIndex]->ChunkListId = chunkTreeIds[tableIndex];
-        if (tableIndex < boundaryKeysPerTable.size() &&
-            !boundaryKeysPerTable.Get(tableIndex).empty() &&
-            boundaryKeysPerTable.Get(tableIndex).sorted())
-        {
-            stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
-                boundaryKeysPerTable.Get(tableIndex),
-                EdgeDescriptors_[tableIndex],
-                TaskHost_->GetRowBuffer());
+        if (EdgeDescriptors_[tableIndex].TableWriterOptions->ReturnBoundaryKeys) {
+            // TODO(max42): do not send empty or unsorted boundary keys, this is meaningless.
+            if (boundaryKeysIndex < boundaryKeysPerTable.size() &&
+                !boundaryKeysPerTable.Get(boundaryKeysIndex).empty() &&
+                boundaryKeysPerTable.Get(boundaryKeysIndex).sorted())
+            {
+                stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
+                    boundaryKeysPerTable.Get(boundaryKeysIndex),
+                    EdgeDescriptors_[tableIndex],
+                    TaskHost_->GetRowBuffer());
+            }
+            ++boundaryKeysIndex;
         }
     }
     return stripes;

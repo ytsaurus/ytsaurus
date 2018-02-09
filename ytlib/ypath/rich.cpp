@@ -384,7 +384,7 @@ TRichYPath TRichYPath::Parse(const TString& str)
     while (ypathTokenizer.GetType() != ETokenType::EndOfStream && ypathTokenizer.GetType() != ETokenType::Range) {
         ypathTokenizer.Advance();
     }
-    auto path = ypathTokenizer.GetPrefix();
+    auto path = TYPath(ypathTokenizer.GetPrefix());
     auto rangeStr = ypathTokenizer.GetToken();
 
     if (ypathTokenizer.GetType() == ETokenType::Range) {

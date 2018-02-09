@@ -25,7 +25,6 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/async_stream_state.h>
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -46,6 +45,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
+    const TReadSessionId& sessionId,
     const TTableSchema& resultSchema,
     const TKeyColumns& keyColumns,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
@@ -78,6 +78,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     New<TChunkReaderOptions>(),
                     std::move(chunkReader),
                     std::move(nameTable),
+                    sessionId,
                     keyColumns,
                     columnFilter,
                     readRange);
@@ -95,6 +96,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
+    const TReadSessionId& sessionId,
     const TTableSchema& resultSchema,
     const TKeyColumns& keyColumns,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
@@ -127,6 +129,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     New<TChunkReaderOptions>(),
                     std::move(chunkReader),
                     std::move(nameTable),
+                    sessionId,
                     keyColumns,
                     columnFilter,
                     keys);

@@ -81,6 +81,21 @@ TEST_F(TYsonWriterTest, Double)
     TEST_SCALAR(value, Double)
 }
 
+TEST_F(TYsonWriterTest, MinusInf)
+{
+    double value = std::numeric_limits<double>::infinity();
+    TEST_SCALAR(value, Double)
+}
+
+TEST_F(TYsonWriterTest, NaN)
+{
+    InSequence dummy;
+    TYsonWriter writer(&Stream, EYsonFormat::Text);
+    writer.OnDoubleScalar(std::numeric_limits<double>::quiet_NaN());
+    Stream.Flush();
+    EXPECT_EQ(Stream.Str(), "%nan");
+}
+
 TEST_F(TYsonWriterTest, EmptyMap)
 {
 

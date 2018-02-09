@@ -23,7 +23,7 @@ std::unique_ptr<TMutation> CreateMutation(
     const TRequest& request)
 {
     auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
-    mutation->SetRequestData(SerializeToProtoWithEnvelope(request), request.GetTypeName());
+    mutation->SetRequestData(SerializeProtoToRefWithEnvelope(request), request.GetTypeName());
     return mutation;
 }
 
@@ -91,7 +91,7 @@ std::unique_ptr<TMutation> CreateMutation(
     TTarget* target)
 {
     auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
-    mutation->SetRequestData(SerializeToProtoWithEnvelope(request), request.GetTypeName());
+    mutation->SetRequestData(SerializeProtoToRefWithEnvelope(request), request.GetTypeName());
     mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
     mutation->SetHandler(
         BIND([=, request = request] (TMutationContext* mutationContext) mutable {

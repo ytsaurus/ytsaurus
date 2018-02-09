@@ -20,6 +20,7 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -118,11 +119,13 @@ public:
         const TSessionId& sessionId,
         ECodec codecId,
         ICodec* codec,
-        const std::vector<IChunkWriterPtr>& writers)
+        const std::vector<IChunkWriterPtr>& writers,
+        const TWorkloadDescriptor& workloadDescriptor)
         : Config_(config)
         , SessionId_(sessionId)
         , CodecId_(codecId)
         , Codec_(codec)
+        , WorkloadDescriptor_(workloadDescriptor)
         , Writers_(writers)
     {
         YCHECK(writers.size() == codec->GetTotalPartCount());
@@ -200,6 +203,7 @@ private:
     const TSessionId SessionId_;
     const ECodec CodecId_;
     ICodec* const Codec_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
 
     bool IsOpen_ = false;
 
@@ -228,7 +232,7 @@ private:
 
     void WriteDataPart(int partIndex, IChunkWriterPtr writer, const std::vector<TBlock>& blocks);
 
-    void EncodeAndWriteParityBlocks();
+    TFuture<void> EncodeAndWriteParityBlocks();
 
     void OnWritten();
 };
@@ -331,9 +335,9 @@ void TErasureWriter::WriteDataPart(int partIndex, IChunkWriterPtr writer, const 
     PlacementExt_.mutable_part_checksums()->Set(partIndex, checksum);
 }
 
-void TErasureWriter::EncodeAndWriteParityBlocks()
+TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks()
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetCompressionPoolInvoker());
 
     TPartIndexList parityIndices;
     for (int index = Codec_->GetDataPartCount(); index < Codec_->GetTotalPartCount(); ++index) {
@@ -366,9 +370,19 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
         blockConsumers);
     encoder->Run();
 
+    std::vector<std::pair<int, TChecksum>> partChecksums;
     for (int index = 0; index < parityIndices.size(); ++index) {
-        PlacementExt_.mutable_part_checksums()->Set(parityIndices[index], writerConsumers[index]->GetPartChecksum());
+        partChecksums.push_back(std::make_pair(parityIndices[index], writerConsumers[index]->GetPartChecksum()));
     }
+
+    return BIND([=, this_ = MakeStrong(this)] () {
+        // Access to PlacementExt_ must be from WriterInvoker only.
+        for (const auto& pair : partChecksums) {
+            PlacementExt_.mutable_part_checksums()->Set(pair.first, pair.second);
+        }
+    })
+    .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+    .Run();
 }
 
 TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
@@ -378,20 +392,22 @@ TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
 
-    auto invoker = TDispatcher::Get()->GetWriterInvoker();
+    auto compressionInvoker = CreateFixedPriorityInvoker(
+        TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+        WorkloadDescriptor_.GetPriority());
 
     std::vector<TFuture<void>> asyncResults {
         BIND(&TErasureWriter::WriteDataBlocks, MakeStrong(this))
-            .AsyncVia(invoker)
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run(),
         BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this))
-            .AsyncVia(invoker)
+            .AsyncVia(compressionInvoker)
             .Run()
     };
 
     return Combine(asyncResults).Apply(
         BIND(&TErasureWriter::OnWritten, MakeStrong(this))
-            .AsyncVia(invoker));
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
 }
 
 
@@ -425,14 +441,16 @@ IChunkWriterPtr CreateErasureWriter(
     const TSessionId& sessionId,
     ECodec codecId,
     ICodec* codec,
-    const std::vector<IChunkWriterPtr>& writers)
+    const std::vector<IChunkWriterPtr>& writers,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     return New<TErasureWriter>(
         config,
         sessionId,
         codecId,
         codec,
-        writers);
+        writers,
+        workloadDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -210,7 +210,7 @@ void TAccessControlDescriptor::OnSubjectDestroyed(TSubject* subject, TSubject* d
         auto it = std::remove_if(
             Acl_.Entries.begin(),
             Acl_.Entries.end(),
-            [=] (const TAccessControlEntry& ace) {
+            [] (const TAccessControlEntry& ace) {
                 return ace.Subjects.empty();
             });
         Acl_.Entries.erase(it, Acl_.Entries.end());

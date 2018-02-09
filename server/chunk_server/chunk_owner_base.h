@@ -13,6 +13,7 @@
 
 #include <yt/ytlib/table_client/public.h>
 
+#include <yt/core/crypto/crypto.h>
 #include <yt/core/misc/property.h>
 
 namespace NYT {
@@ -20,7 +21,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Base classes for Сypress nodes that own chunks.
+//! Base classes for Cypress nodes that own chunks.
 class TChunkOwnerBase
     : public NCypressServer::TCypressNodeBase
 {
@@ -49,7 +50,9 @@ public:
         const NChunkClient::NProto::TDataStatistics* statistics,
         const NTableClient::TTableSchema& schema,
         NTableClient::ETableSchemaMode schemaMode,
-        TNullable<NTableClient::EOptimizeFor> optimizeFor);
+        TNullable<NTableClient::EOptimizeFor> optimizeFor,
+        const TNullable<TMD5Hasher>& md5Hasher);
+    virtual void GetUploadParams(TNullable<TMD5Hasher>* md5Hasher);
     virtual bool IsSorted() const;
 
     virtual NYTree::ENodeType GetNodeType() const override;

@@ -76,7 +76,7 @@ void SetCurrentFiberId(TFiberId id)
 
 void Yield()
 {
-    WaitFor(VoidFuture);
+    Y_UNUSED(WaitFor(VoidFuture));
 }
 
 void SwitchTo(IInvokerPtr invoker)

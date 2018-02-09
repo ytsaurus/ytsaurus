@@ -1,7 +1,7 @@
 package NYT.NNodeTrackerClient.NProto;
 
-import "yt/core/misc/guid.proto";
-import "yt/core/misc/error.proto";
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/tablet_client/heartbeat.proto";
 import "yt/ytlib/chunk_client/heartbeat.proto";
@@ -72,6 +72,7 @@ message TRspIncrementalHeartbeat
     // Node Tracker stuff.
     optional string rack = 6;
     optional string data_center = 9;
+    repeated string tags = 10;
     optional TNodeResourceLimitsOverrides resource_limits_overrides = 7;
     optional bool disable_scheduler_jobs = 8;
 }

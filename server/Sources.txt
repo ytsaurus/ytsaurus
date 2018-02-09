@@ -33,7 +33,6 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/cell_proxy/bootstrap.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/atomic_chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_stripe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_stripe_key.cpp
@@ -46,6 +45,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/shuffle_chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/sorted_chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/unordered_chunk_pool.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/vanilla_chunk_pool.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_list.cpp
@@ -81,6 +81,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/chunk_list_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/chunk_pool_adapters.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/controller_agent.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/controller_agent_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/counter_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/data_flow_graph.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/master_connector.cpp
@@ -88,26 +90,26 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/intermediate_chunk_scraper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_memory.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_metrics_updater.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_info.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_size_adjuster.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_splitter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/job_spec_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/legacy_merge_controller.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/map_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation_controller_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation_controller_host.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/ordered_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/progress_counter.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/remote_copy_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/snapshot_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/snapshot_downloader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/sort_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/sorted_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/unordered_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/task.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/vanilla_controller.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto
@@ -151,11 +153,15 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/data_node/local_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/master_connector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/network_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_distributor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_updater.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/session_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/session_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/volume.proto
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/volume_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/ytree_integration.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/election/distributed_election_manager.cpp
@@ -165,8 +171,8 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_environment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_directory_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_prober_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/mounter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/scheduler_connector.cpp
@@ -243,24 +249,20 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_satellite.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_satellite_connection.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/map_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_map_job_io.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_reduce_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/remote_copy_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/resource_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/simple_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_merge_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_reduce_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stderr_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_write_controller.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/journal_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/journal_node.cpp
@@ -269,14 +271,13 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/public.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/configure_singletons.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/fork_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/job_table_schema.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/process.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/public.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/data_center.cpp
@@ -313,13 +314,6 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/orchid/cypress_integration.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/program/names.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/program/program.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/program/program_config_mixin.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/program/program_cgroup_mixin.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/program/program_tool_mixin.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/program/program_pdeathsig_mixin.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_executor.cpp
@@ -331,6 +325,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent_tracker_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/exec_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp
@@ -350,6 +345,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_tag.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent_tracker.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account_proxy.cpp

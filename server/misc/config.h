@@ -4,9 +4,11 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/ytlib/program/config.h>
+
 #include <yt/ytlib/misc/config.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/rpc/config.h>
 
@@ -16,6 +18,8 @@
 
 #include <yt/core/logging/config.h>
 
+#include <yt/core/http/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -23,16 +27,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerConfig
-    : public virtual NYTree::TYsonSerializable
+    : public TSingletonsConfig
 {
 public:
-    // Singletons.
-    THashMap<TString, int> FiberStackPoolSizes;
-    TAddressResolverConfigPtr AddressResolver;
-    NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
-    NLogging::TLogConfigPtr Logging;
-    NTracing::TTraceManagerConfigPtr Tracing;
-
     NBus::TTcpBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
     TCoreDumperConfigPtr CoreDumper;
@@ -40,22 +37,12 @@ public:
     //! RPC interface port number.
     int RpcPort;
 
-    //! HTTP monitoring interface port number.
+    // COMPAT(babenko): get rid of this after switching to new HTTP implementation
     int MonitoringPort;
+    NHttp::TServerConfigPtr MonitoringServer;
 
     TServerConfig()
     {
-        RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
-            .Default({});
-        RegisterParameter("address_resolver", AddressResolver)
-            .DefaultNew();
-        RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
-            .DefaultNew();
-        RegisterParameter("logging", Logging)
-            .Default(NLogging::TLogConfig::CreateDefault());
-        RegisterParameter("tracing", Tracing)
-            .DefaultNew();
-
         RegisterParameter("bus_server", BusServer)
             .DefaultNew();
         RegisterParameter("rpc_server", RpcServer)
@@ -72,17 +59,17 @@ public:
             .Default(0)
             .GreaterThanOrEqual(0)
             .LessThan(65536);
-    }
+        RegisterParameter("monitoring_server", MonitoringServer)
+            .DefaultNew();
 
-    virtual void OnLoaded() override
-    {
-        TYsonSerializable::OnLoaded();
-        if (RpcPort > 0) {
-            if (BusServer->Port || BusServer->UnixDomainName) {
-                THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+        RegisterPostprocessor([&] {
+            if (RpcPort > 0) {
+                if (BusServer->Port || BusServer->UnixDomainName) {
+                    THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+                }
+                BusServer->Port = RpcPort;
             }
-            BusServer->Port = RpcPort;
-        }
+        });
     }
 };
 
@@ -104,7 +91,7 @@ public:
             .NonEmpty();
         RegisterParameter("min_disk_space", MinDiskSpace)
             .GreaterThanOrEqual(0)
-            .Default(TNullable<i64>());
+            .Default();
     }
 };
 

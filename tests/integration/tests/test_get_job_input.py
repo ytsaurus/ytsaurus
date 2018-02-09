@@ -67,17 +67,6 @@ class TestGetJobInput(YTEnvSetup):
                 "max_repeat_delay": 10,
             }
         },
-
-        # Turn off mount cache otherwise our statistic reporter would be unhappy
-        # because of tablets of job statistics table are changed between tests.
-        "cluster_connection": {
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            }
-        },
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -96,9 +85,44 @@ class TestGetJobInput(YTEnvSetup):
         shutil.rmtree(self._tmpdir)
         remove("//sys/operations_archive")
 
+    def check_job_ids(self, job_id_iter):
+        for job_id in job_id_iter:
+            input_file = os.path.join(self._tmpdir, job_id)
+            with open(input_file) as inf:
+                actual_input = inf.read()
+            assert actual_input
+            assert get_job_input(job_id) == actual_input
 
     @pytest.mark.parametrize("format", FORMAT_LIST)
-    def test_map(self, format):
+    def test_map_in_progress(self, format):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+        events = EventsOnFs();
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat > {tmpdir}/$YT_JOB_ID ; {notify} ; {wait}".format(
+                tmpdir=self._tmpdir,
+                notify=events.notify_event_cmd("job_is_running"),
+                wait=events.wait_event_cmd("job_can_finish")),
+            format=format,
+            dont_track=True,
+            spec={"job_count": 1})
+
+        events.wait_event("job_is_running")
+
+        job_id_list = os.listdir(self._tmpdir)
+        assert len(job_id_list) == 1
+
+        self.check_job_ids(job_id_list)
+
+        events.notify_event("job_can_finish")
+        op.track()
+
+    def test_map_complete(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
@@ -108,21 +132,13 @@ class TestGetJobInput(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command="cat > {0}/$YT_JOB_ID".format(self._tmpdir),
-            format=format,
-        )
+            format="yson")
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
         wait_data_in_operation_table_archive(job_id_list)
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
-        for job_id in job_id_list:
-            input_file = os.path.join(self._tmpdir, job_id)
-            with open(input_file) as inf:
-                actual_input = inf.read()
-            assert actual_input
-            assert get_job_input(job_id) == actual_input
+        self.check_job_ids(job_id_list)
 
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
@@ -150,19 +166,16 @@ class TestGetJobInput(YTEnvSetup):
                 "data_size_per_sort_job": 10,
                 "force_reduce_combiners": True,
             },
-            dont_track=True
-        )
+            dont_track=True)
+
         events.wait_event("reducer_almost_complete", timeout=datetime.timedelta(300))
 
         job_id_list = os.listdir(self._tmpdir)
         assert len(job_id_list) >= 3
         wait_data_in_operation_table_archive(job_id_list)
-        for job_id in job_id_list:
-            input_file = os.path.join(self._tmpdir, job_id)
-            with open(input_file) as inf:
-                actual_input = inf.read()
-            assert actual_input
-            assert get_job_input(job_id) == actual_input
+
+        self.check_job_ids(job_id_list)
+
         events.notify_event("continue_reducer")
         op.track()
 
@@ -219,8 +232,7 @@ class TestGetJobInput(YTEnvSetup):
             join_by=["host"],
             out="//tmp/t_output",
             command="cat > {0}/$YT_JOB_ID".format(self._tmpdir),
-            format=format,
-        )
+            format=format)
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
@@ -228,12 +240,8 @@ class TestGetJobInput(YTEnvSetup):
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
-        for job_id in job_id_list:
-            input_file = os.path.join(self._tmpdir, job_id)
-            with open(input_file) as inf:
-                actual_input = inf.read()
-            assert actual_input
-            assert get_job_input(job_id) == actual_input
+
+        self.check_job_ids(job_id_list)
 
     def test_nonuser_job_type(self):
         create("table", "//tmp/t_input")
@@ -242,8 +250,8 @@ class TestGetJobInput(YTEnvSetup):
         op = sort(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            sort_by=["foo"]
-        )
+            sort_by=["foo"])
+
         wait(lambda: get_job_rows_for_operation(op.id))
 
         rows = get_job_rows_for_operation(op.id)
@@ -261,7 +269,6 @@ class TestGetJobInput(YTEnvSetup):
         with pytest.raises(YtError):
             get_job_input(job_id)
 
-
     def test_table_is_rewritten(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -275,8 +282,7 @@ class TestGetJobInput(YTEnvSetup):
             command="cat > {0}/$YT_JOB_ID".format(self._tmpdir),
             spec = {
                 "stderr_table_path": "//tmp/t_stderr",
-            }
-        )
+            })
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
@@ -306,8 +312,7 @@ class TestGetJobInput(YTEnvSetup):
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="cat > {0}/$YT_JOB_ID".format(self._tmpdir),
-        )
+            command="cat > {0}/$YT_JOB_ID".format(self._tmpdir))
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
@@ -321,7 +326,7 @@ class TestGetJobInput(YTEnvSetup):
                 new_r[key] = r[key]
             new_r["spec"] = "junk"
             updated.append(new_r)
-        insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True)
+        insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True, atomicity="none")
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
@@ -332,7 +337,6 @@ class TestGetJobInput(YTEnvSetup):
             assert actual_input
             with pytest.raises(YtError):
                 get_job_input(job_id)
-
 
     def test_map_with_query(self):
         create("table", "//tmp/t_input")
@@ -360,9 +364,5 @@ class TestGetJobInput(YTEnvSetup):
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
-        for job_id in job_id_list:
-            input_file = os.path.join(self._tmpdir, job_id)
-            with open(input_file) as inf:
-                actual_input = inf.read()
-            assert actual_input
-            assert get_job_input(job_id) == actual_input
+
+        self.check_job_ids(job_id_list)

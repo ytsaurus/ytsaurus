@@ -40,7 +40,7 @@ TStringBuf ToHttpString(EStatusCode code)
 http_parser_settings THttpParser::GetParserSettings()
 {
     http_parser_settings settings;
-    http_parser_settings_init(&settings);
+    yt_http_parser_settings_init(&settings);
 
     settings.on_url = &OnUrl;
     settings.on_status = &OnStatus;
@@ -58,7 +58,7 @@ const http_parser_settings ParserSettings = THttpParser::GetParserSettings();
 THttpParser::THttpParser(http_parser_type parserType)
     : Headers_(New<THeaders>())
 {
-    http_parser_init(&Parser_, parserType);
+    yt_http_parser_init(&Parser_, parserType);
     Parser_.data = reinterpret_cast<void*>(this);
 }
 
@@ -74,7 +74,7 @@ TSharedRef THttpParser::Feed(const TSharedRef& input)
         InputBuffer_ = nullptr;
     });
 
-    size_t read = http_parser_execute(&Parser_, &ParserSettings, input.Begin(), input.Size());
+    size_t read = yt_http_parser_execute(&Parser_, &ParserSettings, input.Begin(), input.Size());
     auto http_errno = static_cast<enum http_errno>(Parser_.http_errno);
     if (http_errno != 0 && http_errno != HPE_PAUSED) {
         // 64 bytes before error
@@ -85,13 +85,13 @@ TSharedRef THttpParser::Feed(const TSharedRef& input)
 
         TString errorContext(input.Begin() + contextStart, contextEnd - contextStart);
     
-        THROW_ERROR_EXCEPTION("HTTP parse error: %s", http_errno_description(http_errno))
-            << TErrorAttribute("parser_error_name", http_errno_name(http_errno))
+        THROW_ERROR_EXCEPTION("HTTP parse error: %s", yt_http_errno_description(http_errno))
+            << TErrorAttribute("parser_error_name", yt_http_errno_name(http_errno))
             << TErrorAttribute("error_context", errorContext);
     }
 
     if (http_errno == HPE_PAUSED) {
-        http_parser_pause(&Parser_, 0);
+        yt_http_parser_pause(&Parser_, 0);
     }
 
     return input.Slice(read, input.Size());
@@ -191,7 +191,7 @@ int THttpParser::OnHeadersComplete(http_parser* parser)
     that->MaybeFlushHeader(that->State_ == EParserState::HeadersFinished);
 
     that->State_ = EParserState::HeadersFinished;
-    http_parser_pause(parser, 1);
+    yt_http_parser_pause(parser, 1);
 
     return 0;
 }
@@ -200,7 +200,7 @@ int THttpParser::OnBody(http_parser* parser, const char *at, size_t length)
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->LastBodyChunk_ = that->InputBuffer_->Slice(at, at + length);
-    http_parser_pause(parser, 1);
+    yt_http_parser_pause(parser, 1);
     return 0;
 }
 
@@ -210,7 +210,7 @@ int THttpParser::OnMessageComplete(http_parser* parser)
     that->MaybeFlushHeader(that->State_ == EParserState::HeadersFinished);
 
     that->State_ = EParserState::MessageFinished;
-    that->ShouldKeepAlive_ = http_should_keep_alive(parser);
+    that->ShouldKeepAlive_ = yt_http_should_keep_alive(parser);
     
     return 0;
 }
@@ -222,17 +222,17 @@ struct THttpParserTag
 
 THttpInput::THttpInput(
     const IAsyncInputStreamPtr& reader,
+    const TNetworkAddress& remoteAddress,
     const IInvokerPtr& readInvoker,
     EMessageType messageType,
     size_t bufferSize)
     : Reader_(reader)
+    , RemoteAddress_(remoteAddress)
     , MessageType_(messageType)
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(bufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
-{
-    ReadClosure_ = BIND(&THttpInput::DoRead, MakeStrong(this))
-        .AsyncVia(readInvoker);
-}
+    , ReadInvoker_(readInvoker)
+{ }
 
 std::pair<int, int> THttpInput::GetVersion()
 {
@@ -282,6 +282,11 @@ const THeadersPtr& THttpInput::GetTrailers()
     return trailers;
 }
 
+const TNetworkAddress& THttpInput::GetRemoteAddress() const
+{
+    return RemoteAddress_;
+}
+
 void THttpInput::FinishHeaders()
 {
     HeadersReceived_ = true;
@@ -322,7 +327,28 @@ void THttpInput::EnsureHeadersReceived()
 
 TFuture<TSharedRef> THttpInput::Read()
 {
-    return ReadClosure_.Run();
+    return BIND(&THttpInput::DoRead, MakeStrong(this))
+        .AsyncVia(ReadInvoker_)
+        .Run();
+}
+
+TSharedRef THttpInput::ReadBody()
+{
+    std::vector<TSharedRef> chunks;
+
+    // TODO(prime@): Add hard limit on body size.
+    while (true) {
+        auto chunk = WaitFor(Read())
+            .ValueOrThrow();
+
+        if (chunk.Empty()) {
+            break;
+        }
+
+        chunks.emplace_back(TSharedRef::MakeCopy<THttpParserTag>(chunk));
+    }
+
+    return MergeRefsToRef<THttpParserTag>(std::move(chunks));
 }
 
 TSharedRef THttpInput::DoRead()
@@ -376,6 +402,15 @@ THttpOutput::THttpOutput(
 const THeadersPtr& THttpOutput::GetHeaders()
 {
     return Headers_;
+}
+
+void THttpOutput::SetHost(TStringBuf host, TStringBuf port)
+{
+    if (!port.empty()) {
+        HostHeader_ = Format("%v:%v", host, port);
+    } else {
+        HostHeader_ = TString(host);
+    }
 }
 
 void THttpOutput::SetHeaders(const THeadersPtr& headers)
@@ -447,8 +482,11 @@ TSharedRef THttpOutput::GetHeadersPart(TNullable<size_t> contentLength)
         messageHeaders << "Connection: close\r\n";
     }
 
+    if (HostHeader_) {
+        messageHeaders << "Host: " << *HostHeader_ << "\r\n";
+    }
+
     Headers_->WriteTo(&messageHeaders, &FilteredHeaders_);
-    messageHeaders << "\r\n";
 
     TString headers;
     messageHeaders.Buffer().AsString(headers);
@@ -460,7 +498,6 @@ TSharedRef THttpOutput::GetTrailersPart()
     TBufferOutput messageTrailers;
 
     Trailers_->WriteTo(&messageTrailers, &FilteredHeaders_);
-    messageTrailers << "\r\n";
 
     TString trailers;
     messageTrailers.Buffer().AsString(trailers);
@@ -474,12 +511,15 @@ TSharedRef THttpOutput::GetChunkHeader(size_t size)
 
 TFuture<void> THttpOutput::Write(const TSharedRef& data)
 {
-    YCHECK(!MessageFinished_);
+    if (MessageFinished_) {
+        THROW_ERROR_EXCEPTION("Cannot write to finished HTTP message");
+    }
 
     std::vector<TSharedRef> writeRefs;
     if (!HeadersFlushed_) {
         HeadersFlushed_ = true;
         writeRefs.emplace_back(GetHeadersPart(Null));
+        writeRefs.emplace_back(CrLf);
     }
 
     if (data.Size() != 0) {
@@ -493,7 +533,9 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
 
 TFuture<void> THttpOutput::Close()
 {
-    YCHECK(!MessageFinished_);
+    if (MessageFinished_) {
+        return VoidFuture;
+    }
 
     if (!HeadersFlushed_) {
         return WriteBody(EmptySharedRef);
@@ -509,6 +551,7 @@ TFuture<void> THttpOutput::FinishChunked()
     if (Trailers_) {
         writeRefs.emplace_back(ZeroCrLf);
         writeRefs.emplace_back(GetTrailersPart());
+        writeRefs.emplace_back(CrLf);
     } else {
         writeRefs.emplace_back(ZeroCrLfCrLf);
     }
@@ -526,11 +569,13 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
         writeRefs = TSharedRefArray({
             GetHeadersPart(smallBody.Size()),
             GetTrailersPart(),
+            CrLf,
             smallBody
         });
     } else {
         writeRefs = TSharedRefArray({
             GetHeadersPart(smallBody.Size()),
+            CrLf,
             smallBody
         });
     }
@@ -545,7 +590,8 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
 const THashSet<TString> THttpOutput::FilteredHeaders_ = {
     "transfer-encoding",
     "content-length",
-    "connection"
+    "connection",
+    "host"
 };
 
 const TSharedRef THttpOutput::CrLf = TSharedRef::FromString("\r\n");

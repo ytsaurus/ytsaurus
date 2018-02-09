@@ -76,6 +76,8 @@ private:
     //! number of chunks already created by the finished jobs (that is precise) and
     //! number of chunks that were not created yet (they are accounted using the stripe list
     //! output chunk count estimate).
+    //! NB: This field is intentionally transient as we have no easy way to discount chunks
+    //! that were released in the previous incarnation of the scheduler.
     int CurrentIntermediateChunkCount_ = 0;
 
     //! The number of currently running auto-merge jobs.

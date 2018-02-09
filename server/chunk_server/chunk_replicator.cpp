@@ -26,6 +26,7 @@
 #include <yt/server/node_tracker_server/node.h>
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
+#include <yt/server/node_tracker_server/rack.h>
 
 #include <yt/server/object_server/object.h>
 
@@ -1793,7 +1794,7 @@ void TChunkReplicator::OnCheckEnabled()
             OnCheckEnabledSecondary();
         }
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error updating chunk ```replicator state, disabling until the next attempt");
+        LOG_ERROR(ex, "Error updating chunk replicator state, disabling until the next attempt");
         Enabled_ = false;
     }
 }
@@ -2006,7 +2007,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         }
     }
 
-    LOG_DEBUG("Chunk chunk properties update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
+    LOG_DEBUG("Chunk properties update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
         totalCount,
         aliveCount,
         request.updates_size());
@@ -2016,7 +2017,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         auto asyncResult = chunkManager
             ->CreateUpdateChunkPropertiesMutation(request)
             ->CommitAndLog(Logger);
-        WaitFor(asyncResult);
+        Y_UNUSED(WaitFor(asyncResult));
     }
 }
 
@@ -2127,6 +2128,7 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 void TChunkReplicator::RegisterJob(const TJobPtr& job)
 {
     YCHECK(JobMap_.insert(std::make_pair(job->GetJobId(), job)).second);
+    UpdateJobCountGauge(job->GetType(), +1);
     YCHECK(job->GetNode()->Jobs().insert(job).second);
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2136,12 +2138,13 @@ void TChunkReplicator::RegisterJob(const TJobPtr& job)
         chunk->SetJob(job);
     }
 
-    UpdateInterDCEdgeConsumption(job, 1);
+    UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), +1);
 }
 
 void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags)
 {
     YCHECK(JobMap_.erase(job->GetJobId()) == 1);
+    UpdateJobCountGauge(job->GetType(), -1);
 
     if (Any(flags & EJobUnregisterFlags::UnregisterFromNode)) {
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
@@ -2157,7 +2160,31 @@ void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags fla
         }
     }
 
-    UpdateInterDCEdgeConsumption(job, -1);
+    UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), -1);
+}
+
+void TChunkReplicator::UpdateJobCountGauge(EJobType jobType, int delta)
+{
+    switch (jobType) {
+        case EJobType::ReplicateChunk:
+        case EJobType::RemoveChunk:
+        case EJobType::RepairChunk:
+        case EJobType::SealChunk:
+            JobCounters_[jobType] += delta;
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+void TChunkReplicator::HandleNodeDataCenterChange(TNode* node, TDataCenter* oldDataCenter)
+{
+    Y_ASSERT(node->GetDataCenter() != oldDataCenter);
+
+    for (const auto& job : node->Jobs()) {
+        UpdateInterDCEdgeConsumption(job, oldDataCenter, -1);
+        UpdateInterDCEdgeConsumption(job, node->GetDataCenter(), +1);
+    }
 }
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes)
@@ -2197,7 +2224,7 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
 
     // This will soon be replaced by getting capacities from node tracker.
 
-    InterDCEdgeCapacities.clear();
+    InterDCEdgeCapacities_.clear();
 
     auto capacities = Config_->InterDCLimits->GetCapacities();
     auto secondaryCellCount = Bootstrap_->GetSecondaryCellTags().size();
@@ -2206,7 +2233,7 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
     auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter, const TNullable<TString>& srcDataCenterName) {
-        auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
+        auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
         const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
 
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter, const TNullable<TString>& dstDataCenterName) {
@@ -2244,8 +2271,8 @@ void TChunkReplicator::UpdateUnsaturatedInterDCEdges()
         Config_->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
 
     auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
-        auto& interDCEdgeConsumption = InterDCEdgeConsumption[srcDataCenter];
-        const auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
+        auto& interDCEdgeConsumption = InterDCEdgeConsumption_[srcDataCenter];
+        const auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
 
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
             if (interDCEdgeConsumption.Value(dstDataCenter, 0) <
@@ -2271,7 +2298,10 @@ void TChunkReplicator::UpdateUnsaturatedInterDCEdges()
     }
 }
 
-void TChunkReplicator::UpdateInterDCEdgeConsumption(const TJobPtr& job, int sizeMultiplier)
+void TChunkReplicator::UpdateInterDCEdgeConsumption(
+    const TJobPtr& job,
+    const TDataCenter* srcDataCenter,
+    int sizeMultiplier)
 {
     if (job->GetType() != EJobType::ReplicateChunk &&
         job->GetType() != EJobType::RepairChunk)
@@ -2279,9 +2309,8 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(const TJobPtr& job, int size
         return;
     }
 
-    const auto* srcDataCenter = job->GetNode()->GetDataCenter();
-    auto& interDCEdgeConsumption = InterDCEdgeConsumption[srcDataCenter];
-    const auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
+    auto& interDCEdgeConsumption = InterDCEdgeConsumption_[srcDataCenter];
+    const auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
 
     const auto defaultCapacity =
         Config_->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);

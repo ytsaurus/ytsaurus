@@ -93,7 +93,7 @@ public:
 private:
     IObjectProxyPtr GetTargetProxy() const
     {
-        auto address = GetParent()->AsMap()->GetChildKey(this);
+        auto address = GetParent()->AsMap()->GetChildKeyOrThrow(this);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeByAddressOrThrow(address);

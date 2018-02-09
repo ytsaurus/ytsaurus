@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef __linux__
+#error Platform must be linux to include this
+#endif
+
 #include "public.h"
 
 #include <yt/core/actions/future.h>
@@ -27,6 +31,12 @@ DEFINE_ENUM(EStatField,
 
 using TUsage = TEnumIndexedVector<TErrorOr<ui64>, EStatField>;
 
+struct TResourceLimits
+{
+    double Cpu;
+    i64 Memory;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IInstance
@@ -37,11 +47,17 @@ struct IInstance
     virtual void SetStdErr(const TString& errorPath) = 0;
     virtual void SetCwd(const TString& pwd) = 0;
     virtual void SetCoreDumpHandler(const TString& handler) = 0;
+    virtual void SetRoot(const TRootFS& rootFS) = 0;
+
+    virtual bool HasRoot() const = 0;
+
     virtual void Kill(int signal) = 0;
     virtual void Destroy() = 0;
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
+    virtual TResourceLimits GetResourceLimits() const = 0;
     virtual void SetCpuLimit(double cores) = 0;
     virtual void SetCpuShare(double cores) = 0;
+    virtual void SetIOWeight(double weight) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual TString GetName() const = 0;
 
@@ -51,17 +67,17 @@ struct IInstance
     virtual TFuture<int> Exec(
         const std::vector<const char*>& argv,
         const std::vector<const char*>& env) = 0;
-    virtual void MountTmpfs(const TString& path, size_t size, const TString& user) = 0;
-    virtual void Umount(const TString& path) = 0;
-    virtual std::vector<NFS::TMountPoint> ListVolumes() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInstance)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor);
+#ifdef _linux_
+IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor, bool autoDestroy = true);
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name);
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

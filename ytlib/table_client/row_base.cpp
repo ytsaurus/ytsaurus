@@ -2,6 +2,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/format.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -13,6 +14,11 @@ TColumnFilter::TColumnFilter()
 { }
 
 TColumnFilter::TColumnFilter(const std::initializer_list<int>& indexes)
+    : All(false)
+    , Indexes(indexes.begin(), indexes.end())
+{ }
+
+TColumnFilter::TColumnFilter(const std::vector<int>& indexes)
     : All(false)
     , Indexes(indexes.begin(), indexes.end())
 { }

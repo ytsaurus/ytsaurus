@@ -1,8 +1,8 @@
 package NYT.NCypressClient.NProto;
 
-import "yt/core/misc/guid.proto";
-import "yt/core/ytree/attributes.proto";
-import "yt/core/ytree/ypath.proto";
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
+import "yt/core/ytree/proto/ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@ message TRspLock
 message TReqCreate
 {
     required int32 type = 1;
-    optional NYT.NYTree.NProto.TAttributes node_attributes = 2;
+    optional NYT.NYTree.NProto.TAttributeDictionary node_attributes = 2;
     optional bool recursive = 3 [default = false];
     optional bool ignore_existing = 4 [default = false];
     optional bool enable_accounting = 5 [default = true];

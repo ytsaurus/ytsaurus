@@ -36,16 +36,16 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NYson;
-using namespace NYTree;
+using namespace NApi;
+using namespace NChunkClient::NProto;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
-using namespace NChunkClient;
-using namespace NChunkClient::NProto;
-using namespace NConcurrency;
-using namespace NApi;
-using namespace NNodeTrackerClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NChunkClient::TDataSliceDescriptor;
 using NYT::TRange;
@@ -326,6 +326,8 @@ protected:
 
     TVersionedRow ProduceAllRowVersions(TSortedDynamicRow dynamicRow)
     {
+        Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
+
         // Prepare values and write timestamps.
         VersionedValues_.clear();
         WriteTimestamps_.clear();
@@ -587,9 +589,12 @@ public:
             Iterator_.MoveNext();
         }
 
-        RowCount_ += rows->size();
+        i64 rowCount = rows->size();
+
+        RowCount_ += rowCount;
         DataWeight_ += dataWeight;
-        Store_->PerformanceCounters_->DynamicRowReadCount += rows->size();
+        Store_->PerformanceCounters_->DynamicRowReadCount += rowCount;
+        Store_->PerformanceCounters_->DynamicRowReadDataWeightCount += dataWeight;
 
         return true;
     }
@@ -709,6 +714,8 @@ public:
             return false;
         }
 
+        i64 dataWeight = 0;
+
         while (rows->size() < rows->capacity()) {
             if (RowCount_ == Keys_.Size())
                 break;
@@ -728,7 +735,7 @@ public:
             rows->push_back(row);
 
             ++RowCount_;
-            DataWeight_ += GetDataWeight(row);
+            dataWeight += GetDataWeight(row);
         }
 
         if (rows->empty()) {
@@ -736,7 +743,9 @@ public:
             return false;
         }
 
+        DataWeight_ += dataWeight;
         Store_->PerformanceCounters_->DynamicRowLookupCount += rows->size();
+        Store_->PerformanceCounters_->DynamicRowLookupDataWeightCount += dataWeight;
 
         return true;
     }
@@ -858,10 +867,12 @@ void TSortedDynamicStore::WaitOnBlockedRow(
     ui32 lockMask,
     TTimestamp timestamp)
 {
-    if (timestamp == AsyncLastCommittedTimestamp)
+    if (timestamp == AsyncLastCommittedTimestamp ||
+        timestamp == AllCommittedTimestamp ||
+        Atomicity_ == EAtomicity::None)
+    {
         return;
-    if (Atomicity_ == EAtomicity::None)
-        return;
+    }
 
     auto now = NProfiling::GetCpuInstant();
     auto deadline = now + NProfiling::DurationToCpuDuration(Config_->MaxBlockedRowWaitTime);
@@ -1758,7 +1769,8 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/)
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TReadSessionId& /*sessionId*/)
 {
     return New<TRangeReader>(
         this,
@@ -1776,7 +1788,8 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/)
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TReadSessionId& /*sessionId*/)
 {
     return New<TLookupReader>(
         this,
@@ -1926,6 +1939,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             tableReaderConfig,
             chunkReader,
             chunkState,
+            TReadSessionId(),
             MinKey(),
             MaxKey(),
             TColumnFilter(),

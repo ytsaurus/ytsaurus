@@ -143,11 +143,20 @@ class TErasureReaderConfig
 {
 public:
     bool EnableAutoRepair;
+    double ReplicationReaderSpeedLimitPerSec;
+    TDuration SlowReaderExpirationTimeout;
+    TDuration ReplicationReaderTimeout;
 
     TErasureReaderConfig()
     {
         RegisterParameter("enable_auto_repair", EnableAutoRepair)
             .Default(true);
+        RegisterParameter("replication_reader_speed_limit_per_sec", ReplicationReaderSpeedLimitPerSec)
+            .Default(5_MB);
+        RegisterParameter("slow_reader_expiration_timeout", SlowReaderExpirationTimeout)
+            .Default(TDuration::Minutes(2));
+        RegisterParameter("replication_reader_timeout", ReplicationReaderTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 
@@ -198,7 +207,7 @@ public:
             .Default(15_MB)
             .GreaterThan(0);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (GroupSize > WindowSize) {
                 THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
             }
@@ -248,6 +257,9 @@ public:
 
     bool EnableDirectIO;
 
+    //! If |true| then the chunk is finished as soon as MinUploadReplicationFactor chunks are written.
+    bool EnableEarlyFinish;
+
     TDuration AllocateWriteTargetsBackoffTime;
 
     int AllocateWriteTargetsRetryCount;
@@ -282,17 +294,19 @@ public:
             .Default(true);
         RegisterParameter("enable_direct_io", EnableDirectIO)
             .Default(false);
+        RegisterParameter("enable_early_finish", EnableEarlyFinish)
+            .Default(false);
         RegisterParameter("allocate_write_targets_backoff_time", AllocateWriteTargetsBackoffTime)
             .Default(TDuration::Seconds(5));
         RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
             .Default(10);
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             NodeChannel->RetryBackoffTime = TDuration::Seconds(10);
             NodeChannel->RetryAttempts = 100;
         });
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (SendWindowSize < GroupSize) {
                 THROW_ERROR_EXCEPTION("\"send_window_size\" cannot be less than \"group_size\"");
             }
@@ -333,8 +347,13 @@ class TErasureWriterConfig
 public:
     i64 ErasureWindowSize;
 
+    bool EnableErasureTargetNodeReallocation;
+
     TErasureWriterConfig()
     {
+        RegisterParameter("enable_erasure_target_node_reallocation", EnableErasureTargetNodeReallocation)
+            .Default(false);
+
         RegisterParameter("erasure_window_size", ErasureWindowSize)
             .Default(8_MB)
             .GreaterThan(0);
@@ -427,7 +446,7 @@ public:
     {
         RegisterParameter("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
-            .Default(1_GB);
+            .Default(2_GB);
 
         RegisterParameter("desired_chunk_weight", DesiredChunkWeight)
             .GreaterThan(0)
@@ -527,7 +546,7 @@ public:
             .LessThanOrEqual(1000)
             .Default(512);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (MaxBufferSize < 2 * WindowSize) {
                 THROW_ERROR_EXCEPTION("\"max_buffer_size\" cannot be less than twice \"window_size\"");
             }

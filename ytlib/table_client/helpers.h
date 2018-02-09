@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/cypress_client/public.h>
 
+#include <yt/ytlib/scheduler/public.h>
+
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/public.h>
 
@@ -20,15 +22,6 @@
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
-
-namespace NScheduler {
-namespace NProto {
-
-class TOutputResult;
-
-} // namespace NProto
-} // namespace NScheduler
-
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,12 +47,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPipeReaderToWriterOptions
+{
+    int BufferRowCount = 0;
+    bool ValidateValues = false;
+    NConcurrency::IThroughputThrottlerPtr Throttler = nullptr;
+    // Used only for testing.
+    TDuration PipeDelay;
+};
+
 void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
-    int bufferRowCount,
-    bool validateValues = false,
-    NConcurrency::IThroughputThrottlerPtr throttler = nullptr);
+    TPipeReaderToWriterOptions options);
 
 void PipeInputToOutput(
     IInputStream* input,

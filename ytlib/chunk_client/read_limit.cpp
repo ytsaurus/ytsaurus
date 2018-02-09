@@ -1,6 +1,7 @@
 #include "read_limit.h"
 
 #include <yt/core/misc/format.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
@@ -404,10 +405,10 @@ TString ToString(const TReadRange& range)
 void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
 {
     if (!readRange.LowerLimit().IsTrivial()) {
-        *protoReadRange->mutable_lower_limit() = ToProto<NProto::TReadLimit>(readRange.LowerLimit());
+        ToProto(protoReadRange->mutable_lower_limit(), readRange.LowerLimit());
     }
     if (!readRange.UpperLimit().IsTrivial()) {
-        *protoReadRange->mutable_upper_limit() = ToProto<NProto::TReadLimit>(readRange.UpperLimit());
+        ToProto(protoReadRange->mutable_upper_limit(), readRange.UpperLimit());
     }
 }
 

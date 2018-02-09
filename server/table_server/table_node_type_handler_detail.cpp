@@ -225,12 +225,19 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 
     clonedNode->TableSchema() = sourceNode->TableSchema();
     clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
-    clonedNode->SetAtomicity(sourceNode->GetAtomicity());
-    clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
-    clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());
     clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
+    clonedNode->SetAtomicity(sourceNode->GetAtomicity());
+    clonedNode->SetCommitOrdering(sourceNode->GetCommitOrdering());
+    clonedNode->SetInMemoryMode(sourceNode->GetInMemoryMode());
+    clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());
+    clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
+    clonedNode->SetEnableTabletBalancer(sourceNode->GetEnableTabletBalancer());
+    clonedNode->SetMinTabletSize(sourceNode->GetMinTabletSize());
+    clonedNode->SetMaxTabletSize(sourceNode->GetMaxTabletSize());
+    clonedNode->SetDesiredTabletSize(sourceNode->GetDesiredTabletSize());
+    clonedNode->SetDesiredTabletCount(sourceNode->GetDesiredTabletCount());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());

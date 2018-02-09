@@ -27,11 +27,12 @@ class TBlobReaderCache::TCachedReader
 {
 public:
     TCachedReader(
+        const IIOEnginePtr& ioEngine,
         const TChunkId& chunkId,
         const TString& fileName,
         bool validateBlockChecksums)
         : TAsyncCacheValueBase<TChunkId, TCachedReader>(chunkId)
-        , TFileReader(chunkId, fileName, validateBlockChecksums)
+        , TFileReader(ioEngine, chunkId, fileName, validateBlockChecksums)
         , ChunkId_(chunkId)
     { }
 
@@ -65,7 +66,7 @@ public:
 
     TFileReaderPtr GetReader(IChunkPtr chunk)
     {
-        YCHECK(chunk->IsReadLockAcquired());
+        auto guard = TChunkReadGuard::AcquireOrThrow(chunk.Get());
 
         auto location = chunk->GetLocation();
         const auto& Profiler = location->GetProfiler();
@@ -80,7 +81,7 @@ public:
 
             PROFILE_TIMING ("/blob_chunk_reader_open_time") {
                 try {
-                    auto reader = New<TCachedReader>(chunkId, fileName, Config_->ValidateBlockChecksums);
+                    auto reader = New<TCachedReader>(chunk->GetLocation()->GetIOEngine(), chunkId, fileName, Config_->ValidateBlockChecksums);
                     cookie.EndInsert(reader);
                 } catch (const std::exception& ex) {
                     auto error = TError(

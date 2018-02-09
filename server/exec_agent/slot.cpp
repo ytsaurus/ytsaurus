@@ -28,9 +28,10 @@
 namespace NYT {
 namespace NExecAgent {
 
-using namespace NJobProberClient;
-using namespace NConcurrency;
 using namespace NBus;
+using namespace NConcurrency;
+using namespace NDataNode;
+using namespace NJobProberClient;
 using namespace NRpc;
 using namespace NTools;
 using namespace NYTree;
@@ -57,8 +58,7 @@ public:
 
         // After that clean the filesystem.
         WaitFor(Location_->CleanSandboxes(
-            SlotIndex_,
-            CreateMounter()))
+            SlotIndex_))
             .ThrowOnError();
         Location_->DecreaseSessionCount();
     }
@@ -125,36 +125,41 @@ public:
             });
     }
 
-    virtual TFuture<TString> PrepareTmpfs(
+    virtual TFuture<TNullable<TString>> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        TString path,
-        bool enable) override
+        TString path) override
     {
-        return RunPrepareAction<TString>([&] () {
+        return RunPrepareAction<TNullable<TString>>([&] () {
                 return Location_->MakeSandboxTmpfs(
                     SlotIndex_,
                     sandboxKind,
                     size,
-                    JobEnvironment_->GetUserId(SlotIndex_),
-                    path,
-                    enable,
-                    CreateMounter());
+                    path);
             },
             // Tmpfs mounting is uncancelable since it includes tool invocation in a separate process.
             true);
     }
 
-    virtual TFuture<void> SetQuota(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) override
+    virtual TFuture<void> FinalizePreparation(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) override
     {
         return RunPrepareAction<void>([&] () {
-                return Location_->SetQuota(
+                return Location_->FinalizeSanboxPreparation(
                     SlotIndex_,
                     diskSpaceLimit,
                     inodeLimit,
                     JobEnvironment_->GetUserId(SlotIndex_));
             },
             // Quota setting is uncancelable since it includes tool invocation in a separate process.
+            true);
+    }
+
+    virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
+    {
+        return RunPrepareAction<IVolumePtr>([&] () {
+                return JobEnvironment_->PrepareRootVolume(layers);
+            },
+            // Volume preparation is uncancellable since it includes tool invocation in a separate process.
             true);
     }
 
@@ -193,12 +198,8 @@ private:
 
     IJobProbePtr JobProberClient_;
 
-    //! Mounter should be alive, after cleaning enviornment.
-    IMounterPtr Mounter_;
-
     std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;
-
 
     TTcpBusClientConfigPtr GetRpcClientConfig() const
     {
@@ -220,14 +221,6 @@ private:
                 : preparationFuture);
             return future;
         }
-    }
-
-    IMounterPtr CreateMounter()
-    {
-        if (!Mounter_) {
-            Mounter_ = JobEnvironment_->CreateMounter(SlotIndex_);
-        }
-        return Mounter_;
     }
 };
 

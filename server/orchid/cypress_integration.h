@@ -10,13 +10,15 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/rpc/config.h>
+
 namespace NYT {
 namespace NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOrchidManifest
-    : public NYTree::TYsonSerializable
+    : public NRpc::TRetryingChannelConfig
 {
     NNodeTrackerClient::TAddressMap RemoteAddresses;
     TString RemoteRoot;

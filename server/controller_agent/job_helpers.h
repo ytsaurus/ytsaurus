@@ -37,7 +37,7 @@ void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, NYson::IYsonCon
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<NScheduler::TJobSummary> jobSummary);
+TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSummary);
 
 // Returns true if job proxy wasn't stalling and false otherwise.
 // This function is related to the suspicious jobs detection.
@@ -48,7 +48,7 @@ bool CheckJobActivity(
     double inputPipeIdleTimeFraction);
 
 // Performs statistics parsing and put it inside jobSummary.
-void ParseStatistics(NScheduler::TJobSummary* jobSummary, const NYson::TYsonString& lastObservedStatisticsYson = NYson::TYsonString());
+void ParseStatistics(TJobSummary* jobSummary, const NYson::TYsonString& lastObservedStatisticsYson = NYson::TYsonString());
 
 NYson::TYsonString BuildInputPaths(
     const std::vector<NYPath::TRichYPath>& inputPaths,
@@ -62,9 +62,9 @@ struct TScheduleJobStatistics
     : public TIntrinsicRefCounted
     , public IPersistent
 {
-    void RecordJobResult(const NScheduler::TScheduleJobResultPtr& scheduleJobResult);
+    void RecordJobResult(const TScheduleJobResult& scheduleJobResult);
 
-    TEnumIndexedVector<int, NScheduler::EScheduleJobFailReason> Failed;
+    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
     TDuration Duration;
     i64 Count = 0;
 

@@ -16,7 +16,7 @@
 
 #include <yt/core/bus/config.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/yson_serializable.h>
@@ -34,6 +34,9 @@ public:
     int SlotIndex;
 
     TNullable<TString> TmpfsPath;
+
+    //! Path for container root.
+    TNullable<TString> RootPath;
 
     // Job-independent parameters.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
@@ -55,11 +58,16 @@ public:
 
     i64 AheadMemoryReserve;
 
+    bool TestRootFS;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
 
         RegisterParameter("tmpfs_path", TmpfsPath)
+            .Default();
+
+        RegisterParameter("root_path", RootPath)
             .Default();
 
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -91,6 +99,9 @@ public:
 
         RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
             .Default(100_MB);
+
+        RegisterParameter("test_root_fs", TestRootFS)
+            .Default(false);
     }
 };
 

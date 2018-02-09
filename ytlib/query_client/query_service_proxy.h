@@ -15,7 +15,7 @@ class TQueryServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TQueryServiceProxy, RPC_PROXY_DESC(QueryService)
+    DEFINE_RPC_PROXY(TQueryServiceProxy, QueryService,
         .SetProtocolVersion(33));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);

@@ -8,6 +8,7 @@
 #include "unversioned_row.h"
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/format.h>
 
 #include <yt/core/ytree/convert.h>
 

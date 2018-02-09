@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
-
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/transaction_client/public.h>
@@ -21,6 +19,9 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  \note Thread affinity: Control unless noted otherwise
+ */
 class TScheduler
     : public TRefCounted
 {
@@ -28,22 +29,45 @@ public:
     TScheduler(
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
-
     ~TScheduler();
 
     void Initialize();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     ISchedulerStrategyPtr GetStrategy();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     NYTree::IYPathServicePtr GetOrchidService();
 
-    std::vector<TOperationPtr> GetOperations();
+    /*!
+     *  \note Thread affinity: any
+     */
+    TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors();
 
-    IInvokerPtr GetSnapshotIOInvoker();
+    /*!
+     *  \note Thread affinity: any
+     */
+    int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const;
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    const std::vector<TNodeShardPtr>& GetNodeShards() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     bool IsConnected();
+    /*!
+     *  \note Thread affinity: any
+     */
     void ValidateConnected();
-    void ValidateAcceptsHeartbeats();
+
+    void Disconnect();
 
     TOperationPtr FindOperation(const TOperationId& id) const;
     TOperationPtr GetOperationOrThrow(const TOperationId& id) const;
@@ -63,26 +87,31 @@ public:
         const TError& error,
         const TString& user);
 
+    void OnOperationCompleted(const TOperationId& operationId);
+    void OnOperationAborted(const TOperationId& operationId, const TError& error);
+    void OnOperationFailed(const TOperationId& operationId, const TError& error);
+    void OnOperationSuspended(const TOperationId& operationId, const TError& error);
+
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);
     TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user);
     TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
     TFuture<void> AbandonJob(const TJobId& jobId, const TString& user);
     TFuture<NYson::TYsonString> PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
-    TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user);
+    TFuture<void> AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
 
-    using TCtxHeartbeat = NRpc::TTypedServiceContext<
+    using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
         NJobTrackerClient::NProto::TRspHeartbeat>;
-    using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
-    void ProcessHeartbeat(TCtxHeartbeatPtr context);
+    using TCtxNodeHeartbeatPtr = TIntrusivePtr<TCtxNodeHeartbeat>;
+    /*!
+     *  \note Thread affinity: any
+     */
+    void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
-    class TSchedulingContext;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduler)

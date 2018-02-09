@@ -32,9 +32,9 @@ void TTcpDispatcher::Shutdown()
     Impl_->Shutdown();
 }
 
-TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfaceType)
+const TTcpDispatcherCountersPtr& TTcpDispatcher::GetCounters(const TString& networkName)
 {
-    return Impl_->GetStatistics(interfaceType);
+    return Impl_->GetCounters(networkName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

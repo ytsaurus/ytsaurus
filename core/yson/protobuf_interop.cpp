@@ -1,15 +1,19 @@
 #include "protobuf_interop.h"
 
-#include <yt/core/yson/protos/protobuf_interop.pb.h>
+#include <yt/core/yson/proto/protobuf_interop.pb.h>
 
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/writer.h>
+#include <yt/core/yson/forwarding_consumer.h>
 
 #include <yt/core/ypath/token.h>
 
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/varint.h>
 #include <yt/core/misc/variant.h>
+#include <yt/core/misc/cast.h>
+
+#include <yt/core/ytree/proto/attributes.pb.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/wire_format.h>
@@ -24,9 +28,9 @@ namespace NYson {
 using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
-using namespace ::google::protobuf;
-using namespace ::google::protobuf::io;
-using namespace ::google::protobuf::internal;
+using namespace google::protobuf;
+using namespace google::protobuf::io;
+using namespace google::protobuf::internal;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,11 +102,12 @@ public:
             descriptor->message_type()) : nullptr)
         , EnumType_(descriptor->type() == FieldDescriptor::TYPE_ENUM ? registry->ReflectEnumType(
             descriptor->enum_type()) : nullptr)
+        , IsYsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
     { }
 
     ui32 GetTag() const
     {
-        return ::google::protobuf::internal::WireFormat::MakeTag(Underlying_);
+        return google::protobuf::internal::WireFormat::MakeTag(Underlying_);
     }
 
     const TString& GetFullName() const
@@ -140,6 +145,11 @@ public:
         return Underlying_->is_optional();
     }
 
+    bool IsYsonString() const
+    {
+        return IsYsonString_;
+    }
+
     const TProtobufMessageType* GetMessageType() const
     {
         return MessageType_;
@@ -155,6 +165,7 @@ private:
     const TStringBuf YsonName_;
     const TProtobufMessageType* MessageType_;
     const TProtobufEnumType* EnumType_;
+    const bool IsYsonString_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -348,6 +359,8 @@ private:
 class TProtobufTranscoderBase
 {
 protected:
+    const TProtobufMessageType* const AttributeDictionaryType = ReflectProtobufMessageType<NYTree::NProto::TAttributeDictionary>();
+
     TYPathStack YPathStack_;
 
 
@@ -398,7 +411,7 @@ protected:
 
 class TProtobufWriter
     : public TProtobufTranscoderBase
-    , public TYsonConsumerBase
+    , public TForwardingYsonConsumer
 {
 public:
     TProtobufWriter(ZeroCopyOutputStream* outputStream, const TProtobufMessageType* rootType)
@@ -406,211 +419,19 @@ public:
         , RootType_(rootType)
         , BodyOutputStream_(&BodyString_)
         , BodyCodedStream_(&BodyOutputStream_)
+        , AttributeValueStream_(AttributeValue_)
+        , AttributeValueWriter_(&AttributeValueStream_)
+        , YsonStringStream_(YsonString_)
+        , YsonStringWriter_(&YsonStringStream_)
     { }
-
-    virtual void OnStringScalar(const TStringBuf& value) override
-    {
-        WriteScalar([&] {
-            const auto* field = FieldStack_.back().Field;
-            switch (field->GetType()) {
-                case FieldDescriptor::TYPE_STRING:
-                case FieldDescriptor::TYPE_BYTES:
-                    BodyCodedStream_.WriteVarint64(value.length());
-                    BodyCodedStream_.WriteRaw(value.begin(), static_cast<int>(value.length()));
-                    break;
-
-                case FieldDescriptor::TYPE_ENUM: {
-                    const auto* enumType = field->GetEnumType();
-                    auto maybeValue = enumType->FindValueByLiteral(value);
-                    if (!maybeValue) {
-                        THROW_ERROR_EXCEPTION("Field %v cannot have value %Qv",
-                            YPathStack_.GetPath(),
-                            value)
-                            << TErrorAttribute("ypath", YPathStack_.GetPath())
-                            << TErrorAttribute("proto_type", enumType->GetFullName());
-                    }
-                    BodyCodedStream_.WriteVarint32SignExtended(*maybeValue);
-                    break;
-                }
-
-                default:
-                    THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"string\" values",
-                        YPathStack_.GetPath())
-                        << TErrorAttribute("ypath", YPathStack_.GetPath())
-                        << TErrorAttribute("proto_field", field->GetFullName());
-            }
-        });
-    }
-
-    virtual void OnInt64Scalar(i64 value) override
-    {
-        OnIntegerScalar(value);
-    }
-
-    virtual void OnUint64Scalar(ui64 value) override
-    {
-        OnIntegerScalar(value);
-    }
-
-    virtual void OnDoubleScalar(double value) override
-    {
-        WriteScalar([&] {
-            const auto* field = FieldStack_.back().Field;
-            switch (field->GetType()) {
-                case FieldDescriptor::TYPE_DOUBLE: {
-                    auto encodedValue = WireFormatLite::EncodeDouble(value);
-                    BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_FLOAT: {
-                    auto encodedValue = WireFormatLite::EncodeFloat(value);
-                    BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
-                    break;
-                }
-
-                default:
-                    THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"double\" values",
-                        YPathStack_.GetPath())
-                        << TErrorAttribute("ypath", YPathStack_.GetPath())
-                        << TErrorAttribute("proto_field", field->GetFullName());
-            }
-        });
-    }
-
-    virtual void OnBooleanScalar(bool value) override
-    {
-        WriteScalar([&] {
-            const auto* field = FieldStack_.back().Field;
-            auto type = field->GetType();
-            if (type != FieldDescriptor::TYPE_BOOL) {
-                THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"boolean\" values",
-                    YPathStack_.GetPath())
-                    << TErrorAttribute("ypath", YPathStack_.GetPath())
-                    << TErrorAttribute("proto_field", field->GetFullName());
-            }
-            BodyCodedStream_.WriteVarint32(value ? 1 : 0);
-        });
-    }
-
-    virtual void OnEntity() override
-    {
-        THROW_ERROR_EXCEPTION("Entities are not supported")
-            << TErrorAttribute("ypath", YPathStack_.GetPath());
-    }
-
-    virtual void OnBeginList() override
-    {
-        ValidateNotRoot();
-        ValidateRepeated();
-    }
-
-    virtual void OnListItem() override
-    {
-        Y_ASSERT(!TypeStack_.empty());
-        const auto* field = FieldStack_.back().Field;
-        int index = FieldStack_.back().CurrentListIndex++;
-        FieldStack_.emplace_back(field, index, true);
-        YPathStack_.Push(index);
-    }
-
-    virtual void OnEndList() override
-    {
-        Y_ASSERT(!TypeStack_.empty());
-        FieldStack_.pop_back();
-    }
-
-    virtual void OnBeginMap() override
-    {
-        if (TypeStack_.empty()) {
-            TypeStack_.emplace_back(RootType_);
-            return;
-        }
-
-        const auto* field = FieldStack_.back().Field;
-        if (field->GetType() != FieldDescriptor::TYPE_MESSAGE) {
-            THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"map\" values",
-                YPathStack_.GetPath())
-                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                << TErrorAttribute("proto_field", field->GetFullName());
-        }
-
-        ValidateNotRepeated();
-        TypeStack_.emplace_back(field->GetMessageType());
-        WriteTag();
-        int nestedIndex = BeginNestedMessage();
-        NestedIndexStack_.push_back(nestedIndex);
-    }
-
-    virtual void OnKeyedItem(const TStringBuf& key) override
-    {
-        Y_ASSERT(TypeStack_.size() > 0);
-        const auto* type = TypeStack_.back().Type;
-
-        const auto* field = type->FindFieldByName(key);
-        if (!field) {
-            THROW_ERROR_EXCEPTION("Unknown field %Qv at %v",
-                key,
-                YPathStack_.GetPath())
-                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                << TErrorAttribute("proto_type", type->GetFullName());
-        }
-
-        auto number = field->GetNumber();
-        if (field->IsRequired()) {
-            TypeStack_.back().RequiredFieldNumbers.push_back(number);
-        } else {
-            TypeStack_.back().NonRequiredFieldNumbers.push_back(number);
-        }
-
-        FieldStack_.emplace_back(field, 0, false);
-        YPathStack_.Push(field->GetYsonName());
-    }
-
-    virtual void OnEndMap() override
-    {
-        auto& typeEntry = TypeStack_.back();
-        auto* type = typeEntry.Type;
-
-        SortFields(&typeEntry.NonRequiredFieldNumbers);
-        ValidateNoFieldDuplicates(type, typeEntry.NonRequiredFieldNumbers);
-
-        SortFields(&typeEntry.RequiredFieldNumbers);
-        ValidateNoFieldDuplicates(type, typeEntry.RequiredFieldNumbers);
-        ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
-
-        TypeStack_.pop_back();
-        if (TypeStack_.empty()) {
-            Finish();
-            return;
-        }
-
-        FieldStack_.pop_back();
-        YPathStack_.Pop();
-        int nestedIndex = NestedIndexStack_.back();
-        NestedIndexStack_.pop_back();
-        EndNestedMessage(nestedIndex);
-    }
-
-    virtual void OnBeginAttributes() override
-    {
-        THROW_ERROR_EXCEPTION("Attributes are not supported")
-            << TErrorAttribute("ypath", YPathStack_.GetPath());
-    }
-
-    virtual void OnEndAttributes() override
-    {
-        THROW_ERROR_EXCEPTION("Attributes are not supported")
-            << TErrorAttribute("ypath", YPathStack_.GetPath());
-    }
 
 private:
     ZeroCopyOutputStream* const OutputStream_;
     const TProtobufMessageType* const RootType_;
 
     TString BodyString_;
-    ::google::protobuf::io::StringOutputStream BodyOutputStream_;
-    ::google::protobuf::io::CodedOutputStream BodyCodedStream_;
+    google::protobuf::io::StringOutputStream BodyOutputStream_;
+    google::protobuf::io::CodedOutputStream BodyCodedStream_;
 
     struct TTypeEntry
     {
@@ -655,6 +476,259 @@ private:
         int ByteSize = -1;
     };
     std::vector<TNestedMessageEntry> NestedMessages_;
+    
+    TString AttributeKey_;
+    TString AttributeValue_;
+    TStringOutput AttributeValueStream_;
+    TBufferedBinaryYsonWriter AttributeValueWriter_;
+
+    TString YsonString_;
+    TStringOutput YsonStringStream_;
+    TBufferedBinaryYsonWriter YsonStringWriter_;
+
+    virtual void OnMyStringScalar(const TStringBuf& value) override
+    {
+        WriteScalar([&] {
+            const auto* field = FieldStack_.back().Field;
+            switch (field->GetType()) {
+                case FieldDescriptor::TYPE_STRING:
+                case FieldDescriptor::TYPE_BYTES:
+                    BodyCodedStream_.WriteVarint64(value.length());
+                    BodyCodedStream_.WriteRaw(value.begin(), static_cast<int>(value.length()));
+                    break;
+
+                case FieldDescriptor::TYPE_ENUM: {
+                    const auto* enumType = field->GetEnumType();
+                    auto maybeValue = enumType->FindValueByLiteral(value);
+                    if (!maybeValue) {
+                        THROW_ERROR_EXCEPTION("Field %v cannot have value %Qv",
+                            YPathStack_.GetPath(),
+                            value)
+                            << TErrorAttribute("ypath", YPathStack_.GetPath())
+                            << TErrorAttribute("proto_type", enumType->GetFullName());
+                    }
+                    BodyCodedStream_.WriteVarint32SignExtended(*maybeValue);
+                    break;
+                }
+
+                default:
+                    THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"string\" values",
+                        YPathStack_.GetPath())
+                        << TErrorAttribute("ypath", YPathStack_.GetPath())
+                        << TErrorAttribute("proto_field", field->GetFullName());
+            }
+        });
+    }
+
+    virtual void OnMyInt64Scalar(i64 value) override
+    {
+        OnIntegerScalar(value);
+    }
+
+    virtual void OnMyUint64Scalar(ui64 value) override
+    {
+        OnIntegerScalar(value);
+    }
+
+    virtual void OnMyDoubleScalar(double value) override
+    {
+        WriteScalar([&] {
+            const auto* field = FieldStack_.back().Field;
+            switch (field->GetType()) {
+                case FieldDescriptor::TYPE_DOUBLE: {
+                    auto encodedValue = WireFormatLite::EncodeDouble(value);
+                    BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
+                    break;
+                }
+
+                case FieldDescriptor::TYPE_FLOAT: {
+                    auto encodedValue = WireFormatLite::EncodeFloat(value);
+                    BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
+                    break;
+                }
+
+                default:
+                    THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"double\" values",
+                        YPathStack_.GetPath())
+                        << TErrorAttribute("ypath", YPathStack_.GetPath())
+                        << TErrorAttribute("proto_field", field->GetFullName());
+            }
+        });
+    }
+
+    virtual void OnMyBooleanScalar(bool value) override
+    {
+        WriteScalar([&] {
+            const auto* field = FieldStack_.back().Field;
+            auto type = field->GetType();
+            if (type != FieldDescriptor::TYPE_BOOL) {
+                THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"boolean\" values",
+                    YPathStack_.GetPath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath())
+                    << TErrorAttribute("proto_field", field->GetFullName());
+            }
+            BodyCodedStream_.WriteVarint32(value ? 1 : 0);
+        });
+    }
+
+    virtual void OnMyEntity() override
+    {
+        THROW_ERROR_EXCEPTION("Entities are not supported")
+            << TErrorAttribute("ypath", YPathStack_.GetPath());
+    }
+
+    virtual void OnMyBeginList() override
+    {
+        ValidateNotRoot();
+        ValidateRepeated();
+    }
+
+    virtual void OnMyListItem() override
+    {
+        Y_ASSERT(!TypeStack_.empty());
+        const auto* field = FieldStack_.back().Field;
+        int index = FieldStack_.back().CurrentListIndex++;
+        FieldStack_.emplace_back(field, index, true);
+        YPathStack_.Push(index);
+    }
+
+    virtual void OnMyEndList() override
+    {
+        Y_ASSERT(!TypeStack_.empty());
+        FieldStack_.pop_back();
+    }
+
+    virtual void OnMyBeginMap() override
+    {
+        if (TypeStack_.empty()) {
+            TypeStack_.emplace_back(RootType_);
+            return;
+        }
+
+        const auto* field = FieldStack_.back().Field;
+        if (field->GetType() != FieldDescriptor::TYPE_MESSAGE) {
+            THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"map\" values",
+                YPathStack_.GetPath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath())
+                << TErrorAttribute("proto_field", field->GetFullName());
+        }
+
+        ValidateNotRepeated();
+        TypeStack_.emplace_back(field->GetMessageType());
+        WriteTag();
+        int nestedIndex = BeginNestedMessage();
+        NestedIndexStack_.push_back(nestedIndex);
+    }
+
+    virtual void OnMyKeyedItem(const TStringBuf& key) override
+    {
+        Y_ASSERT(TypeStack_.size() > 0);
+        const auto* type = TypeStack_.back().Type;
+
+        if (type == AttributeDictionaryType) {
+            OnMyKeyedItemAttributeDictionary(key);
+        } else {
+            OnMyKeyedItemRegular(key);
+        }
+    }
+
+    void OnMyKeyedItemRegular(const TStringBuf& key)
+    {
+        const auto* type = TypeStack_.back().Type;
+        const auto* field = type->FindFieldByName(key);
+        if (!field) {
+            THROW_ERROR_EXCEPTION("Unknown field %Qv at %v",
+                key,
+                YPathStack_.GetPath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath())
+                << TErrorAttribute("proto_type", type->GetFullName());
+        }
+
+        auto number = field->GetNumber();
+        if (field->IsRequired()) {
+            TypeStack_.back().RequiredFieldNumbers.push_back(number);
+        } else {
+            TypeStack_.back().NonRequiredFieldNumbers.push_back(number);
+        }
+
+        FieldStack_.emplace_back(field, 0, false);
+        YPathStack_.Push(field->GetYsonName());
+
+        if (field->IsYsonString()) {
+            YsonString_.clear();
+            Forward(&YsonStringWriter_, [this] {
+                YsonStringWriter_.Flush();
+
+                WriteScalar([this] {
+                    BodyCodedStream_.WriteVarint64(YsonString_.length());
+                    BodyCodedStream_.WriteRaw(YsonString_.begin(), static_cast<int>(YsonString_.length()));
+                });
+            });
+        }
+    }
+
+    void OnMyKeyedItemAttributeDictionary(const TStringBuf& key)
+    {
+        AttributeKey_ = key;
+        AttributeValue_.clear();
+        Forward(&AttributeValueWriter_, [this] {
+            AttributeValueWriter_.Flush();
+
+            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(1 /*attribute*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+            BodyCodedStream_.WriteVarint64(
+                1 +
+                CodedOutputStream::VarintSize64(AttributeKey_.length()) +
+                AttributeKey_.length() +
+                1 +
+                CodedOutputStream::VarintSize64(AttributeValue_.length()) +
+                AttributeValue_.length());
+
+            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(1 /*key*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+            BodyCodedStream_.WriteVarint64(AttributeKey_.length());
+            BodyCodedStream_.WriteRaw(AttributeKey_.data(), AttributeKey_.length());
+
+            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(2 /*value*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+            BodyCodedStream_.WriteVarint64(AttributeValue_.length());
+            BodyCodedStream_.WriteRaw(AttributeValue_.data(), AttributeValue_.length());
+        });
+    }
+
+    virtual void OnMyEndMap() override
+    {
+        auto& typeEntry = TypeStack_.back();
+        auto* type = typeEntry.Type;
+
+        SortFields(&typeEntry.NonRequiredFieldNumbers);
+        ValidateNoFieldDuplicates(type, typeEntry.NonRequiredFieldNumbers);
+
+        SortFields(&typeEntry.RequiredFieldNumbers);
+        ValidateNoFieldDuplicates(type, typeEntry.RequiredFieldNumbers);
+        ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
+
+        TypeStack_.pop_back();
+        if (TypeStack_.empty()) {
+            Finish();
+            return;
+        }
+
+        FieldStack_.pop_back();
+        YPathStack_.Pop();
+        int nestedIndex = NestedIndexStack_.back();
+        NestedIndexStack_.pop_back();
+        EndNestedMessage(nestedIndex);
+    }
+
+    virtual void OnMyBeginAttributes() override
+    {
+        THROW_ERROR_EXCEPTION("Attributes are not supported")
+            << TErrorAttribute("ypath", YPathStack_.GetPath());
+    }
+
+    virtual void OnMyEndAttributes() override
+    {
+        THROW_ERROR_EXCEPTION("Attributes are not supported")
+            << TErrorAttribute("ypath", YPathStack_.GetPath());
+    }
 
 
     int BeginNestedMessage()
@@ -871,6 +945,21 @@ private:
                     break;
                 }
 
+                case FieldDescriptor::TYPE_ENUM: {
+                    auto i32Value = CheckedCast<i32>(value, STRINGBUF("i32"));
+                    const auto* enumType = field->GetEnumType();
+                    auto literal = enumType->FindLiteralByValue(i32Value);
+                    if (!literal) {
+                        THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
+                            i32Value,
+                            YPathStack_.GetPath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath())
+                            << TErrorAttribute("proto_field", field->GetFullName());
+                    }
+                    BodyCodedStream_.WriteVarint32SignExtended(i32Value);
+                    break;
+                }
+
                 default:
                     THROW_ERROR_EXCEPTION("Field %v cannot be parsed from integer values",
                         YPathStack_.GetPath())
@@ -881,36 +970,19 @@ private:
     }
 
     template <class TTo, class TFrom>
-    static bool IsOutOfRange(TFrom value)
-    {
-        if (std::numeric_limits<TFrom>::min() != 0) {
-            auto min = std::numeric_limits<TTo>::min();
-            if (static_cast<i64>(value) < static_cast<i64>(min)) {
-                return true;
-            }
-        }
-
-        auto max = std::numeric_limits<TTo>::max();
-        if (static_cast<ui64>(value) > static_cast<ui64>(max)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    template <class TTo, class TFrom>
-    TTo CheckedCast(TFrom value, const TStringBuf& to)
+    TTo CheckedCast(TFrom value, const TStringBuf& toTypeName)
     {
         const auto* field = FieldStack_.back().Field;
-        if (IsOutOfRange<TTo, TFrom>(value)) {
+        TTo result;
+        if (!TryIntegralCast<TTo>(value, &result)) {
             THROW_ERROR_EXCEPTION("Value %v of field %v cannot fit into %Qv",
                 value,
                 YPathStack_.GetPath(),
-                to)
+                toTypeName)
                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                 << TErrorAttribute("protobuf_field", field->GetFullName());
         }
-        return static_cast<TTo>(value);
+        return result;
     }
 };
 
@@ -948,8 +1020,14 @@ public:
             auto& typeEntry = TypeStack_.back();
             const auto* type = typeEntry.Type;
 
-            auto tag = CodedStream_.ReadTag();
-            if (tag == 0) {
+            bool flag;
+            if (type == AttributeDictionaryType) {
+                flag = ParseAttributeDictionary();
+            } else {
+                flag = ParseRegular();
+            }
+
+            if (!flag) {
                 if (RepeatedFieldNumberStack_.back().FieldNumber != -1) {
                     Consumer_->OnEndList();
                 }
@@ -973,236 +1051,6 @@ public:
                 CodedStream_.PopLimit(LimitStack_.back());
                 LimitStack_.pop_back();
                 continue;
-            }
-
-            auto wireType = WireFormatLite::GetTagWireType(tag);
-            auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
-            const auto* field = type->FindFieldByNumber(fieldNumber);
-            if (!field) {
-                THROW_ERROR_EXCEPTION("Unknown field number %v at %v",
-                    fieldNumber,
-                    YPathStack_.GetPath())
-                    << TErrorAttribute("ypath", YPathStack_.GetPath())
-                    << TErrorAttribute("proto_type", type->GetFullName());
-            }
-
-            if (RepeatedFieldNumberStack_.back().FieldNumber == fieldNumber) {
-                Y_ASSERT(field->IsRepeated());
-                Consumer_->OnListItem();
-                YPathStack_.Push(++RepeatedFieldNumberStack_.back().ListIndex);
-            } else {
-                if (RepeatedFieldNumberStack_.back().FieldNumber != -1) {
-                    Consumer_->OnEndList();
-                    RepeatedFieldNumberStack_.back() = TRepeatedFieldEntry();
-                    YPathStack_.Pop();
-                }
-
-                Consumer_->OnKeyedItem(field->GetYsonName());
-                YPathStack_.Push(field->GetYsonName());
-
-                if (field->IsRepeated()) {
-                    RepeatedFieldNumberStack_.back() = TRepeatedFieldEntry(fieldNumber, 0);
-                    Consumer_->OnBeginList();
-                    Consumer_->OnListItem();
-                    YPathStack_.Push(0);
-                }
-            }
-
-            if (field->IsRequired()) {
-                typeEntry.RequiredFieldNumbers.push_back(fieldNumber);
-            } else if (field->IsOptional()) {
-                typeEntry.OptionalFieldNumbers.push_back(fieldNumber);
-            }
-
-            switch (wireType) {
-                case WireFormatLite::WIRETYPE_VARINT: {
-                    ui64 unsignedValue;
-                    if (!CodedStream_.ReadVarint64(&unsignedValue)) {
-                        THROW_ERROR_EXCEPTION("Error reading \"varint\" value for field %v",
-                            YPathStack_.GetPath())
-                            << TErrorAttribute("ypath", YPathStack_.GetPath());
-                    }
-
-                    switch (field->GetType()) {
-                        case FieldDescriptor::TYPE_BOOL:
-                            ParseScalar([&] {
-                                Consumer_->OnBooleanScalar(unsignedValue != 0);
-                            });
-                            break;
-
-                        case FieldDescriptor::TYPE_ENUM: {
-                            auto signedValue = static_cast<int>(unsignedValue);
-                            const auto* enumType = field->GetEnumType();
-                            auto literal = enumType->FindLiteralByValue(signedValue);
-                            if (!literal) {
-                                THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
-                                    signedValue,
-                                    YPathStack_.GetPath())
-                                    << TErrorAttribute("ypath", YPathStack_.GetPath())
-                                    << TErrorAttribute("proto_field", field->GetFullName());
-                            }
-                            ParseScalar([&] {
-                                Consumer_->OnStringScalar(literal);
-                            });
-                            break;
-                        }
-
-                        case FieldDescriptor::TYPE_INT32:
-                        case FieldDescriptor::TYPE_INT64:
-                            ParseScalar([&] {
-                                auto signedValue = static_cast<i64>(unsignedValue);
-                                Consumer_->OnInt64Scalar(signedValue);
-                            });
-                            break;
-
-                        case FieldDescriptor::TYPE_UINT32:
-                        case FieldDescriptor::TYPE_UINT64:
-                            ParseScalar([&] {
-                                Consumer_->OnUint64Scalar(unsignedValue);
-                            });
-                            break;
-
-                        case FieldDescriptor::TYPE_SINT64:
-                        case FieldDescriptor::TYPE_SINT32:
-                            ParseScalar([&] {
-                                auto signedValue = ZigZagDecode64(unsignedValue);
-                                Consumer_->OnInt64Scalar(signedValue);
-                            });
-                            break;
-
-                        default:
-                            THROW_ERROR_EXCEPTION("Unexpected \"varint\" value for field %v",
-                                YPathStack_.GetPath())
-                                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                                << TErrorAttribute("proto_field", field->GetFullName());
-                    }
-                    break;
-                }
-
-                case WireFormatLite::WIRETYPE_FIXED32: {
-                    ui32 unsignedValue;
-                    if (!CodedStream_.ReadLittleEndian32(&unsignedValue)) {
-                        THROW_ERROR_EXCEPTION("Error reading \"fixed32\" value for field %v",
-                            YPathStack_.GetPath())
-                            << TErrorAttribute("ypath", YPathStack_.GetPath());
-                    }
-
-                    switch (field->GetType()) {
-                        case FieldDescriptor::TYPE_FIXED32:
-                            ParseScalar([&] {
-                                Consumer_->OnUint64Scalar(unsignedValue);
-                            });
-                            break;
-
-                        case FieldDescriptor::TYPE_SFIXED32: {
-                            ParseScalar([&] {
-                                auto signedValue = static_cast<i32>(unsignedValue);
-                                Consumer_->OnInt64Scalar(signedValue);
-                            });
-                            break;
-                        }
-
-                        case FieldDescriptor::TYPE_FLOAT: {
-                            ParseScalar([&] {
-                                auto floatValue = WireFormatLite::DecodeFloat(unsignedValue);
-                                Consumer_->OnDoubleScalar(floatValue);
-                            });
-                            break;
-                        }
-
-                        default:
-                            THROW_ERROR_EXCEPTION("Unexpected \"fixed32\" value for field %v",
-                                YPathStack_.GetPath())
-                                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                                << TErrorAttribute("proto_field", field->GetFullName());
-                    }
-                    break;
-                }
-
-                case WireFormatLite::WIRETYPE_FIXED64: {
-                    ui64 unsignedValue;
-                    if (!CodedStream_.ReadLittleEndian64(&unsignedValue)) {
-                        THROW_ERROR_EXCEPTION("Error reading \"fixed64\" value for field %v",
-                            YPathStack_.GetPath())
-                            << TErrorAttribute("ypath", YPathStack_.GetPath());
-                    }
-
-                    switch (field->GetType()) {
-                        case FieldDescriptor::TYPE_FIXED64:
-                            ParseScalar([&] {
-                                Consumer_->OnUint64Scalar(unsignedValue);
-                            });
-                            break;
-
-                        case FieldDescriptor::TYPE_SFIXED64: {
-                            ParseScalar([&] {
-                                auto signedValue = static_cast<i64>(unsignedValue);
-                                Consumer_->OnInt64Scalar(signedValue);
-                            });
-                            break;
-                        }
-
-                        case FieldDescriptor::TYPE_DOUBLE: {
-                            ParseScalar([&] {
-                                auto doubleValue = WireFormatLite::DecodeDouble(unsignedValue);
-                                Consumer_->OnDoubleScalar(doubleValue);
-                            });
-                            break;
-                        }
-
-                        default:
-                            THROW_ERROR_EXCEPTION("Unexpected \"fixed64\" value for field %v",
-                                YPathStack_.GetPath())
-                                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                                << TErrorAttribute("proto_field", field->GetFullName());
-                    }
-                    break;
-                }
-
-                case WireFormatLite::WIRETYPE_LENGTH_DELIMITED: {
-                    ui64 length;
-                    if (!CodedStream_.ReadVarint64(&length)) {
-                        THROW_ERROR_EXCEPTION("Error reading \"varint\" value for field %v",
-                            YPathStack_.GetPath())
-                            << TErrorAttribute("ypath", YPathStack_.GetPath());
-                    }
-
-                    switch (field->GetType()) {
-                        case FieldDescriptor::TYPE_BYTES:
-                        case FieldDescriptor::TYPE_STRING: {
-                            PooledStr_.resize(length);
-                            if (!CodedStream_.ReadRaw(PooledStr_.data(), length)) {
-                                THROW_ERROR_EXCEPTION("Error reading \"string\" value for field %v",
-                                    YPathStack_.GetPath())
-                                    << TErrorAttribute("ypath", YPathStack_.GetPath());
-                            }
-                            ParseScalar([&] {
-                                Consumer_->OnStringScalar(TStringBuf(PooledStr_.data(), length));
-                            });
-                            break;
-                        }
-
-                        case FieldDescriptor::TYPE_MESSAGE: {
-                            RepeatedFieldNumberStack_.emplace_back();
-                            LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(length)));
-                            TypeStack_.emplace_back(field->GetMessageType());
-                            Consumer_->OnBeginMap();
-                            break;
-                        }
-
-                        default:
-                            THROW_ERROR_EXCEPTION("Unexpected \"length-delimited\" value for field %v",
-                                YPathStack_.GetPath())
-                                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                                << TErrorAttribute("proto_field", field->GetFullName());
-                    }
-                    break;
-                }
-
-                default:
-                    THROW_ERROR_EXCEPTION("Unexpected wire type tag %x",
-                        tag)
-                        << TErrorAttribute("ypath", YPathStack_.GetPath());
             }
         }
     }
@@ -1240,8 +1088,375 @@ private:
     };
     std::vector<TRepeatedFieldEntry> RepeatedFieldNumberStack_;
 
-    std::vector<char> PooledStr_;
+    std::vector<char> PooledString_;
+    std::vector<char> PooledAttributeKey_;
+    std::vector<char> PooledAttributeValue_;
 
+
+    bool ParseRegular()
+    {
+        auto& typeEntry = TypeStack_.back();
+        const auto* type = typeEntry.Type;
+
+        auto tag = CodedStream_.ReadTag();
+        if (tag == 0) {
+            return false;
+        }
+
+        auto wireType = WireFormatLite::GetTagWireType(tag);
+        auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
+        const auto* field = type->FindFieldByNumber(fieldNumber);
+        if (!field) {
+            THROW_ERROR_EXCEPTION("Unknown field number %v at %v",
+                fieldNumber,
+                YPathStack_.GetPath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath())
+                    << TErrorAttribute("proto_type", type->GetFullName());
+        }
+
+        if (RepeatedFieldNumberStack_.back().FieldNumber == fieldNumber) {
+            Y_ASSERT(field->IsRepeated());
+            Consumer_->OnListItem();
+            YPathStack_.Push(++RepeatedFieldNumberStack_.back().ListIndex);
+        } else {
+            if (RepeatedFieldNumberStack_.back().FieldNumber != -1) {
+                Consumer_->OnEndList();
+                RepeatedFieldNumberStack_.back() = TRepeatedFieldEntry();
+                YPathStack_.Pop();
+            }
+
+            Consumer_->OnKeyedItem(field->GetYsonName());
+            YPathStack_.Push(field->GetYsonName());
+
+            if (field->IsRepeated()) {
+                RepeatedFieldNumberStack_.back() = TRepeatedFieldEntry(fieldNumber, 0);
+                Consumer_->OnBeginList();
+                Consumer_->OnListItem();
+                YPathStack_.Push(0);
+            }
+        }
+
+        if (field->IsRequired()) {
+            typeEntry.RequiredFieldNumbers.push_back(fieldNumber);
+        } else if (field->IsOptional()) {
+            typeEntry.OptionalFieldNumbers.push_back(fieldNumber);
+        }
+
+        switch (wireType) {
+            case WireFormatLite::WIRETYPE_VARINT: {
+                ui64 unsignedValue;
+                if (!CodedStream_.ReadVarint64(&unsignedValue)) {
+                    THROW_ERROR_EXCEPTION("Error reading \"varint\" value for field %v",
+                        YPathStack_.GetPath())
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                switch (field->GetType()) {
+                    case FieldDescriptor::TYPE_BOOL:
+                        ParseScalar([&] {
+                            Consumer_->OnBooleanScalar(unsignedValue != 0);
+                        });
+                        break;
+
+                    case FieldDescriptor::TYPE_ENUM: {
+                        auto signedValue = static_cast<int>(unsignedValue);
+                        const auto* enumType = field->GetEnumType();
+                        auto literal = enumType->FindLiteralByValue(signedValue);
+                        if (!literal) {
+                            THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
+                                signedValue,
+                                YPathStack_.GetPath())
+                                << TErrorAttribute("ypath", YPathStack_.GetPath())
+                                << TErrorAttribute("proto_field", field->GetFullName());
+                        }
+                        ParseScalar([&] {
+                            Consumer_->OnStringScalar(literal);
+                        });
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_INT32:
+                    case FieldDescriptor::TYPE_INT64:
+                        ParseScalar([&] {
+                            auto signedValue = static_cast<i64>(unsignedValue);
+                            Consumer_->OnInt64Scalar(signedValue);
+                        });
+                        break;
+
+                    case FieldDescriptor::TYPE_UINT32:
+                    case FieldDescriptor::TYPE_UINT64:
+                        ParseScalar([&] {
+                            Consumer_->OnUint64Scalar(unsignedValue);
+                        });
+                        break;
+
+                    case FieldDescriptor::TYPE_SINT64:
+                    case FieldDescriptor::TYPE_SINT32:
+                        ParseScalar([&] {
+                            auto signedValue = ZigZagDecode64(unsignedValue);
+                            Consumer_->OnInt64Scalar(signedValue);
+                        });
+                        break;
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unexpected \"varint\" value for field %v",
+                            YPathStack_.GetPath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath())
+                            << TErrorAttribute("proto_field", field->GetFullName());
+                }
+                break;
+            }
+
+            case WireFormatLite::WIRETYPE_FIXED32: {
+                ui32 unsignedValue;
+                if (!CodedStream_.ReadLittleEndian32(&unsignedValue)) {
+                    THROW_ERROR_EXCEPTION("Error reading \"fixed32\" value for field %v",
+                        YPathStack_.GetPath())
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                switch (field->GetType()) {
+                    case FieldDescriptor::TYPE_FIXED32:
+                        ParseScalar([&] {
+                            Consumer_->OnUint64Scalar(unsignedValue);
+                        });
+                        break;
+
+                    case FieldDescriptor::TYPE_SFIXED32: {
+                        ParseScalar([&] {
+                            auto signedValue = static_cast<i32>(unsignedValue);
+                            Consumer_->OnInt64Scalar(signedValue);
+                        });
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_FLOAT: {
+                        ParseScalar([&] {
+                            auto floatValue = WireFormatLite::DecodeFloat(unsignedValue);
+                            Consumer_->OnDoubleScalar(floatValue);
+                        });
+                        break;
+                    }
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unexpected \"fixed32\" value for field %v",
+                            YPathStack_.GetPath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath())
+                            << TErrorAttribute("proto_field", field->GetFullName());
+                }
+                break;
+            }
+
+            case WireFormatLite::WIRETYPE_FIXED64: {
+                ui64 unsignedValue;
+                if (!CodedStream_.ReadLittleEndian64(&unsignedValue)) {
+                    THROW_ERROR_EXCEPTION("Error reading \"fixed64\" value for field %v",
+                        YPathStack_.GetPath())
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                switch (field->GetType()) {
+                    case FieldDescriptor::TYPE_FIXED64:
+                        ParseScalar([&] {
+                            Consumer_->OnUint64Scalar(unsignedValue);
+                        });
+                        break;
+
+                    case FieldDescriptor::TYPE_SFIXED64: {
+                        ParseScalar([&] {
+                            auto signedValue = static_cast<i64>(unsignedValue);
+                            Consumer_->OnInt64Scalar(signedValue);
+                        });
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_DOUBLE: {
+                        ParseScalar([&] {
+                            auto doubleValue = WireFormatLite::DecodeDouble(unsignedValue);
+                            Consumer_->OnDoubleScalar(doubleValue);
+                        });
+                        break;
+                    }
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unexpected \"fixed64\" value for field %v",
+                            YPathStack_.GetPath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath())
+                            << TErrorAttribute("proto_field", field->GetFullName());
+                }
+                break;
+            }
+
+            case WireFormatLite::WIRETYPE_LENGTH_DELIMITED: {
+                ui64 length;
+                if (!CodedStream_.ReadVarint64(&length)) {
+                    THROW_ERROR_EXCEPTION("Error reading \"varint\" value for field %v",
+                        YPathStack_.GetPath())
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                switch (field->GetType()) {
+                    case FieldDescriptor::TYPE_BYTES:
+                    case FieldDescriptor::TYPE_STRING: {
+                        PooledString_.resize(length);
+                        if (!CodedStream_.ReadRaw(PooledString_.data(), length)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"string\" value for field %v",
+                                YPathStack_.GetPath())
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        ParseScalar([&] {
+                            if (field->IsYsonString()) {
+                                Consumer_->OnRaw(TStringBuf(PooledString_.data(), length), NYson::EYsonType::Node);
+                            } else {
+                                Consumer_->OnStringScalar(TStringBuf(PooledString_.data(), length));
+                            }
+                        });
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_MESSAGE: {
+                        RepeatedFieldNumberStack_.emplace_back();
+                        LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(length)));
+                        TypeStack_.emplace_back(field->GetMessageType());
+                        Consumer_->OnBeginMap();
+                        break;
+                    }
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unexpected \"length-delimited\" value for field %v",
+                            YPathStack_.GetPath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath())
+                            << TErrorAttribute("proto_field", field->GetFullName());
+                }
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected wire type tag %x",
+                    tag)
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+        }
+
+        return true;
+    }
+
+    bool ParseAttributeDictionary()
+    {
+        auto throwUnexpectedWireType = [&] (WireFormatLite::WireType actualWireType) {
+            THROW_ERROR_EXCEPTION("Invalid wire type %v while parsing attribute dictionary %v",
+                static_cast<int>(actualWireType),
+                YPathStack_.GetPath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath());
+        };
+
+        auto expectWireType = [&] (WireFormatLite::WireType actualWireType, WireFormatLite::WireType expectedWireType) {
+            if (actualWireType != expectedWireType) {
+                throwUnexpectedWireType(actualWireType);
+            }
+        };
+
+        auto throwUnexpectedFieldNumber = [&] (int actualFieldNumber) {
+            THROW_ERROR_EXCEPTION("Invalid field number %v while parsing attribute dictionary %v",
+                actualFieldNumber,
+                YPathStack_.GetPath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath());
+        };
+
+        auto expectFieldNumber = [&] (int actualFieldNumber, int expectedFieldNumber) {
+            if (actualFieldNumber != expectedFieldNumber) {
+                throwUnexpectedFieldNumber(actualFieldNumber);
+            }
+        };
+
+        auto readVarint64 = [&] () {
+            ui64 value;
+            if (!CodedStream_.ReadVarint64(&value)) {
+                THROW_ERROR_EXCEPTION("Error reading \"varint\" value while parsing attribute dictionary %v",
+                    YPathStack_.GetPath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+            }
+            return value;
+        };
+
+        auto readString = [&] (auto* pool) -> TStringBuf {
+            auto length = readVarint64();
+            pool->resize(length);
+            if (!CodedStream_.ReadRaw(pool->data(), length)) {
+                THROW_ERROR_EXCEPTION("Error reading \"string\" value while parsing attribute dictionary %v",
+                    YPathStack_.GetPath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+            }
+            return TStringBuf(pool->data(), length);
+        };
+
+        while (true) {
+            auto tag = CodedStream_.ReadTag();
+            if (tag == 0) {
+                return false;
+            }
+
+            expectWireType(WireFormatLite::GetTagWireType(tag), WireFormatLite::WIRETYPE_LENGTH_DELIMITED);
+            expectFieldNumber(WireFormatLite::GetTagFieldNumber(tag), 1);
+
+            auto entryLength = readVarint64();
+            LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(entryLength)));
+
+            TNullable<TStringBuf> key;
+            TNullable<TStringBuf> value;
+            while (true) {
+                auto tag = CodedStream_.ReadTag();
+                if (tag == 0) {
+                    break;
+                }
+
+                auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
+                switch (fieldNumber) {
+                    case 1: {
+                        // Key
+                        if (key) {
+                            THROW_ERROR_EXCEPTION("Duplicate key found while parsing attribute dictionary %v",
+                                YPathStack_.GetPath())
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        key = readString(&PooledAttributeKey_);
+                        break;
+                    }
+
+                    case 2: {
+                        // Value
+                        if (value) {
+                            THROW_ERROR_EXCEPTION("Duplicate value found while parsing attribute dictionary %v",
+                                YPathStack_.GetPath())
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        value = readString(&PooledAttributeValue_);
+                        break;
+                    }
+
+                    default:
+                        throwUnexpectedFieldNumber(fieldNumber);
+                        break;
+                }
+            }
+
+            if (!key) {
+                THROW_ERROR_EXCEPTION("Missing key while parsing attribute dictionary %v",
+                    YPathStack_.GetPath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+            }
+            if (!value) {
+                THROW_ERROR_EXCEPTION("Missing value while parsing attribute dictionary %v",
+                    YPathStack_.GetPath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+            }
+
+            Consumer_->OnKeyedItem(*key);
+            Consumer_->OnRaw(*value, NYson::EYsonType::Node);
+
+            CodedStream_.PopLimit(LimitStack_.back());
+            LimitStack_.pop_back();
+        }
+    }
 
     template <class F>
     void ParseScalar(F func)

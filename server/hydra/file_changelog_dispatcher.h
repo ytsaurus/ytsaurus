@@ -23,7 +23,7 @@ class TFileChangelogDispatcher
 {
 public:
     TFileChangelogDispatcher(
-        const TFileChangelogDispatcherConfigPtr config,
+        const TFileChangelogDispatcherConfigPtr& config,
         const TString& threadName,
         const NProfiling::TProfiler& profiler);
 
@@ -36,12 +36,12 @@ public:
     IChangelogPtr CreateChangelog(
         const TString& path,
         const NProto::TChangelogMeta& meta,
-        TFileChangelogConfigPtr config);
+        const TFileChangelogConfigPtr& config);
 
     //! Synchronously opens an existing changelog.
     IChangelogPtr OpenChangelog(
         const TString& path,
-        TFileChangelogConfigPtr config);
+        const TFileChangelogConfigPtr& config);
 
     //! Flushes all active changelogs owned by this dispatcher.
     TFuture<void> FlushChangelogs();

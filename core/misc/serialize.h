@@ -16,9 +16,6 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
-#include <contrib/libs/protobuf/message.h>
-#include <contrib/libs/protobuf/repeated_field.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1656,6 +1653,7 @@ template <class F, class S, class C>
 struct TSerializerTraits<std::pair<F, S>, C, void>
 {
     typedef TTupleSerializer<std::pair<F, S>> TSerializer;
+    typedef TValueBoundComparer TComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

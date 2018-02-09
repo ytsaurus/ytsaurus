@@ -34,13 +34,16 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+
+using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::TMiscExt;
+using NChunkClient::NProto::TBlocksExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,7 +103,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , CompressionInvoker_(CreateFixedPriorityInvoker(
-            NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker(),
+            NChunkClient::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
     {

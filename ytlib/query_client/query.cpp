@@ -10,6 +10,7 @@
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 
 #include <yt/core/ytree/serialize.h>
+#include <yt/core/ytree/convert.h>
 
 #include <limits>
 
@@ -696,6 +697,8 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_enable_code_cache(original.EnableCodeCache);
     ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);
     serialized->set_use_multijoin(original.UseMultijoin);
+    serialized->set_allow_full_scan(original.AllowFullScan);
+    ToProto(serialized->mutable_read_session_id(), original.ReadSessionId);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -708,6 +711,13 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
         FromProto(&original->WorkloadDescriptor, serialized.workload_descriptor());
     }
     original->UseMultijoin = serialized.use_multijoin();
+    original->AllowFullScan = serialized.allow_full_scan();
+
+    if (serialized.has_read_session_id()) {
+        FromProto(&original->ReadSessionId, serialized.read_session_id());
+    } else {
+        original->ReadSessionId = NChunkClient::TReadSessionId::Create();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

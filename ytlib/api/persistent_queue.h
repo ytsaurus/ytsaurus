@@ -95,8 +95,40 @@ DEFINE_REFCOUNTED_TYPE(TPersistentQueuePoller)
 
 //! Creates an empty table holding the state of a consumer.
 TFuture<void> CreatePersistentQueueStateTable(
-    IClientPtr client,
+    const IClientBasePtr& client,
     const NYPath::TYPath& path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPersistentQueueTabletState
+{
+    //! Index of the first (minimum) untrimmed row in this particular tablet.
+    //! This row may already be consumed.
+    i64 FirstUntrimmedRowIndex = 0;
+
+    //! The total number of rows consumed in this tablet.
+    i64 ConsumedRowCount = 0;
+};
+
+//! Reads the state of tablets with certain #tabletIndexes.
+//! The resulting hashtable maps tablet indexes to tablet states.
+TFuture<THashMap<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsState(
+    const IClientBasePtr& client,
+    const NYPath::TYPath& path,
+    const std::vector<int>& tabletIndexes);
+
+struct TPersistentQueueTabletUpdate
+{
+    //! Index of the first (minimum) unconsumed row in this particular tablet.
+    i64 FirstUnconsumedRowIndex = 0;
+};
+
+//! Updates the poller state for certain tablets; in particular this enables rewinding or
+//! skipping some rows in these tablets.
+TFuture<void> UpdatePersistentQueueTabletsState(
+    const IClientBasePtr& client,
+    const NYPath::TYPath& path,
+    const THashMap<int, TPersistentQueueTabletUpdate>& tabletMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

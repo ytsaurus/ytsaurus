@@ -17,6 +17,8 @@
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/name_table.h>
 
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
+
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_transaction.h>
@@ -31,19 +33,21 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/misc/finally.h>
 
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NHiveClient;
-using namespace NYPath;
-using namespace NConcurrency;
-using namespace NTabletClient;
-using namespace NTableClient;
-using namespace NTransactionClient;
 using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHiveClient;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTransactionClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +88,11 @@ public:
             .AddTag("TabletId: %v, ReplicaId: %v",
                 TabletId_,
                 ReplicaId_))
+        , Throttler_(
+            CreateReconfigurableThroughputThrottler(
+                tablet->GetConfig()->ReplicationThrottler,
+                Logger,
+                replicaInfo->GetReplicatorProfiler()))
     {
         MountConfigUpdateExecutor_->Start();
     }
@@ -125,8 +134,9 @@ private:
     const TPeriodicExecutorPtr MountConfigUpdateExecutor_;
     const NLogging::TLogger Logger;
 
-    TFuture<void> FiberFuture_;
+    IReconfigurableThroughputThrottlerPtr Throttler_;
 
+    TFuture<void> FiberFuture_;
 
     TSpinLock MountConfigLock_;
     TTableMountConfigPtr MountConfig_;
@@ -140,6 +150,9 @@ private:
 
     void SetMountConfig(TTableMountConfigPtr config)
     {
+        if (config) {
+            Throttler_->Reconfigure(config->ReplicationThrottler);
+        }
         auto guard = Guard(MountConfigLock_);
         MountConfig_ = std::move(config);
     }
@@ -155,9 +168,21 @@ private:
     void FiberMain()
     {
         while (true) {
-            WaitFor(TDelayedExecutor::MakeDelayed(ReplicationTickPeriod));
+            TDelayedExecutor::WaitForDuration(ReplicationTickPeriod);
             FiberIteration();
         }
+    }
+
+    bool KeepDataProcessing(i64 dataWeight)
+    {
+        Throttler_->Acquire(dataWeight);
+        if (Throttler_->IsOverdraft()) {
+            LOG_DEBUG("Bandwidth limit is reached (TotalCount: %v, DataWeight: %v)",
+                Throttler_->GetQueueTotalCount(),
+                dataWeight);
+            return false;
+        }
+        return true;
     }
 
     void FiberIteration()
@@ -185,6 +210,12 @@ private:
             if (!foreignConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
                     << HardErrorAttribute;
+            }
+
+            if (Throttler_->IsOverdraft()) {
+                LOG_DEBUG("Bandwidth limit is reached, skipping iteration (TotalCount: %v)",
+                    Throttler_->GetQueueTotalCount());
+                return;
             }
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
@@ -287,7 +318,7 @@ private:
             {
                 TTransactionCommitOptions commitOptions;
                 commitOptions.CoordinatorCellId = Slot_->GetCellId();
-                commitOptions.Force2PC = true;                
+                commitOptions.Force2PC = true;
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
             }
@@ -322,7 +353,8 @@ private:
             MakeRowBound(rowIndex),
             MakeRowBound(rowIndex + 1),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication));
+            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
+            TReadSessionId());
 
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(1);
@@ -429,8 +461,10 @@ private:
         i64* newReplicationRowIndex,
         TTimestamp* newReplicationTimestamp)
     {
-        LOG_DEBUG("Started building replication batch (StartRowIndex: %v)",
-            startRowIndex);
+        auto sessionId = TReadSessionId::Create();
+        LOG_DEBUG("Started building replication batch (StartRowIndex: %v, ReadSessionId: %v)",
+            startRowIndex,
+            sessionId);
 
         auto reader = CreateSchemafulTabletReader(
             tabletSnapshot,
@@ -438,7 +472,8 @@ private:
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication));
+            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
+            sessionId);
 
         int timestampCount = 0;
         int rowCount = 0;
@@ -472,6 +507,7 @@ private:
                 currentRowIndex,
                 readerRows.size());
 
+            i64 lastDataWeight = dataWeight;
             for (auto row : readerRows) {
                 TVersionedRow replicationRow;
                 i64 rowIndex;
@@ -506,6 +542,7 @@ private:
                         dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
                         timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
                     {
+                        KeepDataProcessing(dataWeight - lastDataWeight);
                         tooMuch = true;
                         break;
                     }
@@ -518,6 +555,9 @@ private:
                 dataWeight += GetDataWeight(row);
                 replicationRows->push_back(replicationRow);
                 prevTimestamp = timestamp;
+            }
+            if (!KeepDataProcessing(dataWeight - lastDataWeight)) {
+                break;
             }
         }
 
@@ -539,13 +579,13 @@ private:
     void DoSoftBackoff(const TError& error)
     {
         LOG_INFO(error, "Doing soft backoff");
-        WaitFor(TDelayedExecutor::MakeDelayed(Config_->ReplicatorSoftBackoffTime));
+        TDelayedExecutor::WaitForDuration(Config_->ReplicatorSoftBackoffTime);
     }
 
     void DoHardBackoff(const TError& error)
     {
         LOG_INFO(error, "Doing hard backoff");
-        WaitFor(TDelayedExecutor::MakeDelayed(Config_->ReplicatorHardBackoffTime));
+        TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }
 
 

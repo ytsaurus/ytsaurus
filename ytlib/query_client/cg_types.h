@@ -137,6 +137,11 @@ class TypeBuilder<TMultiJoinClosure*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
+template <bool Cross>
+class TypeBuilder<std::unique_ptr<TLookupRows>*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
 // Aggregate types
 
 template <bool Cross>
@@ -202,21 +207,17 @@ class TypeBuilder<TExpressionClosure, Cross>
 public:
     enum Fields
     {
-        RowValues,
+        FragmentResults,
         OpaqueValues,
-        Buffer,
-        FragmentFlags,
-        FragmentResults
+        Buffer
     };
 
     static StructType* get(LLVMContext& context, size_t size)
     {
         return StructType::get(
-            TypeBuilder<TValue*, Cross>::get(context),
+            llvm::ArrayType::get(TypeBuilder<TValue, false>::get(context), size),
             TypeBuilder<void* const*, Cross>::get(context),
             TypeBuilder<TRowBuffer*, Cross>::get(context),
-            llvm::ArrayType::get(TypeBuilder<char, false>::get(context), size),
-            llvm::ArrayType::get(TypeBuilder<TValue, false>::get(context), size),
             nullptr);
     }
 };

@@ -15,13 +15,37 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonSerializableLite::TYsonSerializableLite()
-    : KeepOptions_(false)
 { }
 
-IMapNodePtr TYsonSerializableLite::GetOptions() const
+IMapNodePtr TYsonSerializableLite::GetUnrecognized() const
 {
-    YCHECK(KeepOptions_);
-    return Options;
+    return Unrecognized;
+}
+
+IMapNodePtr TYsonSerializableLite::GetUnrecognizedRecursively() const
+{
+    // Take a copy of `Unrecognized` and add parameter->GetUnrecognizedRecursively()
+    // for all parameters that are TYsonSerializable's themselves.
+    auto result = Unrecognized ? ConvertTo<IMapNodePtr>(Unrecognized) : GetEphemeralNodeFactory()->CreateMap();
+    for (const auto& pair : Parameters) {
+        const auto& parameter = pair.second;
+        const auto& name = pair.first;
+        auto unrecognized = parameter->GetUnrecognizedRecursively();
+        if (unrecognized && unrecognized->AsMap()->GetChildCount() > 0) {
+            result->AddChild(unrecognized, name);
+        }
+    }
+    return result;
+}
+
+void TYsonSerializableLite::SetUnrecognizedStrategy(EUnrecognizedStrategy strategy)
+{
+    UnrecognizedStrategy = strategy;
+    if (strategy == EUnrecognizedStrategy::KeepRecursive) {
+        for (const auto& pair : Parameters) {
+            pair.second->SetKeepUnrecognizedRecursively();
+        }
+    }
 }
 
 THashSet<TString> TYsonSerializableLite::GetRegisteredKeys() const
@@ -38,7 +62,7 @@ THashSet<TString> TYsonSerializableLite::GetRegisteredKeys() const
 
 void TYsonSerializableLite::Load(
     INodePtr node,
-    bool validate,
+    bool postprocess,
     bool setDefaults,
     const TYPath& path)
 {
@@ -70,23 +94,21 @@ void TYsonSerializableLite::Load(
         parameter->Load(child, childPath);
     }
 
-    if (KeepOptions_) {
+    if (UnrecognizedStrategy != EUnrecognizedStrategy::Drop) {
         auto registeredKeys = GetRegisteredKeys();
-        Options = GetEphemeralNodeFactory()->CreateMap();
+        Unrecognized = GetEphemeralNodeFactory()->CreateMap();
         for (const auto& pair : mapNode->GetChildren()) {
             const auto& key = pair.first;
             auto child = pair.second;
             if (registeredKeys.find(key) == registeredKeys.end()) {
-                YCHECK(Options->AddChild(ConvertToNode(child), key));
+                YCHECK(Unrecognized->AddChild(ConvertToNode(child), key));
             }
         }
     }
 
-    if (validate) {
-        Validate(path);
+    if (postprocess) {
+        Postprocess(path);
     }
-
-    OnLoaded();
 }
 
 void TYsonSerializableLite::Save(
@@ -118,8 +140,8 @@ void TYsonSerializableLite::Save(
         }
     }
 
-    if (Options) {
-        for (const auto& pair : Options->GetChildren()) {
+    if (Unrecognized) {
+        for (const auto& pair : Unrecognized->GetChildren()) {
             consumer->OnKeyedItem(pair.first);
             Serialize(pair.second, consumer);
         }
@@ -128,18 +150,18 @@ void TYsonSerializableLite::Save(
     consumer->OnEndMap();
 }
 
-void TYsonSerializableLite::Validate(const TYPath& path) const
+void TYsonSerializableLite::Postprocess(const TYPath& path) const
 {
     for (const auto& pair : Parameters) {
-        pair.second->Validate(path + "/" + pair.first);
+        pair.second->Postprocess(path + "/" + pair.first);
     }
 
     try {
-        for (const auto& validator : Validators) {
-            validator();
+        for (const auto& postprocessor : Postprocessors) {
+            postprocessor();
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Validation failed at %v",
+        THROW_ERROR_EXCEPTION("Postprocess failed at %v",
             path.empty() ? "root" : path)
             << ex;
     }
@@ -150,23 +172,20 @@ void TYsonSerializableLite::SetDefaults()
     for (const auto& pair : Parameters) {
         pair.second->SetDefaults();
     }
-    for (const auto& initializer : Initializers) {
+    for (const auto& initializer : Preprocessors) {
         initializer();
     }
 }
 
-void TYsonSerializableLite::OnLoaded()
-{ }
-
-void TYsonSerializableLite::RegisterInitializer(const TInitializer& func)
+void TYsonSerializableLite::RegisterPreprocessor(const TPreprocessor& func)
 {
     func();
-    Initializers.push_back(func);
+    Preprocessors.push_back(func);
 }
 
-void TYsonSerializableLite::RegisterValidator(const TValidator& func)
+void TYsonSerializableLite::RegisterPostprocessor(const TPostprocessor& func)
 {
-    Validators.push_back(func);
+    Postprocessors.push_back(func);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +213,9 @@ TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_REFCOUNTED_TYPE(TYsonSerializable);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

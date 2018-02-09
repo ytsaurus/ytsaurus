@@ -8,9 +8,10 @@
 #include <yt/server/cell_node/config.h>
 
 #include <yt/server/data_node/artifact.h>
+#include <yt/server/data_node/chunk.h>
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/master_connector.h>
-#include <yt/server/data_node/chunk.h>
+#include <yt/server/data_node/volume_manager.h>
 
 #include <yt/server/job_agent/job.h>
 #include <yt/server/job_agent/statistics_reporter.h>
@@ -88,6 +89,7 @@ public:
         , Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->ExecAgent)
         , Invoker_(Bootstrap_->GetControlInvoker())
+        , StartTime_(TInstant::Now())
         , ResourceUsage_(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -131,8 +133,18 @@ public:
 
             InitializeArtifacts();
 
+            i64 diskSpaceLimit = Config_->MinRequiredDiskSpace;
+
+            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            if (schedulerJobSpecExt.has_user_job_spec()) {
+                const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+                if (userJobSpec.has_disk_space_limit()) {
+                    diskSpaceLimit = userJobSpec.disk_space_limit();
+                }
+            }
+
             auto slotManager = Bootstrap_->GetExecSlotManager();
-            Slot_ = slotManager->AcquireSlot();
+            Slot_ = slotManager->AcquireSlot(diskSpaceLimit);
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
@@ -163,6 +175,7 @@ public:
 
             case EJobPhase::PreparingSandboxDirectories:
             case EJobPhase::PreparingArtifacts:
+            case EJobPhase::PreparingRootVolume:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
                 SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
@@ -231,6 +244,11 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         return JobState_;
+    }
+
+    virtual TInstant GetStartTime() const override
+    {
+        return StartTime_;
     }
 
     virtual TNullable<TDuration> GetPrepareDuration() const override
@@ -318,6 +336,18 @@ public:
         if (JobPhase_ == EJobPhase::Running) {
             Progress_ = progress;
         }
+    }
+
+    virtual ui64 GetStderrSize() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        return StderrSize_;
+    }
+
+    virtual void SetStderrSize(ui64 value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        StderrSize_ = value;
     }
 
     virtual TYsonString GetStatistics() const override
@@ -487,6 +517,7 @@ private:
 
     const TExecAgentConfigPtr Config_;
     const IInvokerPtr Invoker_;
+    const TInstant StartTime_;
 
     TJobSpec JobSpec_;
 
@@ -496,6 +527,7 @@ private:
     TFuture<void> ArtifactsFuture_ = VoidFuture;
 
     double Progress_ = 0.0;
+    ui64 StderrSize_ = 0;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();
@@ -523,6 +555,9 @@ private:
     };
 
     std::vector<TArtifact> Artifacts_;
+    std::vector<TArtifactKey> LayerArtifactKeys_;
+
+    IVolumePtr RootVolume_;
 
     TNodeResources ResourceUsage_;
     EJobState JobState_ = EJobState::Waiting;
@@ -665,11 +700,10 @@ private:
             BIND(&TJob::PrepareSandboxDirectories, MakeStrong(this))
                 .AsyncVia(Invoker_)
                 .Run()
-                .Subscribe(
-                    BIND(
-                        &TJob::OnDirectoriesPrepared,
-                        MakeWeak(this))
-                        .Via(Invoker_));
+                .Subscribe(BIND(
+                    &TJob::OnDirectoriesPrepared,
+                    MakeWeak(this))
+                .Via(Invoker_));
         });
     }
 
@@ -703,23 +737,53 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
 
             LOG_INFO("Artifacts prepared");
-
-            ExecTime_ = TInstant::Now();
-            SetJobPhase(EJobPhase::PreparingProxy);
-
-            BIND(
-                &ISlot::RunJobProxy,
-                Slot_,
-                CreateConfig(),
-                Id_,
-                OperationId_)
-            .AsyncVia(Invoker_)
-            .Run()
-            .Subscribe(BIND(
-                &TJob::OnJobProxyFinished,
-                MakeWeak(this))
-            .Via(Invoker_));
+            if (LayerArtifactKeys_.empty()) {
+                RunJobProxy();
+            } else {
+                SetJobPhase(EJobPhase::PreparingRootVolume);
+                LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
+                Slot_->PrepareRootVolume(LayerArtifactKeys_)
+                    .Subscribe(BIND(
+                        &TJob::OnVolumePrepared,
+                        MakeWeak(this))
+                    .Via(Invoker_));
+            }
         });
+    }
+
+    void OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        GuardedAction([&] {
+            ValidateJobPhase(EJobPhase::PreparingRootVolume);
+            if (!volumeOrError.IsOK()) {
+                THROW_ERROR TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
+                    << volumeOrError;
+            }
+
+            RootVolume_ = volumeOrError.Value();
+            RunJobProxy();
+        });
+    }
+
+    void RunJobProxy()
+    {
+        ExecTime_ = TInstant::Now();
+        SetJobPhase(EJobPhase::PreparingProxy);
+
+        BIND(
+            &ISlot::RunJobProxy,
+            Slot_,
+            CreateConfig(),
+            Id_,
+            OperationId_)
+        .AsyncVia(Invoker_)
+        .Run()
+        .Subscribe(BIND(
+            &TJob::OnJobProxyFinished,
+            MakeWeak(this))
+        .Via(Invoker_));
     }
 
     void OnJobProxyFinished(const TError& error)
@@ -821,6 +885,8 @@ private:
         LOG_INFO("Job finalized (Error: %v, JobState: %v)",
             error,
             GetState());
+
+        Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
     }
 
     // Preparation.
@@ -870,11 +936,6 @@ private:
 
             auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
                 for (const auto& tableSpec : tableSpecs) {
-                    // COMPAT(psushin).
-                    for (const auto& dataSliceDescriptor : tableSpec.data_slice_descriptors()) {
-                        validateNodeIds(dataSliceDescriptor.chunks(), nodeDirectory, &inputNodeDirectoryBuilder);
-                    }
-
                     validateNodeIds(tableSpec.chunk_specs(), nodeDirectory, &inputNodeDirectoryBuilder);
                 }
             };
@@ -887,19 +948,23 @@ private:
                 validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory, nullptr);
             }
 
+            for (const auto& artifactKey : LayerArtifactKeys_) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, nullptr);
+            }
+
             if (!unresolvedNodeId) {
                 break;
             }
 
             if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
-                THROW_ERROR_EXCEPTION("Unresolved node id %v in job spec",
-                    *unresolvedNodeId);
+                LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)", *unresolvedNodeId);
+                break;
             }
 
             LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
                 *unresolvedNodeId,
                 attempt);
-            WaitFor(TDelayedExecutor::MakeDelayed(Config_->NodeDirectoryPrepareBackoffTime));
+            TDelayedExecutor::WaitForDuration(Config_->NodeDirectoryPrepareBackoffTime);
         }
 
         LOG_INFO("Node directory is constructed locally");
@@ -913,6 +978,9 @@ private:
         proxyConfig->BusServer = Slot_->GetBusServerConfig();
         proxyConfig->TmpfsPath = TmpfsPath_;
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();
+        if (RootVolume_) {
+            proxyConfig->RootPath = RootVolume_->GetPath();
+        }
 
         return proxyConfig;
     }
@@ -924,28 +992,15 @@ private:
         WaitFor(Slot_->CreateSandboxDirectories())
             .ThrowOnError();
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
-                bool enable = Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs;
                 TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
                     ESandboxKind::User,
                     userJobSpec.tmpfs_size(),
-                    userJobSpec.tmpfs_path(),
-                    enable))
+                    userJobSpec.tmpfs_path()))
                 .ValueOrThrow();
-
-                // Slot just creates directory in that case and job proxy
-                // should not consider this directory as tmpfs.
-                if (!enable) {
-                    TmpfsPath_ = Null;
-                }
-            }
-            if (userJobSpec.has_disk_space_limit() || userJobSpec.has_inode_limit()) {
-                auto diskSpaceLimit = userJobSpec.disk_space_limit();
-                auto inodeLimit = userJobSpec.inode_limit();
-                WaitFor(Slot_->SetQuota(diskSpaceLimit, inodeLimit))
-                    .ThrowOnError();
             }
         }
     }
@@ -964,6 +1019,10 @@ private:
                     descriptor.executable(),
                     TArtifactKey(descriptor),
                     nullptr});
+            }
+
+            for (const auto& descriptor : userJobSpec.layers()) {
+                LayerArtifactKeys_.push_back(TArtifactKey(descriptor));
             }
         }
 
@@ -989,7 +1048,7 @@ private:
 
     TFuture<std::vector<NDataNode::IChunkPtr>> DownloadArtifacts()
     {
-        auto chunkCache = Bootstrap_->GetChunkCache();
+        const auto& chunkCache = Bootstrap_->GetChunkCache();
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
         for (const auto& artifact : Artifacts_) {
@@ -1021,6 +1080,11 @@ private:
         bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
 
         for (const auto& artifact : Artifacts_) {
+            // Artifact preparation is uncancelable, so we check for an early exit.
+            if (JobPhase_ != EJobPhase::PreparingArtifacts) {
+                return;
+            }
+
             YCHECK(artifact.Chunk);
 
             if (copyFiles) {
@@ -1052,6 +1116,19 @@ private:
             LOG_INFO("Artifact prepared successfully (FileName: %v, SandboxKind: %v)",
                 artifact.Name,
                 artifact.SandboxKind);
+        }
+
+        // When all artifacts are prepared we can finally change permission for sandbox which will
+        // take away write access from the current user (see slot_location.cpp for details).
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+
+            TNullable<i64> inodeLimit(userJobSpec.has_inode_limit(), userJobSpec.inode_limit());
+            TNullable<i64> diskSpaceLimit(userJobSpec.has_disk_space_limit(), userJobSpec.disk_space_limit());
+
+            LOG_INFO("Setting sandbox quota and permissions");
+            WaitFor(Slot_->FinalizePreparation(diskSpaceLimit, inodeLimit))
+                .ThrowOnError();
         }
     }
 
@@ -1112,11 +1189,13 @@ private:
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::AllLocationsDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::SlotNotFound) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::RootVolumePreparationFailed) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::NotEnoughDiskSpace) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {

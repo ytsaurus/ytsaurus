@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/row_base.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -14,7 +14,8 @@
 #include <yt/core/misc/range.h>
 
 #include <yt/core/yson/public.h>
-#include <yt/ytlib/table_client/row_base.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -57,7 +58,7 @@ struct IStore
     //! Deserializes the asynchronous part of the state.
     virtual void AsyncLoad(TLoadContext& context) = 0;
 
-    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) = 0;
 
     virtual bool IsDynamic() const = 0;
     virtual IDynamicStorePtr AsDynamic() = 0;
@@ -167,7 +168,8 @@ struct ISortedStore
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor) = 0;
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& sessionId) = 0;
 
     //! Creates a reader for the set of |keys|.
     /*!
@@ -189,7 +191,8 @@ struct ISortedStore
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor) = 0;
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& sessionId) = 0;
 
     //! Checks that the transaction attempting to take locks indicated by #lockMask
     //! has no conflicts within the store. Returns the error.
@@ -234,7 +237,8 @@ struct IOrderedStore
         i64 lowerRowIndex,
         i64 upperRowIndex,
         const NTableClient::TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor) = 0;
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& sessionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOrderedStore)

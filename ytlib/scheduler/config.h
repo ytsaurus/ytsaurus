@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/api/config.h>
 
-#include <yt/ytlib/chunk_pools/public.h>
-
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/config.h>
 
@@ -45,8 +43,6 @@ public:
     TBooleanFormula SchedulingTagFilter;
 
     TSupportsSchedulingTagsConfig();
-
-    virtual void OnLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
@@ -71,15 +67,15 @@ class TSchedulableConfig
     : public TSupportsSchedulingTagsConfig
 {
 public:
-    double Weight;
+    TNullable<double> Weight;
 
     // Specifies resource limits in terms of a share of all cluster resources.
-    double MaxShareRatio;
+    TNullable<double> MaxShareRatio;
     // Specifies resource limits in absolute values.
     TResourceLimitsConfigPtr ResourceLimits;
 
     // Specifies guaranteed resources in terms of a share of all cluster resources.
-    double MinShareRatio;
+    TNullable<double> MinShareRatio;
     // Specifies guaranteed resources in absolute values.
     TResourceLimitsConfigPtr MinShareResources;
 
@@ -92,10 +88,23 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeoutLimit;
     TNullable<double> FairShareStarvationToleranceLimit;
 
-    bool AllowAggressiveStarvationPreemption;
+    TNullable<bool> AllowAggressiveStarvationPreemption;
 
     TSchedulableConfig();
 };
+
+class TExtendedSchedulableConfig
+    : public TSchedulableConfig
+{
+public:
+    TNullable<TString> Pool;
+
+    TExtendedSchedulableConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TExtendedSchedulableConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPoolConfig
     : public TSchedulableConfig
@@ -128,6 +137,15 @@ class TStrategyOperationSpec
 public:
     TNullable<TString> Pool;
 
+    //! This options have higher priority than Pool and other options
+    //! defined in this class.
+    THashMap<TString, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
+
+    //! Pool trees to schedule operation in.
+    //! Operation will be scheduled in default tree (if any) if this parameter
+    //! is not specified.
+    THashSet<TString> PoolTrees;
+
     TStrategyOperationSpec();
 
 private:
@@ -153,10 +171,26 @@ public:
 
     int PipeIOPoolSize;
 
+    class TTestingOptions
+        : public TYsonSerializable
+    {
+    public:
+        TDuration PipeDelay;
+
+        TTestingOptions()
+        {
+            RegisterParameter("pipe_delay", PipeDelay)
+                .Default(TDuration::Zero());
+        }
+    };
+
+    TIntrusivePtr<TTestingOptions> Testing;
+
     TJobIOConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
+DEFINE_REFCOUNTED_TYPE(TJobIOConfig::TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,8 +220,16 @@ public:
     TNullable<TDuration> DelayInsideOperationCommit;
     TNullable<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
 
+    TNullable<TDuration> DelayInsideRevive;
+
+    TNullable<TDuration> DelayInsideSuspend;
+
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;
+
+    bool FailGetJobSpec;
+
+    EOperationCypressStorageMode CypressStorageMode;
 
     TTestingOperationOptions();
 };
@@ -258,8 +300,6 @@ public:
     //! Limit on operation execution time.
     TNullable<TDuration> TimeLimit;
 
-    bool CheckMultichunkFiles;
-
     TTestingOperationOptionsPtr TestingOperationOptions;
 
     //! Users that can change operation parameters, e.g abort or suspend it.
@@ -278,7 +318,23 @@ public:
     //! Generic map to turn on/off different experimental options.
     NYTree::IMapNodePtr NightlyOptions;
 
+    //! If total input data weight of operation is less, we disable locality timeouts.
+    //! Also disables partitioned data balancing for small operations.
+    i64 MinLocalityInputDataWeight;
+
     TAutoMergeConfigPtr AutoMerge;
+
+    //! This field is not used in scheduler any more, but specified in order
+    //! to not appear in unrecognized spec.
+    NYTree::IMapNodePtr StartedBy;
+
+    // TODO(max42): make this field per-task.
+    TLogDigestConfigPtr JobProxyMemoryDigest;
+
+    //! If set to true, any aborted/failed job will result in operation fail.
+    bool FailOnJobRestart;
+
+    bool EnableJobSplitting;
 
     TOperationSpecBase();
 
@@ -297,7 +353,10 @@ class TUserJobSpec
 public:
     TString Command;
 
+    TString TaskTitle;
+
     std::vector<NYPath::TRichYPath> FilePaths;
+    std::vector<NYPath::TRichYPath> LayerPaths;
 
     TNullable<NFormats::TFormat> Format;
     TNullable<NFormats::TFormat> InputFormat;
@@ -330,12 +389,31 @@ public:
 
     bool CopyFiles;
 
+    //! Flag showing that user code is guaranteed to be deterministic.
+    bool Deterministic;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVanillaTaskSpec
+    : public TUserJobSpec
+{
+public:
+    //! Number of jobs that will be run in this task. This field is mandatory.
+    int JobCount;
+
+    TJobIOConfigPtr JobIO;
+
+    TVanillaTaskSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -363,28 +441,10 @@ public:
     TNullable<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
 
-    bool EnableJobSplitting;
-
     TOperationWithUserJobSpec();
-
-    virtual void OnLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
-
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(max42): remove this when YT-6547 is closed and legacy controllers are finally deprecated.
-class TOperationWithLegacyControllerSpec
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    bool UseLegacyController;
-
-    TOperationWithLegacyControllerSpec();
-};
-
-DEFINE_REFCOUNTED_TYPE(TOperationWithLegacyControllerSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -403,12 +463,6 @@ public:
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
-
-    NChunkPools::EStripeListExtractionOrder StripeListExtractionOrder;
-
-    // Operations inherited from this class produce the only kind
-    // of jobs. This option corresponds to jobs of this kind.
-    TLogDigestConfigPtr JobProxyMemoryDigest;
 
     TSimpleOperationSpecBase();
 
@@ -430,8 +484,6 @@ public:
 
     TUnorderedOperationSpecBase();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase, 0x79aafe77);
 };
@@ -452,7 +504,6 @@ public:
 
     TMapOperationSpec();
 
-    virtual void OnLoaded() override;
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec, 0x4aa00f9d);
 };
@@ -472,8 +523,6 @@ public:
     ESchemaInferenceMode SchemaInferenceMode;
 
     TUnorderedMergeOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);
@@ -505,8 +554,6 @@ public:
 
     TMergeOperationSpec();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec, 0x646bd8cb);
 };
@@ -527,7 +574,6 @@ DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec);
 
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
-    , public TOperationWithLegacyControllerSpec
 {
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec, 0x213a54d6);
@@ -548,8 +594,6 @@ public:
 
     TEraseOperationSpec();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec, 0xbaec2ff5);
 };
@@ -562,7 +606,6 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 class TReduceOperationSpecBase
     : public TSimpleOperationSpecBase
     , public TOperationWithUserJobSpec
-    , public TOperationWithLegacyControllerSpec
 {
 public:
     TUserJobSpecPtr Reducer;
@@ -573,8 +616,6 @@ public:
     bool ConsiderOnlyPrimarySize;
 
     TReduceOperationSpecBase();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase, 0x7353c0af);
@@ -611,8 +652,6 @@ class TJoinReduceOperationSpec
 public:
     TJoinReduceOperationSpec();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec, 0x788fac27);
 };
@@ -624,7 +663,6 @@ DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec);
 
 class TSortOperationSpecBase
     : public TOperationSpecBase
-    , public TOperationWithLegacyControllerSpec
 {
 public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
@@ -676,16 +714,14 @@ public:
     //! |max_i DataWeight(i) <= avg_i DataWeight(i) + DataWeightPerJob * PartitionedDataBalancingTolerance|
     double PartitionedDataBalancingTolerance;
 
-    // For all kinds of sort jobs: simple_sort, intermediate_sort, final_sort.
-    TLogDigestConfigPtr SortJobProxyMemoryDigest;
-    // For partition and partition_map jobs.
-    TLogDigestConfigPtr PartitionJobProxyMemoryDigest;
+    //! If |true| then unavailable intermediate chunks are regenerated by restarted jobs.
+    //! Otherwise operation waits for them to become available again (or fails, according to
+    //! unavailable chunk tactics).
+    bool EnableIntermediateOutputRecalculation;
 
     TNullable<i64> DataWeightPerSortedJob;
 
     TSortOperationSpecBase();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase, 0xdd19ecde);
@@ -705,14 +741,9 @@ public:
     // Desired number of samples per partition.
     int SamplesPerPartition;
 
-    // For sorted_merge and unordered_merge jobs.
-    TLogDigestConfigPtr MergeJobProxyMemoryDigest;
-
     ESchemaInferenceMode SchemaInferenceMode;
 
     TSortOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpec, 0xa6709f80);
@@ -737,18 +768,13 @@ public:
     TUserJobSpecPtr ReduceCombiner;
     TUserJobSpecPtr Reducer;
 
-    // For sorted_reduce jobs.
-    TLogDigestConfigPtr SortedReduceJobProxyMemoryDigest;
-    // For partition_reduce jobs.
-    TLogDigestConfigPtr PartitionReduceJobProxyMemoryDigest;
-    // For reduce_combiner jobs.
-    TLogDigestConfigPtr ReduceCombinerJobProxyMemoryDigest;
-
     bool ForceReduceCombiners;
 
-    TMapReduceOperationSpec();
+    // First `MapperOutputTableCount` tables will be constructed from
+    // mapper's output to file handlers #4, #7, ...
+    int MapperOutputTableCount;
 
-    virtual void OnLoaded() override;
+    TMapReduceOperationSpec();
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);
@@ -761,7 +787,6 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec);
 
 class TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
-    , public TOperationWithLegacyControllerSpec
 {
 public:
     TNullable<TString> ClusterName;
@@ -785,23 +810,50 @@ public:
 
     TRemoteCopyOperationSpec();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec, 0x3c0ce9c0);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationRuntimeParams
+class TVanillaOperationSpec
+    : public TOperationSpecBase
+    , public TOperationWithUserJobSpec
+{
+public:
+    //! Map consisting of pairs <task_name, task_spec>.
+    THashMap<TString, TVanillaTaskSpecPtr> Tasks;
+
+    TVanillaOperationSpec();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec, 0x001004fe);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaOperationSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationStrategyRuntimeParams
     : public NYTree::TYsonSerializable
 {
 public:
     double Weight;
 
     TResourceLimitsConfigPtr ResourceLimits;
+
+    TOperationStrategyRuntimeParams();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationStrategyRuntimeParams)
+
+class TOperationRuntimeParams
+    : public TOperationStrategyRuntimeParams
+{
+public:
+    std::vector<TString> Owners;
 
     TOperationRuntimeParams();
 };

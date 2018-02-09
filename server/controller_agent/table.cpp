@@ -7,12 +7,22 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, LivePreviewTableId);
+    using NYT::Load;
+
+    if (context.IsLoad() && context.GetVersion() < 202000) {
+        LivePreviewTableIds = {
+            Load<NCypressClient::TNodeId>(context.LoadContext())
+        };
+    } else {
+        Persist(context, LivePreviewTableIds);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,7 +79,7 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate()
     TEdgeDescriptor descriptor;
     descriptor.DestinationPool = nullptr;
     descriptor.TableUploadOptions = TableUploadOptions;
-    descriptor.TableWriterOptions = Options;
+    descriptor.TableWriterOptions = CloneYsonSerializable(Options);
     descriptor.TableWriterConfig = WriterConfig;
     descriptor.Timestamp = Timestamp;
     // Output tables never lose data (hopefully), so we do not need to store

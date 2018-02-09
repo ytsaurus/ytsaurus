@@ -3,10 +3,6 @@
 #include "format.h"
 #include "parser_detail.h"
 
-#include <yt/core/concurrency/coroutine.h>
-
-#include <yt/core/misc/error.h>
-
 namespace NYT {
 namespace NYson {
 
@@ -20,6 +16,7 @@ private:
     typedef TCoroutine<int(const char* begin, const char* end, bool finish)> TParserCoroutine;
 
     TParserCoroutine ParserCoroutine_;
+    TParserYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>> Parser_;
 
 public:
     TImpl(
@@ -30,7 +27,7 @@ public:
         bool enableContext)
         : ParserCoroutine_(BIND(
             [=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
-                ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>>(
+                Parser_.DoParse(
                     TBlockReader<TParserCoroutine>(self, begin, end, finish),
                     consumer,
                     parsingMode,
@@ -58,6 +55,11 @@ public:
     {
         Read(0, 0, true);
     }
+
+    const char* GetCurrentPositionInBlock()
+    {
+        return Parser_.GetCurrentPositionInBlock();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,6 +81,11 @@ TYsonParser::TYsonParser(
 TYsonParser::~TYsonParser()
 { }
 
+void TYsonParser::Read(const char* begin, const char* end, bool finish)
+{
+    Impl->Read(begin, end, finish);
+}
+
 void TYsonParser::Read(const TStringBuf& data)
 {
     Impl->Read(data);
@@ -87,6 +94,11 @@ void TYsonParser::Read(const TStringBuf& data)
 void TYsonParser::Finish()
 {
     Impl->Finish();
+}
+
+const char* TYsonParser::GetCurrentPositionInBlock()
+{
+    return Impl->GetCurrentPositionInBlock();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,40 +161,14 @@ void ParseYsonStringBuffer(
     i64 memoryLimit,
     bool enableContext)
 {
-    ParseYsonStreamImpl<IYsonConsumer, TStringReader>(
+    TParserYsonStreamImpl<IYsonConsumer, TStringReader> Parser;
+    Parser.DoParse(
         TStringReader(buffer.begin(), buffer.end()),
         consumer,
         type,
         enableLinePositionInfo,
         memoryLimit,
         enableContext);
-}
-
-void ParseYsonSharedRefArray(
-    const TSharedRefArray& refArray,
-    EYsonType type,
-    IYsonConsumer* consumer,
-    bool enableLinePositionInfo,
-    i64 memoryLimit,
-    bool enableContext)
-{
-    typedef TCoroutine<int(const char* begin, const char* end, bool finish)> TParserCoroutine;
-    TParserCoroutine parserCoroutine(BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
-        ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>>(
-            TBlockReader<TParserCoroutine>(self, begin, end, finish),
-            consumer,
-            type,
-            enableLinePositionInfo,
-            memoryLimit,
-            enableContext);
-    }));
-
-    for (const auto& blob: refArray) {
-        auto buffer = TStringBuf(blob.Begin(), blob.End());
-        parserCoroutine.Run(buffer.begin(), buffer.end(), false);
-    }
-
-    parserCoroutine.Run(nullptr, nullptr, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

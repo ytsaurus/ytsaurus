@@ -21,8 +21,7 @@ bool TPeriodicYielder::TryYield()
     }
 
     if (GetCpuInstant() - LastYieldTime_ > Period_) {
-        // YT-5601: replace with Yield after merge into prestable/18.
-        WaitFor(VoidFuture);
+        Yield();
         LastYieldTime_ = GetCpuInstant();
         return true;
     }

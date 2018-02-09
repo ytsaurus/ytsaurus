@@ -125,7 +125,7 @@ public:
         Y_ASSERT(!AttributeConsumer);
         Attributes = CreateEphemeralAttributes();
         AttributeConsumer.reset(new TAttributeConsumer(Attributes.get()));
-        Forward(AttributeConsumer.get(), TClosure(), NYson::EYsonType::MapFragment);
+        Forward(AttributeConsumer.get(), nullptr, NYson::EYsonType::MapFragment);
     }
 
     virtual void OnMyEndAttributes() override

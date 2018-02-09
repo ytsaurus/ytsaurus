@@ -34,9 +34,6 @@ public:
 
     TJobEnvironmentConfig()
     {
-        // Type-dependent configuration is stored as options.
-        SetKeepOptions(true);
-
         RegisterParameter("type", Type)
             .Default(EJobEnvironmentType::Simple);
 
@@ -98,6 +95,13 @@ public:
     TDuration BlockIOWatchdogPeriod;
     bool UseResourceLimits;
 
+    TNullable<TDuration> ResourceLimitsUpdatePeriod;
+    TNullable<TString> ExternalJobContainer;
+    TNullable<TString> ExternalJobRootVolume;
+    THashMap<TString, TString> ExternalBinds;
+
+    double JobsIOWeight;
+
     TPortoJobEnvironmentConfig()
     {
         RegisterParameter("porto_wait_time", PortoWaitTime)
@@ -108,6 +112,18 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("use_resource_limits", UseResourceLimits)
             .Default(false);
+
+        RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
+            .Default(Null);
+        RegisterParameter("external_job_container", ExternalJobContainer)
+            .Default(Null);
+        RegisterParameter("external_job_root_volume", ExternalJobRootVolume)
+            .Default(Null);
+        RegisterParameter("external_binds", ExternalBinds)
+            .Default();
+
+        RegisterParameter("jobs_io_weight", JobsIOWeight)
+            .Default(0.05);
     }
 };
 
@@ -117,7 +133,21 @@ DEFINE_REFCOUNTED_TYPE(TPortoJobEnvironmentConfig)
 
 class TSlotLocationConfig
     : public TDiskLocationConfig
-{ };
+{
+public:
+    TNullable<i64> DiskQuota;
+    i64 DiskUsageWatermark;
+
+    TSlotLocationConfig()
+    {
+        RegisterParameter("disk_quota", DiskQuota)
+            .Default(Null)
+            .GreaterThan(0);
+        RegisterParameter("disk_usage_watermark", DiskUsageWatermark)
+            .Default(10_GB)
+            .GreaterThanOrEqual(0);
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocationConfig)
 
@@ -150,6 +180,10 @@ public:
     //! and its job proxy RPC Unix Domain Socket name.
     TNullable<TString> JobProxySocketNameDirectory;
 
+    TDuration DiskInfoUpdatePeriod;
+
+    int MaxConsecutiveAborts;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -167,6 +201,12 @@ public:
 
         RegisterParameter("job_proxy_socket_name_directory", JobProxySocketNameDirectory)
             .Default(Null);
+
+        RegisterParameter("disk_info_update_period", DiskInfoUpdatePeriod)
+            .Default(TDuration::Seconds(5));
+
+        RegisterParameter("max_consecutive_aborts", MaxConsecutiveAborts)
+            .Default(500);
     }
 };
 
@@ -219,10 +259,16 @@ public:
 
     TDuration JobProxyHeartbeatPeriod;
 
+    //! This is a special testing option.
+    //! Instead of actually setting root fs, it just provides special environment variable.
+    bool TestRootFS;
+
     int NodeDirectoryPrepareRetryCount;
     TDuration NodeDirectoryPrepareBackoffTime;
 
     TDuration CoreForwarderTimeout;
+
+    i64 MinRequiredDiskSpace;
 
     TExecAgentConfig()
     {
@@ -248,6 +294,9 @@ public:
         RegisterParameter("job_proxy_heartbeat_period", JobProxyHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
 
+        RegisterParameter("test_root_fs", TestRootFS)
+            .Default(false);
+
         RegisterParameter("node_directory_prepare_retry_count", NodeDirectoryPrepareRetryCount)
             .Default(10);
         RegisterParameter("node_directory_prepare_backoff_time", NodeDirectoryPrepareBackoffTime)
@@ -256,6 +305,9 @@ public:
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default(TDuration::Seconds(60))
             .GreaterThan(TDuration::Zero());
+
+        RegisterParameter("min_required_disk_space", MinRequiredDiskSpace)
+            .Default(100_MB);
     }
 };
 

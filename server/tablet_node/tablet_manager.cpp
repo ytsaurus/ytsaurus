@@ -224,13 +224,6 @@ public:
         transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))));
         transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))));
         transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
-
-        // Initialize periodic latest timestamp update.
-        const auto& timestampProvider = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetTimestampProvider();
-        timestampProvider->GetLatestTimestamp();
     }
 
 
@@ -255,6 +248,7 @@ public:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& sessionId,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -270,6 +264,7 @@ public:
                 timestamp,
                 user,
                 workloadDescriptor,
+                sessionId,
                 retentionConfig,
                 reader,
                 writer);
@@ -292,18 +287,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // NB: No yielding beyond this point.
-        // May access tablet and transaction.
-
-        auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
-
-        tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
-        ValidateTabletMounted(tablet);
-        ValidateTabletStoreLimit(tablet);
-        ValidateMemoryLimit();
-
-        const auto& tabletId = tablet->GetId();
-        const auto& storeManager = tablet->GetStoreManager();
+        TTablet* tablet = nullptr;
         const auto& transactionManager = Slot_->GetTransactionManager();
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
@@ -312,6 +296,21 @@ public:
         }
 
         while (!reader->IsFinished()) {
+            // NB: No yielding beyond this point.
+            // May access tablet and transaction.
+
+            if (!tablet) {
+                tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
+                tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
+                ValidateTabletMounted(tablet);
+            }
+
+            ValidateTabletStoreLimit(tablet);
+            ValidateMemoryLimit();
+
+            const auto& tabletId = tablet->GetId();
+            const auto& storeManager = tablet->GetStoreManager();
+
             TTransaction* transaction = nullptr;
             bool transactionIsFresh = false;
             if (atomicity == EAtomicity::Full) {
@@ -401,6 +400,7 @@ public:
                     context.BlockedRow,
                     context.BlockedLockMask,
                     context.BlockedTimestamp);
+                tablet = nullptr;
             }
 
             context.Error.ThrowOnError();
@@ -890,7 +890,7 @@ private:
         tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
-        if (!tablet->IsPhysicallySorted()) {
+        if (tablet->IsPhysicallyOrdered()) {
             tablet->SetTrimmedRowCount(request->trimmed_row_count());
         }
 
@@ -999,7 +999,7 @@ private:
         }
 
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
-        auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->writer_config()), tabletId);
+        auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->reader_config()), tabletId);
         auto writerConfig = DeserializeTabletChunkWriterConfig(TYsonString(request->writer_config()), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
 
@@ -2439,6 +2439,7 @@ private:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& sessionId,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -2451,6 +2452,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    sessionId,
                     reader,
                     writer);
                 break;
@@ -2461,6 +2463,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    sessionId,
                     std::move(retentionConfig),
                     reader,
                     writer);
@@ -2693,17 +2696,32 @@ private:
                         .Item("opaque").Value(true)
                     .EndAttributes()
                     .Value(tablet->GetConfig())
+                .Item("writer_config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetWriterConfig())
+                .Item("writer_options")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetWriterOptions())
+                .Item("reader_config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetReaderConfig())
                 .DoIf(
                     tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())
                         .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
-                        .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
+                        .Item("eden").DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
                         .Item("partitions").DoListFor(
                             tablet->PartitionList(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
                                 fluent
                                     .Item()
-                                    .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                                    .DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
                             });
                 })
                 .DoIf(!tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
@@ -2722,32 +2740,30 @@ private:
             .EndMap();
     }
 
-    void BuildPartitionOrchidYson(TPartition* partition, IYsonConsumer* consumer)
+    void BuildPartitionOrchidYson(TPartition* partition, TFluentMap fluent)
     {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("id").Value(partition->GetId())
-                .Item("state").Value(partition->GetState())
-                .Item("pivot_key").Value(partition->GetPivotKey())
-                .Item("next_pivot_key").Value(partition->GetNextPivotKey())
-                .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.Size())
-                .Item("sampling_time").Value(partition->GetSamplingTime())
-                .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
-                .Item("compaction_time").Value(partition->GetCompactionTime())
-                .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
-                .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
-                .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
-                .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
-                    fluent
-                        .Item(ToString(store->GetId()))
-                        .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
-                })
-            .EndMap();
+        fluent
+            .Item("id").Value(partition->GetId())
+            .Item("state").Value(partition->GetState())
+            .Item("pivot_key").Value(partition->GetPivotKey())
+            .Item("next_pivot_key").Value(partition->GetNextPivotKey())
+            .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.Size())
+            .Item("sampling_time").Value(partition->GetSamplingTime())
+            .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
+            .Item("compaction_time").Value(partition->GetCompactionTime())
+            .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
+            .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
+            .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
+            .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
+                fluent
+                    .Item(ToString(store->GetId()))
+                    .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+            });
     }
 
-    void BuildStoreOrchidYson(IStorePtr store, IYsonConsumer* consumer)
+    void BuildStoreOrchidYson(IStorePtr store, TFluentAny fluent)
     {
-        BuildYsonFluently(consumer)
+        fluent
             .BeginAttributes()
                 .Item("opaque").Value(true)
             .EndAttributes()
@@ -2797,11 +2813,7 @@ private:
     void ValidateClientTimestamp(const TTransactionId& transactionId)
     {
         auto clientTimestamp = TimestampFromTransactionId(transactionId);
-        auto timestampProvider = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetTimestampProvider();
-        auto serverTimestamp = timestampProvider->GetLatestTimestamp();
+        auto serverTimestamp = Bootstrap_->GetLatestTimestamp();
         auto clientInstant = TimestampToInstant(clientTimestamp).first;
         auto serverInstant = TimestampToInstant(serverTimestamp).first;
         if (clientInstant > serverInstant + Config_->ClientTimestampThreshold ||
@@ -3266,6 +3278,7 @@ void TTabletManager::Read(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -3275,6 +3288,7 @@ void TTabletManager::Read(
         timestamp,
         user,
         workloadDescriptor,
+        sessionId,
         std::move(retentionConfig),
         reader,
         writer);

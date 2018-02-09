@@ -73,16 +73,17 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
 
     def test_ordered_tablet_node_profiling(self):
+        path = "//tmp/x"
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", enable_profiling=True)
-        self.sync_mount_table("//tmp/t")
+        self._create_simple_table(path, enable_profiling=True)
+        self.sync_mount_table(path)
 
-        tablet_profiling = self._get_tablet_profiling("//tmp/t")
-        select_profiling = self._get_profiling("//tmp/t")
+        tablet_profiling = self._get_tablet_profiling(path)
+        select_profiling = self._get_profiling(path)
 
         def get_all_counters(count_name):
             return (
-                select_profiling.get_counter("select/" + count_name),
+                tablet_profiling.get_counter("select/" + count_name),
                 tablet_profiling.get_counter("write/" + count_name),
                 tablet_profiling.get_counter("commit/" + count_name))
 
@@ -91,12 +92,12 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert select_profiling.get_counter("select/cpu_time") == 0
 
         rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(9)]
-        insert_rows("//tmp/t", rows)
+        insert_rows(path, rows)
 
         sleep(2)  # sleep is needed to ensure that the profiling counters are updated properly
 
         rows = [{"a": 100, "b": 0.5, "c": "data"}]
-        insert_rows("//tmp/t", rows)
+        insert_rows(path, rows)
 
         sleep(2)
 
@@ -104,12 +105,12 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert get_all_counters("data_weight") == (0, 246, 246)
         assert select_profiling.get_counter("select/cpu_time") == 0
 
-        select_rows("* from [//tmp/t]")
+        select_rows("* from [{}]".format(path))
 
         sleep(2)
 
-        assert get_all_counters("row_count") == (20, 10, 10)
-        assert get_all_counters("data_weight") == (892, 246, 246)
+        assert get_all_counters("row_count") == (10, 10, 10)
+        assert get_all_counters("data_weight") == (406, 246, 246)
         assert select_profiling.get_counter("select/cpu_time") > 0
 
     def test_insert(self):
@@ -475,6 +476,28 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", 1)
 
+    def test_reshard_after_trim(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1}])
+        self.sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 1)
+        self.sync_unmount_table("//tmp/t")
+
+        def _verify(expected_flushed, expected_trimmed):
+            tablet = get("//tmp/t/@tablets/0")
+            assert tablet["flushed_row_count"] == expected_flushed
+            assert tablet["trimmed_row_count"] == expected_trimmed
+
+        _verify(1, 1)
+        reshard_table("//tmp/t", 1)
+        _verify(1, 1)
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1}])
+        self.sync_unmount_table("//tmp/t")
+        _verify(2, 1)
+
     def test_freeze_empty(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -650,6 +673,36 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_freeze_table("//tmp/t")
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
 
+    def test_timestamp_column(self):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "a", "type": "string"},
+                {"name": "$timestamp", "type": "uint64"}
+            ]
+        })
+        self.sync_mount_table("//tmp/t")
+
+        timestamp0 = generate_timestamp()
+        insert_rows("//tmp/t", [{"a": "hello"}])
+        insert_rows("//tmp/t", [{"a": "world"}])
+        timestamp3 = generate_timestamp()
+
+        timestamp1 = select_rows("[$timestamp] from [//tmp/t] where [$row_index] = 0")[0]["$timestamp"]
+        timestamp2 = select_rows("[$timestamp] from [//tmp/t] where [$row_index] = 1")[0]["$timestamp"]
+
+        assert timestamp0 < timestamp1
+        assert timestamp1 < timestamp2
+        assert timestamp2 < timestamp3
+
+    def test_data_ttl(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", min_data_ttl=0, max_data_ttl=0, min_data_versions=0)
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 0}])
+        self.sync_flush_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
 
 ##################################################################
 

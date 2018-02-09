@@ -118,7 +118,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -128,6 +129,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp,
         produceAllVersions,
         columnFilter,
+        sessionId,
         tabletSnapshot->TableSchema);
     if (reader) {
         return reader;
@@ -142,7 +144,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             columnFilter,
-            workloadDescriptor);
+            workloadDescriptor,
+            sessionId);
     }
 
     auto chunkReader = GetChunkReader();
@@ -155,6 +158,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         std::move(config),
         std::move(chunkReader),
         std::move(chunkState),
+        sessionId,
         std::move(ranges),
         columnFilter,
         timestamp,
@@ -166,6 +170,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
+    const TReadSessionId& sessionId,
     const TTableSchema& schema)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -181,6 +186,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 
     return CreateCacheBasedVersionedChunkReader(
         ChunkState_,
+        sessionId,
         std::move(ranges),
         columnFilter,
         timestamp,
@@ -193,7 +199,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -203,6 +210,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp,
         produceAllVersions,
         columnFilter,
+        sessionId,
         tabletSnapshot->TableSchema);
     if (reader) {
         return reader;
@@ -217,7 +225,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             columnFilter,
-            workloadDescriptor);
+            workloadDescriptor,
+            sessionId);
     }
 
     auto blockCache = GetBlockCache();
@@ -231,6 +240,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         std::move(config),
         std::move(chunkReader),
         std::move(chunkState),
+        sessionId,
         keys,
         columnFilter,
         timestamp,
@@ -242,6 +252,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
+    const TReadSessionId& sessionId,
     const TTableSchema& schema)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -257,6 +268,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 
     return CreateCacheBasedVersionedChunkReader(
         ChunkState_,
+        sessionId,
         keys,
         columnFilter,
         timestamp,
@@ -295,6 +307,8 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkR
         }
     }
 
+    LOG_DEBUG("Loading versioned chunk meta");
+
     // TODO(babenko): do we need to make this workload descriptor configurable?
     auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
         chunkReader,
@@ -303,6 +317,9 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkR
         MemoryTracker_);
     auto cachedMeta = WaitFor(asyncCachedMeta)
         .ValueOrThrow();
+
+    LOG_DEBUG("Got versioned chunk meta");
+
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
 

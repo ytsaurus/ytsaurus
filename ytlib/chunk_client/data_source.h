@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/data_source.pb.h>
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/core/misc/nullable.h>
@@ -25,11 +24,11 @@ DEFINE_ENUM(EDataSourceType,
 class TDataSource
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
-    DEFINE_BYVAL_RO_PROPERTY(TNullable<TString>, Path);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<NTableClient::TTableSchema>, Schema);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<std::vector<TString>>, Columns);
-    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TString>, Path);
+    DEFINE_BYREF_RW_PROPERTY(TNullable<NTableClient::TTableSchema>, Schema);
+    DEFINE_BYREF_RW_PROPERTY(TNullable<std::vector<TString>>, Columns);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
 
     TDataSource() = default;
 
@@ -39,8 +38,6 @@ public:
         const TNullable<NTableClient::TTableSchema>& schema,
         const TNullable<std::vector<TString>>& columns,
         NTransactionClient::TTimestamp timestamp);
-
-    friend void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSource);
 };
 
 TDataSource MakeVersionedDataSource(
@@ -56,7 +53,15 @@ TDataSource MakeUnversionedDataSource(
 
 TDataSource MakeFileDataSource(const TNullable<TString>& path);
 
-void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource);
+void FromProto(
+    TDataSource* dataSource,
+    const NProto::TDataSource& protoDataSource,
+    const NTableClient::TSchemaDictionary* dictionary = nullptr);
+
+void ToProto(
+    NProto::TDataSource* protoDataSource,
+    const TDataSource& dataSource,
+    NTableClient::TSchemaDictionary* dictionary = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,12 +75,12 @@ public:
 DEFINE_REFCOUNTED_TYPE(TDataSourceDirectory)
 
 void ToProto(
-    NProto::TDataSourceDirectory* protoDataSourceDirectory,
+    NProto::TDataSourceDirectoryExt* protoDataSourceDirectory,
     const TDataSourceDirectoryPtr& dataSourceDirectory);
 
 void FromProto(
     TDataSourceDirectoryPtr* dataSourceDirectory,
-    const NProto::TDataSourceDirectory& protoDataSourceDirectory);
+    const NProto::TDataSourceDirectoryExt& protoDataSourceDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

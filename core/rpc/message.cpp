@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/core/bus/packet.h>
 
@@ -103,7 +103,7 @@ TSharedRefArray CreateResponseMessage(
     const ::google::protobuf::MessageLite& body,
     const std::vector<TSharedRef>& attachments)
 {
-    auto serializedBody = SerializeToProtoWithEnvelope(body, NCompression::ECodec::None, false);
+    auto serializedBody = SerializeProtoToRefWithEnvelope(body, NCompression::ECodec::None, false);
 
     return CreateResponseMessage(
         TResponseHeader(),

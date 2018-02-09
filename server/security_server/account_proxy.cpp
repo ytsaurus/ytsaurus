@@ -92,7 +92,7 @@ private:
             BuildYsonFluently(consumer)
                 .DoMapFor(account->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
                     fluent.Item(ToString(pair.first));
-                    Serialize(pair.second, fluent, chunkManager);
+                    Serialize(pair.second, fluent.GetConsumer(), chunkManager);
                 });
             return true;
         }

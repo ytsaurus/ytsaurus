@@ -2,6 +2,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 namespace NYT {
@@ -22,15 +24,6 @@ using std::round;
 static const i64 LowWatermarkMemorySize = 256_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TExtendedJobResources::TExtendedJobResources()
-    : UserSlots_(0)
-    , Cpu_(0)
-    , JobProxyMemory_(0)
-    , UserJobMemory_(0)
-    , FootprintMemory_(0)
-    , Network_(0)
-{ }
 
 i64 TExtendedJobResources::GetMemory() const
 {
@@ -62,13 +55,6 @@ void TExtendedJobResources::Persist(const TStreamPersistenceContext& context)
     Persist(context, Network_);
 }
 
-TJobResources::TJobResources()
-    : TEmptyJobResourcesBase()
-#define XX(name, Name) , Name##_(0)
-ITERATE_JOB_RESOURCES(XX)
-#undef XX
-{ }
-
 TJobResources::TJobResources(const TNodeResources& resources)
     : TEmptyJobResourcesBase()
 #define XX(name, Name) , Name##_(resources.name())
@@ -94,12 +80,12 @@ void TJobResources::Persist(const TStreamPersistenceContext& context)
     #undef XX
 }
 
-TString FormatResourceUsage(
+TString FormatResource(
     const TJobResources& usage,
     const TJobResources& limits)
 {
     return Format(
-        "{UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v}",
+        "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v",
         // User slots
         usage.GetUserSlots(),
         limits.GetUserSlots(),
@@ -114,15 +100,43 @@ TString FormatResourceUsage(
         limits.GetNetwork());
 }
 
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits)
+{
+    return Format("{%v}", FormatResource(usage, limits));
+}
+
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
+{
+    return Format("{%v, DiskInfo: %v}", FormatResource(usage, limits), NNodeTrackerClient::ToString(diskInfo));
+}
+
 TString FormatResources(const TJobResources& resources)
 {
     return Format(
         "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
-        resources.GetMemory() / (1024 * 1024),
+        resources.GetMemory() / 1_MB,
         resources.GetNetwork());
 }
+
+TString FormatResources(const TJobResourcesWithQuota& resources)
+{
+    return Format(
+        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, DiskQuota: %v}",
+        resources.GetUserSlots(),
+        resources.GetCpu(),
+        resources.GetMemory() / 1_MB,
+        resources.GetNetwork(),
+        resources.GetDiskQuota()
+    );
+}
+
 
 TString FormatResources(const TExtendedJobResources& resources)
 {
@@ -130,9 +144,9 @@ TString FormatResources(const TExtendedJobResources& resources)
         "{UserSlots: %v, Cpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
-        resources.GetJobProxyMemory() / (1024 * 1024),
-        resources.GetUserJobMemory() / (1024 * 1024),
-        resources.GetFootprintMemory() / (1024 * 1024),
+        resources.GetJobProxyMemory() / 1_MB,
+        resources.GetUserJobMemory() / 1_MB,
+        resources.GetFootprintMemory() / 1_MB,
         resources.GetNetwork());
 }
 
@@ -193,19 +207,6 @@ double GetResource(const TJobResources& resources, EResourceType type)
         #define XX(name, Name) \
             case EResourceType::Name: \
                 return static_cast<double>(resources.Get##Name());
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-void SetResource(TJobResources& resources, EResourceType type, i64 value)
-{
-    switch (type) {
-        #define XX(name, Name) \
-            case EResourceType::Name: \
-                resources.Set##Name(static_cast<decltype(resources.Get##Name())>(value)); break;
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
@@ -277,6 +278,12 @@ const TJobResources& ZeroJobResources()
     return value;
 }
 
+const TJobResourcesWithQuota& ZeroJobResourcesWithQuota()
+{
+    static auto value = TJobResourcesWithQuota();
+    return value;
+}
+
 TJobResources GetInfiniteResources()
 {
     TJobResources result;
@@ -286,9 +293,20 @@ TJobResources GetInfiniteResources()
     return result;
 }
 
+TJobResourcesWithQuota GetInfiniteResourcesWithQuota()
+{
+    return TJobResourcesWithQuota(GetInfiniteResources());
+}
+
 const TJobResources& InfiniteJobResources()
 {
     static auto result = GetInfiniteResources();
+    return result;
+}
+
+const TJobResourcesWithQuota& InfiniteJobResourcesWithQuota()
+{
+    static auto result = GetInfiniteResourcesWithQuota();
     return result;
 }
 
@@ -392,21 +410,31 @@ bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
     true;
 }
 
-TJobResources Max(const TJobResources& a, const TJobResources& b)
+TJobResources Max(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
-    #define XX(name, Name) result.Set##Name(std::max(a.Get##Name(), b.Get##Name()));
+    #define XX(name, Name) result.Set##Name(std::max(lhs.Get##Name(), rhs.Get##Name()));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
 }
 
-TJobResources Min(const TJobResources& a, const TJobResources& b)
+TJobResources Min(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
+    #define XX(name, Name) result.Set##Name(std::min(lhs.Get##Name(), rhs.Get##Name()));
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    return result;
+}
+
+TJobResourcesWithQuota Min(const TJobResourcesWithQuota& a, const TJobResourcesWithQuota& b)
+{
+    TJobResourcesWithQuota result;
     #define XX(name, Name) result.Set##Name(std::min(a.Get##Name(), b.Get##Name()));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
+    result.SetDiskQuota(std::min(a.GetDiskQuota(), b.GetDiskQuota()));
     return result;
 }
 
@@ -417,6 +445,8 @@ void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
     #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
+            // COMPAT(psushin): fix for a web-face.
+            .Item("memory").Value(resources.GetMemory())
         .EndMap();
 }
 
@@ -434,6 +464,61 @@ const TJobResources& MinSpareNodeResources()
     static auto result = GetMinSpareResources();
     return result;
 }
+
+bool CanSatisfyDiskRequest(
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
+    i64 diskRequest)
+{
+    auto info = diskInfo.disk_reports();
+    auto it = info.begin();
+    while (it != info.end()) {
+        if (diskRequest < it->limit() - it->usage()) {
+            return true;
+        }
+        ++it;
+    }
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler::TJobResources& resources)
+{
+    protoResources->set_cpu(static_cast<double>(resources.GetCpu()));
+    protoResources->set_user_slots(resources.GetUserSlots());
+    protoResources->set_memory(resources.GetMemory());
+    protoResources->set_network(resources.GetNetwork());
+}
+
+void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::TJobResources& protoResources)
+{
+    resources->SetCpu(TCpuResource(protoResources.cpu()));
+    resources->SetUserSlots(protoResources.user_slots());
+    resources->SetMemory(protoResources.memory());
+    resources->SetNetwork(protoResources.network());
+}
+
+void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const NScheduler::TJobResourcesWithQuota& resources)
+{
+    protoResources->set_cpu(static_cast<double>(resources.GetCpu()));
+    protoResources->set_user_slots(resources.GetUserSlots());
+    protoResources->set_memory(resources.GetMemory());
+    protoResources->set_network(resources.GetNetwork());
+    protoResources->set_disk_quota(resources.GetDiskQuota());
+}
+
+void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::NProto::TJobResourcesWithQuota& protoResources)
+{
+    resources->SetCpu(TCpuResource(protoResources.cpu()));
+    resources->SetUserSlots(protoResources.user_slots());
+    resources->SetMemory(protoResources.memory());
+    resources->SetNetwork(protoResources.network());
+    resources->SetDiskQuota(protoResources.disk_quota());
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

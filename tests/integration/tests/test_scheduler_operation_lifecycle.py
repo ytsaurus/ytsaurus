@@ -37,6 +37,9 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
             "alerts_update_period": 100,
+            # Unrecognized alert often interferes with the alerts that
+            # are tested in this test suite.
+            "enable_unrecognized_alert": False
         }
     }
 
@@ -98,7 +101,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         transaction_id = start_transaction(timeout=300 * 1000)
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3", transaction_id=transaction_id)
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10", transaction_id=transaction_id)
 
         time.sleep(2)
         self.Env.kill_schedulers()
@@ -174,7 +177,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                 "suspend_operation_if_account_limit_exceeded": True
             })
 
-        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)), iter=20)
+        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)), iter=30)
 
         time.sleep(0.5)
 
@@ -198,10 +201,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         op = map(dont_track=True,
-            command="sleep 2.0; cat >/dev/null",
+            command="sleep 3.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out",
-            spec={'time_limit': 1000})
+            spec={"time_limit": 2000})
 
         wait(lambda: get("//sys/operations/{0}/@state".format(op.id)) == "failed")
 
@@ -363,7 +366,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
             command="sleep 1 ; cat",
-            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
+            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 3000}})
 
     def _get_metric_maximum_value(self, metric_key, pool):
         result = 0.0

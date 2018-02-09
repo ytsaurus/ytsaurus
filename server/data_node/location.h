@@ -4,11 +4,13 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/server/misc/public.h>
 #include <yt/server/misc/disk_location.h>
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/ytlib/chunk_client/public.h> // TODO: remove me
+
+#include <yt/core/misc/enum.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -60,6 +62,9 @@ public:
     //! Returns string id.
     const TString& GetId() const;
 
+    //! Returns the IO Engine.
+    const NChunkClient::IIOEnginePtr& GetIOEngine() const;
+
     //! Returns the medium name.
     const TString& GetMediumName() const;
 
@@ -86,7 +91,7 @@ public:
     IPrioritizedInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IPrioritizedInvokerPtr GetWritePoolInvoker();
+    IInvokerPtr GetWritePoolInvoker();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     /*!
@@ -137,13 +142,22 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         i64 delta);
 
-    //! Changes the number of currently active sessions by a given delta.
-    void UpdateSessionCount(int delta);
+    //! Increases number of bytes done for disk IO.
+    void IncreaseCompletedIOSize(
+        EIODirection direction,
+        const TWorkloadDescriptor& workloadDescriptor,
+        i64 delta);
+
+    //! Changes the number of currently active sessions of a given #type by a given #delta.
+    void UpdateSessionCount(ESessionType type, int delta);
 
     //! Changes the number of chunks by a given delta.
     void UpdateChunkCount(int delta);
 
-    //! Returns the number of currently active sessions.
+    //! Returns the number of currently active sessions of a given #type.
+    int GetSessionCount(ESessionType type) const;
+
+    //! Returns the number of currently active sessions of any type.
     int GetSessionCount() const;
 
     //! Returns the number of chunks.
@@ -157,6 +171,17 @@ public:
 
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
+
+    //! Update PutBlocks wall time profiling counter.
+    void UpdatePutBlocksWallTimeCounter(NProfiling::TValue value);
+
+    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
+
+    void IncrementThrottledReadsCounter();
+    void IncrementThrottledWritesCounter();
+
+    bool IsReadThrottling();
+    bool IsWriteThrottling();
 
 protected:
     NCellNode::TBootstrap* const Bootstrap_;
@@ -181,7 +206,7 @@ private:
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
-    int SessionCount_ = 0;
+    TEnumIndexedVector<int, ESessionType> PerTypeSessionCount_;
     int ChunkCount_ = 0;
 
     const NConcurrency::TThreadPoolPtr DataReadThreadPool_;
@@ -191,16 +216,34 @@ private:
     const IPrioritizedInvokerPtr MetaReadInvoker_;
 
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
-    const IPrioritizedInvokerPtr WritePoolInvoker_;
+    const IInvokerPtr WritePoolInvoker_;
+
+    NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletLoggingOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
+
+    const NChunkClient::IIOEnginePtr IOEngine_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
     NProfiling::TProfiler Profiler_;
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
+    std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;
+
+    NProfiling::TAggregateCounter ThrottledReadsCounter_;
+    NProfiling::TAggregateCounter ThrottledWritesCounter_;
+
+    NProfiling::TAggregateCounter PutBlocksWallTimeCounter_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleCounter& GetPendingIOSizeCounter(
+        EIODirection direction,
+        EIOCategory category);
+    NProfiling::TSimpleCounter& GetCompletedIOSizeCounter(
         EIODirection direction,
         EIOCategory category);
 
@@ -234,7 +277,7 @@ public:
         TStoreLocationConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    //! Returns Journal Manager accociated with this location.
+    //! Returns Journal Manager associated with this location.
     TJournalManagerPtr GetJournalManager();
 
     //! Returns the space reserved for low watermark.
@@ -258,6 +301,8 @@ private:
     const TJournalManagerPtr JournalManager_;
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
 
+    mutable std::atomic<bool> Full_ = {false};
+
     struct TTrashChunkEntry
     {
         TChunkId ChunkId;
@@ -271,7 +316,11 @@ private:
 
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
-
+    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
 
     TString GetTrashPath() const;
     TString GetTrashChunkPath(const TChunkId& chunkId) const;

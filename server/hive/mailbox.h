@@ -33,7 +33,7 @@ public:
     //! The id of the first message in |OutcomingMessages|.
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, FirstOutcomingMessageId);
     //! Messages enqueued for the destination cell, ordered by id.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NHiveClient::NProto::TEncapsulatedMessage>, OutcomingMessages);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TRefCountedEncapsulatedMessagePtr>, OutcomingMessages);
 
     //! The id of the next incoming message to be handled by Hydra.
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextIncomingMessageId);

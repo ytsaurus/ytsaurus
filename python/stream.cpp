@@ -1,14 +1,6 @@
 #include "stream.h"
 #include "helpers.h"
 
-#include <util/stream/input.h>
-#include <util/stream/output.h>
-
-#include <contrib/libs/pycxx/Objects.hxx>
-
-#include <iostream>
-#include <string>
-
 namespace NYT {
 namespace NPython {
 
@@ -115,7 +107,6 @@ void TStreamReader::RefreshBlock()
 void TStreamReader::Advance(size_t bytes)
 {
     CurrentPtr_ += bytes;
-    ReadByteCount_ += bytes;
 }
 
 bool TStreamReader::IsFinished() const
@@ -123,24 +114,34 @@ bool TStreamReader::IsFinished() const
     return Finished_;
 }
 
-TSharedRef TStreamReader::ExtractPrefix()
+TSharedRef TStreamReader::ExtractPrefix(const char* endPtr)
 {
-    YCHECK(!Blobs_.empty());
+    if (Blobs_.empty()) {
+        return TSharedRef();
+    }
+
+    YCHECK(endPtr <= Blobs_.back().End());
+    YCHECK(endPtr >= Blobs_.back().Begin());
 
     if (!PrefixStart_) {
         PrefixStart_ = Blobs_.front().Begin();
     }
 
-    TSharedMutableRef result;
+    TSharedRef result;
 
     if (Blobs_.size() == 1) {
-        result = Blobs_[0].Slice(PrefixStart_, CurrentPtr_);
+        result = Blobs_[0].Slice(PrefixStart_, endPtr);
     } else {
-        result = TSharedMutableRef::Allocate<TInputStreamBlobTag>(ReadByteCount_, false);
+        auto firstBlockSuffixLength = Blobs_.front().End() - PrefixStart_;
+        auto lastBlockPrefixLength = endPtr - Blobs_.back().Begin();
+
+        auto prefixLength = firstBlockSuffixLength + (Blobs_.size() - 2) * BlockSize_ + lastBlockPrefixLength;
+
+        auto prefix = TSharedMutableRef::Allocate<TInputStreamBlobTag>(prefixLength, false);
 
         size_t index = 0;
         auto append = [&] (const char* begin, const char* end) {
-            std::copy(begin, end, result.Begin() + index);
+            std::copy(begin, end, prefix.Begin() + index);
             index += end - begin;
         };
 
@@ -148,23 +149,22 @@ TSharedRef TStreamReader::ExtractPrefix()
         for (int i = 1; i + 1 < Blobs_.size(); ++i) {
             append(Blobs_[i].Begin(), Blobs_[i].End());
         }
-        append(Blobs_.back().Begin(), CurrentPtr_);
-
+        append(Blobs_.back().Begin(), endPtr);
         while (Blobs_.size() > 1) {
             Blobs_.pop_front();
         }
+        result = prefix;
     }
 
-    PrefixStart_ = CurrentPtr_;
-    ReadByteCount_ = 0;
-
+    PrefixStart_ = endPtr;
     return result;
 }
 
 void TStreamReader::ReadNextBlob()
 {
-    NextBlob_ = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
-    NextBlobSize_ = Stream_->Load(NextBlob_.Begin(), NextBlob_.Size());
+    auto blob = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
+    NextBlobSize_ = Stream_->Load(blob.Begin(), blob.Size());
+    NextBlob_ = blob;
     if (NextBlobSize_ == 0) {
         Finished_ = true;
     }

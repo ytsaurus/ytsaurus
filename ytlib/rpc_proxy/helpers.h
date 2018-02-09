@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/ytlib/api/protos/api_service.pb.h>
+#include <yt/ytlib/rpc_proxy/proto/api_service.pb.h>
 
 namespace NYT {
 namespace NRpcProxy {
@@ -14,8 +14,12 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetTimeoutOptions(
-    NRpc::TClientRequest& proto,
+    NRpc::TClientRequest& request,
     const NApi::TTimeoutOptions& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
 
 void ToProto(
     NProto::TTransactionalOptions* proto,
@@ -41,6 +45,23 @@ void ToProto(
     NProto::TTabletRangeOptions* proto,
     const NApi::TTabletRangeOptions& options);
 
+void ToProto(
+    NProto::TGetFileFromCacheResult* proto,
+    const NApi::TGetFileFromCacheResult& result);
+
+void FromProto(
+    NApi::TGetFileFromCacheResult* result,
+    const NProto::TGetFileFromCacheResult& proto);
+
+void ToProto(
+    NProto::TPutFileToCacheResult* proto,
+    const NApi::TPutFileToCacheResult& result);
+
+void FromProto(
+    NApi::TPutFileToCacheResult* result,
+    const NProto::TPutFileToCacheResult& proto);
+
+} // namespace NProto
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateRowsetDescriptor(

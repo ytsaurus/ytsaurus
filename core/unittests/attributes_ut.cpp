@@ -84,13 +84,13 @@ TEST(TAttributesTest, SerializeToNode)
     EXPECT_EQ(*attributes, *convertedAttributes);
 }
 
-TEST(TAttributesTest, TrySerializeToProto)
+TEST(TAttributesTest, TrySerializeProtoToRef)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<TString>("name", "Petr");
     attributes->Set<int>("age", 30);
 
-    NProto::TAttributes protoAttributes;
+    NProto::TAttributeDictionary protoAttributes;
     ToProto(&protoAttributes, *attributes);
     auto convertedAttributes = FromProto(protoAttributes);
     EXPECT_EQ(*attributes, *convertedAttributes);

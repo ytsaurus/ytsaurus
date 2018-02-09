@@ -215,7 +215,7 @@ void TFiber::FsdResize()
     }
 }
 
-void TFiber::DoRun()
+void TFiber::DoRunNaked()
 {
     try {
         Callee_.Run();

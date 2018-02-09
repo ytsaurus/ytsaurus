@@ -41,14 +41,21 @@ public:
         auto it = RunningJobs_.find(jobId);
         YCHECK(it != RunningJobs_.end());
         const auto& job = it->second;
-        return (IsResidual() || Statistics_.GetInterruptHint(jobId)) && job.IsSplittable(Config_);
+        auto residual = IsResidual();
+        auto interruptHint = Statistics_.GetInterruptHint(jobId);
+        auto isSplittable = job.IsSplittable(Config_);
+        LOG_TRACE("Checking if job is splittable (Residual: %v, GetInterruptHint: %v, IsSplittable: %v)",
+            residual,
+            interruptHint,
+            isSplittable);
+        return (residual || interruptHint) && isSplittable;
     }
 
     virtual void OnJobStarted(
         const TJobId& jobId,
         const TChunkStripeListPtr& inputStripeList) override
     {
-        RunningJobs_.emplace(jobId, TRunningJob(inputStripeList));
+        RunningJobs_.emplace(jobId, TRunningJob(inputStripeList, this));
         MaxRunningJobCount_ = std::max<i64>(MaxRunningJobCount_, RunningJobs_.size());
     }
 
@@ -128,9 +135,9 @@ public:
         return jobCount;
     }
 
-    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override
+    virtual void BuildJobSplitterInfo(TFluentMap fluent) const override
     {
-        BuildYsonMapFluently(consumer)
+        fluent
             .Item("build_time").Value(GetInstant())
             .Item("running_job_count").Value(RunningJobs_.size())
             .Item("max_running_job_count").Value(MaxRunningJobCount_)
@@ -235,9 +242,9 @@ private:
             return InterruptCandidateSet_.find(jobId) != InterruptCandidateSet_.end();
         }
 
-        void BuildStatistics(NYson::IYsonConsumer* consumer) const
+        void BuildStatistics(TFluentMap fluent) const
         {
-            BuildYsonMapFluently(consumer)
+            fluent
                 .Item("median_remaining_duration").Value(MedianCompletionTime_ - GetInstant())
                 .Item("next_update_time").Value(NextUpdateTime_);
         }
@@ -267,8 +274,9 @@ private:
         //! Used only for persistence.
         TRunningJob() = default;
 
-        explicit TRunningJob(const TChunkStripeListPtr& inputStripeList)
-            : TotalRowCount_(inputStripeList->TotalRowCount)
+        TRunningJob(const TChunkStripeListPtr& inputStripeList, TJobSplitter* owner)
+            : Owner_(owner)
+            , TotalRowCount_(inputStripeList->TotalRowCount)
             , TotalDataWeight_(inputStripeList->TotalDataWeight)
             , IsSplittable_(inputStripeList->IsSplittable)
         { }
@@ -303,6 +311,16 @@ private:
             auto minJobTime = std::max(
                 config->MinJobTime,
                 PrepareWithoutDownloadDuration_ * config->ExecToPrepareTimeRatio);
+            const auto& Logger = Owner_->Logger;
+            LOG_TRACE("Checking if job is splittable (IsSplittable: %v, RowCount: %v, ExecDuration: %v, "
+                "RemainingDuration: %v, MinJobTime: %v, TotalDataWeight: %v, MinTotalDataWeight: %v)",
+                IsSplittable_,
+                RowCount_,
+                ExecDuration_,
+                RemainingDuration_,
+                minJobTime,
+                TotalDataWeight_,
+                config->MinTotalDataWeight);
             return IsSplittable_ &&
                 RowCount_ > 0 &&                     // don't split job that hasn't read anything;
                 ExecDuration_ > minJobTime &&
@@ -320,9 +338,9 @@ private:
             return TotalRowCount_;
         }
 
-        void BuildRunningJobInfo(NYson::IYsonConsumer* consumer) const
+        void BuildRunningJobInfo(TFluentMap fluent) const
         {
-            BuildYsonMapFluently(consumer)
+            fluent
                 .Item("row_count").Value(RowCount_)
                 .Item("splittable").Value(IsSplittable_)
                 .Item("total_row_count").Value(TotalRowCount_)
@@ -334,6 +352,7 @@ private:
         {
             using NYT::Persist;
 
+            Persist(context, Owner_);
             Persist(context, TotalRowCount_);
             Persist(context, TotalDataWeight_);
             Persist(context, PrepareWithoutDownloadDuration_);
@@ -342,14 +361,12 @@ private:
             Persist(context, CompletionTime_);
             Persist(context, RowCount_);
             Persist(context, SecondsPerRow_);
-
-            // COMPAT(psushin).
-            if (!context.IsLoad() || context.GetVersion() >= 200840) {
-                Persist(context, IsSplittable_);
-            }
+            Persist(context, IsSplittable_);
         }
 
     private:
+        TJobSplitter* Owner_ = nullptr;
+
         i64 TotalRowCount_ = 1;
         i64 TotalDataWeight_ = 1;
         TDuration PrepareWithoutDownloadDuration_;

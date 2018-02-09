@@ -160,7 +160,7 @@ void TJournalChunk::DoReadBlockRange(
     TPromise<std::vector<TBlock>> promise)
 {
     auto config = Bootstrap_->GetConfig()->DataNode;
-    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
         auto changelog = WaitFor(dispatcher->OpenChangelog(StoreLocation_, Id_))
@@ -243,7 +243,7 @@ void TJournalChunk::SyncRemove(bool force)
 
 TFuture<void> TJournalChunk::AsyncRemove()
 {
-    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     return dispatcher->RemoveChangelog(this, true);
 }
 
@@ -297,7 +297,7 @@ bool TJournalChunk::IsSealed() const
 
 TFuture<void> TJournalChunk::Seal()
 {
-    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     return dispatcher->SealChangelog(this).Apply(BIND([this, this_ = MakeStrong(this)] () {
         Sealed_ = true;
     }));

@@ -3,6 +3,8 @@
 #include "escape.h"
 #include "format.h"
 
+#include <yt/core/misc/format.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -23,13 +25,6 @@ void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 
 void TFormatsConsumerBase::Flush()
 { }
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsSpecialJsonKey(const TStringBuf& key)
-{
-    return key.size() > 0 && key[0] == '$';
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

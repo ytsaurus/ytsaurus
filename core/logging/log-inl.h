@@ -43,6 +43,11 @@ TString FormatLogMessage(const T& obj)
     return ToString(obj);
 }
 
+inline TString FormatLogMessage(TString&& message)
+{
+    return std::move(message);
+}
+
 template <class TLogger>
 void LogEventImpl(
     TLogger& logger,

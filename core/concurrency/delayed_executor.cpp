@@ -82,6 +82,11 @@ public:
         return promise;
     }
 
+    void WaitForDuration(TDuration duration)
+    {
+        Y_UNUSED(WaitFor(MakeDelayed(duration)));
+    }
+
     TDelayedExecutorCookie Submit(TClosure closure, TDuration delay)
     {
         YCHECK(closure);
@@ -351,6 +356,11 @@ TDelayedExecutor::TImpl* TDelayedExecutor::GetImpl()
 TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)
 {
     return GetImpl()->MakeDelayed(delay);
+}
+
+void TDelayedExecutor::WaitForDuration(TDuration duration)
+{
+    GetImpl()->WaitForDuration(duration);
 }
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TDelayedCallback callback, TDuration delay)

@@ -38,6 +38,7 @@
 namespace NYT {
 
 using namespace NPipes;
+using namespace NNet;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -284,7 +285,7 @@ void TSimpleProcess::AddDup2FileAction(int oldFD, int newFD)
     SpawnActions_.push_back(action);
 }
 
-TAsyncReaderPtr TSimpleProcess::GetStdOutReader()
+IConnectionReaderPtr TSimpleProcess::GetStdOutReader()
 {
     auto& pipe = StdPipes_[STDOUT_FILENO];
     pipe = PipeFactory_.Create();
@@ -292,7 +293,7 @@ TAsyncReaderPtr TSimpleProcess::GetStdOutReader()
     return pipe.CreateAsyncReader();
 }
 
-TAsyncReaderPtr TSimpleProcess::GetStdErrReader()
+IConnectionReaderPtr TSimpleProcess::GetStdErrReader()
 {
     auto& pipe = StdPipes_[STDERR_FILENO];
     pipe = PipeFactory_.Create();
@@ -300,7 +301,7 @@ TAsyncReaderPtr TSimpleProcess::GetStdErrReader()
     return pipe.CreateAsyncReader();
 }
 
-TAsyncWriterPtr TSimpleProcess::GetStdInWriter()
+IConnectionWriterPtr TSimpleProcess::GetStdInWriter()
 {
     auto& pipe = StdPipes_[STDIN_FILENO];
     pipe = PipeFactory_.Create();
@@ -346,7 +347,7 @@ void TSimpleProcess::DoSpawn()
             error.InnerErrors() = innerErrors;
             error.ThrowOnError();
         } else {
-            WaitFor(TDelayedExecutor::MakeDelayed(ResolveRetryTimeout));
+            TDelayedExecutor::WaitForDuration(ResolveRetryTimeout);
         }
     }
 

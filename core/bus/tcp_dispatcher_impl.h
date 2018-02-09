@@ -5,7 +5,8 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/error.h>
 
 #include <util/thread/lfqueue.h>
@@ -17,39 +18,8 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetLocalBusAddress(int port);
+NNet::TNetworkAddress GetLocalBusAddress(int port);
 bool IsLocalBusTransportEnabled();
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTcpDispatcherCounters
-    : public TIntrinsicRefCounted
-{
-    std::atomic<i64> InBytes = {0};
-    std::atomic<i64> InPackets = {0};
-
-    std::atomic<i64> OutBytes = {0};
-    std::atomic<i64> OutPackets = {0};
-
-    std::atomic<i64> PendingOutPackets = {0};
-    std::atomic<i64> PendingOutBytes = {0};
-
-    std::atomic<int> ClientConnections = {0};
-    std::atomic<int> ServerConnections = {0};
-
-    std::atomic<i64> StalledReads = {0};
-    std::atomic<i64> StalledWrites = {0};
-
-    std::atomic<i64> ReadErrors = {0};
-    std::atomic<i64> WriteErrors = {0};
-
-    std::atomic<i64> EncoderErrors = {0};
-    std::atomic<i64> DecoderErrors = {0};
-
-    TTcpDispatcherStatistics ToStatistics() const;
-};
-
-DEFINE_REFCOUNTED_TYPE(TTcpDispatcherCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,8 +30,7 @@ public:
     static const TIntrusivePtr<TImpl>& Get();
     void Shutdown();
 
-    const TTcpDispatcherCountersPtr& GetCounters(ETcpInterfaceType interfaceType);
-    TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
+    const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
 
     NConcurrency::IPollerPtr GetAcceptorPoller();
     NConcurrency::IPollerPtr GetXferPoller();
@@ -85,13 +54,14 @@ private:
     NConcurrency::IPollerPtr AcceptorPoller_;
     NConcurrency::IPollerPtr XferPoller_;
 
-    struct TInterfaceInfo
+    struct TNetworkStatistics
     {
         NProfiling::TTagId Tag;
         TTcpDispatcherCountersPtr Counters = New<TTcpDispatcherCounters>();
     };
 
-    TEnumIndexedVector<TInterfaceInfo, ETcpInterfaceType> InterfaceTypeMap_;
+    NConcurrency::TReaderWriterSpinLock StatisticsLock_;
+    THashMap<TString, TNetworkStatistics> NetworkStatistics_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 };

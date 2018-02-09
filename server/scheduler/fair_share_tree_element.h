@@ -62,9 +62,9 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 
 struct TFairShareContext
 {
-    TFairShareContext(const ISchedulingContextPtr& schedulingContext);
+    explicit TFairShareContext(const ISchedulingContextPtr& schedulingContext);
 
-    void InitializeStructures(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
+    void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
     TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element) const;
@@ -77,7 +77,7 @@ struct TFairShareContext
     const ISchedulingContextPtr SchedulingContext;
     TDuration TotalScheduleJobDuration;
     TDuration ExecScheduleJobDuration;
-    TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
+    TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
     bool HasAggressivelyStarvingNodes = false;
 
     int ActiveOperationCount = 0;
@@ -88,8 +88,9 @@ struct TFairShareContext
     bool PrescheduledCalled = false;
 
     // Information saved for logging.
-    int PreemptiveScheduleJobCount = 0;
-    int NonPreemptiveScheduleJobCount = 0;
+    int ControllerScheduleJobCount = 0;
+    int PreemptiveScheduleJobAttempts = 0;
+    int NonPreemptiveScheduleJobAttempts = 0;
     TJobResources ResourceUsageDiscount = ZeroJobResources();
     int ScheduledDuringPreemption = 0;
     int PreemptableJobCount = 0;
@@ -112,7 +113,8 @@ public:
 protected:
     explicit TSchedulerElementFixedState(
         ISchedulerStrategyHost* host,
-        const TFairShareStrategyTreeConfigPtr& treeConfig);
+        const TFairShareStrategyTreeConfigPtr& treeConfig,
+        const TString& treeId);
 
     ISchedulerStrategyHost* const Host_;
 
@@ -131,6 +133,8 @@ protected:
     int TreeIndex_ = UnassignedTreeIndex;
 
     bool Cloned_ = false;
+
+    const TString TreeId_;
 };
 
 class TSchedulerElementSharedState
@@ -195,10 +199,10 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList);
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled);
-    virtual bool ScheduleJob(TFairShareContext& context) = 0;
+    virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled);
+    virtual bool ScheduleJob(TFairShareContext* context) = 0;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const = 0;
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
@@ -240,6 +244,8 @@ public:
     TJobMetrics GetJobMetrics() const;
     double GetResourceUsageRatio() const;
 
+    virtual TString GetTreeId() const;
+
     void IncreaseLocalResourceUsage(const TJobResources& delta);
     void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
     void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
@@ -257,7 +263,8 @@ private:
 protected:
     TSchedulerElement(
         ISchedulerStrategyHost* host,
-        const TFairShareStrategyTreeConfigPtr& treeConfig);
+        const TFairShareStrategyTreeConfigPtr& treeConfig,
+        const TString& treeId);
     TSchedulerElement(
         const TSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -310,7 +317,8 @@ public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag);
+        NProfiling::TTagId profilingTag,
+        const TString& treeId);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -333,10 +341,10 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
-    virtual bool ScheduleJob(TFairShareContext& context) override;
+    virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
+    virtual bool ScheduleJob(TFairShareContext* context) override;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const override;
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
     virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) override;
@@ -423,7 +431,8 @@ public:
         TPoolConfigPtr config,
         bool defaultConfigured,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag);
+        NProfiling::TTagId profilingTag,
+        const TString& treeId);
     TPool(
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
@@ -658,11 +667,12 @@ public:
     TOperationElement(
         TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
-        TOperationRuntimeParamsPtr runtimeParams,
+        TOperationStrategyRuntimeParamsPtr runtimeParams,
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
-        IOperationStrategyHost* operation);
+        IOperationStrategyHost* operation,
+        const TString& treeId);
     TOperationElement(
         const TOperationElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -680,10 +690,10 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
-    virtual bool ScheduleJob(TFairShareContext& context) override;
+    virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
+    virtual bool ScheduleJob(TFairShareContext* context) override;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const override;
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
     virtual TString GetId() const override;
 
@@ -729,7 +739,7 @@ public:
 
     TJobResources Finalize();
 
-    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+    DEFINE_BYVAL_RW_PROPERTY(TOperationStrategyRuntimeParamsPtr, RuntimeParams);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
@@ -755,7 +765,10 @@ private:
         NProfiling::TCpuInstant now,
         const TJobResources& minNeededResources);
 
-    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount);
+    NControllerAgent::TScheduleJobResultPtr DoScheduleJob(
+        TFairShareContext* context,
+        const TJobResources& jobLimits,
+        const TJobResources& jobResourceDiscount);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;
@@ -783,10 +796,13 @@ public:
     TRootElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag);
+        NProfiling::TTagId profilingTag,
+        const TString& treeId);
     TRootElement(const TRootElement& other);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList) override;
+
+    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
     virtual bool IsRoot() const override;
 

@@ -166,8 +166,8 @@ private:
                 }
                 LOG_DEBUG("Remote snapshot reader opened");
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error opening remote snapshot %v for reading",
-                    Path_)
+                THROW_ERROR_EXCEPTION("Error opening remote snapshot for reading")
+                    << TErrorAttribute("snapshot_path", Path_)
                     << ex;
             }
         }
@@ -178,8 +178,8 @@ private:
                 return WaitFor(UnderlyingReader_->Read())
                     .ValueOrThrow();
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error reading remote snapshot %v",
-                    Path_)
+                THROW_ERROR_EXCEPTION("Error reading remote snapshot")
+                    << TErrorAttribute("snapshot_path", Path_)
                     << ex;
             }
         }
@@ -271,6 +271,7 @@ private:
                     auto attributes = CreateEphemeralAttributes();
                     attributes->Set("replication_factor", Store_->Options_->SnapshotReplicationFactor);
                     attributes->Set("compression_codec", Store_->Options_->SnapshotCompressionCodec);
+                    attributes->Set("account", Store_->Options_->SnapshotAccount);
                     attributes->Set("primary_medium", Store_->Options_->SnapshotPrimaryMedium);
                     attributes->Set("prev_record_count", Meta_.prev_record_count());
                     options.Attributes = std::move(attributes);
@@ -309,8 +310,8 @@ private:
 
                 Opened_ = true;
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error opening remote snapshot %v for writing",
-                    Path_)
+                THROW_ERROR_EXCEPTION("Error opening remote snapshot for writing")
+                    << TErrorAttribute("snapshot_path", Path_)
                     << ex;
             }
         }
@@ -336,8 +337,8 @@ private:
 
                 Closed_ = true;
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error closing remote snapshot %v",
-                    Path_)
+                THROW_ERROR_EXCEPTION("Error closing remote snapshot")
+                    << TErrorAttribute("snapshot_path", Path_)
                     << ex;
             }
         }
@@ -373,8 +374,8 @@ private:
 
             return lastestSnapshotId;
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error computing the latest snapshot id in remote store %v",
-                Path_)
+            THROW_ERROR_EXCEPTION("Error computing the latest snapshot id in remote store")
+                << TErrorAttribute("snapshot_path", Path_)
                 << ex;
         }
     }

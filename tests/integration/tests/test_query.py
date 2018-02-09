@@ -71,6 +71,11 @@ class TestQuery(YTEnvSetup):
 
             assert len(result) == 10 * i
 
+    def test_full_scan(self):
+        self.sync_create_cells(1)
+        self._sample_data(path="//tmp/t")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t]", allow_full_scan=False)
+
     def test_project1(self):
         self.sync_create_cells(1)
         self._sample_data(path="//tmp/t")
@@ -214,6 +219,26 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, v from [//tmp/t] where u > 500 order by v limit 10")
         assert expected == actual
 
+    def test_inefficient_join(self):
+        self.sync_create_cells(1)
+        self._create_table(
+            "//tmp/jl",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"}],
+            [],
+            "scan");
+
+        self._create_table(
+            "//tmp/jr",
+            [
+                {"name": "c", "type": "int64", "sort_order": "ascending"},
+                {"name": "d", "type": "int64"}],
+            [],
+            "scan");
+
+        with pytest.raises(YtError): select_rows("* from [//tmp/jl] join [//tmp/jr] on b = d", allow_join_without_index=False)
+
     def test_join(self):
         self.sync_create_cells(1)
 
@@ -279,7 +304,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("""
             * from [//tmp/jl] as l
             join [//tmp/jr] as r on l.c + 1 = r.c + 1
-             where (l.a, l.b) in ((2, 1))""")
+             where (l.a, l.b) in ((2, 1))""", allow_join_without_index=True)
         assert expected == actual
 
     def test_join_common_prefix(self):
@@ -415,7 +440,9 @@ class TestQuery(YTEnvSetup):
             {"a": 4, "c": "a", "b": 100, "d": "X", "e": 1234},
             {"a": 4, "c": "a", "b": 400, "d": "Y", "e": 5678}]
 
-        actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)")
+        actual = select_rows(
+            "* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)",
+            allow_join_without_index=True)
         assert sorted(expected) == sorted(actual)
 
     def test_types(self):

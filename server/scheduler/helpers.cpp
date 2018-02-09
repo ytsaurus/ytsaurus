@@ -21,7 +21,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NProto;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCoreDump::NProto;
@@ -38,36 +37,44 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
+void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    BuildYsonMapFluently(consumer)
+    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    auto attributes = operation->ControllerAttributes().Attributes;
+    fluent
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpec())
-        .Item("full_spec")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Do(BIND(&IOperationController::BuildSpec, operation->GetController()))
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
-        .Do(BIND(&BuildRunningOperationAttributes, operation));
+        .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(initializationAttributes->Immutable);
+        })
+        .DoIf(static_cast<bool>(attributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(*attributes);
+        })
+        .Do(BIND(&BuildMutableOperationAttributes, operation));
 }
 
-void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
+void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    auto controller = operation->GetController();
-    BuildYsonMapFluently(consumer)
+    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
-        .Item("slot_index").Value(operation->GetSlotIndex())
-        .DoIf(static_cast<bool>(controller), BIND(&NControllerAgent::IOperationController::BuildOperationAttributes, controller));
+        .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
+        .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
+            fluent
+                .Items(initializationAttributes->Mutable);
+        });
 }
 
-void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
+void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)
 {
-    BuildYsonMapFluently(consumer)
+    fluent
         .Item("state").Value(node->GetMasterState())
         .Item("resource_usage").Value(node->GetResourceUsage())
         .Item("resource_limits").Value(node->GetResourceLimits());
@@ -97,6 +104,17 @@ TString MakeOperationCodicilString(const TOperationId& operationId)
 TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
 {
     return TCodicilGuard(MakeOperationCodicilString(operationId));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationRuntimeParamsPtr BuildOperationRuntimeParams(const TOperationSpecBasePtr& spec)
+{
+    auto result = New<TOperationRuntimeParams>();
+    result->Weight = spec->Weight.Get(1.0);
+    result->ResourceLimits = spec->ResourceLimits;
+    result->Owners = spec->Owners;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

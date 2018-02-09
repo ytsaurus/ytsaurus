@@ -1,7 +1,10 @@
 #include "user_proxy.h"
+#include "account.h"
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
 #include "user.h"
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/security_client/user_ypath.pb.h>
 
@@ -60,6 +63,8 @@ private:
         descriptors->push_back("write_request_time");
         descriptors->push_back(TAttributeDescriptor("multicell_statistics")
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("usable_accounts")
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
@@ -112,6 +117,24 @@ private:
             BuildYsonFluently(consumer)
                 .DoMapFor(user->MulticellStatistics(), [] (TFluentMap fluent, const std::pair<TCellTag, const TUserStatistics&>& pair) {
                     fluent.Item(ToString(pair.first)).Value(pair.second);
+                });
+            return true;
+        }
+
+        if (key == "usable_accounts") {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            BuildYsonFluently(consumer)
+                .DoListFor(securityManager->Accounts(), [&] (TFluentList fluent, const std::pair<const TAccountId, TAccount*>& pair) {
+                    auto* account = pair.second;
+
+                    if (!IsObjectAlive(account)) {
+                        return;
+                    }
+
+                    auto permissionCheckResult = securityManager->CheckPermission(account, user, EPermission::Use);
+                    if (permissionCheckResult.Action == ESecurityAction::Allow) {
+                        fluent.Item().Value(account->GetName());
+                    }
                 });
             return true;
         }

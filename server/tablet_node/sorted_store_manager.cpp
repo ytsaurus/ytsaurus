@@ -24,6 +24,7 @@
 #include <yt/ytlib/table_client/versioned_row.h>
 #include <yt/ytlib/table_client/versioned_writer.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/row_merger.h>
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
@@ -52,6 +53,9 @@ using namespace NTabletNode::NProto;
 using namespace NHydra;
 
 using NTableClient::TKey;
+
+struct TMergeRowsOnFlushTag
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -393,13 +397,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     auto inMemoryMode = GetInMemoryMode();
     auto inMemoryConfigRevision = GetInMemoryConfigRevision();
 
+
+
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
         writerOptions->ValidateResourceUsageIncrease = false;
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
-        // TODO(sandello): Introduce a new workload descriptor for the flushes.
-        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
 
         auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode, inMemoryConfigRevision);
 
@@ -424,6 +429,17 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         WaitFor(tableWriter->Open())
             .ThrowOnError();
 
+        TVersionedRowMerger rowMerger(
+            New<TRowBuffer>(TMergeRowsOnFlushTag()),
+            tabletSnapshot->QuerySchema.GetColumnCount(),
+            tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+            TColumnFilter(),
+            tabletSnapshot->Config,
+            transaction->GetStartTimestamp(),
+            0,
+            tabletSnapshot->ColumnEvaluator,
+            false);
+
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
@@ -434,10 +450,18 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 break;
             }
 
+            if (tabletSnapshot->Config->MergeRowsOnFlush) {
+                for (auto& row : rows) {
+                    rowMerger.AddPartialRow(row);
+                    row = rowMerger.BuildMergedRow();
+                }
+            }
+
             if (!tableWriter->Write(rows)) {
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
+            rowMerger.Reset();
         }
 
         if (tableWriter->GetRowCount() == 0) {
@@ -450,15 +474,16 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         ProfileDiskPressure(
             tabletSnapshot,
             tableWriter->GetDataStatistics(),
-            tabletSnapshot->RuntimeData->StoreFlushDiskPressureCounter);
+            StoreFlushTag_);
 
         auto dataStatistics = tableWriter->GetDataStatistics();
         auto diskSpace = CalculateDiskSpaceUsage(
             tabletSnapshot->WriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
-        LOG_DEBUG("Flushed sorted store (StoreId: %v, DiskSpace: %v)",
+        LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v DiskSpace: %v)",
             store->GetId(),
+            chunkWriter->GetChunkId(),
             diskSpace);
 
         TAddStoreDescriptor descriptor;
@@ -651,7 +676,7 @@ void TSortedStoreManager::OnRowBlocked(
     TSortedDynamicRow row,
     int lockIndex)
 {
-    WaitFor(
+    Y_UNUSED(WaitFor(
         BIND(
             &TSortedStoreManager::WaitOnBlockedRow,
             MakeStrong(this),
@@ -659,7 +684,7 @@ void TSortedStoreManager::OnRowBlocked(
             row,
             lockIndex)
         .AsyncVia(invoker)
-        .Run());
+        .Run()));
 }
 
 void TSortedStoreManager::WaitOnBlockedRow(
@@ -678,7 +703,7 @@ void TSortedStoreManager::WaitOnBlockedRow(
         lockIndex,
         transaction->GetId());
 
-    WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
+    Y_UNUSED(WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum)));
 }
 
 bool TSortedStoreManager::IsOverflowRotationNeeded() const

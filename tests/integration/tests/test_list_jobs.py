@@ -43,29 +43,23 @@ class TestListJobs(YTEnvSetup):
                 "max_repeat_delay": 10,
             }
         },
-
-        # Turn off mount cache otherwise our statistic reporter would be unhappy
-        # because of tablets of job statistics table are changed between tests.
-        "cluster_connection": {
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            }
+        "scheduler_connector": {
+            "heartbeat_period": 100  # 100 msec
         },
+        "job_proxy_heartbeat_period": 100,  # 100 msec
     }
 
-    DELTA_SCHEDULER_CONFIG = { 
+    DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
-        },  
-    }  
+            "static_orchid_cache_update_period": 100,
+        },
+    }
 
-    NUM_MASTERS = 1 
-    NUM_NODES = 3 
-    NUM_SCHEDULERS = 1 
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
     def setup(self):
@@ -80,17 +74,17 @@ class TestListJobs(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}]) 
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
+        events = EventsOnFs()
         op = map_reduce(
             dont_track=True,
-            wait_for_jobs=True,
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
-            precommand="echo STDERR-OUTPUT >&2",
-            mapper_command='test $YT_JOB_INDEX -eq "1" && exit 1',
-            reducer_command="cat",
+            # Jobs write to stderr so they will be saved.
+            mapper_command="""echo foo >&2 ; test $YT_JOB_INDEX -eq "1" && exit 1 ; {breakpoint_cmd}""".format(breakpoint_cmd=events.breakpoint_cmd()),
+            reducer_command="echo foo >&2 ; cat",
             sort_by="foo",
             reduce_by="foo",
             spec={
@@ -101,35 +95,25 @@ class TestListJobs(YTEnvSetup):
                 "job_count" : 3
             })
 
-        job_ids = op.jobs[:]
-
-        res = list_jobs(op.id, include_archive=False, include_runtime=True)["jobs"]
-        assert sorted(job_ids) == sorted([job["id"] for job in res])
- 
-        res = list_jobs(op.id, include_archive=False, include_runtime=True, has_stderr=False)["jobs"]
-        assert len(res) == 0
-
-        res = list_jobs(op.id, include_archive=False, include_runtime=True, has_stderr=True)["jobs"]
-        assert sorted(job_ids) == sorted([job["id"] for job in res])
+        job_ids = events.wait_breakpoint()
 
         validate_address_filter(op, False, False, True)
 
         aborted_jobs = []
 
+        print >>sys.stderr, "BEFORE ABORT"
         for job in job_ids:
             abort_job(job)
             aborted_jobs.append(job)
 
-        sleep(1)
-       
-        for job in job_ids:
-            op.resume_job(job)
-        op.ensure_jobs_running()
+        print >>sys.stderr, "BEFORE WAIT"
+        wait(lambda: op.get_job_count("running") > 0)
+        print >>sys.stderr, "WAITED"
 
         res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="completed")["jobs"]
-        assert len(res) == 0 
+        assert len(res) == 0
 
-        op.resume_jobs()
+        events.release_breakpoint()
         op.track()
 
         jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
@@ -172,7 +156,7 @@ class TestListJobs(YTEnvSetup):
         assert sorted(map_jobs) == sorted([job["id"] for job in res])
 
         res = list_jobs(op.id, include_archive=False, include_cypress=True, job_type="partition_reduce")["jobs"]
-        assert sorted(reduce_jobs) == sorted([job["id"] for job in res]) 
+        assert sorted(reduce_jobs) == sorted([job["id"] for job in res])
 
         res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="completed")["jobs"]
         assert sorted(completed_jobs) == sorted([job["id"] for job in res])
@@ -181,7 +165,7 @@ class TestListJobs(YTEnvSetup):
         assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
 
         res = list_jobs(op.id, include_archive=False, include_cypress=True, has_stderr=False)["jobs"]
-        assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res]) 
+        assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
         validate_address_filter(op, False, True, False)
 
@@ -222,3 +206,36 @@ class TestListJobs(YTEnvSetup):
 
         validate_address_filter(op, True, False, False)
 
+    def test_running_jobs_stderr_size(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+
+        write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        events = EventsOnFs()
+        op = map(
+            dont_track=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command="echo MAPPER-STDERR-OUTPUT >&2 ; cat ; {breakpoint_cmd}".format(breakpoint_cmd=events.breakpoint_cmd()))
+
+        jobs = events.wait_breakpoint()
+        def get_stderr_size():
+            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
+        wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
+
+        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False)
+        assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
+        for job in res["jobs"]:
+            assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
+
+        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=True)
+        for job in res["jobs"]:
+            assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
+        assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
+
+        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=False)
+        assert res["jobs"] == []
+
+        events.release_breakpoint()
+        op.track()

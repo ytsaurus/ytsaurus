@@ -29,6 +29,8 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/cast.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -55,11 +57,122 @@ using NYT::ToProto;
 struct TApiServiceBufferTag
 { };
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+void SetTimeoutOptions(
+    TTimeoutOptions* options,
+    IServiceContext* context)
+{
+    options->Timeout = context->GetTimeout();
+}
+
+void FromProto(
+    TTransactionalOptions* options,
+    const NProto::TTransactionalOptions& proto)
+{
+    if (proto.has_transaction_id()) {
+        FromProto(&options->TransactionId, proto.transaction_id());
+    }
+    if (proto.has_ping()) {
+        options->Ping = proto.ping();
+    }
+    if (proto.has_ping_ancestors()) {
+        options->PingAncestors = proto.ping_ancestors();
+    }
+    if (proto.has_sticky()) {
+        options->Sticky = proto.sticky();
+    }
+}
+
+void FromProto(
+    TPrerequisiteOptions* options,
+    const NProto::TPrerequisiteOptions& proto)
+{
+    options->PrerequisiteTransactionIds.resize(proto.transactions_size());
+    for (int i = 0; i < proto.transactions_size(); ++i) {
+        const auto& protoItem = proto.transactions(i);
+        auto& item = options->PrerequisiteTransactionIds[i];
+        FromProto(&item, protoItem.transaction_id());
+    }
+    options->PrerequisiteRevisions.reserve(proto.revisions_size());
+    for (int i = 0; i < proto.revisions_size(); ++i) {
+        const auto& protoItem = proto.revisions(i);
+        options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
+        auto& item = *options->PrerequisiteRevisions[i];
+        FromProto(&item.TransactionId, protoItem.transaction_id());
+        item.Revision = protoItem.revision();
+        item.Path = protoItem.path();
+    }
+}
+
+void FromProto(
+    TMasterReadOptions* options,
+    const NProto::TMasterReadOptions& proto)
+{
+    if (proto.has_read_from()) {
+        options->ReadFrom = CheckedEnumCast<EMasterChannelKind>(proto.read_from());
+    }
+    if (proto.has_success_expiration_time()) {
+        FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.success_expiration_time());
+    }
+    if (proto.has_failure_expiration_time()) {
+        FromProto(&options->ExpireAfterFailedUpdateTime, proto.failure_expiration_time());
+    }
+    if (proto.has_cache_sticky_group_size()) {
+        options->CacheStickyGroupSize = proto.cache_sticky_group_size();
+    }
+}
+
+void FromProto(
+    TMutatingOptions* options,
+    const NProto::TMutatingOptions& proto)
+{
+    if (proto.has_mutation_id()) {
+        FromProto(&options->MutationId, proto.mutation_id());
+    }
+    if (proto.has_retry()) {
+        options->Retry = proto.retry();
+    }
+}
+
+void FromProto(
+    TSuppressableAccessTrackingOptions* options,
+    const NProto::TSuppressableAccessTrackingOptions& proto)
+{
+    if (proto.has_suppress_access_tracking()) {
+        options->SuppressAccessTracking = proto.suppress_access_tracking();
+    }
+    if (proto.has_suppress_modification_tracking()) {
+        options->SuppressModificationTracking = proto.suppress_modification_tracking();
+    }
+}
+
+void FromProto(
+    TTabletRangeOptions* options,
+    const NProto::TTabletRangeOptions& proto)
+{
+    if (proto.has_first_tablet_index()) {
+        options->FirstTabletIndex = proto.first_tablet_index();
+    }
+    if (proto.has_last_tablet_index()) {
+        options->LastTabletIndex = proto.last_tablet_index();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiService
     : public TServiceBase
 {
 public:
-    TApiService(
+    explicit TApiService(
         NCellProxy::TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetNativeConnection()->GetInvoker(), // TODO(sandello): Better threading here.
@@ -101,6 +214,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
 
@@ -118,6 +232,7 @@ private:
     TSpinLock SpinLock_;
     // TODO(sandello): Introduce expiration times for clients.
     THashMap<TString, INativeClientPtr> AuthenticatedClients_;
+
 
     INativeClientPtr GetAuthenticatedClientOrAbortContext(
         const IServiceContextPtr& context,
@@ -154,21 +269,21 @@ private:
         // TODO(sandello): Use a cache here.
         TAuthenticationResult authenticationResult;
         const auto& credentials = header.GetExtension(NProto::TCredentialsExt::credentials_ext);
-        if (!credentials.has_userip()) {
+        if (!credentials.has_user_ip()) {
             replyWithMissingUserIP();
             return nullptr;
         }
-        if (credentials.has_sessionid() || credentials.has_sslsessionid()) {
+        if (credentials.has_session_id() || credentials.has_ssl_session_id()) {
             auto asyncAuthenticationResult = Bootstrap_->GetCookieAuthenticator()->Authenticate(
-                credentials.sessionid(),
-                credentials.sslsessionid(),
+                credentials.session_id(),
+                credentials.ssl_session_id(),
                 credentials.domain(),
-                credentials.userip());
+                credentials.user_ip());
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else if (credentials.has_token()) {
             auto asyncAuthenticationResult = Bootstrap_->GetTokenAuthenticator()->Authenticate(
-                TTokenCredentials{credentials.token(), credentials.userip()});
+                TTokenCredentials{credentials.token(), credentials.user_ip()});
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else {
@@ -186,7 +301,9 @@ private:
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
         if (Bootstrap_->GetConfig()->ApiService->VerboseLogging) {
-            context->SetRequestInfo("Request: %v", request->ShortDebugString());
+            LOG_DEBUG("RequestId: %v, RequestBody: %v",
+                context->GetRequestId(),
+                request->ShortDebugString());
         }
 
         {
@@ -218,21 +335,21 @@ private:
         auto transaction = client->AttachTransaction(transactionId, options);
 
         if (!transaction) {
-            context->Reply(TError("No such transaction %v", transactionId));
+            context->Reply(TError(
+                NTransactionClient::EErrorCode::NoSuchTransaction,
+                "No such transaction %v",
+                transactionId));
             return nullptr;
         }
 
         return transaction;
     }
 
-    static void NoOp()
-    { }
-
     template <class T>
-    void CompleteCallWith(IServiceContextPtr&& context, TFuture<T>&& future)
+    void CompleteCallWith(const IServiceContextPtr& context, TFuture<T>&& future)
     {
         future.Subscribe(
-            BIND([context = std::move(context)] (const TErrorOr<T>& valueOrError) {
+            BIND([context = context] (const TErrorOr<T>& valueOrError) {
                 if (valueOrError.IsOK()) {
                     // XXX(sandello): This relies on the typed service context implementation.
                     context->Reply(TError());
@@ -242,14 +359,14 @@ private:
             }));
     }
 
-    template <class T, class F>
-    void CompleteCallWith(IServiceContextPtr&& context, TFuture<T>&& future, F&& functor)
+    template <class TContext, class TResult, class F>
+    void CompleteCallWith(const TIntrusivePtr<TContext>& context, TFuture<TResult>&& future, F&& functor)
     {
         future.Subscribe(
-            BIND([context = std::move(context), functor = std::move(functor)] (const TErrorOr<T>& valueOrError) {
+            BIND([context, functor = std::move(functor)] (const TErrorOr<TResult>& valueOrError) {
                 if (valueOrError.IsOK()) {
                     try {
-                        functor(valueOrError.Value());
+                        functor(context, valueOrError.Value());
                         // XXX(sandello): This relies on the typed service context implementation.
                         context->Reply(TError());
                     } catch (const std::exception& ex) {
@@ -266,14 +383,23 @@ private:
         if (!Coordinator_->IsOperable(context)) {
             return;
         }
+
         auto count = request->count();
-        auto timestampProvider = Bootstrap_->GetNativeConnection()->GetTimestampProvider();
+
+        context->SetRequestInfo("Count: %v",
+            count);
+
+        const auto& timestampProvider = Bootstrap_->GetNativeConnection()->GetTimestampProvider();
 
         CompleteCallWith(
             context,
             timestampProvider->GenerateTimestamps(count),
-            [response] (const NTransactionClient::TTimestamp& timestamp) {
+            [] (const auto& context, const TTimestamp& timestamp) {
+                auto* response = &context->Response();
                 response->set_timestamp(timestamp);
+
+                context->SetResponseInfo("Timestamp: %llx",
+                    timestamp);
             });
     }
 
@@ -286,60 +412,84 @@ private:
 
         TTransactionStartOptions options;
         if (request->has_timeout()) {
-            options.Timeout = NYT::FromProto<TDuration>(request->timeout());
+            options.Timeout = FromProto<TDuration>(request->timeout());
         }
         if (request->has_id()) {
-            NYT::FromProto(&options.Id, request->id());
+            FromProto(&options.Id, request->id());
         }
         if (request->has_parent_id()) {
-            NYT::FromProto(&options.ParentId, request->parent_id());
+            FromProto(&options.ParentId, request->parent_id());
         }
         options.AutoAbort = request->auto_abort();
         options.Sticky = request->sticky();
         options.Ping = request->ping();
         options.PingAncestors = request->ping_ancestors();
-        options.Atomicity = static_cast<NTransactionClient::EAtomicity>(request->atomicity());
-        options.Durability = static_cast<NTransactionClient::EDurability>(request->durability());
+        options.Atomicity = CheckedEnumCast<NTransactionClient::EAtomicity>(request->atomicity());
+        options.Durability = CheckedEnumCast<NTransactionClient::EDurability>(request->durability());
+        if (request->has_attributes()) {
+            options.Attributes = NYTree::FromProto(request->attributes());
+        }
 
         CompleteCallWith(
             context,
             client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options),
-            [response] (const ITransactionPtr& transaction) {
+            [] (const auto& context, const auto& transaction) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_id(), transaction->GetId());
                 response->set_start_timestamp(transaction->GetStartTimestamp());
+
+                context->SetResponseInfo("TransactionId: %v, StartTimestamp: %v",
+                    transaction->GetId(),
+                    transaction->GetStartTimestamp());
             });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, PingTransaction)
     {
-        auto transactionAttachOptions = TTransactionAttachOptions{};
-        transactionAttachOptions.Ping = true;
-        transactionAttachOptions.PingAncestors = true;
-        transactionAttachOptions.Sticky = request->sticky();
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = true;
+        attachOptions.PingAncestors = true;
+        attachOptions.Sticky = request->sticky();
+
+        context->SetRequestInfo("TransactionId: %v, Sticky: %v",
+            transactionId,
+            attachOptions.Sticky);
+
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            NYT::FromProto<TTransactionId>(request->transaction_id()),
-            transactionAttachOptions);
+            transactionId,
+            attachOptions);
         if (!transaction) {
             return;
         }
 
         // TODO(sandello): Options!
-        CompleteCallWith(context, transaction->Ping());
+        CompleteCallWith(
+            context,
+            transaction->Ping());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CommitTransaction)
     {
-        auto transactionAttachOptions = TTransactionAttachOptions{};
-        transactionAttachOptions.Ping = false;
-        transactionAttachOptions.PingAncestors = false;
-        transactionAttachOptions.Sticky = request->sticky();
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
+        attachOptions.Sticky = request->sticky();
+
+        context->SetRequestInfo("TransactionId: %v, Sticky: %v",
+            transactionId,
+            attachOptions.Sticky);
+
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            NYT::FromProto<TTransactionId>(request->transaction_id()),
-            transactionAttachOptions);
+            transactionId,
+            attachOptions);
         if (!transaction) {
             return;
         }
@@ -348,142 +498,41 @@ private:
         CompleteCallWith(
             context,
             transaction->Commit(),
-            [response] (const TTransactionCommitResult& result) {
+            [] (const auto& context, const TTransactionCommitResult& result) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
+
+                context->SetResponseInfo("CommitTimestamps: %v",
+                    result.CommitTimestamps);
             });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AbortTransaction)
     {
-        auto transactionAttachOptions = TTransactionAttachOptions{};
-        transactionAttachOptions.Ping = false;
-        transactionAttachOptions.PingAncestors = false;
-        transactionAttachOptions.Sticky = request->sticky();
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
+        attachOptions.Sticky = request->sticky();
+
+        context->SetRequestInfo("TransactionId: %v, Sticky: %v",
+            transactionId,
+            attachOptions.Sticky);
+
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            NYT::FromProto<TTransactionId>(request->transaction_id()),
-            transactionAttachOptions);
+            transactionId,
+            attachOptions);
         if (!transaction) {
             return;
         }
 
         // TODO(sandello): Options!
-        CompleteCallWith(context, transaction->Abort());
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////
-    // OPTIONS
-    ////////////////////////////////////////////////////////////////////////////////
-
-    static void SetTimeoutOptions(
-        TTimeoutOptions* options,
-        IServiceContext* context)
-    {
-        options->Timeout = context->GetTimeout();
-    }
-
-    static void FromProto(
-        TTransactionalOptions* options,
-        const NProto::TTransactionalOptions& proto)
-    {
-        if (proto.has_transaction_id()) {
-            NYT::FromProto(&options->TransactionId, proto.transaction_id());
-        }
-        if (proto.has_ping()) {
-            options->Ping = proto.ping();
-        }
-        if (proto.has_ping_ancestors()) {
-            options->PingAncestors = proto.ping_ancestors();
-        }
-        if (proto.has_sticky()) {
-            options->Sticky = proto.sticky();
-        }
-    }
-
-    static void FromProto(
-        TPrerequisiteOptions* options,
-        const NProto::TPrerequisiteOptions& proto)
-    {
-        options->PrerequisiteTransactionIds.resize(proto.transactions_size());
-        for (int i = 0; i < proto.transactions_size(); ++i) {
-            const auto& protoItem = proto.transactions(i);
-            auto& item = options->PrerequisiteTransactionIds[i];
-            NYT::FromProto(&item, protoItem.transaction_id());
-        }
-        options->PrerequisiteRevisions.reserve(proto.revisions_size());
-        for (int i = 0; i < proto.revisions_size(); ++i) {
-            const auto& protoItem = proto.revisions(i);
-            options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
-            auto& item = *options->PrerequisiteRevisions[i];
-            NYT::FromProto(&item.TransactionId, protoItem.transaction_id());
-            item.Revision = protoItem.revision();
-            item.Path = protoItem.path();
-        }
-    }
-
-    static void FromProto(
-        TMasterReadOptions* options,
-        const NProto::TMasterReadOptions& proto)
-    {
-        if (proto.has_read_from()) {
-            switch (proto.read_from()) {
-                case NProto::TMasterReadOptions_EMasterReadKind_LEADER:
-                    options->ReadFrom = EMasterChannelKind::Leader;
-                    break;
-                case NProto::TMasterReadOptions_EMasterReadKind_FOLLOWER:
-                    options->ReadFrom = EMasterChannelKind::Follower;
-                    break;
-                case NProto::TMasterReadOptions_EMasterReadKind_CACHE:
-                    options->ReadFrom = EMasterChannelKind::Cache;
-                    break;
-            }
-        }
-        if (proto.has_success_expiration_time()) {
-            NYT::FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.success_expiration_time());
-        }
-        if (proto.has_failure_expiration_time()) {
-            NYT::FromProto(&options->ExpireAfterFailedUpdateTime, proto.failure_expiration_time());
-        }
-        if (proto.has_cache_sticky_group_size()) {
-            options->CacheStickyGroupSize = proto.cache_sticky_group_size();
-        }
-    }
-
-    static void FromProto(
-        TMutatingOptions* options,
-        const NProto::TMutatingOptions& proto)
-    {
-        if (proto.has_mutation_id()) {
-            NYT::FromProto(&options->MutationId, proto.mutation_id());
-        }
-        if (proto.has_retry()) {
-            options->Retry = proto.retry();
-        }
-    }
-
-    static void FromProto(
-        TSuppressableAccessTrackingOptions* options,
-        const NProto::TSuppressableAccessTrackingOptions& proto)
-    {
-        if (proto.has_suppress_access_tracking()) {
-            options->SuppressAccessTracking = proto.suppress_access_tracking();
-        }
-        if (proto.has_suppress_modification_tracking()) {
-            options->SuppressModificationTracking = proto.suppress_modification_tracking();
-        }
-    }
-
-    static void FromProto(
-        TTabletRangeOptions* options,
-        const NProto::TTabletRangeOptions& proto)
-    {
-        if (proto.has_first_tablet_index()) {
-            options->FirstTabletIndex = proto.first_tablet_index();
-        }
-        if (proto.has_last_tablet_index()) {
-            options->LastTabletIndex = proto.last_tablet_index();
-        }
+        CompleteCallWith(
+            context,
+            transaction->Abort());
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -497,11 +546,10 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TNodeExistsOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -515,11 +563,18 @@ private:
             FromProto(&options, request->suppressable_access_tracking_options());
         }
 
+        context->SetRequestInfo("Path: %v",
+            path);
+
         CompleteCallWith(
             context,
             client->NodeExists(path, options),
-            [response] (const bool& result) {
+            [] (const auto& context, const bool& result) {
+                auto* response = &context->Response();
                 response->set_exists(result);
+
+                context->SetResponseInfo("Exists: %v",
+                    result);
             });
     }
 
@@ -530,10 +585,10 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
+
         TGetNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             if (protoAttributes.all()) {
@@ -541,8 +596,8 @@ private:
             } else {
                 options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
-                for (int i = 0; i < protoAttributes.columns_size(); ++i) {
-                    const auto& protoItem = protoAttributes.columns(i);
+                for (int index = 0; index < protoAttributes.columns_size(); ++index) {
+                    const auto& protoItem = protoAttributes.columns(index);
                     options.Attributes->push_back(protoItem);
                 }
             }
@@ -550,7 +605,6 @@ private:
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -564,10 +618,14 @@ private:
             FromProto(&options, request->suppressable_access_tracking_options());
         }
 
+        context->SetRequestInfo("Path: %v",
+            path);
+
         CompleteCallWith(
             context,
             client->GetNode(path, options),
-            [response] (const TYsonString& result) {
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
                 response->set_value(result.GetData());
             });
     }
@@ -579,11 +637,10 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TListNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             if (protoAttributes.all()) {
@@ -591,8 +648,8 @@ private:
             } else {
                 options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
-                for (int i = 0; i < protoAttributes.columns_size(); ++i) {
-                    const auto& protoItem = protoAttributes.columns(i);
+                for (int index = 0; index < protoAttributes.columns_size(); ++index) {
+                    const auto& protoItem = protoAttributes.columns(index);
                     options.Attributes->push_back(protoItem);
                 }
             }
@@ -600,7 +657,6 @@ private:
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -614,10 +670,14 @@ private:
             FromProto(&options, request->suppressable_access_tracking_options());
         }
 
+        context->SetRequestInfo("Path: %v",
+            path);
+
         CompleteCallWith(
             context,
             client->ListNode(path, options),
-            [response] (const TYsonString& result) {
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
                 response->set_value(result.GetData());
             });
     }
@@ -629,17 +689,16 @@ private:
             return;
         }
 
-        auto&& path = request->path();
-        NObjectClient::EObjectType type = static_cast<NObjectClient::EObjectType>(request->type());
+        const auto& path = request->path();
+        auto type = CheckedEnumCast<NObjectClient::EObjectType>(request->type());
 
         TCreateNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             auto attributes = std::shared_ptr<IAttributeDictionary>(CreateEphemeralAttributes());
-            for (int i = 0; i < protoAttributes.attributes_size(); ++i) {
-                const auto& protoItem = protoAttributes.attributes(i);
+            for (int index = 0; index < protoAttributes.attributes_size(); ++index) {
+                const auto& protoItem = protoAttributes.attributes(index);
                 attributes->SetYson(protoItem.key(), TYsonString(protoItem.value()));
             }
             options.Attributes = std::move(attributes);
@@ -653,7 +712,6 @@ private:
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -664,11 +722,19 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
+        context->SetRequestInfo("Path: %v, Type: %v",
+            path,
+            type);
+
         CompleteCallWith(
             context,
             client->CreateNode(path, type, options),
-            [response] (const NCypressClient::TNodeId& result) {
-                ToProto(response->mutable_node_id(), result);
+            [] (const auto& context, const NCypressClient::TNodeId& nodeId) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_node_id(), nodeId);
+
+                context->SetResponseInfo("NodeId: %v",
+                    nodeId);
             });
     }
 
@@ -679,18 +745,16 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TRemoveNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
         if (request->has_force()) {
             options.Force = request->force();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -701,7 +765,12 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        CompleteCallWith(context, client->RemoveNode(path, options));
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            context,
+            client->RemoveNode(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SetNode)
@@ -711,12 +780,14 @@ private:
             return;
         }
 
-        auto&& path = request->path();
-        TYsonString value(request->value());
+        const auto& path = request->path();
+        auto value = TYsonString(request->value());
 
         TSetNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
+        if (request->has_recursive()) {
+            options.Recursive = request->recursive();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -727,7 +798,12 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        CompleteCallWith(context, client->SetNode(path, value, options));
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            context,
+            client->SetNode(path, value, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LockNode)
@@ -737,12 +813,11 @@ private:
             return;
         }
 
-        auto&& path = request->path();
-        NCypressClient::ELockMode mode = static_cast<NCypressClient::ELockMode>(request->mode());
+        const auto& path = request->path();
+        auto mode = CheckedEnumCast<NCypressClient::ELockMode>(request->mode());
 
         TLockNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_waitable()) {
             options.Waitable = request->waitable();
         }
@@ -752,7 +827,6 @@ private:
         if (request->has_attribute_key()) {
             options.AttributeKey = request->attribute_key();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -763,12 +837,21 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
+        context->SetRequestInfo("Path: %v, Mode: %v",
+            path,
+            mode);
+
         CompleteCallWith(
             context,
             client->LockNode(path, mode, options),
-            [response] (const TLockNodeResult& result) {
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), result.NodeId);
                 ToProto(response->mutable_lock_id(), result.LockId);
+
+                context->SetResponseInfo("NodeId: %v, LockId",
+                    result.NodeId,
+                    result.LockId);
             });
     }
 
@@ -779,12 +862,11 @@ private:
             return;
         }
 
-        auto&& srcPath = request->src_path();
-        auto&& dstPath = request->dst_path();
+        const auto& srcPath = request->src_path();
+        const auto& dstPath = request->dst_path();
 
         TCopyNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -800,7 +882,6 @@ private:
         if (request->has_preserve_creation_time()) {
             options.PreserveCreationTime = request->preserve_creation_time();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -811,11 +892,19 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
+        context->SetRequestInfo("SrcPath: %v, DstPath: %v",
+            srcPath,
+            dstPath);
+
         CompleteCallWith(
             context,
             client->CopyNode(srcPath, dstPath, options),
-            [response] (const NCypressClient::TNodeId& result) {
-                ToProto(response->mutable_node_id(), result);
+            [] (const auto& context, const NCypressClient::TNodeId& nodeId) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_node_id(), nodeId);
+
+                context->SetResponseInfo("NodeId: %v",
+                    nodeId);
             });
     }
 
@@ -826,12 +915,11 @@ private:
             return;
         }
 
-        auto&& srcPath = request->src_path();
-        auto&& dstPath = request->dst_path();
+        const auto& srcPath = request->src_path();
+        const auto& dstPath = request->dst_path();
 
         TMoveNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -844,7 +932,6 @@ private:
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -855,11 +942,19 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
+        context->SetRequestInfo("SrcPath: %v, DstPath: %v",
+            srcPath,
+            dstPath);
+
         CompleteCallWith(
             context,
             client->MoveNode(srcPath, dstPath, options),
-            [response] (const NCypressClient::TNodeId& result) {
-                ToProto(response->mutable_node_id(), result);
+            [] (const auto& context, const auto& nodeId) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_node_id(), nodeId);
+
+                context->SetResponseInfo("NodeId: %v",
+                    nodeId);
             });
     }
 
@@ -870,12 +965,11 @@ private:
             return;
         }
 
-        auto&& srcPath = request->src_path();
-        auto&& dstPath = request->dst_path();
+        const auto& srcPath = request->src_path();
+        const auto& dstPath = request->dst_path();
 
         TLinkNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -885,7 +979,6 @@ private:
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -896,11 +989,22 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
+        context->SetRequestInfo("SrcPath: %v, DstPath: %v",
+            srcPath,
+            dstPath);
+
         CompleteCallWith(
             context,
-            client->LinkNode(srcPath, dstPath, options),
-            [response] (const NCypressClient::TNodeId& result) {
-                ToProto(response->mutable_node_id(), result);
+            client->LinkNode(
+                srcPath,
+                dstPath,
+                options),
+            [] (const auto& context, const auto& nodeId) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_node_id(), nodeId);
+
+                context->SetResponseInfo("NodeId: %v",
+                    nodeId);
             });
     }
 
@@ -911,31 +1015,28 @@ private:
             return;
         }
 
-        std::vector<NYPath::TYPath> srcPaths;
-        srcPaths.reserve(request->src_path_size());
-        for (int i = 0; i < request->src_path_size(); ++i) {
-            srcPaths.push_back(request->src_path(i));
-        }
-        auto&& dstPath = request->dst_path();
+        auto srcPaths = FromProto<std::vector<TYPath>>(request->src_paths());
+        const auto& dstPath = request->dst_path();
 
         TConcatenateNodesOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_append()) {
             options.Append = request->append();
         }
-
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
-        // if (request->has_prerequisite_options()) {
-        //     FromProto(&options, request->prerequisite_options());
-        // }
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
 
-        CompleteCallWith(context, client->ConcatenateNodes(srcPaths, dstPath, options));
+        context->SetRequestInfo("SrcPaths: %v, DstPath: %v",
+            srcPaths,
+            dstPath);
+
+        CompleteCallWith(
+            context,
+            client->ConcatenateNodes(srcPaths, dstPath, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -949,13 +1050,12 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TMountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_cell_id()) {
-            NYT::FromProto(&options.CellId, request->cell_id());
+            FromProto(&options.CellId, request->cell_id());
         }
         if (request->has_freeze()) {
             options.Freeze = request->freeze();
@@ -968,7 +1068,12 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        CompleteCallWith(context, client->MountTable(path, options));
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            context,
+            client->MountTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnmountTable)
@@ -978,15 +1083,13 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TUnmountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_force()) {
             options.Force = request->force();
         }
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -994,7 +1097,12 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        CompleteCallWith(context, client->UnmountTable(path, options));
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            context,
+            client->UnmountTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, RemountTable)
@@ -1004,11 +1112,10 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TRemountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1016,7 +1123,12 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        CompleteCallWith(context, client->RemountTable(path, options));
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            context,
+            client->RemountTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, FreezeTable)
@@ -1026,11 +1138,10 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TFreezeTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1038,7 +1149,12 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        CompleteCallWith(context, client->FreezeTable(path, options));
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            context,
+            client->FreezeTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnfreezeTable)
@@ -1048,11 +1164,10 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TUnfreezeTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1060,7 +1175,12 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        CompleteCallWith(context, client->UnfreezeTable(path, options));
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            context,
+            client->UnfreezeTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ReshardTable)
@@ -1070,11 +1190,10 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TReshardTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1083,21 +1202,33 @@ private:
         }
 
         TFuture<void> result;
-
         if (request->has_tablet_count()) {
-            result = client->ReshardTable(path, request->tablet_count(), options);
+            auto tabletCount = request->tablet_count();
+
+            context->SetRequestInfo("Path: %v, TabletCount: %v",
+                path,
+                tabletCount);
+
+            CompleteCallWith(
+                context,
+                client->ReshardTable(path, tabletCount, options));
         } else {
-            struct TTag {};
-            TWireProtocolReader reader(MergeRefsToRef<TTag>(request->Attachments()));
+            TWireProtocolReader reader(MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
             auto keyRange = reader.ReadUnversionedRowset(false);
             std::vector<TOwningKey> keys;
+            keys.reserve(keyRange.Size());
             for (const auto& key : keyRange) {
-                keys.push_back(TOwningKey(key));
+                keys.emplace_back(key);
             }
-            result = client->ReshardTable(path, keys, options);
-        }
 
-        CompleteCallWith(context, std::move(result));
+            context->SetRequestInfo("Path: %v, Keys: %v",
+                path,
+                keys);
+
+            CompleteCallWith(
+                context,
+                client->ReshardTable(path, keys, options));
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, TrimTable)
@@ -1107,14 +1238,25 @@ private:
             return;
         }
 
-        auto&& path = request->path();
-        auto&& tabletIndex = request->tablet_index();
-        auto&& trimmedRowCount = request->trimmed_row_count();
+        const auto& path = request->path();
+        auto tabletIndex = request->tablet_index();
+        auto trimmedRowCount = request->trimmed_row_count();
 
         TTrimTableOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        CompleteCallWith(context, client->TrimTable(path, tabletIndex, trimmedRowCount, options));
+        context->SetRequestInfo("Path: %v, TabletIndex: %v, TrimmedRowCount: %v",
+            path,
+            tabletIndex,
+            trimmedRowCount);
+
+        CompleteCallWith(
+            context,
+            client->TrimTable(
+                path,
+                tabletIndex,
+                trimmedRowCount,
+                options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AlterTable)
@@ -1124,11 +1266,10 @@ private:
             return;
         }
 
-        auto&& path = request->path();
+        const auto& path = request->path();
 
         TAlterTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_schema()) {
             options.Schema = ConvertTo<TTableSchema>(TYsonString(request->schema()));
         }
@@ -1136,10 +1277,8 @@ private:
             options.Dynamic = request->dynamic();
         }
         if (request->has_upstream_replica_id()) {
-            options.UpstreamReplicaId.Emplace();
-            NYT::FromProto(options.UpstreamReplicaId.GetPtr(), request->upstream_replica_id());
+            options.UpstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
         }
-
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
@@ -1147,7 +1286,12 @@ private:
             FromProto(&options, request->transactional_options());
         }
 
-        CompleteCallWith(context, client->AlterTable(path, options));
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            context,
+            client->AlterTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AlterTableReplica)
@@ -1157,27 +1301,25 @@ private:
             return;
         }
 
-        NTabletClient::TTableReplicaId replicaId;
-        NYT::FromProto(&replicaId, request->replica_id());
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
 
         TAlterTableReplicaOptions options;
         SetTimeoutOptions(&options, context.Get());
-
         if (request->has_enabled()) {
             options.Enabled = request->enabled();
         }
         if (request->has_mode()) {
-            switch (request->mode()) {
-                case NProto::TReqAlterTableReplica_ETableReplicaMode_SYNC:
-                    options.Mode = ETableReplicaMode::Sync;
-                    break;
-                case NProto::TReqAlterTableReplica_ETableReplicaMode_ASYNC:
-                    options.Mode = ETableReplicaMode::Async;
-                    break;
-            }
+            options.Mode = CheckedEnumCast<ETableReplicaMode>(request->mode());
         }
 
-        CompleteCallWith(context, client->AlterTableReplica(replicaId, options));
+        context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v",
+            replicaId,
+            options.Enabled,
+            options.Mode);
+
+        CompleteCallWith(
+            context,
+            client->AlterTableReplica(replicaId, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -1193,9 +1335,9 @@ private:
         TSharedRange<TUnversionedRow>* keys,
         TOptions* options)
     {
-        ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NProto::ERowsetKind::UNVERSIONED);
+        ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NProto::RK_UNVERSIONED);
         if (request->Attachments().empty()) {
-            context->Reply(TError("Request is missing data"));
+            context->Reply(TError("Request is missing rowset in attachments"));
             return false;
         }
 
@@ -1205,7 +1347,7 @@ private:
         *nameTable = TNameTable::FromSchema(rowset->Schema());
         *keys = MakeSharedRange(rowset->GetRows(), rowset);
 
-        options->Timeout = context->GetTimeout();
+        SetTimeoutOptions(options, context.Get());
         for (int i = 0; i < request->columns_size(); ++i) {
             options->ColumnFilter.All = false;
             options->ColumnFilter.Indexes.push_back((*nameTable)->GetIdOrRegisterName(request->columns(i)));
@@ -1213,7 +1355,9 @@ private:
         options->Timestamp = request->timestamp();
         options->KeepMissingRows = request->keep_missing_rows();
 
-        context->SetRequestInfo("Path: %v, Rows: %v", request->path(), keys->Size());
+        context->SetRequestInfo("Path: %v, Rows: %v",
+            request->path(),
+            keys->Size());
 
         return true;
     }
@@ -1236,19 +1380,35 @@ private:
             return;
         }
 
+        const auto& path = request->path();
+
         TNameTablePtr nameTable;
         TSharedRange<TUnversionedRow> keys;
         TLookupRowsOptions options;
-
-        if (!LookupRowsPrologue(context, request, request->rowset_descriptor(), &nameTable, &keys, &options)) {
+        if (!LookupRowsPrologue(
+            context,
+            request,
+            request->rowset_descriptor(),
+            &nameTable,
+            &keys,
+            &options))
+        {
             return;
         }
 
         CompleteCallWith(
             context,
-            client->LookupRows(request->path(), std::move(nameTable), std::move(keys), options),
-            [response] (const IUnversionedRowsetPtr& rowset) {
+            client->LookupRows(
+                path,
+                std::move(nameTable),
+                std::move(keys),
+                options),
+            [] (const auto& context, const auto& rowset) {
+                auto* response = &context->Response();
                 AttachRowset(response, rowset);
+
+                context->SetResponseInfo("RowCount: %v",
+                    rowset->GetRows().Size());
             });
     }
 
@@ -1259,19 +1419,35 @@ private:
             return;
         }
 
+        const auto& path = request->path();
+
         TNameTablePtr nameTable;
         TSharedRange<TUnversionedRow> keys;
         TVersionedLookupRowsOptions options;
-
-        if (!LookupRowsPrologue(context, request, request->rowset_descriptor(), &nameTable, &keys, &options)) {
+        if (!LookupRowsPrologue(
+            context,
+            request,
+            request->rowset_descriptor(),
+            &nameTable,
+            &keys,
+            &options))
+        {
             return;
         }
 
         CompleteCallWith(
             context,
-            client->VersionedLookupRows(request->path(), std::move(nameTable), std::move(keys), options),
-            [response] (const IVersionedRowsetPtr& rowset) {
+            client->VersionedLookupRows(
+                path,
+                std::move(nameTable),
+                std::move(keys),
+                options),
+            [] (const auto& context, const auto& rowset) {
+                auto* response = &context->Response();
                 AttachRowset(response, rowset);
+
+                context->SetResponseInfo("RowCount: %v",
+                    rowset->GetRows().Size());
             });
     }
 
@@ -1282,7 +1458,10 @@ private:
             return;
         }
 
+        const auto& query = request->query();
+
         TSelectRowsOptions options; // TODO: Fill all options.
+        SetTimeoutOptions(&options, context.Get());
         if (request->has_timestamp()) {
             options.Timestamp = request->timestamp();
         }
@@ -1308,12 +1487,20 @@ private:
             options.MaxSubqueries = request->max_subqueries();
         }
 
+        context->SetRequestInfo("Query: %v, Timestamp: %llx",
+            query,
+            options.Timestamp);
+
         CompleteCallWith(
             context,
-            client->SelectRows(request->query(), options),
-            [response] (const TSelectRowsResult& result) {
+            client->SelectRows(query, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
                 // TODO(sandello): Statistics?
                 AttachRowset(response, result.Rowset);
+
+                context->SetResponseInfo("RowCount: %v",
+                    result.Rowset->GetRows().Size());
             });
     }
 
@@ -1324,7 +1511,10 @@ private:
             return;
         }
 
+        const auto& path = request->path();
+
         TGetInSyncReplicasOptions options;
+        SetTimeoutOptions(&options, context.Get());
         if (request->has_timestamp()) {
             options.Timestamp = request->timestamp();
         }
@@ -1333,29 +1523,75 @@ private:
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
 
+        auto nameTable = TNameTable::FromSchema(rowset->Schema());
+
+        context->SetRequestInfo("Path: %v, RowCount: %v",
+            path,
+            rowset->GetRows().Size());
+
         CompleteCallWith(
             context,
             client->GetInSyncReplicas(
-                request->path(),
-                TNameTable::FromSchema(rowset->Schema()),
+                path,
+                std::move(nameTable),
                 MakeSharedRange(rowset->GetRows(), rowset),
                 options),
-            [response] (const std::vector<NTabletClient::TTableReplicaId>& result) {
-                ToProto(response->mutable_replica_ids(), result);
+            [] (const auto& context, const std::vector<TTableReplicaId>& replicaIds) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_replica_ids(), replicaIds);
+
+                context->SetResponseInfo("ReplicaIds: %v",
+                    replicaIds);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetTabletInfos)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& path = request->path();
+        auto tabletIndexes = FromProto<std::vector<int>>(request->tablet_indexes());
+        
+        context->SetRequestInfo("Path: %v, TabletIndexes: %v",
+            path,
+            tabletIndexes);
+        
+        TGetTabletsInfoOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        CompleteCallWith(
+            context,
+            client->GetTabletInfos(
+                path,
+                tabletIndexes,
+                options),
+            [] (const auto& context, const auto& tabletInfos) {
+                auto* response = &context->Response();
+                for (const auto& tabletInfo : tabletInfos) {
+                    auto* protoTabletInfo = response->add_tablets();
+                    protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
+                    protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
+                }
             });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ModifyRows)
     {
-        auto transactionAttachOptions = TTransactionAttachOptions{};
-        transactionAttachOptions.Ping = false;
-        transactionAttachOptions.PingAncestors = false;
-        transactionAttachOptions.Sticky = true; // XXX(sandello): Fix me!
+        const auto& path = request->path();
+
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
+        attachOptions.Sticky = true; // XXX(sandello): Fix me!
+
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            NYT::FromProto<TTransactionId>(request->transaction_id()),
-            transactionAttachOptions);
+            FromProto<TTransactionId>(request->transaction_id()),
+            attachOptions);
         if (!transaction) {
             return;
         }
@@ -1364,18 +1600,22 @@ private:
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
 
+        auto nameTable = TNameTable::FromSchema(rowset->Schema());
+
         const auto& rowsetRows = rowset->GetRows();
         auto rowsetSize = rowset->GetRows().Size();
 
         if (rowsetSize != request->row_modification_types_size()) {
-            THROW_ERROR_EXCEPTION("Row count mismatch");
+            THROW_ERROR_EXCEPTION("Row count mismatch: %v != %v",
+                rowsetSize,
+                request->row_modification_types_size());
         }
 
         std::vector<TRowModification> modifications;
         modifications.reserve(rowsetSize);
         for (size_t index = 0; index < rowsetSize; ++index) {
             modifications.push_back({
-                ERowModificationType(request->row_modification_types(index)),
+                CheckedEnumCast<ERowModificationType>(request->row_modification_types(index)),
                 rowsetRows[index].ToTypeErasedRow()
             });
         }
@@ -1385,21 +1625,26 @@ private:
             options.RequireSyncReplica = request->require_sync_replica();
         }
         if (request->has_upstream_replica_id()) {
-            NYT::FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
+            FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
+
+        context->SetRequestInfo("Path: %v, ModificationCount: %v, RequireSyncReplica: %v, UpstreamReplicaId: %v",
+            path,
+            rowsetSize,
+            options.RequireSyncReplica,
+            options.UpstreamReplicaId);
+
         transaction->ModifyRows(
-            request->path(),
-            TNameTable::FromSchema(rowset->Schema()),
+            path,
+            std::move(nameTable),
             MakeSharedRange(std::move(modifications), rowset),
             options);
 
         context->Reply();
     }
-
 };
 
-IServicePtr CreateApiService(
-    NCellProxy::TBootstrap* bootstrap)
+IServicePtr CreateApiService(NCellProxy::TBootstrap* bootstrap)
 {
     return New<TApiService>(bootstrap);
 }

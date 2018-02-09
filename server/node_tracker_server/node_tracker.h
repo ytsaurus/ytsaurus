@@ -71,8 +71,24 @@ public:
     //! Fired when node "decommissioned" flag changes.
     DECLARE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
 
-    //! Fired when node rack or DC changes.
-    DECLARE_SIGNAL(void(TNode* node), NodeLocationChanged);
+    //! Fired when node rack changes.
+    DECLARE_SIGNAL(void(TNode* node, TRack* oldRack), NodeRackChanged);
+
+    //! Fired for all nodes in a rack when that rack's DC changes.
+    /*!
+     *  NB: a node's DC may also change when its rack changes. This signal is
+     *  not fired in those cases.
+     */
+    DECLARE_SIGNAL(void(TNode* node, TDataCenter* oldDataCenter), NodeDataCenterChanged);
+
+    //! Fired when a new data center is created.
+    DECLARE_SIGNAL(void(TDataCenter* dataCenter), DataCenterCreated);
+
+    //! Fired when a data center is renamed.
+    DECLARE_SIGNAL(void(TDataCenter* dataCenter), DataCenterRenamed);
+
+    //! Fired when a data center is removed.
+    DECLARE_SIGNAL(void(TDataCenter* dataCenter), DataCenterDestroyed);
 
     //! Fired when a full heartbeat is received from a node.
     DECLARE_SIGNAL(void(

@@ -5,13 +5,18 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TSessionId& id)
+void FormatValue(TStringBuilder* builder, const TSessionId& id, const TStringBuf& /*format*/)
 {
     if (id.MediumIndex == AllMediaIndex) {
-        return Format("%v@*", id.ChunkId);
+        builder->AppendFormat("%v@*", id.ChunkId);
     } else {
-        return Format("%v@%v", id.ChunkId, id.MediumIndex);
+        builder->AppendFormat("%v@%v", id.ChunkId, id.MediumIndex);
     }
+}
+
+TString ToString(const TSessionId& id)
+{
+    return ToStringViaBuilder(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

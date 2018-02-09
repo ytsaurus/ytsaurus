@@ -43,7 +43,6 @@ struct TCodegenFragmentInfos
     : public TIntrinsicRefCounted
 {
     std::vector<TCodegenFragmentInfo> Items;
-    size_t FunctionCount = 0;
     std::vector<Function*> Functions;
     TString NamePrefix;
 };
@@ -51,9 +50,9 @@ struct TCodegenFragmentInfos
 DEFINE_REFCOUNTED_TYPE(TCodegenFragmentInfos)
 
 typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer)> TCodegenAggregateInit;
-typedef std::function<void(TCGBaseContext& builder, Value* buffer, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
-typedef std::function<void(TCGBaseContext& builder, Value* buffer, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* aggState)> TCodegenAggregateFinalize;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue newValue)> TCodegenAggregateUpdate;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState)> TCodegenAggregateMerge;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState)> TCodegenAggregateFinalize;
 
 struct TCodegenAggregate {
     TCodegenAggregateInit Initialize;
@@ -83,6 +82,7 @@ Value* CodegenLexicographicalCompare(
 
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
+    bool nullable,
     EValueType type);
 
 TCodegenExpression MakeCodegenReferenceExpr(
@@ -114,12 +114,14 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 TCodegenExpression MakeCodegenInExpr(
     std::vector<size_t> argIds,
     int arrayIndex,
+    int hashtableIndex,
     TComparerManagerPtr comparerManager);
 
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
     TNullable<size_t> defaultExprId,
     int arrayIndex,
+    int hashtableIndex,
     EValueType resultType,
     TComparerManagerPtr comparerManager);
 
@@ -184,40 +186,17 @@ size_t MakeCodegenMultiJoinOp(
     std::vector<std::pair<size_t, EValueType>> primaryColumns,
     TComparerManagerPtr comparerManager);
 
-std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
-    TCodegenFragmentInfosPtr fragmentInfos,
-    std::vector<size_t> groupExprsIds,
-    std::vector<EValueType> nullTypes = std::vector<EValueType>());
-
-std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
-    size_t keySize,
-    TCodegenFragmentInfosPtr fragmentInfos,
-    std::vector<size_t> aggregateExprIds);
-
-std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregateInitialize(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize);
-
-std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegenAggregateUpdate(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize,
-    bool isMerge);
-
-std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregateFinalize(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize);
-
 size_t MakeCodegenGroupOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
-    size_t slot,
-    std::function<void(TCGBaseContext&, Value*, Value*)> codegenInitialize,
-    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
-    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
-    std::function<void(TCGBaseContext&, Value*, Value*, Value*)> codegenUpdate,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> groupExprsIds,
+    std::vector<size_t> aggregateExprIds,
+    std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes,
     bool isMerge,
-    int groupRowSize,
     bool checkNulls,
     TComparerManagerPtr comparerManager);
 
@@ -225,13 +204,15 @@ size_t MakeCodegenFinalizeOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    std::function<void(TCGBaseContext&, Value*, Value*)> codegenFinalize);
+    size_t keySize,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> stateTypes);
 
 size_t MakeCodegenAddStreamOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    std::vector<EValueType> sourceSchema,
+    size_t rowSize,
     EStreamTag value);
 
 size_t MakeCodegenOrderOp(
@@ -242,7 +223,8 @@ size_t MakeCodegenOrderOp(
     std::vector<size_t> exprIds,
     std::vector<EValueType> orderColumnTypes,
     std::vector<EValueType> sourceSchema,
-    const std::vector<bool>& isDesc);
+    const std::vector<bool>& isDesc,
+    TComparerManagerPtr comparerManager);
 
 size_t MakeCodegenProjectOp(
     TCodegenSource* codegenSource,
@@ -253,7 +235,8 @@ size_t MakeCodegenProjectOp(
 
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
-    size_t slot);
+    size_t slot,
+    size_t rowSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,7 +248,10 @@ TCGExpressionCallback CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId);
 
-TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate);
+TCGAggregateCallbacks CodegenAggregate(
+    TCodegenAggregate codegenAggregate,
+    EValueType argumentType,
+    EValueType stateType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

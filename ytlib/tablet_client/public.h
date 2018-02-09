@@ -42,6 +42,7 @@ DEFINE_ENUM(ETabletState,
 constexpr ETabletState MinValidTabletState = ETabletState::Mounting;
 constexpr ETabletState MaxValidTabletState = ETabletState::FrozenMounting;
 
+// Keep in sync with NRpcProxy::NProto::ETableReplicaMode.
 DEFINE_ENUM(ETableReplicaMode,
     ((Sync)     (0))
     ((Async)    (1))
@@ -80,6 +81,12 @@ struct TReplicationLogTable
     static const TString ValueColumnNamePrefix;
     static const TString FlagsColumnNamePrefix;
 };
+
+DEFINE_ENUM(ETabletBackgroundActivity,
+    (Compaction)
+    (Flush)
+    (Partitioning)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

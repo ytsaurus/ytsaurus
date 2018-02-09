@@ -160,7 +160,7 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
     ChunkMeta_.CopyFrom(chunkMeta);
     SetProtoExtension(ChunkMeta_.mutable_extensions(), BlocksExt_);
 
-    auto metaData = SerializeToProtoWithEnvelope(ChunkMeta_);
+    auto metaData = SerializeProtoToRefWithEnvelope(ChunkMeta_);
 
     TChunkMetaHeader_2 header;
     header.Signature = header.ExpectedSignature;

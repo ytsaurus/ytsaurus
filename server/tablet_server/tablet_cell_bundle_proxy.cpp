@@ -1,8 +1,9 @@
-#include "tablet_cell_bundle_proxy.h"
-#include "tablet_cell_bundle.h"
-#include "tablet_cell.h"
-#include "tablet_manager.h"
+#include "config.h"
 #include "private.h"
+#include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
+#include "tablet_cell_bundle_proxy.h"
+#include "tablet_manager.h"
 
 #include <yt/core/ytree/fluent.h>
 
@@ -61,7 +62,7 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetPresent(!cellBundle->NodeTagFilter().IsEmpty()));
-        attributes->push_back(TAttributeDescriptor("enable_tablet_balancer")
+        attributes->push_back(TAttributeDescriptor("tablet_balancer_config")
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
@@ -109,9 +110,9 @@ private:
             return true;
         }
 
-        if (key == "enable_tablet_balancer") {
+        if (key == "tablet_balancer_config") {
             BuildYsonFluently(consumer)
-                .Value(cellBundle->GetEnableTabletBalancer());
+                .Value(cellBundle->TabletBalancerConfig());
             return true;
         }
 
@@ -146,8 +147,8 @@ private:
             return true;
         }
 
-        if (key == "enable_tablet_balancer") {
-            cellBundle->SetEnableTabletBalancer(ConvertTo<bool>(value));
+        if (key == "tablet_balancer_config") {
+            cellBundle->TabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(value);
             return true;
         }
 

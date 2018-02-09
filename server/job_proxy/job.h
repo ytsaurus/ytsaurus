@@ -18,7 +18,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/logging/log.h>
 
@@ -57,6 +57,9 @@ struct IJobHost
     virtual NLogging::TLogger GetLogger() const = 0;
 
     virtual NRpc::IServerPtr GetRpcServer() const = 0;
+
+    virtual TString GetPreparationPath() const = 0;
+    virtual TString GetSlotPath() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)
@@ -77,6 +80,8 @@ struct IJob
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
 
     virtual double GetProgress() const = 0;
+
+    virtual ui64 GetStderrSize() const = 0;
 
     virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
 };

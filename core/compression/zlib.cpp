@@ -68,9 +68,8 @@ void ZlibCompress(int level, StreamSource* source, TBlob* output)
             stream.avail_out = static_cast<uInt>(outputAvailable);
 
             returnCode = deflate(&stream, flush);
-            if (!(returnCode == Z_OK || returnCode == Z_STREAM_END)) {
-                THROW_ERROR_EXCEPTION("Zlib compression failed: %v", stream.msg);
-            }
+            // We should not throw exception here since caller does not expect such behavior.
+            YCHECK(returnCode == Z_OK || returnCode == Z_STREAM_END);
 
             output->Resize(output->Size() + outputAvailable - stream.avail_out, false);
         } while (stream.avail_out == 0);
@@ -124,9 +123,8 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
         stream.avail_out = static_cast<uInt>(outputAvailable);
 
         returnCode = inflate(&stream, flush);
-        if (!(returnCode == Z_OK || returnCode == Z_STREAM_END)) {
-            THROW_ERROR_EXCEPTION("Zlib decompression failed: %v", stream.msg);
-        }
+        // We should not throw exception here since caller does not expect such behavior.
+        YCHECK(returnCode == Z_OK || returnCode == Z_STREAM_END);
 
         source->Skip(inputAvailable - stream.avail_in);
 

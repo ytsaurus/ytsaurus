@@ -9,6 +9,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,46 +40,63 @@ void ReadHeader(
 } // namespace
 
 TFileReader::TFileReader(
+    const IIOEnginePtr& ioEngine,
     const TChunkId& chunkId,
     const TString& fileName,
     bool validateBlocksChecksums)
-    : ChunkId_(chunkId)
+    : IOEngine_(ioEngine)
+    , ChunkId_(chunkId)
     , FileName_(fileName)
     , ValidateBlockChecksums_(validateBlocksChecksums)
 { }
-
 
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TWorkloadDescriptor& /*workloadDescriptor*/,
     const std::vector<int>& blockIndexes)
 {
-    std::vector<TBlock> blocks;
-    blocks.reserve(blockIndexes.size());
+    std::vector<TFuture<std::vector<TBlock>>> futures;
+    auto count = blockIndexes.size();
 
     try {
         // Extract maximum contiguous ranges of blocks.
         int localIndex = 0;
-        while (localIndex < blockIndexes.size()) {
+        while (localIndex < count) {
             int startLocalIndex = localIndex;
             int startBlockIndex = blockIndexes[startLocalIndex];
             int endLocalIndex = startLocalIndex;
-            while (endLocalIndex < blockIndexes.size() &&
+            while (endLocalIndex < count &&
                    blockIndexes[endLocalIndex] == startBlockIndex + (endLocalIndex - startLocalIndex))
             {
                 ++endLocalIndex;
             }
 
             int blockCount = endLocalIndex - startLocalIndex;
-            auto subblocks = DoReadBlocks(startBlockIndex, blockCount);
-            blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
+            auto subfutures = DoReadBlocks(startBlockIndex, blockCount);
+            futures.push_back(std::move(subfutures));
 
             localIndex = endLocalIndex;
         }
     } catch (const std::exception& ex) {
+
+        for (auto& future : futures) {
+            future.Cancel();
+        }
+
         return MakeFuture<std::vector<TBlock>>(ex);
     }
 
-    return MakeFuture(std::move(blocks));
+    return CombineAll(std::move(futures))
+        .Apply(BIND([count] (const std::vector<TErrorOr<std::vector<TBlock>>>& result) {
+            std::vector<TBlock> blocks;
+            blocks.reserve(count);
+
+            for (const auto& subblocksOrError : result) {
+                const auto& subblocks = subblocksOrError.ValueOrThrow();
+                blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
+            }
+
+            return blocks;
+        }));
 }
 
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
@@ -89,7 +107,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     YCHECK(firstBlockIndex >= 0);
 
     try {
-        return MakeFuture(DoReadBlocks(firstBlockIndex, blockCount));
+        return DoReadBlocks(firstBlockIndex, blockCount);
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }
@@ -101,7 +119,7 @@ TFuture<TChunkMeta> TFileReader::GetMeta(
     const TNullable<std::vector<int>>& extensionTags)
 {
     try {
-        return MakeFuture(DoGetMeta(partitionTag, extensionTags));
+        return DoGetMeta(partitionTag, extensionTags);
     } catch (const std::exception& ex) {
         return MakeFuture<TChunkMeta>(ex);
     }
@@ -117,7 +135,44 @@ bool TFileReader::IsValid() const
     return true;
 }
 
-std::vector<TBlock> TFileReader::DoReadBlocks(
+std::vector<TBlock> TFileReader::OnDataBlock(
+    int firstBlockIndex,
+    int blockCount,
+    const TSharedMutableRef& data)
+{
+    // Slice the result; validate checksums.
+
+    const auto& blockExts = GetBlockExts();
+    const auto& firstBlockInfo = blockExts.blocks(firstBlockIndex);
+
+    std::vector<TBlock> blocks;
+    blocks.reserve(blockCount);
+
+    for (int localIndex = 0; localIndex < blockCount; ++localIndex) {
+        int blockIndex = firstBlockIndex + localIndex;
+        const auto& blockInfo = blockExts.blocks(blockIndex);
+        auto block = data.Slice(
+            blockInfo.offset() - firstBlockInfo.offset(),
+            blockInfo.offset() - firstBlockInfo.offset() + blockInfo.size());
+        if (ValidateBlockChecksums_) {
+            auto checksum = GetChecksum(block);
+            if (checksum != blockInfo.checksum()) {
+                THROW_ERROR_EXCEPTION(
+                    "Incorrect checksum of block %v in chunk data file %Qv: expected %v, actual %v",
+                    blockIndex,
+                    FileName_,
+                    blockInfo.checksum(),
+                    checksum);
+            }
+        }
+        blocks.push_back(TBlock(block, blockInfo.checksum()));
+        blocks.back().BlockOrigin = EBlockOrigin::Disk;
+    }
+
+    return blocks;
+}
+
+TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
     int firstBlockIndex,
     int blockCount)
 {
@@ -138,66 +193,14 @@ std::vector<TBlock> TFileReader::DoReadBlocks(
     const auto& lastBlockInfo = blockExts.blocks(lastBlockIndex);
     i64 totalSize = lastBlockInfo.offset() + lastBlockInfo.size() - firstBlockInfo.offset();
 
-    auto data = TSharedMutableRef::Allocate<TFileReaderDataBufferTag>(totalSize, false);
+    const auto& file = GetDataFile();
 
-    auto& file = GetDataFile();
-
-    NFS::ExpectIOErrors([&] () {
-        file.Pread(data.Begin(), data.Size(), firstBlockInfo.offset());
-    });
-
-    // Slice the result; validate checksums.
-    std::vector<TBlock> blocks;
-    blocks.reserve(blockCount);
-    for (int localIndex = 0; localIndex < blockCount; ++localIndex) {
-        int blockIndex = firstBlockIndex + localIndex;
-        const auto& blockInfo = blockExts.blocks(blockIndex);
-        auto block = data.Slice(
-            blockInfo.offset() - firstBlockInfo.offset(),
-            blockInfo.offset() - firstBlockInfo.offset() + blockInfo.size());
-        if (ValidateBlockChecksums_) {
-            auto checksum = GetChecksum(block);
-            if (checksum != blockInfo.checksum()) {
-                THROW_ERROR_EXCEPTION("Incorrect checksum of block %v in chunk data file %Qv: expected %v, actual %v",
-                      blockIndex,
-                      FileName_,
-                      blockInfo.checksum(),
-                      checksum);
-            }
-        }
-        blocks.push_back(TBlock(block, blockInfo.checksum()));
-    }
-
-    return blocks;
+    return IOEngine_->Pread(file, totalSize, firstBlockInfo.offset())
+        .Apply(BIND(&TFileReader::OnDataBlock, MakeStrong(this), firstBlockIndex, blockCount));
 }
 
-TChunkMeta TFileReader::DoGetMeta(
-    const TNullable<int>& partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& metaFileBlob)
 {
-    // Partition tag filtering not implemented here
-    // because there is no practical need.
-    // Implement when necessary.
-    YCHECK(!partitionTag);
-
-    auto metaFileName = FileName_ + ChunkMetaSuffix;
-    TFile metaFile(
-        metaFileName,
-        OpenExisting | RdOnly | Seq | CloseOnExec);
-
-    if (metaFile.GetLength() < sizeof (TChunkMetaHeaderBase)) {
-        THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
-            FileName_,
-            sizeof (TChunkMetaHeaderBase));
-    }
-
-    auto metaFileBlob = TSharedMutableRef::Allocate<TFileReaderMetaBufferTag>(metaFile.GetLength());
-
-    NFS::ExpectIOErrors([&] () {
-        TFileInput metaFileInput(metaFile);
-        metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
-    });
-
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;
     const auto* metaHeaderBase = reinterpret_cast<const TChunkMetaHeaderBase*>(metaFileBlob.Begin());
@@ -234,7 +237,7 @@ TChunkMeta TFileReader::DoGetMeta(
     }
 
     TChunkMeta meta;
-    if (!TryDeserializeFromProtoWithEnvelope(&meta, metaBlob)) {
+    if (!TryDeserializeProtoWithEnvelope(&meta, metaBlob)) {
         THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
             metaFileName);
     }
@@ -242,29 +245,55 @@ TChunkMeta TFileReader::DoGetMeta(
     return meta;
 }
 
+TFuture<TChunkMeta> TFileReader::DoGetMeta(
+    const TNullable<int>& partitionTag,
+    const TNullable<std::vector<int>>& extensionTags)
+{
+    // Partition tag filtering not implemented here
+    // because there is no practical need.
+    // Implement when necessary.
+    YCHECK(!partitionTag);
+
+    auto metaFileName = FileName_ + ChunkMetaSuffix;
+
+    auto metaFile = IOEngine_->Open(
+        metaFileName,
+        OpenExisting | RdOnly | Seq | CloseOnExec);
+
+    if (metaFile->GetLength() < sizeof (TChunkMetaHeaderBase)) {
+        THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
+            FileName_,
+            sizeof (TChunkMetaHeaderBase));
+    }
+
+    return IOEngine_->Pread(metaFile, metaFile->GetLength(), 0)
+        .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName));
+}
+
 const TBlocksExt& TFileReader::GetBlockExts()
 {
     if (!HasCachedBlocksExt_) {
         TGuard<TMutex> guard(Mutex_);
         if (!CachedBlocksExt_) {
-            auto meta = DoGetMeta(Null, Null);
-            CachedBlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
+            CachedBlocksExt_ = DoGetMeta(Null, Null).Apply(BIND([](const TChunkMeta& meta) {
+                return GetProtoExtension<TBlocksExt>(meta.extensions());
+            }));
             HasCachedBlocksExt_ = true;
         }
     }
-    return *CachedBlocksExt_;
+    return CachedBlocksExt_.Get().ValueOrThrow();
 }
 
-TFile& TFileReader::GetDataFile()
+const std::shared_ptr<TFileHandle>& TFileReader::GetDataFile()
 {
     if (!HasCachedDataFile_) {
         TGuard<TMutex> guard(Mutex_);
         if (!CachedDataFile_) {
-            CachedDataFile_.reset(new TFile(FileName_, OpenExisting | RdOnly | CloseOnExec));
+            CachedDataFile_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec);
             HasCachedDataFile_ = true;
         }
     }
-    return *CachedDataFile_;
+    return CachedDataFile_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
