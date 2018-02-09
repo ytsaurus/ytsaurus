@@ -95,7 +95,8 @@ def prepare_path(path):
     if isinstance(path, yson.YsonString):
         attributes = path.attributes
     result = yson.loads(execute_command("parse_ypath", parameters={"path": path}, verbose=False))
-    update(result.attributes, attributes)
+    # TODO(ignat): use update_inplace
+    result.attributes = update(result.attributes, attributes)
     return result
 
 def prepare_paths(paths):
