@@ -680,7 +680,20 @@ class ConfigsProvider_19_2(ConfigsProvider):
                 .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
                 .replace("%%masters%%", masters)
 
-VERSION_TO_CONFIGS_PROVIDER_CLASS = {
-    (19, 2): ConfigsProvider_19_2
-}
+class ConfigsProvider_19_3(ConfigsProvider):
+    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
+                                 ports_generator, scheduler_logs_dir):
+        configs = super(ConfigsProvider_19_3, self)._build_scheduler_configs(
+            provision, scheduler_dirs, master_connection_configs,
+            ports_generator, scheduler_logs_dir)
 
+        for config in configs:
+            config["operation_alerts_update_period"] = 100
+            config["exec_nodes_update_period"] = 100
+
+        return configs
+
+VERSION_TO_CONFIGS_PROVIDER_CLASS = {
+    (19, 2): ConfigsProvider_19_2,
+    (19, 3): ConfigsProvider_19_3,
+}
