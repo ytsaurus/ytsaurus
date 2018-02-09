@@ -168,11 +168,6 @@ void TNodeShard::DoCleanup()
 
     ConcurrentHeartbeatCount_ = 0;
 
-    for (auto& pair : IdToOpertionState_) {
-        auto& operationState = pair.second;
-        operationState.JobsReady = false;
-    }
-
     JobIdToAsyncScheduleResult_.clear();
 }
 
