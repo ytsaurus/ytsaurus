@@ -756,7 +756,6 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     codegenAggregate.Update = [
         this_ = MakeStrong(this),
         updateName,
-        argumentType,
         stateType,
         name,
         makeCodegenBody
@@ -803,7 +802,6 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     codegenAggregate.Finalize = [
         this_ = MakeStrong(this),
         finalizeName,
-        stateType,
         resultType,
         name,
         makeCodegenBody
