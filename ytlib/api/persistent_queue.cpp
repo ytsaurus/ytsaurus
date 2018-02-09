@@ -849,7 +849,7 @@ private:
     void OnStateFailed(const TStatePtr& state)
     {
         bool expected = false;
-        if (!state->Failed.compare_exchange_strong(expected, true)) {
+        if (state->Failed.compare_exchange_strong(expected, true)) {
             RecreateState(true);
         }
     }
