@@ -76,7 +76,8 @@ public:
     //   LM_EXCLUSIVE: if exclusive lock is taken no other transaction can take exclusive or shared lock.
     //   LM_SHARED: if shared lock is taken other transactions can take shared lock but not exclusive.
     //
-    //   LM_SNAPSHOT: snapshot lock always succeeds, when snapshot lock is taken current transaction
+    //   LM_SNAPSHOT: snapshot lock always succeeds, when snapshot lock is taken current transaction snapshots object.
+    //   It will not see changes that occured to it in other transactions.
     //
     // Exclusive/shared lock can be waitable or not.
     // If nonwaitable lock cannot be taken exception is thrown.
