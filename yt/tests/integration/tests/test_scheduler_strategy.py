@@ -1594,10 +1594,9 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info")
 
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        time.sleep(0.5)
-        assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info")
-
-        assert not get("//sys/scheduler/@alerts")
+        
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
+        wait(lambda: not get("//sys/scheduler/@alerts"))
 
         # This tree intersects with default pool tree by nodes, should not be added
         create("map_node", "//sys/pool_trees/other_intersecting", attributes={"nodes_filter": ""})
@@ -1606,8 +1605,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert get("//sys/scheduler/@alerts")
 
         remove("//sys/pool_trees/other_intersecting")
-        time.sleep(1.0)
-        assert "update_pools" not in get("//sys/scheduler/@alerts")
+        wait(lambda: "update_pools" not in get("//sys/scheduler/@alerts"))
 
     def test_abort_orphaned_operations(self):
         create("table", "//tmp/t_in")
@@ -1620,15 +1618,12 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             out="//tmp/t_out",
             dont_track=True)
 
-        time.sleep(1.0)
+        wait(lambda: op.get_state() == "running")
 
         remove("//sys/pool_trees/@default_tree")
         remove("//sys/pool_trees/default")
 
-        time.sleep(0.5)
-        get("//sys/scheduler/@alerts")
-
-        assert op.get_state() in ["aborted", "aborting"]
+        wait(lambda: op.get_state() in ["aborted", "aborting"])
 
     def test_multitree_operations(self):
         create("table", "//tmp/t_in")
@@ -1726,13 +1721,11 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert not exists("//sys/scheduler/orchid/scheduler/pools")
 
         set("//sys/pool_trees/@default_tree", "unexisting")
-        time.sleep(1.0)
-        assert get("//sys/scheduler/@alerts")
-        assert not exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree")
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
 
         set("//sys/pool_trees/@default_tree", "default")
-        time.sleep(1.0)
-        assert get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "default"
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "default")
         assert exists("//sys/scheduler/orchid/scheduler/pools")
         assert exists("//sys/scheduler/orchid/scheduler/fair_share_info")
 
