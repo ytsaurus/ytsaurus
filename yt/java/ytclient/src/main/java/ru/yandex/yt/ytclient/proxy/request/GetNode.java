@@ -1,6 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.yt.rpcproxy.TColumnFilter;
+import ru.yandex.yt.rpcproxy.TAttributeKeys;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
@@ -15,7 +15,7 @@ public class GetNode extends GetLikeReq<GetNode> {
     public TReqGetNode.Builder writeTo(TReqGetNode.Builder builder) {
         builder.setPath(path);
         if (attributes != null) {
-            builder.setAttributes(attributes.writeTo(TColumnFilter.newBuilder()));
+            builder.setAttributes(attributes.writeTo(TAttributeKeys.newBuilder()));
         }
         if (maxSize != null) {
             builder.setMaxSize(maxSize);

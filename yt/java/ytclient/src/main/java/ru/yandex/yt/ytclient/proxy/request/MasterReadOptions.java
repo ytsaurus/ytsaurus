@@ -1,14 +1,15 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.yt.rpcproxy.EMasterReadKind;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 
 public class MasterReadOptions {
-    private TMasterReadOptions.EMasterReadKind readFrom = TMasterReadOptions.EMasterReadKind.FOLLOWER;
+    private EMasterReadKind readFrom = EMasterReadKind.MRK_FOLLOWER;
     private Long successExpirationTime;
     private Long failureExpirationTime;
     private Integer cacheStickyGroupSize;
 
-    public MasterReadOptions setReadFrom(TMasterReadOptions.EMasterReadKind f) {
+    public MasterReadOptions setReadFrom(EMasterReadKind f) {
         readFrom = f;
         return this;
     }

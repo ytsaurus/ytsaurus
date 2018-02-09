@@ -33,7 +33,7 @@ public final class RpcReqHeader implements BUSPartable {
         uid.setSecond(this.uuid.getLeastSignificantBits());
 
         final TCredentialsExt.Builder credentialsBuilder = TCredentialsExt.newBuilder();
-        credentialsBuilder.setUserip(userIp);
+        credentialsBuilder.setUserIp(userIp);
         credentialsBuilder.setToken(authToken);
         credentialsBuilder.setDomain(domainName);
 

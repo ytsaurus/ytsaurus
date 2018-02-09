@@ -19,7 +19,7 @@ public class RpcReqLookupRows extends RpcReqLookupMessage {
     private static Logger logger = LoggerFactory.getLogger(RpcReqLookupRows.class);
 
     protected TReqLookupRows request;
-    private ERowsetKind rowSetKind = ERowsetKind.UNVERSIONED;
+    private ERowsetKind rowSetKind = ERowsetKind.RK_UNVERSIONED;
 
     static {
         serviceName = "ApiService";

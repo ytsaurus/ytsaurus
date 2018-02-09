@@ -66,7 +66,7 @@ public class ModifyRowsRequest {
             throw new IllegalArgumentException("Number of insert columns must match number of schema columns");
         }
         rows.add(convertValuesToRow(values, false, false));
-        rowModificationTypes.add(ERowModificationType.WRITE);
+        rowModificationTypes.add(ERowModificationType.RMT_WRITE);
         return this;
     }
 
@@ -82,7 +82,7 @@ public class ModifyRowsRequest {
             throw new IllegalArgumentException("Number of update columns must be more than the number of key columns");
         }
         rows.add(convertValuesToRow(values, true, aggregate));
-        rowModificationTypes.add(ERowModificationType.WRITE);
+        rowModificationTypes.add(ERowModificationType.RMT_WRITE);
         return this;
     }
 
@@ -106,7 +106,7 @@ public class ModifyRowsRequest {
             throw new IllegalArgumentException("Number of delete columns must match number of key columns");
         }
         rows.add(convertValuesToRow(values, false, false));
-        rowModificationTypes.add(ERowModificationType.DELETE);
+        rowModificationTypes.add(ERowModificationType.RMT_DELETE);
         return this;
     }
 

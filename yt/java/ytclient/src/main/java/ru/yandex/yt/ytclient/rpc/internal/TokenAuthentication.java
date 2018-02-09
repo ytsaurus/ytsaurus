@@ -37,7 +37,7 @@ public class TokenAuthentication implements RpcClient {
         if (!header.hasExtension(TCredentialsExt.credentialsExt)) {
             header.setExtension(TCredentialsExt.credentialsExt, TCredentialsExt.newBuilder()
                     .setToken(token)
-                    .setUserip(getLocalAddress())
+                    .setUserIp(getLocalAddress())
                     .build());
         }
         return client.send(request, handler);
