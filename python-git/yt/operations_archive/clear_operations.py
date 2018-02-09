@@ -127,7 +127,7 @@ class OperationArchiver(object):
         "size",
         "start_time",
         "finish_time",
-        "uncompressed_data_size"
+        "uncompressed_data_size",
     ]
 
     def __init__(self, client_factory, clean_queue, stderr_queue, version, archive_jobs, metrics=NullMetrics()):
@@ -153,6 +153,9 @@ class OperationArchiver(object):
             value_columns.append("alerts")
         if self.version >= 13:
             value_columns.append("slot_index")
+        if self.version >= 17:
+            value_columns.append("full_spec")
+            value_columns.append("unrecognized_spec")
 
         by_id_row = {}
         for key in index_columns + value_columns:
