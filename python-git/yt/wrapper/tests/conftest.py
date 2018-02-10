@@ -2,6 +2,7 @@ from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JO
                       sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
 
 from yt.environment import YTInstance
+from yt.environment.job_events import JobEvents
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace
@@ -25,8 +26,10 @@ import sys
 import uuid
 from copy import deepcopy
 import shutil
+import tempfile
 import logging
 import pytest
+import stat
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -269,7 +272,6 @@ def test_environment_job_archive(request):
         }
     )
 
-    yt.create("user", attributes={"name": "application_operations"})
     sync_create_cell()
     init_operation_archive.create_tables_latest_version(yt)
 
@@ -387,3 +389,9 @@ def yt_env_job_archive(request, test_environment_job_archive):
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_job_archive
+
+@pytest.fixture(scope="function")
+def job_events(request):
+    tmpdir = tempfile.mkdtemp(prefix="job_events", dir=get_tests_sandbox())
+    os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+    return JobEvents(tmpdir)

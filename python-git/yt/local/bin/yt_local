@@ -97,6 +97,8 @@ def start_func(**kwargs):
     if sync:
         main_process_pid_file = get_main_process_pid_file_path(kwargs["path"])
 
+        os.setpgid(0, 0)
+
         with open(main_process_pid_file, "w") as f:
             f.write(str(os.getpid()))
 
