@@ -706,7 +706,7 @@ struct TGetOperationOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
-    TNullable<std::vector<TString>> Attributes;
+    TNullable<yhash_set<TString>> Attributes;
 
     TGetOperationOptions()
     { }
