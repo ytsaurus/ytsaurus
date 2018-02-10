@@ -6,9 +6,9 @@
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/enum.h>
 
 #include <yt/core/ytree/public.h>
-#include <yt/core/misc/enum.h>
 
 namespace NYT {
 namespace NChunkClient {
