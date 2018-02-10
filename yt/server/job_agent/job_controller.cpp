@@ -100,7 +100,11 @@ private:
     THashMap<EJobType, TJobFactory> Factories_;
     THashMap<TJobId, IJobPtr> Jobs_;
 
-    THashSet<TJobId> SpecFetchFailedJobIds_;
+    //! Jobs that did not succeed in fetching spec are not getting
+    //! their IJob structure, so we have to store job id alongside
+    //! with the operation id to fill the TJobStatus proto message
+    //! properly.
+    THashMap<TJobId, TOperationId> SpecFetchFailedJobIds_;
 
     bool StartScheduled_ = false;
 
@@ -744,9 +748,12 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
             completedJobsStatisticsSize);
 
         // TODO(ignat): make it in more general way (non-scheduler specific).
-        for (const auto& jobId : SpecFetchFailedJobIds_) {
+        for (const auto& pair : SpecFetchFailedJobIds_) {
+            const auto& jobId = pair.first;
+            const auto& operationId = pair.second;
             auto* jobStatus = request->add_jobs();
             ToProto(jobStatus->mutable_job_id(), jobId);
+            ToProto(jobStatus->mutable_operation_id(), operationId);
             jobStatus->set_job_type(static_cast<int>(EJobType::SchedulerUnknown));
             jobStatus->set_state(static_cast<int>(EJobState::Aborted));
             jobStatus->set_phase(static_cast<int>(EJobPhase::Missing));
@@ -876,7 +883,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                     address);
                 groupedStartInfos[address].push_back(startInfo);
             } else {
-                YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
                 LOG_DEBUG("Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
                     operationId,
                     jobId,
@@ -926,7 +933,8 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                         address);
                     for (const auto& startInfo : startInfos) {
                         auto jobId = FromProto<TJobId>(startInfo.job_id());
-                        YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                        auto operationId = FromProto<TOperationId>(startInfo.operation_id());
+                        YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
                     }
                     return;
                 }
@@ -944,7 +952,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                     const auto& subresponse = rsp->mutable_responses(index);
                     auto error = FromProto<TError>(subresponse->error());
                     if (!error.IsOK()) {
-                        YCHECK(SpecFetchFailedJobIds_.insert(jobId).second);
+                        YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
                         LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
