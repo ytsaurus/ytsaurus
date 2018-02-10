@@ -3455,16 +3455,6 @@ private:
             cypressNode = oldCypressNode;
         }
 
-        // NOTE(asaitgalin): There can be situation when only new operation node
-        // without all requested attributes exist, this should be treated as missing
-        // operation node in Cypress.
-        if (cypressNode) {
-            auto mapNode = cypressNode->AsMap();
-            if (mapNode->GetChildCount() != attributes.size()) {
-                cypressNode = nullptr;
-            }
-        }
-
         if (cypressNode) {
             TGetNodeOptions optionsToScheduler;
             if (deadline) {
