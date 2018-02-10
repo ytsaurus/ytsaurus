@@ -271,7 +271,7 @@ b"""
         };
 
         job_controller = {
-            stored_jobs_send_period = 5000;
+            total_confirmation_period = 5000;
         }
     };
 
