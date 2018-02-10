@@ -2190,6 +2190,8 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
 
             "failure_expiration_time": 1000,
             "expire_after_failed_update_time": 1000,
+
+            "expire_after_access_time": 300000
         }
     }
 
