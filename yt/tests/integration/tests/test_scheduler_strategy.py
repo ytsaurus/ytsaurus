@@ -1725,7 +1725,8 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         wait(lambda: not exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
 
         set("//sys/pool_trees/@default_tree", "default")
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "default")
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
+        assert get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "default"
         assert exists("//sys/scheduler/orchid/scheduler/pools")
         assert exists("//sys/scheduler/orchid/scheduler/fair_share_info")
 
