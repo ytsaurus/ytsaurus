@@ -118,7 +118,6 @@ b"""
 """)
 
 # TODO(babenko): drop cluster_directory_synchronizer in the root
-# TODO(babenko): drop update_exec_node_descriptors_period
 def get_scheduler_config():
     return yson.loads(
 b"""
@@ -146,7 +145,6 @@ b"""
         watchers_update_period = 100;
         nodes_attributes_update_period = 100;
         update_exec_node_descriptors_period = 100;
-        exec_node_descriptors_update_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
         safe_scheduler_online_time = 5000;
