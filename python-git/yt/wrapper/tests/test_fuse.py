@@ -43,7 +43,12 @@ class TestCachedYtClient(object):
                 real_attributes[attribute] = yt.get("//home/@" + attribute)
 
         cached_attributes = client.get_attributes("//home", list(real_attributes))
-        ephemeral_attributes = ["access_time", "access_counter", "weak_ref_counter"]
+        ephemeral_attributes = ["access_time", "access_counter"]
+        if yt_env.version >= 19.3:
+            ephemeral_attributes += "ephemeral_ref_counter"
+        else:
+            ephemeral_attributes += "weak_ref_counter"
+
 
         for attribute in ephemeral_attributes:
             for attributes in [real_attributes, cached_attributes]:
