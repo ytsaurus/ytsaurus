@@ -707,7 +707,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             config["scheduler"]["operation_alerts_update_period"] = 100
             config["scheduler"]["exec_nodes_update_period"] = 100
             config["scheduler"]["exec_node_descriptors_update_period"] = 100
- 
+            config["scheduler"]["controller_exec_node_info_update_period"] = 100
+
         return configs
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
