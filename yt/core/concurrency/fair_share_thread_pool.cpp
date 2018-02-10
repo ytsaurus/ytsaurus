@@ -138,9 +138,8 @@ public:
         std::shared_ptr<TEventCount> callbackEventCount,
         int threadCount,
         const TTagIdList& tagIds,
-        bool enableLogging,
         bool enableProfiling)
-        : CallbackEventCount_(callbackEventCount)
+        : CallbackEventCount_(std::move(callbackEventCount))
         , CurrentlyExecutingActionsByThread_(threadCount)
         , Profiler_("/fair_share_queue")
         , BucketCounter_("/buckets", tagIds)
@@ -465,7 +464,6 @@ public:
             CallbackEventCount_,
             threadCount,
             GetThreadTagIds(enableProfiling, threadNamePrefix),
-            enableLogging,
             enableProfiling))
     {
         YCHECK(threadCount > 0);
