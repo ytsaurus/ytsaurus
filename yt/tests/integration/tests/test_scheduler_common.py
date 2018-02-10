@@ -1288,7 +1288,7 @@ class TestJobRevival(YTEnvSetup):
                     "user_slots": 5,
                     "cpu": 5
                 },
-                "stored_jobs_send_period": 5000
+                "total_confirmation_period": 5000
             }
         }
     }
