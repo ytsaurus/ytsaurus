@@ -688,9 +688,10 @@ class ConfigsProvider_19_3(ConfigsProvider):
             ports_generator, scheduler_logs_dir)
 
         for config in configs:
-            config["operation_alerts_update_period"] = 100
-            config["exec_nodes_update_period"] = 100
-
+            config["scheduler"]["operation_alerts_update_period"] = 100
+            config["scheduler"]["exec_nodes_update_period"] = 100
+            config["scheduler"]["exec_node_descriptors_update_period"] = 100
+ 
         return configs
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
