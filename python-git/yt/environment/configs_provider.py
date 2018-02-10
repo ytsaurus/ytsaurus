@@ -680,7 +680,7 @@ class ConfigsProvider_19_2(ConfigsProvider):
                 .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
                 .replace("%%masters%%", masters)
 
-class ConfigsProvider_19_3(ConfigsProvider):
+class ConfigsProvider_19_3(ConfigsProvider_19_2):
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
                                  ports_generator, scheduler_logs_dir):
         configs = super(ConfigsProvider_19_3, self)._build_scheduler_configs(
