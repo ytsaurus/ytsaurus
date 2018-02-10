@@ -12,11 +12,13 @@ def id_to_parts(id):
     id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
     return id_hi, id_lo
 
+def get_new_operation_path(op_id):
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
 def get_operation_path(op_id, storage_mode):
     if storage_mode == "hash_buckets":
-        return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
-    else:
-        return "//sys/operations/" + op_id
+        return get_new_operation_path(op_id)
+    return "//sys/operations/" + op_id
 
 class TestGetOperation(YTEnvSetup):
     NUM_MASTERS = 1
@@ -142,3 +144,29 @@ class TestGetOperation(YTEnvSetup):
 
         with pytest.raises(YtError):
             get_operation(op.id, attributes=["abc"])
+
+    def test_get_operation_and_half_deleted_operation_node(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "testing": {
+                    "cypress_storage_mode": "simple_hash_buckets"
+                }
+            })
+
+        tx = start_transaction(timeout=300 * 1000)
+        lock(get_new_operation_path(op.id),
+            mode="shared",
+            child_key="completion_transaction_id",
+            transaction_id=tx)
+
+        clean_operations(self.Env.create_native_client())
+        assert not exists("//sys/operations/" + op.id)
+        assert exists(get_new_operation_path(op.id))
+
+        assert "state" in get_operation(op.id)

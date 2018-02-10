@@ -3392,7 +3392,11 @@ private:
 
         std::vector<TString> attributes;
         if (options.Attributes) {
-            attributes = *options.Attributes;
+            attributes.reserve(options.Attributes->size() + 1);
+            attributes.insert(attributes.begin(), options.Attributes->begin(), options.Attributes->end());
+            // NOTE(asaitgalin): This attribute helps to distinguish between
+            // different cypress storage modes of operation.
+            attributes.push_back("state");
         } else {
             attributes = {
                 "authenticated_user",
@@ -3449,11 +3453,21 @@ private:
             cypressNode = PatchNode(oldCypressNode, newCypressNode);
         } else if (newCypressNode) {
             cypressNode = newCypressNode;
+
+            auto state = cypressNode->AsMap()->FindChild("state");
+            if (!state) {
+                cypressNode = nullptr;
+            }
         } else {
             cypressNode = oldCypressNode;
         }
 
         if (cypressNode) {
+            auto attrNode = cypressNode->AsMap();
+            if (options.Attributes && options.Attributes->find("state") == options.Attributes->end()) {
+                attrNode->RemoveChild("state");
+            }
+
             TGetNodeOptions optionsToScheduler;
             if (deadline) {
                 optionsToScheduler.Timeout = *deadline - Now();
@@ -3473,7 +3487,6 @@ private:
 
                 if (schedulerProgressValueOrError.IsOK()) {
                     auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
-                    auto attrNode = cypressNode->AsMap();
                     attrNode->RemoveChild("progress");
                     YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
 
@@ -3498,8 +3511,9 @@ private:
 
             try {
                 auto result = DoGetOperationFromArchive(operationId, options);
-                if (result)
+                if (result) {
                     return result;
+                }    
             } catch (const TErrorException& exception) {
                 auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
 
