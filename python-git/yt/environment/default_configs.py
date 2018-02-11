@@ -147,6 +147,7 @@ b"""
         update_exec_node_descriptors_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
+        controller_update_exec_nodes_information_delay = 100;
         safe_scheduler_online_time = 5000;
 
         environment = {
