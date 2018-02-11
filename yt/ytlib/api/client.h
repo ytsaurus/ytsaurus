@@ -709,9 +709,7 @@ struct TGetOperationOptions
     TNullable<std::vector<TString>> Attributes;
 
     TGetOperationOptions()
-    {
-        ReadFrom = EMasterChannelKind::Cache;
-    }
+    { }
 };
 
 struct TGetJobOptions
