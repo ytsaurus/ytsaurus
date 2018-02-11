@@ -471,6 +471,7 @@ class ConfigsProvider_19_2(ConfigsProvider):
             # TODO(ignat): temporary solution to check that correctness of connected scheduler.
             # correct solution is to publish cell_id in some separate place in orchid.
             set_at(config, "scheduler/environment/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
+            set_at(config, "scheduler/exec_nodes_request_period", 100)
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -708,7 +709,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             config["scheduler"]["exec_nodes_update_period"] = 100
             config["scheduler"]["exec_node_descriptors_update_period"] = 100
             config["scheduler"]["controller_exec_node_info_update_period"] = 100
-
+            del config["scheduler"]["exec_nodes_request_period"]
+ 
         return configs
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
