@@ -103,6 +103,7 @@ void CreateBuildingYsonConsumer(std::unique_ptr<NYson::IBuildingYsonConsumer<TSt
 
 NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics);
 NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics);
+<<<<<<< HEAD
 THashMap<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
 THashMap<int, int> GetOutputPipeIdleTimes(const TStatistics& jobStatistics);
 
@@ -117,6 +118,10 @@ void FillTrafficStatistics(
     const TString& namePrefix,
     NJobTrackerClient::TStatistics& statistics,
     const NChunkClient::TTrafficMeterPtr& trafficMeter);
+=======
+yhash<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
+yhash<int, int> GetOutputPipeIdleTimes(const TStatistics& jobStatistics);
+>>>>>>> prestable/19.2
 
 ////////////////////////////////////////////////////////////////////////////////
 

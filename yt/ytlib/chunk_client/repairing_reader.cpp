@@ -9,8 +9,11 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
+<<<<<<< HEAD
 
 #include <util/random/shuffle.h>
+=======
+>>>>>>> prestable/19.2
 
 #include <algorithm>
 #include <vector>
@@ -360,6 +363,7 @@ TChunkMeta TRepairingReader::GetMetaAsync(
     const TNullable<std::vector<int>>& extensionTags)
 {
     std::vector<TError> errors;
+<<<<<<< HEAD
 
     std::vector<int> indices(Readers_.size());
     std::iota(indices.begin(), indices.end(), 0);
@@ -370,6 +374,13 @@ TChunkMeta TRepairingReader::GetMetaAsync(
             continue;
         }
         auto result = WaitFor(Readers_[index]->GetMeta(workloadDescriptor, partitionTag, extensionTags));
+=======
+    for (int i = 0; i < Codec_->GetDataPartCount(); ++i) {
+        if (!Readers_[i]->IsValid()) {
+            continue;
+        }
+        auto result = WaitFor(Readers_[i]->GetMeta(workloadDescriptor, partitionTag, extensionTags));
+>>>>>>> prestable/19.2
         if (result.IsOK()) {
             return result.Value();
         }

@@ -79,8 +79,14 @@ class TestUsers(YTEnvSetup):
 
     def test_builtin_init(self):
         assert_items_equal(get("//sys/groups/everyone/@members"), ["users", "guest"])
+<<<<<<< HEAD
         assert_items_equal(get("//sys/groups/users/@members"), ["superusers", "owner"])
         assert_items_equal(get("//sys/groups/superusers/@members"), ["root", "scheduler", "job", "replicator", "file_cache"])
+=======
+        assert_items_equal(get("//sys/groups/users/@members"), ["superusers", "owner", "application_operations"])
+        assert_items_equal(get("//sys/groups/superusers/@members"),
+            ["root", "scheduler", "job", "replicator", "file_cache", "application_operations"])
+>>>>>>> prestable/19.2
 
         assert_items_equal(get("//sys/users/root/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/guest/@member_of"), ["everyone"])
@@ -91,7 +97,7 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/users/guest/@member_of_closure"), ["everyone"])
         assert_items_equal(get("//sys/users/scheduler/@member_of_closure"), ["superusers", "users", "everyone"])
         assert_items_equal(get("//sys/users/job/@member_of_closure"), ["superusers", "users", "everyone"])
-        
+
     def test_create_user1(self):
         create_user("max")
         assert get("//sys/users/max/@name") == "max"
@@ -219,9 +225,9 @@ class TestUsers(YTEnvSetup):
 
         assert sorted(get("//sys/users/u/@member_of")) == sorted(["g", "users"])
         assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["g", "users", "everyone"])
-        
+
         remove_group("g")
-        
+
         assert get("//sys/users/u/@member_of") == ["users"]
         assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["users", "everyone"])
 

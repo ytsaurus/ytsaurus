@@ -210,4 +210,4 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
-    NUM_SECONDARY_MASTER_CELLS = 2
+    UM_SECONDARY_MASTER_CELLS = 2

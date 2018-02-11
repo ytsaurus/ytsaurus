@@ -224,6 +224,10 @@ class TestFiles(YTEnvSetup):
         write_file("<append=%true>//tmp/fcache", "abacaba", compute_md5=True)
 
         assert get("//tmp/fcache/@md5") == "129296d4fd2ade2b2dbc402d4564bf81" == hashlib.md5("abacaba").hexdigest()
+<<<<<<< HEAD
+=======
+        assert exists("//tmp/fcache/@md5")
+>>>>>>> prestable/19.2
 
         write_file("<append=%true>//tmp/fcache", "new", compute_md5=True)
         assert get("//tmp/fcache/@md5") == "12ef1dfdbbb50c2dfd2b4119bac9dee5" == hashlib.md5("abacabanew").hexdigest()
@@ -237,7 +241,10 @@ class TestFiles(YTEnvSetup):
         write_file("//tmp/fcache3", "test2", compute_md5=True)
         assert get("//tmp/fcache3/@md5") == hashlib.md5("test2").hexdigest()
 
+<<<<<<< HEAD
         assert not exists("//tmp/fcache4/@md5")
+=======
+>>>>>>> prestable/19.2
         concatenate(["//tmp/fcache", "//tmp/fcache3"], "//tmp/fcache4")
         assert not exists("//tmp/fcache4/@md5")
 

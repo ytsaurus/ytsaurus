@@ -1081,6 +1081,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     if (request->has_md5_hasher()) {
         FromProto(&md5Hasher, request->md5_hasher());
     }
+<<<<<<< HEAD
+=======
+
+    node->EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
+>>>>>>> prestable/19.2
 
     node->EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
 

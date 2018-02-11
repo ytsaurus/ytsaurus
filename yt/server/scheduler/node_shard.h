@@ -209,6 +209,8 @@ private:
 
     THashMap<TJobId, TPromise<NControllerAgent::TScheduleJobResultPtr>> JobIdToAsyncScheduleResult_;
 
+    NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
+
     struct TOperationState
     {
         TOperationState(IOperationControllerPtr controller, bool jobsReady)
@@ -273,7 +275,7 @@ private:
     void BeginNodeHeartbeatProcessing(const TExecNodePtr& node);
     void EndNodeHeartbeatProcessing(const TExecNodePtr& node);
 
-    void SubmitUpdatedAndCompletedJobsToStrategy();
+    void SubmitJobsToStrategy();
 
     void ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,

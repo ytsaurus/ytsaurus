@@ -384,11 +384,19 @@ public:
                     &TImpl::HydraLeaderExecuteWrite,
                     MakeStrong(this),
                     transactionId,
+                    tablet->GetMountRevision(),
                     adjustedSignature,
                     lockless,
                     writeRecord,
                     user));
                 *commitResult = mutation->Commit().As<void>();
+
+                if (tablet->IsProfilingEnabled() && user) {
+                    auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(
+                        AddUserTag(user, tablet->GetProfilerTags()));
+                    TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
+                    TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
+                }
             } else if (transactionIsFresh) {
                 transactionManager->DropTransaction(transaction);
             }
@@ -1175,6 +1183,7 @@ private:
 
     void HydraLeaderExecuteWrite(
         const TTransactionId& transactionId,
+        i64 mountRevision,
         TTransactionSignature signature,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
@@ -1186,6 +1195,19 @@ private:
         auto* tablet = PrelockedTablets_.front();
         PrelockedTablets_.pop();
         YCHECK(tablet->GetId() == writeRecord.TabletId);
+
+        if (mountRevision != tablet->GetMountRevision()) {
+            LOG_DEBUG("Mount revision changed during mutation batch; has tablet been forcefully unmounted? "
+                "(TabletId: %v, TransactionId: %v, MutationMountRevision: %llx, CurrentMountRevision: %llx)",
+                tablet->GetId(),
+                transactionId,
+                mountRevision,
+                tablet->GetMountRevision());
+
+            UnlockTablet(tablet);
+            CheckIfTabletFullyUnlocked(tablet);
+            return;
+        }
 
         TTransaction* transaction = nullptr;
         switch (atomicity) {
@@ -1245,6 +1267,13 @@ private:
                 YCHECK(storeManager->ExecuteWrites(&reader, &context));
                 YCHECK(writeRecord.RowCount == context.RowCount);
 
+                if (tablet->IsProfilingEnabled() && user) {
+                    auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
+                        AddUserTag(user, tablet->GetProfilerTags()));
+                    TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
+                    TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
+                }
+
                 LOG_DEBUG("Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
                     "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %llx)",
                     transactionId,
@@ -1261,13 +1290,6 @@ private:
 
         UnlockTablet(tablet);
         CheckIfTabletFullyUnlocked(tablet);
-
-        if (tablet->IsProfilingEnabled() && user) {
-            auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(
-                AddUserTag(user, tablet->GetProfilerTags()));
-            TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
-            TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
-        }
     }
 
     void HydraFollowerWriteRows(TReqWriteRows* request) noexcept

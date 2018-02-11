@@ -1257,6 +1257,57 @@ class TestSchedulerRevive(YTEnvSetup):
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
             time.sleep(2)
 
+    def test_live_preview(self):
+        create_user("u")
+
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1})
+
+        operation_path = "//sys/operations/{0}".format(op.id)
+
+        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert exists(operation_path + "/output_0", tx=async_transaction_id)
+
+        op.resume_job(op.jobs[0])
+        op.resume_job(op.jobs[1])
+        wait(lambda: op.get_job_count("completed") == 2)
+
+        wait(lambda: len(read_table(operation_path + "/output_0", tx=async_transaction_id)) == 2)
+        live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
+        assert all(record in data for record in live_preview_data)
+
+        self.Env.kill_schedulers()
+
+        abort_transaction(async_transaction_id)
+
+        self.Env.start_schedulers()
+
+        wait(lambda: op.get_state() == "running")
+
+        new_async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert new_async_transaction_id != async_transaction_id
+
+        async_transaction_id = new_async_transaction_id
+        assert exists(operation_path + "/output_0", tx=async_transaction_id)
+        live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
+        assert all(record in data for record in live_preview_data)
+
+        op.resume_jobs()
+        op.track()
+        assert sorted(read_table("//tmp/t2")) == sorted(data)
+
 ################################################################################
 
 class TestJobRevival(YTEnvSetup):
@@ -1710,6 +1761,13 @@ class TestSchedulingTags(YTEnvSetup):
         }
     }
 
+    def _get_slots_by_filter(self, filter):
+        try:
+            return get("//sys/scheduler/orchid/scheduler/cell/resource_limits_by_tags/{0}/user_slots".format(filter))
+        except YtResponseError as err:
+            if not err.is_resolve_error():
+                raise
+
     def _prepare(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1727,7 +1785,8 @@ class TestSchedulingTags(YTEnvSetup):
         create("map_node", "//sys/pool_trees/other", force=True)
         set("//sys/pool_trees/other/@nodes_filter", "tagC")
 
-        time.sleep(0.5)
+        wait(lambda: self._get_slots_by_filter("default") == 1)
+        wait(lambda: self._get_slots_by_filter("tagC") == 1)
 
     def test_tag_filters(self):
         self._prepare()
