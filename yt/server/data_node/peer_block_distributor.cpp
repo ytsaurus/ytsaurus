@@ -222,11 +222,7 @@ void TPeerBlockDistributor::DistributeBlocks()
             destinationNodes);
 
         for (const auto& destinationNode : destinationNodes) {
-<<<<<<< HEAD
             const auto& destinationAddress = destinationNode.GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
-=======
-            const auto& destinationAddress = destinationNode.GetAddress(Bootstrap_->GetLocalNetworks());
->>>>>>> prestable/19.2
             auto heavyChannel = CreateRetryingChannel(
                 Config_->NodeChannel,
                 channelFactory->CreateChannel(destinationAddress));
@@ -298,14 +294,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
 
     std::sort(candidates.begin(), candidates.end());
 
-<<<<<<< HEAD
-    std::vector<TBlock> blocks;
-    std::vector<TBlockId> blockIds;
-    std::vector<TReqPopulateCache> reqTemplates;
-    i64 totalSize = 0;
-=======
     TPeerBlockDistributor::TChosenBlocks chosenBlocks;
->>>>>>> prestable/19.2
 
     const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
 
@@ -340,11 +329,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
             // Null source is current node.
             source = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
         }
-<<<<<<< HEAD
-        if (totalSize + blockSize <= Config_->MaxPopulateRequestSize || totalSize == 0) {
-=======
         if (chosenBlocks.TotalSize + blockSize <= Config_->MaxPopulateRequestSize || chosenBlocks.TotalSize == 0) {
->>>>>>> prestable/19.2
             LOG_DEBUG("Block is ready for distribution (BlockId: %v, RequestCount: %v, LastDistributionTime: %v, "
                 "DistributionCount: %v, Source: %v, Size: %v)",
                 blockId,
@@ -353,27 +338,13 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
                 distributionCount,
                 source,
                 blockSize);
-<<<<<<< HEAD
-            reqTemplates.emplace_back();
-            auto& reqTemplate = reqTemplates.back();
-=======
             chosenBlocks.ReqTemplates.emplace_back();
             auto& reqTemplate = chosenBlocks.ReqTemplates.back();
->>>>>>> prestable/19.2
             auto* protoBlock = reqTemplate.add_blocks();
             ToProto(protoBlock->mutable_block_id(), blockId);
             if (source) {
                 ToProto(protoBlock->mutable_source_descriptor(), *source);
             }
-<<<<<<< HEAD
-            blocks.emplace_back(std::move(block));
-            blockIds.emplace_back(blockId);
-            totalSize += blockSize;
-        }
-    }
-
-    return {std::move(reqTemplates), std::move(blocks), std::move(blockIds), totalSize};
-=======
             chosenBlocks.Blocks.emplace_back(std::move(block));
             chosenBlocks.BlockIds.emplace_back(blockId);
             chosenBlocks.TotalSize += blockSize;
@@ -381,16 +352,11 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     }
 
     return chosenBlocks;
->>>>>>> prestable/19.2
 }
 
 std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes(const std::vector<TNodeDescriptor>& nodes) const
 {
-<<<<<<< HEAD
     THashSet<TNodeDescriptor> destinationNodes;
-=======
-    yhash_set<TNodeDescriptor> destinationNodes;
->>>>>>> prestable/19.2
 
     while (destinationNodes.size() < Config_->DestinationNodeCount && destinationNodes.size() < nodes.size()) {
         auto index = RandomNumber<size_t>(nodes.size());
