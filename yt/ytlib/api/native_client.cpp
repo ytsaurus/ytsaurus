@@ -3416,14 +3416,12 @@ private:
 
         {
             auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
-            SetCachingHeader(req, options);
             ToProto(req->mutable_attributes()->mutable_keys(), attributes);
             batchReq->AddRequest(req, "get_operation_new");
         }
 
         {
             auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-            SetCachingHeader(req, options);
             ToProto(req->mutable_attributes()->mutable_keys(), attributes);
             batchReq->AddRequest(req, "get_operation");
         }
