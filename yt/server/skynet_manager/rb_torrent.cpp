@@ -300,11 +300,7 @@ TString ComputeRbTorrentId(const TString& headBinary)
     TBencodeWriter metaBencode;
     Serialize(metaTorrent, &metaBencode);
 
-<<<<<<< HEAD
-    return TSHA1Hasher().Append(metaBencode.Finish()).GetHexDigestLower();
-=======
     return Format("rbtorrent:%v", TSHA1Hasher().Append(metaBencode.Finish()).GetHexDigestLower());
->>>>>>> prestable/19.2
 }
 
 TSkynetRbTorrent GenerateResource(const TSkynetShareMeta& meta)
