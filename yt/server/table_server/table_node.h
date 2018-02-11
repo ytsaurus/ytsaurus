@@ -94,11 +94,14 @@ public:
         NTableClient::ETableSchemaMode schemaMode,
         TNullable<NTableClient::EOptimizeFor> optimizeFor,
         const TNullable<TMD5Hasher>& md5Hasher) override;
+<<<<<<< HEAD
 
     virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
     NSecurityServer::TClusterResources GetTabletResourceUsage() const;
+=======
+>>>>>>> prestable/19.2
 
     virtual bool IsSorted() const override;
 

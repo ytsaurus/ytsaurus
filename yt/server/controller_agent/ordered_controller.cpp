@@ -609,7 +609,6 @@ private:
     {
         return Spec_;
     }
-
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
@@ -991,7 +990,10 @@ private:
     {
         return Spec_;
     }
+<<<<<<< HEAD
 
+=======
+>>>>>>> prestable/19.2
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
@@ -1024,7 +1026,11 @@ public:
             host,
             operation)
         , Spec_(spec)
+<<<<<<< HEAD
         , Options_(options)
+=======
+        , Options_(Config->RemoteCopyOperationOptions)
+>>>>>>> prestable/19.2
     { }
 
     virtual void Persist(const TPersistenceContext& context) override

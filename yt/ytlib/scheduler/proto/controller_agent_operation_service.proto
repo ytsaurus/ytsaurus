@@ -1,0 +1,33 @@
+package NYT.NScheduler.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetOperationInfo
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspGetOperationInfo
+{
+    required bytes progress = 1;
+    required bytes brief_progress = 2;
+    required bytes running_jobs = 3;
+    required bytes job_splitter = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetJobInfo
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+message TRspGetJobInfo
+{
+    required bytes info = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

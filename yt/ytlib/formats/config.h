@@ -221,7 +221,11 @@ public:
             .Default(' ');
 
         RegisterPostprocessor([&] () {
+<<<<<<< HEAD
             THashSet<TString> names;
+=======
+            yhash_set<TString> names;
+>>>>>>> prestable/19.2
 
             for (const auto& name : KeyColumnNames) {
                 if (!names.insert(name).second) {

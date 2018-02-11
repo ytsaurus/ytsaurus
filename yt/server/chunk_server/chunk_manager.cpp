@@ -2027,12 +2027,15 @@ private:
         }
         //COMPAT(savrus)
         NeedResetDataWeight_ = context.GetVersion() < 612;
+<<<<<<< HEAD
 
         // COMPAT(shakurov)
         if (context.GetVersion() >= 700) {
             Load(context, ChunkRequisitionRegistry_);
         }
 
+=======
+>>>>>>> prestable/19.2
         //COMPAT(savrus)
         NeedInitializeMediumConfig_ = context.GetVersion() < 629;
     }

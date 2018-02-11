@@ -626,6 +626,7 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     TChunk* chunk,
     TNullable<int> replicationFactorOverride)
 {
+<<<<<<< HEAD
     auto maybeResult = chunk->GetMaxReplicasPerRack(
         medium->GetIndex(),
         replicationFactorOverride,
@@ -634,6 +635,11 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     int result = maybeResult ? *maybeResult : config->MaxReplicasPerRack;
     result = std::min(result, config->MaxReplicasPerRack);
 
+=======
+    int result = chunk->GetMaxReplicasPerRack(medium->GetIndex(), replicationFactorOverride);
+    const auto& config = medium->Config();
+    result = std::min(result, config->MaxReplicasPerRack);
+>>>>>>> prestable/19.2
     switch (chunk->GetType()) {
         case EObjectType::Chunk:         result = std::min(result, config->MaxRegularReplicasPerRack); break;
         case EObjectType::ErasureChunk:  result = std::min(result, config->MaxErasureReplicasPerRack); break;

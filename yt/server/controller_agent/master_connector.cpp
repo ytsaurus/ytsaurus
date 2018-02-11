@@ -235,12 +235,19 @@ public:
 
     TFuture<void> RemoveSnapshot(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
-
-        return BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this))
-            .AsyncVia(CancelableControlInvoker_)
-            .Run(operationId);
+        auto future = BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
+            .AsyncVia(Invoker_)
+            .Run();
+        return future.Apply(
+            BIND([operationId, this, this_ = MakeStrong(this)] (const TError& error) {
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Failed to remove snapshot (OperationId: %v)", operationId);
+                    Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
+                        .AsyncVia(Bootstrap_->GetControlInvoker())
+                        .Run()));
+                }
+            })
+            .AsyncVia(Bootstrap_->GetControlInvoker()));
     }
 
     void AddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)

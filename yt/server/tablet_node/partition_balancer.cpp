@@ -212,7 +212,7 @@ private:
 
     void DoRunSplit(TTabletSlotPtr slot, TPartition* partition, int splitFactor)
     {
-        auto Logger = BuildLogger(partition);
+        auto Logger = BuildLogger(slot, partition);
 
         auto* tablet = partition->GetTablet();
         const auto& hydraManager = slot->GetHydraManager();
@@ -222,7 +222,7 @@ private:
 
         try {
             auto rowBuffer = New<TRowBuffer>();
-            auto samples = GetPartitionSamples(rowBuffer, partition, Config_->MaxPartitioningSampleCount);
+            auto samples = GetPartitionSamples(rowBuffer, slot, partition, Config_->MaxPartitioningSampleCount);
             int sampleCount = static_cast<int>(samples.size());
             int minSampleCount = std::max(Config_->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
@@ -281,7 +281,8 @@ private:
         }
 
         auto Logger = TabletNodeLogger;
-        Logger.AddTag("TabletId: %v, PartitionIds: %v",
+        Logger.AddTag("CellId: %v, TabletId: %v, PartitionIds: %v",
+            slot->GetCellId(),
             partition->GetTablet()->GetId(),
             MakeFormattableRange(
                 MakeRange(
@@ -329,7 +330,7 @@ private:
         TTabletSlotPtr slot,
         TPartition* partition)
     {
-        auto Logger = BuildLogger(partition);
+        auto Logger = BuildLogger(slot, partition);
 
         auto* tablet = partition->GetTablet();
         auto config = tablet->GetConfig();
@@ -348,7 +349,7 @@ private:
             LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
 
             auto rowBuffer = New<TRowBuffer>();
-            auto samples = GetPartitionSamples(rowBuffer, partition, scaledSamples);
+            auto samples = GetPartitionSamples(rowBuffer, slot, partition, scaledSamples);
             samples.erase(
                 std::unique(samples.begin(), samples.end()),
                 samples.end());
@@ -377,6 +378,7 @@ private:
 
     std::vector<TKey> GetPartitionSamples(
         const TRowBufferPtr& rowBuffer,
+        TTabletSlotPtr slot,
         TPartition* partition,
         int maxSampleCount)
     {
@@ -386,7 +388,7 @@ private:
             return std::vector<TKey>();
         }
 
-        auto Logger = BuildLogger(partition);
+        auto Logger = BuildLogger(slot, partition);
 
         auto* tablet = partition->GetTablet();
 
@@ -510,10 +512,13 @@ private:
     }
 
 
-    static NLogging::TLogger BuildLogger(TPartition* partition)
+    static NLogging::TLogger BuildLogger(
+        TTabletSlotPtr slot,
+        TPartition* partition)
     {
         auto logger = TabletNodeLogger;
-        logger.AddTag("TabletId: %v, PartitionId: %v",
+        logger.AddTag("CellId: %v, TabletId: %v, PartitionId: %v",
+            slot->GetCellId(),
             partition->GetTablet()->GetId(),
             partition->GetId());
         return logger;

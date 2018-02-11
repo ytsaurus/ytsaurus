@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
+from yt.environment.helpers import wait
 
 from operations_archive import clean_operations
 
@@ -62,6 +63,8 @@ class TestGetOperation(YTEnvSetup):
                 if ok1:
                     assert res1[key] == res2[key]
 
+        wait(lambda: exists(get_operation_path(op.id, storage_mode)))
+
         res_get_operation = get_operation(op.id)
         res_cypress = get(get_operation_path(op.id, storage_mode) + "/@")
         res_orchid_progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op.id))
@@ -118,12 +121,13 @@ class TestGetOperation(YTEnvSetup):
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
 
-        res_get_operation = get_operation(op.id, attributes=["progress", "state"])
-        res_cypress = get(get_operation_path(op.id, storage_mode) + "/@", attributes=["progress", "state"])
+        for read_from in ("cache", "follower"):
+            res_get_operation = get_operation(op.id, attributes=["progress", "state"], read_from=read_from)
+            res_cypress = get(get_operation_path(op.id, storage_mode) + "/@", attributes=["progress", "state"])
 
-        assert sorted(list(res_get_operation)) == ["progress", "state"]
-        assert sorted(list(res_cypress)) == ["progress", "state"]
-        assert res_get_operation["state"] == res_cypress["state"]
+            assert sorted(list(res_get_operation)) == ["progress", "state"]
+            assert sorted(list(res_cypress)) == ["progress", "state"]
+            assert res_get_operation["state"] == res_cypress["state"]
 
         release_breakpoint()
         op.track()

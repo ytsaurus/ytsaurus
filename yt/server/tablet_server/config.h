@@ -61,10 +61,13 @@ public:
         RegisterParameter("desired_in_memory_tablet_size", DesiredInMemoryTabletSize)
             .Default(1_GB);
 
+<<<<<<< HEAD
         RegisterParameter("tablet_to_cell_ratio", TabletToCellRatio)
             .GreaterThan(0)
             .Default(5.0);
 
+=======
+>>>>>>> prestable/19.2
         RegisterPostprocessor([&] () {
             if (MinTabletSize > DesiredTabletSize) {
                 THROW_ERROR_EXCEPTION("\"min_tablet_size\" must be less than or equal to \"desired_tablet_size\"");

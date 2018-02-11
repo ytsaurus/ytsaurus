@@ -15,7 +15,11 @@ class TJobSpecServiceProxy
     : public NRpc::TProxyBase
 {
 public:
+<<<<<<< HEAD
     DEFINE_RPC_PROXY(TJobSpecServiceProxy, JobSpecService,
+=======
+    DEFINE_RPC_PROXY(TJobSpecServiceProxy, JobSpecService
+>>>>>>> prestable/19.2
         .SetProtocolVersion(2));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpecs);
