@@ -6719,11 +6719,6 @@ std::vector<TUserJobSpecPtr> TOperationControllerBase::GetUserJobSpecs() const
     return {};
 }
 
-std::vector<TUserJobSpecPtr> TOperationControllerBase::GetUserJobSpecs() const
-{
-    return {};
-}
-
 EIntermediateChunkUnstageMode TOperationControllerBase::GetIntermediateChunkUnstageMode() const
 {
     return EIntermediateChunkUnstageMode::OnSnapshotCompleted;
