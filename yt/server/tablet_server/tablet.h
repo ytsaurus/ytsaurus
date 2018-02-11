@@ -199,11 +199,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TErrorVector, Errors);
     DEFINE_BYVAL_RW_PROPERTY(int, ErrorCount);
 
-<<<<<<< HEAD
     using TReplicaMap = THashMap<TTableReplica*, TTableReplicaInfo>;
-=======
-    using TReplicaMap = yhash<TTableReplica*, TTableReplicaInfo>;
->>>>>>> prestable/19.2
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);

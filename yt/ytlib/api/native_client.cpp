@@ -1389,12 +1389,8 @@ private:
         const TTabletReadOptions& options,
         const std::vector<std::pair<NTableClient::TKey, int>>& keys)
     {
-<<<<<<< HEAD
         THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
-=======
-        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
-        yhash_set<TTabletId> tabletIds;
->>>>>>> prestable/19.2
+        THashSet<TTabletId> tabletIds;
         for (const auto& pair : keys) {
             auto key = pair.first;
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);

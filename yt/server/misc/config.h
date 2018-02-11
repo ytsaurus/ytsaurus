@@ -61,11 +61,7 @@ public:
             .LessThan(65536);
         RegisterParameter("monitoring_server", MonitoringServer)
             .DefaultNew();
-<<<<<<< HEAD
-=======
-        RegisterParameter("use_new_http_server", UseNewHttpServer)
-            .Default(true);
->>>>>>> prestable/19.2
+
 
         RegisterPostprocessor([&] {
             if (RpcPort > 0) {
