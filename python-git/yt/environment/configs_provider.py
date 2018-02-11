@@ -695,6 +695,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
                     chunk_manager_config["chunk_requisition_update_period"] = chunk_manager_config["chunk_properties_update_period"]
                     del chunk_manager_config["chunk_properties_update_period"]
 
+        return configs, connection_configs
+
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
                                  ports_generator, scheduler_logs_dir):
         configs = super(ConfigsProvider_19_3, self)._build_scheduler_configs(
