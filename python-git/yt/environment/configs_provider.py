@@ -681,6 +681,20 @@ class ConfigsProvider_19_2(ConfigsProvider):
                 .replace("%%masters%%", masters)
 
 class ConfigsProvider_19_3(ConfigsProvider_19_2):
+    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
+        configs, connection_configs = super(ConfigsProvider_19_3, self)._build_master_configs(
+            provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
+
+        for key, cell_configs in configs.iteritems():
+            if key in ["primary_cell_tag", "secondary_cell_tags"]:
+                continue
+
+            for config in cell_configs:
+                chunk_manager_config = config["chunk_manager"]
+                if "chunk_properties_update_period" in chunk_manager_config:
+                    chunk_manager_config["chunk_requisition_update_period"] = chunk_manager_config["chunk_properties_update_period"]
+                    del chunk_manager_config["chunk_properties_update_period"]
+
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
                                  ports_generator, scheduler_logs_dir):
         configs = super(ConfigsProvider_19_3, self)._build_scheduler_configs(
