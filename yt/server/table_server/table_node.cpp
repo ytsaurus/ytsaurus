@@ -118,7 +118,6 @@ void TTableNode::EndUpload(
         OptimizeFor_.Set(*optimizeFor);
     }
     TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
-<<<<<<< HEAD
 }
 
 TClusterResources TTableNode::GetDeltaResourceUsage() const
@@ -148,8 +147,6 @@ TClusterResources TTableNode::GetTabletResourceUsage() const
     return TClusterResources()
         .SetTabletCount(tabletCount)
         .SetTabletStaticMemory(memorySize);
-=======
->>>>>>> prestable/19.2
 }
 
 bool TTableNode::IsSorted() const
