@@ -490,11 +490,7 @@ TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
 
 THashMap<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
 {
-<<<<<<< HEAD
     THashMap<int, TDataStatistics> result;
-=======
-    yhash<int, TDataStatistics> result;
->>>>>>> prestable/19.2
     for (const auto& pair : jobStatistics.GetRangeByPrefix(OutputPrefix)) {
         TStringBuf currentPath(pair.first.begin() + OutputPrefix.size() + 1, pair.first.end());
         size_t slashPos = currentPath.find("/");
@@ -509,15 +505,9 @@ THashMap<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobSta
     return result;
 }
 
-<<<<<<< HEAD
 THashMap<int, int> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
 {
     THashMap<int, int> result;
-=======
-yhash<int, int> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
-{
-    yhash<int, int> result;
->>>>>>> prestable/19.2
     for (const auto& pair : jobStatistics.GetRangeByPrefix(OutputPipePrefix)) {
         const auto& path = pair.first;
         // Note that path should contain at least OutputPipePrefix + '/'.

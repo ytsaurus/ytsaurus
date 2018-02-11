@@ -79,14 +79,9 @@ class TestUsers(YTEnvSetup):
 
     def test_builtin_init(self):
         assert_items_equal(get("//sys/groups/everyone/@members"), ["users", "guest"])
-<<<<<<< HEAD
-        assert_items_equal(get("//sys/groups/users/@members"), ["superusers", "owner"])
-        assert_items_equal(get("//sys/groups/superusers/@members"), ["root", "scheduler", "job", "replicator", "file_cache"])
-=======
         assert_items_equal(get("//sys/groups/users/@members"), ["superusers", "owner", "application_operations"])
         assert_items_equal(get("//sys/groups/superusers/@members"),
             ["root", "scheduler", "job", "replicator", "file_cache", "application_operations"])
->>>>>>> prestable/19.2
 
         assert_items_equal(get("//sys/users/root/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/guest/@member_of"), ["everyone"])
