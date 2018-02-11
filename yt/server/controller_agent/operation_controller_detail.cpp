@@ -683,8 +683,9 @@ void TOperationControllerBase::SafeMaterialize()
             JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
         }
 
-        auto expectedState = EControllerState::Preparing;
-        State.compare_exchange_strong(expectedState, EControllerState::Running);
+        if (State == EControllerState::Preparing) {
+            State = EControllerState::Running;
+        }
 
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
@@ -3323,7 +3324,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     Y_UNUSED(interrupted);
 
     // This can happen if operation failed during completion in derived class (e.g. SortController).
-    if (State.exchange(EControllerState::Finished) == EControllerState::Finished) {
+    if (State == EControllerState::Finished) {
         return;
     }
 
@@ -3341,7 +3342,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     VERIFY_THREAD_AFFINITY_ANY();
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
-    if (State.exchange(EControllerState::Finished) == EControllerState::Finished) {
+    if (State == EControllerState::Finished) {
         return;
     }
 
@@ -3362,7 +3363,7 @@ void TOperationControllerBase::OnOperationAborted(const TError& error)
     VERIFY_THREAD_AFFINITY_ANY();
 
     // Cf. OnOperationFailed.
-    if (State.exchange(EControllerState::Finished) == EControllerState::Finished) {
+    if (State == EControllerState::Finished) {
         return;
     }
 
@@ -3388,9 +3389,8 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto expected = EControllerState::Running;
-    if (!State.compare_exchange_strong(expected, EControllerState::Failing)) {
-        return;
+    if (State == EControllerState::Running) {
+        State = EControllerState::Failing;
     }
 
     for (const auto& joblet : JobletMap) {
