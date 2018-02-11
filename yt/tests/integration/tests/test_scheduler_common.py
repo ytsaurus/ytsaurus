@@ -1783,6 +1783,13 @@ class TestSchedulingTags(YTEnvSetup):
         }
     }
 
+    def _get_slots_by_filter(self, filter):
+        try:
+            return get("//sys/scheduler/orchid/scheduler/cell/resource_limits_by_tags/{0}/user_slots".format(filter))
+        except YtResponseError as err:
+            if not err.is_resolve_error():
+                raise
+
     def _prepare(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1800,7 +1807,8 @@ class TestSchedulingTags(YTEnvSetup):
         create("map_node", "//sys/pool_trees/other", force=True)
         set("//sys/pool_trees/other/@nodes_filter", "tagC")
 
-        time.sleep(0.5)
+        wait(lambda: self._get_slots_by_filter("default") == 1)
+        wait(lambda: self._get_slots_by_filter("tagC") == 1)
 
     def test_tag_filters(self):
         self._prepare()
