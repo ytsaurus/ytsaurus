@@ -236,7 +236,7 @@ public:
     TFuture<void> RemoveSnapshot(const TOperationId& operationId)
     {
         auto future = BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
-            .AsyncVia(Invoker_)
+            .AsyncVia(CancelableControlInvoker_)
             .Run();
         return future.Apply(
             BIND([operationId, this, this_ = MakeStrong(this)] (const TError& error) {
@@ -244,7 +244,7 @@ public:
                     LOG_ERROR(error, "Failed to remove snapshot (OperationId: %v)", operationId);
                     Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
                         .AsyncVia(Bootstrap_->GetControlInvoker())
-                        .Run()));
+                        .Run(error)));
                 }
             })
             .AsyncVia(Bootstrap_->GetControlInvoker()));

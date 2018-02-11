@@ -309,7 +309,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 		SubmitJobsToStrategy();
 
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-            SubmitUpdatedAndCompletedJobsToStrategy();
+            SubmitJobsToStrategy();
         }
 
         PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
@@ -330,7 +330,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         // NB: some jobs maybe considered aborted after processing scheduled jobs.
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-            SubmitUpdatedAndCompletedJobsToStrategy();
+            SubmitJobsToStrategy();
         }
 
         response->set_scheduling_skipped(false);

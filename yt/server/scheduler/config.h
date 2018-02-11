@@ -154,7 +154,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
 class TSchedulerConfig
     : public TFairShareStrategyConfig
     , public NControllerAgent::TControllerAgentConfig
-
+{
 public:
     //! Priority of control thread.
     TNullable<int> ControlThreadPriority;
@@ -178,6 +178,9 @@ public:
     TDuration NodeShardsUpdatePeriod;
 
     TDuration ChunkUnstagePeriod;
+
+    //! All update and completed jobs submitted to strategy with at least such frequency.
+    TDuration NodeShardSubmitJobsToStrategyPeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
 

@@ -507,10 +507,6 @@ IOperationControllerPtr CreateControllerForOperation(
             controller = CreateVanillaController(config, host, operation);
             break;
         }
-        case EOperationType::Vanilla: {
-            controller = CreateVanillaController(controllerAgent, operation);
-            break;
-        }
         default:
             Y_UNREACHABLE();
     }

@@ -568,9 +568,6 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
         case EJobType::Vanilla:
             return New<TVanillaJobIOFactory>(jobSpecHelper);
 
-        case EJobType::Vanilla:
-            return New<TVanillaJobIOFactory>(jobSpecHelper);
-
         default:
             THROW_ERROR_EXCEPTION(
                 "Job has an invalid type %Qlv while a user job is expected",
