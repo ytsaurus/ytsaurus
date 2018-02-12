@@ -1455,13 +1455,19 @@ struct TGenerator
 
             auto eq = Builder.MakeBinaryExpr(
                 BinaryExpr,
-                op == EBinaryOp::NotEqual ? EBinaryOp::And : EBinaryOp::Or,
-                Builder.MakeBinaryExpr(BinaryExpr, op, untypedLhs, untypedRhs, offset),
+                op == EBinaryOp::NotEqual ? EBinaryOp::Or : EBinaryOp::And,
+                Builder.MakeBinaryExpr(
+                    BinaryExpr,
+                    op == EBinaryOp::NotEqual ? EBinaryOp::NotEqual : EBinaryOp::Equal,
+                    untypedLhs,
+                    untypedRhs,
+                    offset),
                 std::move(result),
                 Null);
 
             if (op == EBinaryOp::Equal || op == EBinaryOp::NotEqual) {
                 result = eq;
+                continue;
             }
 
             EBinaryOp strongOp = op;
