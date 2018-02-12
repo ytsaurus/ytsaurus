@@ -3396,7 +3396,9 @@ private:
             attributes.insert(attributes.begin(), options.Attributes->begin(), options.Attributes->end());
             // NOTE(asaitgalin): This attribute helps to distinguish between
             // different cypress storage modes of operation.
-            attributes.push_back("state");
+            if (options.Attributes->find("state") == options.Attributes->end()) {
+                attributes.push_back("state");
+            }
         } else {
             attributes = {
                 "authenticated_user",
@@ -3513,7 +3515,7 @@ private:
                 auto result = DoGetOperationFromArchive(operationId, options);
                 if (result) {
                     return result;
-                }    
+                }
             } catch (const TErrorException& exception) {
                 auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
 
