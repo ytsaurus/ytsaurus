@@ -506,22 +506,6 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
-    {
-        auto permission = EPermission::Write;
-        LOG_DEBUG("Validating permission %Qv of user %Qv to dump context at %v",
-            permission,
-            user,
-            path);
-
-        auto resultOrError = WaitFor(Bootstrap_->GetMasterClient()->CheckPermission(user, path, permission));
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            resultOrError,
-            NSecurityClient::EErrorCode::AuthorizationError,
-            "User %Qv has been denied access to dump context at %v",
-            user,
-            path);
-    }
-
     LOG_DEBUG("Saving input contexts (JobId: %v, OperationId: %v, Path: %v)",
         job->GetId(),
         job->GetOperationId(),
