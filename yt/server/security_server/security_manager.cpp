@@ -1769,7 +1769,7 @@ private:
             auto* chunk = pair.second;
 
             // NB: zombie chunks are still accounted.
-            if (!chunk || chunk->IsDestroyed()) {
+            if (chunk->IsDestroyed()) {
                 continue;
             }
 
