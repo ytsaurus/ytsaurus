@@ -50,7 +50,8 @@ struct INodeShardHost
         const NYTree::TYPath& path,
         const NChunkClient::TChunkId& chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId) = 0;
+        const TJobId& jobId,
+        const TString& user) = 0;
 
     virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TString& address) = 0;
 

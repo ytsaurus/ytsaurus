@@ -833,6 +833,41 @@ class TestSchedulerCommon(YTEnvSetup):
         assert get("//tmp/input_context/@description/type") == "input_context"
         assert JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
+    def test_dump_job_context_permissions(self):
+        create_user("abc")
+        create("map_node", "//tmp/dir", attributes={"acl": [{"action": "deny", "subjects": ["abc"], "permissions": ["write"]}]})
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            dont_track=True,
+            label="dump_job_context",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            },
+            authenticated_user="abc")
+
+        jobs = wait_breakpoint()
+        # Wait till job starts reading input
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, jobs[0])
+        wait(lambda : get(progress_path) >= 0.5)
+
+        with pytest.raises(YtError):
+            dump_job_context(jobs[0], "//tmp/dir/input_context", authenticated_user="abc")
+
+        assert not exists("//tmp/dir/input_context")
+
+        release_breakpoint()
+        op.track()
+
     def test_large_spec(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"a": "b"}])

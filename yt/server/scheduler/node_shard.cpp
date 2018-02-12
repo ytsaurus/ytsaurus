@@ -530,10 +530,11 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
-    LOG_DEBUG("Saving input contexts (JobId: %v, OperationId: %v, Path: %v)",
+    LOG_DEBUG("Saving input contexts (JobId: %v, OperationId: %v, Path: %v, User: %v)",
         job->GetId(),
         job->GetOperationId(),
-        path);
+        path,
+        user);
 
     auto proxy = CreateJobProberProxy(job);
     auto req = proxy.DumpInputContext();
@@ -551,7 +552,7 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
     auto chunkIds = FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     YCHECK(chunkIds.size() == 1);
 
-    auto asyncResult = Host_->AttachJobContext(path, chunkIds.front(), job->GetOperationId(), jobId);
+    auto asyncResult = Host_->AttachJobContext(path, chunkIds.front(), job->GetOperationId(), jobId, user);
     WaitFor(asyncResult)
         .ThrowOnError();
 

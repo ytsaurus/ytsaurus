@@ -72,7 +72,8 @@ public:
         const NYPath::TYPath& path,
         const NChunkClient::TChunkId& chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId);
+        const TJobId& jobId,
+        const TString& usrt);
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
