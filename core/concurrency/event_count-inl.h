@@ -75,7 +75,7 @@ inline bool TEventCount::Wait(TCookie cookie, TNullable<TInstant> deadline)
             if (deadline.Get() > TInstant::Now()) {
                 auto timeout = deadline.Get() - TInstant::Now();
                 timeoutSpec.tv_sec = timeout.Seconds();
-                timeout -= TDuration(timeout.Seconds());
+                timeout -= TDuration::MicroSeconds(timeout.MicroSeconds());
                 timeoutSpec.tv_nsec = timeout.MicroSeconds() * 1000;
             }
         }
