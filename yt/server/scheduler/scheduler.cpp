@@ -2184,6 +2184,7 @@ private:
             operationId);
 
         operation->SetStateAndEnqueueEvent(EOperationState::Completing);
+        operation->SetSuspended(false);
 
         // The operation may still have running jobs (e.g. those started speculatively).
         AbortOperationJobs(operation, TError("Operation completed"), /* terminated */ true);
@@ -2351,6 +2352,7 @@ private:
         }
 
         operation->SetStateAndEnqueueEvent(intermediateState);
+        operation->SetSuspended(false);
 
         AbortOperationJobs(
             operation,
