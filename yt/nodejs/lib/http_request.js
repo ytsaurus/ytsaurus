@@ -17,6 +17,22 @@ var _resolveIPv6 = Q.promisify(dns.resolve6);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+function _replaceUrlParameter(url, param, value)
+{
+    // From https://gist.github.com/stinoga/8101816
+    var re = new RegExp("[\\?&]" + param + "=([^&#]*)");
+    var match = re.exec(url);
+    var delimiter;
+    var newUrl = url;
+
+    if (match !== null) {
+        delimiter = match[0].charAt(0);
+        newUrl = newUrl.replace(re, delimiter + param + "=" + value);
+    }
+
+    return newUrl;
+}
+
 function YtHttpRequest(host, port, path, verb, body)
 {
     if (!(this instanceof YtHttpRequest)) {
@@ -158,10 +174,10 @@ YtHttpRequest.prototype.fire = function()
 
         req.setNoDelay(self.nodelay);
         req.setTimeout(self.timeout, function() {
-            reject(new YtError(self.toString() + " has timed out"));
+            reject(new YtError(self.toDebugString() + " has timed out"));
         });
         req.once("error", function(err) {
-            reject(new YtError(self.toString() + " has failed", err));
+            reject(new YtError(self.toDebugString() + " has failed", err));
         });
         req.once("response", function(rsp) {
             var code = rsp.statusCode;
@@ -169,7 +185,7 @@ YtHttpRequest.prototype.fire = function()
                 (self.failOn4xx && code >= 400 && code < 500) ||
                 (self.failOn5xx && code >= 500 && code < 600))
             {
-                reject(new YtError(self.toString() + " has responded with " + rsp.statusCode));
+                reject(new YtError(self.toDebugString() + " has responded with " + rsp.statusCode));
                 return;
             }
 
@@ -186,7 +202,7 @@ YtHttpRequest.prototype.fire = function()
                     try {
                         resolve(JSON.parse(result));
                     } catch (err) {
-                        reject(new YtError(self.toString() + " has responded with invalid JSON", err));
+                        reject(new YtError(self.toDebugString() + " has responded with invalid JSON", err));
                     }
                 }
             });
@@ -203,7 +219,7 @@ YtHttpRequest.prototype.fire = function()
             _resolveIPv6(self.host).then(
                 function(addrs) {
                     if (addrs.length === 0) {
-                        reject(new YtError(self.toString() + " has resolved " + self.host + " to empty host set"));
+                        reject(new YtError(self.toDebugString() + " has resolved " + self.host + " to empty host set"));
                         req.resolve({abort: function(){}});
                     } else {
                         req.resolve(impl(addrs[0], resolve, reject));
@@ -213,14 +229,14 @@ YtHttpRequest.prototype.fire = function()
                     return _resolveIPv4(self.host).then(
                         function(addrs) {
                             if (addrs.length === 0) {
-                                reject(new YtError(self.toString() + " has resolved " + self.host + " to empty host set"));
+                                reject(new YtError(self.toDebugString() + " has resolved " + self.host + " to empty host set"));
                                 req.resolve({abort: function(){}});
                             } else {
                                 req.resolve(impl(addrs[0], resolve, reject));
                             }
                         },
                         function(err4) {
-                            var error = new YtError(self.toString() + " has failed to resolve " + self.host);
+                            var error = new YtError(self.toDebugString() + " has failed to resolve " + self.host);
                             if (err6) {
                                 error.withNested(err6);
                             }
@@ -236,13 +252,18 @@ YtHttpRequest.prototype.fire = function()
 
     promise = promise.timeout(
         self.timeout * 1.05,
-        new YtError(self.toString() + " has timed out (hardly)"));
+        new YtError(self.toDebugString() + " has timed out (hardly)"));
 
     promise.catch(function() {
         req.promise.then(function(r) { r.abort(); });
     });
 
     return promise;
+};
+
+YtHttpRequest.prototype.toDebugString = function()
+{
+    return "Request to '" + this.host + ":" + this.port + _replaceUrlParameter(this.path, 'oauth_token', 'XXXXX') + "'";
 };
 
 YtHttpRequest.prototype.toString = function()
