@@ -2663,7 +2663,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
         time.sleep(2.0)
 
         jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id), verbose=False)
-        assert jobs["aborted"]["scheduled"]["get_spec_failed"] > 0
+        assert jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
 
         op.abort()
 
