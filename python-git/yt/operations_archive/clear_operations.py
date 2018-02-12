@@ -160,6 +160,9 @@ class OperationArchiver(object):
         by_id_row = {}
         for key in index_columns + value_columns:
             if key in data:
+                value = data.get(key)
+                if hasattr(value, "attributes"):
+                    value.attributes = {}
                 by_id_row[key] = data.get(key)
                 # Do not forget to strip top-level attributes like <opaque=%true>.
                 by_id_row[key].attributes.clear()
