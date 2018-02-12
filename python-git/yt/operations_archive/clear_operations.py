@@ -161,6 +161,8 @@ class OperationArchiver(object):
         for key in index_columns + value_columns:
             if key in data:
                 by_id_row[key] = data.get(key)
+                # Do not forget to strip top-level attributes like <opaque=%true>.
+                by_id_row[key].attributes.clear()
 
         id_hi, id_lo = id_to_parts(op_id, self.version)
 
