@@ -884,10 +884,6 @@ protected:
 
     void AbortAllJoblets();
 
-    //! Private version of cancelable invoker that destroys the given callbacks
-    //! within the controller memory context.
-    IInvokerPtr GetPrivateCancelableInvoker() const;
-
 private:
     typedef TOperationControllerBase TThis;
 

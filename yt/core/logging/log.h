@@ -6,7 +6,6 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/format.h>
-#include <yt/core/misc/memory_tag.h>
 
 #include <yt/core/tracing/trace_context.h>
 
