@@ -1270,18 +1270,20 @@ class TestSchedulerRevive(YTEnvSetup):
         op = map(
             wait_for_jobs=True,
             dont_track=True,
-            command="cat",
+            command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t1",
             out="//tmp/t2",
             spec={"data_size_per_job": 1})
+
+        jobs = wait_breakpoint()
 
         operation_path = "//sys/operations/{0}".format(op.id)
 
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
 
-        op.resume_job(op.jobs[0])
-        op.resume_job(op.jobs[1])
+        release_breakpoint(job_id=jobs[0])
+        release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
         wait(lambda: len(read_table(operation_path + "/output_0", tx=async_transaction_id)) == 2)
@@ -1304,7 +1306,7 @@ class TestSchedulerRevive(YTEnvSetup):
         live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
         assert all(record in data for record in live_preview_data)
 
-        op.resume_jobs()
+        release_breakpoint()
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
