@@ -926,8 +926,9 @@ print row + table_index
         assert get("//sys/operations/" + op.id + "/jobs/@count") == 10
         assert read_table("//tmp/t_output") == original_data
 
-    def test_ordered_map_remains_sorted(self):
-        create("table", "//tmp/t_input")
+    @pytest.mark.parametrize("with_output_schema", [False, True])
+    def test_ordered_map_remains_sorted(self, with_output_schema):
+        create("table", "//tmp/t_input", attributes={"schema":[{"name": "key", "sort_order": "ascending", "type": "int64"}]})
         create("table", "//tmp/t_output")
         original_data = [{"key": i} for i in xrange(1000)]
         for i in xrange(10):
@@ -935,16 +936,17 @@ print row + table_index
 
         op = map(
             in_="//tmp/t_input",
-            out="<sorted_by=[key]>//tmp/t_output",
-            command="cat; echo stderr 1>&2",
+            out="<sorted_by=[key]>//tmp/t_output" if with_output_schema else "//tmp/t_output",
+            command="cat; sleep $((5 - $YT_JOB_INDEX)); echo stderr 1>&2",
             ordered=True,
             spec={"job_count": 5})
 
         jobs = get("//sys/operations/" + op.id + "/jobs/@count")
 
         assert jobs == 5
-        assert get("//tmp/t_output/@sorted")
-        assert get("//tmp/t_output/@sorted_by") == ["key"]
+        if with_output_schema:
+            assert get("//tmp/t_output/@sorted")
+            assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
 
     # This is a really strange case that was added after YT-7507.
