@@ -525,7 +525,6 @@ def put_file_to_cache(path, md5, **kwargs):
     kwargs["md5"] = md5
     return execute_command("put_file_to_cache", kwargs)
 
-<<<<<<< HEAD
 ###########################################################################
 
 def reset_events_on_fs():
@@ -552,8 +551,6 @@ def wait_breakpoint(*args, **kwargs):
 def release_breakpoint(*args, **kwargs):
     return events_on_fs().release_breakpoint(*args, **kwargs)
 
-=======
->>>>>>> prestable/19.2
 class TimeoutError(Exception):
     pass
 
@@ -840,33 +837,6 @@ def start_op(op_type, **kwargs):
 
     operation = Operation()
 
-<<<<<<< HEAD
-=======
-    wait_for_jobs = kwargs.get("wait_for_jobs", False)
-    if wait_for_jobs:
-        del kwargs["wait_for_jobs"]
-        paths = ["command", "mapper_command", "reducer_command"] + \
-                [["spec", "tasks", task_name, "command"] for task_name in kwargs.get("spec", {}).get("tasks", [])]
-        for path in paths:
-            label = kwargs.get("label", "test")
-            if not operation._tmpdir:
-                operation._tmpdir = create_tmpdir(label)
-            flat_path = flatten(path)
-            command = get_branch(kwargs, flat_path)
-            if command is not None:
-                set_branch(kwargs, flat_path,
-                    "({1}\n"
-                    "touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
-                    "{2}\n"
-                    "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n"
-                    "{3}\n)"
-                    .format(
-                        operation._tmpdir,
-                        kwargs.get("precommand", ""),
-                        command,
-                        kwargs.get("postcommand", "")))
-
->>>>>>> prestable/19.2
     change(kwargs, "table_path", ["spec", "table_path"])
     change(kwargs, "in_", ["spec", input_name])
     change(kwargs, "out", ["spec", output_name])
@@ -887,11 +857,6 @@ def start_op(op_type, **kwargs):
         del kwargs["dont_track"]
 
     kwargs["operation_type"] = op_type
-<<<<<<< HEAD
-=======
-
-    operation.id = yson.loads(execute_command("start_op", kwargs))
->>>>>>> prestable/19.2
 
     operation.id = yson.loads(execute_command("start_op", kwargs))
 
