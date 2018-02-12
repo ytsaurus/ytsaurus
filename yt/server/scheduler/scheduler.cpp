@@ -1033,13 +1033,14 @@ public:
         const NYTree::TYPath& path,
         const TChunkId& chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId) override
+        const TJobId& jobId,
+        const TString& user) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoAttachJobContext, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker())
-            .Run(path, chunkId, operationId, jobId);
+            .Run(path, chunkId, operationId, jobId, user);
     }
 
     TJobProberServiceProxy CreateJobProberProxy(const TString& address) override
@@ -1114,11 +1115,12 @@ private:
         const NYTree::TYPath& path,
         const TChunkId& chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId)
+        const TJobId& jobId,
+        const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId);
+        MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId, user);
     }
 
 

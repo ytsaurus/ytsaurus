@@ -262,7 +262,8 @@ public:
         const TYPath& path,
         const TChunkId& chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId)
+        const TJobId& jobId,
+        const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -273,7 +274,8 @@ public:
                 chunkId,
                 "input_context"
             };
-            SaveJobFiles(Bootstrap_->GetMasterClient(), operationId, { file });
+            auto client = CreateNativeClient(Bootstrap_->GetMasterClient()->GetNativeConnection(), TClientOptions(user));
+            SaveJobFiles(client, operationId, { file });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
                 << ex;
@@ -1670,9 +1672,10 @@ void TMasterConnector::AttachJobContext(
     const TYPath& path,
     const TChunkId& chunkId,
     const TOperationId& operationId,
-    const TJobId& jobId)
+    const TJobId& jobId,
+    const TString& user)
 {
-    return Impl_->AttachJobContext(path, chunkId, operationId, jobId);
+    return Impl_->AttachJobContext(path, chunkId, operationId, jobId, user);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
