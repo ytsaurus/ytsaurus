@@ -722,14 +722,16 @@ void TChunkRequisitionRegistry::Erase(
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
     auto it = IndexToItem_.find(index);
-    const auto& requisition = it->second.Requisition;
+    // Copy: we need the requisition to weak-unref accounts, and we need
+    // accounts to hash requisitions when erasing them.
+    auto requisition = it->second.Requisition;
+
+    RequisitionToIndex_.erase(requisition);
+    IndexToItem_.erase(it);
 
     for (const auto& entry : requisition) {
         objectManager->WeakUnrefObject(entry.Account);
     }
-
-    RequisitionToIndex_.erase(requisition);
-    IndexToItem_.erase(it);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
