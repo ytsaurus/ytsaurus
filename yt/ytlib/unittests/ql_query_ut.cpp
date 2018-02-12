@@ -63,18 +63,15 @@ class TQueryPrepareTest
     : public ::testing::Test
 {
 protected:
-
     virtual void SetUp() override
     {
         ActionQueue_ = New<TActionQueue>("PrepareTest");
     }
 
-        virtual void TearDown() override
+    virtual void TearDown() override
     {
         ActionQueue_->Shutdown();
     }
-
-
 
     template <class TMatcher>
     void ExpectPrepareThrowsWithDiagnostics(
@@ -82,16 +79,14 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { //PreparePlanFragment();
-
-            BIND([&] () {
-                PreparePlanFragment(&PrepareMock_, query);
-            })
-            .AsyncVia(ActionQueue_->GetInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
-
+            [&] {
+                BIND([&] () {
+                    PreparePlanFragment(&PrepareMock_, query);
+                })
+                .AsyncVia(ActionQueue_->GetInvoker())
+                .Run()
+                .Get()
+                .ThrowOnError();
             },
             matcher);
     }
