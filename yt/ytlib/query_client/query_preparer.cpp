@@ -15,6 +15,8 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/finally.h>
 
+#include <yt/core/concurrency/fiber.h>
+
 #include <unordered_set>
 
 namespace NYT {
@@ -1133,6 +1135,10 @@ struct TTypedExpressionBuilder
         auto depthGuard = Finally([&] {
             --Depth;
         });
+
+        if (!GetCurrentScheduler()->GetCurrentFiber()->CheckFreeStackSpace(16_KB)) {
+            THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+        }
 
         if (Depth > MaxExpressionDepth) {
             THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
