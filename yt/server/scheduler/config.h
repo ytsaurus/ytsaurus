@@ -177,8 +177,6 @@ public:
 
     TDuration NodeShardsUpdatePeriod;
 
-    TDuration ChunkUnstagePeriod;
-
     //! All update and completed jobs submitted to strategy with at least such frequency.
     TDuration NodeShardSubmitJobsToStrategyPeriod;
 
