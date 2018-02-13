@@ -177,19 +177,6 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter = 0
 
 TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path, TTimestamp);
 
-template <class TFunctor, class TMatcher>
-void EXPECT_THROW_THAT(TFunctor functor, TMatcher matcher)
-{
-    bool exceptionThrown = false;
-    try {
-        functor();
-    } catch (const std::exception& ex) {
-        exceptionThrown = true;
-        EXPECT_THAT(ex.what(), matcher);
-    }
-    EXPECT_TRUE(exceptionThrown);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
