@@ -5581,7 +5581,14 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
             .Do(std::bind(&TOperationControllerBase::BuildJobSplitterInfo, this, _1))
         .Finish();
 
+    result.MemoryUsage = GetMemoryUsage();
+
     return result;
+}
+
+ssize_t TOperationControllerBase::GetMemoryUsage() const
+{
+    return GetMemoryUsageForTag(MemoryTag_);
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)

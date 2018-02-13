@@ -1106,7 +1106,7 @@ private:
 
     private:
         std::queue<TMemoryTag> AvailableTags_;
-        yhash<TOperationId, TMemoryTag> OperationIdToTag_;
+        THashMap<TOperationId, TMemoryTag> OperationIdToTag_;
     };
 
     TMemoryTagQueue MemoryTagQueue_;
