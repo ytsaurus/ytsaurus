@@ -27,7 +27,6 @@ public class RpcServiceMethodDescriptor {
     private final String methodName;
     private final Class<?> requestBodyType;
     private final Supplier<?> requestBodyCreator;
-    private final boolean isOneWay;
     private final Class<?> responseBodyType;
     private final RpcMessageParser<?> responseBodyParser;
 
@@ -57,18 +56,13 @@ public class RpcServiceMethodDescriptor {
         this.requestBodyType = (Class<?>) args[0];
         this.requestBodyCreator = makeBuilderCreator(requestBodyType);
 
-        if (args[1] == Void.class) {
-            this.isOneWay = true;
-            this.responseBodyType = null;
-            this.responseBodyParser = null;
-        } else if (args[1] instanceof ParameterizedType) {
+        if (args[1] instanceof ParameterizedType) {
             ParameterizedType responseType = (ParameterizedType) args[1];
             Type[] responseArgs = responseType.getActualTypeArguments();
             if (responseType.getRawType() == RpcClientResponse.class && responseArgs.length == 1
                     && responseArgs[0] instanceof Class && MessageLite.class
                     .isAssignableFrom((Class<?>) responseArgs[0]))
             {
-                this.isOneWay = false;
                 this.responseBodyType = (Class<?>) responseArgs[0];
                 this.responseBodyParser = makeMessageParser(responseBodyType);
             } else {
@@ -93,10 +87,6 @@ public class RpcServiceMethodDescriptor {
 
     public Supplier<?> getRequestBodyCreator() {
         return requestBodyCreator;
-    }
-
-    public boolean isOneWay() {
-        return isOneWay;
     }
 
     public Class<?> getResponseBodyType() {

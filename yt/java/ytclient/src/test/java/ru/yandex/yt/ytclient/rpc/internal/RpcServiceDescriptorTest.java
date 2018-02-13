@@ -39,21 +39,6 @@ public class RpcServiceDescriptorTest {
         assertThat(message, is(equalTo(sampleMessage)));
     }
 
-    public interface OneWayMethod {
-        RpcClientRequestBuilder<TReqDiscover.Builder, Void> discover();
-    }
-
-    @Test
-    public void oneWayMethod() {
-        RpcServiceDescriptor d = RpcServiceDescriptor.forInterface(OneWayMethod.class);
-        assertThat(d.getServiceName(), is("OneWayMethod"));
-        assertThat(d.getMethodList(), hasSize(1));
-        RpcServiceMethodDescriptor m = d.getMethodList().get(0);
-        assertThat(m.getMethodName(), is("Discover"));
-        verifyDescriptorRequest(m, TReqDiscover.Builder.class);
-        assertThat(m.isOneWay(), is(true));
-    }
-
     public interface ResponseMethod {
         RpcClientRequestBuilder<TReqDiscover.Builder, RpcClientResponse<TRspDiscover>> discover();
     }
@@ -66,7 +51,6 @@ public class RpcServiceDescriptorTest {
         RpcServiceMethodDescriptor m = d.getMethodList().get(0);
         assertThat(m.getMethodName(), is("Discover"));
         verifyDescriptorRequest(m, TReqDiscover.Builder.class);
-        assertThat(m.isOneWay(), is(false));
         verifyDescriptorResponse(m, TRspDiscover.class, TRspDiscover.newBuilder()
                 .addSuggestedAddresses("hello")
                 .addSuggestedAddresses("world")
