@@ -72,7 +72,7 @@ public:
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetDescriptor(),
             // Execute method is being handled in RPC thread pool anyway.
-            EAutomatonThreadQueue::Default,
+            EAutomatonThreadQueue::ObjectService,
             ObjectServerLogger)
         , Config_(std::move(config))
     {

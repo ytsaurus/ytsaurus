@@ -88,7 +88,7 @@ public:
 
         ResponseKeeper_ = New<TResponseKeeper>(
             Config_->HydraManager->ResponseKeeper,
-            GetAutomatonInvoker(),
+            GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             NObjectServer::ObjectServerLogger,
             NObjectServer::ObjectServerProfiler);
 
@@ -179,7 +179,7 @@ public:
     }
 
 
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
         return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
     }
