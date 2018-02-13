@@ -812,16 +812,12 @@ private:
 
         auto it = syncRequests.find(messageId);
         if (it != syncRequests.end()) {
-            const auto& entry = it->second;
-            return entry.Promise.ToFuture();
+            return it->second.ToFuture();
         }
 
-        TMailbox::TSyncRequest request;
-        request.MessageId = messageId;
-        request.Promise = NewPromise<void>();
-
-        YCHECK(syncRequests.insert(std::make_pair(messageId, request)).second);
-        return request.Promise.ToFuture();
+        auto promise = NewPromise<void>();
+        YCHECK(syncRequests.emplace(messageId, promise).second);
+        return promise.ToFuture();
     }
 
     void FlushSyncRequests(TMailbox* mailbox)
@@ -834,14 +830,14 @@ private:
                 break;
             }
 
-            auto& request = it->second;
+            auto& promise = it->second;
 
             LOG_DEBUG("Synchronization complete (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
                 messageId);
 
-            request.Promise.Set();
+            promise.Set();
             syncRequests.erase(it);
         }
     }
