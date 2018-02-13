@@ -556,8 +556,6 @@ private:
             logMessageBuilder.AppendFormat("%v=>%v",
                 mailbox->GetCellId(),
                 messageId);
-
-            MaybePostOutcomingMessages(mailbox, false);
         }
 
         logMessageBuilder.AppendString(STRINGBUF("})"));
