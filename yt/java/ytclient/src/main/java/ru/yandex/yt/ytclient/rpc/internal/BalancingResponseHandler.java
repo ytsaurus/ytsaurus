@@ -26,7 +26,6 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     private final CompletableFuture<List<byte[]>> f;
     private List<BalancingDestination> clients;
     private final RpcClientRequest request;
-    private final boolean isOneWay;
     private int step;
     private final List<RpcClientRequestControl> cancelation;
     private Future<?> timeoutFuture;
@@ -65,7 +64,6 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
 
         this.f = f;
         this.request = request;
-        this.isOneWay = request.isOneWay();
         this.clients = clients;
 
         this.metricsHolder = metricsHolder;
@@ -139,26 +137,13 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     }
 
     @Override
-    public void onAcknowledgement() {
-        if (isOneWay) {
-            synchronized (f) {
-                if (!f.isDone()) {
-                    f.complete(null);
-                }
-            }
-        }
-    }
+    public void onAcknowledgement() { }
 
     @Override
     public void onResponse(List<byte[]> attachments) {
         synchronized (f) {
             if (!f.isDone()) {
-                if (isOneWay) {
-                    // FATAL error, cannot recover
-                    f.completeExceptionally(new IllegalStateException("Server replied to a one-way request"));
-                } else {
-                    f.complete(attachments);
-                }
+                f.complete(attachments);
             }
         }
     }

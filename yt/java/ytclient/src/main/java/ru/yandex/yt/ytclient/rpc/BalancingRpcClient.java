@@ -260,11 +260,7 @@ public class BalancingRpcClient implements RpcClient {
         f.whenComplete((result, error) -> {
             h.cancel();
             if (error == null) {
-                if (request.isOneWay()) {
-                    handler.onAcknowledgement();
-                } else {
-                    handler.onResponse(result);
-                }
+                handler.onResponse(result);
             } else {
                 handler.onError(error);
             }
