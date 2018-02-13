@@ -298,7 +298,7 @@ public:
         SetProperty("controllers", "freezer;memory;cpu;cpuacct;net_cls;blkio;devices");
         SetProperty("command", command);
         SetProperty("isolate", "true");
-        SetProperty("enable_porto", "true");
+        SetProperty("enable_porto", "isolate");
 
         for (auto arg : env) {
             SetProperty("env", TString(arg) + ";");

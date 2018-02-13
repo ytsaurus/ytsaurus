@@ -56,11 +56,12 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/nullable.h>
-#include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/histogram.h>
+#include <yt/core/misc/id_generator.h>
+#include <yt/core/misc/memory_tag.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/safe_assert.h>
 
 #include <yt/core/ytree/ypath_client.h>
@@ -861,6 +862,8 @@ protected:
 private:
     typedef TOperationControllerBase TThis;
 
+    const i64 MemoryTag_;
+
     std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
 
     //! Keeps information needed to maintain the liveness state of input chunks.
@@ -1020,6 +1023,7 @@ private:
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
+    ssize_t GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
 

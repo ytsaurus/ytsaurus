@@ -30,6 +30,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
     DEFINE_BYVAL_RO_PROPERTY(std::vector<NScheduler::TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
 
+    //! Memory tag associated with this operation.
+    DEFINE_BYVAL_RW_PROPERTY(ui64, MemoryTag);
+
     DEFINE_BYVAL_RW_PROPERTY(std::vector<NApi::ITransactionPtr>, Transactions);
 
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
