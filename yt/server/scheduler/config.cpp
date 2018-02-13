@@ -182,8 +182,6 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(1));
     RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
-        .Default(TDuration::MilliSeconds(100));
     RegisterParameter("node_shard_submit_jobs_to_strategy_period", NodeShardSubmitJobsToStrategyPeriod)
         .Default(TDuration::MilliSeconds(100));
 
@@ -248,16 +246,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
         .Default(TDuration::Seconds(1));
-
-    RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
-        .Default(TDuration::Seconds(15));
-
-    RegisterParameter("system_layer_path", SystemLayerPath)
-        .Default(Null);
-
-	RegisterParameter("suspicious_jobs", SuspiciousJobs)
-		.DefaultNew();
-
+    
     RegisterPreprocessor([&] () {
         ChunkLocationThrottler->Limit = 10000;
 
