@@ -62,9 +62,6 @@ static const TString VersionAttributeName = "version";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDiscoveryServiceBufferTag
-{ };
-
 class TDiscoveryService
     : public TServiceBase
 {
