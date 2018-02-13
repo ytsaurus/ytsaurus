@@ -63,17 +63,36 @@ class TQueryPrepareTest
     : public ::testing::Test
 {
 protected:
+    virtual void SetUp() override
+    {
+        ActionQueue_ = New<TActionQueue>("PrepareTest");
+    }
+
+    virtual void TearDown() override
+    {
+        ActionQueue_->Shutdown();
+    }
+
     template <class TMatcher>
     void ExpectPrepareThrowsWithDiagnostics(
         const TString& query,
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query); },
+            [&] {
+                BIND([&] () {
+                    PreparePlanFragment(&PrepareMock_, query);
+                })
+                .AsyncVia(ActionQueue_->GetInvoker())
+                .Run()
+                .Get()
+                .ThrowOnError();
+            },
             matcher);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
+    TActionQueuePtr ActionQueue_;
 
 };
 
@@ -127,7 +146,7 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
 TEST_F(TQueryPrepareTest, TooBigQuery)
 {
     TString query = "k from [//t] where a ";
-    for (int i = 0; i < 50 ; ++i) {
+    for (int i = 0; i < 50; ++i) {
         query += "+ " + ToString(i);
     }
     query += " > 0";
@@ -139,6 +158,98 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
         query,
         ContainsRegex("Maximum expression depth exceeded"));
 }
+
+TEST_F(TQueryPrepareTest, TooBigQuery2)
+{
+    TString query =
+    R"(
+        * from [//t]
+        where
+        (a = 3735 and s = 'd0b160b8-1d27-40ad-8cad-1b69c2187195') or
+        (a = 4193 and s = 'd2c05a2c-fdee-4417-b2dd-cf58a51a6db2') or
+        (a = 4365 and s = '07d1c433-3a42-473a-9d8f-45f21001dbe5') or
+        (a = 4363 and s = 'f0168ae8-8f75-4dee-b113-510c43f2df30') or
+        (a = 4346 and s = '4f1cf6d9-999b-4d9e-95c0-55b45ec96573') or
+        (a = 4334 and s = '9db5716a-89ef-4a0b-bfe3-f0785f31f5f9') or
+        (a = 4340 and s = '8b2b0701-8bd2-44ca-b90b-a9186acadcaf') or
+        (a = 4329 and s = 'f0dbede6-ca7f-4e31-9e5e-2de9eb0dd672') or
+        (a = 4211 and s = '4b10bebc-8633-4a2c-bb23-05abac483c54') or
+        (a = 4351 and s = '64517493-57d5-4f1b-9fdb-393105b3fce7') or
+        (a = 4321 and s = '4054e543-6119-4146-8922-3c026109eada') or
+        (a = 4204 and s = '9d024b07-85c0-4939-bcea-22948812835f') or
+        (a = 4315 and s = '9977f359-c8a8-499e-9af9-15326a90fcc8') or
+        (a = 3954 and s = 'c08cb9ef-7797-4ab9-aa53-25fc43f1a7f6') or
+        (a = 4338 and s = '06e00ee8-ec64-4aee-9ce2-986559edcc08') or
+        (a = 4214 and s = 'b465b4ab-e4e7-46c1-aaac-22817ca6df82') or
+        (a = 4344 and s = '6850e940-8afb-4b7e-b428-92996e0d7cc3') or
+        (a = 4240 and s = 'd18fe358-6fb4-473e-bf26-496c860cfde1') or
+        (a = 4337 and s = 'ddd125eb-2c07-4a8b-b8d2-295356df2253') or
+        (a = 4348 and s = '8d791558-ec95-4b2d-9c17-f72e530c30ec') or
+        (a = 4339 and s = '73ec1c2a-9258-4ffc-b875-c0f7ac58e1ba') or
+        (a = 4343 and s = '79e4a031-958c-4905-9b8d-dd6acd18b253') or
+        (a = 4328 and s = '8e785bb6-ca13-47fc-b2d7-de6fa86e842f') or
+        (a = 4331 and s = '2665d0e0-49b2-416f-9220-c6c67ccec868') or
+        (a = 4239 and s = 'b18a4d21-4c4a-43bc-a7d5-15007c43fd18') or
+        (a = 4238 and s = '04720557-55ca-4e0c-be87-332eb43e6274') or
+        (a = 4255 and s = 'c731fc35-b7b7-44ff-9075-3c2c2ec500ce') or
+        (a = 4327 and s = 'ad9a16a0-129f-48db-9105-06919a24eb3f') or
+        (a = 4335 and s = '94ee4985-c05d-4772-991c-781e1602ba0e') or
+        (a = 4342 and s = '38db2da1-ea4d-40ba-85a3-beac8f7fc055') or
+        (a = 4191 and s = 'a5f3264f-73fe-43bc-972d-97c51710f395') or
+        (a = 4341 and s = '32f885b2-63dd-40b2-b8b5-9d2ed7221235') or
+        (a = 4347 and s = '8ac67959-3e04-420f-bda5-a4bf5b45ea03') or
+        (a = 4353 and s = 'ec994ea3-5cf8-4951-a409-8a04ad1cffaf') or
+        (a = 4354 and s = '644f26c6-f4ee-4cac-8885-807be11941c3') or
+        (a = 4212 and s = '322c92c1-4d3d-463d-8001-97557e9e93f9') or
+        (a = 4325 and s = '932c592b-6ec4-4ec8-a4bd-79c4900996ab') or
+
+        (a = 3735 and s = 'd0b160b8-1d27-40ad-8cad-1b69c2187195') or
+        (a = 4193 and s = 'd2c05a2c-fdee-4417-b2dd-cf58a51a6db2') or
+        (a = 4365 and s = '07d1c433-3a42-473a-9d8f-45f21001dbe5') or
+        (a = 4363 and s = 'f0168ae8-8f75-4dee-b113-510c43f2df30') or
+        (a = 4346 and s = '4f1cf6d9-999b-4d9e-95c0-55b45ec96573') or
+        (a = 4334 and s = '9db5716a-89ef-4a0b-bfe3-f0785f31f5f9') or
+        (a = 4340 and s = '8b2b0701-8bd2-44ca-b90b-a9186acadcaf') or
+        (a = 4329 and s = 'f0dbede6-ca7f-4e31-9e5e-2de9eb0dd672') or
+        (a = 4211 and s = '4b10bebc-8633-4a2c-bb23-05abac483c54') or
+        (a = 4351 and s = '64517493-57d5-4f1b-9fdb-393105b3fce7') or
+        (a = 4321 and s = '4054e543-6119-4146-8922-3c026109eada') or
+        (a = 4204 and s = '9d024b07-85c0-4939-bcea-22948812835f') or
+        (a = 4315 and s = '9977f359-c8a8-499e-9af9-15326a90fcc8') or
+        (a = 3954 and s = 'c08cb9ef-7797-4ab9-aa53-25fc43f1a7f6') or
+        (a = 4338 and s = '06e00ee8-ec64-4aee-9ce2-986559edcc08') or
+        (a = 4214 and s = 'b465b4ab-e4e7-46c1-aaac-22817ca6df82') or
+        (a = 4344 and s = '6850e940-8afb-4b7e-b428-92996e0d7cc3') or
+        (a = 4240 and s = 'd18fe358-6fb4-473e-bf26-496c860cfde1') or
+        (a = 4337 and s = 'ddd125eb-2c07-4a8b-b8d2-295356df2253') or
+        (a = 4348 and s = '8d791558-ec95-4b2d-9c17-f72e530c30ec') or
+        (a = 4339 and s = '73ec1c2a-9258-4ffc-b875-c0f7ac58e1ba') or
+        (a = 4343 and s = '79e4a031-958c-4905-9b8d-dd6acd18b253') or
+        (a = 4328 and s = '8e785bb6-ca13-47fc-b2d7-de6fa86e842f') or
+        (a = 4331 and s = '2665d0e0-49b2-416f-9220-c6c67ccec868') or
+        (a = 4239 and s = 'b18a4d21-4c4a-43bc-a7d5-15007c43fd18') or
+        (a = 4238 and s = '04720557-55ca-4e0c-be87-332eb43e6274') or
+        (a = 4255 and s = 'c731fc35-b7b7-44ff-9075-3c2c2ec500ce') or
+        (a = 4327 and s = 'ad9a16a0-129f-48db-9105-06919a24eb3f') or
+        (a = 4335 and s = '94ee4985-c05d-4772-991c-781e1602ba0e') or
+        (a = 4342 and s = '38db2da1-ea4d-40ba-85a3-beac8f7fc055') or
+        (a = 4191 and s = 'a5f3264f-73fe-43bc-972d-97c51710f395') or
+        (a = 4341 and s = '32f885b2-63dd-40b2-b8b5-9d2ed7221235') or
+        (a = 4347 and s = '8ac67959-3e04-420f-bda5-a4bf5b45ea03') or
+        (a = 4353 and s = 'ec994ea3-5cf8-4951-a409-8a04ad1cffaf') or
+        (a = 4354 and s = '644f26c6-f4ee-4cac-8885-807be11941c3') or
+        (a = 4212 and s = '322c92c1-4d3d-463d-8001-97557e9e93f9') or
+        (a = 4325 and s = '932c592b-6ec4-4ec8-a4bd-79c4900996ab')
+    )";
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        query,
+        ContainsRegex("Maximum expression depth exceeded"));
+}
+
 
 TEST_F(TQueryPrepareTest, BigQuery)
 {
