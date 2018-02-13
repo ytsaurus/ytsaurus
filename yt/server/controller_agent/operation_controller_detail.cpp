@@ -683,9 +683,10 @@ void TOperationControllerBase::SafeMaterialize()
             JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
         }
 
-        if (State == EControllerState::Preparing) {
-            State = EControllerState::Running;
+        if (State != EControllerState::Preparing) {
+            return;
         }
+        State = EControllerState::Running;
 
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
@@ -3327,6 +3328,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     if (State == EControllerState::Finished) {
         return;
     }
+    State = EControllerState::Finished;
 
     BuildAndSaveProgress();
     FlushOperationNode(/* checkFlushResult */ true);
@@ -3345,6 +3347,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     if (State == EControllerState::Finished) {
         return;
     }
+    State = EControllerState::Finished;
 
     BuildAndSaveProgress();
     LogProgress(/* force */ true);
@@ -3366,6 +3369,7 @@ void TOperationControllerBase::OnOperationAborted(const TError& error)
     if (State == EControllerState::Finished) {
         return;
     }
+    State = EControllerState::Finished;
 
     Host->OnOperationAborted(error);
 }
