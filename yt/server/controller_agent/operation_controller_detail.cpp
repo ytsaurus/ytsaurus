@@ -179,11 +179,12 @@ TOperationControllerBase::TOperationControllerBase(
         Format("OperationId: %v", OperationId)
     })
     , CancelableContext(New<TCancelableContext>())
-    , Invoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()))
+    , Invoker(CreateMemoryTaggingInvoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
+    , MemoryTag_(operation->GetMemoryTag())
     , PoolTreeSchedulingTagFilters_(operation->GetPoolTreeSchedulingTagFilters())
     , Spec_(std::move(spec))
     , Options(std::move(options))
@@ -2409,6 +2410,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 hasSuitableNodes = true;
             }
         }
+        if (hasSuitableNodes) {
+            break;
+        }
     }
 
     if (!hasSuitableNodes) {
@@ -3582,8 +3586,11 @@ void TOperationControllerBase::CreateLivePreviewTables()
         LOG_INFO("Creating live preview for output tables");
 
         for (int index = 0; index < OutputTables_.size(); ++index) {
-            const auto& table = OutputTables_[index];
+            auto& table = OutputTables_[index];
             auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "output_" + ToString(index));
+
+            // We should clear old table ids in case of revive.
+            table.LivePreviewTableIds.clear();
 
             for (const auto& path : paths) {
                 addRequest(
@@ -3602,6 +3609,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
     if (StderrTable_) {
         LOG_INFO("Creating live preview for stderr table");
 
+        // We should clear old table ids in case of revive.
+        StderrTable_->LivePreviewTableIds.clear();
+
         auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "stderr");
         for (const auto& path : paths) {
             addRequest(
@@ -3618,6 +3628,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     if (IsIntermediateLivePreviewSupported()) {
         LOG_INFO("Creating live preview for intermediate table");
+
+        // We should clear old table ids in case of revive.
+        IntermediateTable.LivePreviewTableIds.clear();
 
         auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "intermediate");
         for (const auto& path : paths) {
@@ -4976,8 +4989,6 @@ TString TOperationControllerBase::GetLoggingProgress() const
         GetUnavailableInputChunkCount());
 }
 
-
-
 void TOperationControllerBase::SliceUnversionedChunks(
     const std::vector<TInputChunkPtr>& unversionedChunks,
     const IJobSizeConstraintsPtr& jobSizeConstraints,
@@ -5574,7 +5585,14 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
             .Do(std::bind(&TOperationControllerBase::BuildJobSplitterInfo, this, _1))
         .Finish();
 
+    result.MemoryUsage = GetMemoryUsage();
+
     return result;
+}
+
+ssize_t TOperationControllerBase::GetMemoryUsage() const
+{
+    return GetMemoryUsageForTag(MemoryTag_);
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)

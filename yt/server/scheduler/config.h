@@ -177,6 +177,11 @@ public:
 
     TDuration NodeShardsUpdatePeriod;
 
+    //! All update and completed jobs submitted to strategy with at least such frequency.
+    TDuration NodeShardSubmitJobsToStrategyPeriod;
+
+    TDuration ResourceDemandSanityCheckPeriod;
+
     TDuration LockTransactionTimeout;
 
     TDuration JobProberRpcTimeout;

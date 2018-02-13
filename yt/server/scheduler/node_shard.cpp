@@ -78,6 +78,10 @@ TNodeShard::TNodeShard(
         GetInvoker()))
     , Logger(NLogging::TLogger(SchedulerLogger)
         .AddTag("NodeShardId: %v", Id_))
+    , SubmitJobsToStrategyExecutor_(New<TPeriodicExecutor>(
+        GetInvoker(),
+        BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),
+        Config_->NodeShardSubmitJobsToStrategyPeriod))
 { }
 
 int TNodeShard::GetId() const
@@ -169,6 +173,8 @@ void TNodeShard::DoCleanup()
     ConcurrentHeartbeatCount_ = 0;
 
     JobIdToAsyncScheduleResult_.clear();
+
+	SubmitJobsToStrategy();
 }
 
 void TNodeShard::RegisterOperation(
@@ -178,7 +184,7 @@ void TNodeShard::RegisterOperation(
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
-    
+
     YCHECK(IdToOpertionState_.emplace(operationId, TOperationState(controller, !reviving /* jobsReady */)).second);
 }
 
@@ -186,7 +192,7 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
-    
+
     auto it = IdToOpertionState_.find(operationId);
     YCHECK(it != IdToOpertionState_.end());
     for (const auto& job : it->second.Jobs) {
@@ -300,8 +306,10 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             node,
             runningJobs);
 
+		SubmitJobsToStrategy();
+
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-            SubmitUpdatedAndCompletedJobsToStrategy();
+            SubmitJobsToStrategy();
         }
 
         PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
@@ -318,9 +326,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             schedulingContext,
             context);
 
+		SubmitJobsToStrategy();
+
         // NB: some jobs maybe considered aborted after processing scheduled jobs.
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-            SubmitUpdatedAndCompletedJobsToStrategy();
+            SubmitJobsToStrategy();
         }
 
         response->set_scheduling_skipped(false);
@@ -353,7 +363,7 @@ TRefCountedExecNodeDescriptorMapPtr TNodeShard::GetExecNodeDescriptors()
 void TNodeShard::UpdateExecNodeDescriptors()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    
+
     auto result = New<TRefCountedExecNodeDescriptorMap>();
     result->reserve(IdToNode_.size());
     for (const auto& pair : IdToNode_) {
@@ -1028,7 +1038,7 @@ void TNodeShard::OnNodeLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
     YCHECK(it != IdToNode_.end());
-    
+
     // NB: Make a copy; the calls below will mutate IdToNode_ and thus invalidate it.
     auto node = it->second;
 
@@ -1698,18 +1708,20 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
     }
 }
 
-void TNodeShard::SubmitUpdatedAndCompletedJobsToStrategy()
+void TNodeShard::SubmitJobsToStrategy()
 {
-    if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
-        std::vector<TJobId> jobsToAbort;
+    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+        if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
+            std::vector<TJobId> jobsToAbort;
 
-        Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
-            &UpdatedJobs_,
-            &CompletedJobs_,
-            &jobsToAbort);
+            Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
+                &UpdatedJobs_,
+                &CompletedJobs_,
+                &jobsToAbort);
 
-        for (const auto& jobId : jobsToAbort) {
-            AbortJob(jobId, TError("Aborting job by strategy request"));
+            for (const auto& jobId : jobsToAbort) {
+                AbortJob(jobId, TError("Aborting job by strategy request"));
+            }
         }
     }
 }

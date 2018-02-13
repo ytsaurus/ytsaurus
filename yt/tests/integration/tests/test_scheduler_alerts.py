@@ -30,51 +30,37 @@ class TestSchedulerAlerts(YTEnvSetup):
 
         # Incorrect pool configuration.
         create("map_node", "//sys/pools/poolA", attributes={"min_share_ratio": 2.0})
-
-        time.sleep(0.5)
-        assert len(get("//sys/scheduler/@alerts")) == 1
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/pools/poolA/@min_share_ratio", 0.8)
-
-        time.sleep(0.5)
-        assert get("//sys/scheduler/@alerts") == []
+        wait(lambda: get("//sys/scheduler/@alerts") == [])
 
         # Total min_share_ratio > 1.
         create("map_node", "//sys/pools/poolB", attributes={"min_share_ratio": 0.8})
-
-        time.sleep(0.5)
-        assert len(get("//sys/scheduler/@alerts")) == 1
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/pools/poolA/@min_share_ratio", 0.1)
-
-        time.sleep(0.5)
-        assert get("//sys/scheduler/@alerts") == []
+        wait(lambda: get("//sys/scheduler/@alerts") == [])
 
     def test_config(self):
         assert get("//sys/scheduler/@alerts") == []
 
         set("//sys/scheduler/config", {"fair_share_update_period": -100})
-
-        time.sleep(0.5)
-        assert len(get("//sys/scheduler/@alerts")) == 1
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/scheduler/config", {})
-
-        time.sleep(0.5)
-        assert get("//sys/scheduler/@alerts") == []
+        wait(lambda: get("//sys/scheduler/@alerts") == [])
 
     def test_cluster_directory(self):
         assert get("//sys/scheduler/@alerts") == []
 
         set("//sys/clusters/banach", {})
 
-        time.sleep(1.0)
-        assert len(get("//sys/scheduler/@alerts")) == 1
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/clusters", {})
 
-        time.sleep(1.0)
-        assert get("//sys/scheduler/@alerts") == []
+        wait(lambda: get("//sys/scheduler/@alerts") == [])
 
 ##################################################################
 

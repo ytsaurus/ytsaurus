@@ -1069,6 +1069,49 @@ private:
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
+    class TMemoryTagQueue
+    {
+    public:
+        TMemoryTagQueue()
+        {
+            for (TMemoryTag tag = 1; tag < MaxMemoryTag; ++tag) {
+                AvailableTags_.push(tag);
+            }
+        }
+
+        TMemoryTag AssignTagToOperation(const TOperationId& operationId)
+        {
+            YCHECK(!AvailableTags_.empty());
+            auto tag = AvailableTags_.front();
+            AvailableTags_.pop();
+            OperationIdToTag_[operationId] = tag;
+            LOG_DEBUG("Assigning memory tag to an operation (OperationId: %v, MemoryTag: %v, AvailableTagCount: %v)",
+                operationId,
+                tag,
+                AvailableTags_.size());
+            return tag;
+        }
+
+        void ReclaimOperationTag(const TOperationId& operationId)
+        {
+            auto it = OperationIdToTag_.find(operationId);
+            YCHECK(it != OperationIdToTag_.end());
+            auto tag = it->second;
+            OperationIdToTag_.erase(it);
+            AvailableTags_.push(tag);
+            LOG_DEBUG("Reclaiming memory tag of an operation (OperationId: %v, MemoryTag: %v, AvailableTagCount: %v)",
+                operationId,
+                tag,
+                AvailableTags_.size());
+        }
+
+    private:
+        std::queue<TMemoryTag> AvailableTags_;
+        THashMap<TOperationId, TMemoryTag> OperationIdToTag_;
+    };
+
+    TMemoryTagQueue MemoryTagQueue_;
+
     ISchedulerStrategyPtr Strategy_;
 
     THashMap<TOperationId, TOperationPtr> IdToOperation_;
@@ -1784,6 +1827,7 @@ private:
 
         try {
             auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
+            agentOperation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operation->GetId()));
             auto controller = CreateOperationController(agentOperation);
             Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), agentOperation);
 
@@ -1907,7 +1951,6 @@ private:
         // If the revival fails, we still need to update the node
         // and unregister the operation from Master Connector.
 
-
         try {
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
@@ -1927,6 +1970,7 @@ private:
 
         try {
             auto agentOperation = Bootstrap_->GetControllerAgent()->CreateOperation(operation);
+            agentOperation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operation->GetId()));
             auto controller = CreateOperationController(agentOperation);
             Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), agentOperation);
 
@@ -2124,6 +2168,7 @@ private:
     void FinishOperation(const TOperationPtr& operation)
     {
         if (!operation->GetFinished().IsSet()) {
+            MemoryTagQueue_.ReclaimOperationTag(operation->GetId());
             operation->SetFinished();
             operation->SetLocalController(nullptr);
             UnregisterOperation(operation);
@@ -2631,6 +2676,7 @@ private:
         auto controllerBriefProgress = rsp ? toYsonString(rsp->brief_progress()) : emptyMapFragment;
         auto controllerRunningJobs = rsp ? toYsonString(rsp->running_jobs()) : emptyMapFragment;
         auto controllerJobSplitterInfo = rsp ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
+        auto controllerMemoryUsage = rsp ? MakeNullable(rsp->controller_memory_usage()) : Null;
 
         return BuildYsonStringFluently()
             .BeginMap()
@@ -2657,6 +2703,7 @@ private:
                     .BeginMap()
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
+                .Item("controller_memory_usage").Value(controllerMemoryUsage)
                 .DoIf(!rspOrError.IsOK(), [&] (TFluentMap fluent) {
                     fluent.Item("controller_error").Value(TError(rspOrError));
                 })

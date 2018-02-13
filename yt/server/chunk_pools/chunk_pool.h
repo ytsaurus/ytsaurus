@@ -140,14 +140,14 @@ class TChunkPoolOutputWithCountersBase
 public:
     TChunkPoolOutputWithCountersBase();
 
+    virtual void Persist(const TPersistenceContext& context) override;
+
     virtual i64 GetTotalDataWeight() const override;
     virtual i64 GetRunningDataWeight() const override;
     virtual i64 GetCompletedDataWeight() const override;
     virtual i64 GetPendingDataWeight() const override;
     virtual i64 GetTotalRowCount() const override;
     virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
-
-    virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
     NControllerAgent::TProgressCounterPtr DataWeightCounter;

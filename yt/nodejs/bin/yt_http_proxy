@@ -302,7 +302,7 @@ function runProxy(logger, profiler) {
                 rsp.writeHead(404);
                 rsp.end("Not Found");
             }
-        }).listen(config.monitoring_port);
+        }).listen(config.monitoring_port, config.address);
     }
 
     var cc1 = new Date(),
