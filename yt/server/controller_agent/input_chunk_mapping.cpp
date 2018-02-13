@@ -30,6 +30,11 @@ TInputChunkMapping::TInputChunkMapping(EChunkMappingMode mode)
 TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& stripe) const
 {
     YCHECK(stripe);
+
+    if (Substitutes_.empty()) {
+        return stripe;
+    }
+
     auto mappedStripe = New<TChunkStripe>();
     for (const auto& dataSlice : stripe->DataSlices) {
         if (dataSlice->Type == EDataSourceType::UnversionedTable) {
@@ -39,8 +44,8 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
                 // The chunk was never substituted, so it remains as is.
                 mappedStripe->DataSlices.emplace_back(dataSlice);
             } else {
-                YCHECK(!dataSlice->HasLimits());
                 const auto& substitutes = iterator->second;
+                YCHECK(!dataSlice->HasLimits() || substitutes.empty());
                 for (const auto& substituteChunk : substitutes) {
                     mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
                         dataSlice->Type,
@@ -50,6 +55,9 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
             }
         } else {
             // Let's hope versioned chunks are never lost nor regenerated.
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                YCHECK(!Substitutes_.has(chunkSlice->GetInputChunk()));
+            }
             mappedStripe->DataSlices.emplace_back(dataSlice);
         }
     }
@@ -85,7 +93,7 @@ void TInputChunkMapping::OnStripeRegenerated(
         YCHECK(oldSlice->Type == EDataSourceType::UnversionedTable);
         const auto& oldChunk = oldSlice->GetSingleUnversionedChunkOrThrow();
 
-        // In case of unordered mode we distribtue the substitutes uniformly
+        // In case of unordered mode we distribute the substitutes uniformly
         // among the original chunks.
         int begin = (index * newStripe->DataSlices.size()) / oldStripe->DataSlices.size();
         int end = ((index + 1) * newStripe->DataSlices.size()) / oldStripe->DataSlices.size();

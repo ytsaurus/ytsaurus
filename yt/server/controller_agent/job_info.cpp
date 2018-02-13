@@ -132,7 +132,7 @@ void TCompletedJob::Persist(const TPersistenceContext& context)
     Persist(context, InputCookie);
     Persist(context, InputStripe);
     Persist(context, NodeDescriptor);
-    Persist(context, Restartrable);
+    Persist(context, Restartable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

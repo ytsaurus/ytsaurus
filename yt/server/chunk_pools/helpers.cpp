@@ -66,7 +66,6 @@ TSuspendableStripe::TSuspendableStripe()
 TSuspendableStripe::TSuspendableStripe(TChunkStripePtr stripe)
     : ExtractedCookie_(IChunkPoolOutput::NullCookie)
     , Stripe_(std::move(stripe))
-    , OriginalStripe_(Stripe_)
     , Statistics_(Stripe_->GetStatistics())
 { }
 
@@ -82,7 +81,6 @@ const TChunkStripeStatistics& TSuspendableStripe::GetStatistics() const
 
 void TSuspendableStripe::Suspend()
 {
-    YCHECK(Stripe_);
     YCHECK(!Suspended_);
 
     Suspended_ = true;
@@ -102,7 +100,7 @@ void TSuspendableStripe::Resume()
 
 void TSuspendableStripe::Resume(TChunkStripePtr stripe)
 {
-    YCHECK(Stripe_);
+    YCHECK(stripe);
     YCHECK(Suspended_);
 
     // NB: do not update statistics on resume to preserve counters.
@@ -110,9 +108,11 @@ void TSuspendableStripe::Resume(TChunkStripePtr stripe)
     Stripe_ = stripe;
 }
 
-void TSuspendableStripe::ReplaceOriginalStripe()
+void TSuspendableStripe::Reset(TChunkStripePtr stripe)
 {
-    OriginalStripe_ = Stripe_;
+    YCHECK(stripe);
+
+    Stripe_ = stripe;
 }
 
 void TSuspendableStripe::Persist(const TPersistenceContext& context)
@@ -120,7 +120,6 @@ void TSuspendableStripe::Persist(const TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, ExtractedCookie_);
     Persist(context, Stripe_);
-    Persist(context, OriginalStripe_);
     Persist(context, Teleport_);
     Persist(context, Suspended_);
     Persist(context, Statistics_);

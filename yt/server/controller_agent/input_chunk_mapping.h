@@ -7,12 +7,12 @@
 namespace NYT {
 namespace NControllerAgent{
 
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EChunkMappingMode,
     (Sorted)
     (Unordered)
 );
-
-////////////////////////////////////////////////////////////////////////////////
 
 //! This class is companion for IChunkPoolInput.
 //! During the operation lifetime an input chunk may be suspended and replaced with
@@ -46,7 +46,7 @@ public:
         const NChunkPools::TChunkStripePtr& newStripe);
 
     //! Special case of that is used when unavailable input chunk strategy is Skip,
-    //! and chunk disappears. NB: it may never fail, not like the PopulateWithCorrespondingStripes
+    //! and chunk disappears.
     void OnChunkDisappeared(const NChunkClient::TInputChunkPtr& chunk);
 
     //! Is called after chunk pool invalidation to force new stripe for the given input
@@ -55,12 +55,13 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
+    // TODO(max42): rename this method and the correspodning method of IChunkPollInput.
     void Add(NChunkPools::IChunkPoolInput::TCookie cookie, const NChunkPools::TChunkStripePtr& stripe);
 
 private:
+    EChunkMappingMode Mode_;
     yhash<NChunkClient::TInputChunkPtr, SmallVector<NChunkClient::TInputChunkPtr, 1>> Substitutes_;
     yhash<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::TChunkStripePtr> OriginalStripes_;
-    EChunkMappingMode Mode_;
 
     void ValidateSortedChunkConsistency(
         const NChunkClient::TInputChunkPtr& oldChunk,

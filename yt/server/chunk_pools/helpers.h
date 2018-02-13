@@ -39,15 +39,12 @@ public:
     bool IsSuspended() const;
     void Resume();
     void Resume(TChunkStripePtr stripe);
-
-    //! Replaces the original stripe with the current stripe.
-    void ReplaceOriginalStripe();
+    void Reset(TChunkStripePtr stripe);
 
     void Persist(const TPersistenceContext& context);
 
 private:
     TChunkStripePtr Stripe_;
-    TChunkStripePtr OriginalStripe_ = nullptr;
     bool Suspended_ = false;
     TChunkStripeStatistics Statistics_;
 };

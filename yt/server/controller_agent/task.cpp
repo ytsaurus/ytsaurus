@@ -947,7 +947,7 @@ void TTask::RegisterStripe(
         completedJob->DataWeight = joblet->InputStripeList->TotalDataWeight;
         completedJob->DestinationPool = destinationPool;
         completedJob->InputCookie = inputCookie;
-        completedJob->Restartrable = CanLoseJobs();
+        completedJob->Restartable = CanLoseJobs();
         completedJob->InputStripe = stripe;
         completedJob->NodeDescriptor = joblet->NodeDescriptor;
 
