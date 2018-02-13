@@ -245,10 +245,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 request.header().setStartTime(RpcUtil.instantToMicros(started));
                 List<byte[]> message = request.serialize();
 
-                if (!request.isOneWay()) {
-                    // Регистрируем только дву-направленные запросы
-                    session.register(this);
-                }
+                session.register(this);
 
                 BusDeliveryTracking level =
                         request.requestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
@@ -353,11 +350,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 if (state != RequestState.SENDING) {
                     return;
                 }
-                if (request.isOneWay()) {
-                    finishLocked();
-                } else {
-                    state = RequestState.ACKED;
-                }
+                state = RequestState.ACKED;
             } finally {
                 lock.unlock();
             }

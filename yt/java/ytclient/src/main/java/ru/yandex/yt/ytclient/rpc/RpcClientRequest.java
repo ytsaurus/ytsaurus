@@ -28,14 +28,6 @@ public interface RpcClientRequest {
     boolean requestAck();
 
     /**
-     * Возвращает true, если от запроса не ожидается ответного сообщения
-     */
-    default boolean isOneWay() {
-        // TODO: remove one way support code
-        return false;
-    }
-
-    /**
      * Возвращает id запроса
      */
     default YtGuid getRequestId() {
