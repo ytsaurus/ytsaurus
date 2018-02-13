@@ -53,6 +53,7 @@ private:
         response->set_brief_progress(result.BriefProgress.GetData());
         response->set_running_jobs(result.RunningJobs.GetData());
         response->set_job_splitter(result.JobSplitter.GetData());
+        response->set_controller_memory_usage(result.MemoryUsage);
 
         context->Reply();
     }

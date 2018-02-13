@@ -706,7 +706,7 @@ struct TGetOperationOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
-    TNullable<yhash_set<TString>> Attributes;
+    TNullable<THashSet<TString>> Attributes;
 
     TGetOperationOptions()
     { }
