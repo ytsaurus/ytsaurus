@@ -56,6 +56,9 @@ public:
     using TSyncRequestMap = std::map<TMessageId, TPromise<void>>;
     DEFINE_BYREF_RW_PROPERTY(TSyncRequestMap, SyncRequests);
 
+    DEFINE_BYVAL_RW_PROPERTY(NRpc::IChannelPtr, CachedChannel);
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, CachedChannelDeadline);
+
 public:
     explicit TMailbox(const TCellId& cellId);
 

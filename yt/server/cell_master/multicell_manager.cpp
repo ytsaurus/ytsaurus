@@ -245,6 +245,11 @@ public:
         return channel;
     }
 
+    TMailbox* FindPrimaryMasterMailbox()
+    {
+        return PrimaryMasterMailbox_;
+    }
+
 
     DEFINE_SIGNAL(void(TCellTag), ValidateSecondaryMasterRegistration);
     DEFINE_SIGNAL(void(TCellTag), ReplicateKeysToSecondaryMaster);
@@ -767,6 +772,11 @@ IChannelPtr TMulticellManager::GetMasterChannelOrThrow(TCellTag cellTag, EPeerKi
 IChannelPtr TMulticellManager::FindMasterChannel(TCellTag cellTag, EPeerKind peerKind)
 {
     return Impl_->FindMasterChannel(cellTag, peerKind);
+}
+
+TMailbox* TMulticellManager::FindPrimaryMasterMailbox()
+{
+    return Impl_->FindPrimaryMasterMailbox();
 }
 
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ValidateSecondaryMasterRegistration, *Impl_);
