@@ -53,13 +53,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, IdlePostCookie);
 
-    struct TSyncRequest
-    {
-        TMessageId MessageId;
-        TPromise<void> Promise;
-    };
-
-    typedef std::map<TMessageId, TSyncRequest> TSyncRequestMap;
+    using TSyncRequestMap = std::map<TMessageId, TPromise<void>>;
     DEFINE_BYREF_RW_PROPERTY(TSyncRequestMap, SyncRequests);
 
 public:
@@ -67,7 +61,6 @@ public:
 
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
