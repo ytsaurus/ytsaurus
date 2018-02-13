@@ -647,8 +647,7 @@ public:
     {
         for (int index = 0; index < Stripes_.size(); ++index) {
             auto newStripe = (index == cookie) ? stripe : mapping->GetMappedStripe(stripe);
-            Stripes_[cookie].Resume(newStripe);
-            Stripes_[cookie].Suspend();
+            Stripes_[index].Reset(newStripe);
         }
         InvalidateCurrentJobs();
         DoFinish();
@@ -1141,7 +1140,6 @@ private:
     {
         TeleportChunks_.clear();
         for (auto& stripe : Stripes_) {
-            stripe.ReplaceOriginalStripe();
             stripe.SetTeleport(false);
         }
         JobManager_->InvalidateAllJobs();

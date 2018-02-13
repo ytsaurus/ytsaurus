@@ -1094,7 +1094,7 @@ yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
     yhash_set<TChunkId> intermediateChunks;
 
     for (const auto& pair : ChunkOriginMap) {
-        if (!pair.second->Suspended || !pair.second->Restartrable) {
+        if (!pair.second->Suspended || !pair.second->Restartable) {
             intermediateChunks.insert(pair.first);
         }
     }
@@ -2140,10 +2140,10 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     YCHECK(it != ChunkOriginMap.end());
     auto& completedJob = it->second;
 
-    // If completedJob->Restartrable == false, that means that source pool/task don't support lost jobs
+    // If completedJob->Restartable == false, that means that source pool/task don't support lost jobs
     // and we have to use scraper to find new replicas of intermediate chunks.
 
-    if (!completedJob->Restartrable && Spec_->UnavailableChunkTactics == EUnavailableChunkAction::Fail) {
+    if (!completedJob->Restartable && Spec_->UnavailableChunkTactics == EUnavailableChunkAction::Fail) {
         auto error = TError("Intermediate chunk is unavailable")
             << TErrorAttribute("chunk_id", chunkId);
         OnOperationFailed(error, true);
@@ -2152,7 +2152,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
 
     // If job is replayable, we don't track individual unavailable chunks,
     // since we will regenerate them all anyway.
-    if (!completedJob->Restartrable &&
+    if (!completedJob->Restartable &&
         completedJob->UnavailableChunks.insert(chunkId).second)
     {
         ++UnavailableIntermediateChunkCount;
@@ -2172,7 +2172,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     completedJob->Suspended = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
 
-    if (completedJob->Restartrable) {
+    if (completedJob->Restartable) {
         JobCounter->Lost(1);
         completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
         completedJob->SourceTask->OnJobLost(completedJob);
@@ -2188,7 +2188,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(const TChunkId& chun
     YCHECK(it != ChunkOriginMap.end());
     auto& completedJob = it->second;
 
-    if (completedJob->Restartrable || !completedJob->Suspended) {
+    if (completedJob->Restartable || !completedJob->Suspended) {
         // Job will either be restarted or all chunks are fine.
         return;
     }

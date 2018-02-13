@@ -28,6 +28,11 @@ class TInputChunkMappingTest
     : public Test
 {
 protected:
+    TInputChunkMappingPtr ChunkMapping_;
+
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+
+    EChunkMappingMode Mode_;
 
     void InitChunkMapping(EChunkMappingMode mode)
     {
@@ -125,12 +130,6 @@ protected:
         auto mappedFrom = ChunkMapping_->GetMappedStripe(from);
         return Same(ToChunks(mappedFrom), ToChunks(to));
     }
-
-    TInputChunkMappingPtr ChunkMapping_;
-
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
-
-    EChunkMappingMode Mode_;
 };
 
 TEST_F(TInputChunkMappingTest, UnorderedSimple)
