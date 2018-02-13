@@ -35,6 +35,9 @@ public:
     //! Maximum number of bytes to send via a single |PostMessages| request.
     i64 MaxBytesPerPost;
 
+    //! Amount of time TMailbox is allowed to keep a cached channel.
+    TDuration CachedChannelTimeout;
+
     THiveManagerConfig()
     {
         RegisterParameter("ping_period", PingPeriod)
@@ -51,6 +54,8 @@ public:
             .Default(16384);
         RegisterParameter("max_bytes_per_post", MaxBytesPerPost)
             .Default(16_MB);
+        RegisterParameter("cached_channel_timeout", CachedChannelTimeout)
+            .Default(TDuration::Seconds(3));
     }
 };
 

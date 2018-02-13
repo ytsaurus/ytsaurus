@@ -73,7 +73,7 @@ public:
     //! When called at instant T, returns a future which gets set
     //! when all mutations enqueued at the remote side (represented by #mailbox)
     //! prior to T, are received and applied.
-    TFuture<void> SyncWith(const TCellId& cellId);
+    TFuture<void> SyncWith(TMailbox* mailbox);
 
     NYTree::IYPathServicePtr GetOrchidService();
 

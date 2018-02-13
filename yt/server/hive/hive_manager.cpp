@@ -217,15 +217,16 @@ public:
     }
 
 
-    TFuture<void> SyncWith(const TCellId& cellId)
+    TFuture<void> SyncWith(TMailbox* mailbox)
     {
         YCHECK(EpochAutomatonInvoker_);
 
-        auto proxy = FindHiveProxy(cellId);
-        if (!proxy) {
+        const auto& cellId = mailbox->GetCellId();
+        auto channel = FindMailboxChannel(mailbox);
+        if (!channel) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
-                "Cannot synchronize with cell %v since it is not yet connected",
+                "Cannot synchronize with cell %v since it is not connected",
                 cellId));
         }
 
@@ -233,7 +234,8 @@ public:
             SelfCellId_,
             cellId);
 
-        auto req = proxy->Ping();
+        THiveServiceProxy proxy(std::move(channel));
+        auto req = proxy.Ping();
         req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
@@ -499,9 +501,23 @@ private:
     }
 
 
-    std::unique_ptr<THiveServiceProxy> FindHiveProxy(TMailbox* mailbox)
+    NRpc::IChannelPtr FindMailboxChannel(TMailbox* mailbox)
     {
-        return FindHiveProxy(mailbox->GetCellId());
+        auto now = NProfiling::GetCpuInstant();
+        auto cachedChannel = mailbox->GetCachedChannel();
+        if (cachedChannel && now < mailbox->GetCachedChannelDeadline()) {
+            return cachedChannel;
+        }
+
+        auto channel = CellDirectory_->FindChannel(mailbox->GetCellId());
+        if (!channel) {
+            return nullptr;
+        }
+
+        mailbox->SetCachedChannel(channel);
+        mailbox->SetCachedChannelDeadline(now + NProfiling::DurationToCpuDuration(Config_->CachedChannelTimeout));
+
+        return channel;
     }
 
     std::unique_ptr<THiveServiceProxy> FindHiveProxy(const TCellId& cellId)
@@ -564,8 +580,8 @@ private:
                 continue;
             }
 
-            auto proxy = FindHiveProxy(mailbox);
-            if (!proxy) {
+            auto channel = FindMailboxChannel(mailbox);
+            if (!channel) {
                 continue;
             }
 
@@ -574,7 +590,8 @@ private:
             }
             logMessageBuilder.AppendFormat("%v", mailbox->GetCellId());
 
-            auto req = proxy->SendMessages();
+            THiveServiceProxy proxy(std::move(channel));
+            auto req = proxy.SendMessages();
             req->SetTimeout(Config_->SendRpcTimeout);
             ToProto(req->mutable_src_cell_id(), SelfCellId_);
             *req->add_messages() = *message;
@@ -708,8 +725,8 @@ private:
             return;
         }
 
-        auto proxy = FindHiveProxy(mailbox);
-        if (!proxy) {
+        auto channel = FindMailboxChannel(mailbox);
+        if (!channel) {
             // Let's register a dummy descriptor so as to ask about it during the next sync.
             CellDirectory_->RegisterCell(cellId);
             SchedulePeriodicPing(mailbox);
@@ -720,7 +737,8 @@ private:
             SelfCellId_,
             mailbox->GetCellId());
 
-        auto req = proxy->Ping();
+        THiveServiceProxy proxy(std::move(channel));
+        auto req = proxy.Ping();
         req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
@@ -879,12 +897,13 @@ private:
             return;
         }
 
-        auto proxy = FindHiveProxy(mailbox);
-        if (!proxy) {
+        auto channel = FindMailboxChannel(mailbox);
+        if (!channel) {
             return;
         }
 
-        auto req = proxy->PostMessages();
+        THiveServiceProxy proxy(std::move(channel));
+        auto req = proxy.PostMessages();
         req->SetTimeout(Config_->PostRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
         req->set_first_message_id(firstMessageId);
@@ -896,7 +915,7 @@ private:
                bytesToPost < Config_->MaxBytesPerPost)
         {
             const auto& message = outcomingMessages[firstMessageId + messagesToPost - mailbox->GetFirstOutcomingMessageId()];
-            *req->add_messages() = *message;
+            req->add_messages()->CopyFrom(*message);
             messagesToPost += 1;
             bytesToPost += message->ByteSize();
         }
@@ -1391,9 +1410,9 @@ void THiveManager::PostMessage(const TMailboxList& mailboxes, const ::google::pr
     Impl_->PostMessage(mailboxes, message, reliable);
 }
 
-TFuture<void> THiveManager::SyncWith(const TCellId& cellId)
+TFuture<void> THiveManager::SyncWith(TMailbox* mailbox)
 {
-    return Impl_->SyncWith(cellId);
+    return Impl_->SyncWith(mailbox);
 }
 
 IYPathServicePtr THiveManager::GetOrchidService()
