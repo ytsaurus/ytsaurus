@@ -139,7 +139,11 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("max_operation_count", MaxOperationCount)
         .Default(5000)
-        .GreaterThan(0);
+        .GreaterThan(0)
+        // This value corresponds to the maximum possible number of memory tags.
+        // It should be changed simultaneously with values of all `MaxTagValue`
+        // across the code base.
+        .LessThan(MaxMemoryTag);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
         .Alias("max_running_operations")
@@ -182,6 +186,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(1));
     RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
         .Default(TDuration::Seconds(10));
+    RegisterParameter("node_shard_submit_jobs_to_strategy_period", NodeShardSubmitJobsToStrategyPeriod)
+        .Default(TDuration::MilliSeconds(100));
 
     RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
         .Default(TDuration::Seconds(15));
@@ -243,7 +249,27 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Minutes(5));
 
     RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
-        .Default(TDuration::Seconds(15));
+        .Default(TDuration::Seconds(1));
+    
+    RegisterPreprocessor([&] () {
+        ChunkLocationThrottler->Limit = 10000;
+
+        EventLog->MaxRowWeight = 128_MB;
+
+        if (!EventLog->Path) {
+            EventLog->Path = "//sys/scheduler/event_log";
+        }
+
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
+        OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+
+        SortedMergeOperationOptions->DataWeightPerJob = 20_GB;
+        SortedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+
+        UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
+        UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+    });
 
     RegisterPostprocessor([&] () {
         if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {

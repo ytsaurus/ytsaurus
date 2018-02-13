@@ -6,6 +6,8 @@
 #include "scheduler.h"
 #include "thread_affinity.h"
 
+#include <yt/core/misc/memory_tag.h>
+
 #include <util/generic/singleton.h>
 
 namespace NYT {
@@ -166,6 +168,7 @@ const TClosure& TFiber::GetCanceler()
 
     TGuard<TSpinLock> guard(SpinLock_);
     if (!Canceler_) {
+        TMemoryTagGuard guard(NullMemoryTag);
         Canceler_ = BIND(&TFiber::Cancel, MakeWeak(this));
     }
 
@@ -256,6 +259,11 @@ void TFiber::InvokeContextInHandlers()
     for (auto& handler : SwitchHandlers_) {
         handler.In();
     }
+}
+
+ui64& TFiber::MemoryTag()
+{
+    return MemoryTag_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

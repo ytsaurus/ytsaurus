@@ -48,6 +48,8 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        const auto* node = GetThisImpl<TFileNode>();
+
         descriptors->push_back(TAttributeDescriptor("executable")
             .SetCustom(true)
             .SetReplicated(true));
@@ -55,7 +57,7 @@ private:
             .SetCustom(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("md5")
-            .SetPresent(false)
+            .SetPresent(node->GetMD5Hasher().HasValue())
             .SetReplicated(true));
     }
 

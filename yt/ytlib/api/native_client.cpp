@@ -426,6 +426,14 @@ public:
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
 
+        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+            // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
+            // requests for operations archive should be performed under the same user.
+            OperationsArchiveChannels_[kind] = CreateAuthenticatedChannel(
+                Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
+                "application_operations");
+        }
+
         ChannelFactory_ = CreateNodeChannelFactory(
             wrapChannelFactory(Connection_->GetChannelFactory()),
             Connection_->GetNetworks());
@@ -885,6 +893,7 @@ private:
 
     TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
+    TEnumIndexedVector<IChannelPtr, EMasterChannelKind> OperationsArchiveChannels_;
     INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TFunctionImplCachePtr FunctionImplCache_;
@@ -1381,10 +1390,14 @@ private:
         const std::vector<std::pair<NTableClient::TKey, int>>& keys)
     {
         THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        THashSet<TTabletId> tabletIds;
         for (const auto& pair : keys) {
             auto key = pair.first;
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            const auto& tabletId = tabletInfo->TabletId;
+            if (tabletIds.insert(tabletId).second) {
+                cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            }
         }
         return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
     }
@@ -1956,8 +1969,7 @@ private:
                     evaluator->EvaluateKeys(capturedKey, rowBuffer);
                 }
                 auto tabletInfo = tableInfo->GetTabletForRow(capturedKey);
-                if (tabletIds.count(tabletInfo->TabletId) == 0) {
-                    tabletIds.insert(tabletInfo->TabletId);
+                if (tabletIds.insert(tabletInfo->TabletId).second) {
                     ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
                     cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
                 }
@@ -2031,7 +2043,7 @@ private:
             auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
             auto& subrequest = cellIdToSubrequest[tabletInfo->CellId];
             if (!subrequest.Request) {
-                auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
+                auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
                 TQueryServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(options.Timeout);
                 subrequest.Request = proxy.GetTabletInfo();
@@ -3378,11 +3390,17 @@ private:
             deadline = options.Timeout->ToDeadLine();
         }
 
-        TGetNodeOptions optionsToCypress;
+        std::vector<TString> attributes;
         if (options.Attributes) {
-            optionsToCypress.Attributes = options.Attributes;
+            attributes.reserve(options.Attributes->size() + 1);
+            attributes.insert(attributes.begin(), options.Attributes->begin(), options.Attributes->end());
+            // NOTE(asaitgalin): This attribute helps to distinguish between
+            // different cypress storage modes of operation.
+            if (options.Attributes->find("state") == options.Attributes->end()) {
+                attributes.push_back("state");
+            }
         } else {
-            optionsToCypress.Attributes = {
+            attributes = {
                 "authenticated_user",
                 "brief_progress",
                 "brief_spec",
@@ -3397,21 +3415,60 @@ private:
                 "weight",
             };
         }
-        if (deadline) {
-            optionsToCypress.Timeout = *deadline - Now();
+
+        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
+        {
+            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "get_operation_new");
         }
 
-
-        auto attrNodeOrError = WaitFor(GetNode(GetNewOperationPath(operationId) + "/@", optionsToCypress));
-        auto attrOldNodeOtError = WaitFor(GetNode(GetOperationPath(operationId) + "/@", optionsToCypress));
-        if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            attrNodeOrError = attrOldNodeOtError;
-        } else if (attrNodeOrError.IsOK() && attrOldNodeOtError.IsOK()) {
-            attrNodeOrError.Value() = ConvertToYsonString(PatchNode(ConvertToNode(attrNodeOrError.Value()), ConvertToNode(attrOldNodeOtError.Value())));
+        {
+            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "get_operation");
         }
 
-        if (attrNodeOrError.IsOK()) {
-            auto attrNodeValue = attrNodeOrError.Value();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        auto attrNodeOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation_new");
+        auto attrOldNodeOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation");
+
+        auto getCypressNode = [&] (const auto& rsp) -> INodePtr {
+            if (rsp.IsOK()) {
+                return ConvertToNode(TYsonString(rsp.Value()->value()));
+            }
+            if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR rsp;
+            }
+            return nullptr;
+        };
+
+        INodePtr newCypressNode = getCypressNode(attrNodeOrError);
+        INodePtr oldCypressNode = getCypressNode(attrOldNodeOrError);
+        INodePtr cypressNode;
+        if (newCypressNode && oldCypressNode) {
+            cypressNode = PatchNode(oldCypressNode, newCypressNode);
+        } else if (newCypressNode) {
+            cypressNode = newCypressNode;
+
+            auto state = cypressNode->AsMap()->FindChild("state");
+            if (!state) {
+                cypressNode = nullptr;
+            }
+        } else {
+            cypressNode = oldCypressNode;
+        }
+
+        if (cypressNode) {
+            auto attrNode = cypressNode->AsMap();
+            if (options.Attributes && options.Attributes->find("state") == options.Attributes->end()) {
+                attrNode->RemoveChild("state");
+            }
 
             TGetNodeOptions optionsToScheduler;
             if (deadline) {
@@ -3432,11 +3489,10 @@ private:
 
                 if (schedulerProgressValueOrError.IsOK()) {
                     auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
-                    auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
                     attrNode->RemoveChild("progress");
                     YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
 
-                    attrNodeValue = ConvertToYsonString(attrNode);
+                    return ConvertToYsonString(attrNode);
                 } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     LOG_DEBUG("No such operation %v in the scheduler", operationId);
                 } else {
@@ -3445,8 +3501,8 @@ private:
                 }
             }
 
-            return attrNodeValue;
-        } else if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError) && IsArchiveExists()) {
+            return ConvertToYsonString(cypressNode);
+        } else if (IsArchiveExists()) {
             LOG_DEBUG("No such operation %v in Cypress", operationId);
 
             int version = DoGetOperationsArchiveVersion();
@@ -3457,8 +3513,9 @@ private:
 
             try {
                 auto result = DoGetOperationFromArchive(operationId, options);
-                if (result)
+                if (result) {
                     return result;
+                }
             } catch (const TErrorException& exception) {
                 auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
 
@@ -3906,8 +3963,7 @@ private:
             THROW_ERROR_EXCEPTION("Maximum result size exceedes allowed limit");
         }
 
-        TListNodeOptions listNodeOptions;
-        listNodeOptions.Attributes = {
+        std::vector<TString> attributes = {
             "authenticated_user",
             "brief_progress",
             "brief_spec",
@@ -3919,11 +3975,22 @@ private:
             "title",
             "weight"
         };
-        if (deadline) {
-            listNodeOptions.Timeout = *deadline - Now();
-        }
 
-        auto items = ConvertToNode(DoListNode(GetOperationsPath(), listNodeOptions))->AsList();
+        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
+        auto req = TYPathProxy::List(GetOperationsPath());
+        SetCachingHeader(req, options);
+        ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>(0)
+            .ValueOrThrow();
+
+        auto items = ConvertToNode(TYsonString(rsp->value()))->AsList();
 
         std::vector<TOperation> cypressOperations;
         for (const auto& item : items->GetChildren()) {
@@ -4598,7 +4665,7 @@ private:
         TNullable<TInstant> deadline,
         const TListJobsOptions& options)
     {
-        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
 
         auto attributeFilter = std::vector<TString>{
             "job_type",

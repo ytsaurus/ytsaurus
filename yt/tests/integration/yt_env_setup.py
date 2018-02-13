@@ -1,8 +1,13 @@
 import yt_commands
 
 from yt.environment import YTInstance
-from yt.common import makedirp, update, YtError, format_error
+from yt.common import makedirp, YtError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
+
+try:
+    from yt.common import update_inplace as update
+except ImportError:
+    from yt.common import update
 
 import pytest
 
@@ -620,7 +625,7 @@ class YTEnvSetup(object):
     def _remove_users(self, driver=None):
         users = yt_commands.ls("//sys/users", attributes=["builtin"], driver=driver)
         for user in users:
-            if not user.attributes["builtin"]:
+            if not user.attributes["builtin"] and str(user) != "application_operations":
                 yt_commands.remove_user(str(user), driver=driver)
 
     def _remove_groups(self, driver=None):
