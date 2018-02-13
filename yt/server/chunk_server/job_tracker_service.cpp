@@ -46,7 +46,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TJobTrackerServiceProxy::GetDescriptor(),
-            EAutomatonThreadQueue::JobTracker,
+            EAutomatonThreadQueue::JobTrackerService,
             ChunkServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)

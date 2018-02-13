@@ -132,7 +132,7 @@ private:
     {
         TDelayedExecutor::Submit(
             BIND(&TImpl::InitializeIfNeeded, MakeStrong(this))
-                .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()),
+                .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic)),
             delay);
     }
 

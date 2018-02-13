@@ -66,7 +66,7 @@ public:
     TImpl(
         TMulticellManagerConfigPtr config,
         TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::MulticellManager)
         , Config_(config)
     {
         YCHECK(Config_);
@@ -367,13 +367,13 @@ private:
 
         if (Bootstrap_->IsSecondaryMaster()) {
             RegisterAtPrimaryMasterExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnStartSecondaryMasterRegistration, MakeWeak(this)),
                 RegisterRetryPeriod);
             RegisterAtPrimaryMasterExecutor_->Start();
 
             CellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)),
                 Config_->CellStatisticsGossipPeriod);
             CellStatisticsGossipExecutor_->Start();

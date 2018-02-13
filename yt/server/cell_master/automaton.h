@@ -71,7 +71,9 @@ protected:
     TBootstrap* const Bootstrap_;
 
 
-    explicit TMasterAutomatonPart(TBootstrap* bootstrap);
+    TMasterAutomatonPart(
+        TBootstrap* bootstrap,
+        EAutomatonThreadQueue queue);
 
     virtual bool ValidateSnapshotVersion(int version) override;
     virtual int GetCurrentSnapshotVersion() override;

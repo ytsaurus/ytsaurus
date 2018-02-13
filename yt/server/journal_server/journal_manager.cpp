@@ -44,7 +44,7 @@ public:
     TImpl(
         TJournalManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
-        : NCellMaster::TMasterAutomatonPart(bootstrap)
+        : NCellMaster::TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::JournalManager)
         , Config_(config)
     { }
 
