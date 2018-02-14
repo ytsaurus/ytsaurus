@@ -3,9 +3,12 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -109,18 +112,20 @@ public class ApiServiceClient {
 
     private final ApiService service;
     private final Executor heavyExecutor;
+    private final RpcClient rpcClient;
 
-    public ApiServiceClient(ApiService service, Executor heavyExecutor) {
+    private ApiServiceClient(RpcClient client, ApiService service, Executor heavyExecutor) {
         this.service = Objects.requireNonNull(service);
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
+        this.rpcClient = client;
     }
 
-    public ApiServiceClient(ApiService service) {
-        this(service, ForkJoinPool.commonPool());
+    private ApiServiceClient(RpcClient client, ApiService service) {
+        this(client, service, ForkJoinPool.commonPool());
     }
 
     public ApiServiceClient(RpcClient client, RpcOptions options) {
-        this(client.getService(ApiService.class, options));
+        this(client, client.getService(ApiService.class, options));
     }
 
     public ApiServiceClient(RpcClient client) {
@@ -166,10 +171,12 @@ public class ApiServiceClient {
         final boolean ping = builder.body().getPing();
         final boolean pingAncestors = builder.body().getPingAncestors();
         final boolean sticky = builder.body().getSticky();
+        final Duration pingPeriod = options.getPingPeriod();
+
         return RpcUtil.apply(builder.invoke(), response -> {
             YtGuid id = YtGuid.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
-            return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky);
+            return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod);
         });
     }
 
@@ -554,5 +561,13 @@ public class ApiServiceClient {
     private <T, Response> CompletableFuture<T> handleHeavyResponse(CompletableFuture<Response> future,
                                                                    Function<Response, T> fn) {
         return RpcUtil.applyAsync(future, fn, heavyExecutor);
+    }
+
+
+    <V> ScheduledFuture<V> schedule(
+            Callable<V> callable,
+            long delay, TimeUnit unit)
+    {
+        return rpcClient.schedule(callable, delay, unit);
     }
 }

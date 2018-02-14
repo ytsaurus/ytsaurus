@@ -1,6 +1,9 @@
 package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.TCredentialsExt;
@@ -53,7 +56,16 @@ public class TokenAuthentication implements RpcClient {
         return "TokenAuthentication@" + client.toString();
     }
 
+    @Override
     public String destinationName() {
         return client.destinationName();
+    }
+
+    @Override
+    public <V> ScheduledFuture<V> schedule(
+            Callable<V> callable,
+            long delay, TimeUnit unit)
+    {
+        return client.schedule(callable, delay, unit);
     }
 }

@@ -2,7 +2,10 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -53,6 +56,14 @@ public class RpcServiceClientTest {
         public String destinationName() {
             return "RespondingClient";
         }
+
+        @Override
+        public <V> ScheduledFuture<V> schedule(
+                Callable<V> callable,
+                long delay, TimeUnit unit)
+        {
+            throw new IllegalArgumentException("unreachable");
+        }
     }
 
     public static class FailingClient implements RpcClient {
@@ -77,6 +88,14 @@ public class RpcServiceClientTest {
         @Override
         public String destinationName() {
             return "FailingClient";
+        }
+
+        @Override
+        public <V> ScheduledFuture<V> schedule(
+                Callable<V> callable,
+                long delay, TimeUnit unit)
+        {
+            throw new IllegalArgumentException("unreachable");
         }
     }
 

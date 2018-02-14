@@ -1,5 +1,9 @@
 package ru.yandex.yt.ytclient.rpc;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 import ru.yandex.yt.ytclient.rpc.internal.TokenAuthentication;
 
@@ -42,4 +46,8 @@ public interface RpcClient extends AutoCloseable {
     }
 
     String destinationName();
+
+    <V> ScheduledFuture<V> schedule(
+            Callable<V> callable,
+            long delay, TimeUnit unit);
 }
