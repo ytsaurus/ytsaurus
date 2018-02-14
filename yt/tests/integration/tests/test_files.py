@@ -238,8 +238,6 @@ class TestFiles(YTEnvSetup):
         write_file("//tmp/fcache3", "test2", compute_md5=True)
         assert get("//tmp/fcache3/@md5") == hashlib.md5("test2").hexdigest()
 
-        assert not exists("//tmp/fcache4/@md5")
-
         concatenate(["//tmp/fcache", "//tmp/fcache3"], "//tmp/fcache4")
         assert not exists("//tmp/fcache4/@md5")
 
