@@ -20,6 +20,9 @@ public:
     //! requests to remote Hive Manager.
     TDuration IdlePostPeriod;
 
+    //! Hive Manager will try to group post requests within this period.
+    TDuration PostBatchingPeriod;
+
     //! Timeout for Ping RPC requests.
     TDuration PingRpcTimeout;
 
@@ -44,6 +47,8 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("idle_post_period", IdlePostPeriod)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("post_batching_period", PostBatchingPeriod)
+            .Default(TDuration::MilliSeconds(10));
         RegisterParameter("ping_rpc_timeout", PingRpcTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("send_rpc_timeout", SendRpcTimeout)

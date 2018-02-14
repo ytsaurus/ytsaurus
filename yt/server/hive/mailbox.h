@@ -13,6 +13,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/tracing/public.h>
@@ -58,6 +60,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NRpc::IChannelPtr, CachedChannel);
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, CachedChannelDeadline);
+
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, PostBatchingCookie);
 
 public:
     explicit TMailbox(const TCellId& cellId);

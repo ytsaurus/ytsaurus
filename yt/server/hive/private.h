@@ -6,6 +6,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT {
 namespace NHiveServer {
 
@@ -17,6 +19,7 @@ class TAbort;
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger HiveServerLogger;
+extern const NProfiling::TProfiler HiveServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
