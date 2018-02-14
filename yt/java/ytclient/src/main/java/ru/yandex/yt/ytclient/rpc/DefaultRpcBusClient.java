@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -482,5 +483,13 @@ public class DefaultRpcBusClient implements RpcClient {
         Request pendingRequest = new Request(getSession(), request, handler, stats);
         pendingRequest.start();
         return pendingRequest;
+    }
+
+    @Override
+    public <V> java.util.concurrent.ScheduledFuture<V> schedule(
+            Callable<V> callable,
+            long delay, TimeUnit unit)
+    {
+        return getSession().eventLoop().schedule(callable, delay, unit);
     }
 }

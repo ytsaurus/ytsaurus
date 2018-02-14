@@ -1,9 +1,11 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 
 import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
@@ -31,10 +33,19 @@ public class ApiServiceTransaction implements AutoCloseable {
     private final YtGuid id;
     private final YtTimestamp startTimestamp;
     private final boolean ping;
-    private final boolean pingAncestors;
     private final boolean sticky;
-    private volatile boolean closed;
     private final TransactionalOptions transactionalOptions;
+    private final Duration pingPeriod;
+
+    enum State {
+        ACTIVE,
+        COMMITTING,
+        COMMITTED,
+        ABORTED
+    }
+
+    private final Object stateLock = new Object();
+    private State state;
 
     public ApiServiceClient getClient() {
         return client;
@@ -56,43 +67,115 @@ public class ApiServiceTransaction implements AutoCloseable {
         return sticky;
     }
 
-    ApiServiceTransaction(ApiServiceClient client, YtGuid id, YtTimestamp startTimestamp, boolean ping,
-                          boolean pingAncestors, boolean sticky) {
+    ApiServiceTransaction(
+            ApiServiceClient client,
+            YtGuid id,
+            YtTimestamp startTimestamp,
+            boolean ping,
+            boolean pingAncestors,
+            boolean sticky,
+            Duration pingPeriod)
+    {
         this.client = Objects.requireNonNull(client);
         this.id = Objects.requireNonNull(id);
         this.startTimestamp = Objects.requireNonNull(startTimestamp);
         this.ping = ping;
-        this.pingAncestors = pingAncestors;
         this.sticky = sticky;
         this.transactionalOptions = new TransactionalOptions(id, ping, pingAncestors, sticky);
+        this.state = State.ACTIVE;
+        this.pingPeriod = pingPeriod;
+
+        if (ping && ! pingPeriod.isZero() && ! pingPeriod.isNegative()) {
+            runPeriodicPings();
+        }
     }
 
-    private CompletableFuture<Void> closeOnSuccess(CompletableFuture<Void> future) {
-        future.thenAccept(ignored -> {
-            closed = true;
+    private State getState() {
+        synchronized (stateLock) {
+            return state;
+        }
+    }
+
+    private boolean isPingableState() {
+        State state = getState();
+        return state == State.ACTIVE || state == State.COMMITTING;
+    }
+
+    private void runPeriodicPings() {
+        if (!isPingableState()) {
+            return;
+        }
+
+        ping().thenAccept((unused) -> {
+            if (!isPingableState()) {
+                return;
+            }
+
+            client.schedule(() -> {
+                runPeriodicPings();
+                return null;
+            }, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
+        }).exceptionally((ex) -> {
+            // TODO check timeout here?
+            return null;
         });
-        return future;
     }
 
     public CompletableFuture<Void> ping() {
-        if (closed) {
-            throw new IllegalStateException("Transaction is closed");
-        }
         return client.pingTransaction(id, sticky);
     }
 
-    public CompletableFuture<Void> commit() {
-        if (closed) {
-            throw new IllegalStateException("Transaction is closed");
+    private void setCommitted() {
+        synchronized (stateLock) {
+            if (state != State.COMMITTING) {
+                throw new IllegalStateException(String.format("Transaction '%s' is already being committed", id));
+            }
+
+            state = State.COMMITTED;
         }
-        return closeOnSuccess(client.commitTransaction(id, sticky));
+    }
+
+    private void setAborted() {
+        synchronized (stateLock) {
+            state = State.ABORTED;
+        }
+    }
+
+    public CompletableFuture<Void> commit() {
+        synchronized (stateLock) {
+            switch (state) {
+                case COMMITTED:
+                    throw new IllegalStateException(String.format("Transaction '%s' is already committed", id));
+                case COMMITTING:
+                    throw new IllegalStateException(String.format("Transaction '%s' is already being committed", id));
+                case ABORTED:
+                    throw new IllegalStateException(String.format("Transaction '%s' is already aborted", id));
+                default:
+                    state = State.COMMITTING;
+                    break;
+            }
+        }
+
+        return client.commitTransaction(id, sticky).thenAccept((unused) ->
+            setCommitted()
+        ).exceptionally((ex) -> {
+            setAborted();
+            return null;
+        });
     }
 
     public CompletableFuture<Void> abort() {
-        if (closed) {
-            throw new IllegalStateException("Transaction is closed");
+        State state = getState();
+        if (state != State.ACTIVE) {
+            throw new IllegalStateException(String.format("Transaction '%s' is closed", id));
         }
-        return closeOnSuccess(client.abortTransaction(id, sticky));
+
+        synchronized (stateLock) {
+            this.state = State.ABORTED;
+        }
+
+        // dont wait for answer
+        return client.abortTransaction(id, sticky);
     }
 
     @Override
@@ -109,7 +192,9 @@ public class ApiServiceTransaction implements AutoCloseable {
         } catch (CancellationException | CompletionException ignored) {
             // игнорируем ошибки abort'а
         } finally {
-            closed = true;
+            synchronized (stateLock) {
+                this.state = State.ABORTED;
+            }
         }
     }
 

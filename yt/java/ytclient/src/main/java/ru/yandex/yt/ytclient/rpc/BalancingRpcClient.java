@@ -7,8 +7,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -271,5 +273,13 @@ public class BalancingRpcClient implements RpcClient {
 
     public String destinationName() {
         return "multidestination";
+    }
+
+    @Override
+    public <V> ScheduledFuture<V> schedule(
+            Callable<V> callable,
+            long delay, TimeUnit unit)
+    {
+        return executorService.schedule(callable, delay, unit);
     }
 }

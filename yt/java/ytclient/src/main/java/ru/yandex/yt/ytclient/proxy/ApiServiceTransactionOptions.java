@@ -22,6 +22,7 @@ public class ApiServiceTransactionOptions {
     private Boolean sticky;
     private EAtomicity atomicity;
     private EDurability durability;
+    private Duration pingPeriod = Duration.ofSeconds(5);
 
     public ApiServiceTransactionOptions(ETransactionType type) {
         this.type = Objects.requireNonNull(type);
@@ -65,6 +66,10 @@ public class ApiServiceTransactionOptions {
 
     public EDurability getDurability() {
         return durability;
+    }
+
+    public Duration getPingPeriod() {
+        return pingPeriod;
     }
 
     public ApiServiceTransactionOptions setTimeout(Duration timeout) {
@@ -112,4 +117,8 @@ public class ApiServiceTransactionOptions {
         return this;
     }
 
+    public ApiServiceTransactionOptions setPingPeriod(Duration pingPeriod) {
+        this.pingPeriod = pingPeriod;
+        return this;
+    }
 }
