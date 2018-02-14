@@ -1310,7 +1310,7 @@ class TestSchedulerRevive(YTEnvSetup):
             out="//tmp/t2",
             spec={"data_size_per_job": 1})
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(job_count=2)
 
         operation_path = "//sys/operations/{0}".format(op.id)
 
