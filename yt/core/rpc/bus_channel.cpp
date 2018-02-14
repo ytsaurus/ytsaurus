@@ -510,7 +510,7 @@ private:
                 metadata->ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
                 metadata->TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
                 metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
-                metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+                metadata->TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
                 metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
                 metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
                 metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
