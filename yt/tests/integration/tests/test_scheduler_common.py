@@ -259,11 +259,10 @@ class TestJobStderr(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        command = """echo "{x=y}{v=};{a=b}"; while echo xxx 2>/dev/null; do false; done; echo stderr 1>&2; cat > /dev/null;"""
+        command = "echo stderr 1>&2 ; exit 1"
 
         op = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command)
 
-        # If all jobs failed then operation is also failed
         with pytest.raises(YtError):
             op.track()
 
