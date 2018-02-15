@@ -20,6 +20,9 @@ public:
     //! requests to remote Hive Manager.
     TDuration IdlePostPeriod;
 
+    //! Hive Manager will try to group post requests within this period.
+    TDuration PostBatchingPeriod;
+
     //! Timeout for Ping RPC requests.
     TDuration PingRpcTimeout;
 
@@ -35,12 +38,17 @@ public:
     //! Maximum number of bytes to send via a single |PostMessages| request.
     i64 MaxBytesPerPost;
 
+    //! Amount of time TMailbox is allowed to keep a cached channel.
+    TDuration CachedChannelTimeout;
+
     THiveManagerConfig()
     {
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("idle_post_period", IdlePostPeriod)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("post_batching_period", PostBatchingPeriod)
+            .Default(TDuration::MilliSeconds(10));
         RegisterParameter("ping_rpc_timeout", PingRpcTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("send_rpc_timeout", SendRpcTimeout)
@@ -51,6 +59,8 @@ public:
             .Default(16384);
         RegisterParameter("max_bytes_per_post", MaxBytesPerPost)
             .Default(16_MB);
+        RegisterParameter("cached_channel_timeout", CachedChannelTimeout)
+            .Default(TDuration::Seconds(3));
     }
 };
 

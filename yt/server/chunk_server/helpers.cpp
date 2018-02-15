@@ -417,7 +417,7 @@ TFuture<TYsonString> GetMulticellOwningNodes(
     TChunkTree* chunkTree)
 {
     return BIND(&DoGetMulticellOwningNodes, bootstrap, chunkTree->GetId())
-        .AsyncVia(bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker())
+        .AsyncVia(GetCurrentInvoker())
         .Run();
 }
 

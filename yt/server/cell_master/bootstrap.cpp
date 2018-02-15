@@ -347,7 +347,7 @@ void TBootstrap::Run()
 void TBootstrap::TryLoadSnapshot(const TString& fileName, bool dump)
 {
     BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump)
-        .AsyncVia(HydraFacade_->GetAutomatonInvoker())
+        .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
         .Get()
         .ThrowOnError();
@@ -511,7 +511,7 @@ void TBootstrap::DoInitialize()
 
     auto timestampManager = New<TTimestampManager>(
         Config_->TimestampManager,
-        HydraFacade_->GetAutomatonInvoker(),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
 

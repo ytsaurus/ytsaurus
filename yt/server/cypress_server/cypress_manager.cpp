@@ -473,13 +473,13 @@ public:
     TImpl(
         TCypressManagerConfigPtr config,
         TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap)
+        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::CypressManager)
         , Config_(config)
         , AccessTracker_(New<TAccessTracker>(config, bootstrap))
         , ExpirationTracker_(New<TExpirationTracker>(config, bootstrap))
         , NodeMap_(TNodeMapTraits(this))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
         RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
 

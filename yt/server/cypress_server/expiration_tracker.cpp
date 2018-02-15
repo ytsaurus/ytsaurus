@@ -49,7 +49,7 @@ void TExpirationTracker::Start()
 
     YCHECK(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ExpirationTracker),
         BIND(&TExpirationTracker::OnCheck, MakeWeak(this)),
         Config_->ExpirationCheckPeriod);
     CheckExecutor_->Start();
