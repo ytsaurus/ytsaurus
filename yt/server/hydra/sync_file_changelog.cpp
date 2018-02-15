@@ -457,8 +457,6 @@ public:
                     IndexFile_->FlushData();
                 });
             }
-
-            LastFlushed_ = TInstant::Now();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error flushing changelog");
             Error_ = ex;
@@ -911,7 +909,6 @@ private:
     TNullable<int> TruncatedRecordCount_;
     i64 CurrentBlockSize_ = -1;
     i64 CurrentFilePosition_ = -1;
-    TInstant LastFlushed_;
 
     TChangelogMeta Meta_;
     TSharedRef SerializedMeta_;
