@@ -206,7 +206,7 @@ TTabletTracker::TTabletTracker(
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 }
 
 void TTabletTracker::Start()
@@ -217,7 +217,7 @@ void TTabletTracker::Start()
 
     YCHECK(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
         BIND(&TTabletTracker::ScanCells, MakeWeak(this)),
         Config_->CellScanPeriod);
     PeriodicExecutor_->Start();

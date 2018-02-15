@@ -1131,7 +1131,7 @@ struct TTypedExpressionBuilder
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const
     {
-        auto* scheduler = GetCurrentScheduler();
+        auto* scheduler = TryGetCurrentScheduler();
         if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(16_KB)) {
             THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
         }

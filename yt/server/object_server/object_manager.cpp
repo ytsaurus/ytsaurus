@@ -285,7 +285,7 @@ private:
 TObjectManager::TObjectManager(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
-    : TMasterAutomatonPart(bootstrap)
+    : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ObjectManager)
     , Config_(config)
     , Profiler(ObjectServerProfiler)
     , RootService_(New<TRootService>(Bootstrap_))
@@ -332,7 +332,7 @@ void TObjectManager::Initialize()
     }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
+        Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
     ProfilingExecutor_->Start();

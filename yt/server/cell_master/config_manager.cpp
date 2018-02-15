@@ -23,7 +23,7 @@ class TConfigManager::TImpl
 {
 public:
     explicit TImpl(NCellMaster::TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap)
+        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ConfigManager)
     {
         RegisterLoader(
             "ConfigManager",

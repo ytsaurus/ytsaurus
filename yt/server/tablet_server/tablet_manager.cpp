@@ -119,8 +119,6 @@ static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -128,12 +126,12 @@ public:
     explicit TImpl(
         TTabletManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap)
+        : TMasterAutomatonPart(bootstrap,  NCellMaster::EAutomatonThreadQueue::TabletManager)
         , Config_(config)
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
         , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         RegisterLoader(
             "TabletManager.Keys",
@@ -3740,7 +3738,7 @@ private:
         }
 
         CleanupExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnCleanup, MakeWeak(this)),
             CleanupPeriod);
         CleanupExecutor_->Start();

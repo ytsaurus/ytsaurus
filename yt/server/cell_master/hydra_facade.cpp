@@ -88,7 +88,7 @@ public:
 
         ResponseKeeper_ = New<TResponseKeeper>(
             Config_->HydraManager->ResponseKeeper,
-            GetAutomatonInvoker(),
+            GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             NObjectServer::ObjectServerLogger,
             NObjectServer::ObjectServerProfiler);
 
@@ -179,7 +179,7 @@ public:
     }
 
 
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
         return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
     }
@@ -252,8 +252,7 @@ private:
 
     void OnSnapshotCleanup()
     {
-        auto snapshotsPath = Config_->Snapshots->Path;
-
+        const auto& snapshotsPath = Config_->Snapshots->Path;
         std::vector<TSnapshotInfo> snapshots;
         auto snapshotFileNames = NFS::EnumerateFiles(snapshotsPath);
         for (const auto& fileName : snapshotFileNames) {
@@ -303,7 +302,7 @@ private:
             }
         }
 
-        auto changelogsPath = Config_->Changelogs->Path;
+        const auto& changelogsPath = Config_->Changelogs->Path;
         auto changelogFileNames = NFS::EnumerateFiles(changelogsPath);
         for (const auto& fileName : changelogFileNames) {
             if (NFS::GetFileExtension(fileName) != ChangelogExtension)
@@ -334,8 +333,13 @@ private:
 
     TFuture<void> OnUpstreamSync()
     {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto* mailbox = multicellManager->FindPrimaryMasterMailbox();
+        if (!mailbox) {
+            return VoidFuture;
+        }
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        return hiveManager->SyncWith(Bootstrap_->GetPrimaryCellId());
+        return hiveManager->SyncWith(mailbox);
     }
 };
 

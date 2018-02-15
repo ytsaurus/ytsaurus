@@ -40,7 +40,7 @@ void TAccessTracker::Start()
 
     YCHECK(!FlushExecutor_);
     FlushExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
         BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
         Config_->StatisticsFlushPeriod);
     FlushExecutor_->Start();

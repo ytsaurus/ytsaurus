@@ -54,11 +54,11 @@ public:
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , BalanceExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletBalancer),
             BIND(&TImpl::Balance, MakeWeak(this)),
             Config_->BalancePeriod))
         , ConfigCheckExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnCheckConfig, MakeWeak(this)),
             Config_->ConfigCheckPeriod))
         , Profiler("/tablet_server/tablet_balancer")

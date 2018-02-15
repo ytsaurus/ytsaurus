@@ -29,6 +29,7 @@ DECLARE_REFCOUNTED_CLASS(THydraFacade)
 DECLARE_REFCOUNTED_CLASS(TWorldInitializer)
 DECLARE_REFCOUNTED_CLASS(TIdentityManager)
 DECLARE_REFCOUNTED_CLASS(TMulticellManager)
+DECLARE_REFCOUNTED_CLASS(TConfigManager)
 
 class TBootstrap;
 
@@ -36,11 +37,23 @@ class TLoadContext;
 class TSaveContext;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
 
-class TConfigManager;
-using TConfigManagerPtr = TIntrusivePtr<TConfigManager>;
-
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
+    (TimestampManager)
+    (ConfigManager)
+    (ChunkManager)
+    (CypressManager)
+    (HiveManager)
+    (JournalManager)
+    (NodeTracker)
+    (ObjectManager)
+    (SecurityManager)
+    (TransactionManager)
+    (MulticellManager)
+    (TabletManager)
+    (ExpirationTracker)
+    (TabletBalancer)
+    (Periodic)
     (Mutation)
     (ChunkMaintenance)
     (ChunkLocator)
@@ -54,8 +67,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ObjectService)
     (TransactionSupervisor)
     (GarbageCollector)
-    (JobTracker)
-    (HiveManager)
+    (JobTrackerService)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

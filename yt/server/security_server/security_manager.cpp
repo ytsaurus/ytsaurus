@@ -266,7 +266,7 @@ public:
     TImpl(
         TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap)
+        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::SecurityManager)
         , Config_(config)
         , RequestTracker_(New<TRequestTracker>(config, bootstrap))
     {
@@ -2080,13 +2080,13 @@ private:
         TMasterAutomatonPart::OnLeaderActive();
 
         AccountStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)),
             Config_->AccountStatisticsGossipPeriod);
         AccountStatisticsGossipExecutor_->Start();
 
         UserStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)),
             Config_->UserStatisticsGossipPeriod);
         UserStatisticsGossipExecutor_->Start();
