@@ -61,7 +61,7 @@ private:
 
     TSpinLock SpinLock_;
 
-    volatile i64 FreeSlots_;
+    std::atomic<i64> FreeSlots_;
 
     bool Releasing_ = false;
 
