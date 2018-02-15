@@ -18,6 +18,7 @@
 #endif
 #ifdef _linux_
 #include <grp.h>
+#include <sys/prctl.h>
 #endif
 
 namespace NYT {
@@ -68,6 +69,7 @@ int TProgram::Run(int argc, const char** argv)
     try {
         Argv0_ = TString(argv[0]);
         TOptsParseResult result(this, argc, argv);
+
 
         DoRun(result);
         return Exit(EProgramExitCode::OK);
@@ -185,6 +187,8 @@ void ConfigureUids()
         // if effective uid == 0 (e. g. set-uid-root), alter saved = effective, effective = real.
 #ifdef _linux_
         YCHECK(setresuid(ruid, ruid, euid) == 0);
+        // Make server suid_dumpable = 1.
+        YCHECK(prctl(PR_SET_DUMPABLE, 1)  == 0);
 #else
         YCHECK(setuid(euid) == 0);
         YCHECK(seteuid(ruid) == 0);
