@@ -24,6 +24,8 @@
 namespace NYT {
 namespace NConcurrency {
 
+using ::testing::ContainsRegex;
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +60,43 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+int RecursiveFunction(size_t maxDepth, size_t currentDepth)
+{
+    if (currentDepth >= maxDepth) {
+        return 0;
+    }
+
+    if (!GetCurrentScheduler()->GetCurrentFiber()->CheckFreeStackSpace(40 * 1024)) {
+        THROW_ERROR_EXCEPTION("Evaluation depth causes stack overflow");
+    }
+
+    std::array<int, 4 * 1024> array;
+
+    for (size_t i = 0; i < array.size(); ++i) {
+        array[i] = rand();
+    }
+
+    return std::accumulate(array.begin(), array.end(), 0)
+        + RecursiveFunction(maxDepth, currentDepth + 1);
+}
+
+TEST_W(TSchedulerTest, CheckFiberStack)
+{
+    auto asyncResult1 = BIND(&RecursiveFunction, 10, 0)
+        .AsyncVia(Queue1->GetInvoker())
+        .Run();
+
+    WaitFor(asyncResult1).ThrowOnError();
+
+    auto asyncResult2 = BIND(&RecursiveFunction, 20, 0)
+        .AsyncVia(Queue1->GetInvoker())
+        .Run();
+
+    EXPECT_THROW_THAT(
+        [&] { WaitFor(asyncResult2).ThrowOnError(); },
+        ContainsRegex("Evaluation depth causes stack overflow"));
+}
 
 TEST_W(TSchedulerTest, SimpleAsync)
 {

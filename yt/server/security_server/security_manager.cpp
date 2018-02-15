@@ -1400,7 +1400,6 @@ private:
             .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = 1_GB;
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
-        accountHolder->ClusterResourceLimits().TabletCount = 100000;
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
         YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);

@@ -21,6 +21,21 @@ TString GenerateRandomFileName(const char* prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TFunctor, class TMatcher>
+void EXPECT_THROW_THAT(TFunctor functor, TMatcher matcher)
+{
+    bool exceptionThrown = false;
+    try {
+        functor();
+    } catch (const std::exception& ex) {
+        exceptionThrown = true;
+        EXPECT_THAT(ex.what(), matcher);
+    }
+    EXPECT_TRUE(exceptionThrown);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 namespace NYT {

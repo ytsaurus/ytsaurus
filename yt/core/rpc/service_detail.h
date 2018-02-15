@@ -427,6 +427,18 @@ protected:
 
         //! Time between the request arrival and the moment when it is fully processed.
         NProfiling::TAggregateCounter TotalTimeCounter;
+
+        //! Counts the number of bytes in requests message body.
+        NProfiling::TSimpleCounter RequestMessageBodySizeCounter;
+
+        //! Counts the number of bytes in request message attachment.
+        NProfiling::TSimpleCounter RequestMessageAttachmentSizeCounter;
+
+        //! Counts the number of bytes in response message body.
+        NProfiling::TSimpleCounter ResponseMessageBodySizeCounter;
+
+        //! Counts the number of bytes in response message attachment.
+        NProfiling::TSimpleCounter ResponseMessageAttachmentSizeCounter;
     };
 
     using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;

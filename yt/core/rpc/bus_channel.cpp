@@ -443,7 +443,7 @@ private:
                 }
 
                 requestControl = std::move(it->second);
-                requestControl->ProfileReply();
+                requestControl->ProfileReply(message);
                 requestControl->Finalize(guard, &responseHandler);
                 ActiveRequestMap_.erase(it);
             }
@@ -481,6 +481,10 @@ private:
             NProfiling::TAggregateCounter TimeoutTimeCounter;
             NProfiling::TAggregateCounter CancelTimeCounter;
             NProfiling::TAggregateCounter TotalTimeCounter;
+            NProfiling::TSimpleCounter RequestMessageBodySizeCounter;
+            NProfiling::TSimpleCounter RequestMessageAttachmentSizeCounter;
+            NProfiling::TSimpleCounter ResponseMessageBodySizeCounter;
+            NProfiling::TSimpleCounter ResponseMessageAttachmentSizeCounter;
         };
 
         TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
@@ -506,7 +510,11 @@ private:
                 metadata->ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
                 metadata->TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
                 metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
-                metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+                metadata->TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+                metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
+                metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
+                metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
+                metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
 
                 TWriterGuard guard(CachedMethodMetadataLock_);
                 auto pair = CachedMethodMetadata_.emplace(key, std::move(metadata));
@@ -616,6 +624,8 @@ private:
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
                 requestId));
+
+            requestControl->ProfileRequest(requestMessage);
 
             LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
                 "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v)",
@@ -798,9 +808,26 @@ private:
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         }
 
-        void ProfileReply()
+        void ProfileRequest(const TSharedRefArray& requestMessage)
+        {
+            Profiler.Increment(
+                MethodMetadata_->RequestMessageBodySizeCounter,
+                GetMessageBodySize(requestMessage));
+            Profiler.Increment(
+                MethodMetadata_->RequestMessageAttachmentSizeCounter,
+                GetTotalMesageAttachmentSize(requestMessage));
+        }
+
+        void ProfileReply(const TSharedRefArray& responseMessage)
         {
             DoProfile(MethodMetadata_->ReplyTimeCounter);
+
+            Profiler.Increment(
+                MethodMetadata_->ResponseMessageBodySizeCounter,
+                GetMessageBodySize(responseMessage));
+            Profiler.Increment(
+                MethodMetadata_->ResponseMessageAttachmentSizeCounter,
+                GetTotalMesageAttachmentSize(responseMessage));
         }
 
         void ProfileAck()
