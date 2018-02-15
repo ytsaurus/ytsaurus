@@ -14,8 +14,8 @@ TMemoryTagGuard::TMemoryTagGuard(TMemoryTag tag)
     if (auto* scheduler = TryGetCurrentScheduler()) {
         if (auto* fiber = scheduler->GetCurrentFiber()) {
             Active_ = true;
-            PreviousTag_ = fiber->MemoryTag();
-            fiber->MemoryTag() = tag;
+            PreviousTag_ = fiber->GetMemoryTag();
+            fiber->SetMemoryTag(tag);
             SetCurrentMemoryTag(tag);
         }
     }
@@ -28,7 +28,7 @@ TMemoryTagGuard::~TMemoryTagGuard()
         YCHECK(scheduler);
         auto* fiber = scheduler->GetCurrentFiber();
         YCHECK(fiber);
-        fiber->MemoryTag() = PreviousTag_;
+        fiber->SetMemoryTag(PreviousTag_);
         SetCurrentMemoryTag(PreviousTag_);
     }
 }
