@@ -173,10 +173,10 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="completed")["jobs"]
         assert sorted(completed_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, has_stderr=True)["jobs"]
+        res = list_jobs(op.id, include_archive=False, include_cypress=True, with_stderr=True)["jobs"]
         assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, has_stderr=False)["jobs"]
+        res = list_jobs(op.id, include_archive=False, include_cypress=True, with_stderr=False)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
         validate_address_filter(op, False, True, False)
@@ -210,10 +210,10 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, job_state="failed")["jobs"]
         assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, has_stderr=True)["jobs"]
+        res = list_jobs(op.id, with_stderr=True)["jobs"]
         assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, has_stderr=False)["jobs"]
+        res = list_jobs(op.id, with_stderr=False)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
         validate_address_filter(op, True, False, False)
@@ -243,12 +243,12 @@ class TestListJobs(YTEnvSetup):
         for job in res["jobs"]:
             assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
 
-        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=True)
+        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, with_stderr=True)
         for job in res["jobs"]:
             assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
         assert sorted(job["id"] for job in res["jobs"]) == sorted(op.jobs)
 
-        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=False)
+        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, with_stderr=False)
         assert res["jobs"] == []
 
         events.notify_event("can_finish_mapper")
