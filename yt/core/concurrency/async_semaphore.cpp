@@ -131,7 +131,6 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
     TGuard<TSpinLock> guard(SpinLock_);
 
     if (IsReady()) {
-        YCHECK(!ReadyEvent_);
         return VoidFuture;
     } else if (!ReadyEvent_) {
         ReadyEvent_ = NewPromise<void>();
