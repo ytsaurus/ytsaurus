@@ -806,6 +806,31 @@ public:
         }
     }
 
+    void UnexportChunk(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
+
+        auto externalRequisitionIndexBefore = chunk->GetExternalRequisitionIndex(cellIndex);
+        auto requisitionBefore = chunk->ComputeRequisition(GetChunkRequisitionRegistry());
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        chunk->Unexport(cellIndex, importRefCounter, GetChunkRequisitionRegistry(), objectManager);
+
+        if (externalRequisitionIndexBefore == EmptyChunkRequisitionIndex) {
+            // Unexporting has effectively done nothing from the replication and
+            // accounting standpoints.
+            return;
+        }
+
+        if (chunk->DiskSizeIsFinal()) {
+            UpdateAccountResourceUsage(chunk, -1, &requisitionBefore);
+            UpdateAccountResourceUsage(chunk, +1, nullptr);
+        }
+
+        ScheduleChunkRefresh(chunk);
+    }
+
 
     void ClearChunkList(TChunkList* chunkList)
     {
@@ -2876,9 +2901,7 @@ void TChunkManager::TChunkTypeHandlerBase::DoUnexportObject(
     TCellTag destinationCellTag,
     int importRefCounter)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
-    chunk->Unexport(cellIndex, importRefCounter, Owner_->GetChunkRequisitionRegistry());
+    Owner_->UnexportChunk(chunk, destinationCellTag, importRefCounter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
