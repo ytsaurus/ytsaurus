@@ -1131,14 +1131,15 @@ struct TTypedExpressionBuilder
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const
     {
+        auto* scheduler = GetCurrentScheduler();
+        if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(16_KB)) {
+            THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+        }
+
         ++Depth;
         auto depthGuard = Finally([&] {
             --Depth;
         });
-
-        if (!GetCurrentScheduler()->GetCurrentFiber()->CheckFreeStackSpace(16_KB)) {
-            THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
-        }
 
         if (Depth > MaxExpressionDepth) {
             THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
