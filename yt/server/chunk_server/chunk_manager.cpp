@@ -582,7 +582,7 @@ public:
     void UpdateTransactionResourceUsage(const TChunk* chunk, i64 delta)
     {
         Y_ASSERT(chunk->IsStaged());
-        Y_ASSERT(chunk->DiskSizeIsFinal());
+        Y_ASSERT(chunk->IsDiskSizeFinal());
 
         // NB: Use just the local replication as this only makes sense for staged chunks.
         const auto& requisition = ChunkRequisitionRegistry_.GetRequisition(chunk->GetLocalRequisitionIndex());
@@ -593,7 +593,7 @@ public:
     // Adds #chunk to accounts' resource usage.
     void UpdateAccountResourceUsage(const TChunk* chunk, i64 delta, TChunkRequisition* forcedRequisition = nullptr)
     {
-        Y_ASSERT(chunk->DiskSizeIsFinal());
+        Y_ASSERT(chunk->IsDiskSizeFinal());
 
         const auto& requisition = forcedRequisition
             ? *forcedRequisition
@@ -726,7 +726,7 @@ public:
     {
         StageChunkTree(chunk, transaction, account);
 
-        if (chunk->DiskSizeIsFinal()) {
+        if (chunk->IsDiskSizeFinal()) {
             UpdateTransactionResourceUsage(chunk, +1);
         }
     }
@@ -823,7 +823,7 @@ public:
             return;
         }
 
-        if (chunk->DiskSizeIsFinal()) {
+        if (chunk->IsDiskSizeFinal()) {
             UpdateAccountResourceUsage(chunk, -1, &requisitionBefore);
             UpdateAccountResourceUsage(chunk, +1, nullptr);
         }
@@ -1249,7 +1249,7 @@ private:
             ChunkSealer_->OnChunkDestroyed(chunk);
         }
 
-        if (!chunk->IsForeign() && chunk->DiskSizeIsFinal()) {
+        if (!chunk->IsForeign() && chunk->IsDiskSizeFinal()) {
             UpdateAccountResourceUsage(chunk, -1);
         }
 
@@ -1617,7 +1617,7 @@ private:
                 ToProto(crossCellUpdate->mutable_chunk_id(), chunkId);
                 crossCellUpdate->set_chunk_requisition_index(newRequisitionIndex);
             } else {
-                if (chunk->DiskSizeIsFinal()) {
+                if (chunk->IsDiskSizeFinal()) {
                     UpdateAccountResourceUsage(chunk, -1, &requisitionBefore);
                     UpdateAccountResourceUsage(chunk, +1, nullptr);
                 }

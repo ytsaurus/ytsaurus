@@ -219,7 +219,7 @@ public:
 
     //! For journal chunks, returns true iff the chunk is sealed.
     //! For non-journal chunks, return true iff the chunk is confirmed.
-    bool DiskSizeIsFinal() const;
+    bool IsDiskSizeFinal() const;
 
     //! Returns the maximum number of replicas that can be stored in the same
     //! rack without violating the availability guarantees.

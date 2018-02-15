@@ -421,7 +421,7 @@ public:
         i64 delta)
     {
         Y_ASSERT(chunk->IsStaged());
-        Y_ASSERT(chunk->DiskSizeIsFinal());
+        Y_ASSERT(chunk->IsDiskSizeFinal());
 
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->GetStagingAccount();
@@ -1776,7 +1776,7 @@ private:
                 continue;
             }
 
-            if (chunk->DiskSizeIsFinal()) {
+            if (chunk->IsDiskSizeFinal()) {
                 const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
                 ComputeChunkResourceDelta(chunk, requisition, +1, chargeStatMap);
             }  // Else this'll be done later when the chunk is confirmed/sealed.
