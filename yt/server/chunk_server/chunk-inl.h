@@ -272,7 +272,7 @@ inline bool TChunk::IsRegular() const
     return GetType() == NObjectClient::EObjectType::Chunk;
 }
 
-inline bool TChunk::DiskSizeIsFinal() const
+inline bool TChunk::IsDiskSizeFinal() const
 {
     return IsJournal() ? IsSealed() : IsConfirmed();
 }
