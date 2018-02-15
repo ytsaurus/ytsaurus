@@ -247,7 +247,11 @@ public:
     void Export(int cellIndex);
 
     //! Decrements export ref counter.
-    void Unexport(int cellIndex, int importRefCounter, TChunkRequisitionRegistry* registry);
+    void Unexport(
+        int cellIndex,
+        int importRefCounter,
+        TChunkRequisitionRegistry* registry,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 
 private:
     ui8 ReadQuorum_ = 0;

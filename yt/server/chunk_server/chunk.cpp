@@ -490,11 +490,16 @@ void TChunk::Export(int cellIndex)
     }
 }
 
-void TChunk::Unexport(int cellIndex, int importRefCounter, TChunkRequisitionRegistry* registry)
+void TChunk::Unexport(
+    int cellIndex,
+    int importRefCounter,
+    TChunkRequisitionRegistry* registry,
+    const NObjectServer::TObjectManagerPtr& objectManager)
 {
     auto& data = ExportDataList_[cellIndex];
     if ((data.RefCounter -= importRefCounter) == 0) {
         // NB: Reset the entry to the neutral state as it affects ComputeReplication() etc.
+        registry->Unref(data.ChunkRequisitionIndex, objectManager);
         data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
         registry->Ref(EmptyChunkRequisitionIndex);
         --ExportCounter_;
