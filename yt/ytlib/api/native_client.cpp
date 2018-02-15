@@ -4450,8 +4450,8 @@ private:
             builder.AddWhereExpression(Format("address = %Qv", *options.Address));
         }
 
-        if (options.HasStderr) {
-            if (*options.HasStderr) {
+        if (options.WithStderr) {
+            if (*options.WithStderr) {
                 builder.AddWhereExpression("(stderr_size != 0 AND NOT is_null(stderr_size))");
             } else {
                 builder.AddWhereExpression("(stderr_size = 0 OR is_null(stderr_size))");
@@ -4701,11 +4701,11 @@ private:
                     stderrSize = stderrNode->Attributes().Get<i64>("uncompressed_data_size");
                 }
 
-                if (options.HasStderr) {
-                    if (*options.HasStderr && stderrSize <= 0) {
+                if (options.WithStderr) {
+                    if (*options.WithStderr && stderrSize <= 0) {
                         continue;
                     }
-                    if (!(*options.HasStderr) && stderrSize > 0) {
+                    if (!(*options.WithStderr) && stderrSize > 0) {
                         continue;
                     }
                 }
@@ -4776,11 +4776,11 @@ private:
                 }
 
                 auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
-                if (options.HasStderr) {
-                    if (*options.HasStderr && stderrSize <= 0) {
+                if (options.WithStderr) {
+                    if (*options.WithStderr && stderrSize <= 0) {
                         continue;
                     }
-                    if (!(*options.HasStderr) && stderrSize > 0) {
+                    if (!(*options.WithStderr) && stderrSize > 0) {
                         continue;
                     }
                 }
