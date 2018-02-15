@@ -4,7 +4,7 @@ from .common import set_param
 def list_jobs(operation_id,
               job_type=None, job_state=None, address=None,
               sort_field=None, sort_order=None,
-              limit=None, offset=None, has_stderr=None,
+              limit=None, offset=None, with_stderr=None,
               include_cypress=None, include_runtime=None, include_archive=None,
               client=None):
     """List jobs of operation."""
