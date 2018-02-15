@@ -85,7 +85,7 @@ def get_operation(operation_id, attributes=None, client=None):
 
 def list_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
                     from_time=None, to_time=None, cursor_time=None, cursor_direction=None,
-                    include_archive=None, include_counters=None, limit=None,
+                    include_archive=None, include_counters=None, limit=None, enable_ui_mode=False,
                     client=None):
     """List operations that satisfy given options.
     """
@@ -108,6 +108,7 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
     set_param(params, "include_archive", include_archive)
     set_param(params, "include_counters", include_counters)
     set_param(params, "limit", limit)
+    set_param(params, "enable_ui_mode", enable_ui_mode)
 
     return make_formatted_request(
         "list_operations",
