@@ -195,6 +195,10 @@ class TestListJobs(YTEnvSetup):
         assert len(res) == 2
         assert res == sorted(res, key=lambda item: item["start_time"], reverse=True)
 
+        res = list_jobs(op.id, offset=0, limit=2, sort_field="id")["jobs"]
+        assert len(res) == 2
+        assert res == sorted(res, key=lambda item: item["id"])
+
         res = list_jobs(op.id, job_state="completed")["jobs"]
         assert sorted(completed_jobs) == sorted([job["id"] for job in res])
 

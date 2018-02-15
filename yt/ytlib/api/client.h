@@ -648,6 +648,7 @@ DEFINE_ENUM(EJobSortField,
     ((Address)    (5))
     ((Duration)   (6))
     ((Progress)   (7))
+    ((Id)         (8))
 );
 
 DEFINE_ENUM(EJobSortDirection,

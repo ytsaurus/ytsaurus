@@ -4480,6 +4480,12 @@ private:
                         "if(is_null(finish_time), %v, finish_time) - start_time",
                         TInstant::Now().MicroSeconds()));
                     break;
+                case EJobSortField::Progress:
+                    builder.SetOrderByExpression("progress");
+                    break;
+                case EJobSortField::Id:
+                    builder.SetOrderByExpression("job_id_lo, job_id_hi");
+                    break;
                 default:
                     break;
             }
@@ -4954,6 +4960,7 @@ private:
             XX(FinishTime);
             XX(Address);
             XX(Progress);
+            XX(Id);
 #undef XX
 
             case EJobSortField::None:
