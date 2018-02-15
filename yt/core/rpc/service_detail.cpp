@@ -54,6 +54,10 @@ TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProf
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
     , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
     , TotalTimeCounter("/request_time/total", tagIds)
+    , RequestMessageBodySizeCounter("/request_message_body_bytes", tagIds)
+    , RequestMessageAttachmentSizeCounter("/request_message_attachment_bytes", tagIds)
+    , ResponseMessageBodySizeCounter("/response_message_body_bytes", tagIds)
+    , ResponseMessageAttachmentSizeCounter("/response_message_attachment_bytes", tagIds)
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
@@ -225,6 +229,12 @@ private:
     void Initialize()
     {
         Profiler.Increment(PerformanceCounters_->RequestCounter);
+        Profiler.Increment(
+            PerformanceCounters_->RequestMessageBodySizeCounter,
+            GetMessageBodySize(RequestMessage_));
+        Profiler.Increment(
+            PerformanceCounters_->RequestMessageAttachmentSizeCounter,
+            GetTotalMesageAttachmentSize(RequestMessage_));
 
         if (RequestHeader_->has_start_time()) {
             // Decode timing information.
@@ -349,7 +359,7 @@ private:
         busOptions.ChecksummedPartCount = RuntimeInfo_->Descriptor.GenerateAttachmentChecksums
             ? NBus::TSendOptions::AllParts
             : 2; // RPC header + response body
-        ReplyBus_->Send(std::move(responseMessage), busOptions);
+        ReplyBus_->Send(responseMessage, busOptions);
 
         ReplyInstant_ = GetCpuInstant();
         ExecutionTime_ = StartInstant_ != 0
@@ -362,6 +372,13 @@ private:
         if (!Error_.IsOK()) {
             Profiler.Increment(PerformanceCounters_->FailedRequestCounter);
         }
+
+        Profiler.Increment(
+            PerformanceCounters_->ResponseMessageBodySizeCounter,
+            GetMessageBodySize(responseMessage));
+        Profiler.Increment(
+            PerformanceCounters_->ResponseMessageAttachmentSizeCounter,
+            GetTotalMesageAttachmentSize(responseMessage));
 
         Finalize();
     }

@@ -729,10 +729,11 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
     def test_tablet_count_limit_copy(self):
         create_account("test_account")
+        set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
+
         self.sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account")
 
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
         with pytest.raises(YtError):
             copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
 
@@ -742,6 +743,7 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
     def test_tablet_count_remove(self):
         create_account("test_account")
+        set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
         self.sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account")
         self._verify_resource_usage("test_account", "tablet_count", 1)
@@ -854,6 +856,7 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
     def test_insert_during_tablet_static_memory_limit_violation(self):
         create_account("test_account")
+        set("//sys/accounts/test_account/@resource_limits/tablet_count", 10)
         self.sync_create_cells(1)
         self._create_sorted_table("//tmp/t1", account="test_account", in_memory_mode="compressed")
         self.sync_mount_table("//tmp/t1")

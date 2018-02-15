@@ -266,6 +266,11 @@ ui64& TFiber::MemoryTag()
     return MemoryTag_;
 }
 
+bool TFiber::CheckFreeStackSpace(size_t space) const
+{
+    return reinterpret_cast<char*>(Stack_->GetStack()) + space < __builtin_frame_address(0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static std::atomic<int> SmallFiberStackPoolSize = {1024};

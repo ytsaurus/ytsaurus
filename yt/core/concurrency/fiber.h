@@ -155,6 +155,12 @@ public:
     //! Returns memory tag currently used in this fiber.
     ui64& MemoryTag();
 
+    //! Returns |true| if there is enough remaining stack space.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    bool CheckFreeStackSpace(size_t space) const;
+
 private:
     TFiberId Id_;
 #ifdef DEBUG
