@@ -79,7 +79,7 @@ ISuspendableInvokerPtr CreateSuspendableInvoker(IInvokerPtr underlyingInvoker);
 
 //! Creates an invoker that runs each callback within a memory context defined by a
 //! given memory tag. Every allocation performed by a callback will be properly tagged.
-IInvokerPtr CreateMemoryTaggingInvoker(IInvokerPtr underlyingInvoker, ui64 memoryTag);
+IInvokerPtr CreateMemoryTaggingInvoker(IInvokerPtr underlyingInvoker, TMemoryTag memoryTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

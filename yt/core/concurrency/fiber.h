@@ -153,7 +153,10 @@ public:
     void InvokeContextInHandlers();
 
     //! Returns memory tag currently used in this fiber.
-    ui64& MemoryTag();
+    TMemoryTag GetMemoryTag() const;
+
+    //! Sets the memory tag used in this fiber.
+    void SetMemoryTag(TMemoryTag tag);
 
     //! Returns |true| if there is enough remaining stack space.
     /*!

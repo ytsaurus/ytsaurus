@@ -502,7 +502,7 @@ void TSchedulerThread::SwitchContextFrom(TFiber* currentFiber)
 void TSchedulerThread::SetCurrentFiber(TFiberPtr fiber)
 {
     CurrentFiber_ = std::move(fiber);
-    SetCurrentMemoryTag(CurrentFiber_->MemoryTag());
+    SetCurrentMemoryTag(CurrentFiber_->GetMemoryTag());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

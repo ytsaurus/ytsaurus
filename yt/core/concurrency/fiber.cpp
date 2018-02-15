@@ -261,9 +261,14 @@ void TFiber::InvokeContextInHandlers()
     }
 }
 
-ui64& TFiber::MemoryTag()
+TMemoryTag TFiber::GetMemoryTag() const
 {
     return MemoryTag_;
+}
+
+void TFiber::SetMemoryTag(TMemoryTag tag)
+{
+    MemoryTag_ = tag;
 }
 
 bool TFiber::CheckFreeStackSpace(size_t space) const
