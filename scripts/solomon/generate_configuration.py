@@ -22,7 +22,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_master_internal",
         "solomon_name": "yt_master_internal",
         "yt_port": 10010,
-        "bridge_port": 10020,
+        "solomon_port": 10020,
         "bridge_rules": [
             "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
             "-.*",
@@ -33,7 +33,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_master_other",
         "solomon_name": "yt_master",
         "yt_port": 10010,
-        "bridge_port": 10030,
+        "solomon_port": 10030,
         "bridge_rules": [
             "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
             "+.*",
@@ -44,7 +44,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_master_rpc",
         "solomon_name": "yt_master_rpc",
         "yt_port": 10010,
-        "bridge_port": 10040,
+        "solomon_port": 10040,
         "bridge_rules": [
             "+/rpc",
             "-.*",
@@ -56,7 +56,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_scheduler_internal",
         "solomon_name": "yt_scheduler_internal",
         "yt_port": 10011,
-        "bridge_port": 10021,
+        "solomon_port": 10021,
         "bridge_rules": [
             "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
             "-.*",
@@ -67,7 +67,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_scheduler_other",
         "solomon_name": "yt_scheduler",
         "yt_port": 10011,
-        "bridge_port": 10031,
+        "solomon_port": 10031,
         "bridge_rules": [
             "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
             "+.*",
@@ -78,7 +78,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_scheduler_rpc",
         "solomon_name": "yt_scheduler_rpc",
         "yt_port": 10011,
-        "bridge_port": 10041,
+        "solomon_port": 10041,
         "bridge_rules": [
             "+/rpc",
             "-.*",
@@ -90,7 +90,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_node_internal",
         "solomon_name": "yt_node_internal",
         "yt_port": 10012,
-        "bridge_port": 10022,
+        "solomon_port": 10022,
         "bridge_rules": [
             "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
             "-.*",
@@ -101,7 +101,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_node_other",
         "solomon_name": "yt_node",
         "yt_port": 10012,
-        "bridge_port": 10032,
+        "solomon_port": 10032,
         "bridge_rules": [
             "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
             "-/tablet_node/(write|commit|select|lookup|replica)/",
@@ -113,7 +113,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_node_rpc",
         "solomon_name": "yt_node_rpc",
         "yt_port": 10012,
-        "bridge_port": 10042,
+        "solomon_port": 10042,
         "bridge_rules": [
             "+/rpc",
             "-.*",
@@ -124,7 +124,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_node_tablet_profiling",
         "solomon_name": "yt_node_tablet_profiling",
         "yt_port": 10012,
-        "bridge_port": 10052,
+        "solomon_port": 10052,
         "bridge_rules": [
             "+/tablet_node/(write|commit|select|lookup|replica)/",
             "-.*",
@@ -136,7 +136,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_rpc_proxy_internal",
         "solomon_name": "yt_rpc_proxy_internal",
         "yt_port": 10014,
-        "bridge_port": 10023,
+        "solomon_port": 10023,
         "bridge_rules": [
             "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
             "-.*",
@@ -147,7 +147,7 @@ SERVICES = [
         "solomon_id": "yt_bridge_rpc_proxy_other",
         "solomon_name": "yt_rpc_proxy",
         "yt_port": 10014,
-        "bridge_port": 10033,
+        "solomon_port": 10033,
         "bridge_rules": [
             "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
             "+.*",
@@ -158,11 +158,18 @@ SERVICES = [
         "solomon_id": "yt_bridge_rpc_proxy_rpc",
         "solomon_name": "yt_rpc_proxy_rpc",
         "yt_port": 10014,
-        "bridge_port": 10043,
+        "solomon_port": 10043,
         "bridge_rules": [
             "+/rpc",
             "-.*",
         ],
+    },
+    # --- http proxy ---
+    {
+        "type": "http_proxy",
+        "solomon_id": "yt_http_proxy",
+        "solomon_name": "yt_http_proxy",
+        "solomon_port": "10013",
     },
     # --- yp ---
     {
@@ -171,7 +178,7 @@ SERVICES = [
         "solomon_id": "yp_bridge_yp_master",
         "solomon_name": "yp_master",
         "yt_port": 9080,
-        "bridge_port": 9020,
+        "solomon_port": 9020,
         "bridge_rules": [
             "+.*"
         ],
@@ -183,6 +190,7 @@ CONDUCTOR_GROUPS = {
     "scheduler": ["schedulers"],
     "node": ["nodes"],
     "rpc_proxy": ["nodes"],
+    "http_proxy": ["proxy"],
 }
 
 SENSOR = {
@@ -215,7 +223,6 @@ CLUSTER_NODE_MASKS = {
 
 
 PRESTABLE = "USE_PRESTABLE" in os.environ
-SOLOMON_API = "http://solomon.yandex.net/api/v2" if not PRESTABLE else "http://solomon-prestable.yandex.net/api/v2"
 
 
 @click.group()
@@ -442,9 +449,11 @@ def get_conductor_groups(cluster, type):
 def bridge_conf():
     conf = {"sources": []}
     for service in SERVICES:
+        if "solomon_port" not in service:
+            continue
         conf["sources"].append(dict(
             solomon_id=service["solomon_id"],
-            solomon_port=service["bridge_port"],
+            solomon_port=service["solomon_port"],
             url=("localhost:%s" % service["yt_port"]),
             rules=service["bridge_rules"]))
     json.dump(conf, sys.stdout, indent=2, sort_keys=True)
@@ -462,7 +471,8 @@ def check_solomon_services(token, yes):
             resource.local[key] = value
 
         f("type", "JSON_GENERIC")
-        f("port", service["bridge_port"])
+
+        f("port", service["solomon_port"])
         f("path", "/pbjson")
         f("interval", 15)
         f("addTsArgs", True)
