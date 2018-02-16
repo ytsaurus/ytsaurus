@@ -81,7 +81,7 @@ def get_default_resource_limits(client):
 
     return result
 
-def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None):
+def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True):
     client = get_value(client, yt)
     users = ["odin", "cron", "cron_merge", "cron_compression", "nightly_tester", "application_operations", "robot-yt-mon"]
     groups = ["devs", "admins", "admin_snapshots"]
@@ -97,6 +97,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     for cron_user in ("cron", "cron_merge", "cron_compression"):
         add_member(cron_user, "superusers", client)
         client.set("//sys/users/" + cron_user + "/@request_queue_size_limit", 500)
+
+    client.create("map_node", "//sys/cron")
 
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
@@ -267,14 +269,14 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
 
     client.link("//tmp/trash", "//trash", ignore_existing=True)
 
-    if client.exists("//sys/pools"):
-        if not client.exists("//sys/pools/research"):
-            client.create("map_node", "//sys/pools/research",
-                          attributes={"forbid_immediate_operations": "true"})
-        else:
-            logger.warning('Pool "research" already exists')
-    else:
-        logger.warning('Can not create pool "//sys/pools/research". "//sys/pools" does not exist')
+    if configure_pool_trees:
+        client.create("map_node", "//sys/pool_trees/physical", attributes={"nodes_filter": "internal"})
+        client.set("//sys/pool_trees/@default_tree", "physical")
+        client.link("//sys/pool_trees/physical", "//sys/pools")
+        # Configure research pool
+        client.create("map_node", "//sys/pool_trees/physical/research",
+                      attributes={"forbid_immediate_operations": True})
+        client.set("//sys/pool_trees/physical/@default_parent_pool", "research")
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")
