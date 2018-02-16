@@ -1676,8 +1676,8 @@ if __name__ == "__main__":
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
 
-    def test_list_operations_compatibility(self):
-        if yt.config["backend"] == "native":
+    def test_list_operations_compatibility(self, yt_env):
+        if yt.config["backend"] == "native" or yt_env.version <= "19.2":
             pytest.skip()
 
         table = TEST_DIR + "/table"
