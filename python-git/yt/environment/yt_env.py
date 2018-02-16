@@ -404,7 +404,6 @@ class YTInstance(object):
 
             # TODO(asaitgalin): Create this user inside master.
             client = self.create_client()
-            client.config["proxy"]["retries"]["enable"] = False
             if not client.exists("//sys/users/application_operations"):
                 client.create("user", attributes={"name": "application_operations"})
                 client.add_member("application_operations", "superusers")
