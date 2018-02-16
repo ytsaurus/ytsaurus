@@ -402,6 +402,13 @@ class YTInstance(object):
                 for func in self._wait_functions:
                     func()
 
+            # TODO(asaitgalin): Create this user inside master.
+            client = self.create_client()
+            client.config["proxy"]["retries"]["enable"] = False
+            if not client.exists("//sys/users/application_operations"):
+                client.create("user", attributes={"name": "application_operations"})
+                client.add_member("application_operations", "superusers")
+
             self._wait_functions = []
             if on_masters_started_func is not None:
                 on_masters_started_func()
@@ -692,7 +699,7 @@ class YTInstance(object):
         self._run_yt_component("master", name=master_name)
 
         def quorum_ready():
-            self._validate_processes_is_running(master_name)
+            self._validate_processes_are_running(master_name)
 
             logger = logging.getLogger("Yt")
             old_level = logger.level
@@ -716,8 +723,8 @@ class YTInstance(object):
 
         cell_ready = quorum_ready
 
-        primary_cell_client = self.create_client()
         if secondary:
+            primary_cell_client = self.create_client()
             cell_tag = int(
                 self._cluster_configuration["master"]["secondary_cell_tags"][cell_index - 1])
 
@@ -729,11 +736,6 @@ class YTInstance(object):
                 return cell_tag in primary_cell_client.get("//sys/@registered_master_cell_tags")
 
             cell_ready = quorum_ready_and_cell_registered
-        else:
-            # TODO(asaitgalin): Create this user inside master?
-            if not primary_cell_client.exists("//sys/users/application_operations"):
-                primary_cell_client.create("user", attributes={"name": "application_operations"})
-                primary_cell_client.add_member("application_operations", "superusers")
 
         self._wait_or_skip(lambda: self._wait_for(cell_ready, master_name, max_wait_time=30), sync)
 
@@ -769,7 +771,7 @@ class YTInstance(object):
         native_client = self.create_client()
 
         def nodes_ready():
-            self._validate_processes_is_running("node")
+            self._validate_processes_are_running("node")
 
             nodes = native_client.list("//sys/nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
@@ -805,7 +807,7 @@ class YTInstance(object):
         self._run_yt_component("scheduler")
 
         def schedulers_ready():
-            self._validate_processes_is_running("scheduler")
+            self._validate_processes_are_running("scheduler")
 
             instances = client.list("//sys/scheduler/instances")
             if len(instances) != self.scheduler_count:
@@ -1006,7 +1008,7 @@ class YTInstance(object):
                        "proxy")
 
         def proxy_ready():
-            self._validate_processes_is_running("proxy")
+            self._validate_processes_are_running("proxy")
 
             try:
                 address = "127.0.0.1:{0}".format(self.get_proxy_address().split(":")[1])
@@ -1025,7 +1027,7 @@ class YTInstance(object):
         native_client = self.create_client()
 
         def rpc_proxy_ready():
-            self._validate_processes_is_running("rpc_proxy")
+            self._validate_processes_are_running("rpc_proxy")
 
             return len(native_client.list("//sys/rpc_proxies")) == 1
 
@@ -1037,7 +1039,7 @@ class YTInstance(object):
         native_client = self.create_client()
 
         def skynet_manager_ready():
-            self._validate_processes_is_running("skynet_manager")
+            self._validate_processes_are_running("skynet_manager")
 
             return ("skynet_manager" in native_client.list("//sys") and
                 len(native_client.list("//sys/skynet_manager/managers")) == self.skynet_manager_count)
@@ -1056,7 +1058,7 @@ class YTInstance(object):
                           "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
                           .format(name_with_number, process.returncode))
 
-    def _validate_processes_is_running(self, name):
+    def _validate_processes_are_running(self, name):
         if name == "proxy":
             self._validate_process_is_running(self._process_to_kill[name][-1], name)
         else:
