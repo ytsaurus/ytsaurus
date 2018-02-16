@@ -303,7 +303,8 @@ protected:
         NSecurityServer::TAccount* account)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, factory->GetTransaction());
+        auto* transaction = clonedNode->IsTrunk() ? nullptr : factory->GetTransaction();
+        securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, transaction);
     }
 
 };
