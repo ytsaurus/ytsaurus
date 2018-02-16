@@ -109,15 +109,56 @@ TListOperationsCommand::TListOperationsCommand()
         .Optional();
     RegisterParameter("limit", Options.Limit)
         .Optional();
+    RegisterParameter("enable_ui_mode", EnableUIMode)
+        .Optional();
 }
 
-void TListOperationsCommand::DoExecute(ICommandContextPtr context)
+void TListOperationsCommand::BuildOperations(const TListOperationsResult& result, TFluentMap fluent)
 {
-    auto result = WaitFor(context->GetClient()->ListOperations(Options))
-        .ValueOrThrow();
+    auto buildOperationsInUIMode = [&] (TFluentList fluent) {
+        fluent
+            .DoFor(result.Operations, [] (TFluentList fluent, const TOperation& operation) {
+                fluent.Item()
+                    .BeginAttributes()
+                        .Item("operation_type").Value(operation.OperationType)
+                        .Item("state").Value(operation.OperationState)
+                        .Item("authenticated_user").Value(operation.AuthenticatedUser)
+                        .Item("brief_progress").Value(operation.BriefProgress)
+                        .Item("brief_spec").Value(operation.BriefSpec)
+                        .Item("start_time").Value(operation.StartTime)
+                        .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("finish_time").Value(operation.FinishTime);
+                        })
+                        .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("suspended").Value(operation.Suspended);
+                        })
+                        .DoIf(operation.Weight.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("weight").Value(operation.Weight);
+                        })
+                    .EndAttributes()
+                    .Value(operation.OperationId);
+            });
+    };
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .BeginMap()
+    if (EnableUIMode) {
+        if (result.Incomplete) {
+            fluent
+                .Item("operations")
+                    .BeginAttributes()
+                        .Item("incomplete").Value(true)
+                    .EndAttributes()
+                    .BeginList()
+                        .Do(buildOperationsInUIMode)
+                    .EndList();
+        } else {
+            fluent
+                .Item("operations")
+                    .BeginList()
+                        .Do(buildOperationsInUIMode)
+                    .EndList();
+        }
+    } else {
+        fluent
             .Item("operations").BeginList()
                 .DoFor(result.Operations, [] (TFluentList fluent, const TOperation& operation) {
                     fluent
@@ -139,21 +180,32 @@ void TListOperationsCommand::DoExecute(ICommandContextPtr context)
                                 fluent.Item("weight").Value(operation.Weight);
                             })
                         .EndMap();
-                })  
+                })
             .EndList()
-            .Item("incomplete").Value(result.Incomplete)
+            .Item("incomplete").Value(result.Incomplete);
+    }
+}
+
+void TListOperationsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->ListOperations(Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Do(std::bind(&TListOperationsCommand::BuildOperations, this, result, std::placeholders::_1))
             .DoIf(result.PoolCounts.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("pool_counts").BeginMap()
                 .DoFor(*result.PoolCounts, [] (TFluentMap fluent, const auto& item) {
                     fluent.Item(item.first).Value(item.second);
-                })  
+                })
                 .EndMap();
             })
             .DoIf(result.UserCounts.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("user_counts").BeginMap()
                 .DoFor(*result.UserCounts, [] (TFluentMap fluent, const auto& item) {
                     fluent.Item(item.first).Value(item.second);
-                })  
+                })
                 .EndMap();
             })
             .DoIf(result.StateCounts.operator bool(), [&] (TFluentMap fluent) {
@@ -163,7 +215,7 @@ void TListOperationsCommand::DoExecute(ICommandContextPtr context)
                     if (count) {
                         fluent.Item(FormatEnum(item)).Value(count);
                     }
-                })  
+                })
                 .EndMap();
             })
             .DoIf(result.TypeCounts.operator bool(), [&] (TFluentMap fluent) {
@@ -222,7 +274,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
 {
     auto result = WaitFor(context->GetClient()->ListJobs(OperationId, Options))
         .ValueOrThrow();
- 
+
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
             .Item("jobs").BeginList()
@@ -499,7 +551,7 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TGetOperationCommand::TGetOperationCommand()
-{   
+{
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("attributes", Options.Attributes)
         .Optional();
