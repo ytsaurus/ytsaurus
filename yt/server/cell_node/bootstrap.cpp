@@ -554,11 +554,9 @@ void TBootstrap::DoRun()
         "/orchid/",
         NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
-    if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
-        SkynetHttpServer->AddHandler(
-            "/read_skynet_part",
-            MakeSkynetHttpHandler(this));
-    }
+    SkynetHttpServer->AddHandler(
+        "/read_skynet_part",
+        MakeSkynetHttpHandler(this));
 
     RpcServer->RegisterService(CreateOrchidService(
         OrchidRoot,

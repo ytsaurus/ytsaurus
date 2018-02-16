@@ -631,8 +631,6 @@ public:
     //! Use DIRECT_IO flag when writing chunks data to disk.
     EDirectIOPolicy UseDirectIO;
 
-    bool EnableExperimentalSkynetHttpApi;
-
     //! The time after which any registered placement info expires.
     TDuration PlacementExpirationTime;
 
@@ -792,9 +790,6 @@ public:
 
         RegisterParameter("use_direct_io", UseDirectIO)
             .Default(EDirectIOPolicy::Never);
-
-        RegisterParameter("enable_experimental_skynet_http_api", EnableExperimentalSkynetHttpApi)
-            .Default(false);
 
         RegisterParameter("placement_expiration_time", PlacementExpirationTime)
             .Default(TDuration::Hours(1));
