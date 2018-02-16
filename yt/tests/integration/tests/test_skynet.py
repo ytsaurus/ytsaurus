@@ -311,7 +311,7 @@ class TestSkynetManager(YTEnvSetup):
 
     def share(self, path):
         url = "http://localhost:{}/api/v1/share".format(self.Env.configs["skynet_manager"][0]["port"])
-        for _ in range(5):
+        for _ in range(60):
             rsp = requests.post(url, headers={
                 "X-Yt-Parameters": yson.dumps({"cluster": "local", "path": path})
             })
@@ -325,7 +325,7 @@ class TestSkynetManager(YTEnvSetup):
 
             rsp.raise_for_status()
 
-        raise RuntimeError("Failed to share {} in 5 seconds".format(path))
+        raise RuntimeError("Failed to share {} in 60 seconds".format(path))
 
     def discover(self, manager_idx, rbtorrentid):
         url = "http://localhost:{}/api/v1/discover?rb_torrent_id={}".format(
