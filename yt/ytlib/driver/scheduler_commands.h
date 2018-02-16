@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/scheduler/public.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -60,7 +62,12 @@ class TListOperationsCommand
 {
 public:
     TListOperationsCommand();
+
 private:
+    bool EnableUIMode = false;
+
+    void BuildOperations(const NApi::TListOperationsResult& result, NYTree::TFluentMap fluent);
+
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
