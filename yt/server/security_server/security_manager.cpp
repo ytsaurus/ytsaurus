@@ -449,6 +449,7 @@ public:
     {
         YCHECK(node);
         YCHECK(newAccount);
+        YCHECK(node->IsTrunk() == !transaction);
         YCHECK(!oldAccount || !transaction);
 
         if (oldAccount == newAccount) {
@@ -1734,6 +1735,11 @@ private:
         // Recompute everything except chunk count and disk space.
         for (const auto& pair : cypressManager->Nodes()) {
             const auto* node = pair.second;
+
+            // NB: zombie nodes are still accounted.
+            if (node->IsDestroyed()) {
+                continue;
+            }
 
             if (node->IsExternal()) {
                 continue;

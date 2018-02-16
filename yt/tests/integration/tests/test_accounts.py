@@ -1158,6 +1158,34 @@ class TestAccounts(YTEnvSetup):
         assert get("//tmp/dir1/@account") == "a1"
         assert get("//tmp/dir1/dir2/@account") == "a2"
 
+    def test_nested_tx_copy(self):
+        create("table", "//tmp/t")
+
+        multicell_sleep()
+        node_count = get("//sys/accounts/tmp/@resource_usage/node_count")
+        committed_node_count = get("//sys/accounts/tmp/@committed_resource_usage/node_count")
+
+        tx1 = start_transaction()
+        copy("//tmp/t", "//tmp/t1", tx=tx1)
+
+        node_count += 3 # one for branched map node, one for cloned table, one for branched cloned table
+        committed_node_count += 1 # one for cloned table
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == node_count
+        assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
+
+        commit_transaction(tx1)
+
+        # Transaction changes disappear...
+        node_count -= 3
+        committed_node_count -= 1
+        # but the newly committed node remains.
+        node_count += 1
+        committed_node_count += 1
+        multicell_sleep()
+        gc_collect()
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == node_count
+        assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
 
 ##################################################################
 
