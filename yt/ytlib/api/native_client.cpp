@@ -3425,30 +3425,16 @@ private:
             deadline = options.Timeout->ToDeadLine();
         }
 
-        std::vector<TString> attributes;
+        TNullable<std::vector<TString>> attributes;
         if (options.Attributes) {
-            attributes.reserve(options.Attributes->size() + 1);
-            attributes.insert(attributes.begin(), options.Attributes->begin(), options.Attributes->end());
+            attributes = std::vector<TString>();
+            attributes->reserve(options.Attributes->size() + 1);
+            attributes->insert(attributes->begin(), options.Attributes->begin(), options.Attributes->end());
             // NOTE(asaitgalin): This attribute helps to distinguish between
             // different cypress storage modes of operation.
             if (options.Attributes->find("state") == options.Attributes->end()) {
-                attributes.push_back("state");
+                attributes->push_back("state");
             }
-        } else {
-            attributes = {
-                "authenticated_user",
-                "brief_progress",
-                "brief_spec",
-                "finish_time",
-                "operation_type",
-                "progress",
-                "result",
-                "start_time",
-                "state",
-                "suspended",
-                "title",
-                "weight",
-            };
         }
 
         TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
@@ -3457,13 +3443,17 @@ private:
 
         {
             auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            if (attributes) {
+                ToProto(req->mutable_attributes()->mutable_keys(), *attributes);
+            }
             batchReq->AddRequest(req, "get_operation_new");
         }
 
         {
             auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            if (attributes) {
+                ToProto(req->mutable_attributes()->mutable_keys(), *attributes);
+            }
             batchReq->AddRequest(req, "get_operation");
         }
 
@@ -3475,7 +3465,11 @@ private:
 
         auto getCypressNode = [&] (const auto& rsp) -> INodePtr {
             if (rsp.IsOK()) {
-                return ConvertToNode(TYsonString(rsp.Value()->value()));
+                auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
+                if (!node->AsMap()->FindChild("state")) {
+                    return nullptr;
+                }
+                return node;
             }
             if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR rsp;
@@ -3490,17 +3484,22 @@ private:
             cypressNode = PatchNode(oldCypressNode, newCypressNode);
         } else if (newCypressNode) {
             cypressNode = newCypressNode;
-
-            auto state = cypressNode->AsMap()->FindChild("state");
-            if (!state) {
-                cypressNode = nullptr;
-            }
         } else {
             cypressNode = oldCypressNode;
         }
 
         if (cypressNode) {
             auto attrNode = cypressNode->AsMap();
+
+            if (!attributes) {
+                auto userAttributeKeys = ConvertTo<THashSet<TString>>(attrNode->GetChild("user_attribute_keys"));
+                for (const auto& key : attrNode->GetKeys()) {
+                    if (userAttributeKeys.find(key) == userAttributeKeys.end()) {
+                        attrNode->RemoveChild(key);
+                    }
+                }
+            }
+
             if (options.Attributes && options.Attributes->find("state") == options.Attributes->end()) {
                 attrNode->RemoveChild("state");
             }

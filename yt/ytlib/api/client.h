@@ -651,6 +651,10 @@ struct TListOperationsOptions
     bool IncludeCounters = true;
     ui64 Limit = 100;
 
+    // TODO(ignat): Remove this mode when UI migrate to list_operations without enabled UI mode.
+    // See st/YTFRONT-1360.
+    bool EnableUIMode = false;
+
     TListOperationsOptions()
     {
         ReadFrom = EMasterChannelKind::Cache;
