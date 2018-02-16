@@ -1,26 +1,12 @@
 from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
-from yt.wrapper.common import uuid_hash_pair
-from yt.common import date_string_to_timestamp_mcs
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 
 from operations_archive import clean_operations
 
-import __builtin__
-import datetime
-import itertools
-import pytest
-import shutil
-
 from time import sleep
 from collections import defaultdict
-
-def id_to_parts(id):
-    id_parts = id.split("-")
-    id_hi = long(id_parts[2], 16) << 32 | int(id_parts[3], 16)
-    id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
-    return id_hi, id_lo
 
 def validate_address_filter(op, include_archive, include_cypress, include_runtime):
     job_dict = defaultdict(list)
