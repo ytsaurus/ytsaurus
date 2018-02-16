@@ -4458,6 +4458,7 @@ private:
             }
         }
 
+        // TODO(ignat): remove this code? (since we sort result later in DoListJobs implementation)
         if (options.SortField != EJobSortField::None) {
             switch (options.SortField) {
                 case EJobSortField::Type:
@@ -4483,9 +4484,10 @@ private:
                 case EJobSortField::Progress:
                     builder.SetOrderByExpression("progress");
                     break;
-                case EJobSortField::Id:
-                    builder.SetOrderByExpression("job_id_lo, job_id_hi");
-                    break;
+                // TODO: sort by string representation.
+                //case EJobSortField::Id:
+                //    builder.SetOrderByExpression("job_id_hi, job_id_lo");
+                //    break;
                 default:
                     break;
             }
@@ -4960,7 +4962,6 @@ private:
             XX(FinishTime);
             XX(Address);
             XX(Progress);
-            XX(Id);
 #undef XX
 
             case EJobSortField::None:
@@ -4992,6 +4993,21 @@ private:
                             auto lhsDuration = (lhs.FinishTime ? *lhs.FinishTime : now) - lhs.StartTime;
                             auto rhsDuration = (rhs.FinishTime ? *rhs.FinishTime : now) - rhs.StartTime;
                             return lhsDuration > rhsDuration;
+                        };
+                        break;
+                }
+                break;
+
+            case EJobSortField::Id:
+                switch (options.SortOrder) {
+                    case EJobSortDirection::Ascending:
+                        comparer = [] (const TJob& lhs, const TJob& rhs) {
+                            return ToString(lhs.Id) < ToString(rhs.Id);
+                        };
+                        break;
+                    case EJobSortDirection::Descending:
+                        comparer = [] (const TJob& lhs, const TJob& rhs) {
+                            return ToString(lhs.Id) > ToString(rhs.Id);
                         };
                         break;
                 }
