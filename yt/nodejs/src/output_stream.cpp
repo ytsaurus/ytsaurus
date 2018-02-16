@@ -264,7 +264,7 @@ Handle<Value> TOutputStreamWrap::SetMaxPartLength(const Arguments& args)
 
     auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
     auto value = args[0]->Uint32Value();
-    YCHECK(value > 0 && value <= 1_GB);
+    YCHECK(value > 0 && value < 1_GB);
     stream->MaxPartLength_ = value;
 
     return scope.Close(Undefined());
