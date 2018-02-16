@@ -480,10 +480,11 @@ def add_attributes(path, attributes):
     table = "{0}/{1}".format(BASE_PATH, path)
 
     def action(client):
+        client.unmount_table(table, sync=True)
         logging.info("Adding attributes %s to table %s", attributes, table)
         for attribute, value in attributes.items():
             client.set("{0}/@{1}".format(table, attribute), value)
-        client.remount_table(table)
+        client.mount_table(table, sync=True)
 
     return action
 
@@ -626,8 +627,8 @@ TRANSFORMS[17] = [
                 ("events", "any"),
                 ("alerts", "any"),
                 ("slot_index", "int64"),
-				("unrecognized_spec", "any"),
-				("full_spec", "any"),
+                ("unrecognized_spec", "any"),
+                ("full_spec", "any"),
             ],
             in_memory=True,
             get_pivot_keys=get_default_pivots))
