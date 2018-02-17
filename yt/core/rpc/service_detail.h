@@ -499,7 +499,7 @@ protected:
     TRuntimeMethodInfoPtr GetMethodInfo(const TString& method);
 
     //! Returns the default invoker passed during construction.
-    IInvokerPtr GetDefaultInvoker();
+    IInvokerPtr GetDefaultInvoker() const;
 
     //! Called right before each method handler invocation.
     virtual void BeforeInvoke(IServiceContext* context);

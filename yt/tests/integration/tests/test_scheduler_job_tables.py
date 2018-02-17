@@ -468,7 +468,7 @@ def queue_iterator(queue):
             return
         yield chunk
 
-@flaky(max_runs=5)
+#@flaky(max_runs=5)
 class TestCoreTable(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -515,37 +515,34 @@ class TestCoreTable(YTEnvSetup):
     # In order to find out the correspondence between job id and user id,
     # We create a special file in self.JOB_PROXY_UDS_NAME_DIR where we put
     # the user id and job id.
-    def _start_operation(self, num_jobs, max_failed_job_count=5, kill_self=False):
+    def _start_operation(self, job_count, max_failed_job_count=5, kill_self=False):
         cookie = random_cookie()
-        # We do not care about the job input and output.
-        in_table = "//tmp/t_in_" + cookie
-        out_table = "//tmp/t_out_" + cookie
-        create("table", in_table)
-        create("table", out_table)
-
-        write_table(in_table, [{"id": i} for i in range(num_jobs)])
 
         correspondence_file_path = os.path.join(self.JOB_PROXY_UDS_NAME_DIR, cookie)
         open(correspondence_file_path, "w").close()
+
         os.chmod(correspondence_file_path, 0777)
 
-        command = with_breakpoint("echo $YT_JOB_ID $UID >>{correspondence_file_path} && cat ; BREAKPOINT ; ".format(correspondence_file_path=correspondence_file_path))
+        command = with_breakpoint("echo $YT_JOB_ID $UID >>{correspondence_file_path} ; BREAKPOINT ; ".format(
+            correspondence_file_path=correspondence_file_path))
 
         if kill_self:
             command += "kill -ABRT $$ ;"
 
-        op = map(
+        op = vanilla(
             dont_track=True,
-            command=command,
-            in_=[in_table],
-            out=out_table,
             spec={
+                "tasks": {
+                    "main": {
+                        "command": command,
+                        "job_count": job_count,
+                    }
+                },
                 "core_table_path": "//tmp/t_core",
-                "data_size_per_job": 1,
                 "max_failed_job_count": max_failed_job_count
             })
 
-        return (op, correspondence_file_path)
+        return op, correspondence_file_path
 
     def _get_job_uid_correspondence(self, op, correspondence_file_path):
         op.ensure_running()
@@ -638,7 +635,6 @@ class TestCoreTable(YTEnvSetup):
         job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
 
         job, uid = job_id_to_uid.items()[0]
-
         ret_dict = {}
         t = self._send_core(uid, "user_process", 42, ["core_data"], ret_dict)
         t.join()
