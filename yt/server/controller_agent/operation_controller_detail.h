@@ -114,17 +114,12 @@ class TOperationControllerBase
     // to make assertions essential for further execution, and pure ones.
 
     // All potentially faulty controller interface methods are
-    // guarded by enclosing into an extra method. Two intermediate
-    // macro below are needed due to
-    // http://stackoverflow.com/questions/1489932.
-    // Welcome to the beautiful world of preprocessor!
-#define VERIFY_PASTER(affinity) VERIFY_ ## affinity
-#define VERIFY_EVALUATOR(affinity) VERIFY_PASTER(affinity)
-#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, affinity, catchStdException, defaultValue) \
+    // guarded by enclosing into an extra method.
+#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, catchStdException, defaultValue) \
 public: \
     virtual returnType method signature final \
     { \
-        VERIFY_EVALUATOR(affinity); \
+        VERIFY_INVOKER_AFFINITY(Invoker); \
         TSafeAssertionsGuard guard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
@@ -145,29 +140,28 @@ public: \
 private: \
     returnType Safe ## method signature;
 
-#define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, affinity, catchStdException) \
-    IMPLEMENT_SAFE_METHOD(void, method, signature, args, affinity, catchStdException, )
+#define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, catchStdException) \
+    IMPLEMENT_SAFE_METHOD(void, method, signature, args, catchStdException, )
 
-    IMPLEMENT_SAFE_METHOD(TOperationControllerPrepareResult, Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker), false, TOperationControllerPrepareResult())
-    IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
+    IMPLEMENT_SAFE_METHOD(TOperationControllerPrepareResult, Prepare, (), (), false, TOperationControllerPrepareResult())
+    IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), false)
 
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
 
-    IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
-    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY_ANY(), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), false)
 
-    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY_ANY(), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(
         TScheduleJobResultPtr,
         ScheduleJob,
         (ISchedulingContext* context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
-        INVOKER_AFFINITY(CancelableInvoker),
         true,
         New<TScheduleJobResult>())
 
@@ -176,7 +170,6 @@ private: \
         OnInputChunkLocated,
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
-        THREAD_AFFINITY_ANY(),
         false)
 
     //! Called by #IntermediateChunkScraper.
@@ -184,7 +177,6 @@ private: \
         OnIntermediateChunkLocated,
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
-        THREAD_AFFINITY_ANY(),
         false)
 
     //! Called by `TSnapshotBuilder` when snapshot is built.
@@ -192,7 +184,6 @@ private: \
         OnSnapshotCompleted,
         (const TSnapshotCookie& cookie),
         (cookie),
-        INVOKER_AFFINITY(CancelableInvoker),
         false)
 
 public:

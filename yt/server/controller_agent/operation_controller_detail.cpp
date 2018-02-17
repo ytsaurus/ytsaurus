@@ -3341,8 +3341,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
 {
-    // XXX(babenko): cancelable controller invoker?
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
     if (State == EControllerState::Finished) {
