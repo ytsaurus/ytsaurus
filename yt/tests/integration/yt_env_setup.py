@@ -421,6 +421,10 @@ class YTEnvSetup(object):
             if driver is None:
                 continue
 
+            if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
+                self._remove_operations(driver=driver)
+                self._wait_for_jobs_to_vanish(driver=driver)
+                self._restore_pool_trees(driver=driver)
             self._abort_transactions(driver=driver)
             yt_commands.remove("//tmp", driver=driver)
             yt_commands.create("map_node", "//tmp",
@@ -431,10 +435,6 @@ class YTEnvSetup(object):
                                },
                                driver=driver)
             self._reset_nodes(driver=driver)
-            if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
-                self._wait_jobs_to_abort(driver=driver)
-                self._remove_operations(driver=driver)
-                self._restore_pool_trees(driver=driver)
             self._remove_accounts(driver=driver)
             self._remove_users(driver=driver)
             self._remove_groups(driver=driver)
@@ -599,10 +599,11 @@ class YTEnvSetup(object):
             except YtError as err:
                 print >>sys.stderr, format_error(err)
 
+        self._abort_transactions(driver=driver)
         yt_commands.remove("//sys/operations/*", driver=driver)
         yt_commands.remove("//sys/operations_archive", force=True, driver=driver)
 
-    def _wait_jobs_to_abort(self, driver=None):
+    def _wait_for_jobs_to_vanish(self, driver=None):
         def check_jobs_are_missing():
             for node in yt_commands.ls("//sys/nodes", driver=driver):
                 jobs = yt_commands.get("//sys/nodes/{0}/orchid/job_controller/active_job_count".format(node), driver=driver)
