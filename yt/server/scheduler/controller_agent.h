@@ -77,6 +77,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>, ScheduleJobRequestsOutbox);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TOperationPtr>, Operations);
+
+public:
+    TString GetDefaultAddress() const;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

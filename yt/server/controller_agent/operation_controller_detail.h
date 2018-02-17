@@ -115,7 +115,7 @@ class TOperationControllerBase
 
     // All potentially faulty controller interface methods are
     // guarded by enclosing into an extra method.
-#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, catchStdException, defaultValue) \
+#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, catchStdException) \
 public: \
     virtual returnType method signature final \
     { \
@@ -128,11 +128,11 @@ public: \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
             ProcessSafeException(ex); \
-            return defaultValue; \
+            return MakeDefault<returnType>(); \
         } catch (const std::exception& ex) { \
             if (catchStdException) { \
                 ProcessSafeException(ex); \
-                return defaultValue; \
+                return MakeDefault<returnType>(); \
             } \
             throw; \
         } \
@@ -140,47 +140,45 @@ public: \
 private: \
     returnType Safe ## method signature;
 
-#define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, catchStdException) \
-    IMPLEMENT_SAFE_METHOD(void, method, signature, args, catchStdException, )
+    IMPLEMENT_SAFE_METHOD(TOperationControllerPrepareResult, Prepare, (), (), false)
+    IMPLEMENT_SAFE_METHOD(void, Materialize, (), (), false)
 
-    IMPLEMENT_SAFE_METHOD(TOperationControllerPrepareResult, Prepare, (), (), false, TOperationControllerPrepareResult())
-    IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), false)
+    IMPLEMENT_SAFE_METHOD(void, OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_METHOD(void, OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_METHOD(void, OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_METHOD(void, OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_METHOD(void, OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
 
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
+    IMPLEMENT_SAFE_METHOD(void, Abort, (), (), false)
 
-    IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), false)
-    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), false)
-
-    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), false)
+    IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(
         TScheduleJobResultPtr,
         ScheduleJob,
         (ISchedulingContext* context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
-        true,
-        New<TScheduleJobResult>())
+        true)
 
     //! Callback called by TChunkScraper when get information on some chunk.
-    IMPLEMENT_SAFE_VOID_METHOD(
+    IMPLEMENT_SAFE_METHOD(
+        void,
         OnInputChunkLocated,
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
 
     //! Called by #IntermediateChunkScraper.
-    IMPLEMENT_SAFE_VOID_METHOD(
-        OnIntermediateChunkLocated,
+    IMPLEMENT_SAFE_METHOD(
+        void, OnIntermediateChunkLocated,
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
 
     //! Called by `TSnapshotBuilder` when snapshot is built.
-    IMPLEMENT_SAFE_VOID_METHOD(
+    IMPLEMENT_SAFE_METHOD(
+        void,
         OnSnapshotCompleted,
         (const TSnapshotCookie& cookie),
         (cookie),
@@ -1102,6 +1100,12 @@ private:
         TThis* Controller_;
         int OutputTableIndex_ = -1;
     };
+
+    template <class T>
+    static T MakeDefault()
+    {
+        return T();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

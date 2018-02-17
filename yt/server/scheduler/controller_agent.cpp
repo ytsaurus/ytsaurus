@@ -11,29 +11,41 @@ TControllerAgent::TControllerAgent(const NControllerAgent::TIncarnationId& incar
     , SuspiciousJobsYson_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , OperationEventsInbox_(
         NLogging::TLogger(SchedulerLogger)
-            // TODO(babenko): agent id
-            .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_))
+            .AddTag("Kind: AgentToSchedulerOperations, AgentAddress: %v, IncarnationId: %v",
+                GetDefaultAddress(),
+                IncarnationId_))
     , JobEventsInbox_(
         NLogging::TLogger(SchedulerLogger)
-            // TODO(babenko): agent id
-            .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_))
+            .AddTag("Kind: AgentToSchedulerJobs, AgentAddress: %v, IncarnationId: %v",
+                GetDefaultAddress(),
+                IncarnationId_))
     , ScheduleJobResponsesInbox_(
         NLogging::TLogger(SchedulerLogger)
-            // TODO(babenko): agent id
-            .AddTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v", IncarnationId_))
+            .AddTag("Kind: AgentToSchedulerScheduleJobResponses, AgentAddress: %v, IncarnationId: %v",
+                GetDefaultAddress(),
+                IncarnationId_))
     , JobEventsOutbox_(New<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>(
         NLogging::TLogger(SchedulerLogger)
-            // TODO(babenko): agent id
-            .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_)))
+            .AddTag("Kind: SchedulerToAgentJobs, AgentAddress: %v, IncarnationId: %v",
+                GetDefaultAddress(),
+                IncarnationId_)))
     , OperationEventsOutbox_(New<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>(
         NLogging::TLogger(SchedulerLogger)
-            // TODO(babenko): agent id
-            .AddTag("Kind: SchedulerToAgentOperations, IncarnationId: %v", IncarnationId_)))
+            .AddTag("Kind: SchedulerToAgentOperations, AgentAddress: %v, IncarnationId: %v",
+                GetDefaultAddress(),
+                IncarnationId_)))
     , ScheduleJobRequestsOutbox_(New<TMessageQueueOutbox<TScheduleJobRequestPtr>>(
         NLogging::TLogger(SchedulerLogger)
-            // TODO(babenko): agent id
-            .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_)))
+            .AddTag("Kind: SchedulerToAgentScheduleJobRequests, AgentAddress: %v, IncarnationId: %v",
+                GetDefaultAddress(),
+                IncarnationId_)))
 { }
+
+TString TControllerAgent::GetDefaultAddress() const
+{
+    // XXX(babenko)
+    return "<TODO>";
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

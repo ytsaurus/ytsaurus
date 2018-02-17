@@ -1593,7 +1593,7 @@ private:
     }
 
 
-    void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
         LOG_INFO("Updating scheduler configuration");
 
@@ -1601,7 +1601,7 @@ private:
         batchReq->AddRequest(req, "get_config");
     }
 
-    void HandleConfig(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandleConfig(const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
@@ -2451,16 +2451,22 @@ private:
         }
     }
 
+    TYsonString BuildSuspiciousJobsYson()
+    {
+        TStringBuilder builder;
+        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
+        auto agents = controllerAgentTracker->GetAgents();
+        for (const auto& agent : agents) {
+            builder.AppendString(agent->GetSuspiciousJobsYson().GetData());
+        }
+        return TYsonString(builder.Flush(), EYsonType::MapFragment);
+    }
+
     void BuildStaticOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         RemoveExpiredResourceLimitsTags();
-
-        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        // XXX(babenko)
-        auto agent = controllerAgentTracker->GetAgent();
-        auto suspiciousJobsYson = agent ? agent->GetSuspiciousJobsYson() : TYsonString(TString(), EYsonType::MapFragment);
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -2481,7 +2487,7 @@ private:
                         })
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
-                    .Items(suspiciousJobsYson)
+                    .Items(BuildSuspiciousJobsYson())
                 .EndMap()
                 .Item("nodes").BeginMap()
                     .Do([=] (TFluentMap fluent) {
@@ -2645,6 +2651,9 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
+        LOG_DEBUG("Handling orphaned operation (OperationId: %v)",
+            operation->GetId());
+
         try {
             ValidateOperationState(operation, EOperationState::Orphaned);
 
@@ -2699,6 +2708,10 @@ private:
             operations.push_back(operation);
         }
         queuedOperations.clear();
+
+        if (operations.empty()) {
+            return;
+        }
 
         auto result = WaitFor(MasterConnector_->FetchOperationRevivalDescriptors(operations));
         if (!result.IsOK()) {

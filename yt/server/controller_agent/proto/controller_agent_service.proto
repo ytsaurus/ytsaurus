@@ -89,7 +89,7 @@ message TReqPrepareOperation
 
 message TRspPrepareOperation
 {
-    required bytes attributes = 1; // YSON
+    optional bytes attributes = 1; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////

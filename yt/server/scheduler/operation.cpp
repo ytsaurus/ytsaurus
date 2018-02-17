@@ -53,20 +53,16 @@ TOperation::TOperation(
     TInstant startTime,
     IInvokerPtr controlInvoker,
     EOperationState state,
-    bool suspended,
-    const std::vector<TOperationEvent>& events,
-    const TNullable<TOperationRevivalDescriptor>& revivalDescriptor)
+    const std::vector<TOperationEvent>& events)
     : Type_(type)
     , MutationId_(mutationId)
     , State_(state)
-    , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
     , RuntimeParams_(std::move(runtimeParams))
     , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
     , Owners_(owners)
     , Events_(events)
-    , RevivalDescriptor_(revivalDescriptor)
     , Id_(id)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)

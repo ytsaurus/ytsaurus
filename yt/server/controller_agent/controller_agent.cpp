@@ -253,6 +253,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto oldConfigNode = ConvertToNode(Config_);
+        auto newConfigNode = ConvertToNode(config);
+        if (AreNodesEqual(oldConfigNode, newConfigNode)) {
+            return;
+        }
+
         Config_ = config;
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
@@ -987,6 +993,9 @@ private:
                             &context,
                             jobLimits,
                             treeId);
+                        if (!response.Result) {
+                            response.Result = New<TScheduleJobResult>();
+                        }
 
                         outbox->Enqueue(std::move(response));
                         LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",

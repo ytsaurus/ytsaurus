@@ -158,7 +158,9 @@ private:
         auto result = WaitFor(controllerAgent->PrepareOperation(operation))
             .ValueOrThrow();
 
-        response->set_attributes(result.Attributes.GetData());
+        if (result.Attributes) {
+            response->set_attributes(result.Attributes.GetData());
+        }
         context->Reply();
     }
 
